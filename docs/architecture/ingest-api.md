@@ -153,7 +153,27 @@ Response — `201 Created`:
 | Mode | Behavior | Use Case |
 |------|----------|----------|
 | `full` | MERGE all records + DELETE records in scope not in batch | Scheduled full sync |
-| `delta` | MERGE only; no deletes | Real-time webhook, incremental changes |
+| `delta` | MERGE only; deletes only what the batch names (see below) | Real-time webhook, incremental changes |
+
+A `delta` batch removes rows only when you name them explicitly:
+
+- **`deletedIds`** is an array of UUIDs for rows that have their own `id` (principals, resources, identities, contexts). This is how a Graph `@removed` user or group is passed on.
+- **`deletedKeys`** is an array of key objects for rows that have no `id`. Today only `resource-assignments` accepts it. Each entry is `{ resourceId, principalId, assignmentType, governed }`, where `governed` defaults to `false`. This is how a removed group membership is passed on, for example from Graph `members@delta`.
+
+```json
+{
+  "systemId": 1,
+  "syncMode": "delta",
+  "records": [],
+  "deletedKeys": [
+    { "resourceId": "…group id…", "principalId": "…user id…", "assignmentType": "Direct" }
+  ]
+}
+```
+
+Both kinds only remove rows of the batch's own `systemId`. A malformed entry rejects the whole batch with `400`. On soft-delete tables (`Principals`, `Resources`, `ResourceAssignments`) the row is stamped `deletedAt`; ingesting it again clears the stamp.
+
+`POST /api/ingest/systems` is never reconciled: systems are registered, not synced, so a `full` batch there is run as a `delta`. A reconcile delete that would have no system, scope or ownership bound at all is refused and reports `deleted: 0`.
 
 ### Deterministic GUID Generation
 
@@ -194,6 +214,74 @@ sequenceDiagram
     A->>DB: MERGE batch 3, run scoped delete, drop temp table
     A-->>C: { syncId: "abc-123", inserted: 142, updated: 38, deleted: 7 }
 ```
+
+A session holds one connection and one transaction for its whole life (at most 30
+minutes), so it does not stretch to tens of millions of rows. Those scopes are sent
+as independent `delta` batches followed by `POST /ingest/reconcile`, which removes
+rows not touched since the run began — or, for a full re-read, as a staged load.
+
+### Staged full load
+
+For a scope whose complete row set is sent every run — tens of millions of
+assignments, typically — the stage endpoints apply that set in one step instead of
+batch by batch:
+
+| Call | Does |
+|---|---|
+| `POST /ingest/stages` `{ entity, systemId, scope?, idGeneration?, idPrefix? }` | opens a stage → `{ stageId }` |
+| `POST /ingest/stages/{id}/rows` `{ records }` | appends a batch; records get the same defaults, validation, id normalization and per-system boundary as `/ingest/{entity}` |
+| `POST /ingest/stages/finalize` `{ stageIds, deleteMissing?, maxDeleteShare? }` | applies a run's stages together |
+| `POST /ingest/stages/{id}/finalize` `{ deleteMissing?, maxDeleteShare? }` | applies one stage |
+| `DELETE /ingest/stages/{id}` | abandons a stage — nothing was written |
+
+Entities: `resource-assignments`, `principals`, `resources`,
+`resource-relationships`. Nothing reaches the target table before finalize, which
+takes one of two paths and reports it (`path` in the result, and the sync log).
+Every result also carries `rows` (records received) and `distinct` (distinct keys
+among them): after a finalize with `deleteMissing`, `distinct` is exactly what the
+scope holds, which is what a caller should verify against. A finalize *without*
+`deleteMissing` applies a window rather than a complete set, so the scope's total
+says nothing about it; its result carries `present` instead, the number of those
+distinct keys that are live in the table afterwards. The paths:
+
+- **`empty-table`** — the target table holds no rows at all (a first load on a new
+  installation). Its non-constraint indexes are dropped, every stage is inserted
+  bare, and the indexes are rebuilt once. Emptiness is checked under an exclusive
+  lock taken in the same transaction; if the lock is not granted within 5 s, or the
+  table is not empty, finalize merges instead.
+- **`merge`** — each stage, in its own transaction: insert keys the table lacks,
+  update only rows whose values changed, and with `deleteMissing: true` remove the
+  system+scope's rows that are not in the stage (tombstoned on soft-delete tables).
+  A tombstoned row that is back is revived.
+
+A stage may carry only its key columns — a **key sweep**: finalize then inserts and
+updates nothing and only removes what is missing. (`systemId` is stamped on every
+staged row from the stage itself, so it does not count as content; a stage whose
+records carried nothing but keys is still a sweep.)
+
+**`maxDeleteShare`** caps that removal. With it, finalize measures what the
+anti-join would remove against the scope's live rows — both inside the one
+transaction — and above the share answers **409 and writes nothing at all**
+(the delete is rolled back, so the count is exact rather than an estimate). It
+exists because a source read while it is being re-aggregated is
+indistinguishable from a mass revocation, and a delete has no undo. Leave it out
+for no ceiling, which is what every caller before the SQL connector's sweep does.
+
+**Staged load or timestamp reconcile?** It is a size trade-off, not a verdict on
+either. The timestamp reconcile needs every row the source still has to be touched
+(its `updatedAt` rewritten) so the untouched ones can be found — cheap for a small
+scope, and it needs no stage. At tens of millions of rows the touch is the cost:
+`updatedAt` is indexed, so every touch rewrites the row and all of its index entries.
+Measured on 4.1M unchanged assignments: 349 s with batches and reconcile, 99 s staged,
+with nothing written ([Scale Rehearsal](scale-rehearsal.md)).
+
+**How a crawler uses it:** open one stage per (entity, system, scope) it reads in
+full; stream the rows in batches of any size; finalize all of the run's stages in one
+`POST /ingest/stages/finalize`, with `deleteMissing: true`. Finalizing together is
+what lets a first load take the `empty-table` path for the whole run rather than
+for its first system only. Stages live in memory: an API restart abandons them (their
+tables are dropped at startup) and the crawler starts the run over. A stage expires
+six hours after it was opened.
 
 ---
 
@@ -317,6 +405,41 @@ The engine preserves the same scoping patterns used by the current PowerShell sy
 - **Current-state scoped:** operates on the current table rows (no temporal filtering needed in v5)
 - **Batch-scoped:** `AND NOT EXISTS (SELECT 1 FROM #temp WHERE ...)`
 
+#### Contexts and context members: owned, not system-scoped
+
+`Contexts` and `ContextMembers` have no `systemId` column, and every crawler writes them.
+A full sync of either is bounded by **ownership**, derived from the envelope `systemId`,
+whatever scope the caller sends:
+
+- **Contexts:** only `variant = 'synced'` contexts whose `scopeSystemId` is the sending
+  system. Manual and generated contexts are never removed by a sync, and nor is another
+  system's context. A crawler must therefore stamp `scopeSystemId` on the contexts it
+  sends. A synced context without it is never reconciled, and the response carries a
+  `warnings` entry that the shared crawler ingest prints in the job log.
+- **Context members:** only memberships of contexts the sender owns, and **never one whose
+  `addedBy` is `'analyst'`**. A sync removes only memberships it added. An analyst's
+  deliberate addition survives, even on a context the crawler owns, the same way the context
+  algorithm runner replaces only `algorithm` rows ([Context redesign](context-redesign.md)).
+  If the context itself disappears from the source, its memberships go with it.
+
+`addedBy` is therefore load-bearing, not decorative. Before this bound existed, a full sync
+through an unrestricted key reconciled both tables whole. One SQL Server load removed another
+source's 150 logical applications, and a routine refresh removed an analyst's tag
+membership, while every count check passed. `contextSyncScope.contract.test.js` pins the
+bound against real PostgreSQL.
+
+### Keys restricted to specific systems
+
+A crawler key with `systemIds` set can only read and write data of those systems. On top of the envelope `systemId` check, every batch from such a key is refused (`403`) when:
+
+- a record carries a `systemId` (or a context's `scopeSystemId`) outside the key's systems;
+- the batch would update an existing row owned by another system — ownership is the row's `systemId`; for tables without one it is derived: a synced context's `scopeSystemId`, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;
+- it is a `full` sync of `identities`, `identity-members`, `contexts`, `context-members` or `principal-activity` without a `scope`.
+
+`deletedIds`, `deletedKeys` and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (`systemIds` null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (`deletedAt`, `riskScore`, `riskTier`, `linkConfidence`, `analystOverride`, `createdAt`, `updatedAt` and similar) are never written from a crawler record; a field with such a name is kept in `extendedAttributes` like any other attribute.
+
+A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (`INGEST_MAX_SESSIONS_PER_CRAWLER`, `INGEST_MAX_SESSIONS_GLOBAL`); a `start` beyond that returns `429`. The built-in worker is only subject to the global limit. A record's `extendedAttributes` may hold at most 500 keys and 512 KB.
+
 ### Validation Rules
 
 | Field | Rule |
@@ -327,6 +450,8 @@ The engine preserves the same scoping patterns used by the current PowerShell sy
 | `principalType` | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` |
 | `resourceType` | Free-form text — no enum check. Values currently emitted by crawlers: `Group`, `BusinessRole`, `Application`, `AppRole`, `DelegatedPermission`, `EntraDirectoryRole`, `GroupOwnership`, `ApplicationOwnership`, `ServicePrincipalOwnership` |
 | `assignmentType` | One of exactly: `Direct`, `Indirect`, `Eligible` — ingest **rejects** any other value. Everything that used to be its own type is modelled differently: ownership is a `Direct` membership on a `GroupOwnership`/`*Ownership` resource; governance is the `governed=true` flag on the assignment; the former source-detail types (`OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) collapse to `Direct`/`Indirect`/`Eligible` with `resourceType` carrying the detail |
+| `origin` | Optional, on assignments. One of exactly: `Automatic` (a rule or birthright policy assigned it), `Requested` (it was requested and approved), `Discovered` (the source found it on the target system) — ingest **rejects** any other value. Leave it out when the source does not say; that is not the same as `Discovered`. Not part of the row key or the reconcile scope, so a grant whose origin changes is the same row |
+| `originDetail` | Optional, on assignments, max 100 chars. The source's own word for the origin (IdentityIQ: `Rule`, `LCM`, `Aggregation`, …), kept so the grouping into `origin` can be audited |
 | `relationshipType` | One of: `Contains`, `HasAppRole`, `DelegatesScope`, `HasApplicationPermission`, `HasAppOwnership`, `HasOwnership` (`GrantsAccessTo` is accepted but reserved / not yet emitted) |
 | `extendedAttributes` | Valid JSON object, max 64 KB |
 

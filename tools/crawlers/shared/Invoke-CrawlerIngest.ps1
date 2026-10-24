@@ -89,15 +89,39 @@ function Write-FGIngestFailure {
     }
 }
 
+# -Timing, when given, is a hashtable with SerializeTicks and SendTicks (Stopwatch
+# ticks) that this call adds to: the time spent turning the body into JSON, and
+# the time spent waiting for the API — retries and their back-off included,
+# because that is time the crawler really waited. A streamed crawler sums these
+# per statement so its log says where a slow run spent its time.
 function Invoke-IngestAPI {
     [CmdletBinding()]
     param(
         [string]$Endpoint,
-        [hashtable]$Body
+        [hashtable]$Body,
+        [hashtable]$Timing,
+        # Seconds one attempt may take. 300 fits every batch; a stage finalize
+        # that applies tens of millions of rows needs far longer.
+        [int]$TimeoutSec = 300
     )
 
+    $t0          = [System.Diagnostics.Stopwatch]::GetTimestamp()
     $headers     = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
     $json        = $Body | ConvertTo-Json -Depth 20 -Compress
+    $t1          = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    try { return Invoke-FGIngestPost -Endpoint $Endpoint -Headers $headers -Json $json -TimeoutSec $TimeoutSec }
+    finally {
+        if ($Timing) {
+            $Timing.SerializeTicks += $t1 - $t0
+            $Timing.SendTicks      += [System.Diagnostics.Stopwatch]::GetTimestamp() - $t1
+        }
+    }
+}
+
+# The POST with retry and exponential backoff, for an already-serialised body.
+function Invoke-FGIngestPost {
+    [CmdletBinding()]
+    param([string]$Endpoint, [hashtable]$Headers, [string]$Json, [int]$TimeoutSec = 300)
     $uri         = "$ApiBaseUrl/$Endpoint"
     $maxAttempts = 5
     $attempt     = 0
@@ -105,7 +129,7 @@ function Invoke-IngestAPI {
     while ($true) {
         $attempt++
         try {
-            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $json -TimeoutSec 300
+            $response = Invoke-RestMethod -Uri $uri -Method Post -Headers $Headers -Body $Json -TimeoutSec $TimeoutSec
             if ($attempt -gt 1) { Write-Host "  Recovered on attempt $attempt" -ForegroundColor Green }
             return $response
         } catch {
@@ -118,7 +142,7 @@ function Invoke-IngestAPI {
                 continue
             }
 
-            Write-FGIngestFailure -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -Json $json -ResponseBody $errorInfo.ResponseBody -ErrorRecord $_
+            Write-FGIngestFailure -Endpoint $Endpoint -StatusCode $statusCode -Attempt $attempt -Json $Json -ResponseBody $errorInfo.ResponseBody -ErrorRecord $_
             throw
         }
     }
@@ -210,6 +234,9 @@ function Send-FGSingleIngestBatch {
     if ($HaveDeletes) { $body['deletedIds'] = ConvertTo-JsonArray $DeletedIds }
     $result = Invoke-IngestAPI -Endpoint $Endpoint -Body $body
     Write-Host "  Result: $($result.inserted) inserted, $($result.updated) updated, $($result.deleted) deleted" -ForegroundColor Green
+    # The ingest reports what it accepted but will not act on, e.g. synced contexts
+    # that name no owning system and so are never reconciled. Say it in the job log.
+    foreach ($w in @($result.warnings | Where-Object { $_ })) { Write-Host "  WARNING: $w" -ForegroundColor Yellow }
     return $result
 }
 
@@ -301,6 +328,33 @@ function Invoke-CrawlerIngestBatch {
     $sw.Stop()
     if ($OnStat) { & $OnStat $entity $sw.Elapsed.TotalSeconds $Records.Count }
     return $result
+}
+
+# Delta tombstones for rows without an id of their own (a removed group
+# membership is a resourceId + principalId + assignmentType key). Sent as
+# record-less delta batches carrying `deletedKeys`, in chunks — see
+# app/api/src/ingest/deleteByKeys.js. Returns the total number of rows deleted.
+function Send-CrawlerIngestDeletedKeys {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$Endpoint,
+        [Parameter(Mandatory)] [int]$SystemId,
+        [array]$Keys = @(),
+        [int]$BatchSize = 5000
+    )
+    if (-not $Keys -or $Keys.Count -eq 0) { return 0 }
+
+    Write-Host "  Sending $($Keys.Count) key deletes to $Endpoint..." -ForegroundColor Cyan
+    $deleted = 0
+    for ($i = 0; $i -lt $Keys.Count; $i += $BatchSize) {
+        $chunk = $Keys[$i..([Math]::Min($i + $BatchSize - 1, $Keys.Count - 1))]
+        $body = Get-FGIngestBodyBase -SystemId $SystemId -SyncMode 'delta' -Scope @{} -Records @()
+        $body['deletedKeys'] = ConvertTo-JsonArray $chunk
+        $deleted += ((Invoke-IngestAPI -Endpoint $Endpoint -Body $body).deleted ?? 0)
+    }
+
+    Write-Host "  Result: $deleted deleted" -ForegroundColor Green
+    return $deleted
 }
 
 #endregion Functions

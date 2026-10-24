@@ -4,7 +4,8 @@
 // governance resource (governanceResource=true) as governed=true — flat
 // importers (CSV) don't know which resources are governance resources at
 // assignment-import time. The provisioning gap is derived in the matrix
-// matview, so there is no Direct→Governed promotion and no dedup DELETE here.
+// matview, so there is no Direct→Governed promotion. The one DELETE removes an
+// ungoverned copy of a governed business-role membership (see dataPlane.js).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -14,6 +15,9 @@ import express from 'express';
 
 const { mockQuery } = vi.hoisted(() => {
   process.env.USE_SQL = 'true';
+  // Run the background refresh straight away so a test can wait for it.
+  process.env.MATRIX_REFRESH_DEBOUNCE_MS = '0';
+  process.env.MATRIX_REFRESH_MIN_INTERVAL_MS = '0';
   const mockQuery = vi.fn().mockResolvedValue({ rowCount: 0, rows: [] });
   return { mockQuery };
 });
@@ -30,7 +34,7 @@ vi.mock('../middleware/crawlerAuth.js', () => ({
   crawlerHasSystemAccess: vi.fn().mockReturnValue(true),
 }));
 
-const { default: ingestRouter } = await import('./ingest.js');
+const { default: ingestRouter, viewRefresh } = await import('./ingest.js');
 const app = express().use(express.json()).use(ingestRouter);
 
 beforeEach(() => {
@@ -48,7 +52,9 @@ async function captureClassifySql() {
     return { rowCount: 0, rows: [] };
   });
   const res = await request(app).post('/ingest/classify-business-role-assignments');
-  return { res, sqls };
+  // The refresh runs in the background; wait for it before looking at the SQL.
+  const refresh = await viewRefresh.whenIdle();
+  return { res, sqls, refresh };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -69,11 +75,42 @@ describe('POST /ingest/classify-business-role-assignments', () => {
     expect(updateSql).toContain('ra."governed" = false');
   });
 
-  it('does not promote to a Governed assignmentType and does not delete rows', async () => {
+  it('does not promote to a Governed assignmentType', async () => {
     const { sqls } = await captureClassifySql();
-    const joined = sqls.join('\n');
-    expect(joined).not.toContain("'Governed'");
-    expect(joined).not.toMatch(/DELETE FROM "ResourceAssignments"/);
+    expect(sqls.join('\n')).not.toContain("'Governed'");
+  });
+
+  // A re-import used to add an ungoverned copy beside each governed business-role
+  // membership; flipping that copy then hit the unique key and every later run
+  // answered 500. The copy is removed first, in the same transaction.
+  it('removes ungoverned copies of governed memberships before flagging the rest', async () => {
+    const { res, sqls } = await captureClassifySql();
+    expect(res.status).toBe(200);
+    const del = sqls.findIndex(s => /DELETE FROM "ResourceAssignments"/.test(s));
+    const upd = sqls.findIndex(s => /UPDATE "ResourceAssignments"/.test(s));
+    expect(del).toBeGreaterThanOrEqual(0);
+    expect(upd).toBeGreaterThan(del);
+  });
+
+  it('reports the rows each statement changed', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (/DELETE FROM "ResourceAssignments"/.test(sql)) return { rowCount: 3, rows: [] };
+      if (/UPDATE "ResourceAssignments"/.test(sql)) return { rowCount: 5, rows: [] };
+      return { rowCount: 0, rows: [] };
+    });
+    const res = await request(app).post('/ingest/classify-business-role-assignments');
+    await viewRefresh.whenIdle();
+    expect(res.body).toMatchObject({ governedMarked: 5, ungovernedCopiesRemoved: 3 });
+  });
+
+  it('answers 500 when a statement fails', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (/DELETE FROM "ResourceAssignments"/.test(sql)) throw new Error('lock timeout');
+      return { rowCount: 0, rows: [] };
+    });
+    const res = await request(app).post('/ingest/classify-business-role-assignments');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('lock timeout');
   });
 });
 
@@ -87,8 +124,9 @@ describe('POST /ingest/classify-business-role-assignments', () => {
 // at viewRefresh.
 //
 // So these assert the WORK, not the label: that the REFRESH statements actually
-// reached the database. A regression that hardcoded viewRefresh:'ok' without
-// refreshing anything would pass a status check and fail these.
+// reached the database. A regression that hardcoded a status without refreshing
+// anything would pass a status check and fail these. The refresh now runs in the
+// background (ingest/viewRefresh.js), so each test waits for it to finish.
 describe('POST /ingest/classify-business-role-assignments — matview refresh', () => {
   const MATVIEWS = [
     'vw_ResourceUserPermissionAssignments',
@@ -107,10 +145,12 @@ describe('POST /ingest/classify-business-role-assignments — matview refresh', 
     }
   });
 
-  it('reports viewRefresh: "ok" when the refresh succeeds', async () => {
-    const res = await request(app).post('/ingest/classify-business-role-assignments');
+  it('answers before the refresh, with viewRefresh "scheduled"; the finished run reads ok', async () => {
+    const { res, refresh } = await captureClassifySql();
     expect(res.status).toBe(200);
-    expect(res.body.viewRefresh).toBe('ok');
+    expect(res.body.viewRefresh).toBe('scheduled');
+    expect(res.body.refresh.pending).toBe(true);
+    expect(refresh.last).toMatchObject({ ok: true, reasons: ['classify-business-role-assignments'] });
   });
 
   it('refreshes AFTER the governed UPDATE, not before', async () => {
@@ -123,10 +163,10 @@ describe('POST /ingest/classify-business-role-assignments — matview refresh', 
     expect(refreshAt).toBeGreaterThan(updateAt);
   });
 
-  it('reports viewRefresh: "failed" — and still 200 — when the refresh throws', async () => {
-    // The classify UPDATE has already committed by then, so a refresh failure
-    // must not fail the request. This path stays swallowed ON PURPOSE; what the
-    // bug proved is that it must never be reachable by a *programming* error.
+  it('a refresh that throws is recorded as failed — not swallowed — while classify still answers 200', async () => {
+    // The classify UPDATE has already committed, so a refresh failure must not
+    // fail that request. It must not vanish either: the failure is kept in the
+    // refresh status the worker reads at the end of the job.
     mockQuery.mockImplementation(async (sql) => {
       if (/REFRESH MATERIALIZED VIEW/.test(sql)) throw new Error('deadlock detected');
       return { rowCount: 0, rows: [] };
@@ -134,6 +174,7 @@ describe('POST /ingest/classify-business-role-assignments — matview refresh', 
     const res = await request(app).post('/ingest/classify-business-role-assignments');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.viewRefresh).toBe('failed');
+    const refresh = await viewRefresh.whenIdle();
+    expect(refresh.last).toMatchObject({ ok: false, error: 'deadlock detected' });
   });
 });

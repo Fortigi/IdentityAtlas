@@ -34,6 +34,28 @@ describe('buildIdentityListWhere', () => {
     expect(where).toContain('"linkConfidence" >= $3');
   });
 
+  it('a normal search keeps the four identifying columns and no account lookup', () => {
+    const { where } = buildIdentityListWhere({ search: 'E-77', attrFilters: {} }, binder());
+    expect(where).toContain('i."employeeId" ILIKE $1');
+    expect(where).not.toContain('IdentityMembers');
+  });
+
+  // The phone number lives on the Entra account, not on the identity.
+  it('an extended search also finds the identity through a linked account', () => {
+    const { where } = buildIdentityListWhere({ search: '0612345678', extendedSearch: true, attrFilters: {} }, binder());
+    expect(where).toContain('public.ia_search_text(ARRAY[i."id"::text');
+    expect(where).toContain('FROM "IdentityMembers" _sim JOIN "Principals" _sp');
+    // the term as typed ($1) and its phone digits ($2), on both the identity and the account
+    expect(where.match(/ILIKE \$2/g)).toHaveLength(2);
+  });
+
+  it('hrAnchored=false also takes the not-yet-classified (NULL) rows; orphanStatus=none means no status', () => {
+    const { where } = buildIdentityListWhere({ hrAnchored: 'false', orphanStatus: 'none', attrFilters: {}, hasHrCols: true }, binder());
+    expect(where).toContain('("isHrAnchored" = false OR "isHrAnchored" IS NULL)');
+    expect(where).toContain('"orphanStatus" IS NULL');
+    expect(where).not.toContain('"isHrAnchored" = true');
+  });
+
   it('ignores minAccounts of 1 (only >1 filters)', () => {
     const { where } = buildIdentityListWhere({ minAccounts: '1', attrFilters: {} }, binder());
     expect(where).not.toContain('accountCount');

@@ -1,6 +1,7 @@
 // Identity Atlas v5 — Risk scoring run endpoints.
 //
-// POST /risk-scoring/runs        — start a new run, returns 202 + the run row.
+// POST /risk-scoring/runs        — start a new run, returns 202 + the run row
+//                                  (409 while another run is pending/running).
 //                                  The actual scoring runs in the background;
 //                                  the wizard polls /:id for progress.
 // GET  /risk-scoring/runs        — list recent runs (newest first)
@@ -9,6 +10,7 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { runScoring } from '../riskscoring/engine.js';
+import { insertScoringRunIfIdle } from '../riskscoring/scoringRunGuard.js';
 import { requirePermission } from '../middleware/auth.js';
 import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 
@@ -33,12 +35,10 @@ router.post('/risk-scoring/runs', requirePermission('admin.crawlers'), async (re
     }
 
     const triggeredBy = req.user?.preferred_username || req.user?.name || 'system';
-    const run = await db.queryOne(
-      `INSERT INTO "ScoringRuns" ("classifierId", status, step, pct, "triggeredBy")
-       VALUES ($1, 'pending', 'Queued', 0, $2)
-       RETURNING *`,
-      [resolvedClsId, triggeredBy]
-    );
+    const run = await insertScoringRunIfIdle(db, resolvedClsId, triggeredBy);
+    if (!run) {
+      return res.status(409).json({ error: 'A risk scoring run is already in progress. Wait for it to finish.' });
+    }
 
     // Fire-and-forget the scoring runner. Errors are captured into the row by
     // the engine itself, so we don't need to await it. Returning 202 lets the

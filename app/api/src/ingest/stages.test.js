@@ -1,0 +1,541 @@
+// Unit tests for the staged full load (ingest/stages.js). The DB is SQL-blind
+// here by design; these pin the DECISIONS — which path finalize takes, when it
+// falls back, what a keys-only stage does, which rows an update may touch. The SQL
+// semantics are proven against PostgreSQL in contract-tests/stagedLoad.contract.test.js.
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { sqls, handlers, clientQuery } = vi.hoisted(() => {
+  const sqls = [];
+  const handlers = [];   // [regex, fn(sql) → result]
+  const clientQuery = async (sql) => {
+    const s = String(sql);
+    sqls.push(s);
+    for (const [re, fn] of handlers) if (re.test(s)) return fn(s);
+    return { rows: [], rowCount: 0 };
+  };
+  return { sqls, handlers, clientQuery };
+});
+
+// The shared manual mock (src/db/__mocks__/connection.js); its tx() forwards to query.
+vi.mock('../db/connection.js');
+import { query as dbQuery } from '../db/connection.js';
+
+const cols = (...names) => names.map(name => ({ name, sqlTypeName: name.endsWith('Id') ? 'uuid' : 'text' }));
+const engine = vi.hoisted(() => ({
+  resolveActiveColumns: vi.fn(),
+  discoverColumns: vi.fn(),
+  scopedDelete: vi.fn(async () => 3),
+  scopeLiveCount: vi.fn(async () => 100),
+  markGovernanceMemberships: vi.fn(async () => {}),
+}));
+vi.mock('./engine.js', () => ({ ...engine, SOFT_DELETE_TABLES: new Set(['ResourceAssignments']) }));
+
+const S = await import('./stages.js');
+
+const RA_KEYS = ['resourceId', 'principalId', 'assignmentType', 'governed'];
+const open = (over = {}) => S.openStage({
+  tableName: 'ResourceAssignments', keyColumns: RA_KEYS, systemId: 7, ownerId: 1,
+  conflictFilter: '"principalId" IS NOT NULL', scopeDeleteFilter: '"principalId" IS NOT NULL', ...over,
+});
+const rec = { resourceId: 'r', principalId: 'p', assignmentType: 'Direct', governed: false, systemId: 7 };
+
+beforeEach(() => {
+  dbQuery.mockReset();
+  dbQuery.mockImplementation((sql, p) => clientQuery(sql, p));
+  sqls.length = 0;
+  handlers.length = 0;
+  S._stagesForTest().clear();
+  engine.resolveActiveColumns.mockResolvedValue(cols('resourceId', 'principalId', 'assignmentType', 'governed', 'systemId', 'resourceType'));
+  engine.discoverColumns.mockResolvedValue(cols('resourceId', 'principalId', 'assignmentType', 'governed', 'systemId', 'resourceType', 'deletedAt', 'updatedAt'));
+  engine.scopedDelete.mockClear();
+  engine.scopeLiveCount.mockClear();
+  engine.scopeLiveCount.mockResolvedValue(100);
+});
+
+describe('stage lifecycle', () => {
+  it('creates the unlogged stage table once, on the first batch, and counts rows', async () => {
+    const st = open();
+    await S.appendToStage(st, [rec, rec]);
+    await S.appendToStage(st, [rec]);
+    expect(sqls.filter(s => /CREATE UNLOGGED TABLE/.test(s))).toHaveLength(1);
+    expect(sqls.find(s => /CREATE UNLOGGED TABLE/.test(s))).toContain(`"${st.stageTable}"`);
+    expect(st.rows).toBe(3);
+  });
+
+  it('an empty batch writes nothing', async () => {
+    const st = open();
+    await expect(S.appendToStage(st, [])).resolves.toEqual({ rows: 0 });
+    expect(sqls).toHaveLength(0);
+  });
+
+  it('refuses a later batch that adds a table column the stage does not have', async () => {
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    await expect(S.appendToStage(st, [{ ...rec, deletedAt: null }])).rejects.toMatchObject({ status: 400 });
+    // a key the table does not know is left to the normalizer, not refused here
+    await expect(S.appendToStage(st, [{ ...rec, somethingElse: 1 }])).resolves.toEqual({ rows: 2 });
+  });
+
+  it('only the crawler that opened a stage may use it', () => {
+    const st = open();
+    expect(S.getStage(st.id, 1)).toBe(st);
+    expect(() => S.getStage(st.id, 2)).toThrow(expect.objectContaining({ status: 403 }));
+    expect(() => S.getStage('nope', 1)).toThrow(expect.objectContaining({ status: 404 }));
+  });
+
+  it('expires stages older than six hours when a new one opens, dropping their tables', async () => {
+    const old = open({ now: 0 });
+    open({ now: 6 * 60 * 60 * 1000 + 1 });
+    await new Promise(r => setTimeout(r, 0));
+    expect(S._stagesForTest().has(old.id)).toBe(false);
+    expect(sqls).toContain(`DROP TABLE IF EXISTS "${old.stageTable}"`);
+  });
+
+  it('abort drops the table and forgets the stage', async () => {
+    const st = open();
+    await S.abortStage(st);
+    expect(S._stagesForTest().has(st.id)).toBe(false);
+    expect(sqls).toContain(`DROP TABLE IF EXISTS "${st.stageTable}"`);
+  });
+
+  it('drops every leftover stage table at startup', async () => {
+    handlers.push([/FROM pg_tables/, () => ({ rows: [{ tablename: '_stage_a' }, { tablename: '_stage_b' }] })]);
+    await expect(S.dropAbandonedStages()).resolves.toBe(2);
+    expect(sqls).toContain('DROP TABLE IF EXISTS "_stage_a"');
+    expect(sqls).toContain('DROP TABLE IF EXISTS "_stage_b"');
+  });
+});
+
+describe('finalize — the empty-table path', () => {
+  it('drops the non-constraint indexes, inserts bare, rebuilds them — only after an exclusive lock proved the table empty', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [
+      { indexname: 'ix_a', indexdef: 'CREATE INDEX ix_a ON public."ResourceAssignments" USING btree ("resourceId")' },
+      { indexname: 'uq_b', indexdef: 'CREATE UNIQUE INDEX uq_b ON public."ResourceAssignments" USING btree ("resourceId", "principalId")' },
+    ] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 2 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    // one row is inserted per distinct key, so that count is the distinct count
+    expect(r).toMatchObject({ path: 'empty-table', inserted: 2, updated: 0, deleted: 0, distinct: 2 });
+    expect(r).not.toHaveProperty('present');
+    expect(sqls.some(s => /AS n FROM .SELECT DISTINCT /.test(s))).toBe(false);
+    const at = (re) => sqls.findIndex(s => re.test(s));
+    expect(at(/LOCK TABLE "ResourceAssignments" IN ACCESS EXCLUSIVE MODE/)).toBeGreaterThan(-1);
+    expect(at(/lock_timeout = '5s'/)).toBeLessThan(at(/LOCK TABLE/));
+    expect(at(/LOCK TABLE/)).toBeLessThan(at(/SELECT NOT EXISTS/));
+    expect(at(/DROP INDEX "ix_a"/)).toBeGreaterThan(at(/SELECT NOT EXISTS/));
+    expect(at(/DROP INDEX "uq_b"/)).toBeLessThan(at(/^\s*INSERT INTO "ResourceAssignments"/));
+    expect(at(/CREATE INDEX ix_a/)).toBeGreaterThan(at(/^\s*INSERT INTO "ResourceAssignments"/));
+    expect(at(/CREATE UNIQUE INDEX uq_b/)).toBeGreaterThan(at(/^\s*INSERT INTO "ResourceAssignments"/));
+    expect(engine.scopedDelete).not.toHaveBeenCalled();   // nothing to delete from an empty table
+    expect(sqls.at(-1)).toBe(`DROP TABLE IF EXISTS "${st.stageTable}"`);
+  });
+
+  it('without deleteMissing, every key it inserted is present', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 6 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    expect(await S.finalizeStage(st)).toMatchObject({ path: 'empty-table', distinct: 6, present: 6 });
+  });
+
+  it('analyzes the table it just loaded, after the indexes are back and before it returns', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [{ indexname: 'ix_a', indexdef: 'CREATE INDEX ix_a ON public."ResourceAssignments" USING btree ("resourceId")' }] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 2 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st, { deleteMissing: true });
+    const at = (re) => sqls.findIndex(s => re.test(s));
+    expect(sqls.filter(s => s === 'ANALYZE "ResourceAssignments"')).toHaveLength(1);
+    expect(at(/^ANALYZE "ResourceAssignments"$/)).toBeGreaterThan(at(/CREATE INDEX ix_a/));
+    expect(at(/^ANALYZE "ResourceAssignments"$/)).toBeLessThan(sqls.indexOf(`DROP TABLE IF EXISTS "${st.stageTable}"`));
+  });
+
+  it('falls back to a merge when the table is not empty — releasing the lock first', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: false }] })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);
+    expect(r.path).toBe('merge');
+    expect(sqls).toContain('ROLLBACK TO SAVEPOINT empty_table_probe');
+    expect(sqls.some(s => /DROP INDEX/.test(s))).toBe(false);
+  });
+
+  it('falls back to a merge — fail closed — when the lock is not granted in time', async () => {
+    handlers.push([/LOCK TABLE/, () => { throw new Error('canceling statement due to lock timeout'); }]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);
+    expect(r.path).toBe('merge');
+    expect(sqls.some(s => /SELECT NOT EXISTS/.test(s))).toBe(false);
+    expect(sqls.some(s => /DROP INDEX/.test(s))).toBe(false);
+  });
+});
+
+describe('finalize — stages of one crawler run together', () => {
+  it('share ONE empty-table path: one lock, one index drop and rebuild, every stage inserted bare', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FROM pg_indexes/, () => ({ rows: [{ indexname: 'ix_a', indexdef: 'CREATE INDEX ix_a ON public."ResourceAssignments" USING btree ("resourceId")' }] })]);
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 4 })]);
+    const a = open({ systemId: 7 });
+    const b = open({ systemId: 8 });
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    const [ra, rb] = await S.finalizeStages([a, b], { deleteMissing: true });
+    expect(ra).toMatchObject({ path: 'empty-table', inserted: 4 });
+    expect(rb).toMatchObject({ path: 'empty-table', inserted: 4 });
+    const count = (re) => sqls.filter(s => re.test(s)).length;
+    expect(count(/LOCK TABLE/)).toBe(1);
+    expect(count(/DROP INDEX "ix_a"/)).toBe(1);
+    expect(count(/CREATE INDEX ix_a/)).toBe(1);
+    expect(count(/^\s*INSERT INTO "ResourceAssignments"/)).toBe(2);
+    const lastInsert = sqls.map((s, i) => [s, i]).filter(([s]) => /^\s*INSERT INTO "ResourceAssignments"/.test(s)).at(-1)[1];
+    expect(sqls.findIndex(s => /CREATE INDEX ix_a/.test(s))).toBeGreaterThan(lastInsert);
+    // stage tables are dropped, whatever happened
+    expect(sqls).toContain(`DROP TABLE IF EXISTS "${a.stageTable}"`);
+    expect(sqls).toContain(`DROP TABLE IF EXISTS "${b.stageTable}"`);
+  });
+
+  it('refuses stages of different tables', async () => {
+    const a = open();
+    const b = open({ tableName: 'Resources', keyColumns: ['id'] });
+    await expect(S.finalizeStages([a, b])).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('a keys-only stage in the group rules out the bulk path — each stage merges', async () => {
+    const a = open();
+    await S.appendToStage(a, [rec]);
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS));
+    const b = open();
+    await S.appendToStage(b, [{ resourceId: 'r', principalId: 'p', assignmentType: 'Direct', governed: false }]);
+    const [ra, rb] = await S.finalizeStages([a, b], { deleteMissing: true });
+    expect([ra.path, rb.path]).toEqual(['merge', 'merge']);
+    expect(sqls.some(s => /LOCK TABLE/.test(s))).toBe(false);
+  });
+
+  it('empty stages come back as empty-stage, in order, alongside loaded ones', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: false }] })]);
+    const empty = open();
+    const loaded = open();
+    await S.appendToStage(loaded, [rec]);
+    const [re, rl] = await S.finalizeStages([empty, loaded]);
+    expect(re).toMatchObject({ path: 'empty-stage', rows: 0, distinct: 0 });
+    expect(rl.path).toBe('merge');
+  });
+});
+
+describe('finalize — the merge path', () => {
+  beforeEach(() => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: false }] })]);
+  });
+
+  it('inserts only keys the table lacks, and updates only rows whose values differ', async () => {
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 5 })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 2 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 5, updated: 2, deleted: 3 });
+    const ins = sqls.find(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s));
+    expect(ins).toMatch(/WHERE NOT EXISTS \(SELECT 1 FROM "ResourceAssignments" t WHERE t\."resourceId" = s\."resourceId"/);
+    expect(ins).toContain('AND (t."principalId" IS NOT NULL)');
+    expect(ins).toContain('ON CONFLICT ("resourceId", "principalId", "assignmentType", "governed") WHERE "principalId" IS NOT NULL DO NOTHING');
+    const upd = sqls.find(s => /^\s*UPDATE "ResourceAssignments" t SET/.test(s));
+    // only non-key columns are compared; a key column never appears in the change test
+    expect(upd).toContain('t."resourceType" IS DISTINCT FROM s."resourceType"');
+    expect(upd).toContain('t."systemId" IS DISTINCT FROM s."systemId"');
+    expect(upd).not.toContain('t."principalId" IS DISTINCT FROM');
+    // a tombstoned row that is back gets revived; the stamp goes on written rows only
+    expect(upd).toContain('t."deletedAt" IS NOT NULL');
+    expect(upd).toContain('"deletedAt" = NULL');
+    expect(upd).toContain('"updatedAt" = now()');
+    expect(engine.scopedDelete).toHaveBeenCalledWith(
+      expect.anything(), 'ResourceAssignments', RA_KEYS, st.stageTable, 7, {}, 'systemId',
+      expect.any(Set), '"principalId" IS NOT NULL', null);
+  });
+
+  // What a caller verifies the scope against: rows counts a key sent twice as two.
+  it('reports how many DISTINCT keys the stage held, counted after governed memberships are flagged', async () => {
+    handlers.push([/AS n FROM .SELECT DISTINCT /, () => ({ rows: [{ n: '33787082' }] })]);
+    let flaggedAt = -1;
+    engine.markGovernanceMemberships.mockImplementationOnce(async () => { flaggedAt = sqls.length; });
+    const st = open();
+    await S.appendToStage(st, [rec, rec, rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', rows: 3, distinct: 33787082 });
+    const count = sqls.find(s => /AS n FROM .SELECT DISTINCT /.test(s));
+    expect(count).toBe(`SELECT count(*) AS n FROM (SELECT DISTINCT "resourceId", "principalId", "assignmentType", "governed" FROM "${st.stageTable}") d`);
+    // governed is part of the key and markGovernanceMemberships may flip it
+    expect(flaggedAt).toBeGreaterThan(-1);
+    expect(flaggedAt).toBeLessThanOrEqual(sqls.indexOf(count));
+  });
+
+  it('a key sweep reports its distinct keys too, and a count that returns nothing reads as zero', async () => {
+    handlers.push([/AS n FROM .SELECT DISTINCT /, () => ({ rows: [] })]);
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    expect((await S.finalizeStage(st, { deleteMissing: true })).distinct).toBe(0);
+  });
+
+  // A window: the scope's total proves nothing about it, so the finalize says how
+  // many of the stage's keys are live in the table once it has written them.
+  it('without deleteMissing, counts how many of the stage\'s distinct keys are live in the table — after writing them', async () => {
+    handlers.push([/AS n FROM .SELECT DISTINCT [^)]*\) d$/, () => ({ rows: [{ n: 9 }] })]);
+    handlers.push([/WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/, () => ({ rows: [{ n: '8' }] })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 2 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);
+    expect(r).toMatchObject({ path: 'merge', distinct: 9, present: 8, deleted: 0 });
+    const at = (re) => sqls.findIndex(s => re.test(s));
+    const present = sqls[at(/WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/)];
+    expect(present).toContain(`FROM (SELECT DISTINCT "resourceId", "principalId", "assignmentType", "governed" FROM "${st.stageTable}") s`);
+    expect(present).toContain('t."resourceId" = s."resourceId" AND t."principalId" = s."principalId"');
+    // the partial-index arm, and live rows only: a tombstone is not "present"
+    expect(present).toContain('AND (t."principalId" IS NOT NULL) AND t."deletedAt" IS NULL');
+    expect(at(/WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/)).toBeGreaterThan(at(/^\s*UPDATE "ResourceAssignments" t SET/));
+    expect(engine.scopedDelete).not.toHaveBeenCalled();
+  });
+
+  it('with deleteMissing there is no present count: the scope total is the proof, and it is not paid for twice', async () => {
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).not.toHaveProperty('present');
+    expect(sqls.some(s => /WHERE EXISTS \(SELECT 1 FROM "ResourceAssignments" t/.test(s))).toBe(false);
+  });
+
+  it('a key sweep applied without deleteMissing writes nothing and so has nothing to be present', async () => {
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    expect(await S.finalizeStage(st)).not.toHaveProperty('present');
+  });
+
+  it('on a table without soft delete, every matching row counts as present', async () => {
+    engine.resolveActiveColumns.mockResolvedValueOnce(cols('parentResourceId', 'childResourceId', 'relationshipType', 'systemId'));
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceRelationships"\)/, () => ({ rows: [{ empty: false }] })]);
+    const st = S.openStage({ tableName: 'ResourceRelationships', keyColumns: ['parentResourceId', 'childResourceId', 'relationshipType'], systemId: 7, ownerId: 1 });
+    await S.appendToStage(st, [{ parentResourceId: 'a', childResourceId: 'b', relationshipType: 'Contains', systemId: 7 }]);
+    await S.finalizeStage(st);
+    const present = sqls.find(s => /WHERE EXISTS \(SELECT 1 FROM "ResourceRelationships" t/.test(s));
+    expect(present).toMatch(/t\."relationshipType" = s\."relationshipType"\)$/);
+    expect(present).not.toContain('deletedAt');
+  });
+
+  it('does not delete anything unless asked', async () => {
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);
+    expect(r.deleted).toBe(0);
+    expect(engine.scopedDelete).not.toHaveBeenCalled();
+  });
+
+  it('a column the directory owns is never overwritten or compared', async () => {
+    const st = open({ preserveColumns: ['systemId'] });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    const upd = sqls.find(s => /^\s*UPDATE "ResourceAssignments" t SET/.test(s));
+    expect(upd).not.toContain('"systemId" = s."systemId"');
+    expect(upd).not.toContain('t."systemId" IS DISTINCT FROM');
+  });
+
+  it('a keys-only stage (a key sweep) neither inserts nor updates — it only removes what is missing', async () => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS));
+    const st = open();
+    await S.appendToStage(st, [{ resourceId: 'r', principalId: 'p', assignmentType: 'Direct', governed: false }]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 0, updated: 0, deleted: 3 });
+    expect(sqls.some(s => /LOCK TABLE/.test(s))).toBe(false);   // never the index-rebuild path
+    expect(sqls.some(s => /^\s*(INSERT INTO "ResourceAssignments"|UPDATE)/.test(s))).toBe(false);
+  });
+
+  // The test above mocks the column discovery down to the key columns alone,
+  // which no real request produces: the rows endpoint stamps systemId on every
+  // normalized record, so a sweep's stage always carries it — and so does an
+  // ordinary load of a scope whose rows have no optional attributes set. The two
+  // are the same shape and want opposite things, so the caller declares which.
+  it('a declared key sweep inserts and updates nothing, even carrying systemId', async () => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 0, updated: 0, deleted: 3 });
+    // Never the index-dropping bulk path either: a sweep has nothing to bulk-load.
+    expect(sqls.some(s => /LOCK TABLE/.test(s))).toBe(false);
+    expect(sqls.some(s => /^\s*(INSERT INTO "ResourceAssignments"|UPDATE)/.test(s))).toBe(false);
+  });
+
+  // The other half of the same distinction, and the regression that proved the
+  // shape cannot be inferred: a stage carrying the key columns and systemId and
+  // NOTHING else is a perfectly ordinary load when the caller did not say sweep.
+  it('the same shape WITHOUT the declaration is an ordinary load and still inserts', async () => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 1 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toMatchObject({ path: 'merge', inserted: 1, deleted: 3 });
+    expect(sqls.some(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s))).toBe(true);
+  });
+
+  it('analyzes the table once after a merge that changed rows — whether by insert, update or delete', async () => {
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 0 })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 0 })]);
+    const [a, b] = [open(), open()];
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    // Two stages, each deleting 3 (the engine mock): one ANALYZE for the call, not one per stage.
+    await S.finalizeStages([a, b], { deleteMissing: true });
+    expect(sqls.filter(s => s === 'ANALYZE "ResourceAssignments"')).toHaveLength(1);
+  });
+
+  it('an unchanged re-import stays write-free: nothing inserted, updated or removed means no ANALYZE', async () => {
+    handlers.push([/^\s*INSERT INTO "ResourceAssignments"/, () => ({ rowCount: 0 })]);
+    handlers.push([/^\s*UPDATE "ResourceAssignments" t SET/, () => ({ rowCount: 0 })]);
+    const st = open();
+    await S.appendToStage(st, [rec]);
+    const r = await S.finalizeStage(st);   // no deleteMissing → deleted 0
+    expect(r).toMatchObject({ inserted: 0, updated: 0, deleted: 0 });
+    // (the stage table itself is analyzed before the merge; the TARGET is not)
+    expect(sqls.some(s => s === 'ANALYZE "ResourceAssignments"')).toBe(false);
+  });
+
+  it('an empty stage is a no-op and still cleans up', async () => {
+    const st = open();
+    const r = await S.finalizeStage(st, { deleteMissing: true });
+    expect(r).toEqual({ path: 'empty-stage', inserted: 0, updated: 0, deleted: 0, rows: 0, distinct: 0 });
+    expect(engine.scopedDelete).not.toHaveBeenCalled();
+    expect(S._stagesForTest().has(st.id)).toBe(false);
+  });
+});
+
+// The share ceiling on a finalize that deletes. A key sweep reads the source's
+// whole key set, so a source caught mid-aggregation — rows deleted and about to
+// be re-inserted — presents as "almost everything is gone". Deleting is the one
+// operation here with no undo, so the finalize measures what it would remove and
+// refuses rather than apologises.
+describe('finalize — the delete-share ceiling', () => {
+  const sweep = async (opts) => {
+    engine.resolveActiveColumns.mockResolvedValue(cols(...RA_KEYS, 'systemId'));
+    const st = open({ keysOnly: true });
+    await S.appendToStage(st, [rec]);
+    return S.finalizeStage(st, opts);
+  };
+
+  it('allows a removal inside the share and reports it', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(4);       // 4 of 100 = 4%
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 })).resolves.toMatchObject({ deleted: 4 });
+  });
+
+  it('refuses a removal past the share, and the transaction is what makes it safe', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(6);       // 6 of 100 = 6%
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 }))
+      .rejects.toMatchObject({ status: 409, deleted: 6, scopeRows: 100, maxShare: 0.05 });
+    // The count is taken BEFORE the delete, inside the same transaction: a
+    // denominator read afterwards would already have the deleted rows missing
+    // and every sweep would look like it removed a smaller share than it did.
+    const countAt = engine.scopeLiveCount.mock.invocationCallOrder[0];
+    const deleteAt = engine.scopedDelete.mock.invocationCallOrder[0];
+    expect(countAt).toBeLessThan(deleteAt);
+  });
+
+  it('names the counts, so an operator can tell a real removal from a half-read source', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(60);
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 }))
+      .rejects.toThrow(/60 of 100 rows .*60\.0%.*more than the 5\.0% allowed/);
+  });
+
+  it('an explicit override lets the same removal through', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(60);
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 1 })).resolves.toMatchObject({ deleted: 60 });
+  });
+
+  it('without a ceiling nothing is counted — the default path pays nothing for the guard', async () => {
+    engine.scopedDelete.mockResolvedValueOnce(99);
+    await expect(sweep({ deleteMissing: true })).resolves.toMatchObject({ deleted: 99 });
+    expect(engine.scopeLiveCount).not.toHaveBeenCalled();
+  });
+
+  it('an empty scope cannot be a share of anything, so it is let through', async () => {
+    engine.scopeLiveCount.mockResolvedValueOnce(0);
+    engine.scopedDelete.mockResolvedValueOnce(0);
+    await expect(sweep({ deleteMissing: true, maxDeleteShare: 0.05 })).resolves.toMatchObject({ deleted: 0 });
+  });
+});
+
+// A system's initial load writes no per-row insert history (migration 073, #1270).
+// Without these calls a staged first load still wrote a history row per row, and
+// the staged load and the history fix failed to compound — silently.
+describe('initial-load history in the staged finalize', () => {
+  const setLocal = () => sqls.filter(s => /SET LOCAL identity_atlas\.initial_load/.test(s)).length;
+
+  it('merge path: flags the stage\'s own transaction when its system has never synced, before any insert', async () => {
+    handlers.push([/"lastSyncDateTime" IS NULL AS "initialLoad"/, () => ({ rows: [{ initialLoad: true }] })]);
+    const st = open({ systemId: 7 });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    const anchor = sqls.findIndex(s => /INSERT INTO "_history"/.test(s));
+    const flag = sqls.findIndex(s => /SET LOCAL identity_atlas\.initial_load/.test(s));
+    const insert = sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s));
+    expect(anchor).toBeGreaterThanOrEqual(0);
+    expect(flag).toBeGreaterThan(anchor);
+    expect(insert).toBeGreaterThan(flag);
+  });
+
+  it('merge path: leaves a synced system recorded', async () => {
+    handlers.push([/"lastSyncDateTime" IS NULL AS "initialLoad"/, () => ({ rows: [{ initialLoad: false }] })]);
+    const st = open({ systemId: 7 });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    expect(setLocal()).toBe(0);
+  });
+
+  it('empty-table path: one flag for the group, asked about every system, before the bare inserts', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    handlers.push([/FILTER \(WHERE "lastSyncDateTime" IS NULL\)/, () => ({ rows: [{ initial: 2 }] })]);
+    const a = open({ systemId: 7 });
+    const b = open({ systemId: 8 });
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    await S.finalizeStages([a, b]);
+    expect(setLocal()).toBe(1);
+    expect(sqls.filter(s => /INSERT INTO "_history"/.test(s))).toHaveLength(2);
+    expect(sqls.findIndex(s => /SET LOCAL identity_atlas\.initial_load/.test(s)))
+      .toBeLessThan(sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s)));
+  });
+});
+
+// #1272 flags governance-resource memberships governed before the engine and
+// session upserts. A stage is a third write path; without the same step, a staged
+// re-import inserted an ungoverned copy beside each governed membership.
+describe('governance memberships in the staged finalize', () => {
+  beforeEach(() => engine.markGovernanceMemberships.mockClear());
+  const firstInsert = () => sqls.findIndex(s => /^\s*INSERT INTO "ResourceAssignments"/.test(s));
+
+  it('merge path: flags the stage before inserting from it', async () => {
+    let at = -1;
+    engine.markGovernanceMemberships.mockImplementation(async () => { at = sqls.length; });
+    const st = open({ systemId: 7 });
+    await S.appendToStage(st, [rec]);
+    await S.finalizeStage(st);
+    expect(engine.markGovernanceMemberships).toHaveBeenCalledWith(
+      expect.anything(), 'ResourceAssignments', st.stageTable, RA_KEYS, st.columns);
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(firstInsert()).toBeGreaterThanOrEqual(at);
+  });
+
+  it('empty-table path: flags every stage of the group', async () => {
+    handlers.push([/SELECT NOT EXISTS \(SELECT 1 FROM "ResourceAssignments"\)/, () => ({ rows: [{ empty: true }] })]);
+    const a = open({ systemId: 7 });
+    const b = open({ systemId: 8 });
+    await S.appendToStage(a, [rec]);
+    await S.appendToStage(b, [rec]);
+    await S.finalizeStages([a, b]);
+    expect(engine.markGovernanceMemberships.mock.calls.map(c => c[2])).toEqual([a.stageTable, b.stageTable]);
+  });
+});

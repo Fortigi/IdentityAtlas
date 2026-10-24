@@ -50,8 +50,8 @@ describe('GET /attribute-labels', () => {
     expect(query.mock.calls[1][0]).not.toContain('"Principals"');
   });
 
-  it('unions all four targets when target is omitted', async () => {
-    stage([], [`extension_${APP_A}_a`], [], [], [`extension_${APP_A}_d`]);
+  it('unions every target when target is omitted', async () => {
+    stage([], [`extension_${APP_A}_a`], [], [], [`extension_${APP_A}_d`], []);
 
     const res = await request(app).get('/api/attribute-labels');
 

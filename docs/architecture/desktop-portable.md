@@ -4,6 +4,17 @@ Identity Atlas can run as a standalone portable ZIP on Windows — no Docker, no
 
 This deployment mode is designed for environments where Docker and WSL are blocked by security policy.
 
+## Which ZIP to download
+
+Every [GitHub release](https://github.com/Fortigi/IdentityAtlas/releases) ships two portable ZIPs. They contain the same app; the second one adds a PostgreSQL server.
+
+| Download | Database | Pick it when |
+|---|---|---|
+| `IdentityAtlas-portable.zip` | PGlite, inside the app | **The default.** Small and medium tenants, and any machine whose application control trusts signed publishers: `node.exe`, the only executable in the zip, is signed by the OpenJS Foundation. |
+| `IdentityAtlas-portable-postgres.zip` | A real PostgreSQL 16 server | **Large data sets** that PGlite cannot hold (it is capped at 4 GB; see [Real PostgreSQL mode](#real-postgresql-mode)). Start it with `-Database Postgres`. The PostgreSQL binaries are **not code-signed**, so WDAC needs hash or path rules for them, and they need the Microsoft Visual C++ runtime (`VCRUNTIME140.dll`), which the zip does not contain. |
+
+`Start-IdentityAtlas.ps1 -Database Postgres` on the default ZIP fails with "no postgres binaries found": that ZIP has no `postgres\` folder.
+
 ---
 
 ## How It Works
@@ -41,7 +52,9 @@ IdentityAtlas-portable.zip (extracted)
 
 `bootstrap.mjs` initializes PGlite (WebAssembly PostgreSQL) in-process, sets `DESKTOP_MODE=true`, then imports the API bundle. `connection.js` detects this flag and routes all database calls through the in-process PGlite instance instead of a TCP connection pool. No child process is spawned, no executable is written to disk at runtime.
 
-Database files are stored in `%APPDATA%\IdentityAtlas\pgdata\` and persist across restarts.
+Database files are stored in `pgdata\` under the data directory (see [Data Location](#data-location)) and persist across restarts.
+
+`IdentityAtlas-portable-postgres.zip` (built with `--with-postgres`) also carries a real PostgreSQL server and runs that instead — see [Real PostgreSQL mode](#real-postgresql-mode).
 
 ---
 
@@ -58,13 +71,29 @@ No Docker. No WSL. No administrator rights.
 
 ### Starting the App
 
-1. Download `IdentityAtlas-portable.zip` from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases)
+1. Download `IdentityAtlas-portable.zip` (or `IdentityAtlas-portable-postgres.zip` for a large data set; see [Which ZIP to download](#which-zip-to-download)) from the [GitHub Releases page](https://github.com/Fortigi/IdentityAtlas/releases)
 2. Extract the zip to a folder of your choice (e.g. `C:\Users\YourName\IdentityAtlas\`)
 3. Open PowerShell 7 and run:
    ```powershell
    pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
    ```
 4. The script starts the server and opens `http://localhost:3001` in your browser once it's ready (~5–10 seconds on first run)
+
+!!! warning "Unblock the files if you downloaded the zip"
+    Windows marks everything extracted from a downloaded zip as coming from the
+    internet. PowerShell then refuses to run those scripts under the common
+    `RemoteSigned` policy, and the failure is easy to misread: the app itself
+    starts fine (its launch line passes `-ExecutionPolicy Bypass`), but a crawler
+    run fails with **`AuthorizationManager check failed`** and a job whose only
+    detail is `pwsh.exe exited with code 1`. Clear the mark once, after
+    extracting:
+
+    ```powershell
+    Get-ChildItem -Path .\IdentityAtlas -Recurse | Unblock-File
+    ```
+
+    Extracting with `Expand-Archive` propagates the mark to every file; unblocking
+    the zip *before* extracting works too.
 
 On first run, load the bundled demo dataset to explore with synthetic data:
 
@@ -77,17 +106,22 @@ Or go to **Admin → Crawlers** to connect your own data sources.
 
 ### Data Location
 
-All persistent data lives under `%APPDATA%\IdentityAtlas\`:
+All persistent data lives in one data directory, chosen in this order: `IA_DATA_DIR` when set; `%APPDATA%\IdentityAtlas\` when an older install already keeps its `pgdata\` there; otherwise `%LOCALAPPDATA%\IdentityAtlas\`. The launcher prints the one it uses.
 
 | Path | Contents |
 |---|---|
 | `pgdata\` | PGlite database files |
+| `postgres\` | Real PostgreSQL mode only: `data\` (the cluster), `password` (owner-only), `startup.log` |
 | `uploads\` | CSV uploads and crawler configs |
 | `jobs\` | Crawler job trace logs |
 | `.master-key` | Encryption key for stored secrets |
 | `.builtin-worker-key` | Internal API key for the crawler worker |
+| `startup-error.log` | Written when the app stops on an unexpected error — send this file along with a bug report |
+| `launcher.lock`, `launcher.state.json` | Keep two launchers off one data directory; let the next start recognise a leftover process |
+| `llm\` | `-WithLLM` only, unless an `llm\` folder sits next to the launcher: llama.cpp and the report model (see [Report model](#report-model-withllm)) |
+| `llm-slots\`, `llm-server.log`, `llm-server.pid` | `-WithLLM` only: the saved prompt cache, the model server's output, and its process id while it runs |
 
-To back up all data, copy this folder. To reset to a clean state, delete it (the app re-initializes on next start).
+To back up all data, stop the app and copy this folder. To reset to a clean state, delete it (the app re-initializes on next start).
 
 ### Crawlers
 
@@ -106,6 +140,136 @@ If `pwsh.exe` is not on `PATH`, the UI will still load and display existing data
 | Background worker container | Separate process | Integrated, same Node.js process |
 | Auth (Entra ID JWT) | Configurable | Disabled by default |
 | Azure deployment | Via Bicep | N/A |
+
+The PGlite rows do not apply in [real PostgreSQL mode](#real-postgresql-mode), which behaves like Docker for all of them except multi-user access.
+
+---
+
+## Real PostgreSQL mode
+
+PGlite has a hard ceiling that no setting moves. It is PostgreSQL compiled to 32-bit WebAssembly inside `node.exe`, so it can never address more than 4 GB. Its buffer pool is fixed at 128 MB and `work_mem` at 4 MB, and `ALTER SYSTEM` is accepted but ignored after a restart. It is also single-threaded. A tenant of 200k users, 800k entitlements and tens of millions of assignments (15–25 GB of tables and indexes) cannot fit.
+
+`IdentityAtlas-portable-postgres.zip` (a package built with `--with-postgres`) therefore carries a real PostgreSQL 16 server in `postgres\`, unpacked from the official Windows binaries zip. `Start-IdentityAtlas.ps1` then runs **two processes**, both as the current user, with no installation and no administrator rights:
+
+1. **PostgreSQL**, started with `pg_ctl` from `postgres\bin`, listening on `127.0.0.1:5433`.
+2. **`node.exe bootstrap.mjs`**, given `POSTGRES_HOST`/`POSTGRES_PORT`/… instead of starting PGlite. `DESKTOP_MODE` is left off, so migrations install `pg_trgm` for real and matview refreshes use `CONCURRENTLY`. The API is still pinned to `127.0.0.1`.
+
+The launcher waits until the API reports its schema migrated, opens the browser, and on Ctrl+C stops `node.exe` first and then PostgreSQL with `pg_ctl stop -m fast` (a clean shutdown: no recovery needed on the next start).
+
+!!! danger "Check application control before relying on this mode"
+    `node.exe` passes WDAC because the OpenJS Foundation signs it. **The PostgreSQL server binaries carry no Authenticode signature at all.** This was checked on 2026-09-26 with `Get-AuthenticodeSignature` against EDB's Windows binaries zip for 16.15, 17.8 and 18.4. `postgres.exe`, `initdb.exe`, `pg_ctl.exe`, `psql.exe`, `pg_isready.exe`, `libpq.dll` and all other server files report `NotSigned`. The only EnterpriseDB-signed file in the archive is `stackbuilder.exe`, which is not shipped.
+
+    A policy that trusts publishers will therefore block these files. They can only run on such a machine if IT adds **hash rules** for the shipped `postgres\` files (for example with `New-CIPolicy -Level Hash -ScanPath <folder>\postgres`) or a path rule. The launcher detects a refusal before it creates anything. On a fresh data directory it falls back to PGlite with a warning that says why.
+
+    The server also needs **`VCRUNTIME140.dll`** (the Microsoft Visual C++ 2015–2022 x64 redistributable), which the zip does not contain. Most machines have it. When it is missing, the same preflight reports it by name and falls back.
+
+### Using it
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
+```
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `-Database` | `Auto` | `Auto` uses PostgreSQL when `postgres\` is present, **except** on a data directory that already holds PGlite data. `Postgres` or `PGlite` forces one. |
+| `-PostgresRoot` | `postgres\` next to the script | A folder containing `bin\pg_ctl.exe`, to use binaries kept elsewhere |
+| `-PostgresPort` | `5433` | Loopback port for PostgreSQL. It differs from 5432 so it cannot collide with an installed server |
+| `-Port` | `3001` | Loopback port for the app |
+| `-StartupTimeoutSec` | `300` | When to warn that startup is slow. The launcher keeps waiting and **never kills a process that is still starting**, because on a large database that kill is what makes the next start slower |
+| `-NoBrowser` | off | Do not open the browser |
+| `-WithLLM` | off | Also run the local report model; see [Report model](#report-model-withllm) |
+| `-LlmRoot` | see [The LLM folder](#the-llm-folder) | Where llama.cpp and the model are found or downloaded to |
+
+Setting `DATABASE_URL` or `POSTGRES_HOST` before starting the launcher points the app at an existing server instead, and the launcher starts none.
+
+**Switching an existing install from PGlite to PostgreSQL does not move its data.** Run once with `-Database Postgres` and re-import (run the crawlers again). The PGlite data stays in `pgdata\` untouched, and `-Database PGlite` returns to it.
+
+### What the launcher does
+
+- **First run.** It writes a random password to `postgres\password`, restricted to the current user, and runs `initdb` with `scram-sha-256` authentication, UTF-8 encoding and the C locale. It then appends a tuning block to `postgresql.conf`, starts the server and creates the `identityatlas` database. initdb writes into `data.initializing`, and the folder is renamed to `data` only once it is complete, so an interrupted first run is discarded and redone rather than half-used.
+- **Tuning.** The block is sized from the machine's memory and written once. It stays visible and editable in `postgresql.conf`:
+
+    | Setting | Rule | 16 GB laptop |
+    |---|---|---|
+    | `shared_buffers` | ¼ of RAM, 128 MB – 8 GB | 4 GB |
+    | `effective_cache_size` | ½ of RAM, 256 MB – 32 GB | 8 GB |
+    | `work_mem` | RAM ÷ 256, 4 – 128 MB | 64 MB |
+    | `maintenance_work_mem` | RAM ÷ 16, 64 MB – 2 GB | 1 GB |
+    | `max_wal_size` | 8 GB from 8 GB of RAM, else 2 GB | 8 GB |
+
+    It also sets `listen_addresses = '127.0.0.1'` and turns on the logging collector, which writes a weekly ring of logs in `postgres\data\log\`.
+- **Every start.** `-V` preflight of the binaries, `pg_ctl start`, then a wait for `pg_isready`. While the server is recovering the launcher keeps waiting; if the server exits instead, it fails at once with the tail of `postgres\startup.log`.
+- **One launcher per data directory.** A second launcher on the same data directory leaves the first alone. It opens the browser if the app is ready and otherwise says it is still starting.
+- **Leftovers.** PostgreSQL runs in its own hidden console, so closing the launcher window cannot kill it mid-write. A hidden watchdog (`Watch-IdentityAtlas.ps1`) waits for the launcher to end, however it ends (Ctrl+C, closed window, killed process), and then stops what is left: the recorded `node.exe`, then PostgreSQL with a fast shutdown. If even that is missed, the next start recognises and stops a leftover `node.exe` (by process id *and* start time) and restarts a leftover server cleanly.
+
+### Measured
+
+Measured on 2026-09-26 on an 8 GB Windows 11 machine, as a non-administrator, from a freshly extracted zip:
+
+| Step | Time |
+|---|---|
+| First start (initdb, 74 migrations, bootstrap) to "running" | 14–15 s |
+| Restart with data | 4–5 s |
+| Start after an unclean stop (crash recovery) | 9 s |
+| Ctrl+C to nothing left running | 2–3 s, clean shutdown checkpoint |
+| Closed window / killed launcher to nothing left running | 0.3–2.4 s, clean shutdown checkpoint |
+
+The zip grows from ~56 MB to ~80 MB with `postgres\` included: 1,112 files, 63 MB unpacked. The subset omits pgAdmin, StackBuilder, headers, docs and translations.
+
+---
+
+## Report model (`-WithLLM`)
+
+[Custom reports](../reference/report-generator.md) can turn a question in plain language into a report definition, using a small model that runs on the machine itself. Docker runs that model in a separate container. The portable launcher runs it when it is started with `-WithLLM`:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1 -WithLLM
+```
+
+It is the same model as Docker's (Qwen3-4B-Instruct-2507, 4-bit), run by llama.cpp's `llama-server.exe`. **Neither is in the ZIP.** The model alone is 2.5 GB, which is more than a release asset or `Compress-Archive` can hold. The launcher therefore finds or fetches both:
+
+| File | Size | Where it comes from |
+|---|---|---|
+| `llama-b11306-bin-win-cpu-x64.zip` | 19 MB | llama.cpp's official Windows CPU release on GitHub. Only the 23 files `llama-server.exe` loads are unpacked, into `llama.cpp\`. |
+| `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` | 2.5 GB | Hugging Face. This is the exact file the Docker image ships. |
+
+Both are pinned by SHA-256 in `Launcher.Llm.ps1`. A guard test keeps the model, its checksum and the server flags equal to the Docker image's. A download goes into `<name>.partial`, so an interrupted one resumes on the next start. The file gets its real name only once the checksum matches. Downloads go through the system proxy with the user's Windows credentials.
+
+### The LLM folder
+
+The launcher uses the first of these:
+
+1. `-LlmRoot <folder>`
+2. `llm\` next to `Start-IdentityAtlas.ps1`, when that folder exists
+3. `llm\` in the [data directory](#data-location)
+
+**Without internet access**, download the two files above on another machine and copy them into that folder. The launcher then unpacks the zip and checks both files, and downloads nothing. A model file that passed its check is not hashed again until it changes; that check takes about 10 seconds. A `llama-server.exe` that is already unpacked there, either in `llama.cpp\` or loose in the folder, is used as it is.
+
+### What happens at runtime
+
+- The launcher runs `llama-server.exe --version` before anything else, just as it checks the PostgreSQL binaries. If application control blocks the file, or a DLL is missing, it says so and **does not download the model**.
+- `node.exe` runs a small supervisor (`llmSupervisor.mjs`, the Node port of the Docker image's `supervisor.py`) on a random loopback port. It starts `llama-server.exe` (127.0.0.1 only, with a random API key per start) when the first question needs it, and stops it after 15 minutes without use. That returns its ~3.6 GB of memory. `REPORT_GENERATOR_IDLE_SECONDS` changes the idle time; `0` keeps the model loaded.
+- Custom reports are switched on. An explicit `FEATURE_CUSTOM_REPORTS=false`, or a switch-off in Admin → Experimental, still wins.
+- The prompt cache is prepared in the background at startup (a few minutes on a laptop CPU, once) and kept in `llm-slots\` in the data directory (~900 MB), so later starts restore it in under a second.
+- `llama-server.exe` is a separate process that Windows does not stop together with `node.exe`. Its process id is kept in `llm-server.pid`. The launcher's Ctrl+C handling and the watchdog both stop a leftover server, and so does the next start.
+
+**Anything that fails, fails soft.** That covers a blocked download, a checksum mismatch, too little disk space (the model needs 2.8 GB free), and a blocked binary. Each prints a warning naming the cause, and what to download and where to put it when a download failed. The app then starts without the model and with custom reports left as they were (off by default). Switched on in Admin → Experimental, report definitions can still be built by hand.
+
+!!! danger "llama.cpp's binaries are not signed"
+    As with the PostgreSQL binaries, `llama-server.exe` and its DLLs carry no Authenticode signature (checked on 2026-10-16 for build b11306). On a machine whose application-control policy trusts publishers, IT has to add **hash rules** for the 23 files in `llama.cpp\`, or a path rule for that folder. Unlike PostgreSQL, the build needs no Visual C++ runtime. The launcher's preflight reports a refusal by name.
+
+### Measured
+
+Measured on 2026-10-16 on a Windows 11 laptop, as a non-administrator:
+
+| Step | Time |
+|---|---|
+| First `-WithLLM` start with the model copied in (download and unpack llama.cpp, hash the model) | 9 s |
+| Later starts | no extra time |
+| Prompt-cache preparation, in the background after the first start (once) | 237 s |
+| Question with the prompt cache prepared (model already loaded) | 14–18 s |
+| `llama-server.exe` memory while loaded | 3.6 GB |
+| Closed window / killed launcher to `node.exe` and `llama-server.exe` gone | under 12 s |
 
 ---
 
@@ -157,12 +321,33 @@ If you've already built the UI and are iterating on the backend only:
 npm run build:node-launcher:skip-ui
 ```
 
+#### Embedding PostgreSQL
+
+```powershell
+npm run build:node-launcher:postgres
+# or add the flag to any variant:
+node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build --with-postgres
+```
+
+This downloads EDB's PostgreSQL Windows binaries zip. The version and SHA-256 are pinned in `app/desktop/scripts/postgres-bundle.mjs`, and every build checks the hash. The zip is cached in `dist-node-launcher/` and only the subset the server needs is copied into `postgres\`. Binaries are never downloaded at run time, so the package works offline.
+
+#### Release builds
+
+`cut-release.yml`, `cut-beta.yml` and `cut-hotfix.yml` build both ZIPs through one shared script, [`.github/scripts/build_portable_zips.sh`](https://github.com/Fortigi/IdentityAtlas/blob/main/.github/scripts/build_portable_zips.sh), which writes them to `app/api/dist-node-launcher/release/`:
+
+1. `npm run build:node-launcher`, then moves the zip to `release/IdentityAtlas-portable.zip`. The move matters: every build deletes and rewrites `dist-node-launcher/IdentityAtlas-portable.zip`, so the second build would otherwise destroy the first's output.
+2. `build-node-launcher.mjs --skip-ui-build --with-postgres` (reusing the UI the first build produced), then moves the zip to `release/IdentityAtlas-portable-postgres.zip`.
+3. Checks that the default zip has no `postgres/bin/postgres.exe` and the PostgreSQL zip does.
+
+Both are attached to the GitHub release, and the release notes end with a short guide to which one to download. `app/desktop/portableReleaseAssets.guard.test.js` fails if any of the three workflows stops attaching either ZIP.
+
 #### Build Output
 
 ```
 app/api/dist-node-launcher/
-  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB)
+  IdentityAtlas-portable.zip   ← portable ZIP (~50 MB; ~80 MB with --with-postgres)
   stage/                       ← unpacked contents (can run directly for dev)
+  release/                     ← only from build_portable_zips.sh: both release ZIPs
 ```
 
 ---
@@ -177,7 +362,9 @@ PGlite runs PostgreSQL compiled to WebAssembly inside the Node.js process. Nothi
 
 **Network exposure**
 
-The app binds to `0.0.0.0:3001` (all interfaces). It is reachable from other machines on the same network. In a home or corporate LAN this is typically acceptable for a single-user local install, but be aware that authentication is disabled by default in desktop mode — do not use on untrusted networks without enabling `AUTH_ENABLED=true`.
+The app binds to `127.0.0.1:3001` only, and in real PostgreSQL mode the database binds to `127.0.0.1:5433` only, so neither is reachable from other machines. Authentication is disabled by default, which means any process on this machine can call the API. Enable authentication (Admin → Authentication) on a shared machine.
+
+In real PostgreSQL mode the database requires a password (`scram-sha-256`, no `trust` entries). The password is random per install and stored in `postgres\password`, readable only by the current user.
 
 **Secret storage**
 

@@ -43,7 +43,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 - **Languages:** PowerShell (crawlers), JavaScript (Node API + React UI), SQL (postgres migrations)
 - **Stack:** PostgreSQL 16 + Node.js API (port 3001) + PowerShell worker — all in Docker
 - **Author:** Wim van den Heijkant / Fortigi — https://github.com/Fortigi/IdentityAtlas
-- **Current Version:** 5.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`)
+- **Current Version:** 6.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`; `Major` follows the newest release tag)
 
 **Subdirectory coding guides (loaded contextually):**
 - `Functions/CLAUDE.md` — PowerShell SDK conventions (style, naming, Graph API patterns) — note: folder paths inside are v4-era; conventions still apply
@@ -70,7 +70,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 **Rules:**
 - `feature/` branches must be branched off `main`.
 - `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
-- Hotfix commits must be cherry-picked back to `main` via a separate PR so the fix is included in future releases.
+- **Main first — nothing is released that is not on `main`.** A hotfix is fixed on `main` (PR, approval, merge) *before* it is released; the hotfix branch then holds only `git cherry-pick -x <main commit>`s. Cut Release / Cut Beta / Cut Hotfix enforce this (`tools/release/Assert-ReleaseFromMain.ps1`) and refuse to tag anything else.
 - All merges go through a Pull Request — no direct pushes to `main` ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens).
 - When starting work, always create a new branch. Never work directly on `main`.
@@ -89,7 +89,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 
 | Context | Who updates it | When |
 |---------|---------------|------|
-| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp |
+| `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp. `Major` follows the highest `vX.Y.Z` tag (Minor restarts when it moves), so cutting `v7.0.0` puts `main` on `7.x` |
 | Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta |
 | Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
@@ -142,7 +142,7 @@ The data model supports importing authorization data from any system. Resources,
 ```
 
 **Tables:**
-- **Systems** — Connected authorization sources (EntraID, SharePoint, AzureRM, DevOps, etc.)
+- **Systems** — Connected authorization sources (EntraID, SharePoint, AzureRM, DevOps, etc.). A system that grants access to accounts sourced elsewhere points at that directory with `directorySystemId` (Azure RM → Entra ID). It may then *reference* the directory's Principals/Resources but never take ownership of them — the ingest enforces that, which is what stops two crawlers writing one objectId from overwriting each other. Auto-linked on `tenantId`; see `docs/sync/building-a-crawler.md` → "When your source reads a directory you don't own"
 - **Resources** — Any permission-granting resource (groups, roles, app roles, sites) **and** business roles (`resourceType='BusinessRole'`) with `extendedAttributes` JSON
 - **ResourceAssignments** — Who has access to what (`resourceId` + `principalId` + `assignmentType` ∈ {`Direct`, `Indirect`, `Eligible`}). Governance-driven assignments carry `governed=true`
 - **ResourceRelationships** — Resource-to-resource links (`Contains`, `GrantsAccessTo`). Business role resource grants use `relationshipType='Contains'`
@@ -163,6 +163,7 @@ The data model supports importing authorization data from any system. Resources,
 | `ApplicationPermission` | `SyncAppPermissions` phase | One synthetic resource per (clientSP, targetApiSP, appRole) — the app-only (admin-consented) permission an SP holds on another API (e.g. `Mail.Read` on Microsoft Graph). The app-only sibling of `DelegatedPermission`. Parent client app linked via `relationshipType='HasApplicationPermission'`. Held by the SP itself via a `Direct` assignment whose `principalType` is the holder's class (`ServicePrincipal` / `ManagedIdentity` / `AIAgent`) — this is how a managed identity's or AI agent's tenant-wide API access shows up |
 | `ServicePrincipalOwnership` | `SyncAppOwners` phase | Owners of an enterprise-app service principal. One resource per owned app, named after the app, linked to its `Application` via `relationshipType='HasAppOwnership'`. Each owner is a `Direct` assignment |
 | `ApplicationOwnership` | `SyncAppOwners` phase | Owners of an app registration — they can add a credential and authenticate *as* the app. Matched to the app's SP by `appId` and linked via `HasAppOwnership`. Each owner is a `Direct` assignment |
+| `AppRegistration` | `SyncAppRegistrations` phase | One per app registration (`id` = application object id; `appId` in `extendedAttributes` joins it to its service principal). Grants nothing and has no assignments — it carries the app's security set-up: credential metadata (never values), `isFallbackPublicClient`, redirect URIs, implicit grant, `requiredResourceAccess`, federated credentials |
 
 **Assignment types in use:**
 
@@ -170,6 +171,8 @@ The data model supports importing authorization data from any system. Resources,
 - **Ownership** → a `Direct` membership on a `GroupOwnership` resource (named after the owned group), not an `Owner` type.
 - **Governance** → the `governed` boolean flag on the assignment (the business role / access package itself is flagged `governanceResource`), not a `Governed` type.
 - **Source-attribute detail** (former `OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) → collapse to `Direct`/`Indirect`/`Eligible`, with `resourceType` carrying the source detail.
+
+**Assignment origin:** *where* a grant came from is separate from *how* it is held. The optional `origin` column is one of `Automatic` (a rule or birthright policy), `Requested` (requested and approved) or `Discovered` (the source found it on the target system); empty means the source does not say. The source's own word sits beside it in `originDetail`. Neither is part of the assignment's key or reconcile scope.
 
 See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
 
@@ -249,10 +252,12 @@ git checkout -b bugfixes/<name>
 
 **Hotfix (bug in a released version):**
 ```bash
-git checkout -b bugfixes/<name> v5.2.0   # branch from the release tag, NOT main
-git push origin bugfixes/<name>
-# Then run Actions → Cut Hotfix with the branch name and new version
-# After the hotfix ships, cherry-pick the fix to main via a separate PR
+# 1. Fix it on main first: bugfixes/<name> from main → PR → approval → merge
+# 2. Then branch from the release tag and cherry-pick the MERGED commit with -x
+git checkout -b bugfixes/<name>-hotfix v5.2.0
+git cherry-pick -x <merged commit on main>
+git push origin bugfixes/<name>-hotfix
+# 3. Run Actions → Cut Hotfix (from main) with the branch name and new version
 ```
 
 ### Making Changes
@@ -297,12 +302,15 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 ### Hotfix Releases
 
+Merge the fix to `main` through an approved PR first, then:
+
 ```bash
-git checkout -b bugfixes/fix-foo v5.2.0
-git push origin bugfixes/fix-foo
+git checkout -b bugfixes/fix-foo-hotfix v5.2.0
+git cherry-pick -x <merged commit on main>
+git push origin bugfixes/fix-foo-hotfix
 ```
 
-Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`). Cherry-pick to `main` afterward.
+Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`). The workflow refuses any commit that is not a clean `-x` cherry-pick of a commit on `main`.
 
 ---
 
@@ -310,6 +318,10 @@ Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`)
 
 ```bash
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
+# The prod compose refuses to start without POSTGRES_PASSWORD — generate one once
+[ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 docker compose -f docker-compose.prod.yml up -d --pull always
 # Open http://localhost:3001 → Admin → Crawlers → Add Crawler
 ```
+
+The same commands appear in `README.md`, `site/index.html`, `docs/quickstart.md` and `docs/architecture/docker-setup.md`; `app/api/src/docs/installPath.guard.test.js` fails when one of them stops setting the password. Change them together.

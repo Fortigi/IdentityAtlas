@@ -62,22 +62,36 @@ describe('buildFilterWhere — extended-attribute filters', () => {
     expect(params).toEqual(['true']);
   });
 
-  it('rejects ext keys containing characters outside [a-zA-Z0-9_]', () => {
+  it('rejects ext keys that could break out of the quoted key: quotes and backslashes', () => {
     const { params, bind } = createParams();
     const sql = buildFilterWhere(
       {
         "ext.badKey'; DROP TABLE--": 'x',
-        'ext.bad-dash':              'x',
-        'ext.bad.dot':               'x',
+        'ext.bad"quote':             'x',
+        'ext.bad\\slash':            'x',
         'ext.normalKey':             'ok',
       },
       new Set(), 'u', bind,
     );
     // Only the safe key survives.
     expect(sql).toBe(` AND u."extendedAttributes"->>'normalKey' = $1`);
-    expect(sql).not.toMatch(/DROP TABLE/);
-    expect(sql).not.toMatch(/bad-dash|bad\.dot/);
+    expect(sql).not.toMatch(/DROP TABLE|bad"quote|bad\\slash/);
     expect(params).toEqual(['ok']);
+  });
+
+  // The keys a source actually sends: "CMDB Reference", "Cost-Center", "a.b".
+  it('accepts ext keys with spaces, dashes and dots', () => {
+    const { params, bind } = createParams();
+    const sql = buildFilterWhere(
+      { 'ext.CMDB Reference': 'CI001', 'ext.Cost-Center': 'KST', 'ext.a.b': 'x' },
+      new Set(), 'u', bind,
+    );
+    expect(sql).toBe(
+      ` AND u."extendedAttributes"->>'CMDB Reference' = $1`
+      + ` AND u."extendedAttributes"->>'Cost-Center' = $2`
+      + ` AND u."extendedAttributes"->>'a.b' = $3`,
+    );
+    expect(params).toEqual(['CI001', 'KST', 'x']);
   });
 
   it('mixes real columns and ext keys sharing one positional counter', () => {

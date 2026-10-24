@@ -1,0 +1,565 @@
+#Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
+<#
+.SYNOPSIS
+    Pester unit tests for tools/crawlers/mssql/SqlCrawler.Phases.ps1.
+
+.DESCRIPTION
+    The two boundaries are mocked — Invoke-SqlQueryStream (replays canned rows
+    through the phase's own -OnRow callback) and Invoke-IngestAPI (captures every
+    body). Everything between them is the real code, so the assertions are about
+    what the phase DECIDED: which streams it opened and with which scope, which
+    rows it skipped or held back as dangling, which scopes it registered for the
+    reconcile, and that a delta run reconciles nothing.
+
+.USAGE
+    Invoke-Pester -Path test/unit/SqlCrawlerPhases.Tests.ps1 -Output Detailed
+#>
+
+BeforeAll {
+    $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $sqlDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'mssql'
+    $script:ApiBaseUrl = 'http://localhost:3001/api'
+    $script:ApiKey     = 'fgc_test'
+    $script:JobId      = 0
+    . (Join-Path $sqlDir 'SqlCrawler.Load.ps1')
+    . (Join-Path $PSScriptRoot 'SqlCrawlerReplay.ps1')
+
+    function Reset-SqlTestState {
+        $script:sent = [System.Collections.Generic.List[object]]::new()
+        $script:rowsToReplay = @()
+    }
+    # Captures every ingest call. Answers with a count so the stream totals add up.
+    $script:IngestMock = {
+        $script:sent.Add([pscustomobject]@{ Endpoint = $Endpoint; Body = $Body })
+        @{ inserted = @($Body.records).Count; updated = 0; deleted = 2; systemIds = @(7) }
+    }
+    # Replays $script:rowsToReplay through the phase's own callback.
+    $script:StreamMock = {
+        Invoke-SqlTestReplay -Rows @($script:rowsToReplay) -OnRow $OnRow -OnBatch $OnBatch
+        [long]@($script:rowsToReplay).Count
+    }
+    function New-TestRow { param([hashtable]$Cells) $o = [ordered]@{}; foreach ($k in $Cells.Keys) { $o[$k] = $Cells[$k] }; return $o }
+    function Get-Sent { param([string]$Endpoint) @($script:sent | Where-Object { $_.Endpoint -eq $Endpoint }) }
+    function Get-SentRecords {
+        param([string]$Endpoint)
+        $out = [System.Collections.Generic.List[object]]::new()
+        foreach ($c in (Get-Sent $Endpoint)) { foreach ($r in @($c.Body.records)) { $out.Add($r) } }
+        # Leading comma: a single record must stay INSIDE an array, or `$recs[0]`
+        # indexes the record (an ordered dictionary) by the key 0 and yields $null.
+        return , @($out)
+    }
+    function New-Slot {
+        param([string]$Name, [string]$Target, [hashtable]$Extra = @{})
+        $s = @{ name = $Name; target = $Target; sql = 'SELECT 1'; enabled = $true; resourceType = 'Entitlement'
+                assignmentType = 'Direct'; governed = $false; relationshipType = 'Contains'; principalType = 'User'; paged = $false }
+        foreach ($k in $Extra.Keys) { $s[$k] = $Extra[$k] }
+        return $s
+    }
+    function New-TestState {
+        param([hashtable[]]$Slots, [string]$SyncMode = 'full')
+        New-SqlRunState -SystemId 7 -ServerTime '2026-09-25T09:00:00.000Z' -Slots $Slots -BatchSize 1000 -SyncMode $SyncMode
+    }
+}
+
+Describe 'Get-SqlSlotsInOrder' {
+    It 'sorts to the dependency order regardless of configured order, and drops disabled slots' {
+        $slots = @(
+            (New-Slot 'rel'  'relationships')
+            (New-Slot 'asg'  'assignments')
+            (New-Slot 'res'  'resources')
+            (New-Slot 'off'  'identities' @{ enabled = $false })
+            (New-Slot 'ids'  'identities')
+            (New-Slot 'mem'  'identity-members')
+            (New-Slot 'prin' 'principals')
+        )
+        @((Get-SqlSlotsInOrder -Slots $slots).target) | Should -Be @('identities', 'principals', 'resources', 'identity-members', 'assignments', 'relationships')
+        (Get-SqlSlotsInOrder -Slots $slots).name | Should -Not -Contain 'off'
+    }
+
+    It 'keeps two slots of the same target in configured order' {
+        $slots = @((New-Slot 'ent' 'resources'), (New-Slot 'roles' 'resources' @{ resourceType = 'BusinessRole' }))
+        @((Get-SqlSlotsInOrder -Slots $slots).name) | Should -Be @('ent', 'roles')
+    }
+
+    It 'returns nothing when every slot is disabled' {
+        @(Get-SqlSlotsInOrder -Slots @((New-Slot 'a' 'resources' @{ enabled = $false }))).Count | Should -Be 0
+    }
+
+    # The count that actually shipped broken: exactly ONE enabled slot. The suite
+    # covered 0 and 2 and skipped the case in between, so nothing noticed that the
+    # entry point read `.Count` off a bare hashtable (its KEY count) and indexed
+    # [0] to $null — "Cannot bind argument to parameter 'Slot' because it is null",
+    # after the run had already registered its system.
+    #
+    # These drive the loop EXACTLY as Start-SqlCrawler.ps1 does, because the defect
+    # lived in the call shape rather than in the sort: asserting on the helper's
+    # own output in isolation is what missed it the first time.
+    It 'a run with a single enabled slot iterates that one slot' -ForEach @(
+        @{ Case = 'the only slot configured'; Slots = @('only:identities') }
+        @{ Case = 'the only ENABLED slot';    Slots = @('off1:resources:off', 'live:assignments', 'off2:relationships:off') }
+    ) {
+        $built = foreach ($spec in $Slots) {
+            $p = $spec -split ':'
+            New-Slot $p[0] $p[1] $(if ($p.Count -gt 2) { @{ enabled = $false } } else { @{} })
+        }
+        $slots = @(Get-SqlSlotsInOrder -Slots @($built))
+        $slots.Count | Should -Be 1 -Because "one slot is enabled in the case: $Case"
+        $seen = @()
+        for ($i = 0; $i -lt $slots.Count; $i++) {
+            $slots[$i] | Should -Not -BeNullOrEmpty -Because 'the entry point binds this to -Slot'
+            $seen += $slots[$i].name
+        }
+        @($seen).Count | Should -Be 1
+    }
+
+    It 'a run with no enabled slots iterates nothing (and invents no phantom slot)' {
+        # The counterpart trap: "fixing" the single-slot case with a leading comma
+        # makes the empty case return $null, and @($null) is one phantom element.
+        $slots = @(Get-SqlSlotsInOrder -Slots @((New-Slot 'a' 'resources' @{ enabled = $false })))
+        $slots.Count | Should -Be 0
+        $ran = 0
+        for ($i = 0; $i -lt $slots.Count; $i++) { $ran++ }
+        $ran | Should -Be 0
+    }
+}
+
+Describe 'New-SqlRunState' {
+    It 'derives the id prefix from the system and notes which entity kinds this run produces' {
+        $s = New-TestState -Slots @((New-Slot 'r' 'resources'), (New-Slot 'a' 'assignments'))
+        $s.IdPrefix | Should -Be 'sql-7'
+        $s.HasResources | Should -BeTrue
+        $s.HasPrincipals | Should -BeFalse
+    }
+    It 'counts an identities OR a principals slot as producing principals, and ignores disabled slots' {
+        (New-TestState -Slots @((New-Slot 'i' 'identities'))).HasPrincipals | Should -BeTrue
+        (New-TestState -Slots @((New-Slot 'p' 'principals'))).HasPrincipals | Should -BeTrue
+        (New-TestState -Slots @((New-Slot 'r' 'resources' @{ enabled = $false }))).HasResources | Should -BeFalse
+    }
+}
+
+Describe 'Add-SqlReconcileScope' {
+    It 'records one entry per distinct endpoint+scope, however often it is offered' {
+        $s = New-TestState -Slots @()
+        Add-SqlReconcileScope -State $s -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        Add-SqlReconcileScope -State $s -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        Add-SqlReconcileScope -State $s -Endpoint 'ingest/resources' -Scope @{ resourceType = 'BusinessRole' }
+        Add-SqlReconcileScope -State $s -Endpoint 'ingest/resource-assignments' -Scope @{ resourceType = 'Entitlement' }
+        $s.Scopes.Count | Should -Be 3
+    }
+    It 'treats the same keys in a different order as one scope' {
+        $s = New-TestState -Slots @()
+        Add-SqlReconcileScope -State $s -Endpoint 'ingest/resource-assignments' -Scope ([ordered]@{ a = 1; b = 2 })
+        Add-SqlReconcileScope -State $s -Endpoint 'ingest/resource-assignments' -Scope ([ordered]@{ b = 2; a = 1 })
+        $s.Scopes.Count | Should -Be 1
+    }
+}
+
+Describe 'New-SqlSlotStreams' {
+    BeforeEach { Reset-SqlTestState }
+
+    It 'an identities slot opens identity, principal and member streams, and reconciles ONLY principals' {
+        $state = New-TestState -Slots @()
+        $streams = New-SqlSlotStreams -Slot (New-Slot 'i' 'identities') -State $state
+        @($streams.Keys | Sort-Object) | Should -Be @('identity', 'member', 'principal')
+        $streams.principal.Scope.principalType | Should -Be 'User'
+        # Identities / IdentityMembers are cross-system tables: never reconciled.
+        $streams.principal.Reconcile | Should -BeTrue
+        $streams.identity.Reconcile   | Should -BeFalse
+        $streams.member.Reconcile     | Should -BeFalse
+        # The scope itself is registered when a row opens the stream, not before:
+        # a statement that returns nothing must not reconcile anything away.
+        $state.Scopes.Count | Should -Be 0
+    }
+
+    It 'an assignments slot scopes its stream by every reconcile axis and keys dedup on both ends' {
+        $state = New-TestState -Slots @()
+        $slot = New-Slot 'a' 'assignments' @{ assignmentType = 'Eligible'; resourceType = 'BusinessRole'; governed = $true }
+        $streams = New-SqlSlotStreams -Slot $slot -State $state
+        $sc = $streams.assignment.Scope
+        $sc.assignmentType | Should -Be 'Eligible'
+        $sc.resourceType | Should -Be 'BusinessRole'
+        $sc.governed | Should -BeTrue
+        $streams.assignment.KeyFields | Should -Be @('resourceExternalId', 'principalExternalId')
+        $streams.assignment.Reconcile | Should -BeTrue
+    }
+
+    It 'a resources slot scopes on its resourceType, and a relationships slot on its relationshipType' {
+        $state = New-TestState -Slots @()
+        (New-SqlSlotStreams -Slot (New-Slot 'r' 'resources' @{ resourceType = 'BusinessRole' }) -State $state).resource.Scope.resourceType | Should -Be 'BusinessRole'
+        (New-SqlSlotStreams -Slot (New-Slot 'x' 'relationships' @{ relationshipType = 'GrantsAccessTo' }) -State $state).relationship.Scope.relationshipType | Should -Be 'GrantsAccessTo'
+    }
+
+    It 'an identity-members slot opens only the member stream and registers no reconcile scope' {
+        $state = New-TestState -Slots @()
+        $streams = New-SqlSlotStreams -Slot (New-Slot 'm' 'identity-members') -State $state
+        @($streams.Keys) | Should -Be @('member')
+        $streams.member.Reconcile | Should -BeFalse
+        $state.Scopes.Count | Should -Be 0
+    }
+}
+
+# The line an operator reads to decide whether a run went well. "skipped (no id
+# / required columns)" was wrong for 633,012 rows of one real run that simply
+# belonged to no logical application, and reading as an error is what kept the
+# defect invisible until the 5% bound failed the job.
+Describe 'Which streams send several batches at once' {
+    It 'pipelines assignment and relationship streams through the run''s sender, and nothing else' {
+        $slots = @((New-Slot 'I' 'identities'), (New-Slot 'G' 'assignments'), (New-Slot 'C' 'relationships'))
+        $state = New-SqlRunState -SystemId 7 -ServerTime '2026-09-25T09:00:00.000Z' -Slots $slots -IngestConcurrency 3
+        $state.Sender.MaxInFlight | Should -Be 3
+        $ids = @{ State = $state; Streams = (New-SqlSlotStreams -Slot $slots[0] -State $state) }
+        # Identity links have a foreign key on the identity: they must never
+        # commit ahead of the batch that creates it.
+        (Get-SqlSlotStream -Ctx $ids -Role 'member' -SystemId 7).Sender | Should -BeNullOrEmpty
+        (Get-SqlSlotStream -Ctx $ids -Role 'principal' -SystemId 7).Sender | Should -BeNullOrEmpty
+        $grants = @{ State = $state; Streams = (New-SqlSlotStreams -Slot $slots[1] -State $state) }
+        (Get-SqlSlotStream -Ctx $grants -Role 'assignment' -SystemId 9).Sender | Should -Be $state.Sender
+        $edges = @{ State = $state; Streams = (New-SqlSlotStreams -Slot $slots[2] -State $state) }
+        (Get-SqlSlotStream -Ctx $edges -Role 'relationship' -SystemId 7).Sender | Should -Be $state.Sender
+    }
+
+    It 'has no sender at all when one batch at a time was asked for' {
+        (New-SqlRunState -SystemId 7 -ServerTime 'x' -Slots @() -IngestConcurrency 1).Sender | Should -BeNullOrEmpty
+        (New-SqlRunState -SystemId 7 -ServerTime 'x' -Slots @()).Sender | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Write-SqlSlotSummary' {
+    BeforeAll {
+        # Declared here, not at Describe scope: a helper outside BeforeAll is
+        # invisible to the It blocks.
+        function New-SummaryCtx([hashtable]$Over = @{}) {
+            $c = @{ Slot = @{ name = 'Context members'; target = 'context-members' }
+                    Skipped = 0; Dangling = 0; Unresolved = 0; Misrouted = 0; Unreferenced = 0 }
+            foreach ($k in $Over.Keys) { $c[$k] = $Over[$k] }
+            return $c
+        }
+    }
+
+    BeforeEach {
+        $script:said = [System.Collections.Generic.List[object]]::new()
+        Mock Write-Host { $script:said.Add(@{ Text = [string]$Object; Colour = [string]$ForegroundColor }) }
+    }
+
+    It 'states an absent optional reference as a fact, not as something skipped' {
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 633012 }) -Rows 805756 -Seconds 230
+        $line = $script:said[0].Text
+        $line | Should -Match '633[.,]012 naming no context'
+        $line | Should -Not -Match 'skipped'
+        $line | Should -Not -Match 'required columns'
+    }
+
+    It 'does not colour the line as a warning for an absent optional reference, but still does for a real finding' {
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 633012 }) -Rows 805756 -Seconds 230
+        $script:said[0].Colour | Should -Be 'Gray'
+        $script:said.Clear()
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 10; Skipped = 1 }) -Rows 100 -Seconds 1
+        $script:said[0].Colour | Should -Be 'Yellow'
+    }
+
+    It 'still names skipped, dangling, unresolved and misrouted rows the way it always did' {
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Skipped = 3; Dangling = 4; Unresolved = 5; Misrouted = 6 }) -Rows 100 -Seconds 2
+        $line = $script:said[0].Text
+        $line | Should -Match '3 skipped \(no id / required columns\)'
+        $line | Should -Match '4 dangling \(unknown resource or principal id\)'
+        $line | Should -Match '5 without a known context'
+        $line | Should -Match '6 naming an unknown system'
+    }
+
+    It 'no longer cries "every row was skipped" when every row simply named no context' {
+        # Skipped -eq Rows used to be true for a statement whose rows all lack an
+        # optional reference, which is the normal shape of such a source.
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Unreferenced = 50 }) -Rows 50 -Seconds 1
+        @($script:said | Where-Object { $_.Text -match 'every row was skipped' }).Count | Should -Be 0
+        # A statement that really did lose every row still says so.
+        $script:said.Clear()
+        Write-SqlSlotSummary -Ctx (New-SummaryCtx @{ Skipped = 50 }) -Rows 50 -Seconds 1
+        @($script:said | Where-Object { $_.Text -match 'every row was skipped' }).Count | Should -Be 1
+    }
+}
+
+Describe 'Get-SqlRowHandler' {
+    It 'maps every target to its handler and rejects an unknown one' {
+        Get-SqlRowHandler -Target 'identities' | Should -Be 'Add-SqlIdentityRow'
+        Get-SqlRowHandler -Target 'assignments' | Should -Be 'Add-SqlAssignmentRow'
+        Get-SqlRowHandler -Target 'relationships' | Should -Be 'Add-SqlRelationshipRow'
+        { Get-SqlRowHandler -Target 'nope' } | Should -Throw '*No row handler*'
+    }
+}
+
+Describe 'Invoke-SqlSlot — identities' {
+    BeforeEach {
+        Reset-SqlTestState
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Invoke-SqlQueryStream $script:StreamMock
+        Mock Update-CrawlerProgress { }
+    }
+
+    It 'emits an identity, its account principal and the link for each row, and remembers the principal' {
+        $script:rowsToReplay = @(
+            (New-TestRow @{ id = 'i1'; display_name = 'Ann'; inactive = 0 })
+            (New-TestRow @{ id = 'i2'; display_name = 'Bob'; inactive = 1 })
+        )
+        $state = New-TestState -Slots @()
+        $r = Invoke-SqlSlot -Slot (New-Slot 'Identities' 'identities') -Connection 'conn' -State $state
+        $r.rows | Should -Be 2
+        $r.skipped | Should -Be 0
+        @(Get-SentRecords 'ingest/identities').externalId | Should -Be @('i1', 'i2')
+        $principals = Get-SentRecords 'ingest/principals'
+        @($principals.externalId) | Should -Be @('i1', 'i2')
+        @($principals.accountEnabled) | Should -Be @($true, $false)
+        $members = Get-SentRecords 'ingest/identity-members'
+        @($members.identityExternalId) | Should -Be @('i1', 'i2')
+        @($members.principalExternalId) | Should -Be @('i1', 'i2')
+        @($state.KnownPrincipals.Keys) | Should -Be @('i1', 'i2')
+    }
+
+    It 'counts a row with no id as skipped and sends nothing for it' {
+        $script:rowsToReplay = @((New-TestRow @{ id = ''; display_name = 'ghost' }), (New-TestRow @{ id = 'i1'; display_name = 'Ann' }))
+        $r = Invoke-SqlSlot -Slot (New-Slot 'Identities' 'identities') -Connection 'conn' -State (New-TestState -Slots @())
+        $r.rows | Should -Be 2
+        $r.skipped | Should -Be 1
+        @(Get-SentRecords 'ingest/identities').Count | Should -Be 1
+    }
+
+    It 'sends the batch as a deterministic-id delta in the system-scoped namespace' {
+        $script:rowsToReplay = @((New-TestRow @{ id = 'i1'; displayName = 'Ann' }))
+        Invoke-SqlSlot -Slot (New-Slot 'Identities' 'identities') -Connection 'conn' -State (New-TestState -Slots @()) | Out-Null
+        $body = (Get-Sent 'ingest/identities')[0].Body
+        $body.syncMode | Should -Be 'delta'
+        $body.idGeneration | Should -Be 'deterministic'
+        $body.idPrefix | Should -Be 'sql-7-identities'
+        $body.systemId | Should -Be 7
+    }
+
+    It 'passes the slot SQL, the command timeout, the paging flag and the page size to the reader' {
+        $script:rowsToReplay = @()
+        $state = New-SqlRunState -SystemId 7 -ServerTime 'T' -Slots @() -PageSize 250 -CommandTimeout 45
+        Invoke-SqlSlot -Slot (New-Slot 'Paged' 'identities' @{ sql = 'SELECT 1 OFFSET @Offset ROWS'; paged = $true }) -Connection 'conn' -State $state | Out-Null
+        Should -Invoke Invoke-SqlQueryStream -Exactly 1 -ParameterFilter {
+            $Sql -eq 'SELECT 1 OFFSET @Offset ROWS' -and $Paged -eq $true -and $PageSize -eq 250 -and $CommandTimeout -eq 45
+        }
+    }
+}
+
+Describe 'Invoke-SqlSlot — principals with an identity link' {
+    BeforeEach {
+        Reset-SqlTestState
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Invoke-SqlQueryStream $script:StreamMock
+        Mock Update-CrawlerProgress { }
+    }
+
+    It 'links an account to its identity only when the row names one, as a non-primary account' {
+        $script:rowsToReplay = @(
+            (New-TestRow @{ id = 'a1'; displayName = 'Acct 1'; identityId = 'i1' })
+            (New-TestRow @{ id = 'a2'; displayName = 'Acct 2' })
+        )
+        Invoke-SqlSlot -Slot (New-Slot 'Accounts' 'principals') -Connection 'conn' -State (New-TestState -Slots @()) | Out-Null
+        @(Get-SentRecords 'ingest/principals').externalId | Should -Be @('a1', 'a2')
+        $members = Get-SentRecords 'ingest/identity-members'
+        @($members).Count | Should -Be 1
+        $members[0].identityExternalId | Should -Be 'i1'
+        $members[0].principalExternalId | Should -Be 'a1'
+        $members[0].isPrimary | Should -BeFalse
+        $members[0].accountType | Should -Be 'Linked'
+    }
+}
+
+Describe 'Invoke-SqlSlot — dangling references' {
+    BeforeEach {
+        Reset-SqlTestState
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Invoke-SqlQueryStream $script:StreamMock
+        Mock Update-CrawlerProgress { }
+    }
+
+    It 'holds back an assignment whose resource or principal this run never emitted, and counts it' {
+        $slots = @((New-Slot 'res' 'resources'), (New-Slot 'ids' 'identities'), (New-Slot 'asg' 'assignments'))
+        $state = New-TestState -Slots $slots
+        $script:rowsToReplay = @((New-TestRow @{ id = 'e1'; displayName = 'Ent 1' }))
+        Invoke-SqlSlot -Slot $slots[0] -Connection 'conn' -State $state | Out-Null
+        $script:rowsToReplay = @((New-TestRow @{ id = 'u1'; displayName = 'Ann' }))
+        Invoke-SqlSlot -Slot $slots[1] -Connection 'conn' -State $state | Out-Null
+        $script:rowsToReplay = @(
+            (New-TestRow @{ principalId = 'u1'; resourceId = 'e1' })   # both known — sent
+            (New-TestRow @{ principalId = 'u1'; resourceId = 'e9' })   # unknown resource
+            (New-TestRow @{ principalId = 'u9'; resourceId = 'e1' })   # unknown principal
+            (New-TestRow @{ principalId = ''; resourceId = 'e1' })     # unusable
+        )
+        $r = Invoke-SqlSlot -Slot $slots[2] -Connection 'conn' -State $state
+        $r.rows | Should -Be 4
+        $r.dangling | Should -Be 2
+        $r.skipped | Should -Be 1
+        $sentAsg = Get-SentRecords 'ingest/resource-assignments'
+        @($sentAsg).Count | Should -Be 1
+        $sentAsg[0].resourceExternalId | Should -Be 'e1'
+        $sentAsg[0].principalExternalId | Should -Be 'u1'
+    }
+
+    It 'checks only the axis this run actually produces — no resources slot means no resource check' {
+        $slots = @((New-Slot 'ids' 'identities'), (New-Slot 'asg' 'assignments'))
+        $state = New-TestState -Slots $slots
+        $script:rowsToReplay = @((New-TestRow @{ id = 'u1'; displayName = 'Ann' }))
+        Invoke-SqlSlot -Slot $slots[0] -Connection 'conn' -State $state | Out-Null
+        $script:rowsToReplay = @((New-TestRow @{ principalId = 'u1'; resourceId = 'e-from-another-crawler' }))
+        (Invoke-SqlSlot -Slot $slots[1] -Connection 'conn' -State $state).dangling | Should -Be 0
+        @(Get-SentRecords 'ingest/resource-assignments').Count | Should -Be 1
+    }
+
+    It 'holds back a relationship edge unless BOTH ends are known resources' {
+        $slots = @((New-Slot 'res' 'resources'), (New-Slot 'rel' 'relationships'))
+        $state = New-TestState -Slots $slots
+        $script:rowsToReplay = @((New-TestRow @{ id = 'b1'; displayName = 'Role' }), (New-TestRow @{ id = 'e1'; displayName = 'Ent' }))
+        Invoke-SqlSlot -Slot $slots[0] -Connection 'conn' -State $state | Out-Null
+        $script:rowsToReplay = @(
+            (New-TestRow @{ parentId = 'b1'; childId = 'e1' })
+            (New-TestRow @{ parentId = 'b1'; childId = 'e9' })
+            (New-TestRow @{ parentId = 'b9'; childId = 'e1' })
+        )
+        (Invoke-SqlSlot -Slot $slots[1] -Connection 'conn' -State $state).dangling | Should -Be 2
+        @(Get-SentRecords 'ingest/resource-relationships').Count | Should -Be 1
+    }
+}
+
+Describe 'Invoke-SqlReconcile' {
+    BeforeEach { Reset-SqlTestState; Mock Invoke-IngestAPI $script:IngestMock; Mock Update-CrawlerProgress { } }
+
+    It 'reconciles each registered scope against the API clock and totals the deletions' {
+        $state = New-TestState -Slots @()
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' }
+        $deleted = Invoke-SqlReconcile -State $state
+        $deleted | Should -Be 4                       # the mock reports 2 per call
+        $calls = Get-Sent 'ingest/reconcile'
+        @($calls).Count | Should -Be 2
+        @($calls.Body.entity) | Should -Be @('resources', 'resource-assignments')
+        foreach ($c in $calls) {
+            $c.Body.before | Should -Be '2026-09-25T09:00:00.000Z'
+            $c.Body.systemId | Should -Be 7
+        }
+    }
+
+    # Completeness, not run mode. The reconcile removes what the run did not
+    # touch, which is a removal only when everything still in the source WAS
+    # touched — true of a statement read in full, whatever the run calls itself.
+    It 'a DELTA run still reconciles a scope whose statements read their complete set' {
+        $state = New-TestState -Slots @() -SyncMode 'delta'
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resources' -Scope @{ resourceType = 'Entitlement' }
+        Invoke-SqlReconcile -State $state | Should -Be 2
+        @(Get-Sent 'ingest/reconcile').Count | Should -Be 1
+    }
+
+    It 'never reconciles a scope a WINDOWED statement fed — an untouched row there just did not change' {
+        $state = New-TestState -Slots @() -SyncMode 'delta'
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $false
+        Invoke-SqlReconcile -State $state | Should -Be 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
+    }
+
+    It 'one windowed statement makes the whole scope unreconcilable, however many complete ones share it' {
+        $state = New-TestState -Slots @()
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $true
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $false
+        Add-SqlReconcileScope -State $state -Endpoint 'ingest/resource-assignments' -Scope @{ assignmentType = 'Direct' } -Complete $true
+        @($state.Scopes).Count | Should -Be 1
+        Invoke-SqlReconcile -State $state | Should -Be 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
+    }
+
+    It 'a full run with no registered scopes calls nothing' {
+        Invoke-SqlReconcile -State (New-TestState -Slots @()) | Should -Be 0
+        Should -Invoke Invoke-IngestAPI -Exactly 0
+    }
+}
+
+Describe 'Register-SqlSystem' {
+    BeforeEach { Reset-SqlTestState; Mock Invoke-IngestAPI $script:IngestMock; Mock Get-CrawlerServerTime { '2026-09-25T09:00:00.000Z' } }
+
+    It 'registers one SQL system keyed on server/database and returns its id plus the API clock' {
+        $reg = Register-SqlSystem -Cfg @{ server = 'DB1'; database = 'IIQ'; configName = 'IIQ prod'; systemName = '' }
+        $reg.systemId | Should -Be 7
+        $reg.serverTime | Should -Be '2026-09-25T09:00:00.000Z'
+        $body = (Get-Sent 'ingest/systems')[0].Body
+        $body.syncMode | Should -Be 'delta'
+        $rec = @($body.records)[0]
+        $rec.systemType | Should -Be 'SQL'
+        $rec.tenantId | Should -Be 'db1/iiq'
+        $rec.displayName | Should -Be 'IIQ prod'      # the crawler's own name wins
+    }
+
+    It 'an explicit system name overrides the crawler name' {
+        (Register-SqlSystem -Cfg @{ server = 'db1'; database = 'iiq'; configName = 'IIQ prod'; systemName = 'Payroll DB' }).systemId | Should -Be 7
+        @((Get-Sent 'ingest/systems')[0].Body.records)[0].displayName | Should -Be 'Payroll DB'
+    }
+
+    It 'falls back to the type default when the run carries no crawler name' {
+        Register-SqlSystem -Cfg @{ server = 'db1'; database = 'iiq'; configName = ''; systemName = '' } | Out-Null
+        @((Get-Sent 'ingest/systems')[0].Body.records)[0].displayName | Should -Be 'SQL Database (db1/iiq)'
+    }
+
+    It 'throws rather than guessing when the API returns no id — every reconcile is scoped to it' {
+        Mock Invoke-IngestAPI { @{} }
+        { Register-SqlSystem -Cfg @{ server = 'db1'; database = 'iiq'; configName = 'x'; systemName = '' } } | Should -Throw '*system id*'
+    }
+}
+
+Describe 'Complete-SqlRun' {
+    BeforeEach { Reset-SqlTestState; Mock Update-CrawlerProgress { } }
+
+    It 'writes the sync log' {
+        Mock Invoke-IngestAPI $script:IngestMock
+        Complete-SqlRun -State (New-TestState -Slots @()) -SyncStart (Get-Date)
+        @(Get-Sent 'ingest/sync-log').Count | Should -Be 1
+        (Get-Sent 'ingest/sync-log')[0].Body.systemId | Should -Be 7
+    }
+
+    # The refresh moved OUT of here and into the entry point's finally, so that a
+    # failed verification still leaves the views reflecting the rows. If it were
+    # left here as well, every successful run would rebuild twice — 3m17s and
+    # 7.6 GB each, at the customer's size.
+    It 'does NOT refresh the views — the entry point owns that now, exactly once' {
+        Mock Invoke-IngestAPI $script:IngestMock
+        Complete-SqlRun -State (New-TestState -Slots @()) -SyncStart (Get-Date)
+        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 0
+    }
+
+    It 'treats a failed sync-log write as non-fatal' {
+        Mock Invoke-IngestAPI { throw 'HTTP 500' }
+        { Complete-SqlRun -State (New-TestState -Slots @()) -SyncStart (Get-Date) } | Should -Not -Throw
+    }
+}
+
+Describe 'Update-SqlMatrixViews' {
+    BeforeEach { Reset-SqlTestState }
+
+    It 'asks the API to refresh, and says it succeeded' {
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI $script:IngestMock
+        Update-SqlMatrixViews | Should -BeTrue
+        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 1
+    }
+
+    # It runs inside a `finally`. A throw there REPLACES the exception a real
+    # verification failure is carrying, so the job would report the refresh
+    # instead of the mismatch that actually failed it.
+    It 'reports a failed refresh as $false instead of throwing' {
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI { throw 'HTTP 500' }
+        $r = $null
+        { $r = Update-SqlMatrixViews } | Should -Not -Throw
+        $r | Should -BeFalse
+    }
+
+    # Update-CrawlerProgress throws on HTTP 409 (the job was terminated
+    # server-side) by design. That call is inside the try for this reason; with
+    # it outside, a terminated job would throw out of the finally.
+    It 'swallows a progress-report failure too, and never reaches the refresh' {
+        Mock Update-CrawlerProgress { throw 'HTTP 409 job terminated' }
+        Mock Invoke-IngestAPI $script:IngestMock
+        $r = $null
+        { $r = Update-SqlMatrixViews } | Should -Not -Throw
+        $r | Should -BeFalse
+        @(Get-Sent 'ingest/refresh-views').Count | Should -Be 0
+    }
+}

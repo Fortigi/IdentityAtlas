@@ -54,6 +54,7 @@
 import * as db from '../db/connection.js';
 import RE2 from 're2';
 import { tierFor } from './tiers.js';
+import { OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
 import {
   indexDirectReports, indexMemberships, indexOwnerships, countSubtree,
   scoreBroadAccess, scoreHighRiskMembership, scoreHierarchySignals,
@@ -345,31 +346,34 @@ export async function loadScoringData(classifierId, updateRun) {
 
   // Member counts per resource (Direct memberships for total headcount; the
   // governed flag is orthogonal — every row is an effective membership).
-  // GroupOwnership assignments are Direct too (the owner is a Direct member of
-  // the synthetic "Owner @ <group>" resource, migration 046), but ownership is
-  // admin control — not a membership — so it must not inflate headcount.
+  // An ownership assignment is Direct too (the owner is a Direct member of the
+  // synthetic resource named after the thing owned, migration 046), but
+  // ownership is admin control — not a membership — so it must not inflate
+  // headcount. EVERY ownership type is excluded, not just GroupOwnership: this
+  // filter named that one literal, so the app-ownership types have counted as
+  // memberships since they shipped. lib/ownershipTypes.js holds the list.
   const memberCountRows = await db.query(
     `SELECT "resourceId"::text AS rid, COUNT(*)::int AS cnt
        FROM "ResourceAssignments"
       WHERE "assignmentType" = 'Direct'
-        AND "resourceType" IS DISTINCT FROM 'GroupOwnership'
+        AND ("resourceType" IS NULL OR "resourceType" NOT IN ${OWNERSHIP_TYPES_SQL})
       GROUP BY "resourceId"`
   );
   const memberCountMap = new Map(memberCountRows.rows.map(r => [r.rid, r.cnt]));
 
-  // Owner counts per owned group. Since migration 046, ownership is a Direct
-  // assignment on a GroupOwnership resource linked to the owned group via a
-  // HasOwnership relationship (parentResourceId = owned group); the retired
-  // assignmentType='Owner' matches zero rows. Key the map by the OWNED group id
-  // so scoreResourceEntity's ownerCountMap.get(group.id) lookup resolves.
+  // Owner counts per owned resource. Since migration 046, ownership is a Direct
+  // assignment on an ownership resource linked to the owned one via a
+  // HasOwnership relationship (parentResourceId = the owned resource); the
+  // retired assignmentType='Owner' matches zero rows. Key the map by the OWNED
+  // resource id so scoreResourceEntity's ownerCountMap.get(group.id) resolves.
   const ownerCountRows = await db.query(
     `SELECT rr."parentResourceId"::text AS rid, COUNT(*)::int AS cnt
        FROM "ResourceAssignments" ra
        JOIN "ResourceRelationships" rr
          ON rr."childResourceId" = ra."resourceId"
-        AND rr."relationshipType" = 'HasOwnership'
+        AND rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIP_TYPES_SQL}
       WHERE ra."assignmentType" = 'Direct'
-        AND ra."resourceType"   = 'GroupOwnership'
+        AND ra."resourceType"   IN ${OWNERSHIP_TYPES_SQL}
       GROUP BY rr."parentResourceId"`
   );
   const ownerCountMap = new Map(ownerCountRows.rows.map(r => [r.rid, r.cnt]));
@@ -377,27 +381,28 @@ export async function loadScoringData(classifierId, updateRun) {
   // Build bidirectional index: principal → list of resource ids (memberships)
   //                           resource  → list of principal ids (members)
   // We only follow Direct memberships for propagation — ownership is a different
-  // relationship (admin control, not "has access to"). Excluding GroupOwnership
-  // keeps owners from being double-counted as members of the synthetic resource.
+  // relationship (admin control, not "has access to"). Excluding the ownership
+  // types keeps owners from being double-counted as members of the synthetic
+  // resource.
   const assignmentRows = await db.query(
     `SELECT "principalId"::text AS pid, "resourceId"::text AS rid
        FROM "ResourceAssignments"
       WHERE "assignmentType" = 'Direct'
-        AND "resourceType" IS DISTINCT FROM 'GroupOwnership'`
+        AND ("resourceType" IS NULL OR "resourceType" NOT IN ${OWNERSHIP_TYPES_SQL})`
   );
   const { principalMemberships, resourceMembers } = indexMemberships(assignmentRows.rows);
 
-  // Ownerships: principal → set of owned group ids. Traverse the GroupOwnership
-  // resource back to the owned group (parentResourceId) so the "owner of N
-  // groups" signal counts distinct groups, not synthetic ownership resources.
+  // Ownerships: principal → set of owned resource ids. Traverse the ownership
+  // resource back to the owned one (parentResourceId) so the "owner of N
+  // things" signal counts distinct owned resources, not synthetic rows.
   const ownerRows = await db.query(
     `SELECT ra."principalId"::text AS pid, rr."parentResourceId"::text AS rid
        FROM "ResourceAssignments" ra
        JOIN "ResourceRelationships" rr
          ON rr."childResourceId" = ra."resourceId"
-        AND rr."relationshipType" = 'HasOwnership'
+        AND rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIP_TYPES_SQL}
       WHERE ra."assignmentType" = 'Direct'
-        AND ra."resourceType"   = 'GroupOwnership'`
+        AND ra."resourceType"   IN ${OWNERSHIP_TYPES_SQL}`
   );
   const principalOwnerships = indexOwnerships(ownerRows.rows);
 

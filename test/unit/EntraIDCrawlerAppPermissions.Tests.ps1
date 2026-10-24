@@ -14,10 +14,13 @@ BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
     # ConvertTo-FGDeterministicUuid lives in Functions.ps1.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # Shared ConvertTo-EntraAppRoleApplicationResource helper lives here (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppPermissions.ps1')
+    # Format-EntraUtcTime (grant timestamps).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppSecurity.ps1')
 }
 
 Describe 'ConvertTo-EntraAppPermissionGraph' {
@@ -65,6 +68,14 @@ Describe 'ConvertTo-EntraAppPermissionGraph' {
         $mi = ConvertTo-EntraAppPermissionGraph -Assignments @([pscustomobject]@{ id = '2'; principalId = 'mi1'; resourceId = 'graphSp'; appRoleId = 'role-mailread' }) `
             -SpInfo @{ mi1 = @{ displayName = 'kv-reader-mi'; principalType = 'ManagedIdentity' } }
         $mi.assignments[0].principalType | Should -Be 'ManagedIdentity'
+    }
+
+    It 'stamps when the permission was granted, normalised to UTC, and leaves it out when Graph does not say' {
+        $out = ConvertTo-EntraAppPermissionGraph -Assignments @(
+            [pscustomobject]@{ id = 'a'; principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'r1'; creationTimestamp = '2019-12-05T10:27:48.9374944+01:00' }
+            [pscustomobject]@{ id = 'b'; principalId = 'sp2'; resourceId = 'graphSp'; appRoleId = 'r1' })
+        ($out.assignments | Where-Object { $_.principalId -eq 'sp1' }).extendedAttributes.grantedDateTime | Should -Be '2019-12-05T09:27:48Z'
+        ($out.assignments | Where-Object { $_.principalId -eq 'sp2' }).extendedAttributes.ContainsKey('grantedDateTime') | Should -BeFalse
     }
 
     It 'falls back to the appRole guid + SP ids when names are unknown' {
@@ -131,6 +142,42 @@ Describe 'ConvertTo-EntraAppPermissionGraph' {
             -SpInfo @{ graphSp = @{ displayName = 'Microsoft Graph' } }
         $out.resources[0].displayName | Should -Match 'on Microsoft Graph'
     }
+
+    It 'stamps the tenant-independent appId of the client and of the target API on the resource, and the target appId on the assignment' {
+        # The SP object ids are tenant-specific; a report that wants "this is Microsoft
+        # Graph" must match on the appId, which is the same in every tenant.
+        $out = ConvertTo-EntraAppPermissionGraph `
+            -Assignments @([pscustomobject]@{ id = '1'; principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'r1' }) `
+            -SpInfo @{
+                sp1     = @{ displayName = 'Payroll App';     appId = 'aaaaaaaa-1111-2222-3333-444444444444' }
+                graphSp = @{ displayName = 'Microsoft Graph'; appId = '00000003-0000-0000-c000-000000000000' }
+            }
+        $out.resources[0].extendedAttributes.clientAppId      | Should -Be 'aaaaaaaa-1111-2222-3333-444444444444'
+        $out.resources[0].extendedAttributes.targetApiAppId   | Should -Be '00000003-0000-0000-c000-000000000000'
+        $out.resources[0].extendedAttributes.targetApiSpId    | Should -Be 'graphSp'   # the object id stays alongside
+        $out.assignments[0].extendedAttributes.targetApiAppId | Should -Be '00000003-0000-0000-c000-000000000000'
+    }
+
+    It 'leaves the appIds null rather than guessing when the SP is not in the index' {
+        $out = ConvertTo-EntraAppPermissionGraph `
+            -Assignments @([pscustomobject]@{ id = '1'; principalId = 'sp1'; resourceId = 'apiX'; appRoleId = 'r1' }) `
+            -SpInfo @{ sp1 = @{ displayName = 'Payroll App' } }   # no appId on sp1, apiX unknown
+        $out.resources[0].extendedAttributes.clientAppId      | Should -BeNullOrEmpty
+        $out.resources[0].extendedAttributes.targetApiAppId   | Should -BeNullOrEmpty
+        $out.assignments[0].extendedAttributes.targetApiAppId | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-EntraSpAppId' {
+    It 'returns the appId of a known SP as a string' {
+        Get-EntraSpAppId -SpInfo @{ sp1 = @{ appId = 'app-1' } } -SpId 'sp1' | Should -Be 'app-1'
+    }
+
+    It 'returns null for an SP that is not in the index, or has no appId' {
+        Get-EntraSpAppId -SpInfo @{ sp1 = @{ displayName = 'x' } } -SpId 'sp1'  | Should -BeNullOrEmpty
+        Get-EntraSpAppId -SpInfo @{ sp1 = @{ appId = 'app-1' } }     -SpId 'other' | Should -BeNullOrEmpty
+        Get-EntraSpAppId -SpId 'sp1'                                            | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'Get-EntraAppRoleName' {
@@ -145,8 +192,8 @@ Describe 'Get-EntraAppPermissionIndex' {
 
     It 'builds spInfo, spById, and appRoleNameById (target APIs are just SPs with an appRoles catalog)' {
         $sps = @(
-            [pscustomobject]@{ id = 'sp1'; displayName = 'Payroll App' },
-            [pscustomobject]@{ id = 'graphSp'; displayName = 'Microsoft Graph';
+            [pscustomobject]@{ id = 'sp1'; displayName = 'Payroll App'; appId = 'app-payroll' },
+            [pscustomobject]@{ id = 'graphSp'; displayName = 'Microsoft Graph'; appId = '00000003-0000-0000-c000-000000000000';
                 appRoles = @(
                     [pscustomobject]@{ id = 'role-mailread'; value = 'Mail.Read' },
                     [pscustomobject]@{ id = 'role-dirread';  displayName = 'Read directory data' }  # no value -> displayName
@@ -155,6 +202,8 @@ Describe 'Get-EntraAppPermissionIndex' {
         $idx = Get-EntraAppPermissionIndex -Sps $sps
 
         $idx.spInfo['sp1'].displayName                | Should -Be 'Payroll App'
+        $idx.spInfo['sp1'].appId                      | Should -Be 'app-payroll'
+        $idx.spInfo['graphSp'].appId                  | Should -Be '00000003-0000-0000-c000-000000000000'
         $idx.spInfo['sp1'].principalType              | Should -Not -BeNullOrEmpty  # classifier or fallback
         $idx.spById['graphSp'].displayName            | Should -Be 'Microsoft Graph'
         $idx.appRoleNameById['graphSp|role-mailread'] | Should -Be 'Mail.Read'
@@ -190,6 +239,16 @@ Describe 'Resolve-EntraAppPermissionFields' {
         $f.clientName | Should -Be 'Payroll App'
         $f.clientType | Should -Be 'AIAgent'      # carried from SpInfo, not flattened
         $f.targetName | Should -Be 'Microsoft Graph'
+        $f.clientAppId | Should -BeNullOrEmpty    # SpInfo without appId -> nothing invented
+        $f.targetAppId | Should -BeNullOrEmpty
+    }
+
+    It 'carries the client and target appIds from the index' {
+        $a = [pscustomobject]@{ principalId = 'sp1'; resourceId = 'graphSp'; appRoleId = 'role-x' }
+        $f = Resolve-EntraAppPermissionFields -Assignment $a `
+            -SpInfo @{ sp1 = @{ appId = 'app-payroll' }; graphSp = @{ appId = '00000003-0000-0000-c000-000000000000' } }
+        $f.clientAppId | Should -Be 'app-payroll'
+        $f.targetAppId | Should -Be '00000003-0000-0000-c000-000000000000'
     }
 
     It 'falls back to the appRole guid, the client SP id, ServicePrincipal, and the target id when the maps are empty' {

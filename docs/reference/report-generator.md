@@ -1,0 +1,524 @@
+# Report Generator (local LLM)
+
+!!! warning "Docker is measured; Azure is not"
+    Everything measured on this page was measured on **Docker** (one 2-vCPU VM). The Azure templates
+    compile and are wired up, but the report generator **has not yet been deployed to Azure**:
+    scale-to-zero, the prompt cache on Azure Files, the request time limits described under
+    [Azure](#azure) and both network modes are unproven there. Deploy it on Azure only to try it out.
+
+!!! note "Experimental, and optional"
+    The report generator is an extra container you choose to deploy. Without it, custom reports are
+    still built by hand — see [Custom Reports](../ui/custom-reports.md). The feature as a whole is off
+    until an operator enables it under **Admin → Experimental**.
+
+!!! note "The table predates the `change` entity, grouping and the chat; both sets were re-run on 23 September 2026"
+    The table below was measured against a system prompt without the `change` entity and
+    without counting per value. On 23 September 2026, on a 2-CPU host with real directory data
+    and the corrections described under [What the mistakes look like](#what-the-mistakes-look-like):
+
+    - **held-out set: 15/17** (13/15 with a non-empty answer), median 74 s, p90 109 s, one
+      question over the 5-minute limit (a subset comparison that failed after two rounds);
+    - **conversation set (`chat.json`, 58 graded answers): 58/58** — the questions people typed
+      when asking in plain language, in Dutch and English, 10 follow-ups in the same conversation,
+      10 out-of-scope requests declined, 8 questions about data we do not have asked back or
+      declined, 2 about a person who does not exist asked back, 2 genuinely ambiguous ones asked
+      back, 2 counts kept; median 75 s, p90 168 s, slowest 293 s, none over 5 minutes. The
+      number is the sum of one full run (51/58) and a re-run of the seven rows whose fixes
+      landed during it, on the same build.
+
+    The chat's first run that day scored 28/58 with a median of 77 s and two answers over the
+    limit; everything between those two numbers is in the list below, none of it a change of
+    model. The latency figures further down are from the tuning host.
+
+## Why this exists
+
+Every customer asks the same kind of question about their own environment: *guest accounts without a
+manager*, *groups nobody owns*, *accounts that still sit in a licence group*. Each answer is a
+different query. Shipping a built-in report for every one of them does not scale, and teaching
+analysts a query builder covers only the people willing to learn it.
+
+So the analyst describes the report and Identity Atlas builds it — but **the model never writes the
+query**. It fills in a **report definition**: which kind of record, which conditions, which columns.
+Identity Atlas validates that definition against its own catalog and compiles it to read-only SQL.
+
+That split is the whole design, and it is what makes the feature defensible:
+
+| | Because the model only fills in a definition |
+|---|---|
+| **The model never sees your data** | It gets the question, the list of fields it may use, and the type names that exist (e.g. `Guest`, `ServicePrincipal`). No rows, ever. |
+| **It cannot do damage** | Unknown fields, unknown operators and unknown values are rejected. The query is parameterised, runs in a read-only transaction with a statement timeout, and touches only the tables the catalog names. |
+| **You can check it** | The definition is shown back as editable criteria plus a plain-language sentence generated from what will actually run. |
+| **It is repeatable** | A saved report is a definition, not a captured answer. It runs again after the next crawl and gives today's answer. |
+| **It works without the model** | The same definitions can be built by hand, which is what every deployment without the extra container does. |
+
+## The model
+
+| | |
+|---|---|
+| Model | **Qwen3-4B-Instruct-2507**, 4-bit quantised (`Q4_K_M`), ~2.5 GB |
+| Licence | **Apache 2.0** — commercial use permitted. The licence text ships inside the image at `/models/MODEL-LICENSE.txt`, with an attribution notice. llama.cpp (MIT) ships its licence next to it |
+| Source | Pinned URL **and SHA-256** in `setup/docker/Dockerfile.report-generator`; the build fails if the file does not match |
+| Runtime | `llama.cpp` server, CPU only. No GPU, no external API, no telemetry |
+| Chosen by | The release. There is no model picker: **Admin → LLM** shows which model this version ships and whether it is answering |
+
+The model is part of the release so that a given Identity Atlas version always behaves the same way
+and we can state what it was measured at. Changing the model is a new release.
+
+### Models we evaluated
+
+Measured against a set of real analyst questions on a real tenant (Fortigi: ~1,150 accounts, 158
+groups, 10 business roles), plus a **held-out** set written before tuning and never used to improve
+prompts. A question counts as correct only when the generated report returns **exactly** the same rows
+as a hand-written reference definition.
+
+Only the first row was measured on the setup that ships (llama.cpp, the final prompt, the bounded
+grammar); its raw results are kept with the evaluation tools. The other rows were measured earlier, on
+a different model runtime (Ollama) and an earlier version of the prompt, so read them as the reason each
+model was dropped, not as a like-for-like ranking.
+
+| Model | Licence | Tuning set | Held-out set | Notes |
+|---|---|---|---|---|
+| **Qwen3-4B-Instruct-2507 (shipped)** | Apache 2.0 | **34/42 (81%)** | **14/17 (82%)** | Best of every model tested, commercial use allowed |
+| Qwen2.5-Coder 3B | ⛔ Qwen Research (non-commercial) | 28/32 (88%) at the time | 9/14 (64%) | Strongest early candidate; **cannot be shipped** |
+| Qwen2.5-Coder 1.5B | Apache 2.0 | 21/36 (58%) | 8/14 (57%) | Runs on 1 CPU / 2 GB, but clearly weaker |
+| Qwen2.5-Coder 0.5B | Apache 2.0 | 7/32 (22%) | 5/14 (36%) | Unusable: copies the examples |
+| Phi-4-mini (3.8B) | MIT | 11/32 (34%) | — | |
+| Gemma 3 4B | Gemma terms | run abandoned | — | ~80 s per question: its attention design defeated prompt caching |
+| Qwen2.5-Coder 7B | Apache 2.0 | spot checks only | — | Too slow on 2 CPUs for the benefit |
+
+The sets grew during development (32 → 42 tuning, 14 → 17 held-out), so the percentages above are
+comparable within a row, not exactly across rows. The shipped model's figures are the full sets,
+measured on the release image as it ships — llama.cpp, the saved prompt cache, and the bounded output
+grammar described below. Before the sign-in fields were added, the same setup scored 34/39 and 14/17; the
+larger prompt answers the new sign-in questions but moved two unrelated answers (33/41 and 13/17), and each
+prompt variant tried since traded one question for another. Looking up the names a question mentions
+(see [Privacy](#privacy)) won one held-out question back without losing a tuning question; the tuning
+set's organisation question (42nd) was added with it and measured on its own. A run is repeatable — the
+same prompt gives the same answers — so these differences are real, not noise; the sets are just too
+small to tune further without fitting them. A few questions have an empty correct answer, which a wrong
+definition can also produce; counting only questions with a non-empty answer, the shipped model scores
+33/41 and 12/15. Re-run any time with `tools/nl-reports/eval.mjs` —
+see [Measuring it yourself](#measuring-it-yourself).
+
+The held-out run of 23 September 2026 (final build) missed two: a subset comparison ("business roles
+whose members are all in group X"), which remains the weakest kind of question, and one over-specified
+name filter (name **and** description must contain "License", one group differs). The conversation set
+missed nothing on that build; the categories it grades — scope, unknown data, a person who does not
+exist, an ambiguous question, follow-ups — are the ones a chat gets wrong in ways a report page never
+shows, and each has its own row in `tools/nl-reports/chat.json`.
+
+### Larger models on more CPU (24 September 2026)
+
+The question behind this run: is the 4B model the ceiling, or does a bigger model on a bigger
+CPU budget answer more questions right? Measured on a fresh install in Azure (one
+`Standard_E8bds_v5` VM — 8 vCPU, 64 GB, Docker, the same compose files a customer gets), with a
+copy of the same tenant, the same prompt and the same two sets: the held-out set (17 questions) and
+the conversation set (72 graded turns: 64 questions in Dutch and English, 12 follow-ups, and the
+scope / unknown-data / unknown-person / ambiguous rows). Every model runs through the same
+pipeline, so the corrections it makes on the model's behalf count for all of them. The VM's cores are
+about 1.3× faster than the reference host's (median 58 s against 74 s for the same run), so read the
+times relative to each other.
+
+| Model | RAM for the model server | Threads | Held-out | Conversation set | NL / EN | Follow-ups | Median | p90 | Slowest | Over 5 min |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen3-4B-Instruct-2507 (shipped) | 4 GB | 2 | 14/17 | 67/72 | 35/36 · 32/36 | 11/12 | 68 s | 143 s | 352 s | 1 |
+| Qwen3-8B (thinking off) | 10 GB | 4 | 13/17 | 63/72 | 32/36 · 31/36 | 10/12 | 45 s | 102 s | 250 s | 0 |
+| Qwen3-14B (thinking off) | 22 GB | 8 | 14/17 | 64/72 | 31/36 · 33/36 | 11/12 | 53 s | 102 s | 160 s | 0 |
+| **Qwen3-30B-A3B-Instruct-2507** | 24 GB | 8 | **16/17** | **69/72** | 34/36 · 35/36 | **12/12** | **34 s** | **80 s** | 191 s | 0 |
+| Gemma 3 12B | 20 GB | 8 | abandoned | — | — | — | ~355 s | — | — | every question |
+| Qwen3-4B-Instruct-2507, more threads | 4 GB | 8 | 14/17 | 68/72 | 35/36 · 33/36 | 11/12 | 32 s | 72 s | 113 s | 0 |
+
+What the table says:
+
+- **The 30B-A3B model is the one that helps.** It is a mixture-of-experts model: 30B parameters on
+  disk, 3B active per token, so it *reads* like a big model and *writes* at the speed of a small
+  one — the fastest tier here and the most accurate, with every follow-up right and both languages
+  level. Its three misses on the conversation set are two readings of "the groups of Anna's direct
+  reports" (a relation inside a relation, which the definition language cannot express) and one
+  "access packages" question answered as every resource — corrected by a pipeline rule since. What it
+  needs: about 24 GB of memory for the model server (the 18.6 GB model file plus the context; measured 14 GB resident with the rest in the page cache) and 8 CPU threads; at 2 threads it would be
+  about four times slower.
+- **8B and 14B do not help.** They are the older hybrid generation (April 2025) run with thinking
+  off, because thinking tokens at CPU speed would blow the time limit; in that mode they are no more
+  accurate than the 4B Instruct-2507 and make different mistakes (dropping the person from a change
+  question, leaving out a principal type). More threads make them faster, not better.
+- **Gemma 3 does not work with this design at all**: llama.cpp cannot reuse the saved prompt cache
+  for its sliding-window attention, so every question re-reads the whole prompt — about six minutes
+  each, the same finding as with Gemma 3 4B earlier.
+- **The 4B is not far behind.** Its misses are model wobble: the same question passes on one run and
+  fails on the next (13 to 15 of 17 across runs today; the conversation set gave 66, 67 and 68 of 72 on three runs), an invented condition, a name filter also
+  applied to the description. That is what the correction rules in the pipeline exist for, and it is
+  why the 30B's cleaner first attempts show up more in the follow-ups and in the repair count (five
+  repair rounds in 72 turns against eight) than in the raw score.
+
+The "License" question every model misses (name **and** description must contain the word — one group
+differs) and the subset comparison remain the two standing misses of the held-out set.
+
+To run the same matrix: build the images with the other models' URL and checksum
+(`setup/docker/Dockerfile.report-generator` takes them as build arguments), set
+`REPORT_GENERATOR_CPUS` / `REPORT_GENERATOR_MEMORY`, and run `tools/nl-reports/eval.mjs` for
+`holdout.json` and `chat.json` — see [Measuring it yourself](#measuring-it-yourself).
+
+### What the mistakes look like
+
+About one question in seven comes back wrong, so the point is not perfection but **visible**
+mistakes. Typical failures, all of which show up in the plain-language reading:
+
+- a condition dropped ("groups mostly like Sales, **not in a business role**" lost the second half);
+- the wrong relation ("contains all members of business role X" read as "is part of business role X");
+- a guess instead of a question: "everyone with admin rights" came back as one kind of admin. It asked
+  on **neither** of the two deliberately ambiguous questions.
+
+**Comparisons are the weakest kind of question: 3 of 6 correct** across both sets. The one this feature
+was demonstrated with ("groups with the same members as business role *ACME - Algemeen - Partners*,
+not part of it") is among the three that pass. For a comparison that matters, build it with
+**+ compare with…** in the editor — once built, a comparison is exact; only the translation from
+words is uncertain.
+
+Several failure modes are handled in code rather than left to the model. Two of them were once
+handed back to the model to fix and are now corrected on the spot — at about a token a second on
+the CPU box a correction round costs one to three minutes, and the model's correction was not
+reliably better (asked to fix "added AND removed" it dropped "removed" and the 90-day window
+with it). Every correction made this way is stated in the report's assumptions.
+
+- **A mistake with one sensible reading is corrected without asking** — "action is Added AND
+  action is Removed" becomes *either*; "owner count above zero" beside "has no owner" loses
+  the count; "within the last 90 days" beside "more than 180 days ago" keeps the recent bound;
+  and a count-per-value grouping the question never asked for is removed ("which groups was he
+  added to" once came back as the number 5). A mistake with two readings ("empty and not
+  empty") is still put to the model.
+- **The person asking is put where they belong** — "van welke groepen ben ik eigenaar" whose
+  definition names nobody gets the caller added (into an empty owners/members relation, or on
+  the account itself); "which groups am I in" with the caller's id written inside the group
+  condition is moved to the account; "groups I have that bram does not" with bram on both
+  sides puts the caller on the side the question mentions first. Only when the definition names
+  somebody else is the model asked once to add the caller.
+- **Follow-up bookkeeping is corrected, not trusted** — the ids of "these groups" written on the
+  members relation, on a user report's own id, or on a change's account are moved to where that
+  kind of record is reached; "id is [a list]" is read as "one of"; a name written as an id is a
+  name.
+- **A kind of thing is not a name** — "in an access package" written as a comparison with a
+  reference named "access package", or as a resource type on a group or its members, is the
+  business-role relation; the column a question asks to see (members, owners, groups, access
+  packages, manager) is added when the definition left it out.
+- **An invented condition goes, an asked-for one does not** — a condition validation rejects is
+  checked against the question: one nothing in the question asks for ("accountCount > 0" inside
+  members) is dropped with a note; one the question did ask for ("MFA") goes to the correction
+  round, and a definition without it is never run.
+- **A loop stops early** — the reply grammar allows eight conditions per list (the largest
+  measured answer needs four) and 450 tokens; a model repeating one condition ran 13 minutes to
+  the old cap. Repeated conditions collapse to one.
+- **A correction may only fix what it was told** — every correction round (invalid definition,
+  "or", a name not used, the caller missing) compares the corrected definition with the original
+  leaf by leaf; one that lost a condition it was not told about is refused and the original
+  stands. The "or" correction once added "added or removed" and dropped the 90-day window,
+  turning 2 rows into 149.
+- **A first name is one person** — "bram" written as a name-contains filter is looked up
+  before the report runs: one match is pinned to that person (the reading says who), several
+  are offered as a choice, none asks for the exact name. On a small directory the substring
+  happened to be right; on a large one it counts every Bram.
+- **Out of scope is declined, not guessed** — a request that is not about the data (general
+  knowledge, small talk, writing) or that asks to change access is answered with one sentence
+  and no report, in every front end, and filed as `declined` rather than as a failure.
+
+- **"or" read as "and"** — if the question contains *or* but the definition has no any-group, the
+  generator asks the model once to correct it, and keeps the original if the correction is no better.
+- **Invented values** — a definition with an unknown field, operator or type value is rejected, the
+  validator's own message is handed back to the model, and it gets one attempt to fix it. If the
+  corrected definition is still invalid, the analyst gets an error — never a report quietly built from
+  the conditions that did validate.
+- **Repeating itself** — at temperature 0 a small model that starts repeating does not stop. Every list
+  and every piece of free text in the reply has a hard length in the output grammar, so a loop ends
+  where validation would have cut it anyway. Before that limit existed, one question listed the same ten
+  columns until the token cap: 570 seconds and a reply that was no longer JSON. It now answers in 46.
+
+For the chat on top of this — the flow of one question, the prompt verbatim, what is answered and what is refused, the corrections made on the model's behalf and the conversation-set results — see [The Ask assistant](ask-assistant.md).
+
+## Who can ask, and where
+
+The same model answers questions in three places, and they are gated by **two** different
+permissions on purpose.
+
+| Surface | Permission | What it is for |
+|---|---|---|
+| **Ask** tab | `data.read.reports` | Type a question, read an answer. No definition editor, no saving. It knows who is asking, so "my groups" and "mijn medewerkers" mean you. |
+
+| **Custom reports** builder | `data.write.reports` | Build, edit, save and delete report definitions everyone sees. |
+
+Asking and building are separate rights and neither implies the other. A pilot manager who
+should be able to find out who has access to what does not thereby get to delete the saved
+reports an analyst depends on; an analyst holds both, so nothing they could do before
+changes. Warming the model stays with `data.write.reports` — one model server, one slot,
+shared by everyone, so spending its CPU is not a read action.
+
+Every question asked in plain language is kept in the conversation store for the store's retention
+period (90 days by default, `NL_REPORTS_LOG_RETENTION_DAYS`), per person: the question, what the
+model was told, what it replied, the definition that ran and how the answer ended. That log is what
+makes a wrong answer diagnosable after the fact, and what the evaluation reads. **Result rows are
+never stored** — only the definition that produced them, so re-running a conversation re-runs the
+query rather than replaying stale data. Nobody sees anyone else's conversations.
+
+Asking is gated by `data.read.reports` and the **custom reports** feature flag, so a deployment
+that has not switched the feature on has no plain-language endpoints at all.
+
+## Privacy
+
+- **Nothing leaves the deployment.** The model runs in a container next to Identity Atlas. There is no
+  cloud model, no API key to a provider, and no telemetry in this path.
+- **The model receives**: the analyst's question, the catalog (entity, field and relation names with
+  their descriptions), the type values that exist in this deployment (account types, resource types,
+  system names), while refining the current report definition, for a name the question
+  mentions — **which fields that name occurs in** — and, for an attribute the question names, **the
+  name of that attribute**.
+- **Attribute names, never attribute values.** A deployment's own `extendedAttributes` keys
+  (`sfDepartmentID`, an OU path) are not in the catalog: they differ per tenant, and there can be
+  hundreds. When a question names one, the API matches it against the keys discovered in the data and
+  tells the model the field name to use — `"sfDepartmentID" is the field ext.sfDepartmentID`. No
+  value of that attribute is looked up, sent, or counted. An attribute the question does not name is
+  not sent at all: it goes with the question, so the system prompt itself never changes between
+  questions and the saved prompt cache keeps working (see below).
+
+- **That last one is the only thing looked up in the data for the model, and it is deliberately
+  narrow.** When a question names something ("guest accounts from Contoso"), the API checks, per name,
+  whether it occurs as a whole word in a fixed set of text fields (name, email, company, department, job
+  title, description) and in system names. The model is told the field names only —
+  `"Contoso": user.companyName, user.email` — never a row, a value from the row, or a count. It
+  learns that a word the analyst typed exists in the data, which the analyst already implied by asking.
+  Without it, the model guessed where an organisation name lives and filtered on an unrelated system.
+- **The model never receives**: rows, query results, counts, or any value it did not get from the
+  analyst. Name lookups ("did you mean…") are done by the database, not by the model.
+- **Names do reach it in one way, and it is worth being exact about it.** Whatever the analyst types is
+  sent as typed, names included. And once an analyst confirms a "did you mean", the confirmed record's
+  name is written into the definition — so if they then refine the report in words, that definition,
+  with that name, goes back to the model. Nothing leaves the deployment either way; it is the model
+  inside it that sees the name.
+- **On Docker** the container has no published port, sits on an internal network shared only with the
+  web container, and has no route to the internet. It does not need one: the model is inside the image.
+- **On Azure** the Container App has public ingress, protected by a per-deployment API key (generated
+  by the template, never entered by hand). In the default public network mode it is also narrowed to
+  the web app's outbound addresses; in the private network mode it is protected by the key alone (see
+  below). It holds no data and no credentials.
+- **Audit**: every question is logged by the API twice — on arrival, with the user who asked, the model
+  and the question; and when it is answered, with the outcome (report, clarification, "did you mean",
+  error, or failed) and how long it took. The reply itself is not logged. Saved reports record who
+  created and last changed them.
+- **The audit line contains the question as typed**, which means it can contain a name an analyst
+  typed ("groups like Jan de Vries"). That is deliberate — an audit trail of "someone asked
+  something" is not worth keeping — but it is worth knowing when deciding how long to keep container
+  logs. No query *result* is ever logged.
+
+## Sizing and consumption
+
+Measured on a 2-vCPU VM (shared Proxmox host, Intel Core Ultra 5), with the shipped model:
+
+| | Value |
+|---|---|
+| CPU | **2**. Only 2 CPUs were measured; answer time scales roughly with CPUs, so fewer is slower |
+| Memory | **3.2 GB** in use and not reclaimable after all 56 questions; 3.65 GB peak including file cache. Limit **4 GiB** on both Docker and Azure — the five heaviest questions were re-run at exactly 4 GiB with identical results and no out-of-memory kill. Lower is not measured |
+| Disk | 2.76 GB image + 561 MB prompt cache |
+| Restart → first answer | **76 s** measured for "guest accounts without a manager, or whose manager is disabled": prompt cache restored in 0.1 s, 203 of 4,000 prompt tokens actually read, the rest is the answer being written. On Azure add the container start |
+| Question once warm | median **49 s**, p90 **107 s**, slowest **156 s** over the tuning set (held-out: median 48 s, p90 78 s). The slow ones are the questions that needed a correction round |
+| One-time preparation | 193–205 s measured, in the background, after an install or update |
+| Idle | **10.6 MB** once the model is unloaded — after 15 minutes unused by default. While it is loaded and idle: no CPU, ~3 GB |
+| Unloaded → ready | **3.0 s** with the model file in the disk cache, **15.6 s** straight from disk. The builder shows "loading the model into memory" with a timer meanwhile, and the first question afterwards is as fast as ever (76 s measured, same prompt cache) |
+
+Nearly all of an answer's time is the model *writing* the definition, at about 2.5 tokens a second on
+2 CPUs; an average reply is ~105 tokens. More CPUs is what makes answers faster — more memory does
+not.
+
+**It only costs while it is used** in the sense that matters for each platform:
+
+- **Docker**: the model is **loaded only while it is used**. Opening the report builder loads it (3–16 s);
+  after `REPORT_GENERATOR_IDLE_SECONDS` without a question (900 by default) it is unloaded and the
+  container drops to ~10 MB. A host running the generator therefore needs the 4 GB only while
+  someone is building reports. Set the idle time to `0` to keep the model loaded all the time.
+- **Azure**: the Container App **scales to zero**. Azure bills per second of activity, so an idle
+  generator costs nothing beyond its share of the file share holding the prompt cache. At list prices,
+  2 vCPU + 4 GiB active costs in the order of tens of euro cents an hour, and Container Apps' monthly
+  free grant covers light use — an estimate from list prices, not a measured bill; check current
+  pricing. The trade-off is a slower first question after idle, because the container has to start
+  (a 2.76 GB image pull included).
+
+### How the cold start was made survivable
+
+The expensive part is not loading the model, it is the model *reading its instructions* (~4,000
+tokens) — minutes on a small CPU. Three things fix that:
+
+1. **The instructions are the same for every deployment of a release.** Everything deployment-specific
+   (your account types, resource types and system names) is sent with the question instead of being
+   baked into them.
+2. **The processed instructions are saved to disk** (llama.cpp slot cache) and restored in ~0.1 s on
+   every later start. That is measured on local disk; on Azure the 561 MB file lives on an Azure Files
+   share, whose restore time has not been measured.
+   A second file holds the instructions **plus this deployment's value lists** — the first thing in
+   every user message — derived from the first file in seconds (restore it, read a few hundred
+   tokens, save). Questions start from that one, so the server reads only what follows the lists:
+   the caller, the name hints, the question. When the lists change, the next warm-up writes a fresh
+   file; until then the server reuses what still matches, which is the instructions.
+3. **Preparation runs in the background** at API startup, and the builder says "preparing" instead of
+   blocking. `node tools/nl-reports/prepare-prompt-cache.mjs` does it on demand and verifies a restore
+   actually works.
+
+Measured on the same hardware: 266 seconds for the first answer without a restored cache, 76 seconds
+with one.
+
+One detail made the difference between this working and not: **the prompt cache is re-checked before
+every question, never remembered.** The model server restarts on its own — Azure scales it to zero
+between questions — and comes back empty. An earlier version remembered that it had warmed up, never
+restored after such a restart, and answered the next question in 266 seconds.
+
+## Deploying it
+
+### Docker
+
+The model server is an opt-in profile in `docker-compose.prod.yml`:
+
+```bash
+# in .env
+COMPOSE_PROFILES=report-generator
+FEATURE_CUSTOM_REPORTS=true        # or switch it on in Admin → Experimental
+
+docker compose -f docker-compose.prod.yml up -d --pull always
+```
+
+Optional knobs (defaults shown): `REPORT_GENERATOR_CPUS=2`, `REPORT_GENERATOR_MEMORY=4g`,
+`REPORT_GENERATOR_IDLE_SECONDS=900` (seconds unused before the model is unloaded; `0` = always loaded).
+
+How the model is loaded on demand: a small supervisor is the container's main process. It starts the
+model server (reachable only from inside the container) when a request needs it, passes every request
+through unchanged, and stops it when idle. It needs no extra privileges — it never touches Docker — and it
+checks the API key before it starts anything.
+
+Leave `COMPOSE_PROFILES` unset and nothing extra is pulled or started; the builder then reports the
+generator as unavailable and the definition editor still works.
+
+**Behind a reverse proxy**, raise its read timeout for `/api/nl-reports/interpret`. A question is one
+HTTP request that is answered when the model is done — a median of 49 s and up to several minutes — and
+common defaults (nginx `proxy_read_timeout` 60 s) cut half of them off. The API itself waits up to
+15 minutes (`NL_REPORTS_LLM_TIMEOUT_MS`).
+
+### Azure
+
+The report generator is an **opt-in Container App**:
+
+```powershell
+./azure/deploy.ps1 -ResourceGroup my-rg -DeployReportGenerator
+```
+
+or set `deployReportGenerator=true` when deploying `azure/main.bicep` / the Deploy-to-Azure template.
+The template then:
+
+- creates the Container App with **minReplicas 0** (scale to zero) and 2 vCPU / 4 GiB;
+- generates an API key per deployment and gives it to both sides — llama.cpp refuses every request
+  without it;
+- mounts an Azure Files share for the prompt cache, so a scaled-to-zero app restarts fast;
+- sets `FEATURE_CUSTOM_REPORTS=true` on the web app, because a deployment that paid for the container
+  wants the feature.
+
+Everything else (App Service, Postgres, worker) is unchanged. Leaving the switch off deploys exactly
+what it does today.
+
+**Known limits on Azure, not yet measured there:**
+
+- **Request time limits.** A question is one blocking HTTP request, and Azure closes those: App Service
+  at about 230 seconds for the browser's request, Container Apps ingress at 240 seconds for the web
+  app's call to the generator. Measured on Docker, a warm question takes 49 s at the median and 165 s at
+  the slowest, so most fit; but the one-time prompt-cache preparation took 193–205 s, close to the
+  240 s limit, and Azure's vCPUs may be slower. If preparation is cut off, the cache is never saved and
+  every question stays slow. Making questions asynchronous (submit, then poll) would remove this limit
+  and is the fix if a deployment hits it.
+- **Private network mode is not supported for the generator yet.** In that mode the web app routes all
+  outbound traffic through the VNet without a NAT gateway, and whether it can then reach the
+  generator's public address at all is untested. Deploy the generator only in the default public
+  network mode until it can be made reachable from inside the VNet.
+
+### Desktop (portable)
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1 -WithLLM
+```
+
+The same model runs on the machine itself, with no container and no Python. llama.cpp's `llama-server.exe` is started by the app's own `node.exe` on first use and stopped when idle, as the Docker supervisor does. Neither the model (2.5 GB) nor llama.cpp is in the ZIP. The launcher downloads each once and checks it against a pinned SHA-256, or uses files copied into its LLM folder beforehand on a machine without internet access. llama.cpp's binaries are not signed, so a machine with application control needs hash rules for them. Details, including the folder layout and measurements, are in [Portable Windows Launcher → Report model](../architecture/desktop-portable.md#report-model-withllm).
+
+### Updating an existing installation
+
+Custom reports arrive with a normal update; **the generator does not install itself.**
+
+| | What the operator does |
+|---|---|
+| **Docker** | Re-download `docker-compose.prod.yml` (it gained the service, the internal network and the new env vars), then set `COMPOSE_PROFILES=report-generator` and pull. Without the new compose file the app updates as usual and the generator is simply absent. |
+| **Docker, auto-update** | The [auto-update agent](../admin/auto-updates.md) updates the services in `IA_SERVICES` (`web worker` by default). Add `report-generator` there so the model image follows the channel too. |
+| **Azure** | Re-run the deployment with `deployReportGenerator=true`. Existing resources are updated in place. |
+| **Azure, auto-update** | Set `IA_REPORT_GENERATOR_APP=<prefix>-report-generator` for the Azure update agent, next to `IA_WORKER_APP`, so the model image follows the channel. Without it the generator keeps the previous release's model — it still works, but it is no longer the combination that was measured. |
+| **Desktop (portable)** | Start the launcher with `-WithLLM`. It downloads llama.cpp and the model once (or uses copies placed in its LLM folder) and runs them without Docker. See [Desktop (portable)](#desktop-portable). |
+
+In all cases the feature stays **off** until someone enables it in Admin → Experimental, and the first
+warm-up after the update rebuilds the prompt cache in the background (a few minutes, once). An install
+that does nothing keeps working exactly as before: a new, empty table is added, and nothing tries to
+reach a model server while the feature is off.
+
+**Grant the permission.** The **Build custom reports** permission (`data.write.reports`) is in the
+built-in RoleMiner role, but only a deployment still on the default role mapping gets it from there. If
+you have customised your role mapping, add the permission to the roles that should build reports under
+Admin → Roles.
+
+## Security notes
+
+- The API surface answers **404** while the feature is off and **403** without the
+  `data.write.reports` permission (checked first, so nobody learns which installs have the feature).
+- Model output is treated as untrusted input: it is validated against the catalog before anything
+  runs, and never interpolated into SQL.
+- Reports execute in a `READ ONLY` transaction with a statement timeout and a row cap.
+- The model server accepts no input except from the web container (Docker: internal network; Azure:
+  API key) and cannot reach the database.
+- **Outbound internet access differs per platform.** On Docker it has none (an `internal` network). On
+  Azure it has unrestricted outbound access, like any Container App without a VNet and egress rules.
+  llama.cpp makes no outbound calls and the model is inside the image, so nothing is sent — but on
+  Azure that rests on the software, not on the network.
+- **One question at a time per analyst**, and a conversation is capped at 10,000 characters. The model
+  server works on one question at a time, so without these one person (or a script) could hold it for
+  everyone. Anyone with `data.write.reports` can still keep it busy; grant that permission accordingly.
+- **The generated SQL is shown to the analyst** in the builder, so table and column names are visible to
+  anyone who can build reports. They are the same names documented for the data model.
+- Questions are logged; report definitions are stored with their author.
+- The model server's monitoring endpoint is switched off (`--no-slots`). It would otherwise let any
+  caller read the prompt currently being processed.
+- The container runs as an unprivileged user (uid 1000), not root.
+
+### If you deploy it on Azure
+
+Two details are worth knowing, because getting them wrong is silent:
+
+- **The API key is the control.** llama.cpp reads it from `LLAMA_API_KEY` and *only* that name — the
+  `LLAMA_ARG_` prefix that every other option uses is ignored for this one, and a server started
+  without a key answers everyone. The template sets the right name from a secret and a guard test
+  keeps it that way; do not hand-edit it.
+- **Ingress is narrowed on the second run.** `deploy.ps1 -DeployReportGenerator` adds the web app's
+  outbound addresses to the ingress allow-list, but those addresses only exist once the web app does,
+  so the *first* deployment is protected by the key alone. Re-run the script (or pass
+  `reportGeneratorAllowedCallerIps`) to add the allow-list. Those are shared Azure addresses, so treat
+  it as defence in depth rather than a boundary.
+- **In the private network mode the allow-list is not applied.** There the web app sends all outbound
+  traffic through the VNet, so its calls do not come from the addresses on the list and the list would
+  lock it out. The generator is protected by its API key alone. It still has public ingress in that
+  mode — making it reachable only from inside the VNet is not done yet.
+
+## Measuring it yourself
+
+```bash
+# the expected answers are still right for your data
+node tools/nl-reports/eval.mjs --check
+
+# accuracy + latency, per model
+node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M
+node tools/nl-reports/eval.mjs --models qwen3:4b-instruct-2507-q4_K_M --file tools/nl-reports/holdout.json
+
+# against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one
+node tools/nl-reports/eval.mjs --check --base https://<host> --token-cmd "az account get-access-token --resource api://<web app id> --query accessToken -o tsv"
+```
+
+Questions live in `tools/nl-reports/questions.json` (used while tuning), `holdout.json` (kept
+untouched, so the number means something) and `chat.json` (the questions people typed into the
+in plain language, in Dutch and English, with follow-ups asked in the same conversation; "my" means
+whoever runs it, so it needs a signed-in stack). Each question carries a hand-written reference
+definition; a model's answer counts only if it returns the same rows.

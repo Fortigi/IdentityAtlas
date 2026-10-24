@@ -203,3 +203,7 @@ See the generator's parameter block for the full list of knobs
   Atlas's write path. A Graph API pull of 80 k users takes longer
   than the corresponding CSV ingest, because Graph rate-limits you.
   See [Entra ID sync](../sync/entra-id.md) for what to expect there.
+- For a dataset twenty times this size with realistic skew — 180 k
+  principals, 810 k resources, 41 M assignments — see
+  [Scale Rehearsal: 41 M Assignments](scale-rehearsal.md), which records
+  where that load stops coping.

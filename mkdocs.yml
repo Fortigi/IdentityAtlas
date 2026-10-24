@@ -112,7 +112,11 @@ nav:
           - Reading the Matrix: architecture/matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
+      - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
+      - Access Review Adoption: ui/access-review-adoption.md
+      - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
+      - Building a Context by Describing It: ui/context-assistant.md
       - Effective Access (Who Can Access X): ui/effective-access.md
       - Entity Detail Pages: architecture/entity-detail-pages.md
       - Get data out:
@@ -125,8 +129,10 @@ nav:
           - Docker Setup: architecture/docker-setup.md
           - Azure Deployment Walkthrough: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
+          - Azure as Code (GitOps): architecture/azure-gitops.md
           - Portable Windows Launcher: architecture/desktop-portable.md
           - Scaling & Load Testing: architecture/scaling.md
+          - "Scale Rehearsal: 41 M Assignments": architecture/scale-rehearsal.md
       - Connect your systems:
           - Entra ID: sync/entra-id.md
           - Azure Resource Manager: sync/azure-rm.md
@@ -134,6 +140,7 @@ nav:
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - midPoint: sync/midpoint.md
           - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
+          - SQL Server: sync/mssql.md
           - SCIM 2.0: sync/scim.md
           - CSV Import: sync/csv-import.md
           - Custom Connector (Push API): sync/custom-connector.md
@@ -157,6 +164,8 @@ nav:
           - Ingest API: architecture/ingest-api.md
       - Configuration: reference/config.md
       - Experimental Features: reference/experimental-features.md
+      - Report Generator (local LLM): reference/report-generator.md
+      - Ask Assistant — how it thinks and is tested: reference/ask-assistant.md
       - Permissions & Roles: reference/permissions.md
       - Database Views: reference/sql-views.md
       - CSV Schema Reference: architecture/csv-import-schema.md
@@ -164,7 +173,10 @@ nav:
       - Test Coverage: reference/coverage.md
       - Under the hood:
           - Crawler Architecture: architecture/crawler-architecture.md
+          - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md
+          - Custom Reports Internals: architecture/custom-reports.md
+          - Context Assistant Internals: architecture/context-assistant.md
           - Audit History: architecture/audit-history.md
           - Soft-Delete & Tombstones: architecture/soft-delete.md
           - Effective Access Engine: architecture/effective-access-engine.md
@@ -188,6 +200,8 @@ nav:
           - CI Pipeline: contributing/ci-pipeline.md
           - CI Scope Testing: architecture/ci-scope-testing.md
           - Release & Branching Strategy: architecture/branching-strategy.md
+          - Maintaining a Release Line: process/maintaining-a-release-line.md
+          - How a Release's Notes Are Assembled: process/release-notes.md
           - Definition of Ready: process/definition-of-ready.md
           - DoR state machine & operating procedure: process/dor-state-machine.md
           - Operationalising the DoR: process/operationalization.md

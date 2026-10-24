@@ -134,6 +134,8 @@ erDiagram
         string assignmentType
         int systemId FK
         string principalType
+        string origin
+        string originDetail
         string complianceState
         string policyId
         string state
@@ -299,9 +301,9 @@ Every row targets either a specific account (`principalId`) or a person (`identi
 | Uniqueness | Two partial unique indexes: `(resourceId, principalId, assignmentType)` WHERE `principalId IS NOT NULL`; `(resourceId, identityId, assignmentType)` WHERE `identityId IS NOT NULL` |
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
-| Modified by | Migration `036_resource_assignments_identity_support.sql` |
+| Modified by | Migration `036_resource_assignments_identity_support.sql`, `082_assignment_origin.sql` |
 
-Key columns: `assignmentType`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
+Key columns: `assignmentType`, `principalId` (nullable), `identityId` (nullable), `systemId`, `principalType`, `origin`, `originDetail`, `complianceState`, `policyId`, `state`, `assignmentStatus`, `expirationDateTime`, `extendedAttributes` (JSONB).
 
 ---
 
@@ -329,7 +331,12 @@ All identity types from any system. The `principalType` column distinguishes hum
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
-Key columns: `displayName`, `principalType`, `systemId`, `extendedAttributes` (JSON), `riskScore`. Source-system org placement (e.g. AD OU) is via `ContextMembers` (`memberType='Principal'`), not a column.
+Key columns: `displayName`, `principalType`, `systemId`, `managerId`, `extendedAttributes` (JSON), `riskScore`. Source-system org placement (e.g. AD OU) is via `ContextMembers` (`memberType='Principal'`), not a column.
+
+!!! warning "`managerId` and `managerIdentityId` point at different tables"
+    `managerId` always names a **Principal** — the manager's *account*. It is self-referential on `Principals`, and on `Contexts` it is the org unit's manager account. `managerIdentityId` always names an **Identity** — the manager as a *person* — and appears on `Identities` and `Contexts`. `Identities` has no `managerId` at all.
+
+    Crawlers do not fill either directly: they cannot know an internal id. They send `managerExternalId` (resolved against the system's principals) or `managerIdentityExternalId` (resolved against its identities), and the ingest derives the id the manager's own row is keyed by — see `app/api/src/ingest/normalization.js`. A reference that resolves to nobody is cleared and counted at the end of the load (`app/api/src/ingest/managerLinks.js`) rather than stored, because `managerId IS NOT NULL` is what "has a manager" means everywhere else.
 
 ---
 

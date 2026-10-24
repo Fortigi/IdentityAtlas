@@ -30,6 +30,8 @@ BeforeAll {
     # shared helpers; Send-IngestBatch and Get-FGGroupChildrenParallel call them.
     # (Invoke-IngestAPI is mocked per-test.)
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
+    # Get-/Set-/Remove-FGDeltaToken forward to the one delta-token client.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
 
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')

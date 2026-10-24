@@ -26,6 +26,7 @@ vi.mock('../contexts/plugins/runner.js', () => ({
   enqueueRun: (...a) => enqueueRun(...a),
 }));
 
+const { OWNER_JOIN, OWNER_COLUMNS } = await import('./contexts/read.js');
 const { default: router } = await import('./contexts.js');
 const app = mountRouter(router);
 
@@ -70,6 +71,58 @@ describe('GET /contexts', () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/contexts');
     expect(res.status).toBe(500);
+  });
+
+  // The owner is resolved in the query, not by the browser: 1,500 logical
+  // applications each firing their own lookup is a thousand round-trips on real
+  // data. The resolution itself is pinned against a real database in
+  // contract-tests/contexts-routes.contract.test.js.
+  it('resolves the owner in the query and hands the principal back with the row', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, ownerUserId: 'IIQ-4711', ownerPrincipalId: ID2, ownerDisplayName: 'Leo M. Cohen' }] });
+    const res = await request(app).get('/api/contexts');
+    expect(query.mock.calls[0][0]).toContain(OWNER_JOIN);
+    expect(query.mock.calls[0][0]).toContain(OWNER_COLUMNS);
+    expect(res.body.data[0]).toMatchObject({ ownerPrincipalId: ID2, ownerDisplayName: 'Leo M. Cohen', ownerUserId: 'IIQ-4711' });
+  });
+
+  // A logical application sits under its catalogue, so a search that only
+  // looked at the roots would never find the one with this CMDB reference.
+  it('a search looks at every level, capped, and returns the parent', async () => {
+    query.mockResolvedValueOnce({ rows: [] });
+    await request(app).get('/api/contexts?search=Payroll&contextType=Application');
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).not.toContain('"parentContextId" IS NULL');
+    expect(sql).toContain('c."parentContextId", c."extendedAttributes"');
+    expect(sql).toMatch(/LIMIT 1000\s*$/);
+    expect(params).toEqual(['Application', '%Payroll%']);
+  });
+
+  it('a normal search matches name / description / external id, not the attributes', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, displayName: 'Payroll', extendedAttributes: { cmdb: 'CI001' } }] });
+    const res = await request(app).get('/api/contexts?search=CI001');
+    const sql = query.mock.calls[0][0];
+    expect(sql).toContain('c."externalId" ILIKE $1');
+    expect(sql).not.toContain('ia_search_text');
+    expect(res.body.data[0].matchedOn).toBeUndefined();
+  });
+
+  it('an extended search finds a CMDB reference in extendedAttributes and says where', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, displayName: 'Payroll', extendedAttributes: { 'CMDB Reference': 'CI0012345' } }] });
+    const res = await request(app).get('/api/contexts?search=ci0012345&extendedSearch=true');
+    expect(query.mock.calls[0][0]).toContain('public.ia_search_text(ARRAY[c."id"::text');
+    expect(res.body).toEqual({
+      data: [{ id: ID, displayName: 'Payroll', extendedAttributes: { 'CMDB Reference': 'CI0012345' }, matchedOn: ['CMDB Reference'] }],
+      total: 1,
+    });
+  });
+
+  it('without a search the list stays roots-only and unlimited', async () => {
+    query.mockResolvedValueOnce({ rows: [] });
+    await request(app).get('/api/contexts?extendedSearch=true');
+    const sql = query.mock.calls[0][0];
+    expect(sql).toContain('c."parentContextId" IS NULL');
+    expect(sql).not.toContain('LIMIT 1000');
+    expect(sql).not.toContain('c."extendedAttributes"');
   });
 });
 
@@ -138,6 +191,10 @@ describe('GET /contexts/:id', () => {
     expect(res.body.attributes.id).toBe(ID);
     expect(res.body.members).toEqual([{ id: 'm1', displayName: 'Member' }]);
     expect(res.body.subContexts).toEqual([{ id: ID2, displayName: 'Sub' }]);
+    // The detail header is where the owner is shown, so the detail query must
+    // resolve it too — not only the roots list.
+    expect(queryOne.mock.calls[0][0]).toContain(OWNER_JOIN);
+    expect(queryOne.mock.calls[0][0]).toContain(OWNER_COLUMNS);
   });
 
   it('returns empty members for an unknown targetType (no member table)', async () => {
@@ -204,6 +261,35 @@ describe('GET /contexts/:id/members', () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get(`/api/contexts/${ID}/members`);
     expect(res.status).toBe(500);
+  });
+
+  // uuid = uuid, so the ContextMembers / entity indexes stay usable. A text cast
+  // on both sides forced a nested loop over every entity × every member.
+  it.each([
+    ['Resource', 'Resources'],
+    ['Principal', 'Principals'],
+    ['Identity', 'Identities'],
+  ])('joins %s members on the typed id in both the page and the count query', async (targetType, table) => {
+    queryOne.mockResolvedValueOnce({ targetType });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    const res = await request(app).get(`/api/contexts/${ID}/members?limit=50&offset=50000`);
+    expect(res.status).toBe(200);
+    const dataSql = query.mock.calls[0][0];
+    const countSql = queryOne.mock.calls[1][0];
+    for (const sql of [dataSql, countSql]) {
+      expect(sql).toContain(`JOIN "${table}" m ON m.id = cm."memberId"`);
+      expect(sql).not.toMatch(/::text/);
+    }
+    expect(dataSql).toContain('LIMIT 50 OFFSET 50000');
+  });
+
+  it('keeps the text comparison for System members (integer ids)', async () => {
+    queryOne.mockResolvedValueOnce({ targetType: 'System' });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    await request(app).get(`/api/contexts/${ID}/members`);
+    expect(query.mock.calls[0][0]).toContain('JOIN "Systems" m ON m.id::text = cm."memberId"::text');
   });
 });
 

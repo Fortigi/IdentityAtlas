@@ -37,6 +37,8 @@ export default defineConfig({
   test: {
     include: [
       'src/auth/usePermissions.test.jsx',
+      'src/auth/authFetchHeaders.test.js',
+      'src/auth/authMeState.test.js',
       'src/utils/matrixFilter.test.js',
       'src/components/shared/sharedSnapshot.test.js',
       'src/hooks/useHashPage.test.jsx',
@@ -51,6 +53,9 @@ export default defineConfig({
       'src/components/matrix/sortStepState.test.js',
       'src/components/matrix/saveStepState.test.js',
       'src/components/matrix/matrixRequests.test.js',
+      'src/components/matrix/matrixHistoryText.test.js',
+      'src/components/inputs/PeoplePicker.mount.test.jsx',
+      'src/utils/exportRotatedToExcel.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

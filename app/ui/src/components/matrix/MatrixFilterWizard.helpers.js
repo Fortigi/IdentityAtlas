@@ -77,6 +77,10 @@ export function commitFilter(filter, foldAttributes) {
     foldAttributes,
     rollupExpanded: foldAttributes ? [] : (filter.rollupExpanded || []),
     rollupCollapsed: [],
+    // Applying the wizard rebuilds the matrix, so the column axis opens at full
+    // depth again — a level cap left over from the previous matrix would fold
+    // away attributes the analyst has just chosen.
+    rollupLevel: null,
   };
 }
 
@@ -148,7 +152,7 @@ export function rollupModeOf(filter) {
 // column sort — the API serves that sort as a context roll-up of its own, so the
 // two cannot both apply.
 export function applyRollupMode(filter, mode, attribute = null) {
-  const reset = { rollupPath: [], rollupExpanded: [], rollupCollapsed: [] };
+  const reset = { rollupPath: [], rollupExpanded: [], rollupCollapsed: [], rollupLevel: null };
   if (mode === 'attribute') {
     return { ...filter, ...reset, rollupKind: 'attribute', rollup: filter.rollup || attribute, rollupContextId: null, sortHierarchy: null };
   }

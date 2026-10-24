@@ -47,8 +47,9 @@ here).
 - **Schema**: [`Secrets`](https://github.com/Fortigi/IdentityAtlas/blob/main/) — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.
 - **Encryption**: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from `IDENTITY_ATLAS_MASTER_KEY` (32 bytes, base64).
 - **Master key bootstrap**:
-  1. `IDENTITY_ATLAS_MASTER_KEY` env var (preferred — back this up like any other root secret)
-  2. `/data/uploads/.master-key` file (auto-generated on first boot, persisted in the same docker volume as the worker key)
+  1. `IDENTITY_ATLAS_MASTER_KEY` env var, or `IDENTITY_ATLAS_MASTER_KEY_FILE` (preferred — back this up like any other root secret)
+  2. A key file, auto-generated on first boot: `$IDENTITY_ATLAS_KEY_DIR/.master-key` (the web-only `web_keys` volume in the compose files), or `/data/uploads/.master-key` when `IDENTITY_ATLAS_KEY_DIR` is unset (older compose files). A key found at the old location is moved to the key directory after it is verified. See `app/api/src/secrets/masterKeyStore.js`.
+  3. No new key is generated while the vault already holds encrypted secrets — restore the key instead (or set `IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true` to start over).
 - **Public API**: `putSecret(id, scope, value, label)`, `getSecret(id, scope)`, `hasSecret(id, scope)`, `deleteSecret(id, scope)`, `listSecrets(scope)`, `selfTest()`. Every read, existence check and delete names the scope it may touch — a row in another scope is treated as absent.
 - **Why envelope encryption**: per-row keys mean a single compromised secret doesn't expose the others; rotating the master key only re-encrypts the small data keys, not the (potentially large) ciphertexts; the same shape works for an HSM/KMS later by swapping the wrapping function.
 
@@ -240,8 +241,8 @@ older versions are re-bound automatically at startup.
 
 ### Backups
 
-Back up the postgres database **and** `/data/uploads/.master-key` (if you used
-the auto-generated key) **and** the `IDENTITY_ATLAS_MASTER_KEY` env var (if you
+Back up the postgres database **and** the auto-generated key file (`/data/keys/.master-key`
+in the `web_keys` volume, or `/data/uploads/.master-key` with an older compose file) **and** the `IDENTITY_ATLAS_MASTER_KEY` env var (if you
 set it explicitly). Without the master key, every secret in the vault is
 unrecoverable.
 

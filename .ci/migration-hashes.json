@@ -67,8 +67,27 @@
     "061_business_role_covers_itself.sql": "0dc53ad1e6691691d43a80d929b5f55a207b267831465ba8abb67569eb10e6f6",
     "062_matrix_shares.sql": "f28e33bfa6488c70875903e3025256b42f8eb6e97988d2e16763713fc940ce28",
     "063_matrix_share_recipients.sql": "7549731e93f6eede031c9b98189da6b6d5d1713042c700f4a662237e95199feb",
+    "064_sync_log_source.sql": "b10615b55dd51ae7b9154cee44ee9504c72666ba71ca11610fdb2e0ee99279cb",
     "065_crawler_credential_custody.sql": "4bb031482507ab9c95253c19e4f71ece16572da64cba9f15cdc2082ed295e16e",
     "066_auth_role_change_log_oid.sql": "4b548f517532bdf3b0f3fc789ba5b96a772648115069a049df88950855f4d2ec",
-    "067_share_is_a_saved_matrix.sql": "8049d31fde744843e5cadd3d12cb555f032ca078eeea191f68c477069290d182"
+    "067_share_is_a_saved_matrix.sql": "8049d31fde744843e5cadd3d12cb555f032ca078eeea191f68c477069290d182",
+    "068_saved_reports.sql": "8eb73303e1dda8f7d5d0e459554d15c92e9b79a43c2612915de9a2335783f08a",
+    "069_saved_matrix_history.sql": "7453873e134c38dc9ca5213cdd308e8224cc7820d344dba8e4df39fbd3064790",
+    "070_system_directory_link.sql": "14dedc6ad067a65c28ab350fa3ae9fd9e4c5651a06968742b7e7ffb2a007e55f",
+    "071_principal_photo.sql": "c653ca483f94ce15fc771027da9bfe108e5ea4a08b831cf52fe699c3242afbe7",
+    "072_ingest_touch_timestamp.sql": "ee98f1bcbc51b373c742b7fb42e1e2839121921ecb72dfa66b5faa1e19fc2749",
+    "073_history_skip_initial_load.sql": "6ac704b9619d9317e6eda200332331868284e5548502b4c5b7f1d1a7d8f9986a",
+    "074_systems_tenantless_key.sql": "1b636462b0d9ff25449ea58e3a61dbad78d2dd8d2464de697d9066b0386ca171",
+    "075_principal_manager_index.sql": "786544823b6585943f8ddccea92ea8ac139efca7927fc3f085cd1dac307d3962",
+    "076_principal_external_id_index.sql": "c3c9bfa2453461172ded80d535d4eb36ab34ac59efeccc38cad8b36a0661ed30",
+    "077_bot_conversations.sql": "8a58b8aae4ea0e77b98e565ae4f2630904ad2a10e1d39e8c4bcdefdbec4c4a09",
+    "078_assignment_changes_view.sql": "af7f5142b3b33feec4b82366dd74381c4be86d3557e5ba8e93fcfd519b5fe89d",
+    "079_conversation_store.sql": "eab8ee5dfeecf4d43dd5a4f75e365f264b5d2327ede0e82c385bc44fbec7c27d",
+    "080_declined_outcome.sql": "c80a67664fa1cd07924d9beb15a377f347388b7d04267d8a3e92d0b4109a0f77",
+    "081_first_reply.sql": "ba7cc81930baed65438a02eba9372c9afe06b5e76c90ebcbd96a7d19de811e64",
+    "082_assignment_origin.sql": "fdb70c1da1be0abdba6b3ff1b5c2bbd8c5523dbda1093bac749b38a5f14cf099",
+    "083_context_assignment_counts.sql": "8de6fd61424a9433a99f6b94be7a02cdb823c35ee40379cad23a4a35382383e4",
+    "090_report_views.sql": "6c0e2844af88a0c3c8762dbdf9b3f82073afddf3c6feb3933aabb63e379a8407",
+    "091_search_all_attributes.sql": "9d54d2e0142c5fc9459c2e7b0c48b9eea3c77ce752734e5f227b96821ab01a7b"
   }
 }

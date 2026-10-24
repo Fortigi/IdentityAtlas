@@ -2,14 +2,15 @@
 //
 // An attribute is either a REAL column of the subject table (department,
 // jobTitle, …) or an extendedAttributes JSON key surfaced as `ext.<key>`. Real
-// columns are validated against the discovered column list; both forms are
-// guarded by SAFE_IDENT_RE so a caller-supplied name can never break out of the
-// identifier/quote context.
+// columns are validated against the discovered column list and SAFE_IDENT_RE;
+// an ext key against lib/extKeys.js and quoted as a literal, so a
+// caller-supplied name can never break out of the identifier/quote context.
 //
 // Used by /matrix/scope-breakdown and the /matrix/data roll-up aggregation.
 
+import { EXT_PREFIX, extKeyOf, extValueSql } from '../lib/extKeys.js';
+
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
-const EXT_PREFIX = 'ext.';
 
 /**
  * @param {string} rawAttr  e.g. 'department' or 'ext.costCenter'
@@ -21,9 +22,9 @@ export function resolveAttrExpr(rawAttr, alias, cols) {
   if (typeof rawAttr !== 'string' || !rawAttr) return { error: 'attribute is required' };
 
   if (rawAttr.startsWith(EXT_PREFIX)) {
-    const key = rawAttr.slice(EXT_PREFIX.length);
-    if (!SAFE_IDENT_RE.test(key)) return { error: 'invalid attribute' };
-    return { attrExpr: `${alias}."extendedAttributes"->>'${key}'` };
+    const key = extKeyOf(rawAttr);
+    if (key === null) return { error: 'invalid attribute' };
+    return { attrExpr: extValueSql(key, alias) };
   }
 
   if (!SAFE_IDENT_RE.test(rawAttr)) return { error: 'invalid attribute' };

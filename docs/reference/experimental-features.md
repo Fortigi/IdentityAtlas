@@ -105,6 +105,77 @@ exists on this install at all.
 
 ---
 
+## Custom reports
+
+Lets analysts build, save and run their own reports on the **Reports** tab — by hand,
+or by describing them in plain language to a small model running inside the
+deployment. See [Custom Reports](../ui/custom-reports.md) for the feature and
+[Report Generator](report-generator.md) for the model, its measurements and its
+hosting. It is experimental because the reports themselves are new, and because the
+plain-language half needs an extra container that a deployment has to choose to run.
+
+Environment variable: `FEATURE_CUSTOM_REPORTS=true`.
+
+### What the switch does, precisely
+
+**On** — users with the **Build custom reports** (`data.write.reports`) permission get
+**New report**, **Edit** and **Delete** on the Reports tab and the report builder tab.
+Saved reports are listed for everyone who can read data, and run, refresh and download
+like a built-in report. The **Describe it** box appears only when the report-generator
+container is actually answering; without it the definition editor is the whole feature.
+
+**Off** — the builder is hidden, saved reports are not listed and cannot be run, and the
+API answers `404` on every `/api/nl-reports/*` endpoint. The permission is checked
+first, so a caller without it always gets `403` — whether or not this install has the
+feature.
+
+### What the switch does *not* do
+
+Turning it off **does not delete anything.** Saved reports stay in the database and
+reappear, unchanged, when the flag goes back on. It also does not stop or remove the
+model container: that is a deployment choice (a compose profile, or an Azure
+parameter), and an operator who wants the CPU and memory back stops it there.
+
+---
+
+## Context assistant
+
+Lets analysts build a context tree by describing what it is about: the local model
+proposes search terms, the analyst keeps the ones that find the right groups, and the
+saved terms are re-applied after every crawl. See
+[Building a context by describing it](../ui/context-assistant.md) for the feature,
+[Context Assistant Internals](../architecture/context-assistant.md) for how it works, and
+[Report Generator](report-generator.md) for the model it shares with custom reports. It is
+experimental because it is new, because the plain-language half needs the extra model
+container, and because how well a small model proposes terms depends on how groups are
+named in a given deployment.
+
+Environment variable: `FEATURE_CONTEXT_ASSISTANT=true`.
+
+### What the switch does, precisely
+
+**On** — users with the **Build contexts** (`data.write.contexts`) permission get a fourth
+option, **Describe it**, in **Contexts → New context tree**, the context builder tab, and
+**Edit search terms** on a context built with it. The describe box appears only when the
+report-generator container is actually answering; without it the analyst types the terms
+and the rest of the builder works unchanged.
+
+**Off** — the fourth option and the builder are hidden, and the API answers `404` on every
+`/api/context-assistant/*` endpoint. The permission is checked first, so a caller without
+it always gets `403` — whether or not this install has the feature.
+
+### What the switch does *not* do
+
+Turning it off **does not delete or freeze any context.** A tree built with the assistant is
+an ordinary generated context: it stays visible, stays filterable, and keeps refreshing
+after every crawl from the terms it was saved with — that refresh is the `context-recipe`
+plugin and needs no model. What stops is building and editing.
+
+It also does not stop or remove the model container: that is a deployment choice (a compose
+profile, or an Azure parameter), and it is shared with custom reports.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real

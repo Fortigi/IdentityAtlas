@@ -23,3 +23,13 @@ paths-ignore:
   # (e.g. js/trivial-conditional in class.js) can't be meaningfully fixed — any
   # edit is overwritten on the next coverage build. Exclude the whole tree.
   - docs/coverage/**
+
+  # tools/nl-reports/eval.mjs is the accuracy harness a developer runs from their
+  # own shell against a deployment they already have a token for. Running the
+  # operator's own command is the point of `--token-cmd` / EVAL_TOKEN_CMD (a full
+  # answer takes minutes, so a run outlasts a one-hour token and has to mint a
+  # fresh one per request), and reading the operator's own alias file is the point
+  # of `--names`. Nothing here runs in the product: the file is never imported by
+  # the API and never copied into an image. js/indirect-command-line-injection and
+  # js/file-access-to-http are describing the tool's contract, not a flaw in it.
+  - tools/nl-reports/eval.mjs

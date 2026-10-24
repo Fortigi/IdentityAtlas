@@ -38,6 +38,7 @@ describe('normalizeMatrixFilter', () => {
       rollupPath: ['a', 'b'],
       rollupExpanded: ['node-1'],
       rollupCollapsed: ['tuple-1'],
+      rollupLevel: 2,
       foldAttributes: true,
       sortAttributes: [{ attribute: 'jobTitle', dir: 'desc' }],
       sortHierarchy: { contextId: 'ctx-2' },
@@ -63,6 +64,7 @@ describe('normalizeMatrixFilter', () => {
       rollupPath: 'a,b',
       rollupExpanded: 'node-1',
       rollupCollapsed: null,
+      rollupLevel: '2',              // a numeric string is not a level → no cap
       foldAttributes: 'yes',
       sortAttributes: [],
       sortHierarchy: { contextId: 7 },
@@ -152,6 +154,21 @@ describe('normalizeMatrixFilter', () => {
     }
   });
 
+  it('accepts a whole-number fold level and refuses everything else', () => {
+    // rollupLevel caps how many attribute levels the layered fold shows. The
+    // failure mode of a lenient reader is the worst possible one: a bad value
+    // that survives as 0 or NaN caps the axis at nothing and the analyst is
+    // left with one column, so anything that is not a whole number ≥ 1 must
+    // come back as null ("no cap"), never as the value itself.
+    expect(normalizeMatrixFilter({ rollupLevel: 1 }).rollupLevel).toBe(1);
+    expect(normalizeMatrixFilter({ rollupLevel: 3 }).rollupLevel).toBe(3);
+    expect(normalizeMatrixFilter({ rollupLevel: 99 }).rollupLevel).toBe(6); // capped at the 6 sort levels
+    for (const bad of [0, -1, 2.5, '2', NaN, null, undefined, true, [2]]) {
+      expect(normalizeMatrixFilter({ rollupLevel: bad }).rollupLevel).toBeNull();
+    }
+    expect(EMPTY_FILTER.rollupLevel).toBeNull();
+  });
+
   it('keeps foldOnLoad: false — "never fold" is not the same as "auto"', () => {
     // 'auto' folds a large matrix; false is the analyst forcing it not to.
     // Collapsing false into the default silently re-folds their view on load.
@@ -200,9 +217,13 @@ describe('matrixFilterFingerprint', () => {
       rollupExpanded: ['node-1'],
       rollupCollapsed: ['tuple-1'],
       rollupPath: ['node-1', 'node-2'],
+      rollupLevel: 2,
       foldAttributes: true,
     };
     expect(matrixFilterFingerprint(drilled)).toBe(matrixFilterFingerprint(seeded));
+    // …and each key on its own, so a fingerprint that stopped ignoring exactly
+    // one of them can't hide behind the others.
+    expect(matrixFilterFingerprint({ ...seeded, rollupLevel: 2 })).toBe(matrixFilterFingerprint(seeded));
   });
 
   it('separates matrices that really differ', () => {

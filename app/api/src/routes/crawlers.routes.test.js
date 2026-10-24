@@ -86,6 +86,14 @@ describe('self-service crawlers — auth + validation', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 1 });
   });
+  it('GET /crawlers/whoami carries the server clock a streamed reconcile keys on', async () => {
+    const before = Date.now();
+    const res = await crawlerApp(WORKER).get('/api/crawlers/whoami');
+    const t = Date.parse(res.body.serverTime);
+    expect(Number.isNaN(t)).toBe(false);
+    expect(t).toBeGreaterThanOrEqual(before);
+    expect(t).toBeLessThanOrEqual(Date.now());
+  });
   it('POST /crawlers/jobs/:id/phases 400 when phases is not an array', async () => {
     expect((await crawlerApp(WORKER).post('/api/crawlers/jobs/1/phases').send({ phases: 'nope' })).status).toBe(400);
   });
@@ -178,6 +186,54 @@ describe('self-service crawlers — happy paths (worker key)', () => {
   it('DELETE delta-token removes it', async () => {
     query.mockResolvedValue({ rowCount: 1 });
     expect((await asWorker().delete('/api/crawlers/delta-tokens/users?systemId=1')).status).toBe(200);
+  });
+
+  // ── photo-state ────────────────────────────────────────────────────────
+  // Tells the profile-photo phase which principals it has already resolved,
+  // so it can skip them instead of asking Graph once per user per run.
+  it('GET photo-state returns the fetched-at map keyed by principal id', async () => {
+    query.mockResolvedValue({ rows: [
+      { id: 'p1', photoFetchedAt: '2026-09-01T00:00:00.000Z' },
+      { id: 'p2', photoFetchedAt: null },
+    ] });
+    const res = await asWorker().get('/api/crawlers/photo-state?systemId=1');
+    expect(res.status).toBe(200);
+    // p2 is present with a null value, not omitted: "never checked" and
+    // "not a user of this system" are different answers, and the phase
+    // treats only the first as a reason to fetch.
+    expect(res.body).toEqual({ state: { p1: '2026-09-01T00:00:00.000Z', p2: null } });
+  });
+
+  it('GET photo-state returns an empty map when the system has no users', async () => {
+    query.mockResolvedValue({ rows: [] });
+    const res = await asWorker().get('/api/crawlers/photo-state?systemId=1');
+    expect(res.body).toEqual({ state: {} });
+  });
+
+  it('GET photo-state asks only for user principals of that system, and never for the bytes', async () => {
+    // The caller is deciding what to FETCH, not reading images back. Selecting
+    // "photo" here would pull every stored image on every crawl.
+    query.mockResolvedValue({ rows: [] });
+    await asWorker().get('/api/crawlers/photo-state?systemId=42');
+    const [sql, params] = query.mock.calls.at(-1);
+    expect(sql).toContain('"photoFetchedAt"');
+    expect(sql).not.toMatch(/"photo"\s*,/);
+    expect(sql).toContain(`"principalType" = 'User'`);
+    expect(sql).toContain('"deletedAt" IS NULL');
+    expect(params).toEqual([42]);
+  });
+
+  it('GET photo-state 400s without a usable systemId', async () => {
+    for (const q of ['', '?systemId=0', '?systemId=abc']) {
+      const res = await asWorker().get(`/api/crawlers/photo-state${q}`);
+      expect(res.status, `systemId="${q}"`).toBe(400);
+    }
+  });
+
+  it('GET photo-state 500s when the query fails', async () => {
+    query.mockRejectedValue(new Error('down'));
+    const res = await asWorker().get('/api/crawlers/photo-state?systemId=1');
+    expect(res.status).toBe(500);
   });
   it('phases stores the array', async () => {
     query.mockResolvedValue({ rowCount: 1 });

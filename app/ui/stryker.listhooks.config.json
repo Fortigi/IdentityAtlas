@@ -14,8 +14,13 @@
     "fileName": "reports/stryker-ui-listhooks.json"
   },
   "mutate": [
-    "src/hooks/useEntityPage.js"
+    "src/hooks/useEntityPage.js",
+    "src/utils/matchedOn.js"
   ],
+  "mutationExclusions": {
+    "src/components/ExtendedSearchToggle.jsx": "The \"All attributes\" checkbox: one label, one input, one tooltip, no decision of its own. Whether the extended search is actually sent — the 3-character rule and the remembered setting — is useEntityPage.js and src/utils/matchedOn.js, both mutated above; the checkbox driving it end to end is asserted in EntityListPage.mount.test.jsx and ContextSearchResults.mount.test.jsx.",
+    "src/components/contexts/ContextSearchResults.jsx": "The Contexts pane's result list: four render states (searching, error, no match, list) over useContextSearch. The URL it fetches — including when it asks for an extended search — is contextSearchUrl in src/hooks/useContextTrees.js, the label text is src/utils/matchedOn.js (mutated above), and the matching itself is the API's lib/entitySearch.js (mutated in app/api/stryker.matrix.config.json). Each of the four states, the open-on-click and the 'tick All attributes' hint (shown only when it is off) is asserted in ContextSearchResults.mount.test.jsx."
+  },
   "mutator": {
     "excludedMutations": [
       "StringLiteral",

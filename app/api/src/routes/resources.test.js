@@ -74,6 +74,23 @@ describe('GET /resources — list', () => {
     expect(res.body.data[0]).toMatchObject({ id: 'r1', groupId: 'r1', groupTypeCalculated: 'Group', tags: [] });
   });
 
+  it('an extended search matches every attribute and says which one', async () => {
+    stageList(
+      [{ id: 'r1', displayName: 'SAP users', resourceType: 'Group', extendedAttributes: { onPremisesSamAccountName: 'GG-SAP-PRD' }, tagString: null }],
+      1,
+    );
+    const res = await request(app).get('/api/resources?search=gg-sap&extendedSearch=true');
+    expect(listSql()).toContain('public.ia_search_text(ARRAY[r."id"::text');
+    expect(res.body.data[0].matchedOn).toEqual(['onPremisesSamAccountName']);
+  });
+
+  it('a normal search also matches the external id, and stamps no matchedOn', async () => {
+    stageList([{ id: 'r1', displayName: 'Eng', extendedAttributes: null, tagString: null }], 1);
+    const res = await request(app).get('/api/resources?search=Eng');
+    expect(listSql()).toContain('r."externalId" ILIKE $1');
+    expect(res.body.data[0]).not.toHaveProperty('matchedOn');
+  });
+
   it('filters by resourceType when supplied', async () => {
     await request(app).get('/api/resources?resourceType=Group');
     expect(listSql()).toContain('r."resourceType" =');

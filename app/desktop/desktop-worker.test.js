@@ -23,6 +23,21 @@ describe('buildDispatch', () => {
     expect(plan.args.slice(-5)).toEqual(['-JobId', '42', '-JobType', 'entra-id', '-ConfigFromStdin']);
   });
 
+  // Regression: crawlers were the only part of the portable build spawned without
+  // an execution policy, so they ran under the machine's. Every file extracted
+  // from a DOWNLOADED zip carries the internet Mark of the Web, and the common
+  // RemoteSigned default then refuses the script — "AuthorizationManager check
+  // failed", exit 1, before the transcript exists to say so. The app itself never
+  // hit it, because its documented launch line passes Bypass.
+  it('runs the crawler under the same execution policy the launcher uses', () => {
+    const plan = buildDispatch(KEY, job, { PATH: '/bin' });
+    const i = plan.args.indexOf('-ExecutionPolicy');
+    expect(i, 'crawler dispatch must set an execution policy').toBeGreaterThan(-1);
+    expect(plan.args[i + 1]).toBe('Bypass');
+    // It has to precede -File: PowerShell ignores host arguments after the script.
+    expect(i).toBeLessThan(plan.args.indexOf('-File'));
+  });
+
   it('hands the whole config over stdin and the key through IA_JOB_API_KEY', () => {
     const plan = buildDispatch(KEY, job, { PATH: '/bin' });
     expect(JSON.parse(plan.stdin)).toEqual(job.config);

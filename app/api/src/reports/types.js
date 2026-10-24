@@ -26,9 +26,45 @@
  */
 
 /**
+ * @typedef {Object} ReportNotice
+ *   A short statement ABOUT the rows rather than one of them: what the numbers
+ *   were computed from, and when they stop being trustworthy. Rendered above the
+ *   table. Generic on purpose — any template may return notices, and the engine
+ *   never reads their text.
+ * @property {'info'|'warning'} severity
+ * @property {string} text
+ */
+
+/**
  * @typedef {Object} ReportRunResult
  * @property {Object[]} rows  One object per row; keys match the column keys,
  *                            plus an optional `_entity` link target.
+ * @property {ReportNotice[]} [notices]  Context for those rows. Whether a
+ *                            download carries them is the FORMAT's decision,
+ *                            declared as `carriesContext` in export.js: a
+ *                            workbook writes them above the table, a CSV cannot
+ *                            (a preamble above the header breaks every parser
+ *                            that reads it). So a report whose rows need the
+ *                            caveat to be readable *as a CSV* must still carry
+ *                            it as a column.
+ * @property {string[]} [constantColumns]  Column keys that hold ONE value for
+ *                            the whole of THIS run — not for the report in
+ *                            general. A format with room for a header shows
+ *                            them once, above the table, and leaves them out of
+ *                            it; a format without one keeps them on every row.
+ *                            Declared by the run, never derived from the rows:
+ *                            a column can happen to hold one distinct value
+ *                            (every entitlement in an application being
+ *                            non-requestable, say) without that being a fact
+ *                            about the run, and deriving it would silently
+ *                            delete a real column. `columns` itself does not
+ *                            change — the screen shows all of them.
+ * @property {ReportColumn[]} [columns]  This run's columns, when they depend on
+ *                            its parameters (a report whose columns the reader
+ *                            picks). Replaces the template's `columns` in the
+ *                            response; omitted, the declaration stands.
+ * @property {ReportPivot[]} [pivots]  Likewise for the pivots — each must name
+ *                            only keys in the run's columns.
  */
 
 /**
@@ -45,7 +81,32 @@
  *                                       by the UI's form-renderer map.
  * @property {Object} parametersSchema  JSON-Schema-ish (required + properties).
  * @property {ReportColumn[]} columns
+ * @property {ReportPivot[]} [pivots]   Pivot tables the xlsx download opens with.
+ * @property {ReportChart[]} [charts]   Pie charts the xlsx download opens with.
  * @property {Function} run             (params, ctx) => Promise<ReportRunResult>
+ */
+
+/**
+ * @typedef {Object} ReportChart
+ *   One pie chart on the Charts tab of the xlsx download: how the rows split
+ *   over one column. See xlsxCharts.js.
+ * @property {string} name        Short name.
+ * @property {'pie'}  type
+ * @property {string} category    Row key whose values are the slices.
+ * @property {string} [value]     Row key summed per slice; omitted, rows are counted.
+ * @property {string} [title]     Chart title (defaults to the name).
+ * @property {string} [valueLabel] Heading of the number column beside it.
+ * @property {Object<string,string>} [colors] Slice colour per category, 'RRGGBB'.
+ */
+
+/**
+ * @typedef {Object} ReportPivot
+ *   One pivot table, on its own tab of the xlsx download, over the report's
+ *   rows. Every field is a column key; values are summed.
+ * @property {string}   name       Tab name.
+ * @property {string[]} [rows]     Row fields, outermost first.
+ * @property {string[]} [filters]  Filter (page) fields.
+ * @property {string[]} [values]   Fields summed in the value area.
  */
 
 export {};

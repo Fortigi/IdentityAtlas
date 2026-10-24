@@ -23,4 +23,29 @@ describe('refreshKeyword — CONCURRENTLY guard', () => {
     expect(refreshKeyword('vw_ResourceUserPermissionAssignments', new Set(), true))
       .toBe('');
   });
+
+  // The case the populated/unpopulated split cannot see. CONCURRENTLY diffs the
+  // new contents against the old, so filling an EMPTY view that way makes every
+  // one of 42.6M rows an insert found by a full outer join — and it buys nothing,
+  // because the readers it protects are reading nothing.
+  it('returns empty string when the view is populated but EMPTY', () => {
+    expect(refreshKeyword('vw_ResourceUserPermissionAssignments', populated, false,
+      new Set(['vw_ResourceUserPermissionAssignments']))).toBe('');
+  });
+
+  // Discriminates "is THIS view empty" from "is ANY view empty": one empty view
+  // must not drag its populated sibling onto the slow path.
+  it('still returns CONCURRENTLY for a populated non-empty view while a SIBLING is empty', () => {
+    expect(refreshKeyword('vw_ResourceUserPermissionAssignments', populated, false,
+      new Set(['vw_UserPermissionAssignmentViaBusinessRole']))).toBe('CONCURRENTLY');
+  });
+});
+
+describe('matrixRefreshMinIntervalMs — spacing of piled-up refreshes (SEC-2026-09 M-05)', () => {
+  it('defaults to 5 s and honours a non-negative integer override', async () => {
+    const { matrixRefreshMinIntervalMs } = await import('./ingest/matrixViews.js');
+    expect(matrixRefreshMinIntervalMs({})).toBe(5000);
+    expect(matrixRefreshMinIntervalMs({ MATRIX_REFRESH_MIN_INTERVAL_MS: '0' })).toBe(0);
+    expect(matrixRefreshMinIntervalMs({ MATRIX_REFRESH_MIN_INTERVAL_MS: '-3' })).toBe(5000);
+  });
 });

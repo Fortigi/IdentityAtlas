@@ -11,7 +11,7 @@ import CreateCategoryForm from './accessPackages/CreateCategoryForm';
 import AccessPackagesFilterBar from './accessPackages/AccessPackagesFilterBar';
 import SelectionActionBar from './accessPackages/SelectionActionBar';
 import AccessPackagesTable from './accessPackages/AccessPackagesTable';
-import AccessPackagesPagination from './accessPackages/AccessPackagesPagination';
+import Pagination from './Pagination';
 
 const PAGE_SIZE = 100;
 
@@ -325,7 +325,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         />
       )}
 
-      <AccessPackagesPagination
+      <Pagination
         page={page}
         setPage={setPage}
         totalPages={totalPages}

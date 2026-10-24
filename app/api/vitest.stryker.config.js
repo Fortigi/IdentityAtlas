@@ -32,6 +32,18 @@ export default defineConfig({
       'src/routes/matrix/shareRecipients.test.js',
       // SEC-2026-09 M-06: crawler permission whitelist + built-in worker guards.
       'src/routes/crawlers/crawlerGuards.test.js',
+      // One job per crawler configuration (lib/crawlerJobQueue.js). Mocked query
+      // function only; the claim statement itself is proven by a contract test.
+      'src/lib/crawlerJobQueue.test.js',
+      // SEC-2026-09: vault master-key location and *_FILE secrets. Mocked database
+      // and vault; files only under os.tmpdir(), which exists inside the sandbox.
+      'src/secrets/masterKeyStore.test.js',
+      'src/config/fileSecrets.test.js',
+      'src/middleware/requestOriginGuard.test.js',
+      'src/middleware/rateLimitKeys.test.js',
+      'src/middleware/crawlerAuthFailureLimiter.test.js',
+      // CWE-117: keeps caller-supplied text in ingest logs on one line. Pure.
+      'src/lib/oneLineForLog.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

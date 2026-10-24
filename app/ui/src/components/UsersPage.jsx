@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import EntityListPage from './EntityListPage';
 import DeletedBadge from './DeletedBadge';
+import { formatDateOnly } from '@ui/utils/formatters';
 
 const FIELD_LABELS = {
   department: 'Department',
@@ -18,6 +19,7 @@ const FIELD_LABELS = {
   mail: 'Mail',
   __userTag: 'User Tag',
   __system: 'System',
+  __lastSignIn: 'Last Sign-in',
 };
 
 const TABLE_COLUMNS = [
@@ -25,6 +27,7 @@ const TABLE_COLUMNS = [
   { key: 'userPrincipalName', label: 'UPN' },
   { key: 'department',        label: 'Department' },
   { key: 'jobTitle',          label: 'Job Title' },
+  { key: 'lastSignIn',        label: 'Last Sign-in' },
 ];
 
 // Sub-tabs for principalType. The Principals table is a universal identity
@@ -119,6 +122,14 @@ export default function UsersPage({ onOpenDetail }) {
           <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs">{u.userPrincipalName}</td>
           <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{u.department || ''}</td>
           <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{u.jobTitle || ''}</td>
+          {/* Never signed in is an em-dash, not a blank cell: "no value" and
+              "we did not load one" must not look the same. The measurement
+              moment sits in the title, because a sign-in date without it can be
+              read as weeks staler than it is. */}
+          <td className="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap"
+            title={u.lastSignInMeasuredAt ? `Measured on ${formatDateOnly(u.lastSignInMeasuredAt)}` : undefined}>
+            {u.lastSignIn ? formatDateOnly(u.lastSignIn) : '—'}
+          </td>
         </>
       )}
       searchPlaceholder="Search by name or UPN..."

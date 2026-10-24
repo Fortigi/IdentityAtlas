@@ -28,6 +28,21 @@ Describe 'Invoke-CrawlerIngestBatch' {
     }
 
     Context 'single batch' {
+        # The ingest can accept a batch it will not fully act on (synced contexts
+        # that name no owning system are never reconciled); the job log must say so.
+        It 'prints each warning the ingest returns, and nothing extra when there are none' {
+            $script:lines = [System.Collections.Generic.List[string]]::new()
+            Mock Write-Host { $script:lines.Add([string]$Object) } -ModuleName $null
+            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0; warnings = @('first thing', 'second thing') } } -ModuleName $null
+            Invoke-CrawlerIngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -Records (New-Recs 1) | Out-Null
+            @($script:lines | Where-Object { $_ -like '*WARNING:*' }) | Should -Be @('  WARNING: first thing', '  WARNING: second thing')
+
+            $script:lines.Clear()
+            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0 } } -ModuleName $null
+            Invoke-CrawlerIngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -Records (New-Recs 1) | Out-Null
+            @($script:lines | Where-Object { $_ -like '*WARNING:*' }).Count | Should -Be 0
+        }
+
         It 'sends one full-sync batch with the records as a JSON array' {
             $r = Invoke-CrawlerIngestBatch -Endpoint 'ingest/resources' -SystemId 7 -Records (New-Recs 3)
             $script:sent.Count | Should -Be 1
@@ -209,5 +224,41 @@ Describe 'Invoke-CrawlerIngestBatch' {
             Invoke-CrawlerIngestBatch -Endpoint 'ingest/resources' -Records (New-Recs 2) | Out-Null
             Should -Invoke Write-Host -Exactly 0 -ParameterFilter { $Object -like '*deletes)*' }
         }
+    }
+}
+
+Describe 'Send-CrawlerIngestDeletedKeys' {
+    BeforeEach {
+        $script:sent = [System.Collections.Generic.List[object]]::new()
+        Mock Invoke-IngestAPI {
+            $script:sent.Add(@{ Endpoint = $Endpoint; Body = $Body })
+            return @{ inserted = 0; updated = 0; deleted = $Body.deletedKeys.Count - 1 }
+        } -ModuleName $null
+        Mock Write-Host { } -ModuleName $null
+    }
+
+    It 'sends nothing for no keys' {
+        Send-CrawlerIngestDeletedKeys -Endpoint 'ingest/resource-assignments' -SystemId 4 -Keys @() | Should -Be 0
+        $script:sent.Count | Should -Be 0
+    }
+
+    It 'sends record-less delta batches in chunks and sums what the server deleted' {
+        $keys = 1..5 | ForEach-Object { @{ resourceId = "r$_"; principalId = "p$_"; assignmentType = 'Direct' } }
+        $deleted = Send-CrawlerIngestDeletedKeys -Endpoint 'ingest/resource-assignments' -SystemId 4 -Keys $keys -BatchSize 2
+
+        $script:sent.Count | Should -Be 3
+        @($script:sent | ForEach-Object { $_.Body.deletedKeys.Count }) | Should -Be @(2, 2, 1)
+        $script:sent[2].Body.deletedKeys[0].principalId | Should -Be 'p5'
+        $script:sent[0].Body.syncMode | Should -Be 'delta'
+        $script:sent[0].Body.systemId | Should -Be 4
+        $script:sent[0].Body.records.Count | Should -Be 0
+        $script:sent[0].Endpoint | Should -Be 'ingest/resource-assignments'
+        # The server reported one fewer than it was sent per chunk: 1 + 1 + 0.
+        $deleted | Should -Be 2
+    }
+
+    It 'sends a single key as a one-element array' {
+        Send-CrawlerIngestDeletedKeys -Endpoint 'ingest/resource-assignments' -SystemId 4 -Keys @(@{ resourceId = 'r'; principalId = 'p'; assignmentType = 'Direct' }) | Out-Null
+        ($script:sent[0].Body | ConvertTo-Json -Depth 5 -Compress) | Should -BeLike '*"deletedKeys":`[{*'
     }
 }

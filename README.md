@@ -4,21 +4,22 @@
 
 Permissions are scattered across identity systems, directories, and SaaS platforms. Identity Atlas syncs them all into a unified PostgreSQL model with trigger-based audit history, surfaces access gaps and risks through a visual role mining UI, and adds LLM-assisted identity risk scoring — without sending sensitive identity data to any external service. Source systems include Entra ID, Omada, SailPoint, SAP/Pathlock, SharePoint, Azure RBAC, Azure DevOps, or any system that can produce a CSV export.
 
+![The Identity Atlas permission matrix: resources as rows, users grouped by department as columns, and a badge in each cell showing whether the access is direct, indirect or eligible](docs/assets/screenshots/matrix.png)
+
+*The permission matrix, shown on the synthetic demo dataset. **[Try the live demo](https://demo1.identityatlas.io)** — no login, nothing to install.*
+
 ## Quick Start
 
 **Prerequisites:** Docker and Docker Compose. See [Sizing](docs/architecture/docker-setup.md#sizing) for RAM/disk guidance — 4 GB suffices for a demo or a small tenant, but tenants above ~2k principals with activity sync enabled should plan for 12 GB or more.
 
 ```bash
-# 1. Download the compose file and environment template
+# 1. Download the compose file
 curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-# 2. Create your .env file
-cp .env.example .env
-# For a quick local evaluation the defaults are fine.
-# For any networked or production deployment, open .env and set:
-#   POSTGRES_PASSWORD=<strong-password>
-#   IDENTITY_ATLAS_MASTER_KEY=<random-32-char-string>
+# 2. Create .env with a generated database password. The compose file ships no
+#    default password and refuses to start without one. (Skipped when .env
+#    already exists: the database keeps the password it was first created with.)
+[ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 
 # 3. Start the stack (first run: ~2 min to pull images; --pull always ensures
 #    Docker fetches the newest :latest instead of reusing a cached copy)
@@ -29,7 +30,11 @@ docker compose -f docker-compose.prod.yml up -d --pull always
 #    click "Add Crawler" to connect your Entra ID tenant.
 ```
 
+On Windows, use the PowerShell version of these commands in the [Quick Start guide](docs/quickstart.md).
+
 The in-browser crawler wizard walks you through credentials, permission validation, object type selection, and scheduling — no PowerShell or command-line setup required.
+
+> **Before you put real data in it:** the Docker stack starts without sign-in (`AUTH_ENABLED=false`), so anyone who can reach port 3001 has full access — see [Authentication](docs/admin/authentication.md) to require Entra ID login. The key that encrypts stored credentials is generated on first start and kept in the `web_keys` Docker volume: back that volume up, or set `IDENTITY_ATLAS_MASTER_KEY` in `.env` before the first start to a value you keep yourself (32 random bytes, base64-encoded: `openssl rand -base64 32`). All settings are listed in [Docker Setup](docs/architecture/docker-setup.md#environment-variables).
 
 > **Image channels:** The default pulls the latest stable release (`:latest`). To run the development build instead, set `IMAGE_TAG=edge` in your `.env`. See [Docker Setup](docs/architecture/docker-setup.md) for details.
 
@@ -84,10 +89,19 @@ cd IdentityAtlas/azure
 
 For environments where Docker and WSL are blocked by security policy — no installation, no administrator rights required.
 
-Download `IdentityAtlas-portable.zip` from the [Releases page](https://github.com/Fortigi/IdentityAtlas/releases), extract, and run:
+Every [release](https://github.com/Fortigi/IdentityAtlas/releases) ships two ZIPs:
+
+| Download | Use it when |
+|---|---|
+| `IdentityAtlas-portable.zip` | **Default.** Runs on PGlite inside the app. `node.exe`, its only executable, is code-signed. |
+| `IdentityAtlas-portable-postgres.zip` | **Large data sets** that outgrow PGlite. Embeds a real PostgreSQL 16 server; start with `-Database Postgres`. The PostgreSQL binaries are **not code-signed** (WDAC needs hash or path rules for them) and need the Visual C++ runtime (`VCRUNTIME140.dll`). |
+
+Extract the one you picked and run:
 
 ```powershell
 pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1
+# PostgreSQL ZIP:
+pwsh -ExecutionPolicy Bypass -File .\Start-IdentityAtlas.ps1 -Database Postgres
 ```
 
 Then open `http://localhost:3001`. To load the bundled demo dataset:
@@ -97,7 +111,7 @@ Then open `http://localhost:3001`. To load the bundled demo dataset:
     -ApiKey (Get-Content "$env:APPDATA\IdentityAtlas\.builtin-worker-key")
 ```
 
-The launcher bundles the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), so it works on locked-down corporate laptops with WDAC / application-control policies. Uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
+The launcher bundles the official signed `node.exe` from nodejs.org (OpenJS Foundation certificate), so the default ZIP works on locked-down corporate laptops with WDAC / application-control policies. It uses [PGlite](https://pglite.dev) (WebAssembly PostgreSQL) running in-process — no subprocess is spawned, no executable is extracted to disk at runtime.
 
 Requires PowerShell 7 (`pwsh.exe`): `winget install Microsoft.PowerShell`
 
@@ -156,7 +170,7 @@ See [tools/powershell-sdk/](tools/powershell-sdk/) for the Graph API wrapper fun
 
 ## Documentation
 
-Full docs at **[https://fortigi.github.io/IdentityAtlas](https://fortigi.github.io/IdentityAtlas)** (available once GitHub Pages is enabled).
+Full docs at **[https://fortigi.github.io/IdentityAtlas](https://fortigi.github.io/IdentityAtlas)**.
 Browse locally in the [`docs/`](docs/) folder.
 
 | Section | Link |
@@ -176,4 +190,6 @@ Browse locally in the [`docs/`](docs/) folder.
 ## Contributing / License
 
 Identity Atlas is open source under the [MIT License](LICENSE).
-Contributions are welcome — see the [GitHub repository](https://github.com/Fortigi/IdentityAtlas) to open issues or pull requests.
+
+- **Contributing:** contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to report a bug, set up a local environment, run the checks and open a pull request.
+- **Security:** please report vulnerabilities privately, not in a public issue. [SECURITY.md](SECURITY.md) explains how, and lists the supported versions and the published security assessments.

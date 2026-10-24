@@ -20,6 +20,9 @@
     Behaviour is unchanged from the original inline phases.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 # ARM api-versions (pinned). Subscriptions + the management-group hierarchy are read
 # over the ARM REST API; resource groups, resources, role definitions and role
 # assignments come from Azure Resource Graph.
@@ -65,6 +68,9 @@ function Resolve-AzureRMConfig {
         tenantId             = [string]$cfg.tenantId
         clientId             = [string]$cfg.clientId
         clientSecret         = $cfg.clientSecret
+        # The crawler's own name, injected by the job dispatcher. Carried through so
+        # the registered system can be named after the crawler instead of the type (#1240).
+        configName           = ([string]$cfg._configName).Trim()
     }
 }
 
@@ -77,9 +83,12 @@ function Connect-AzureRMSession {
 function Register-AzureRMSystem {
     [CmdletBinding()]
     param([hashtable]$Config)
+    # Named after the crawler when the run carries one; the type + tenant label is
+    # only the fallback for an unnamed config or an inline-config run (#1240).
+    $displayName = Get-CrawlerSystemName -TypeDefault "Azure RM ($($Config.tenantId))" -ConfigName ([string]$Config.configName)
     $sysResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
         syncMode = 'delta'
-        records  = @(@{ systemType = 'AzureRM'; displayName = "Azure RM ($($Config.tenantId))"; tenantId = [string]$Config.tenantId; enabled = $true; syncEnabled = $true })
+        records  = @(@{ systemType = 'AzureRM'; displayName = $displayName; tenantId = [string]$Config.tenantId; enabled = $true; syncEnabled = $true })
     }
     $id = if ($sysResult.systemIds -and $sysResult.systemIds.Count -gt 0) { [int]$sysResult.systemIds[0] } else { 0 }
     # Every full-sync reconcile of the run is scoped to this id; guessing one would
@@ -445,66 +454,97 @@ function Send-AzureScopeRecords {
 }
 
 # ─── Orphan handling ─────────────────────────────────────────────
-# Drop grants + stubs for principals not present in the Entra directory, then prune the
-# role-at-scope resources nobody holds anymore (full sync removes previously-loaded orphans).
+# The directory owns the accounts this crawler merely references, so drop every stub
+# for a principal the directory already knows (#1247). Writing one would upsert the
+# directory's own Principal row and stamp this system's id onto it — which flipped
+# ownership back and forth on every run, filled the user's Timeline with changes
+# nobody made, and made the NEXT presence lookup read the same user as an orphan.
+# What is left after this is exactly the principals the directory does NOT have.
+function Remove-AzureDirectoryStubs {
+    [CmdletBinding()]
+    param([hashtable]$Ctx, $Present)
+    $dropped = 0
+    foreach ($pt in @($Ctx.PrincipalStubs.Keys)) {
+        $kept = [System.Collections.Generic.List[object]]::new()
+        foreach ($stub in $Ctx.PrincipalStubs[$pt]) {
+            if ($Present.Contains([string]$stub.id)) { $dropped++ } else { $kept.Add($stub) }
+        }
+        $Ctx.PrincipalStubs[$pt] = $kept
+    }
+    Write-Host "  $dropped principal(s) already in the directory — referenced, not written." -ForegroundColor Gray
+}
+
+# Drop grants for principals not present in the directory, then prune the role-at-scope
+# resources nobody holds anymore (full sync removes previously-loaded orphans). The
+# stubs left by Remove-AzureDirectoryStubs are exactly those absent principals, and
+# their grants are going away, so nothing remains to write.
 function Remove-AzureOrphanGrants {
     [CmdletBinding()]
     param([hashtable]$Ctx, $Present, [int]$OrphanCount)
     $before = $Ctx.Grants.Count
     $Ctx.Grants = @($Ctx.Grants | Where-Object { $Present.Contains([string]$_.principalId) })
     foreach ($pt in @($Ctx.PrincipalStubs.Keys)) {
-        $kept = [System.Collections.Generic.List[object]]::new()
-        foreach ($stub in $Ctx.PrincipalStubs[$pt]) { if ($Present.Contains([string]$stub.id)) { $kept.Add($stub) } }
-        $Ctx.PrincipalStubs[$pt] = $kept
+        $Ctx.PrincipalStubs[$pt] = [System.Collections.Generic.List[object]]::new()
     }
     $keptCaps = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($g in $Ctx.Grants) { [void]$keptCaps.Add([string]$g.resourceId) }
     $Ctx.RoleResources = @($Ctx.RoleResources | Where-Object { $keptCaps.Contains([string]$_.id) })
-    Write-Host "  Orphan filter ON: dropped $($before - $Ctx.Grants.Count) assignment(s) for $OrphanCount principal(s) not in Entra ID." -ForegroundColor Gray
+    Write-Host "  Orphan filter ON: dropped $($before - $Ctx.Grants.Count) assignment(s) for $OrphanCount principal(s) not in the directory." -ForegroundColor Gray
 }
 
-# Flag orphan stubs; leave assignments as-is.
+# Flag the remaining stubs; leave assignments as-is. Everything still in PrincipalStubs
+# at this point is absent from the directory, so this crawler is its rightful owner —
+# a deleted service principal with a dangling role assignment is real Azure data that
+# exists nowhere else.
 function Set-AzureOrphanFlags {
     [CmdletBinding()]
-    param([hashtable]$Ctx, $Present)
+    param([hashtable]$Ctx)
     $tagged = 0
     foreach ($pt in $Ctx.PrincipalStubs.Keys) {
         foreach ($stub in $Ctx.PrincipalStubs[$pt]) {
-            if (-not $Present.Contains([string]$stub.id)) {
-                if (-not $stub.ContainsKey('extendedAttributes')) { $stub['extendedAttributes'] = @{} }
-                $stub['extendedAttributes']['directoryStatus'] = 'orphaned'
-                $tagged++
-            }
+            if (-not $stub.ContainsKey('extendedAttributes')) { $stub['extendedAttributes'] = @{} }
+            $stub['extendedAttributes']['directoryStatus'] = 'orphaned'
+            $tagged++
         }
     }
-    Write-Host "  Orphan flag OFF: tagged $tagged principal(s) not in Entra ID as 'orphaned' (assignments kept)." -ForegroundColor Gray
+    Write-Host "  Orphan flag OFF: tagged $tagged principal(s) not in the directory as 'orphaned' (assignments kept)." -ForegroundColor Gray
 }
 
-# Azure RBAC can reference principals the Entra crawler hasn't loaded (deleted SPs, or
-# principals intentionally out of scope). ON (default) drops them; OFF flags them. A
-# tenant with no Entra data yet is left untouched.
+# Azure RBAC can reference principals the directory crawler hasn't loaded (deleted SPs,
+# or principals intentionally out of scope). ON (default) drops them; OFF flags them.
+#
+# A tenant with no directory data yet is left untouched, and that is deliberate: on an
+# Azure-RM-first run this crawler DOES write full stubs, because nothing else has. The
+# ingest lets the directory claim those rows on its own first sync (systemBoundary.js),
+# so the two orders converge on the same answer.
 function Resolve-AzureRMOrphans {
     [CmdletBinding()]
     param([hashtable]$Ctx)
     $distinctPids = @($Ctx.Grants | ForEach-Object { [string]$_.principalId } | Sort-Object -Unique)
     if ($distinctPids.Count -eq 0) { return }
-    $lookup = Invoke-IngestAPI -Endpoint 'ingest/principals-presence' -Body @{ tenantId = [string]$Ctx.Config.tenantId; ids = $distinctPids }
+    $lookup = Invoke-IngestAPI -Endpoint 'ingest/principals-presence' -Body @{
+        tenantId = [string]$Ctx.Config.tenantId; systemId = $Ctx.SystemId; ids = $distinctPids
+    }
     if (-not $lookup.crawlerDataAvailable) {
-        Write-Host "  No Entra ID data loaded by the crawler for this tenant yet — skipping orphan handling (run the Entra ID crawler first)." -ForegroundColor Yellow
+        Write-Host "  No directory data loaded by the crawler for this tenant yet — skipping orphan handling (run the Entra ID crawler first)." -ForegroundColor Yellow
         return
     }
     $present = [System.Collections.Generic.HashSet[string]]::new([string[]]@($lookup.present), [System.StringComparer]::OrdinalIgnoreCase)
     $orphanCount = 0
     foreach ($objId in $distinctPids) { if (-not $present.Contains($objId)) { $orphanCount++ } }
+    Remove-AzureDirectoryStubs -Ctx $Ctx -Present $present
     if ($Ctx.Config.onlyEntraPrincipals) {
         Remove-AzureOrphanGrants -Ctx $Ctx -Present $present -OrphanCount $orphanCount
     } else {
-        Set-AzureOrphanFlags -Ctx $Ctx -Present $present
+        Set-AzureOrphanFlags -Ctx $Ctx
     }
 }
 
-# Principal stubs (delta upsert only, never scoped-delete the Entra crawler's principals)
-# + the capability-resources + the grants.
+# Principal stubs + the capability-resources + the grants.
+#
+# By the time this runs, PrincipalStubs holds only principals the directory does not
+# know (Resolve-AzureRMOrphans) — usually none at all. They still go out as a DELTA
+# upsert so the batch never scoped-deletes principals this crawler doesn't own.
 function Send-AzurePrincipalsAndGrants {
     [CmdletBinding()]
     param([hashtable]$Ctx)

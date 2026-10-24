@@ -74,7 +74,8 @@ systemctl enable --now identityatlas-autoupdate.timer
 ```
 
 Environment: `IA_API_URL` (default `http://localhost:3001`), `IA_COMPOSE_FILE`,
-`IA_READ_TOKEN` (only if auth is on), `IA_SERVICES` (default `web worker`).
+`IA_READ_TOKEN` (only if auth is on), `IA_SERVICES` (default `web worker`). If you run the
+[report generator](../reference/report-generator.md), add it: `IA_SERVICES="web worker report-generator"`.
 
 ### Azure Container Apps
 
@@ -82,7 +83,8 @@ Use `tools/auto-update/identityatlas-autoupdate-azure.sh` from an Azure
 Automation runbook, a scheduled Container Apps Job, or a GitHub Actions cron with
 an Azure login. It re-deploys the channel tag, which pulls that tag's current
 digest into a new revision. Set `IA_API_URL`, `IA_RESOURCE_GROUP`, `IA_WEB_APP`
-(and optionally `IA_WORKER_APP`), and `IA_CHANNEL` to match the deployment.
+(and optionally `IA_WORKER_APP` and `IA_REPORT_GENERATOR_APP`), and `IA_CHANNEL` to match the
+deployment.
 
 ### Local install
 

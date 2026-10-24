@@ -25,6 +25,7 @@ BeforeAll {
     $script:entraDir = Join-Path $script:repoRoot 'tools' 'crawlers' 'entra-id'
 
     # Get-UserAttrValue (used by ConvertTo-EntraPrincipalRecord for custom attrs).
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
@@ -32,6 +33,8 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # ConvertTo-EntraAppOwnershipGraph lives here now (extracted for the file-length ratchet).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppOwners.ps1')
+    # Add-EntraAppSecurityAttributes — called by ConvertTo-EntraServicePrincipalRecord.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.AppSecurity.ps1')
 
     # Get-FGServicePrincipalType (pure SDK classifier) — used by
     # ConvertTo-EntraServicePrincipalRecord.
@@ -202,6 +205,32 @@ Describe 'ConvertTo-EntraServicePrincipalRecord' {
         $rec['extendedAttributes']['publisherName']         | Should -Be 'Contoso'
         $rec['extendedAttributes']['tags']                  | Should -Be 'foo,bar'
         $rec['extendedAttributes']['servicePrincipalNames'] | Should -Be 'https://a,https://b'
+    }
+
+    It 'carries the SP''s own credentials, verified publisher, audience and assignment requirement' {
+        # A secret added to the SP object itself (not its app registration) is the
+        # persistence trick the risk view must see; appRoleAssignmentRequired=$false is a
+        # fact (anyone may sign in), distinct from "not read".
+        $sp = [pscustomobject]@{
+            id = 'sp6'; displayName = 'Third Party'; servicePrincipalType = 'Application'
+            signInAudience = 'AzureADMultipleOrgs'; appRoleAssignmentRequired = $false
+            verifiedPublisher = [pscustomobject]@{ displayName = 'Contoso Ltd'; verifiedPublisherId = '123' }
+            replyUrls = @('https://a.example/cb', 'http://localhost:8080')
+            passwordCredentials = @([pscustomobject]@{ keyId = 'k1'; displayName = 'backdoor'; hint = 'abc'
+                startDateTime = '2026-01-01T00:00:00Z'; endDateTime = '2299-12-31T00:00:00Z' })
+            keyCredentials = @()
+        }
+        $ext = (ConvertTo-EntraServicePrincipalRecord -ServicePrincipal $sp)['extendedAttributes']
+        $ext['signInAudience']            | Should -Be 'AzureADMultipleOrgs'
+        $ext['appRoleAssignmentRequired'] | Should -BeFalse
+        $ext.ContainsKey('appRoleAssignmentRequired') | Should -BeTrue
+        $ext['verifiedPublisherName']     | Should -Be 'Contoso Ltd'
+        $ext['replyUrls']                 | Should -Be 'https://a.example/cb,http://localhost:8080'
+        $ext['secretCount']               | Should -Be 1
+        $ext['certificateCount']          | Should -Be 0
+        $ext['secretLatestEndDateTime']   | Should -Be '2299-12-31T00:00:00Z'
+        $ext['credentials'][0].displayName | Should -Be 'backdoor'
+        $ext['credentials'][0].Contains('hint') | Should -BeFalse
     }
 
     It 'omits extendedAttributes when there is nothing to add' {
@@ -629,6 +658,65 @@ Describe 'ConvertTo-EntraAccessPackageRecord' {
     }
 }
 
+Describe 'ConvertTo-EntraCertificationDecisionRecord' {
+    BeforeAll {
+        $script:inst = [pscustomobject]@{ id = 'i1'; status = 'Completed'; startDateTime = '2026-01-01'; endDateTime = '2026-01-15' }
+    }
+
+    It 'keeps the core columns and adds the review name, default decision and who applied it' {
+        $def = [pscustomobject]@{ id = 'def1'; displayName = 'Quarterly AP review'
+            settings = [pscustomobject]@{ defaultDecisionEnabled = $true; defaultDecision = 'Deny'; autoApplyDecisionsEnabled = $false } }
+        $dec = [pscustomobject]@{
+            id = 'd1'; decision = 'Deny'
+            principal = [pscustomobject]@{ id = 'u1'; displayName = 'Uma' }
+            reviewedBy = [pscustomobject]@{ id = '00000000-0000-0000-0000-000000000000'; displayName = 'AAD Access Reviews' }
+            appliedBy = [pscustomobject]@{ id = 'sys'; displayName = 'Access Reviews' }
+            appliedDateTime = '2026-01-16T00:00:00Z'; applyResult = 'AppliedSuccessfully'
+        }
+        $rec = ConvertTo-EntraCertificationDecisionRecord -Decision $dec -Definition $def -Instance $script:inst -ApId 'ap1'
+
+        $rec.resourceId | Should -Be 'ap1'
+        $rec.reviewedBy | Should -Be '00000000-0000-0000-0000-000000000000'
+        $rec.reviewInstanceId | Should -Be 'i1'
+        $ext = $rec.extendedAttributes
+        $ext.reviewName | Should -Be 'Quarterly AP review'
+        $ext.defaultDecision | Should -Be 'Deny'
+        $ext.autoApplyDecisions | Should -BeFalse
+        $ext.Contains('autoApplyDecisions') | Should -BeTrue
+        $ext.appliedBy | Should -Be 'sys'
+        $ext.appliedByDisplayName | Should -Be 'Access Reviews'
+        $ext.appliedDateTime | Should -Be '2026-01-16T00:00:00Z'
+        $ext.applyResult | Should -Be 'AppliedSuccessfully'
+        $ext.Contains('contactedReviewers') | Should -BeFalse
+    }
+
+    It "records 'None' when the definition applies no default, and nothing when it has no settings" {
+        $off = [pscustomobject]@{ id = 'def1'; settings = [pscustomobject]@{ defaultDecisionEnabled = $false; defaultDecision = 'Approve' } }
+        (ConvertTo-EntraCertificationDecisionRecord -Decision ([pscustomobject]@{ id = 'd' }) -Definition $off -Instance $script:inst).extendedAttributes.defaultDecision | Should -Be 'None'
+
+        $none = ConvertTo-EntraCertificationDecisionRecord -Decision ([pscustomobject]@{ id = 'd' }) -Definition ([pscustomobject]@{ id = 'def1' }) -Instance $script:inst
+        $none.extendedAttributes.Contains('defaultDecision') | Should -BeFalse
+        $none.extendedAttributes.Contains('autoApplyDecisions') | Should -BeFalse
+        $none.extendedAttributes.Contains('appliedBy') | Should -BeFalse
+    }
+
+    It 'keeps who each contacted reviewer is, and drops entries without an id' {
+        $reviewers = @(
+            [pscustomobject]@{ id = 'r1'; displayName = 'Ann'; userPrincipalName = 'ann@x'; createdDateTime = '2026-01-01' }
+            [pscustomobject]@{ displayName = 'No id' }
+            $null
+            [pscustomobject]@{ id = 'r2'; displayName = 'Bob' }
+        )
+        $rec = ConvertTo-EntraCertificationDecisionRecord -Decision ([pscustomobject]@{ id = 'd' }) -Definition ([pscustomobject]@{ id = 'def1' }) -Instance $script:inst -ContactedReviewers $reviewers
+        $list = @($rec.extendedAttributes.contactedReviewers)
+        $list.Count | Should -Be 2
+        $list[0].id | Should -Be 'r1'
+        $list[0].userPrincipalName | Should -Be 'ann@x'
+        $list[0].Contains('createdDateTime') | Should -BeFalse
+        $list[1].displayName | Should -Be 'Bob'
+    }
+}
+
 Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
 
     It 'resolves apId from the expanded accessPackage and reads auto/review flags' {
@@ -778,6 +866,40 @@ Describe 'ConvertTo-EntraOAuth2ScopeGraph' {
         $out.resources.Count   | Should -Be 0
         $out.assignments.Count | Should -Be 0
     }
+
+    It 'marks an admin-consented scope on the resource and adds no assignment for it' {
+        $admin = [pscustomobject]@{ id = 'adm1'; consentType = 'AllPrincipals'; clientId = 'c1'; resourceId = 'api1'; principalId = $null; scope = 'Mail.Read Files.Read.All' }
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @() -AdminGrants @($admin) -SpInfo @{ c1 = @{ displayName = 'Client' }; api1 = @{ displayName = 'Graph' } }
+        $out.resources.Count     | Should -Be 2
+        $out.relationships.Count | Should -Be 2
+        $out.assignments.Count   | Should -Be 0
+        $out.resources | ForEach-Object {
+            $_.extendedAttributes.adminConsented      | Should -BeTrue
+            $_.extendedAttributes.adminConsentGrantId | Should -Be 'adm1'
+            $_.extendedAttributes.clientDisplayName   | Should -Be 'Client'
+        }
+    }
+
+    It 'shares one scope resource between an admin consent and a user consent for the same scope' {
+        $admin = [pscustomobject]@{ id = 'adm1'; clientId = 'c1'; resourceId = 'api1'; scope = 'Mail.Read' }
+        $user  = [pscustomobject]@{ id = 'u-g'; clientId = 'c1'; resourceId = 'api1'; principalId = 'u1'; scope = 'Mail.Read User.Read' }
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @($user) -AdminGrants @($admin) -SpInfo @{}
+        $out.resources.Count   | Should -Be 2
+        $out.assignments.Count | Should -Be 2
+        $mail = $out.resources | Where-Object { $_.extendedAttributes.scope -eq 'Mail.Read' }
+        $mail.extendedAttributes.adminConsented | Should -BeTrue
+        ($out.resources | Where-Object { $_.extendedAttributes.scope -eq 'User.Read' }).extendedAttributes.ContainsKey('adminConsented') | Should -BeFalse
+        # The user's assignment points at the same (shared) resource and keeps the names.
+        ($out.assignments | Where-Object { $_.extendedAttributes.scope -eq 'Mail.Read' }).resourceId | Should -Be $mail.id
+        $out.assignments | ForEach-Object { $_.extendedAttributes.targetApiDisplayName | Should -Be 'api1' }
+    }
+
+    It 'skips an admin consent missing its client or target' {
+        $out = ConvertTo-EntraOAuth2ScopeGraph -UserGrants @() -SpInfo @{} -AdminGrants @(
+            [pscustomobject]@{ id = 'a'; clientId = $null; resourceId = 'api1'; scope = 'Mail.Read' }
+            [pscustomobject]@{ id = 'b'; clientId = 'c1'; resourceId = $null; scope = 'Mail.Read' })
+        $out.resources.Count | Should -Be 0
+    }
 }
 
 Describe 'ConvertTo-EntraAppRoleApplicationResource' {
@@ -794,6 +916,13 @@ Describe 'ConvertTo-EntraAppRoleApplicationResource' {
         $rec['enabled']      | Should -BeTrue
         $rec['extendedAttributes']['appId']                     | Should -Be 'app-1'
         $rec['extendedAttributes']['appRoleAssignmentRequired'] | Should -BeTrue
+    }
+
+    It 'keeps the publisher, so the reconciling batch does not wipe what the OAuth2 record set' {
+        $with    = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal ([pscustomobject]@{ id = 'sp1'; publisherName = 'Contoso' })
+        $without = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal ([pscustomobject]@{ id = 'sp2'; appId = 'app-2' })
+        $with['extendedAttributes']['publisherName'] | Should -Be 'Contoso'
+        $without['extendedAttributes'].ContainsKey('publisherName') | Should -BeFalse
     }
 }
 

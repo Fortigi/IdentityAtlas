@@ -14,6 +14,21 @@ import { ALL_OPTIONAL_TABS, setVisibleTabs } from './global-setup.js';
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 const API = `${BASE}/api`;
 
+// The table draws one page at a time — ROWS_PER_PAGE in
+// src/components/reports/ListReportRenderer.jsx. A report can return tens of
+// thousands of rows and the download, not the table, is what carries them all.
+// Restated here rather than imported: this file runs under Playwright, which
+// does not transpile the JSX module that owns the constant.
+const ROWS_PER_PAGE = 100;
+
+// A report's display name as a literal pattern. Names may carry regex
+// metacharacters — "High-risk Application Permissions (Entra ID)" turned its
+// parentheses into a group, so the pattern stopped matching the very link it
+// was looking for.
+function nameMatcher(displayName) {
+  return new RegExp(displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+}
+
 /** The registered report templates, read from the deployment under test. */
 async function fetchReports() {
   const res = await fetch(`${API}/reports`);
@@ -35,7 +50,7 @@ async function openReports(page) {
 /** Open one report in its own tab, from the list. */
 async function openReport(page, report) {
   await openReports(page);
-  await page.getByRole('link', { name: new RegExp(report.displayName) }).click();
+  await page.getByRole('link', { name: nameMatcher(report.displayName) }).click();
   await expect(page).toHaveURL(new RegExp(`#report:${report.name}`));
   await expect(page.getByRole('heading', { name: report.displayName, level: 2 })).toBeVisible({ timeout: 15000 });
 }
@@ -99,7 +114,7 @@ test.describe('Reports', () => {
 
     await openReports(page);
     for (const report of reports) {
-      const link = page.getByRole('link', { name: new RegExp(report.displayName) });
+      const link = page.getByRole('link', { name: nameMatcher(report.displayName) });
       await expect(link).toBeVisible();
       // A real link to the report's route, so it can also be opened in a browser tab.
       await expect(link).toHaveAttribute('href', `#report:${report.name}`);
@@ -126,8 +141,11 @@ test.describe('Reports', () => {
     for (const column of body.columns) {
       await expect(page.getByRole('columnheader', { name: column.label, exact: true })).toBeVisible();
     }
-    // … and the table holds exactly the rows the API returned.
-    await expect(page.locator('table tbody tr')).toHaveCount(body.total);
+    // … and the table holds the rows the API returned, one page at a time.
+    await expect(page.locator('table tbody tr')).toHaveCount(Math.min(body.total, ROWS_PER_PAGE));
+    // The pager appears only when there is a second page to reach.
+    await expect(page.getByRole('button', { name: 'Next' }))
+      .toHaveCount(body.total > ROWS_PER_PAGE ? 1 : 0);
 
     const first = body.rows[0];
     if (first.displayName) {
@@ -153,8 +171,10 @@ test.describe('Reports', () => {
     const body = await fetchRows('orphaned-accounts');
     test.skip(body.total === 0, 'no orphaned accounts in this dataset');
 
-    const row = body.rows.find(r => r._entity && r.displayName);
-    test.skip(!row, 'no linkable row in this dataset');
+    // From the FIRST page only — a row further down is not on screen until the
+    // pager is used, so clicking it by name would look like a missing link.
+    const row = body.rows.slice(0, ROWS_PER_PAGE).find(r => r._entity && r.displayName);
+    test.skip(!row, 'no linkable row on the first page of this dataset');
 
     await openReport(page, body);
     await page.getByRole('button', { name: row.displayName }).first().click();

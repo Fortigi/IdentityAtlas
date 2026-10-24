@@ -251,6 +251,49 @@ function Invoke-CrawlerPostSyncHooks {
     }
 }
 
+# ─── Matrix view refresh ──────────────────────────────────────────────────────
+# Crawlers ask the API for a matrix-view refresh at the end of a sync, and the API
+# now runs it in the background (app/api/src/ingest/viewRefresh.js) instead of
+# inside a request that timed out and was retried. The job waits for it here and
+# reports what actually happened: a failed refresh fails the job, instead of being
+# logged as "non-critical" while the job said success.
+function Get-MatrixViewRefreshStatus {
+    param([string]$ApiBaseUrl, [string]$ApiKey)
+    try {
+        return Invoke-RestMethod -Uri "$ApiBaseUrl/ingest/refresh-views" -Method Get `
+            -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
+    } catch {
+        return $null   # an API without the status endpoint: nothing to wait for
+    }
+}
+
+function Wait-MatrixViewRefresh {
+    param(
+        [string]$ApiBaseUrl,
+        [string]$ApiKey,
+        $Before,
+        [int]$TimeoutSeconds = 7200,
+        [int]$PollSeconds = 10
+    )
+    if ($null -eq $Before) { return }
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $status = Get-MatrixViewRefreshStatus -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey
+    while ($status -and $status.pending) {
+        if ((Get-Date) -gt $deadline) {
+            throw "Data loaded, but the matrix views were still refreshing after $TimeoutSeconds s — the matrix may show the previous data until it finishes"
+        }
+        Update-JobProgress -Step "Refreshing matrix views ($($status.state))" -Pct 95
+        Start-Sleep -Seconds $PollSeconds
+        $status = Get-MatrixViewRefreshStatus -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey
+    }
+    if (-not $status -or $status.runs -le $Before.runs -or -not $status.last) { return }
+    $seconds = [Math]::Round($status.last.durationMs / 1000)
+    if (-not $status.last.ok) {
+        throw "Data loaded, but the matrix view refresh failed after $seconds s: $($status.last.error)"
+    }
+    Write-Host "  Matrix views refreshed in $seconds s" -ForegroundColor Green
+}
+
 # ─── Job dispatch ─────────────────────────────────────────────────────────────
 $apiBaseUrl = $env:WEB_API_URL
 if (-not $apiBaseUrl) { $apiBaseUrl = 'http://web:3001/api' }
@@ -297,6 +340,7 @@ try {
         $Config | ConvertTo-Json -Depth 20 -Compress | Set-Content $configPath -Encoding UTF8
 
         $displayName = if ($manifest['displayName']) { $manifest['displayName'] } else { $JobType }
+        $refreshBefore = Get-MatrixViewRefreshStatus -ApiBaseUrl $apiBaseUrl -ApiKey $ApiKey
         Update-JobProgress -Step "Running $displayName crawler" -Pct 10
 
         & $entryPointPath -ApiBaseUrl $apiBaseUrl -ApiKey $ApiKey -JobId $JobId -ConfigPath $configPath
@@ -307,6 +351,7 @@ try {
 
     # ─── Post-sync hooks ──────────────────────────────────────────────────────
     Invoke-CrawlerPostSyncHooks -Hooks $manifest['postSyncHooks'] -AppRoot $appRoot
+    Wait-MatrixViewRefresh -ApiBaseUrl $apiBaseUrl -ApiKey $ApiKey -Before $refreshBefore
 
     Update-JobProgress -Step 'Complete' -Pct 100
     Set-JobResult @{ status = "$displayName completed successfully" }

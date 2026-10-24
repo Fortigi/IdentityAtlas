@@ -79,3 +79,27 @@ Describe 'Azure CLI deploy passes only parameters main.bicep declares' {
         $Name | Should -BeIn $script:Declared -Because 'az aborts the deployment on an unknown template parameter (#1085)'
     }
 }
+
+Describe 'deploy.ps1 can be run by Windows PowerShell 5.1' {
+    # 5.1 reads a .ps1 without a byte-order mark as ANSI, not UTF-8. This script's
+    # box-drawing characters and arrows then decode into other characters — and the
+    # third byte of "→" (0x92) becomes a typographic quote, which the parser treats as
+    # a string delimiter: "The string is missing the terminator". The script would not
+    # start at all, on the one shell a Windows operator has without installing
+    # anything. A BOM (or pure ASCII) fixes it; PowerShell 7 is happy with either.
+    BeforeAll {
+        $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $script:DeployBytes = [System.IO.File]::ReadAllBytes((Join-Path $root 'azure/deploy.ps1'))
+    }
+
+    It 'is read as UTF-8 by every shell: a BOM, or no character that needs one' {
+        $hasBom = $script:DeployBytes.Length -ge 3 -and
+            $script:DeployBytes[0] -eq 0xEF -and $script:DeployBytes[1] -eq 0xBB -and $script:DeployBytes[2] -eq 0xBF
+        $nonAscii = @($script:DeployBytes | Where-Object { $_ -gt 127 }).Count
+        ($hasBom -or $nonAscii -eq 0) | Should -BeTrue -Because 'without a BOM, Windows PowerShell 5.1 fails to parse the non-ASCII characters'
+    }
+
+    It 'actually contains the characters that need the BOM, so the check above is not vacuous' {
+        @($script:DeployBytes | Where-Object { $_ -gt 127 }).Count | Should -BeGreaterThan 0
+    }
+}

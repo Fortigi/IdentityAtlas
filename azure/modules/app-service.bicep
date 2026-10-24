@@ -1,5 +1,6 @@
 // App Service for Linux Containers — runs the Identity Atlas web image
-// pulled directly from ghcr.io. Public HTTPS endpoint with Microsoft-
+// pulled from ghcr.io, or from the customer's own Azure Container Registry when
+// one is configured. Public HTTPS endpoint with Microsoft-
 // managed TLS cert. Always On so users never hit a cold start.
 //
 // Two storage mounts: the persistent Azure Files share for /data/uploads,
@@ -23,6 +24,15 @@ param sku string
 
 @description('Web App image reference, e.g. ghcr.io/fortigi/identity-atlas:latest')
 param image string
+
+@description('Registry host the image is pulled from, e.g. ghcr.io or contoso.azurecr.io.')
+param registryServer string = 'ghcr.io'
+
+@description('Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry.')
+param pullIdentityId string = ''
+
+@description('Client ID of the image-pull identity. Empty = anonymous pull.')
+param pullIdentityClientId string = ''
 
 @description('Managed identity resource ID for KV references + future Azure RBAC')
 param identityId string
@@ -48,18 +58,66 @@ param uploadsShareName string
 @description('Optional: existing Log Analytics workspace ID to forward diagnostic logs to. Empty = no diagnostic settings (still see stdout via the App Service Log Stream).')
 param logAnalyticsWorkspaceId string = ''
 
-@description('Allowed IP CIDR list for ingress. Empty array = open to the internet (default; rely on Entra auth).')
+@description('Allowed IP CIDR list for ingress. Empty array = no IP rules.')
 param allowedIpCidrs array = []
 
-// Entra ID auth is intentionally NOT a parameter of this module. Step 1
-// (main.bicep) always deploys in OPEN mode with AUTH_ENABLED=false. To turn
-// auth on, run Step 2 (main-auth.bicep) — it patches the AUTH_* appsettings
-// on this App Service without touching anything else.
+@description('URL of the report generator (experimental). Empty = the feature is not deployed.')
+param reportGeneratorUrl string = ''
+
+@description('Versioned Key Vault secret URI of the API key the web app sends to the report generator. Empty = the feature is not deployed.')
+param reportGeneratorKeySecretUri string = ''
+
+// SEC-2026-09 L-19. 'Allow' stays the default so an upgrade cannot lock an
+// operator (or the worker, which calls this app's public URL) out. With 'Deny'
+// only allowedIpCidrs — and, in the private network mode, the worker subnet —
+// can reach the app. Supplying allowedIpCidrs also implies 'Deny', as before.
+@description('Access-restriction default action for requests that match no rule.')
+@allowed(['Allow', 'Deny'])
+param ipSecurityRestrictionsDefaultAction string = 'Allow'
+
+@description('Private network mode: subnet for regional VNet integration. Empty = no VNet integration (public mode).')
+param vnetIntegrationSubnetId string = ''
+
+@description('Private network mode: the Container Apps subnet of the worker, allowed through the access restrictions.')
+param workerSubnetId string = ''
+
+@description('Versioned Key Vault secret URI of the Postgres admin password (from the bootstrap script).')
+param pgPasswordSecretUri string
+
+@description('Entra ID tenant GUID for sign-in. Empty = left for Step 2 (main-auth.bicep) to patch in.')
+param entraTenantId string = ''
+
+@description('Entra ID App Registration (client) GUID for sign-in. Empty = left for Step 2.')
+param entraClientId string = ''
+
+// Sign-in is either passed in here (a deployment managed as code, so a redeploy
+// keeps it) or patched in afterwards by Step 2 (main-auth.bicep), which merges
+// the AUTH_* settings into these. A redeploy of THIS module replaces the whole
+// settings list, so whatever Step 2 patched in is cleared again.
 
 // Strip the digest/tag part because the DOCKER_CUSTOM_IMAGE_NAME app setting
 // expects the full image path. We pass the full image including tag, so no
 // stripping needed — variable kept for clarity.
 var linuxFxVersion = 'DOCKER|${image}'
+
+var privateNetworking = !empty(vnetIntegrationSubnetId)
+var privateRegistry = !empty(pullIdentityId)
+// The web identity reads Key Vault; the pull identity, when there is one, pulls
+// the image. Kept apart so neither carries the other's permission.
+var siteIdentities = union({ '${identityId}': {} }, privateRegistry ? { '${pullIdentityId}': {} } : {})
+var ipRules = [for (cidr, i) in allowedIpCidrs: {
+  name: 'allow-${i}'
+  action: 'Allow'
+  priority: 100 + i
+  ipAddress: cidr
+}]
+var workerRule = empty(workerSubnetId) ? [] : [{
+  name: 'allow-worker-subnet'
+  action: 'Allow'
+  priority: 90
+  vnetSubnetResourceId: workerSubnetId
+}]
+var restrictionsDefaultAction = (ipSecurityRestrictionsDefaultAction == 'Deny' || !empty(allowedIpCidrs)) ? 'Deny' : 'Allow'
 
 // Reference the storage account (created in this RG by the storage module) so we
 // can read its key locally via listKeys(), instead of receiving the key as a
@@ -84,32 +142,33 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
   kind: 'app,linux,container'
   identity: {
     type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${identityId}': {}
-    }
+    userAssignedIdentities: siteIdentities
   }
   properties: {
     serverFarmId: plan.id
     httpsOnly: true
     keyVaultReferenceIdentity: identityId
+    // Private network mode: regional VNet integration, with all outbound traffic
+    // routed through the VNet so Key Vault references, the Azure Files mount and
+    // the Postgres connection use the private endpoints. Public mode: no VNet.
+    virtualNetworkSubnetId: privateNetworking ? vnetIntegrationSubnetId : null
     siteConfig: {
+      vnetRouteAllEnabled: privateNetworking
       linuxFxVersion: linuxFxVersion
       alwaysOn: true
       ftpsState: 'Disabled'
       http20Enabled: true
       minTlsVersion: '1.2'
       healthCheckPath: '/api/health'
-      acrUseManagedIdentityCreds: false  // we pull from public ghcr.io, no creds
-      ipSecurityRestrictionsDefaultAction: empty(allowedIpCidrs) ? 'Allow' : 'Deny'
-      ipSecurityRestrictions: [for (cidr, i) in allowedIpCidrs: {
-        name: 'allow-${i}'
-        action: 'Allow'
-        priority: 100 + i
-        ipAddress: cidr
-      }]
-      appSettings: [
+      // Public ghcr.io: anonymous pull. The customer's own ACR (a pull-through
+      // cache of ghcr.io): pulled with the image-pull identity, which holds AcrPull.
+      acrUseManagedIdentityCreds: privateRegistry
+      acrUserManagedIdentityID: privateRegistry ? pullIdentityClientId : null
+      ipSecurityRestrictionsDefaultAction: restrictionsDefaultAction
+      ipSecurityRestrictions: concat(workerRule, ipRules)
+      appSettings: concat([
         // Container source
-        { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://ghcr.io' }
+        { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://${registryServer}' }
         { name: 'WEBSITES_PORT', value: '3001' }
         { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
         // Cold-start probe ceiling. The web container binds its port BEFORE
@@ -132,8 +191,8 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         // unauthenticated instance. Step 2 in the walkthrough = filling in
         // these two env vars after registering the Entra app.
         { name: 'AUTH_ENABLED', value: 'true' }
-        { name: 'AUTH_TENANT_ID', value: '' }
-        { name: 'AUTH_CLIENT_ID', value: '' }
+        { name: 'AUTH_TENANT_ID', value: entraTenantId }
+        { name: 'AUTH_CLIENT_ID', value: entraClientId }
         // KV references — resolved at startup via the managed identity.
         // App Service reads the literal secret value from KV and exposes
         // it to the app as the named env var.
@@ -146,18 +205,32 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         // reference at startup via the managed identity.
         {
           name: 'POSTGRES_PASSWORD'
-          value: '@Microsoft.KeyVault(SecretUri=${keyVaultUri}secrets/postgres-admin-password/)'
+          // Versioned URI: a password rotation (bootstrap rotatePostgresPassword)
+          // changes this value, which restarts the app onto the new password.
+          value: '@Microsoft.KeyVault(SecretUri=${pgPasswordSecretUri})'
         }
         { name: 'POSTGRES_HOST', value: pgFqdn }
         { name: 'POSTGRES_PORT', value: '5432' }
         { name: 'POSTGRES_DB', value: pgDatabaseName }
         { name: 'POSTGRES_USER', value: pgUsername }
         // Postgres needs SSL. The Node pg library auto-detects via the
-        // PGSSLMODE env var.
+        // PGSSLMODE env var. With node-postgres, sslmode=require verifies the
+        // server certificate chain and hostname (it maps to ssl: true), unlike
+        // libpq's require, so no separate verify-full setting is needed.
         { name: 'PGSSLMODE', value: 'require' }
         // Azure-specific
         { name: 'AZURE_KEY_VAULT_URI', value: keyVaultUri }
-      ]
+      ], empty(reportGeneratorUrl) ? [] : [
+        // Report generator (experimental, deployed on request). Switching the
+        // feature on also needs FEATURE_CUSTOM_REPORTS, set here so a deployment
+        // that paid for the container gets the feature it asked for.
+        { name: 'FEATURE_CUSTOM_REPORTS', value: 'true' }
+        { name: 'NL_REPORTS_LLM_URL', value: reportGeneratorUrl }
+        // A Key Vault reference, like the Postgres password: the key is generated
+        // once by the bootstrap script and kept, so a redeploy does not rotate it.
+        // Versioned, so a deliberate change of the key restarts the app onto it.
+        { name: 'NL_REPORTS_LLM_API_KEY', value: '@Microsoft.KeyVault(SecretUri=${reportGeneratorKeySecretUri})' }
+      ])
       azureStorageAccounts: {
         uploads: {
           type: 'AzureFiles'
@@ -192,3 +265,5 @@ output appId string = web.id
 output appName string = web.name
 output appHostname string = web.properties.defaultHostName
 output appUrl string = 'https://${web.properties.defaultHostName}'
+@description('Every outbound IPv4 address the app can use (comma-separated) — the Postgres firewall allows exactly these in the public network mode, and deploy.ps1 narrows the report generator\'s ingress to them.')
+output possibleOutboundIpAddresses string = web.properties.possibleOutboundIpAddresses

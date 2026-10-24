@@ -11,19 +11,57 @@
 // timeout is a hard upper bound; idle sessions are reaped to free connections.
 
 import crypto from 'crypto';
-import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete } from './engine.js';
+import { markInitialLoad } from './initialLoad.js';
+import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buildUpdateSet, markGovernanceMemberships } from './engine.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
+import { repairManagerLinks, columnsHaveManagerLink } from './managerLinks.js';
 
 const sessions = new Map();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+// Every open session pins one pooled connection for its whole lifetime, so the
+// number of open sessions is capped — per crawler and in total — or a crawler key
+// could hold the pool until the timeout and starve every other request
+// (SEC-2026-09 M-07). The global cap leaves headroom below the pool size (10).
+// A worker-class key (the built-in worker) is exempt from the per-crawler cap:
+// the SCIM and midPoint crawlers legitimately keep several buckets open at once.
+const DEFAULT_MAX_PER_CRAWLER = 3;
+const DEFAULT_MAX_GLOBAL = 7;
+
+function envInt(env, name, fallback) {
+  const n = Number.parseInt(env[name] ?? '', 10);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+// The configured caps (INGEST_MAX_SESSIONS_GLOBAL / _PER_CRAWLER). Exported for tests.
+export function sessionLimits(env = process.env) {
+  return {
+    maxGlobal: envInt(env, 'INGEST_MAX_SESSIONS_GLOBAL', DEFAULT_MAX_GLOBAL),
+    maxPerCrawler: envInt(env, 'INGEST_MAX_SESSIONS_PER_CRAWLER', DEFAULT_MAX_PER_CRAWLER),
+  };
+}
+
+export class SessionLimitError extends Error {}
+
+// Would opening one more session exceed a cap? Pure over the given session list.
+// Returns an error message or null. Exported for unit tests.
+export function sessionLimitDenial(openSessions, crawlerId, isWorker, limits = sessionLimits()) {
+  const open = [...openSessions].filter(x => !x.released);
+  if (open.length >= limits.maxGlobal) {
+    return `Too many open ingest sessions (limit ${limits.maxGlobal}); retry after one completes`;
+  }
+  if (isWorker || crawlerId === null || crawlerId === undefined) return null;
+  const mine = open.filter(x => x.crawlerId === crawlerId).length;
+  return mine >= limits.maxPerCrawler ? `Too many open ingest sessions for this crawler (limit ${limits.maxPerCrawler})` : null;
+}
 
 setInterval(async () => {
   const now = Date.now();
   for (const [id, session] of sessions) {
     if (now - session.startedAt > SESSION_TIMEOUT_MS) {
       // Mark as released first so concurrent endSession doesn't double-release
-      if (session.released) continue;
+      if (session.released || session.pending) continue;
       session.released = true;
       try { await session.client.query('ROLLBACK'); } catch { /* ignore */ }
       try { session.client.release(); } catch { /* ignore */ }
@@ -40,7 +78,25 @@ const copyRows = (client, tempTable, activeColumns, records) =>
   bulkInsertIntoTemp(client, tempTable, activeColumns, records, 200);
 
 export async function startSession(_pool, tableName, keyColumns, records, options = {}) {
+  const limitDenial = sessionLimitDenial(sessions.values(), options.crawlerId, options.isWorker);
+  if (limitDenial) throw new SessionLimitError(limitDenial);
+
+  // Reserve the slot synchronously, before the first await, so concurrent starts
+  // cannot all pass the cap check. No client yet, so it is unusable until filled.
   const syncId = crypto.randomUUID();
+  const crawlerId = options.crawlerId ?? null;
+  sessions.set(syncId, { crawlerId, pending: true, startedAt: Date.now() });
+  try {
+    const session = await openSession(syncId, tableName, keyColumns, records, options);
+    sessions.set(syncId, { ...session, crawlerId });
+  } catch (err) {
+    sessions.delete(syncId);
+    throw err;
+  }
+  return { syncId, inserted: 0, updated: 0, deleted: 0 };
+}
+
+async function openSession(syncId, tableName, keyColumns, records, options) {
   const activeColumns = await resolveActiveColumns(tableName, records, keyColumns);
   // endSession's full-sync scopedDelete needs the table's full column set (see
   // engine.js) — keep it on the session. Cached, so no extra round-trip.
@@ -48,14 +104,24 @@ export async function startSession(_pool, tableName, keyColumns, records, option
 
   const pool = await db.getPool();
   const client = await pool.connect();
-  await client.query('BEGIN');
-
   const tempTable = `_tmp_session_${syncId.replace(/-/g, '').slice(0, 16)}`;
-  await createTempTable(client, tempTable, activeColumns);
+  try {
+    await client.query('BEGIN');
+    // The request pool closes a connection left idle inside a transaction (see
+    // db/connection.js). A session is idle in its transaction between batches by
+    // design, so its own transaction keeps the session's 30-minute bound.
+    await client.query(`SET LOCAL idle_in_transaction_session_timeout = ${SESSION_TIMEOUT_MS}`);
+    await createTempTable(client, tempTable, activeColumns);
+    await copyRows(client, tempTable, activeColumns, records);
+  } catch (err) {
+    // Never leak the pinned connection when the session fails to open.
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    client.release();
+    throw err;
+  }
 
-  await copyRows(client, tempTable, activeColumns, records);
-
-  sessions.set(syncId, {
+  return {
+    restrictSystemIds: options.restrictSystemIds ?? null,
     client,
     tempTable,
     tableName,
@@ -67,11 +133,13 @@ export async function startSession(_pool, tableName, keyColumns, records, option
     systemIdColumn: options.systemIdColumn || 'systemId',
     scopeDeleteFilter: options.scopeDeleteFilter || null,
     conflictFilter: options.conflictFilter || null,
+    // Columns this system may not take over (#1247). Resolved once at start and
+    // kept on the session, so every batch of a multi-batch sync upserts under the
+    // same ownership rule a single-batch one does.
+    preserveColumns: options.preserveColumns || null,
     startedAt: Date.now(),
     recordCount: records.length,
-  });
-
-  return { syncId, inserted: 0, updated: 0, deleted: 0 };
+  };
 }
 
 export async function continueSession(syncId, _pool, records, _keyColumns) {
@@ -91,7 +159,13 @@ export function buildUpsertSql(session) {
   const conflictWhere = session.conflictFilter ? ` WHERE ${session.conflictFilter}` : '';
 
   if (nonKeyCols.length > 0) {
-    const updateSet = nonKeyCols.map(c => `"${c.name}" = EXCLUDED."${c.name}"`).join(', ');
+    // A session applies its whole payload in one upsert at end-of-sync, so the
+    // incoming values are authoritative the way a full sync's are — hence
+    // syncMode 'full', which is exactly what this line did before it shared a
+    // builder with engine.js.
+    const updateSet = buildUpdateSet(nonKeyCols, session.tableName, {
+      syncMode: 'full', preserveColumns: session.preserveColumns,
+    });
     return `
         INSERT INTO "${session.tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${session.tempTable}"
@@ -126,6 +200,9 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       session.recordCount += records.length;
     }
 
+    await markGovernanceMemberships(session.client, session.tableName, session.tempTable, session.keyColumns, session.activeColumns);
+    // A system's initial load writes no per-row "created" history (migration 073).
+    await markInitialLoad(session.client, session.systemId, session.tableName);
     const upsertRes = await session.client.query(buildUpsertSql(session));
     const { inserted, updated } = countUpsertResult(upsertRes.rows);
 
@@ -136,9 +213,15 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       deleted = await scopedDelete(
         session.client, session.tableName, session.keyColumns, session.tempTable,
         session.systemId, session.scope, session.systemIdColumn, tableColumnNames,
-        session.scopeDeleteFilter
+        session.scopeDeleteFilter, session.restrictSystemIds
       );
     }
+
+    // Last thing before the commit: the whole set is in the table now, which is
+    // the only point at which a manager link can be told apart from one whose
+    // manager simply had not arrived yet.
+    const managerLinks = await repairManagerLinks(session.client, session.tableName, session.systemId,
+                                                  columnsHaveManagerLink(session.activeColumns));
 
     await session.client.query('COMMIT');
 
@@ -149,6 +232,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
     return {
       syncId, inserted, updated, deleted,
       totalRecords: session.recordCount,
+      ...(managerLinks ? { managerLinks } : {}),
     };
   } catch (err) {
     try { await session.client.query('ROLLBACK'); } catch { /* ignore */ }
@@ -162,6 +246,11 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
   }
 }
 
-export function hasSession(syncId) {
-  return sessions.has(syncId);
+// A session is only visible to the crawler that opened it: another key presenting
+// the syncId gets the same answer as for an unknown one. Callers that pass no
+// crawlerId (internal use) see every session.
+export function hasSession(syncId, crawlerId = undefined) {
+  const session = sessions.get(syncId);
+  if (!session || session.pending) return false;
+  return crawlerId === undefined || session.crawlerId === crawlerId;
 }

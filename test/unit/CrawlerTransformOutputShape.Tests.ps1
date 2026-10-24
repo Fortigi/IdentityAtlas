@@ -32,6 +32,7 @@ BeforeAll {
     # Entra's transform is split across files (file-length ratchet) — ConvertTo-*
     # shapers call helpers in Functions.ps1 / AppOwners.ps1, so dot-source the full
     # set exactly as EntraIDCrawlerTransform.Tests.ps1 does.
+    . (Join-Path $crawlers 'shared' 'Invoke-CrawlerDeltaToken.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.Functions.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.Transform.ps1')
     . (Join-Path $crawlers 'entra-id' 'EntraIDCrawler.AppRoles.ps1')
@@ -61,10 +62,10 @@ BeforeAll {
 }
 
 Describe 'Crawler transform output contract — assignmentType is always legal' {
-    It 'CSV — ConvertTo-CsvAssignmentRecord emits only the legal set' {
+    It 'CSV — ConvertTo-CsvAssignmentRecordSet emits only the legal set' {
         $idx = @{ Res = 0; User = 1; Type = 2 }
         foreach ($t in @('Direct', 'Indirect', 'Eligible', '')) {
-            $rec = ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', $t) -Idx $idx -SystemId 2
+            $rec = (ConvertTo-CsvAssignmentRecordSet -Rows @(, @('r1', 'u1', $t)) -Idx $idx).Records[0]
             $rec.assignmentType | Should -BeIn $script:LEGAL_ASSIGNMENT
         }
     }
@@ -122,7 +123,7 @@ Describe 'Crawler transform output contract — assignmentType is always legal' 
         $idx  = @{ Res = 0; User = 1; Type = 2 }
         $azA  = [pscustomobject]@{ name = 'ra1'; properties = [pscustomobject]@{ principalId = 'p1' } }
         $emitted = @()
-        $emitted += (ConvertTo-CsvAssignmentRecord -Row @('r1', 'u1', 'Eligible') -Idx $idx -SystemId 2).assignmentType
+        $emitted += (ConvertTo-CsvAssignmentRecordSet -Rows @(, @('r1', 'u1', 'Eligible')) -Idx $idx).Records[0].assignmentType
         $emitted += Get-AssignmentTypes (ConvertTo-EntraGroupOwnership -RawOwners @(@{ groupId = 'g1'; principalId = 'u1' }) -GroupNameById @{ g1 = 'Sales' })
         $emitted += (New-MidpointEntitlementAssignmentRecord -EntitlementOid 'e1' -OwnerOid 'u1' -ViaAccount 's9').assignmentType
         $emitted += (New-MidpointGovernanceAssignmentRecord -ResourceId 'r1' -PrincipalId 'u1' -ResourceType 'BusinessRole' -Grant 'direct').assignmentType

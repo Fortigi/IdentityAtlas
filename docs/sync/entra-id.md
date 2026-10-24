@@ -29,6 +29,11 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 4. Configure optional identity filters and custom attributes
 5. Set a schedule (or run immediately)
 
+<figure markdown="span">
+  ![The Admin page on the Crawlers sub-tab, with the Add Crawler type picker listing every crawler type, including Microsoft Graph](../assets/screenshots/crawlers.png)
+  <figcaption>Admin → Crawlers → <strong>Add Crawler</strong>. Pick <strong>Microsoft Graph</strong> for Entra ID.</figcaption>
+</figure>
+
 ### Via the command line
 
 ```powershell
@@ -51,16 +56,39 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 | `-SyncPim` | Off | Sync PIM-eligible group memberships |
 | `-SyncDirectoryRoles` | Off | Sync Entra directory roles plus their active and PIM-eligible role assignments |
 | `-SyncAppRoles` | Off | Sync enterprise-app app-role assignments (direct, and expanded from groups) |
-| `-SyncOAuth2Grants` | Off | Sync per-user OAuth2 delegated-permission (consent) grants |
+| `-SyncOAuth2Grants` | Off | Sync OAuth2 delegated-permission (consent) grants — per user, and tenant-wide admin consents |
 | `-SyncAppPermissions` | Off | Sync app-only (admin-consented) API permissions held by service principals, managed identities, and AI agents |
+| `-SyncAppRegistrations` | Off | Sync app registrations with their credentials (dates only), public-client flows, redirect URIs, requested permissions and federated credentials |
 | `-SyncAppOwners` | Off | Sync app-registration and service-principal owners (fetched per app — slow on large tenants) |
 | `-SyncPrincipalRelationships` | Off | Sync AI-agent owners and guest-account sponsors |
 | `-SyncSignInLogs` | Off | Sync per-(user, app) last activity from sign-in logs (window set by `-SignInLogsDays`, default 7) |
+| `-SyncProfilePhotos` | Off | Sync each user's profile photo, shown next to their name (re-check interval set by `-PhotoMaxAgeDays`, default 30) |
 | `-RefreshViews` | On | Refresh SQL views after sync |
 | `-CustomUserAttributes` | Empty | Extra Graph attributes to capture for users |
 | `-CustomGroupAttributes` | Empty | Extra Graph attributes to capture for groups |
 | `-AINamePatterns` | Empty | Extra display-name regex patterns that classify a service principal as an AI agent |
 | `-IdentityFilter` | None | Filter which users are treated as identities |
+
+### Delta and full runs
+
+Each scheduled run is either a **delta** or a **full** run.
+
+- A **delta run** reads only what changed since the previous run, for the data Microsoft Graph can report that way:
+  - **users** and **service principals**: new, changed and deleted accounts;
+  - **groups**: new, changed and deleted groups;
+  - **direct group memberships and group owners**: members and owners added or removed.
+
+  A delta takes minutes, even on a large tenant, so you can run it every 5 to 30 minutes.
+- A **full run** reads everything you enabled. That includes what a delta leaves out: nested (indirect) group memberships, PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, sign-in activity and profile photos. On a large tenant this takes hours.
+
+The data only a full run reads is as fresh as your last full run. A new crawler proposes one full run a day plus a delta every 15 minutes. To schedule a delta every few minutes, pick **Every few minutes** as the frequency.
+
+Two cases where a delta does less:
+
+- **No baseline yet.** If a delta run hits a crawler that has never completed a sync, or whose delta state was cleared, it runs as a full sync instead. That way a new crawler never shows users without their groups.
+- **Group changes for the first time.** The first delta after upgrading to this version starts tracking group changes from that moment. Group changes made between your last full run and that delta arrive with the next full run.
+
+If a full run is due while a delta is still running, it waits and starts as soon as the delta finishes, for up to an hour.
 
 ### Which toggles to enable
 
@@ -72,10 +100,14 @@ The defaults (users, groups, memberships, governance, contexts) cover core role-
 | Privileged access via Entra directory roles (active + PIM-eligible) | `-SyncDirectoryRoles` | Low–moderate |
 | PIM-eligible group memberships | `-SyncPim` | High on large tenants — a per-group `$filter` call |
 | Who can use which enterprise app (app-role assignments) | `-SyncAppRoles` | Moderate |
-| Per-user consent grants to apps | `-SyncOAuth2Grants` | Moderate |
+| Consent grants to apps (per user and tenant-wide) | `-SyncOAuth2Grants` | Moderate |
 | App-only API permissions held by SPs / managed identities / agents | `-SyncAppPermissions` | High — fetched per service principal |
+| How each app registration is set up: secrets and certificates, public-client flows (ROPC / device code), redirect URIs, federated credentials | `-SyncAppRegistrations` | Low — one paged read |
 | Who owns apps / SPs (can add a credential and impersonate the app) | `-SyncAppOwners` | High — fetched per app |
 | AI-agent owners and guest-account sponsors | `-SyncPrincipalRelationships` | Low–moderate — only over agents + guests |
+| A face next to each user's name | `-SyncProfilePhotos` | High on the first run — a photo is a separate request per user; near-zero afterwards |
+
+**A note on profile photos.** They are personal data, and nothing else the crawler stores is of that kind, so the toggle is off until someone turns it on deliberately — check what your organisation's privacy agreements require before enabling it. The cost profile is unusual: a photo is not a user attribute in Graph but a separate resource per user, so the first run makes one request per account. After that, answers are remembered — including "this account has no photo" — and only re-checked every `-PhotoMaxAgeDays` days, so repeat crawls ask about almost nobody.
 
 `-SyncServicePrincipals` is the prerequisite for meaningful `-SyncAppPermissions` and `-SyncPrincipalRelationships` output (both operate on service principals), and it's where AI-agent classification happens — add `-AINamePatterns` to catch agents your naming convention flags that the built-in patterns miss.
 
@@ -100,7 +132,20 @@ flowchart TD
     EntraID --> APP[AP Policies → AssignmentPolicies]
     EntraID --> APQ[AP Requests → AssignmentRequests]
     EntraID --> APV[AP Reviews → CertificationDecisions]
+    EntraID --> REG[App Registrations → Resources\nresourceType=AppRegistration]
 ```
+
+### Application security data
+
+Three toggles together describe how risky an application is set up. None of them stores a secret: only key ids, names, types and validity dates.
+
+- **Service principals** (`-SyncServicePrincipals`) carry, in `extendedAttributes`: `signInAudience`, `verifiedPublisherName` / `verifiedPublisherId`, `appRoleAssignmentRequired` (`false` means anyone in the tenant can sign in), `replyUrls`, and the credentials added to the service principal itself. A secret on the service principal is not shown under **App registrations** in the portal, which makes it a known way to keep access hidden.
+- **App registrations** (`-SyncAppRegistrations`) become `AppRegistration` resources (id = the application object id, `appId` in `extendedAttributes` links them to their service principal). Each one holds `isFallbackPublicClient` (public-client flows allowed, which permits ROPC and device-code sign-in), `publicClientRedirectUris` / `webRedirectUris` / `spaRedirectUris`, `implicitGrantAccessTokens` / `implicitGrantIdTokens`, `requiredResourceAccess` with `requestedDelegatedPermissionCount` / `requestedApplicationPermissionCount`, and `federatedCredentials` (issuer, subject, audiences, flexible expression).
+- **Credentials** on either one are summarised as `secretCount`, `secretLatestEndDateTime`, `secretMaxValidityDays` and the same three for `certificate…`, with the full list in `credentials`. A secret that ends in 2299 shows up as a `secretMaxValidityDays` of about 100,000.
+- **Consent grants** (`-SyncOAuth2Grants`): a tenant-wide admin consent marks its `DelegatedPermission` resource `adminConsented: true` (with `adminConsentGrantId`) and adds no assignment, because no single user holds it. A per-user consent stays a `Direct` assignment to that user, now with `consentType: Principal`.
+- **App-only permissions** (`-SyncAppPermissions`) record when each was granted, as `grantedDateTime` on the assignment.
+
+A delta run refreshes a service principal's credentials, but Graph's delta feed omits `verifiedPublisher`, `signInAudience` and `appRoleAssignmentRequired`. A service principal that changes between full runs loses those three until the next full run.
 
 ---
 
@@ -116,7 +161,8 @@ Grant these as **Application** permissions (not Delegated) on the App Registrati
 | `Directory.Read.All` | Read directory data |
 | `EntitlementManagement.Read.All` | Read business roles, catalogs, and assignments |
 | `AccessReview.Read.All` | Read certification review decisions |
-| `Application.Read.All` | Read service principals and app role assignments |
+| `Application.Read.All` | Read service principals, app registrations (including credential metadata) and app role assignments |
+| `DelegatedPermissionGrant.Read.All` | Read OAuth2 consent grants (`-SyncOAuth2Grants`) |
 | `AuditLog.Read.All` | Read sign-in and audit events |
 | `PrivilegedEligibilitySchedule.Read.AzureADGroup` | Read PIM group eligibility schedules |
 

@@ -1,15 +1,21 @@
 import { useState, useEffect } from 'react';
 import WizardShell from '@ui/components/WizardShell';
 import { useDialog } from '@ui/components/dialogContext';
+import { formatBytes } from '@ui/utils/formatters';
 import CSV_SLOTS from './csv-slots.json';
 
-export const MAX_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB — must match crawlerFiles.js
+// The per-file upload limit is the SERVER's (UPLOAD_MAX_FILE_BYTES), read from
+// GET /api/admin/crawler-uploads/limits. The wizard used to carry its own 1 GB
+// copy; the server's default rose to 8 GiB and the copy did not, so a 1.8 GB
+// export was refused here and never sent.
+export const UPLOAD_LIMITS_URL = '/api/admin/crawler-uploads/limits';
 
-export function fmtBytes(n) {
-  if (!n) return '0 B';
-  const u = ['B','KB','MB','GB']; let i = 0; let v = n;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
+// The staged files over the limit. None while the limit is unknown (still
+// loading, or the request failed): the server enforces it regardless, and its
+// refusal names the limit.
+export function filesOverLimit(stagedFiles, maxFileBytes) {
+  if (!Number.isFinite(maxFileBytes)) return [];
+  return stagedFiles.filter(s => s.file.size > maxFileBytes);
 }
 
 // Match an uploaded filename against the expected slots. Case-insensitive,
@@ -82,10 +88,22 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   // and files already on the server (when editing).
   const [stagedFiles, setStagedFiles] = useState([]);    // [{ file: File, slot: string|null }]
   const [serverFiles, setServerFiles] = useState([]);    // [{ name, sizeBytes, modifiedAt }]
+  const [serverFolder, setServerFolder] = useState(null); // where a job reads this config's files
+  const [maxFileBytes, setMaxFileBytes] = useState(null); // the server's per-file limit, once known
   const [savedConfigId, setSavedConfigId] = useState(initialConfig?.id || null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+
+  // The server's per-file upload limit.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await authFetch(UPLOAD_LIMITS_URL);
+        if (r.ok) setMaxFileBytes((await r.json()).maxFileBytes ?? null);
+      } catch { /* unknown limit: the server still enforces it */ }
+    })();
+  }, [authFetch]);
 
   // Load existing files for edit mode
   useEffect(() => {
@@ -96,6 +114,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
         if (r.ok) {
           const j = await r.json();
           setServerFiles(j.files || []);
+          setServerFolder(j.folder || null);
         }
       } catch { /* ignore */ }
     })();
@@ -153,7 +172,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const filledSlots = new Set(allFiles.map(f => f.slot).filter(Boolean));
   const requiredSlots = CSV_SLOTS.filter(s => s.required);
   const missingRequired = requiredSlots.filter(s => !filledSlots.has(s.key));
-  const oversizedFiles = stagedFiles.filter(s => s.file.size > MAX_FILE_BYTES);
+  const oversizedFiles = filesOverLimit(stagedFiles, maxFileBytes);
   const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0
     && oversizedFiles.length === 0 && filesWithHeaderErrors.length === 0;
 
@@ -283,7 +302,10 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       {step === 2 && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
-            <div>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name. Maximum <strong>{fmtBytes(MAX_FILE_BYTES)}</strong> per file.</div>
+            <div>
+              Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.
+              {maxFileBytes != null && <> Maximum <strong>{formatBytes(maxFileBytes)}</strong> per file.</>}
+            </div>
             <div className="mt-1">
               <a href="/api/admin/crawlers/csv/upload-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
                 Download schema templates
@@ -294,12 +316,19 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
 
           {oversizedFiles.length > 0 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">
-              The following {oversizedFiles.length === 1 ? 'file exceeds' : 'files exceed'} the {fmtBytes(MAX_FILE_BYTES)} upload limit and cannot be saved. Remove {oversizedFiles.length === 1 ? 'it' : 'them'} to continue, or mount the files directly into the Docker volume.
+              The following {oversizedFiles.length === 1 ? 'file exceeds' : 'files exceed'} the server&apos;s {formatBytes(maxFileBytes)} per-file upload limit and cannot be uploaded. Remove {oversizedFiles.length === 1 ? 'it' : 'them'} to continue. An administrator can raise the limit with <code>UPLOAD_MAX_FILE_BYTES</code>, or — once the crawler exists — copy the file straight into its folder on the server.
               <ul className="mt-1 list-disc list-inside">
                 {oversizedFiles.map(s => (
-                  <li key={s.file.name}><span className="font-mono">{s.file.name}</span> ({fmtBytes(s.file.size)})</li>
+                  <li key={s.file.name}><span className="font-mono">{s.file.name}</span> ({formatBytes(s.file.size)})</li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {serverFolder && (
+            <div className="text-xs text-gray-600 dark:text-gray-400">
+              Large files can also be copied straight into this crawler&apos;s folder on the server, and are read exactly like uploaded ones:{' '}
+              <code className="font-mono break-all text-gray-800 dark:text-gray-200">{serverFolder}</code>
             </div>
           )}
 
@@ -327,7 +356,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono truncate dark:text-gray-200">{s.file.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(s.file.size)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{formatBytes(s.file.size)}</div>
                       </div>
                       <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
                         aria-label={`Object type for ${s.file.name}`}
@@ -365,7 +394,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
                     <div key={f.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono truncate dark:text-gray-200">{f.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{fmtBytes(f.sizeBytes)} · {new Date(f.modifiedAt).toLocaleString()}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{formatBytes(f.sizeBytes)} · {new Date(f.modifiedAt).toLocaleString()}</div>
                       </div>
                       <span className={`ml-2 px-2 py-0.5 rounded text-xs ${slot ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{slotLabel}</span>
                       <button onClick={() => removeServerFile(f.name)}

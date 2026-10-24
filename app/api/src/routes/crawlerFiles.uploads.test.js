@@ -7,7 +7,7 @@
  * bootstrap.builtinKey.test.js for WORKER_KEY_FILE: real temp dir via
  * mkdtempSync, set the env var, then dynamic `await import(...)`.
  */
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { existsSync, mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -69,6 +69,8 @@ describe('crawler-configs/:configId/files — real upload/list/delete cycle', ()
     expect(res.body.files).toEqual([
       { name: 'Resources.csv', sizeBytes: expect.any(Number), modifiedAt: expect.any(String) },
     ]);
+    // The folder a job reads from — the same one the upload just landed in.
+    expect(res.body.folder).toBe(join(UPLOAD_ROOT_DIR, 'csv-501'));
   });
 
   it('rejects a .txt file via the manifest-driven extension filter', async () => {
@@ -137,5 +139,81 @@ describe('crawler-configs/:configId/files — real upload/list/delete cycle', ()
 
     await deleteConfigFolder('csv', 777);
     expect(existsSync(dir)).toBe(false);
+  });
+});
+
+describe('crawler-configs/:configId/files — upload capacity guard (SEC-2026-09 L-13)', () => {
+  const saved = {};
+  beforeEach(() => {
+    for (const k of ['UPLOAD_MIN_FREE_BYTES', 'UPLOAD_CONFIG_QUOTA_BYTES']) saved[k] = process.env[k];
+  });
+  afterEach(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+
+  it('refuses with 507 and writes nothing when the upload would eat into the free-space reserve', async () => {
+    process.env.UPLOAD_MIN_FREE_BYTES = String(Number.MAX_SAFE_INTEGER);
+    mockDbQuery.mockResolvedValueOnce({ recordset: [{ crawlerType: 'csv' }] });
+    const res = await request(makeApp())
+      .post('/api/admin/crawler-configs/880/files')
+      .attach('files', Buffer.from('a;b'), 'Users.csv');
+    expect(res.status).toBe(507);
+    expect(existsSync(join(UPLOAD_ROOT_DIR, 'csv-880', 'Users.csv'))).toBe(false);
+  });
+
+  // A guard that answers while the body is still arriving makes Node destroy the
+  // socket, and the browser reports 'TypeError: Failed to fetch' with the JSON
+  // reason lost. That is what a 195 MB CSV upload hit in the wizard. Every
+  // refusal must therefore come back as a readable body, not a dead connection —
+  // asserted here on a payload large enough that the client is still sending when
+  // the guard fires.
+  it('refuses a LARGE upload with a readable JSON reason rather than a dropped socket', async () => {
+    process.env.UPLOAD_MIN_FREE_BYTES = String(Number.MAX_SAFE_INTEGER);
+    mockDbQuery.mockResolvedValueOnce({ recordset: [{ crawlerType: 'csv' }] });
+    const big = Buffer.alloc(6 * 1024 * 1024, 'a');   // 6 MB, well past one socket write
+    const res = await request(makeApp())
+      .post('/api/admin/crawler-configs/882/files')
+      .attach('files', big, 'Users.csv');
+    expect(res.status).toBe(507);
+    expect(res.body.error).toBeTruthy();            // the reason survived the refusal
+    expect(existsSync(join(UPLOAD_ROOT_DIR, 'csv-882', 'Users.csv'))).toBe(false);
+  });
+
+  it('refuses a LARGE upload to an unknown config the same way', async () => {
+    process.env.UPLOAD_MIN_FREE_BYTES = '0';
+    mockDbQuery.mockResolvedValueOnce({ recordset: [] });   // no such config
+    const big = Buffer.alloc(6 * 1024 * 1024, 'a');
+    const res = await request(makeApp())
+      .post('/api/admin/crawler-configs/883/files')
+      .attach('files', big, 'Users.csv');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/not found/i);
+  });
+  it('enforces an opt-in per-config quota against what the folder already holds', async () => {
+    process.env.UPLOAD_MIN_FREE_BYTES = '0';
+    const configDir = join(UPLOAD_ROOT_DIR, 'csv-881');
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, 'Existing.csv'), 'x'.repeat(4000));
+
+    // The folder already holds 4,000 bytes: a 3,999-byte quota is exhausted,
+    // a 10,000-byte quota still has room. (Stored + incoming arithmetic is
+    // covered in lib/uploadCapacity.test.js.)
+    process.env.UPLOAD_CONFIG_QUOTA_BYTES = '3999';
+    mockDbQuery.mockResolvedValueOnce({ recordset: [{ crawlerType: 'csv' }] });
+    const refused = await request(makeApp())
+      .post('/api/admin/crawler-configs/881/files')
+      .attach('files', Buffer.from('a;b'), 'New.csv');
+    expect(refused.status).toBe(413);
+    expect(existsSync(join(configDir, 'New.csv'))).toBe(false);
+
+    process.env.UPLOAD_CONFIG_QUOTA_BYTES = '10000';
+    mockDbQuery.mockResolvedValueOnce({ recordset: [{ crawlerType: 'csv' }] });
+    const accepted = await request(makeApp())
+      .post('/api/admin/crawler-configs/881/files')
+      .attach('files', Buffer.from('a;b'), 'New.csv');
+    expect(accepted.status).toBe(200);
+    expect(existsSync(join(configDir, 'New.csv'))).toBe(true);
   });
 });

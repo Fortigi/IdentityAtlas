@@ -7,7 +7,8 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { likeContains } from '../../db/sqlParams.js';
+import { createParams, likeContains } from '../../db/sqlParams.js';
+import { buildSearchWhere, parseExtendedSearch, withMatchedOn } from '../../lib/entitySearch.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 
 const router = Router();
@@ -24,25 +25,80 @@ const MEMBER_TABLE = {
   System:    'Systems',
 };
 
+// How a member row joins its entity. ContextMembers."memberId" is a uuid, and so
+// is the id of every member table except Systems (integer). Compare like with
+// like: casting both sides to text hides both indexes, and the planner then falls
+// back to a nested loop that checks every entity against every member — 4 minutes
+// for one page of a 106k-member context at 41M assignments, and a deep page that
+// never finished (docs/architecture/scale-rehearsal.md). Systems keep the text
+// comparison; the table is tiny and its ids cannot equal a uuid either way.
+export function memberJoinOn(targetType) {
+  return targetType === 'System'
+    ? 'm.id::text = cm."memberId"::text'
+    : 'm.id = cm."memberId"';
+}
+
+// ─── Owner resolution ────────────────────────────────────────────────
+// "Contexts"."ownerUserId" is free text: whatever the source calls the owner of
+// a grouping — an IdentityIQ identity id, an employee number, an e-mail. To show
+// a person instead of that string it has to be resolved to a Principal, and that
+// happens HERE rather than in the browser: a list of 1,500 logical applications
+// each firing its own lookup is fine in a demo and a thousand round-trips on real
+// data.
+//
+// The same external id can exist in several systems (the ingest keys principals
+// on (systemId, externalId), not on externalId alone), so the tie is broken, in
+// order: a live row over a soft-deleted one, the context's own scope system over
+// any other, then the id — so the answer is stable between two identical calls.
+// Needs ix_Principals_externalId (migration 076); without it this is a
+// sequential scan of the whole Principals table per context row.
+//
+// Exported so the tests can pin the shape rather than matching a substring.
+export const OWNER_COLUMNS = 'own.id AS "ownerPrincipalId", own."displayName" AS "ownerDisplayName"';
+
+export const OWNER_JOIN = `
+        LEFT JOIN LATERAL (
+          SELECT p.id, p."displayName"
+            FROM "Principals" p
+           WHERE p."externalId" = c."ownerUserId"
+           ORDER BY (p."deletedAt" IS NULL) DESC,
+                    (p."systemId" IS NOT DISTINCT FROM c."scopeSystemId") DESC,
+                    p.id
+           LIMIT 1
+        ) own ON TRUE`;
+
 // ─── GET /api/contexts ───────────────────────────────────────────────
 // List all root contexts (parentContextId IS NULL). Optional filters:
 // ?targetType, ?variant, ?contextType, ?scopeSystemId.
+//
+// ?search= looks at every level, not only the roots — the logical application
+// you are looking for by its CMDB reference usually sits under a catalogue —
+// and returns at most SEARCH_LIMIT matches, each with its parent and the
+// fields it matched on. ?extendedSearch=true searches every attribute
+// (lib/entitySearch.js).
+export const SEARCH_LIMIT = 1000;
+
+export function buildContextListWhere(query, bind) {
+  const search = String(query.search ?? '').trim().slice(0, 200);
+  const clauses = search ? [] : ['c."parentContextId" IS NULL'];
+  const eq = (col, val) => clauses.push(`c."${col}" = ${bind(val)}`);
+  if (query.targetType && TARGET_TYPES.has(query.targetType)) eq('targetType', query.targetType);
+  if (query.variant && VARIANTS.has(query.variant))           eq('variant', query.variant);
+  if (query.contextType) eq('contextType', String(query.contextType).slice(0, 100));
+  if (query.scopeSystemId) {
+    const sys = parseInt(query.scopeSystemId, 10);
+    if (!Number.isNaN(sys)) eq('scopeSystemId', sys);
+  }
+  const extended = parseExtendedSearch(query);
+  const where = (clauses.join(' AND ') || 'TRUE') + buildSearchWhere('context', 'c', search, { extended }, bind);
+  return { where, search, extended };
+}
+
 router.get('/contexts', async (req, res) => {
   if (!useSql) return res.json({ data: [], total: 0 });
   try {
-    const clauses = ['c."parentContextId" IS NULL'];
-    const params = [];
-    const pushFilter = (col, val) => {
-      params.push(val);
-      clauses.push(`c."${col}" = $${params.length}`);
-    };
-    if (req.query.targetType && TARGET_TYPES.has(req.query.targetType))    pushFilter('targetType', req.query.targetType);
-    if (req.query.variant     && VARIANTS.has(req.query.variant))          pushFilter('variant', req.query.variant);
-    if (req.query.contextType) pushFilter('contextType', String(req.query.contextType).slice(0, 100));
-    if (req.query.scopeSystemId) {
-      const sys = parseInt(req.query.scopeSystemId, 10);
-      if (!Number.isNaN(sys)) pushFilter('scopeSystemId', sys);
-    }
+    const { params, bind } = createParams();
+    const { where, search, extended } = buildContextListWhere(req.query, bind);
 
     const r = await db.query(`
       SELECT c.id, c.variant, c."targetType", c."contextType", c."displayName",
@@ -52,15 +108,19 @@ router.get('/contexts', async (req, res) => {
              c."lastCalculatedAt", c."createdAt", c."updatedAt",
              s."displayName" AS "scopeSystemName",
              a.name AS "sourceAlgorithmName",
-             a."displayName" AS "sourceAlgorithmDisplayName"
+             a."displayName" AS "sourceAlgorithmDisplayName",
+             ${search ? 'c."parentContextId", c."extendedAttributes",' : ''}
+             ${OWNER_COLUMNS}
         FROM "Contexts" c
         LEFT JOIN "Systems" s ON c."scopeSystemId" = s.id
-        LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
-       WHERE ${clauses.join(' AND ')}
+        LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id${OWNER_JOIN}
+       WHERE ${where}
        ORDER BY c."contextType", COALESCE(c."totalMemberCount", 0) DESC, c."displayName"
+       ${search ? `LIMIT ${SEARCH_LIMIT}` : ''}
     `, params);
 
-    res.json({ data: r.rows, total: r.rows.length });
+    const data = withMatchedOn('context', r.rows, search, { extended });
+    res.json({ data, total: data.length });
   } catch (err) {
     console.error('GET /contexts failed:', err.message);
     res.status(500).json({ error: 'Failed to load contexts' });
@@ -146,11 +206,12 @@ router.get('/contexts/:id', async (req, res) => {
       SELECT c.*, s."displayName" AS "scopeSystemName",
              a.name AS "sourceAlgorithmName",
              a."displayName" AS "sourceAlgorithmDisplayName",
-             parent."displayName" AS "parentDisplayName"
+             parent."displayName" AS "parentDisplayName",
+             ${OWNER_COLUMNS}
         FROM "Contexts" c
         LEFT JOIN "Systems" s           ON c."scopeSystemId" = s.id
         LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
-        LEFT JOIN "Contexts" parent     ON c."parentContextId" = parent.id
+        LEFT JOIN "Contexts" parent     ON c."parentContextId" = parent.id${OWNER_JOIN}
        WHERE c.id = $1
     `, [req.params.id]);
 
@@ -243,7 +304,7 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
     SELECT ${distinct} m.id, m."displayName",
            cm."addedBy", cm."addedAt"
       FROM "ContextMembers" cm
-      JOIN "${table}" m ON m.id::text = cm."memberId"::text
+      JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}
@@ -256,7 +317,7 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
   const countSql = `
     SELECT COUNT(${includeDescendants ? 'DISTINCT m.id' : '*'})::int AS total
       FROM "ContextMembers" cm
-      JOIN "${table}" m ON m.id::text = cm."memberId"::text
+      JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
        AND cm."memberType" = '${targetType}'
        ${searchClause}

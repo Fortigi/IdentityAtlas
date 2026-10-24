@@ -471,6 +471,42 @@ try {
         $nameMock = $null
     }
 
+    # ── AC11 (#1240): a config saved BEFORE #1207 still follows the crawler ──
+    # The old wizard wrote the type literal into systemName when the field was
+    # left blank, so an existing crawler carries `systemName: 'SCIM'` in its
+    # stored config. That shadowed the crawler's name on every run, which is why
+    # an operator's "SAP CIS Test" kept registering a system called 'SCIM' and
+    # several SCIM connectors were indistinguishable. A stored override that is
+    # an exact copy of the type default now counts as not set.
+    $staleMock = Start-MockScimServer -Groups @() -Users @(
+        @{ id = "u-stale-$runTag"; userName = "stale.$runTag"; displayName = "Stale $runTag"; active = $true }
+    )
+    $staleCrawlerName = "scim-it-stale-$runTag"
+    try {
+        $staleConfigId = New-ScimConfig -Name $staleCrawlerName -Port $staleMock.Port -Extra @{ systemName = 'SCIM' }
+        $staleJob = Invoke-ScimJob -ConfigId $staleConfigId
+        $staleSystemId = Get-ScimSystemId -SystemName $staleCrawlerName
+        Write-Result 'Scim/Naming — a pre-#1207 config with a baked-in ''SCIM'' follows the crawler name' `
+            (($staleJob.status -eq 'completed') -and ($staleSystemId -gt 0)) `
+            "(status: $($staleJob.status)$(Get-JobFailureDetail $staleJob), system id: $staleSystemId; expected a system called '$staleCrawlerName', not 'SCIM')"
+
+        # A deliberate override is still an override: only an exact copy of the
+        # type default is discarded. Same endpoint, so this run renames the very
+        # system the previous one registered.
+        $overrideName = "scim-it-override-$runTag"
+        $overrideConfigId = New-ScimConfig -Name "scim-it-overridden-$runTag" -Port $staleMock.Port -Extra @{ systemName = $overrideName }
+        $overrideJob = Invoke-ScimJob -ConfigId $overrideConfigId
+        Write-Result 'Scim/Naming — an explicitly set system name still beats the crawler name' `
+            (($overrideJob.status -eq 'completed') -and ((Get-ScimSystemId -SystemName $overrideName) -gt 0)) `
+            "(status: $($overrideJob.status)$(Get-JobFailureDetail $overrideJob); expected a system called '$overrideName')"
+    } finally {
+        foreach ($id in @($staleConfigId, $overrideConfigId)) {
+            if ($id) { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$id" | Out-Null } catch {} }
+        }
+        Stop-MockScimServer -Mock $staleMock
+        $staleMock = $null
+    }
+
 } catch {
     Write-Host "  Fatal test error: $($_.Exception.Message)" -ForegroundColor Red
     $script:standaloneFailures++

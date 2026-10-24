@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import {
-  ColumnFoldToggle, ColumnAxisControls, RowAxisControls, MatrixLegendButton,
+  ColumnFoldToggle, ColumnAxisControls, ColumnLevelControls, RowAxisControls, MatrixLegendButton,
 } from './GridCornerControls';
 import { renderWithProviders, screen, userEvent, fireEvent } from '@ui/test-utils/renderWithProviders';
 
@@ -57,6 +57,59 @@ describe('ColumnFoldToggle', () => {
   });
 });
 
+describe('ColumnLevelControls', () => {
+  const fold = () => screen.getByRole('button', { name: 'Fold all columns one level' });
+  const unfold = () => screen.getByRole('button', { name: 'Unfold all columns one level' });
+
+  // The whole point of the control: ONE level per click, not a jump to the
+  // deepest attribute. A handler wired to 1 / maxLevel would pass a
+  // "was it called" assertion, so the argument is what's pinned.
+  it('steps the axis one level at a time, in both directions', async () => {
+    const onSetLevel = vi.fn();
+    renderWithProviders(<ColumnLevelControls level={2} maxLevel={4} onSetLevel={onSetLevel} />);
+
+    await userEvent.click(fold());
+    expect(onSetLevel).toHaveBeenCalledWith(1);
+    await userEvent.click(unfold());
+    expect(onSetLevel).toHaveBeenCalledWith(3);
+    expect(onSetLevel).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows where in the axis you are', () => {
+    renderWithProviders(<ColumnLevelControls level={2} maxLevel={4} onSetLevel={vi.fn()} />);
+    expect(screen.getByText('2/4')).toBeInTheDocument();
+    expect(fold()).toHaveAttribute('title', expect.stringContaining('Showing 2 of 4 levels'));
+  });
+
+  it('stops at the top level instead of folding past it', async () => {
+    const onSetLevel = vi.fn();
+    renderWithProviders(<ColumnLevelControls level={1} maxLevel={3} onSetLevel={onSetLevel} />);
+    expect(fold()).toBeDisabled();
+    expect(unfold()).toBeEnabled();
+    await userEvent.click(fold());
+    expect(onSetLevel).not.toHaveBeenCalled();     // level 0 would be no columns at all
+  });
+
+  it('stops at the deepest level instead of unfolding past it', async () => {
+    const onSetLevel = vi.fn();
+    renderWithProviders(<ColumnLevelControls level={3} maxLevel={3} onSetLevel={onSetLevel} />);
+    expect(unfold()).toBeDisabled();
+    expect(fold()).toBeEnabled();
+    await userEvent.click(unfold());
+    expect(onSetLevel).not.toHaveBeenCalled();
+  });
+
+  it('renders nothing when the axis has no levels to walk', () => {
+    // A single-attribute roll-up and every non-layered shape: one level is not
+    // an axis, and 0/0 is what the server sends when there is no fold at all.
+    for (const props of [{ level: 1, maxLevel: 1 }, { level: 0, maxLevel: 0 }, { level: 0, maxLevel: 3 }]) {
+      const { container, unmount } = renderWithProviders(<ColumnLevelControls {...props} onSetLevel={vi.fn()} />);
+      expect(container).toBeEmptyDOMElement();
+      unmount();
+    }
+  });
+});
+
 describe('ColumnAxisControls', () => {
   it('always offers the legend, and the fold toggle only when columns can fold', () => {
     const { rerender } = renderWithProviders(<ColumnAxisControls canFoldColumns={false} />);
@@ -65,6 +118,18 @@ describe('ColumnAxisControls', () => {
 
     rerender(<ColumnAxisControls canFoldColumns columnFoldState="none" />);
     expect(screen.getByRole('button', { name: 'Fold all columns' })).toBeInTheDocument();
+  });
+
+  it('adds the level stepper only for a grid that has fold levels', () => {
+    const { rerender } = renderWithProviders(<ColumnAxisControls canFoldColumns columnFoldState="none" />);
+    expect(screen.queryByRole('button', { name: /one level/ })).not.toBeInTheDocument();
+
+    rerender(<ColumnAxisControls foldLevel={2} foldMaxLevel={3} onSetFoldLevel={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Fold all columns one level' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unfold all columns one level' })).toBeInTheDocument();
+    // The two models are alternatives, not a stack: the roll-up has no
+    // one-shot fold toggle to show next to the stepper.
+    expect(screen.queryByRole('button', { name: 'Fold all columns' })).not.toBeInTheDocument();
   });
 });
 

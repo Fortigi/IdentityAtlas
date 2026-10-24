@@ -9,8 +9,9 @@ import { timedQuery } from '../../perf/sqlTimer.js';
 import { createParams } from '../../db/sqlParams.js';
 import {
   getPrincipalColumns, getResourceColumns,
-  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets, valuePageSize,
+  discoverColumnValues, discoverExtendedAttrValues, mergeValueSets,
 } from '../../db/columnCache.js';
+import { createValueCache } from '../../db/valueCache.js';
 import { buildEntitySubquery, collectContextIds } from '../../matrix/filterSql.js';
 import { resourceMeta, buildAssignmentExprs } from '../../db/matrixHelpers.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
@@ -27,8 +28,6 @@ export const FILTERABLE_TYPES = new Set([
 
 let identityColumnsCache = null;
 let identityColumnsCacheTime = 0;
-let identityValuesCache = null;
-let identityValuesCacheTime = 0;
 const IDENTITY_CACHE_TTL = 5 * 60 * 1000;
 
 export async function getIdentityColumns() {
@@ -57,13 +56,7 @@ export async function getIdentityColumns() {
 // plus a per-column `truncated` flag. The hand-rolled duplicate this replaced
 // also carried a global 5000-row cap across all ext keys, which silently
 // dropped whole keys once a tenant had enough extension attributes (#928).
-export async function getIdentityColumnValuesMeta() {
-  const now = Date.now();
-  const pageSize = valuePageSize();
-  if (identityValuesCache && identityValuesCache.pageSize === pageSize
-      && (now - identityValuesCacheTime) < IDENTITY_CACHE_TTL) {
-    return identityValuesCache;
-  }
+const identityValues = createValueCache('Identities', async (pageSize) => {
   const cols = await getIdentityColumns();
   const base = await discoverColumnValues('Identities', cols, pageSize);
 
@@ -74,12 +67,27 @@ export async function getIdentityColumnValuesMeta() {
     ext = await discoverExtendedAttrValues('Identities', pageSize);
   } catch { /* extendedAttributes column may be absent on older schemas */ }
 
-  identityValuesCache = { ...mergeValueSets(base, ext), pageSize };
-  identityValuesCacheTime = now;
-  return identityValuesCache;
+  return mergeValueSets(base, ext);
+});
+
+export function getIdentityColumnValuesMeta() {
+  return identityValues.get();
 }
 
 // ─── Filter parsing ─────────────────────────────────────────────────
+
+// Most attribute levels a layered fold can show — one per sort attribute, and
+// normaliseSortAttributes caps those at 6.
+export const MAX_ROLLUP_LEVEL = 6;
+
+// A level cap is a whole number of header rows, 1..MAX_ROLLUP_LEVEL. Anything
+// else (absent, 0, negative, fractional, a numeric string, NaN) means "no cap"
+// rather than an error, so an old or hand-edited filter keeps rendering at full
+// depth instead of collapsing to one column.
+export function clampRollupLevel(value) {
+  if (!Number.isInteger(value) || value < 1) return null;
+  return Math.min(value, MAX_ROLLUP_LEVEL);
+}
 
 export function parseFilter(body) {
   const f = body && body.filter;
@@ -130,6 +138,13 @@ export function parseFilter(body) {
     // FOLDED (collapse model — default none = full depth, all attribute rows
     // shown). Inverse of rollupExpanded, which the hierarchy view uses.
     rollupCollapsed: Array.isArray(f.rollupCollapsed) ? f.rollupCollapsed.filter(x => typeof x === 'string').slice(0, 500) : [],
+    // Layered attribute fold: how many of the chosen attributes are shown as
+    // header rows. null = all of them (full depth). The grid corner's
+    // fold/unfold controls walk this one level at a time, which is the only way
+    // to move the WHOLE column axis a level — a per-group fold key can express
+    // "this group stops here", but not "every group stops one level shallower",
+    // and unfolding a key drops that group straight back to full depth.
+    rollupLevel: clampRollupLevel(f.rollupLevel),
     // Subject-axis sort order — client-side only, but normalised here so the
     // shape is consistent across endpoints. Max 3 attributes.
     sortAttributes: normaliseSortAttributes(f.sortAttributes),

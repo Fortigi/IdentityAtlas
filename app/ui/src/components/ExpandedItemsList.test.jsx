@@ -46,6 +46,19 @@ describe('itemsToCsv', () => {
     expect(lines[0]).toBe('Name,Type,Via');
     expect(lines[1]).toBe('"ABN AMRO","Group","acct@x"');
   });
+  it('neutralises spreadsheet formulas in every column (SEC-2026-09 M-13)', () => {
+    const csv = itemsToCsv([{
+      label: '=HYPERLINK("https://x.example","Open")',
+      entityKind: 'resource',
+      resourceType: 'Group',
+      via: '\t+cmd',
+    }]);
+    expect(csv.split('\r\n')[1]).toBe(`"'=HYPERLINK(""https://x.example"",""Open"")","Group","'\t+cmd"`);
+  });
+  it('leaves a formula character that is not the first character untouched', () => {
+    const csv = itemsToCsv([{ label: 'Sales=EMEA', entityKind: 'resource', resourceType: 'Group', via: 'a-b' }]);
+    expect(csv.split('\r\n')[1]).toBe('"Sales=EMEA","Group","a-b"');
+  });
   it('escapes embedded quotes and commas per RFC-4180', () => {
     const csv = itemsToCsv([{ label: 'A, "B"', entityKind: 'resource', resourceType: 'Group' }]);
     expect(csv.split('\r\n')[1]).toBe('"A, ""B""","Group",""');

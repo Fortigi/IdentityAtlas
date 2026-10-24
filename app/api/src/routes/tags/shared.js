@@ -5,6 +5,8 @@
 // routes/tags.js) because resources.js, admin/curatedData.js and
 // permissions/grid.js import them from ./tags.js. No behaviour change.
 
+import { EXT_PREFIX, extKeyOf, extValueSql } from '../../lib/extKeys.js';
+
 export const useSql = process.env.USE_SQL === 'true';
 
 export let db = null;
@@ -39,11 +41,8 @@ export function parseTags(tagString) {
 //   - Real column names — validated against `validColNames` to prevent SQL
 //     injection via field names, emitted as `alias."col"::text = @param`.
 //   - `ext.<key>` — filters on a scalar value inside the `extendedAttributes`
-//     JSONB column. The suffix must match FILTER_KEY_RE so it's safe to
-//     inline (we can't parameter-bind a JSON path key). Emitted as
-//     `alias."extendedAttributes"->>'key' = @param`.
-const FILTER_KEY_RE = /^[a-zA-Z0-9_]+$/;
-const EXT_PREFIX = 'ext.';
+//     JSONB column. Any key lib/extKeys.js accepts ("CMDB Reference" included)
+//     is emitted as a quoted literal: `alias."extendedAttributes"->>'key' = @param`.
 
 // Build a parameterised WHERE fragment from a filter object, binding each value
 // through the caller's `bind` (from createParams) so the fragment's $N slot into
@@ -54,9 +53,9 @@ export function buildFilterWhere(filters, validColNames, alias, bind) {
     if (value == null || String(value) === '') continue;
 
     if (field.startsWith(EXT_PREFIX)) {
-      const key = field.slice(EXT_PREFIX.length);
-      if (!FILTER_KEY_RE.test(key)) continue;
-      where += ` AND ${alias}."extendedAttributes"->>'${key}' = ${bind(String(value))}`;
+      const key = extKeyOf(field);
+      if (key === null) continue;
+      where += ` AND ${extValueSql(key, alias)} = ${bind(String(value))}`;
     } else if (validColNames.has(field)) {
       where += ` AND ${alias}."${field}"::text = ${bind(String(value))}`;
     }

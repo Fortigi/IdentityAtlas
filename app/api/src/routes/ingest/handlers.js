@@ -8,19 +8,69 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { ingest, writeSyncLog } from '../../ingest/engine.js';
-import { normalizeRecords } from '../../ingest/normalization.js';
+import { writeSyncLog } from '../../ingest/engine.js';
+import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
+import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
+import {
+  restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
+  preservedOwnerColumns,
+} from '../../ingest/systemBoundary.js';
 import { validateEnvelope, validateRecords, ENTITY_TABLE_MAP, ENTITY_KEY_MAP, ENTITY_SCOPE_MAP } from '../../ingest/validation.js';
 import { crawlerHasSystemAccess, crawlerHasPermission } from '../../middleware/crawlerAuth.js';
 import { normalizePresenceQuery, lookupCrawlerPresence } from '../../ingest/crawlerPresence.js';
-import { refreshMatrixViews } from './matrixViews.js';
+import { parseReconcileRequest, reconcileStale, countTouched, ReconcileRequestError } from '../../ingest/reconcileStale.js';
+import { oneLineForLog } from '../../lib/oneLineForLog.js';
+import { validateDeletedKeys } from '../../ingest/deleteByKeys.js';
+import { viewRefresh } from './matrixViews.js';
+import { buildSyncLogRow, classifyScope, classifyStatements } from './dataPlane.js';
 import {
-  applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog, ingestErrorResponse,
+  applyIngestDefaults, coerceSystemsSyncMode, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
+  handleSessionPath, applyDeletes, lookupSystemIds, linkSystemDirectories, writeAuditLog, ingestErrorResponse, ingestBatch,
+  unownedContextWarning,
 } from './helpers.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
+
+// The envelope checks, then the deletedKeys entries — those need the entity's
+// key spec, so they live with the delete itself (ingest/deleteByKeys.js).
+// Returns an array of error strings, empty when the envelope passes.
+export function envelopeErrors(body, entityType) {
+  const env = validateEnvelope(body, entityType);
+  return env.valid ? validateDeletedKeys(body, entityType) : env.errors;
+}
+
+// Checks on the normalized batch before anything is written: the extendedAttributes
+// bounds (every caller, L-16) and, for a key restricted to specific systems, the
+// per-system boundary (H-04). Returns { status, error } or null.
+async function batchBoundaryError(req, body, allowed, ctx) {
+  const boundsErr = extendedAttributesBoundsError(ctx.normalized);
+  if (boundsErr) return { status: 400, error: boundsErr };
+  if (!allowed) return null;
+  const denial = await systemBoundaryDenial({ ...ctx, records: ctx.normalized, syncMode: body.syncMode, allowed });
+  if (!denial) return null;
+  console.warn('Ingest denied for crawler %s: %s', req.crawler?.id, oneLineForLog(denial));
+  return { status: 403, error: denial };
+}
+
+// The advisory part of a successful ingest response: the systems it touched, the
+// manager links it had to clear, and the human-readable warnings for both. Each
+// key is present only when there is something to say, so a clean load answers
+// with counts alone. Also logs the warnings, which is the only record a crawler
+// that ignores the body leaves behind.
+function ingestNotices(entityType, body, { systemIds, managerLinks }) {
+  const ownerWarning = unownedContextWarning(entityType, body.records, body.systemId);
+  if (ownerWarning) console.warn('Ingest contexts: %s', oneLineForLog(ownerWarning));
+  const managerWarning = managerLinkWarning(managerLinks);
+  if (managerWarning) console.warn('Ingest %s: %s', entityType, managerWarning);
+
+  const warnings = [ownerWarning, managerWarning].filter(Boolean);
+  return {
+    ...(systemIds ? { systemIds } : {}),
+    ...(managerLinks ? { managerLinks } : {}),
+    ...(warnings.length ? { warnings } : {}),
+  };
+}
 
 function createIngestHandler(entityType) {
   const tableName = ENTITY_TABLE_MAP[entityType];   // snake_case in v5
@@ -33,10 +83,10 @@ function createIngestHandler(entityType) {
 
     const body = req.body;
 
-    const envResult = validateEnvelope(body, entityType);
-    if (!envResult.valid) {
-      console.warn(`Ingest validation failed [${entityType}]:`, envResult.errors);
-      return res.status(400).json({ error: 'Validation failed', details: envResult.errors });
+    const envErrors = envelopeErrors(body, entityType);
+    if (envErrors.length) {
+      console.warn(`Ingest validation failed [${entityType}]:`, envErrors);
+      return res.status(400).json({ error: 'Validation failed', details: envErrors });
     }
     if (entityType !== 'systems' && !crawlerHasSystemAccess(req, body.systemId)) {
       return res.status(403).json({ error: `Crawler does not have access to system ${body.systemId}` });
@@ -51,10 +101,12 @@ function createIngestHandler(entityType) {
       console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
       return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
     }
+    coerceSystemsSyncMode(entityType, body);
+    const allowed = restrictedSystemIds(req.crawler);
 
     const startTime = new Date();
     try {
-      const coreColumns = await discoverCoreColumns(tableName);
+      const coreColumns = writableCoreColumns(await discoverCoreColumns(tableName));
       const { idPrefix, systemPrefix } = recoverSystemPrefix(entityType, body.idPrefix);
       const normalized = normalizeRecords(body.records, coreColumns, {
         idGeneration: body.idGeneration || 'native', idPrefix, systemPrefix, systemId: body.systemId,
@@ -63,8 +115,19 @@ function createIngestHandler(entityType) {
       const conflictFilter = conflictFilterFor(entityType);
       const scopeDeleteFilter = conflictFilter;
 
+      const boundaryErr = await batchBoundaryError(req, body, allowed, { tableName, keyColumns, normalized, scope, conflictFilter });
+      if (boundaryErr) return res.status(boundaryErr.status).json({ error: boundaryErr.error });
+
+      // A system that declares a directorySystemId reads the directory's principals
+      // and resources; it does not own them. Resolved once per batch — one PK lookup
+      // on a table with a handful of rows — and applied to both write paths (#1247).
+      const preserveColumns = await preservedOwnerColumns(tableName, body.systemId);
+
       // ── Session paths ─────────────────────────────────────────────
-      const sessionRes = await handleSessionPath(body, { tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter });
+      const sessionRes = await handleSessionPath(body, {
+        tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter, preserveColumns,
+        crawlerId: req.crawler?.id, isWorker: crawlerHasPermission(req, 'admin'), restrictSystemIds: allowed,
+      });
       if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
 
       // ── Single-batch path ─────────────────────────────────────────
@@ -73,12 +136,18 @@ function createIngestHandler(entityType) {
       // empty FULL says "this scope is empty now" and reconciles its rows away,
       // which is how a crawler clears a source that no longer serves anything.
       // Short-circuiting here meant that batch was accepted and silently ignored.
-      const result = await ingest(null, tableName, keyColumns, normalized, {
+      const result = await ingestBatch(entityType, tableName, keyColumns, normalized, {
         syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
+        restrictSystemIds: allowed, preserveColumns,
       });
 
-      const delErr = await applyDeleteByIds(body, tableName, result);
+      const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
       if (delErr) return res.status(delErr.status).json(delErr.body);
+
+      // A single batch IS the whole principals load (a crawler that needs more
+      // than one opens a session instead), so this is the point at which a
+      // manager link can be told apart from one whose manager had not arrived.
+      const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
 
       // Context-tree acyclicity is enforced at the database (migration 059's
       // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
@@ -90,7 +159,9 @@ function createIngestHandler(entityType) {
       writeAuditLog(req, body);
 
       const durationMs = Date.now() - startTime.getTime();
+      await linkSystemDirectories(entityType);
       const systemIds = await lookupSystemIds(entityType, body.records);
+      const notices = ingestNotices(entityType, body, { systemIds, managerLinks });
 
       return res.status(201).json({
         table: tableName,
@@ -99,12 +170,13 @@ function createIngestHandler(entityType) {
         deleted: result.deleted,
         records: body.records.length,
         durationMs,
-        ...(systemIds ? { systemIds } : {}),
+        ...notices,
       });
     } catch (err) {
-      console.error(`Ingest error (${entityType}):`, err.message);
+      const safeErrMessage = oneLineForLog(err?.message);
+      console.error('Ingest error (%s): %s', entityType, safeErrMessage);
       await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
-                         body.records?.length || 0, 0, 0, 0, err.message).catch(() => {});
+                         body.records?.length || 0, 0, 0, 0, safeErrMessage).catch(() => {});
       // 422 for a context-cycle rejection (migration 059's trigger), else 500.
       const errRes = ingestErrorResponse(err);
       return res.status(errRes.status).json(errRes.body);
@@ -141,13 +213,86 @@ router.post('/ingest/principals-presence', async (req, res) => {
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  const { tenantId, ids } = normalizePresenceQuery(req.body);
+  const { tenantId, ids, systemId } = normalizePresenceQuery(req.body);
   if (!tenantId) return res.status(400).json({ error: 'tenantId is required' });
   try {
-    res.json(await lookupCrawlerPresence(db, tenantId, ids));
+    // A key restricted to specific systems only sees presence in those systems
+    // (SEC-2026-09 M-05); an unrestricted key keeps the tenant-wide lookup. The
+    // caller's own systemId (optional) resolves its declared directory (#1247).
+    res.json(await lookupCrawlerPresence(db, tenantId, ids, restrictedSystemIds(req.crawler), systemId));
   } catch (err) {
     console.error('principals-presence lookup failed:', err.message);
     res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
+// The checks /ingest/reconcile and /ingest/count share: SQL on, the ingest
+// permission, a well-formed { entity, systemId, before }, access to that system.
+// Answers the request itself and returns null when one fails; otherwise returns
+// the parsed request with its scope reduced to the entity's scope keys.
+function scopedTimestampRequest(req, res) {
+  if (!useSql) { res.status(503).json({ error: 'SQL not configured' }); return null; }
+  if (!crawlerHasPermission(req, 'ingest')) { res.status(403).json({ error: 'Insufficient permissions' }); return null; }
+  let parsed;
+  try { parsed = parseReconcileRequest(req.body); }
+  catch (err) { res.status(400).json({ error: err.message }); return null; }
+  if (!crawlerHasSystemAccess(req, parsed.systemId)) {
+    res.status(403).json({ error: `Crawler does not have access to system ${parsed.systemId}` });
+    return null;
+  }
+  return { ...parsed, scope: buildScope(req.body.scope, ENTITY_SCOPE_MAP[parsed.entity] || []) };
+}
+
+// POST /api/ingest/count — verification for a STREAMED sync. The live rows of one
+// system + scope that an ingest touched at or after `before` (the run's start),
+// counted in the database. Read-only; same request shape and bounds as
+// /ingest/reconcile. A crawler compares it with what its source returned, so a
+// run that lost or collapsed rows fails instead of reporting success. See
+// countTouched in ingest/reconcileStale.js.
+router.post('/ingest/count', async (req, res) => {
+  const parsed = scopedTimestampRequest(req, res);
+  if (!parsed) return undefined;
+  const { entity, tableName, systemId, before, scope } = parsed;
+  try {
+    const count = await countTouched(tableName, {
+      systemId, scope, since: before, scopeDeleteFilter: conflictFilterFor(entity), restrictSystemIds: restrictedSystemIds(req.crawler),
+    });
+    return res.json({ table: tableName, count, since: before });
+  } catch (err) {
+    if (err instanceof ReconcileRequestError) return res.status(400).json({ error: err.message });
+    console.error('Count error: %s', err.message);
+    return res.status(500).json({ error: 'Count failed' });
+  }
+});
+
+// POST /api/ingest/reconcile — the full-sync delete for a STREAMED sync.
+//
+// A crawler that cannot hold its source in memory (the SQL crawler's tens of
+// millions of entitlement assignments) upserts independent delta chunks and then
+// calls this once per (entity, scope): every row of that system + scope that no
+// ingest has touched since `before` is reconciled away — soft-deleted on the
+// soft-delete tables, removed elsewhere. `before` should be the `serverTime` the
+// crawler read from GET /crawlers/whoami when its run started, so the comparison
+// is against this container's clock, never the worker's. See ingest/reconcileStale.js.
+router.post('/ingest/reconcile', async (req, res) => {
+  const parsed = scopedTimestampRequest(req, res);
+  if (!parsed) return undefined;
+  const { entity, tableName, systemId, before, scope } = parsed;
+  const startTime = new Date();
+  try {
+    const deleted = await reconcileStale(tableName, {
+      systemId, scope, before, scopeDeleteFilter: conflictFilterFor(entity), restrictSystemIds: restrictedSystemIds(req.crawler),
+    });
+    await writeSyncLog(null, `API-${entity}-reconcile`, tableName, startTime, 0, 0, 0, deleted, null);
+    return res.json({ table: tableName, deleted, before });
+  } catch (err) {
+    if (err instanceof ReconcileRequestError) return res.status(400).json({ error: err.message });
+    // `entity` reaches here only after parseReconcileRequest matched it against a
+    // fixed table map, so it is one of a known set — but it still arrives in the
+    // request body. Keep it out of the format string and strip line breaks, so no
+    // caller can garble or forge a log line (CWE-134 / CWE-117).
+    console.error('Reconcile error (%s): %s', oneLineForLog(entity), oneLineForLog(err.message));
+    return res.status(500).json({ error: 'Reconcile failed' });
   }
 });
 
@@ -170,21 +315,19 @@ router.post('/ingest/sync-log', async (req, res) => {
   if (!crawlerHasPermission(req, 'ingest')) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  const { syncType, tableName, startTime, endTime, recordCount, status, errorMessage } = req.body || {};
-  if (!syncType || !startTime) {
-    return res.status(400).json({ error: 'syncType and startTime are required' });
-  }
+  // The row is stamped with the authenticated crawler (and a system it may access),
+  // so a key cannot write entries that pass for another crawler's (SEC-2026-09 M-05).
+  const row = buildSyncLogRow(req.body, req.crawler);
+  if (row.error) return res.status(row.status).json({ error: row.error });
   try {
-    const start = new Date(startTime);
-    const end = endTime ? new Date(endTime) : new Date();
-    const duration = Math.max(0, Math.round((end - start) / 1000));
     await db.query(
       `INSERT INTO "GraphSyncLog"
-         ("SyncType", "TableName", "StartTime", "EndTime", "DurationSeconds", "RecordCount", "Status", "ErrorMessage")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [syncType, tableName || null, start, end, duration, recordCount || 0, status || 'Success', errorMessage || null]
+         ("SyncType", "TableName", "StartTime", "EndTime", "DurationSeconds", "RecordCount", "Status", "ErrorMessage",
+          "crawlerId", "systemId")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      row.values
     );
-    return res.status(201).json({ ok: true, durationSeconds: duration });
+    return res.status(201).json({ ok: true, durationSeconds: row.duration });
   } catch (err) {
     console.error('sync-log write failed:', err.message);
     return res.status(500).json({ error: 'Failed to write sync log' });
@@ -197,34 +340,34 @@ router.post('/ingest/sync-log', async (req, res) => {
 // assignment-import time, so this marks them after the fact. The provisioning
 // gap is DERIVED in the matrix matview from these governed memberships + the
 // Contains relationships — nothing is materialised here.
+//
+// It ends by asking for a matview refresh, so it needs the refreshViews
+// permission; the UPDATE is limited to the systems the caller may access. The
+// refresh runs in the background through the shared coordinator (debounced,
+// serialised with every other crawler-triggered refresh — SEC-2026-09 M-05), so
+// this request returns as soon as the UPDATE has committed.
 router.post('/ingest/classify-business-role-assignments', async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  if (!crawlerHasPermission(req, 'ingest')) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
+  if (!crawlerHasPermission(req, 'refreshViews')) {
+    return res.status(403).json({ error: 'Insufficient permissions (requires refreshViews)' });
   }
+  const scope = classifyScope(req.body, req.crawler);
+  if (scope.error) return res.status(scope.status).json({ error: scope.error });
   try {
-    const r = await db.query(`
-      UPDATE "ResourceAssignments" ra
-         SET "governed" = true
-        FROM "Resources" r
-       WHERE r.id = ra."resourceId"
-         AND r."governanceResource"
-         AND ra."governed" = false
-    `);
-    // The matrix materialized views are now stale — refresh them before
-    // returning so the UI sees the new data.
-    let viewRefresh;
-    try {
-      await refreshMatrixViews();
-      viewRefresh = 'ok';
-    } catch (err) {
-      console.error('classify: view refresh failed (non-critical):', err.message);
-      viewRefresh = 'failed';
-    }
+    const { removeCopies, markGoverned } = classifyStatements(scope.clause);
+    const [removed, marked] = await db.tx(async (client) => [
+      await client.query(removeCopies, scope.params),
+      await client.query(markGoverned, scope.params),
+    ]);
+    // The matrix materialized views are now stale. Schedule the refresh; its
+    // outcome is readable at GET /ingest/refresh-views.
+    const refresh = viewRefresh.schedule('classify-business-role-assignments');
     return res.json({
       ok: true,
-      governedMarked: r.rowCount || 0,
-      viewRefresh,
+      governedMarked: marked.rowCount || 0,
+      ungovernedCopiesRemoved: removed.rowCount || 0,
+      viewRefresh: 'scheduled',
+      refresh,
     });
   } catch (err) {
     console.error('classify-business-role-assignments failed:', err.message);

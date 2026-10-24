@@ -105,13 +105,27 @@ function New-AzureGrantRecord {
 }
 
 # Thin principal stub for a User / ServicePrincipal referenced by an assignment.
-# Only Users assert principalType — Azure labels every workload identity
-# 'ServicePrincipal', and asserting it would overwrite the Entra crawler's finer
-# ManagedIdentity / AIAgent classification on a delta upsert.
+#
+# A stub asserts ONLY what a role assignment actually tells us: that this objectId
+# exists and what Azure calls it. Everything else is the directory's to say, and an
+# upsert here writes the SAME row the Entra crawler owns (both are keyed on the
+# objectId), so any extra field silently overwrites the directory's value.
+#
+#   * principalType — only for Users. Azure labels every workload identity
+#     'ServicePrincipal', and asserting that would flatten the Entra crawler's finer
+#     ManagedIdentity / AIAgent classification.
+#   * accountEnabled — not asserted at all (#1247). It used to be hardcoded $true,
+#     which is not something Azure RBAC knows: a delta upsert COALESCEs a non-NULL
+#     incoming value over the stored one, so every run flipped a user disabled in
+#     Entra back to enabled.
+#
+# Stubs are only SENT for principals the directory does not know (see
+# Resolve-AzureRMOrphans) — for a principal it does know, the directory's row already
+# says all of this, better.
 function New-AzurePrincipalStub {
     [CmdletBinding()]
     param([string]$PrincipalId, [string]$PrincipalType)
-    $stub = @{ id = $PrincipalId; accountEnabled = $true }
+    $stub = @{ id = $PrincipalId }
     if ($PrincipalType -eq 'User') { $stub['principalType'] = 'User' }
     return $stub
 }

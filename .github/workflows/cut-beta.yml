@@ -1,14 +1,15 @@
 # ─── Cut a Pre-Release (Beta / RC / Alpha) ────────────────────────────────────
 # Manually triggered. Tags a chosen ref with vX.Y.Z-beta.N (or -rc.N /
-# -alpha.N), builds the portable Windows ZIP, creates a GitHub pre-release with
-# the ZIP attached, and lets docker-publish push :beta + :X.Y.Z-beta.N.
+# -alpha.N), builds the two portable Windows ZIPs, creates a GitHub pre-release
+# with both attached, and lets docker-publish push :beta + :X.Y.Z-beta.N.
 #
 # :latest is never touched — users on docker-compose.prod.yml are unaffected.
 #
 # Usage:
 #   1. Go to Actions → Cut Beta → Run workflow
 #   2. Enter the version (e.g. "5.3.0-beta.1") and optionally a ref (default: main)
-#   3. The workflow creates tag v5.3.0-beta.1 on that ref
+#   3. The workflow creates tag v5.3.0-beta.1 on that ref — which must be a
+#      commit on main (tools/release/Assert-ReleaseFromMain.ps1)
 #   4. docker-publish builds and pushes :beta + :5.3.0-beta.1
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ jobs:
 
       - name: Generate bot token
         id: bot-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -52,6 +53,16 @@ jobs:
           ref: ${{ github.event.inputs.ref }}
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
+
+      # Only code already merged to main (approved PR) may be released. Loaded
+      # from this workflow's own commit, never from the ref being released.
+      - name: Refuse a ref that is not on main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run Cut Beta from main (it ran from $GITHUB_REF)."; exit 1
+          fi
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Release -Ref HEAD
 
       - name: Create and push pre-release tag
         run: |
@@ -66,7 +77,7 @@ jobs:
           echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
 
@@ -77,9 +88,21 @@ jobs:
         run: npm install --prefer-offline
         working-directory: app/desktop
 
-      - name: Build portable Windows ZIP
-        run: npm run build:node-launcher
-        working-directory: app/api
+      # Two ZIPs: the default (PGlite, signed node.exe only) and -postgres
+      # (embedded PostgreSQL for large data sets, unsigned binaries). One shared
+      # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
+      - name: Build portable Windows ZIPs
+        run: bash .github/scripts/build_portable_zips.sh
+
+      # The Azure template, pinned to THIS release's images: azure/ at this tag
+      # with imageTag defaulting to the image version, attached to the release as
+      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
+      # (like the main-only check), so an older hotfix branch without the script
+      # is still packaged; a template from before imageTag gets no package.
+      - name: Package the Azure template
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
 
       - name: Generate release notes
         run: |
@@ -119,7 +142,7 @@ jobs:
         # continue-on-error: this step only polishes wording — release-notes.md already has valid,
         # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
         # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
-        uses: anthropics/claude-code-action@19dda84776b3518d98b8798e591daee763049ed3 # v1
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--allowedTools Read,Write"
@@ -151,12 +174,24 @@ jobs:
         if: steps.polish.outcome == 'failure'
         run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
 
-      - name: Create GitHub pre-release with portable ZIP
+      # Appended after polishing so the model cannot drop or reword it.
+      - name: Append download guide
+        run: |
+          cat tools/release-notes/portable-downloads.md >> release-notes.md
+          echo "--- release-notes.md final ---"
+          cat release-notes.md
+
+      - name: Create GitHub pre-release with portable ZIPs
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
+          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
+                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
+          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
+            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
+          fi
           gh release create "$TAG" \
-            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
+            "${ASSETS[@]}" \
             --title "$TAG" \
             --notes-file release-notes.md \
             --prerelease

@@ -362,6 +362,32 @@ Describe 'ConvertFrom-ScimConfigMap — system naming' {
     It 'keeps the literal SCIM fallback when neither name is present' {
         (ConvertFrom-ScimConfigMap -Raw @{}).systemName | Should -Be 'SCIM'
     }
+
+    # A config saved BEFORE the crawler name was plumbed through has the type
+    # literal baked into its stored systemName, which is indistinguishable from a
+    # deliberate override and shadows _configName on every run — so a crawler named
+    # "SAP CIS Test" keeps registering a system called "SCIM" forever (#1240).
+    # A stored value equal to the type's own default is therefore treated as unset.
+    It 'treats a stored systemName equal to the type default as unset, so a pre-#1207 config follows the crawler name' {
+        (ConvertFrom-ScimConfigMap -Raw @{ systemName = 'SCIM'; _configName = 'SAP CIS Test' }).systemName |
+            Should -Be 'SAP CIS Test'
+    }
+
+    It 'compares the stored default after trimming, so a padded copy of it is stale too' {
+        (ConvertFrom-ScimConfigMap -Raw @{ systemName = '  SCIM  '; _configName = 'SAP CIS Test' }).systemName |
+            Should -Be 'SAP CIS Test'
+    }
+
+    It 'keeps an override that merely CONTAINS the type default — only an exact match is stale' {
+        # "SCIM Test" is a name somebody chose; discarding it would silently rename
+        # their system. Only the bare literal is the pre-#1207 leftover.
+        (ConvertFrom-ScimConfigMap -Raw @{ systemName = 'SCIM Test'; _configName = 'SAP CIS Test' }).systemName |
+            Should -Be 'SCIM Test'
+    }
+
+    It 'still registers as SCIM when the stale default is all there is (unnamed crawler / inline config)' {
+        (ConvertFrom-ScimConfigMap -Raw @{ systemName = 'SCIM' }).systemName | Should -Be 'SCIM'
+    }
 }
 
 Describe 'Get-ScimIdPrefix' {

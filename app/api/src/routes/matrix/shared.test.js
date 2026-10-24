@@ -17,6 +17,7 @@ vi.mock('../../matrix/filterSql.js', () => ({ buildEntitySubquery: (...a) => bui
 const {
   parseFilter, normaliseBlock, subjectScopeClauses, normaliseSortAttributes,
   buildSubqueries, runCount, scopeCounts, runBound, collectResources,
+  clampRollupLevel, MAX_ROLLUP_LEVEL,
 } = await import('./shared.js');
 const { createParams } = await import('../../db/sqlParams.js');
 
@@ -62,6 +63,29 @@ describe('parseFilter', () => {
     // silently switch a shared matrix to showing business-role rows.
     expect(parseFilter({ filter: { includeBusinessRoles: 'true' } }).includeBusinessRoles).toBe(false);
     expect(parseFilter({ filter: { includeBusinessRoles: 1 } }).includeBusinessRoles).toBe(false);
+  });
+
+  it('reads rollupLevel as a whole number of fold levels, or no cap at all', () => {
+    // The cap truncates the fold's attribute list. A value that survived as 0
+    // or NaN would truncate it to nothing and serve a one-column matrix, so
+    // every non-integer has to come back as null ("show all levels").
+    expect(parseFilter({ filter: {} }).rollupLevel).toBeNull();
+    expect(parseFilter({ filter: { rollupLevel: 2 } }).rollupLevel).toBe(2);
+    expect(parseFilter({ filter: { rollupLevel: 99 } }).rollupLevel).toBe(MAX_ROLLUP_LEVEL);
+    for (const bad of [0, -1, 1.5, '2', NaN, null, true, [2]]) {
+      expect(parseFilter({ filter: { rollupLevel: bad } }).rollupLevel).toBeNull();
+    }
+  });
+});
+
+describe('clampRollupLevel', () => {
+  it('ceilings at the number of sort levels a fold can actually have', () => {
+    // Not a free constant: normaliseSortAttributes keeps at most six
+    // attributes, so a level past that could never be rendered.
+    const many = Array.from({ length: 12 }, (_, i) => ({ attribute: `a${i}`, dir: 'asc' }));
+    expect(MAX_ROLLUP_LEVEL).toBe(normaliseSortAttributes(many).length);
+    expect(clampRollupLevel(MAX_ROLLUP_LEVEL + 1)).toBe(MAX_ROLLUP_LEVEL);
+    expect(clampRollupLevel(1)).toBe(1);
   });
 });
 

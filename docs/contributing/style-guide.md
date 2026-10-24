@@ -87,8 +87,8 @@ CI runs these on every PR (the `Lint: ESLint` + `PR Hygiene` checks in [the PR p
 | Rule | Level | Catches |
 |---|---|---|
 | `local/no-low-contrast-text` | error | bare light-mode `text-{color}-300/400` |
-| `local/no-native-dialogs` | error (allowlisted legacy files: warn) | `confirm()` / `alert()` / `prompt()` |
+| `local/no-native-dialogs` | error | `confirm()` / `alert()` / `prompt()` |
 | `local/no-legacy-jargon` | error | "SOLL", "IST", "Org Unit", "Start-FGSync" in UI strings |
 | **PR Hygiene** | error | a UI/source change with no test, or no `changes/` changelog fragment |
 
-`no-native-dialogs` carries a **shrinking allowlist** of files that still use native dialogs (the pre-existing backlog). As each is migrated to an in-app dialog, remove it from the allowlist — new code is gated immediately.
+**Warnings fail CI too.** Both `npm run lint` scripts (UI and API) run with `--max-warnings 0`, so a rule set to `warn` blocks a PR exactly like an `error` does — there is no "yellow but green" state. A warning gets fixed, or — where a human has checked that the rule is wrong for that line — suppressed with `// eslint-disable-next-line <rule> -- <why it is safe>`. A suppression that stops matching anything is itself reported, so it can't outlive the code it was written for.

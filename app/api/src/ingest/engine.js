@@ -16,8 +16,10 @@
 //     names exactly. This minimises the route changes needed for v5.
 
 import crypto from 'crypto';
+import { markInitialLoad } from './initialLoad.js';
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
+import { NO_SYSTEM_COLUMN_TABLES, ownedRowPredicate } from './systemBoundary.js';
 
 // Cache the schema per table for the lifetime of the process. v5 schema is
 // only changed by migrations at startup, so the cache is safe.
@@ -71,6 +73,75 @@ export async function discoverColumns(_pool, tableName) {
 export const SOFT_DELETE_TABLES = new Set(['Principals', 'Resources', 'ResourceAssignments']);
 
 /**
+ * The `"updatedAt" = now()` fragment an upsert needs so the column means "when
+ * this row was last ingested".
+ *
+ * The update set is built from the PAYLOAD's columns, and no crawler sends
+ * `updatedAt` — so without this, a re-ingested row keeps the timestamp of its
+ * first insert. That is invisible for most tables but wrong for
+ * `PrincipalActivity`, where `updatedAt` IS the measurement moment every
+ * activity-based report counts back from: a daily sync would leave "measured
+ * on" pinned to the day the account was first seen. Same shape as the
+ * `deletedAt` re-activation line below — a column the engine stamps itself
+ * because the payload can't.
+ *
+ * Insert-path is covered by the column's `DEFAULT now()`.
+ *
+ * @param {{name: string}[]} allColumns    every column of the target table
+ * @param {{name: string}[]} activeColumns the columns this payload carries
+ * @returns {string} `, "updatedAt" = now()` or ''
+ */
+export function updatedAtStamp(allColumns, activeColumns) {
+  const has = cols => cols.some(c => c.name === 'updatedAt');
+  return has(allColumns) && !has(activeColumns) ? ', "updatedAt" = now()' : '';
+}
+
+// The `DO UPDATE SET` list for an upsert. One builder for both write paths —
+// ingest() here and endSession() in sessions.js — so the three rules below can
+// only ever disagree by being changed in one place.
+//
+//   * preserved (systemBoundary.preservedOwnerColumns, #1247) — the stored value
+//     wins and the incoming one only fills a NULL. A dependent system referencing
+//     the directory's principals must not stamp itself onto them.
+//   * delta — COALESCE(EXCLUDED, stored): a delta payload is partial (Graph's
+//     /users/delta returns only what changed), so a NULL means "not sent", not
+//     "cleared". Plain `col = EXCLUDED.col` would blank every unchanged field.
+//   * full — the payload is authoritative, so NULL genuinely means cleared.
+//
+// Pure. Exported for unit tests.
+export function buildUpdateSet(nonKeyCols, tableName, options = {}) {
+  const { syncMode = 'full', preserveColumns = null } = options;
+  const preserved = new Set(preserveColumns || []);
+  return nonKeyCols.map((c) => {
+    const stored = `"${tableName}"."${c.name}"`;
+    if (preserved.has(c.name)) return `"${c.name}" = COALESCE(${stored}, EXCLUDED."${c.name}")`;
+    if (syncMode === 'delta') return `"${c.name}" = COALESCE(EXCLUDED."${c.name}", ${stored})`;
+    return `"${c.name}" = EXCLUDED."${c.name}"`;
+  }).join(', ');
+}
+
+// A membership of a governance resource (a business role, an access package) is
+// governed by definition; classify-business-role-assignments flags exactly these.
+// Flagging them in the staged batch too, before the upsert, lets a re-import
+// match the row classify already flipped. Without it `governed` (part of the
+// unique key) differed, so every re-import inserted an ungoverned copy beside
+// the governed row. A batch that already carries the governed row for the same
+// grant keeps its ungoverned one as sent: flipping it would put the key in the
+// batch twice. No-op for any other table or a batch without the column.
+export async function markGovernanceMemberships(client, tableName, tempName, keyColumns, activeColumns) {
+  if (tableName !== 'ResourceAssignments' || !activeColumns.some(c => c.name === 'governed')) return;
+  const sameGrant = keyColumns
+    .filter(k => k !== 'governed')
+    .map(k => `g."${k}" IS NOT DISTINCT FROM t."${k}"`)
+    .join(' AND ');
+  await client.query(`
+    UPDATE "${tempName}" t SET "governed" = true
+      FROM "Resources" r
+     WHERE r.id = t."resourceId" AND r."governanceResource" AND t."governed" IS NOT TRUE
+       AND NOT EXISTS (SELECT 1 FROM "${tempName}" g WHERE g."governed" AND ${sameGrant})`);
+}
+
+/**
  * Core ingest operation. Bulk-COPY records into a temp table, then upsert
  * from the temp table into the target.
  */
@@ -83,6 +154,8 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     tempTable: existingTempTable = null,
     scopeDeleteFilter = null,
     conflictFilter = null,
+    restrictSystemIds = null,
+    preserveColumns = null,
   } = options;
 
   if (!records || records.length === 0) {
@@ -103,7 +176,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     const scoped = scope && Object.keys(scope).length > 0;
     if (syncMode !== 'full' || !scoped) return { inserted: 0, updated: 0, deleted: 0 };
     const deleted = await db.tx(client =>
-      deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter));
+      deleteEntireScope(client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter, null, restrictSystemIds));
     return { inserted: 0, updated: 0, deleted };
   }
 
@@ -133,6 +206,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // hold time on Postgres (the whole batch is already one transaction, so
     // chunk size only affects statement count, not locking behaviour).
     await bulkInsertIntoTemp(client, tempName, activeColumns, records, 1000, true);
+    await markGovernanceMemberships(client, tableName, tempName, keyColumns, activeColumns);
 
     // Upsert from temp into target. xmax = 0 detects fresh inserts.
     const nonKeyCols = activeColumns.filter(c => !keyColumns.includes(c.name));
@@ -148,30 +222,26 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
     // (it's back in the source, so it's live again). deletedAt isn't in the payload,
     // so we set it explicitly on every upsert of a soft-delete table.
     const reactivate = SOFT_DELETE_TABLES.has(tableName) ? ', "deletedAt" = NULL' : '';
+    // "This row was ingested again just now" — see updatedAtStamp().
+    const touch = updatedAtStamp(await discoverColumns(null, tableName), activeColumns);
+    const engineSet = `${reactivate}${touch}`;
 
     let upsertSql;
     if (nonKeyCols.length > 0) {
-      // Delta syncs send partial records (Graph's /users/delta returns only
-      // fields that changed). Using plain `col = EXCLUDED.col` would
-      // overwrite every unchanged field with NULL, silently corrupting the
-      // stored row. COALESCE preserves the existing value when the incoming
-      // value is NULL. In full-sync the payload is authoritative — NULL
-      // explicitly means "cleared" — so we keep the direct assignment.
-      const updateSet = syncMode === 'delta'
-        ? nonKeyCols.map(c => `"${c.name}" = COALESCE(EXCLUDED."${c.name}", "${tableName}"."${c.name}")`).join(', ')
-        : nonKeyCols.map(c => `"${c.name}" = EXCLUDED."${c.name}"`).join(', ');
+      const updateSet = buildUpdateSet(nonKeyCols, tableName, { syncMode, preserveColumns });
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}${reactivate}
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${updateSet}${engineSet}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
-    } else if (reactivate) {
-      // Key-only soft-delete table: nothing to update except re-activation.
+    } else if (engineSet) {
+      // Key-only table: nothing to update except what the engine stamps itself
+      // (re-activation and/or the ingest timestamp). Drop the leading comma.
       upsertSql = `
         INSERT INTO "${tableName}" (${insertCols})
         SELECT ${insertCols} FROM "${tempName}"
-        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET "deletedAt" = NULL
+        ON CONFLICT (${onConflictCols})${conflictWhere} DO UPDATE SET ${engineSet.slice(2)}
         RETURNING (xmax = 0) AS "wasInsert"
       `;
     } else {
@@ -183,6 +253,8 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       `;
     }
 
+    // A system's initial load writes no per-row "created" history (migration 073).
+    await markInitialLoad(client, systemId, tableName);
     const upsertRes = await client.query(upsertSql);
     let inserted = 0;
     let updated = 0;
@@ -198,7 +270,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
       // the cached schema rather than reusing activeColumns.
       const allColumns = await discoverColumns(null, tableName);
       const tableColumnNames = new Set(allColumns.map(c => c.name));
-      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter);
+      deleted = await scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter, restrictSystemIds);
     }
 
     return { inserted, updated, deleted };
@@ -216,6 +288,7 @@ export async function ingest(_pool, tableName, keyColumns, records, options = {}
 // the function testable against a contract-test pool the way scopedDelete is.
 export async function deleteEntireScope(
   client, tableName, keyColumns, systemId, scope, systemIdColumn, scopeDeleteFilter, tableColumnNames = null,
+  restrictSystemIds = null,
 ) {
   const tempName = `_tmp_wipe_${crypto.randomBytes(6).toString('hex')}`;
   const keyCols = keyColumns.map(k => `"${k}"`).join(', ');
@@ -231,10 +304,107 @@ export async function deleteEntireScope(
     columnNames = new Set(allColumns.map(c => c.name));
   }
   return await scopedDelete(
-    client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter);
+    client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, columnNames, scopeDeleteFilter, restrictSystemIds);
 }
 
-export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null) {
+// Shared tables whose rows belong to a system through ownership rather than a
+// systemId column (see ownedRowPredicate), and which a full sync must therefore
+// bound by that ownership instead of reconciling whole.
+const SENDER_OWNED_TABLES = new Set(['Contexts', 'ContextMembers']);
+
+// The predicates that bound a reconcile delete to one partition: the system, the
+// caller-declared scope, and — for a key restricted to specific systems — the
+// ownership predicate from systemBoundary.js. Pure. Exported for unit tests.
+export function reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds = null) {
+  const params = [];
+  const clauses = [];
+  const hasSystem = systemId !== null && systemId !== undefined;
+  if (hasSystem && tableColumnNames.has(systemIdColumn)) {
+    params.push(systemId);
+    clauses.push(`t."${systemIdColumn}" = $${params.length}`);
+  } else if (hasSystem && SENDER_OWNED_TABLES.has(tableName)) {
+    // Contexts and ContextMembers have no systemId column, and every crawler shares
+    // them. Bounded only by the caller's scope, a full sync reconciled the WHOLE
+    // table: one crawler's run deleted every other system's synced contexts and
+    // every membership outside its own batch, analysts' tags included. The
+    // envelope systemId bounds it to what the sender owns: its own synced
+    // contexts (scopeSystemId) and their memberships.
+    params.push([systemId]);
+    clauses.push(ownedRowPredicate(tableName, 't', `$${params.length}`));
+  }
+  // A membership an analyst added by hand is theirs, not the source's: no sync
+  // reconcile removes it, even on a context the syncing crawler owns. (The
+  // context itself going away still takes its memberships with it.)
+  if (tableName === 'ContextMembers' && tableColumnNames.has('addedBy')) {
+    clauses.push(`t."addedBy" IS DISTINCT FROM 'analyst'`);
+  }
+  for (const [key, value] of Object.entries(scope || {})) {
+    if (value === undefined || value === null) continue;
+    if (!tableColumnNames.has(key)) continue;
+    params.push(value);
+    clauses.push(`t."${key}" = $${params.length}`);
+  }
+  if (Array.isArray(restrictSystemIds)) {
+    params.push(restrictSystemIds);
+    clauses.push(`COALESCE((${ownedRowPredicate(tableName, 't', `$${params.length}`) || 'false'}), false)`);
+  }
+  return { params, clauses };
+}
+
+// May this reconcile run with the bounds it has? A delete with no system, scope or
+// ownership predicate would reconcile the ENTIRE table against one batch — for
+// "Systems" that removes every other system and cascades through the whole
+// dataset (SEC-2026-09 C-01). The single exception is a table that has no systemId
+// column at all (Identities, IdentityMembers, PrincipalActivity) reconciled by an
+// unrestricted key without a system: the built-in worker's. (Contexts and
+// ContextMembers never get here with a system: reconcileBounds bounds them by
+// ownership. See SENDER_OWNED_TABLES.)
+// Pure.
+export function reconcileAllowed(tableName, clauses, restrictSystemIds) {
+  if (clauses.length > 0) return true;
+  return restrictSystemIds === null && NO_SYSTEM_COLUMN_TABLES.has(tableName);
+}
+
+// The rows a scoped delete is allowed to consider — everything but the
+// "and the source no longer has it" half. Shared with scopeLiveCount so the
+// share a delete guard is measured against counts the SAME population the
+// delete draws from; two hand-kept copies of this predicate would drift and the
+// guard would then be a ratio of two different things.
+function reconcileWhere(tableName, clauses, tableColumnNames, scopeDeleteFilter) {
+  let where = ['1=1', ...clauses].join(' AND ');
+  // A crawler full-sync only owns the links IT created. Account linking and
+  // analyst decisions own a separate set of IdentityMembers, distinguished by a
+  // confidence score (linkConfidence) or an analyst decision (analystOverride).
+  // Exclude those from the reconcile delete so a crawl never wipes account
+  // linking's links or an analyst's confirm/remove. (Columns only exist on
+  // IdentityMembers, so this is a no-op for every other table.)
+  if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
+  if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
+  if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
+  return where;
+}
+
+// How many live rows the scope holds right now — the denominator a staged
+// sweep's delete guard needs, taken inside the same transaction as the delete
+// so the two cannot see different data. Returns null when the bounds would
+// not allow a reconcile at all (there is then nothing to guard).
+export async function scopeLiveCount(client, tableName, systemId, scope, systemIdColumn, tableColumnNames,
+  scopeDeleteFilter = null, restrictSystemIds = null) {
+  const { params, clauses } = reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds);
+  if (!reconcileAllowed(tableName, clauses, restrictSystemIds)) return null;
+  let where = reconcileWhere(tableName, clauses, tableColumnNames, scopeDeleteFilter);
+  if (SOFT_DELETE_TABLES.has(tableName)) where += ' AND t."deletedAt" IS NULL';
+  const res = await client.query(`SELECT count(*) AS n FROM "${tableName}" t WHERE ${where}`, params);
+  return Number(res.rows[0]?.n ?? 0);
+}
+
+export async function scopedDelete(client, tableName, keyColumns, tempName, systemId, scope, systemIdColumn, tableColumnNames, scopeDeleteFilter = null, restrictSystemIds = null) {
+  const { params, clauses } = reconcileBounds(tableName, systemId, scope, systemIdColumn, tableColumnNames, restrictSystemIds);
+  if (!reconcileAllowed(tableName, clauses, restrictSystemIds)) {
+    console.warn(`scopedDelete: refusing an unbounded reconcile of ${tableName} (no system, scope or ownership predicate)`);
+    return 0;
+  }
+
   // Before the DELETE: create a unique index on the temp table over the
   // same key columns the NOT EXISTS uses, then ANALYZE so the planner has
   // accurate row counts. Without these the planner does a sequential scan
@@ -249,31 +419,7 @@ export async function scopedDelete(client, tableName, keyColumns, tempName, syst
     console.warn(`scopedDelete: temp index/analyze failed (continuing): ${err.message}`);
   }
 
-  const params = [];
-  let where = '1=1';
-
-  if (systemId !== null && systemId !== undefined && tableColumnNames.has(systemIdColumn)) {
-    params.push(systemId);
-    where += ` AND t."${systemIdColumn}" = $${params.length}`;
-  }
-
-  for (const [key, value] of Object.entries(scope || {})) {
-    if (value === undefined || value === null) continue;
-    if (!tableColumnNames.has(key)) continue;
-    params.push(value);
-    where += ` AND t."${key}" = $${params.length}`;
-  }
-
-  // A crawler full-sync only owns the links IT created. Account linking and
-  // analyst decisions own a separate set of IdentityMembers, distinguished by a
-  // confidence score (linkConfidence) or an analyst decision (analystOverride).
-  // Exclude those from the reconcile delete so a crawl never wipes account
-  // linking's links or an analyst's confirm/remove. (Columns only exist on
-  // IdentityMembers, so this is a no-op for every other table.)
-  if (tableColumnNames.has('linkConfidence'))  where += ` AND t."linkConfidence" IS NULL`;
-  if (tableColumnNames.has('analystOverride')) where += ` AND t."analystOverride" IS NULL`;
-
-  if (scopeDeleteFilter) where += ` AND (${scopeDeleteFilter})`;
+  const where = reconcileWhere(tableName, clauses, tableColumnNames, scopeDeleteFilter);
 
   const notExistsJoin = keyColumns.map(k => `t."${k}" = src."${k}"`).join(' AND ');
   // Soft-delete tables stamp deletedAt instead of removing the row; the

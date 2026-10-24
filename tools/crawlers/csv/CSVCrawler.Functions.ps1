@@ -40,72 +40,95 @@ function Read-CsvFile {
     return $rows
 }
 
-# Streaming CSV reader — returns a List[object[]] plus a hashtable mapping
-# column name to index. 5-10× faster than Import-Csv for files with >100k
-# rows because it skips PSCustomObject allocation entirely.
+# ─── Fast-path reader ────────────────────────────────────────────
+# Streams rows as string[] instead of PSCustomObjects: 5-10× faster than
+# Import-Csv past ~100k rows, and the only reader that can walk a multi-GB file
+# (Assignments.csv) without holding it.
 #
-# Supported quoting: each field MAY be wrapped in plain double quotes
-# ("foo";"bar"), which PowerShell's Export-Csv does by default. Surrounding
-# quotes are stripped from both headers and data cells. NOT supported:
-# embedded delimiters inside a quoted field ("foo;bar"), embedded newlines,
-# or "" escape sequences. If your data needs any of those, use the slow
-# path (Read-CsvFile / Import-Csv) — Resources.csv is the only file that
-# uses Read-CsvFast and the canonical schema doesn't put delimiters inside
-# Resource descriptions.
-# Read the data rows (everything after the header) with the perf-critical inline
-# split/dequote loop. Extracted from Read-CsvFast to keep the reader flat; called
-# exactly once per file, so this adds NO per-row/-cell function-call overhead to the
-# hot path — $Delim/$Quote arrive as locals, resolved in microseconds.
+# Parsing is .NET's own RFC 4180 parser (Microsoft.VisualBasic.FileIO.
+# TextFieldParser, part of the runtime — no module to install). It used to be a
+# line Split with the surrounding quotes stripped per cell, which tore a quoted
+# field containing the delimiter in two and shifted every later column by one —
+# silently, on exactly the values an identity export is full of: LDAP
+# distinguished names ("CN=x,OU=y,DC=z") in a comma-delimited file.
+#
+# Measured on this workstation: 500k unquoted rows parse in 3.5 s, the same as the
+# old Split; 100k rows each holding a quoted DN in 1.1 s, where a quote-aware
+# parser written in PowerShell took 257 s. Malformed input — a quote that never
+# closes, text after a closing quote — throws with its line number, so the job
+# fails instead of loading shifted rows, and a failed run never reconciles.
+Add-Type -AssemblyName Microsoft.VisualBasic
+
+# A TextFieldParser over $Path for $Delimiter. Whitespace is data, not padding.
+# The StreamReader drops a UTF-8 byte order mark.
+function New-CsvFieldParser {
+    [CmdletBinding()]
+    param([string]$Path, [string]$Delimiter)
+    $reader = [System.IO.StreamReader]::new($Path, [System.Text.Encoding]::UTF8, $true)
+    $parser = [Microsoft.VisualBasic.FileIO.TextFieldParser]::new($reader)
+    $parser.TextFieldType = [Microsoft.VisualBasic.FileIO.FieldType]::Delimited
+    $parser.SetDelimiters([string[]]@([string]$Delimiter[0]))
+    $parser.HasFieldsEnclosedInQuotes = $true
+    $parser.TrimWhiteSpace = $false
+    return $parser
+}
+
+# Read up to $Max data rows as an object[] of string[]. Called once per file by
+# Read-CsvFast, and once per batch by the streamed phases. Blank lines are
+# skipped by the parser. Rows are collected as the loop's output rather than
+# Add()-ed: in PowerShell a .NET method call like List.Add costs ~10 µs, an
+# operator well under one — at 40M rows that is minutes.
 function Read-CsvDataRows {
     [CmdletBinding()]
-    param([System.IO.StreamReader]$Reader, [char[]]$Delim, [char]$Quote)
-    $rows = [System.Collections.Generic.List[object]]::new()
-    while ($true) {
-        $line = $Reader.ReadLine()
-        if ($null -eq $line) { break }
-        if ($line.Length -eq 0) { continue }
-        $cells = $line.Split($Delim)
-        for ($j = 0; $j -lt $cells.Length; $j++) {
-            $c = $cells[$j]
-            if ($c.Length -ge 2 -and $c[0] -eq $Quote -and $c[$c.Length - 1] -eq $Quote) {
-                $cells[$j] = $c.Substring(1, $c.Length - 2)
-            }
-        }
-        [void]$rows.Add($cells)
+    param($Parser, [string]$FileName, [int]$Max = [int]::MaxValue)
+    $n = 0
+    try {
+        $rows = @(while ($n -lt $Max -and -not $Parser.EndOfData) {
+            $n++
+            , $Parser.ReadFields()   # comma: emit the row as ONE item, not its cells
+        })
     }
-    return , $rows   # comma: return the List intact, do not unroll it into the pipeline
+    catch {
+        $bad = $_.Exception.InnerException
+        if ($bad -isnot [Microsoft.VisualBasic.FileIO.MalformedLineException]) { throw }
+        $line = [string]$Parser.ErrorLine
+        throw "$FileName line $($Parser.ErrorLineNumber) is not valid CSV — a quote that is never closed, or text after a closing quote. Nothing after it was loaded. The line starts: $($line.Substring(0, [Math]::Min(120, $line.Length)))"
+    }
+    return , $rows   # comma: return the array intact, do not unroll it into the pipeline
+}
+
+# Open a CSV for the fast path and read its header. $null when the file does not
+# exist; otherwise @{ Parser; ColIdx; Columns }, where ColIdx is empty for a file
+# with no header line. The CALLER owns the Parser and must Dispose it. Header
+# names are trimmed (and a stray byte order mark removed), matching the wizard's
+# upload-time check.
+function Open-CsvFastReader {
+    [CmdletBinding()]
+    param([string]$FileName)
+    $path = Join-Path $CsvFolder $FileName
+    if (-not (Test-Path $path)) { return $null }
+    $parser = New-CsvFieldParser -Path $path -Delimiter $Delimiter
+    $colIdx = @{}
+    $columns = [string[]]@()
+    $header = if ($parser.EndOfData) { $null } else { (Read-CsvDataRows -Parser $parser -FileName $FileName -Max 1)[0] }
+    if ($header) {
+        $columns = [string[]]@($header | ForEach-Object { $_.Trim().TrimStart([char]0xFEFF) })
+        for ($i = 0; $i -lt $columns.Length; $i++) { $colIdx[$columns[$i]] = $i }
+    }
+    return @{ Parser = $parser; ColIdx = $colIdx; Columns = $columns }
 }
 
 function Read-CsvFast {
     [CmdletBinding()]
     param([string]$FileName)
-    $path = Join-Path $CsvFolder $FileName
-    if (-not (Test-Path $path)) { return $null }
-    # IMPORTANT: cache $Delimiter in a local (with a type-constrained char[] for
-    # the Split call). PowerShell's scope walk on outer-scope variables inside
-    # a tight loop is catastrophic — for 1.5M lines the scope lookup alone is
-    # 30+ minutes. Locals are resolved in microseconds.
-    [char[]]$delim = @([char]($Delimiter[0]))
-    [char]$dq = '"'
-    $reader = [System.IO.StreamReader]::new($path, [System.Text.Encoding]::UTF8)
-    $rows = $null
-    $colIdx = @{}
+    $f = Open-CsvFastReader -FileName $FileName
+    if (-not $f) { return $null }
     try {
-        $headerLine = $reader.ReadLine()
-        if (-not $headerLine) { return $null }
-        if ($headerLine[0] -eq [char]0xFEFF) { $headerLine = $headerLine.Substring(1) }
-        $headers = $headerLine.Split($delim)
-        for ($i = 0; $i -lt $headers.Length; $i++) {
-            $h = $headers[$i]
-            if ($h.Length -ge 2 -and $h[0] -eq $dq -and $h[$h.Length - 1] -eq $dq) {
-                $h = $h.Substring(1, $h.Length - 2)
-            }
-            $colIdx[$h] = $i
-        }
-        $rows = Read-CsvDataRows -Reader $reader -Delim $delim -Quote $dq
-    } finally { $reader.Dispose() }
+        if ($f.ColIdx.Count -eq 0) { return $null }
+        $rows = Read-CsvDataRows -Parser $f.Parser -FileName $FileName
+    } finally { $f.Parser.Dispose() }
     Write-Host "  $FileName`: $($rows.Count) rows (fast path)" -ForegroundColor Gray
-    return @{ rows = $rows; colIdx = $colIdx }
+    return @{ rows = $rows; colIdx = $f.ColIdx; columns = $f.Columns }
 }
 
 function Assert-Columns {
@@ -122,11 +145,23 @@ function Assert-Columns {
     }
 }
 
-# Helper: resolve SystemName column → systemId
+# Helper: resolve a row's SystemName → systemId. Pass -Name for a fast-path row
+# (a string[] has no SystemName property); a slow-path row is read by property,
+# and a row without the column (or a short row, where it is $null) falls back.
+#
+# A NAMED system that the lookup does not know also falls back — but is counted in
+# -Unknown (name → rows), so the phase can say so. Loading rows into the fallback
+# system without a word is how an import reported success while most of its data
+# quietly went somewhere else. A blank name is the documented single-system case
+# and is not counted.
 function Resolve-SystemId {
     [CmdletBinding()]
-    param($Row)
-    if ($Row.PSObject.Properties.Name -contains 'SystemName' -and $Row.SystemName -and $systemLookup.ContainsKey($Row.SystemName)) { return $systemLookup[$Row.SystemName] }
+    param($Row, [hashtable]$Unknown, [string]$Name)
+    if (-not $PSBoundParameters.ContainsKey('Name')) { $Name = $Row.SystemName }
+    if (-not $Name) { return $fallbackSystemId }
+    $sid = $systemLookup[$Name]
+    if ($null -ne $sid) { return $sid }
+    if ($null -ne $Unknown) { $Unknown[$Name] = 1 + [int]$Unknown[$Name] }
     return $fallbackSystemId
 }
 

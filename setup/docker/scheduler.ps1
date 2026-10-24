@@ -38,6 +38,11 @@ Write-Host "  API URL: $ApiBaseUrl"               -ForegroundColor Gray
 Write-Host "  Time:    $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')" -ForegroundColor Gray
 Write-Host ""
 
+# The image runs as uid 1000; repair a job trace directory an older root worker
+# left behind on the shared volume, so job logs keep being written.
+. (Join-Path $PSScriptRoot 'WorkerVolume.ps1')
+$null = Repair-WorkerTraceDirectory -TraceDir $(if ($env:TRACE_DIR) { $env:TRACE_DIR } else { '/data/uploads/jobs' })
+
 # Pre-load the module so it's ready for any job
 try {
     Import-Module /app/setup/IdentityAtlas.psd1 -Force

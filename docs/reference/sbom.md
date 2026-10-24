@@ -9,7 +9,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Component | Version | Purpose | License |
 |-----------|---------|---------|---------|
 | PostgreSQL | 16-alpine | Database server | PostgreSQL License |
-| PowerShell | 7.5 (ubuntu-24.04) | Crawler runtime and scripting engine | MIT |
+| PowerShell | 7.5 (ubuntu-24.04@sha256:042240d57ec9e47e511033b92625a8d95875ee5860af3015992c248b58a8be81) | Crawler runtime and scripting engine | MIT |
 | Node.js | 24-slim | API server runtime | MIT |
 | Docker | 20.10+ (required) | Container orchestration | Apache 2.0 |
 
@@ -21,17 +21,17 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| express | ^5.2.1 | Web application framework | MIT |
-| pg | ^8.23.0 | PostgreSQL client | MIT |
+| express | ^5.3.0 | Web application framework | MIT |
+| pg | ^8.23.1 | PostgreSQL client | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.26.1 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.27.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.7.0 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.7.1 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -40,9 +40,9 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| multer | ^2.3.0 | CSV upload handling | MIT |
+| multer | ^2.4.0 | CSV upload handling | MIT |
 | swagger-ui-express | ^5.0.1 | API documentation UI | Apache 2.0 |
-| yamljs | ^0.3.0 | YAML parsing for OpenAPI specs | MIT |
+| yaml | ^2.9.1 | YAML parsing for OpenAPI specs | ISC |
 
 ### Data Export
 
@@ -55,9 +55,9 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
-| supertest | ^7.2.2 | HTTP integration testing | MIT |
-| eslint | ^10.10.0 | JavaScript linter | MIT |
-| eslint-plugin-security | ^4.0.1 | Security-focused lint rules | Apache 2.0 |
+| supertest | ^7.3.1 | HTTP integration testing | MIT |
+| eslint | ^10.13.0 | JavaScript linter | MIT |
+| eslint-plugin-security | ^4.2.0 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
 
 ---
@@ -68,9 +68,9 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| react | ^19.2.8 | UI framework | MIT |
-| react-dom | ^19.2.8 | React DOM renderer | MIT |
-| vite | ^8.2.2 | Build tool and dev server | MIT |
+| react | ^19.3.1 | UI framework | MIT |
+| react-dom | ^19.3.1 | React DOM renderer | MIT |
+| vite | ^8.3.4 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.21.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.25.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -93,7 +93,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.11 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.15 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -105,16 +105,16 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.1.1 | Vite React plugin | MIT |
-| eslint | ^10.10.0 | JavaScript linter | MIT |
+| @vitejs/plugin-react | ^6.1.2 | Vite React plugin | MIT |
+| eslint | ^10.13.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
-| eslint-plugin-react-refresh | ^0.5.6 | React refresh linting | MIT |
-| globals | ^17.12.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.63.0 | End-to-end testing framework | Apache 2.0 |
+| eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
+| globals | ^17.13.0 | Global variable definitions | MIT |
+| @playwright/test | ^1.64.0 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
-| @types/react | ^19.2.18 | TypeScript type definitions for React | MIT |
-| @types/react-dom | ^19.2.7 | TypeScript type definitions for React DOM | MIT |
+| @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |
+| @types/react-dom | ^19.3.0 | TypeScript type definitions for React DOM | MIT |
 
 ---
 
@@ -125,7 +125,7 @@ The documentation site is built and versioned from [`docs/requirements.txt`](htt
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | mkdocs | 1.6.1 | Static documentation site generator | BSD-2-Clause |
-| mkdocs-material | 9.7.6 | Material for MkDocs — docs site theme and UI | MIT |
+| mkdocs-material | 9.7.7 | Material for MkDocs — docs site theme and UI | MIT |
 | mike | 2.2.0 | Versioned docs deployment (edge / stable) | BSD-3-Clause |
 
 ---
@@ -181,7 +181,7 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 | Image | Base | Size (approx) | Purpose |
 |-------|------|---------------|---------|
 | `ghcr.io/fortigi/identity-atlas:latest` | node:24-slim | ~500 MB | Web server (API + frontend) |
-| `ghcr.io/fortigi/identity-atlas-worker:latest` | mcr.microsoft.com/powershell:7.5-ubuntu-24.04 | ~350 MB | PowerShell crawler worker |
+| `ghcr.io/fortigi/identity-atlas-worker:latest` | mcr.microsoft.com/powershell:7.5-ubuntu-24.04@sha256:042240d57ec9e47e511033b92625a8d95875ee5860af3015992c248b58a8be81 | ~350 MB | PowerShell crawler worker |
 
 ---
 
@@ -190,7 +190,7 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 ### Credential Storage
 
 - **Secrets vault**: All sensitive credentials (LLM API keys, scraper credentials) are stored encrypted in the PostgreSQL `Secrets` table using AES-256-GCM with envelope encryption
-- **Master key**: The `IDENTITY_ATLAS_MASTER_KEY` environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the `job_data` volume
+- **Master key**: The `IDENTITY_ATLAS_MASTER_KEY` environment variable controls the root encryption key; if unset, a key is auto-generated and persisted to the web-only `web_keys` volume
 - **PostgreSQL password**: Default password is for local evaluation only; production deployments must set `POSTGRES_PASSWORD` explicitly
 
 ### Network Exposure

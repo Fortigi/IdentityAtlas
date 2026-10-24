@@ -111,3 +111,80 @@ describe('classifyIdentityRow', () => {
     expect((await classifyIdentityRow(row('IdentityMembers', 'U', { principalId: 'p1' }))).event).toBeNull();
   });
 });
+
+// ── soft-delete removals ─────────────────────────────────────────────
+//
+// Memberships are not deleted, they are STAMPED. `ResourceAssignments` is a
+// soft-delete table (ingest/engine.js, SOFT_DELETE_TABLES): removing one sets
+// `deletedAt`, so the audit trigger writes an UPDATE. Classifying on 'I' and
+// 'D' alone therefore showed every addition and no removal at all — on the
+// deployment this was found on, 127 removals between June and September were
+// invisible, while the 7562 'D' rows the timeline did show had stopped in
+// early July, when soft delete landed.
+
+const softDeleted = (tableName, rowData = {}) => row(
+  tableName, 'U',
+  { ...rowData, deletedAt: '2026-09-21T10:00:00Z' },
+  { ...rowData, deletedAt: null },
+);
+const revived = (tableName, rowData = {}) => row(
+  tableName, 'U',
+  { ...rowData, deletedAt: null },
+  { ...rowData, deletedAt: '2026-09-01T10:00:00Z' },
+);
+// Something else changed — a backfilled column, a renamed attribute.
+const touched = (tableName, rowData = {}) => row(
+  tableName, 'U',
+  { ...rowData, assignmentType: 'Indirect' },
+  { ...rowData, assignmentType: 'Direct' },
+);
+
+describe('a membership that was soft-deleted', () => {
+  it('reads as a removal on the user timeline', async () => {
+    const r = await classifyUserRow(softDeleted('ResourceAssignments', { resourceId: 'r1', assignmentType: 'Direct' }));
+    expect(r).toMatchObject({ added: 0, removed: 1 });
+    expect(r.event.summary).toBe('Removed from Res-r1 (Direct)');
+  });
+
+  it('reads as a removal on the resource timeline', async () => {
+    const r = await classifyResourceRow(softDeleted('ResourceAssignments', { principalId: 'p1' }), 'r1');
+    expect(r).toMatchObject({ added: 0, removed: 1 });
+    expect(r.event.summary).toBe('Prin-p1 removed');
+  });
+
+  it('reads as a removal on an access package', async () => {
+    const r = await classifyAccessPackageRow(softDeleted('ResourceAssignments', { principalId: 'p1' }));
+    expect(r).toMatchObject({ added: 0, removed: 1 });
+    expect(r.event.summary).toBe('Prin-p1 lost this role');
+  });
+});
+
+describe('a membership that came back', () => {
+  it('reads as an addition, because re-ingesting one clears deletedAt', async () => {
+    const r = await classifyUserRow(revived('ResourceAssignments', { resourceId: 'r1' }));
+    expect(r).toMatchObject({ added: 1, removed: 0 });
+    expect(r.event.summary).toBe('Added to Res-r1');
+  });
+});
+
+describe('an update that changed something else', () => {
+  it('is not a membership change on any timeline', async () => {
+    // The discriminating case. These outnumber the real removals 60:1 in the
+    // data (7617 of them), so counting them as changes would bury the ones
+    // that matter — and the relationship classifier used to call every
+    // non-insert a removal, which is exactly that failure.
+    expect(await classifyUserRow(touched('ResourceAssignments', { resourceId: 'r1' }))).toMatchObject({ event: null });
+    expect(await classifyResourceRow(touched('ResourceAssignments', { principalId: 'p1' }), 'r1')).toMatchObject({ event: null });
+    expect(await classifyAccessPackageRow(touched('ResourceAssignments', { principalId: 'p1' }))).toMatchObject({ event: null });
+  });
+
+  it('is not a relationship change either', async () => {
+    const r = await classifyResourceRow(
+      row('ResourceRelationships', 'U',
+        { childResourceId: 'r1', parentResourceId: 'r2', relationshipType: 'Contains' },
+        { childResourceId: 'r1', parentResourceId: 'r2', relationshipType: 'Contains' }),
+      'r1',
+    );
+    expect(r).toMatchObject({ event: null, added: 0, removed: 0 });
+  });
+});

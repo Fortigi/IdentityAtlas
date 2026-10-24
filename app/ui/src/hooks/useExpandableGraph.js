@@ -150,9 +150,11 @@ export default function useExpandableGraph({ rootEntityKind, rootEntityId, rootE
   };
 }
 
-// Build a breadcrumb-style label like "Access Packages" or
-// "Access Packages → BR-Employee-Base → Resources" so the list header
-// tells you exactly which category you drilled into.
+// Build a breadcrumb-style label like "Business Roles" or
+// "Business Roles → BR-Employee-Base → Resources" so the list header
+// tells you exactly which category you drilled into. The parts come
+// straight from the node labels supplied by entityGraphShape, so the
+// breadcrumb inherits their source-neutral vocabulary.
 function deriveLabel(rootNodes, path, upto) {
   const parts = [];
   let level = rootNodes;

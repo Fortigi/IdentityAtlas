@@ -14,6 +14,7 @@ import {
   fetchUserAccessPackageCount, fetchUserHistoryCount, fetchOauth2GrantCount,
   fetchDirectReportCount, fetchUserContextCount, fetchPrincipalRelationships,
 } from './userDetail.js';
+import { fetchPrincipalActivity } from './userActivity.js';
 
 const router = Router();
 
@@ -96,6 +97,26 @@ router.get('/user/:id/principal-relationships', async (req, res) => {
     if (isMissingSchema(err)) return res.json([]);
     console.error('Error fetching principal relationships:', err.message);
     res.status(500).json({ error: 'Failed to fetch principal relationships' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────
+// GET /api/user/:id/activity — Lazy-loaded sign-in activity
+// Aggregate timestamps plus per-app usage, each with the moment it was
+// measured. A principal with no rows returns empty lists, not a 404 — "no
+// activity recorded" is a normal answer.
+// ────────────────────────────────────────────────────────────────
+router.get('/user/:id/activity', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json({ aggregates: [], perApp: [] });
+  try {
+    res.json(await fetchPrincipalActivity(req.params.id));
+  } catch (err) {
+    // A deployment predating migration 017 has no table; that reads as "no
+    // activity", the same as an empty one.
+    if (isMissingSchema(err)) return res.json({ aggregates: [], perApp: [] });
+    console.error('Error fetching user activity:', err.message);
+    res.status(500).json({ error: 'Failed to fetch user activity' });
   }
 });
 

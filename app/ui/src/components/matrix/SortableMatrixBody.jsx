@@ -5,18 +5,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import MatrixGroupRow from './MatrixGroupRow';
+import { sortableRowIds } from './SortableMatrixBody.helpers';
 
 // Row height in px — must match the actual rendered row height (24px cells + borders)
 const ROW_HEIGHT = 25;
-
-// The rows that own their position, and can therefore be dragged. A group's
-// nested sub-rows and the resources drawn under the business role(s) granting
-// them travel with the row they belong to — and a resource several roles grant
-// has a row under each of them, all sharing one resource id, so they could not
-// each be a sortable of their own anyway.
-export function sortableRowIds(rows) {
-  return (rows || []).filter(r => !r.isNestedRow && !r.roleParentId).map(r => r.id);
-}
 
 // Wrapper that provides sortable DnD props to a MatrixGroupRow
 function SortableRow(props) {
@@ -91,11 +83,13 @@ export default function SortableMatrixBody({
   }, [onDragEnd]);
   const handleDragCancel = useCallback(() => setDragging(false), []);
 
-  // NOTE: react-hooks/incompatible-library warns here — TanStack Virtual's
-  // useVirtualizer returns functions React Compiler can't safely memoize, so it
-  // skips compiling this component. This is an upstream limitation; the warning
-  // is left as a tracker until a @tanstack/react-virtual release fixes React
-  // Compiler compatibility, at which point we bump the dep and it clears itself.
+  // NOTE: TanStack Virtual's useVirtualizer returns functions React Compiler
+  // can't safely memoize, so it skips compiling this component. This is an
+  // upstream limitation. The disable below is still a tracker: once a
+  // @tanstack/react-virtual release fixes React Compiler compatibility, ESLint
+  // reports the directive as unused and lint (--max-warnings 0) fails until it
+  // is removed.
+  // eslint-disable-next-line react-hooks/incompatible-library -- upstream, see above
   const virtualizer = useVirtualizer({
     count: orderedGroups.length,
     getScrollElement: () => scrollRef.current,

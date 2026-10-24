@@ -12,6 +12,7 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { formatRelativeTime } from '@ui/utils/formatters';
 import { savedMatrixLoadArgs, sharedWithLabel } from './shareState';
+import { lastChangedLine } from './matrixHistoryText';
 
 const CARD = 'border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 bg-white dark:bg-gray-800';
 
@@ -46,8 +47,12 @@ function SavedMatrixItem({ row, onOpen }) {
             <span className="block text-[11px] text-blue-700 dark:text-blue-300">{sharedWithLabel(row.recipientCount)}</span>
           )}
         </span>
+        {/* Who last moved this matrix, not just when: a matrix that stopped
+            producing rows is somebody's change, and that somebody is who to ask. */}
         {row.updatedAt && (
-          <span className="shrink-0 text-[11px] text-gray-600 dark:text-gray-400">Changed {formatRelativeTime(row.updatedAt)}</span>
+          <span className="max-w-[22ch] shrink-0 truncate text-[11px] text-gray-600 dark:text-gray-400">
+            {lastChangedLine(row, formatRelativeTime(row.updatedAt))}
+          </span>
         )}
       </button>
     </li>

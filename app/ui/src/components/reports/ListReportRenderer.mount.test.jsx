@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen, fireEvent } from '@ui/test-utils/renderWithProviders';
-import ListReportRenderer from '@ui/components/reports/ListReportRenderer';
+import ListReportRenderer, { ROWS_PER_PAGE } from '@ui/components/reports/ListReportRenderer';
+
+// One row per index, so an assertion can name the row it expects to see.
+const manyRows = (n) => Array.from({ length: n }, (_, i) => ({
+  displayName: `Row ${i}`, email: `r${i}@example.com`,
+}));
 
 const report = (over = {}) => ({
   displayName: 'Orphaned Accounts',
@@ -94,6 +99,28 @@ describe('ListReportRenderer', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('does not guess at a reason when the report already gave one', () => {
+    // The notices are rendered above this table by ReportViewPage. A report
+    // waiting for a parameter would otherwise be told, underneath its own
+    // "name an application" notice, to refresh after the next crawler run —
+    // sending the reader after a data problem that does not exist.
+    renderWithProviders(<ListReportRenderer report={report({
+      rows: [],
+      notices: [{ severity: 'info', text: 'Name one or more logical applications to review.' }],
+    })} />);
+
+    expect(screen.getByText('No rows')).toBeInTheDocument();
+    expect(screen.queryByText(/found nothing to report on the current data/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Refresh after the next crawler/)).not.toBeInTheDocument();
+  });
+
+  it('still explains itself when the report said nothing at all', () => {
+    // The discriminating pair for the case above: an empty `notices` array is
+    // not an explanation, so the engine's hint is still the only one there is.
+    renderWithProviders(<ListReportRenderer report={report({ rows: [], notices: [] })} />);
+    expect(screen.getByText(/Orphaned Accounts found nothing/)).toBeInTheDocument();
+  });
+
   it('tolerates a response with neither columns nor rows', () => {
     renderWithProviders(<ListReportRenderer report={{ displayName: 'Empty Report' }} />);
     expect(screen.getByText('No rows')).toBeInTheDocument();
@@ -110,5 +137,59 @@ describe('ListReportRenderer', () => {
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0);
     expect(screen.queryAllByRole('cell')).toHaveLength(0);
     expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('draws one page of rows, not the whole result set', () => {
+    // The API returns every row in one response; drawing 39,000 of them is what
+    // locks the browser up. The count is what discriminates: a renderer that
+    // paged the pager but not the table would still show all the rows.
+    renderWithProviders(<ListReportRenderer report={report({ rows: manyRows(250) })} />);
+
+    expect(screen.getAllByRole('row')).toHaveLength(ROWS_PER_PAGE + 1); // header + page
+    expect(screen.getByRole('cell', { name: 'Row 0' })).toBeInTheDocument();
+    expect(screen.queryByRole('cell', { name: `Row ${ROWS_PER_PAGE}` })).not.toBeInTheDocument();
+    expect(screen.getByText('Showing 1–100 of 250')).toBeInTheDocument();
+  });
+
+  it('moves to the next page and back', () => {
+    renderWithProviders(<ListReportRenderer report={report({ rows: manyRows(250) })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('cell', { name: `Row ${ROWS_PER_PAGE}` })).toBeInTheDocument();
+    expect(screen.queryByRole('cell', { name: 'Row 0' })).not.toBeInTheDocument();
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prev' }));
+    expect(screen.getByRole('cell', { name: 'Row 0' })).toBeInTheDocument();
+  });
+
+  it('shows the last, short page in full', () => {
+    renderWithProviders(<ListReportRenderer report={report({ rows: manyRows(250) })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getAllByRole('row')).toHaveLength(51); // header + the remaining 50
+    expect(screen.getByText('Showing 201–250 of 250')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
+  it('draws no pager at all when everything fits on one page', () => {
+    renderWithProviders(<ListReportRenderer report={report({ rows: manyRows(ROWS_PER_PAGE) })} />);
+
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(ROWS_PER_PAGE + 1);
+  });
+
+  it('returns to the first page when the report is re-run', () => {
+    // Refresh and a parameter change both replace the rows. Staying on page 3
+    // of a result that now has one page shows an empty table.
+    const { rerender } = renderWithProviders(
+      <ListReportRenderer report={report({ name: 'r', generatedAt: 't1', rows: manyRows(250) })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument();
+
+    rerender(<ListReportRenderer report={report({ name: 'r', generatedAt: 't2', rows: manyRows(250) })} />);
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Row 0' })).toBeInTheDocument();
   });
 });

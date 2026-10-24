@@ -1,10 +1,14 @@
 import ThemeSelector from './ThemeSelector';
+import { Avatar } from '@ui/components/DepartmentBadges';
 
 // Header account button + its dropdown (user info, theme selector, per-user tab
 // visibility toggles, sign out). The wrapping div carries the outside-click ref
 // owned by App.
+// `me` is the signed-in user resolved against crawled data (see
+// auth/resolveMe.js); its photo is shown here when the account was matched.
+// Undefined/null simply falls back to the initial.
 export default function SettingsMenu({
-  settingsRef, account, settingsOpen, onToggle, onClose,
+  settingsRef, account, me, settingsOpen, onToggle, onClose,
   mode, setTheme, optionalTabs, visibleTabs, toggleTab, logout,
 }) {
   return (
@@ -14,9 +18,7 @@ export default function SettingsMenu({
         className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         title="Settings"
       >
-        <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex items-center justify-center text-xs font-bold">
-          {(account?.name || account?.username || '?')[0].toUpperCase()}
-        </div>
+        <Avatar name={account?.name || account?.username} photo={me?.photo} />
         <span className="hidden sm:inline">{account?.name || account?.username || 'User'}</span>
         <svg className={`w-3.5 h-3.5 text-gray-600 dark:text-gray-500 transition-transform ${settingsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

@@ -1,8 +1,10 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement as h } from 'react';
-import ConfigWizard, { MAX_FILE_BYTES, fmtBytes } from './ConfigWizard.jsx';
+import ConfigWizard, { filesOverLimit, UPLOAD_LIMITS_URL } from './ConfigWizard.jsx';
 import { DialogContext } from '@ui/components/dialogContext';
+import { renderWithProviders, makeAuthFetch, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
 // The wizard calls useDialog() for its in-app confirms, so supply a stub context
 // (the real DialogProvider uses a portal that renderToStaticMarkup can't render).
@@ -36,12 +38,74 @@ describe('CSV crawler ConfigWizard', () => {
   });
 });
 
-describe('MAX_FILE_BYTES', () => {
-  it('is 1 GB', () => {
-    expect(MAX_FILE_BYTES).toBe(1024 * 1024 * 1024);
+// This block replaces the one that asserted a hard-coded `MAX_FILE_BYTES` of
+// 1 GB — the assertion that kept a 1.8 GB export from ever being uploaded after
+// the server's default rose to 8 GiB. The limit is the server's now.
+describe('filesOverLimit — the server-reported per-file limit', () => {
+  const staged = (...sizes) => sizes.map((size, i) => ({ file: { name: `f${i}.csv`, size } }));
+  const GiB = 1024 ** 3;
+
+  it('flags nothing while the limit is unknown — the server still enforces it', () => {
+    expect(filesOverLimit(staged(100 * GiB), null)).toEqual([]);
+    expect(filesOverLimit(staged(100 * GiB), undefined)).toEqual([]);
   });
 
-  it('renders as "1.0 GB" via fmtBytes', () => {
-    expect(fmtBytes(MAX_FILE_BYTES)).toBe('1.0 GB');
+  it('lets a 1.8 GB export through under the 8 GiB default', () => {
+    expect(filesOverLimit(staged(1.8 * GiB), 8 * GiB)).toEqual([]);
+  });
+
+  it('flags only the files strictly over the limit', () => {
+    const files = staged(2048, 2049, 10);
+    expect(filesOverLimit(files, 2048).map(s => s.file.name)).toEqual(['f1.csv']);
+  });
+});
+
+describe('ConfigWizard — mounted, with the limit coming from the server', () => {
+  const GiB = 1024 ** 3;
+  const mount = ({ limit, files, initialConfig = null } = {}) => {
+    const handlers = {};
+    if (limit !== undefined) handlers[UPLOAD_LIMITS_URL] = { maxFileBytes: limit };
+    if (files) handlers['/files'] = files;
+    const authFetch = makeAuthFetch(handlers);
+    const utils = renderWithProviders(h(ConfigWizard, {
+      onComplete: () => {}, onCancel: () => {}, initialConfig, isEdit: !!initialConfig, authFetch,
+    }), { auth: { authFetch } });
+    return { ...utils, authFetch };
+  };
+  const toUploadStep = async () => userEvent.click(await screen.findByRole('button', { name: /Next: Upload files/ }));
+
+  it('renders the limit the server reports, not a constant', async () => {
+    const { authFetch } = mount({ limit: 20 * GiB });
+    await toUploadStep();
+    expect(await screen.findByText('20.0 GB')).toBeInTheDocument();
+    expect(authFetch).toHaveBeenCalledWith(UPLOAD_LIMITS_URL);
+  });
+
+  it('renders a limit above 1024 GB in TB', async () => {
+    mount({ limit: 2 * 1024 * GiB });
+    await toUploadStep();
+    expect(await screen.findByText('2.0 TB')).toBeInTheDocument();
+  });
+
+  it('names no limit at all when the server does not report one', async () => {
+    mount({});                                  // limits request -> 404
+    await toUploadStep();
+    expect(screen.getByText(/Files are auto-mapped by name/)).toBeInTheDocument();
+    expect(screen.queryByText(/per file/)).toBeNull();
+  });
+
+  it('refuses a staged file over the reported limit, naming that limit', async () => {
+    const { container } = mount({ limit: 1024 });
+    await toUploadStep();
+    await screen.findByText('1.0 KB');
+    const input = container.querySelector('input[accept=".csv"]');
+    await userEvent.upload(input, new File(['x'.repeat(2048)], 'Assignments.csv', { type: 'text/csv' }));
+    expect(await screen.findByText(/exceeds the server.s 1\.0 KB per-file upload limit/)).toBeInTheDocument();
+  });
+
+  it('shows the folder a job reads from, so a large file can be copied there instead', async () => {
+    mount({ limit: 8 * GiB, files: { files: [], folder: '/data/uploads/csv-7' }, initialConfig: { id: 7, systemName: 'IIQ' } });
+    await toUploadStep();
+    expect(await screen.findByText('/data/uploads/csv-7')).toBeInTheDocument();
   });
 });

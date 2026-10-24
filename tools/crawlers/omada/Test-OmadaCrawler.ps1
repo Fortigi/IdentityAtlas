@@ -173,13 +173,15 @@ try {
     # single call both verifies the system exists AND avoids asserting against
     # the full database (prior CI steps may have loaded other systems/users).
     # We identify our system by the mock port which is OS-assigned and unique.
+    # Matched on tenantId, not displayName: the display name now follows the crawler's
+    # own name (#1240), so the mock port only survives in the tenantId.
     $thisSystem = $null
     try {
         $systems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" `
             -Headers @{ Authorization = "Bearer $ApiKey" } -ErrorAction Stop
-        $thisSystem = @($systems) | Where-Object { $_.displayName -like "*:$($mock.Port)/*" } | Select-Object -First 1
+        $thisSystem = @($systems) | Where-Object { $_.tenantId -like "*:$($mock.Port)/*" } | Select-Object -First 1
         Write-Result 'Omada/Data — system registered' ($null -ne $thisSystem) `
-            "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { '(not found — port $($mock.Port) not in any system displayName)' })"
+            "$(if ($thisSystem) { "($($thisSystem.displayName))" } else { "(not found — port $($mock.Port) not in any system tenantId)" })"
     } catch {
         Write-Result 'Omada/Data — system registered' $false $_.Exception.Message
     }

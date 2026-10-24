@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "sizeProfile": {
+      "value": "m"
+    },
+    "entraTenantId": {
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    "entraClientId": {
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    "containerRegistryResourceId": {
+      "value": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared/providers/Microsoft.ContainerRegistry/registries/contosoacr"
+    },
+    "existingLogAnalyticsWorkspaceId": {
+      "value": ""
+    }
+  }
+}

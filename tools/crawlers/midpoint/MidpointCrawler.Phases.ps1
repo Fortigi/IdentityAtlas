@@ -22,6 +22,9 @@
     threaded through explicit params/return values instead of shared script vars.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 # One page of the system-scan shadow stream: record which resources hold an
 # account/entitlement shadow (those are the ones worth registering as systems).
 # Mutates the passed $ResWithData set.
@@ -76,7 +79,10 @@ function Sync-MidpointSystems {
         [string]$RestRoot,
         [string]$ApiBaseUrl,
         [string]$ApiKey,
-        [int]$PageSize = 100
+        [int]$PageSize = 100,
+        # The crawler's own name (`_configName`), threaded in from the entry point.
+        # Names midPoint's OWN system row only — never the connected resources.
+        [string]$ConfigName
     )
     Write-Host "`nSystems:" -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Registering systems' -Pct 5
@@ -85,8 +91,11 @@ function Sync-MidpointSystems {
     $ResourceOidToName = @{}
     try {
         $hostLabel = ([System.Uri]$RestRoot).Authority
+        # Named after the crawler when the run carries one; the type + host label is
+        # only the fallback for an unnamed config or an inline-config run (#1240).
+        $selfName = Get-CrawlerSystemName -TypeDefault "midPoint ($hostLabel)" -ConfigName $ConfigName
         $sysRecords = [System.Collections.Generic.List[object]]::new()
-        $sysRecords.Add([PSCustomObject]@{ systemType = 'Midpoint'; displayName = "midPoint ($hostLabel)"; tenantId = $RestRoot; enabled = $true; syncEnabled = $true })
+        $sysRecords.Add([PSCustomObject]@{ systemType = 'Midpoint'; displayName = $selfName; tenantId = $RestRoot; enabled = $true; syncEnabled = $true })
 
         $resources = @(Invoke-MidpointSearch -Type 'resources' -PageSize $PageSize)
         Write-Host "  $($resources.Count) connected resources in midPoint" -ForegroundColor Gray
@@ -863,6 +872,9 @@ function Resolve-MidpointConfig {
         cfg                 = $cfgObj
         rawConfig           = $raw
         sync                = $sync
+        # The crawler's own name, injected by the job dispatcher. Carried through so
+        # midPoint's own system row can be named after the crawler, not the type (#1240).
+        configName          = ([string]$raw['_configName']).Trim()
         syncMode            = if ($raw['_syncMode'] -in @('full', 'delta')) { $raw['_syncMode'] } else { 'full' }
         pageSize            = if ($cfgObj.pageSize) { [int]$cfgObj.pageSize } else { 100 }
         # Cross-system tables have no per-system delete scope -> always upsert-only (delta).

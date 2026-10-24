@@ -29,12 +29,23 @@ const savedRow = (over = {}) => ({
 });
 const everyone = savedRow({ id: 'sf-2', name: 'Everyone', filter: { ...FILTER, subject: { include: [], exclude: [] } } });
 
+// The trail the History… verb opens. Two actors, so a dialog that showed the
+// row's last writer for every event would fail.
+const HISTORY = {
+  id: 'sf-1', name: 'HR users', createdBy: 'wim@example.com', updatedBy: 'anna@example.com',
+  events: [
+    { at: '2026-09-20T10:00:00Z', actor: 'anna@example.com', operation: 'changed', changes: [{ field: 'name', label: 'Name', from: 'HR', to: 'HR users' }] },
+    { at: '2026-03-01T10:00:00Z', actor: 'wim@example.com', operation: 'created', changes: [] },
+  ],
+};
+
 // `saved` may be a function, so a test can change what the list returns after a
 // rename or a duplicate and see the strip re-read it.
-function render({ saved = [savedRow(), everyone], filter = { ...FILTER, savedFilterId: 'sf-1' }, onLoad, onAdjust, onShare, auth = sharer, put, post, del } = {}) {
+function render({ saved = [savedRow(), everyone], filter = { ...FILTER, savedFilterId: 'sf-1' }, onLoad, onAdjust, onShare, auth = sharer, put, post, del, history = HISTORY } = {}) {
   const authFetch = makeAuthFetch((url, opts) => {
     const u = String(url);
     if (!u.includes('/api/matrix/saved-filters')) return undefined;
+    if (u.endsWith('/history')) return history;
     if (opts?.method === 'PUT') return put ?? { id: 'sf-1', name: 'renamed' };
     if (opts?.method === 'POST') return post ?? { id: 'sf-new', name: 'copy' };
     if (opts?.method === 'DELETE') return del ?? jsonResponse({}, { status: 204 });
@@ -179,9 +190,19 @@ describe('MatrixNameBar — the name menu', () => {
     const { user } = render({ filter: CHANGED });
     await openMenu(user, 'Unsaved matrix');
     expect(screen.getByRole('button', { name: 'New matrix…' })).toBeInTheDocument();
-    for (const verb of ['Rename…', 'Duplicate…', 'Delete…']) {
+    for (const verb of ['Rename…', 'Duplicate…', 'History…', 'Delete…']) {
       expect(screen.queryByRole('button', { name: verb })).not.toBeInTheDocument();
     }
+  });
+
+  it('opens the trail of the matrix on screen from History…', async () => {
+    const { user } = render();
+    await openMenu(user, 'HR users');
+    await user.click(screen.getByRole('button', { name: 'History…' }));
+    // Titled after the matrix it was opened on, not the first row of the list.
+    expect(await screen.findByText('History of “HR users”')).toBeInTheDocument();
+    expect(await screen.findByText('anna@example.com changed it')).toBeInTheDocument();
+    expect(screen.getByText('wim@example.com saved this matrix')).toBeInTheDocument();
   });
 
   it('closes on a click outside it', async () => {

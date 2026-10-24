@@ -22,10 +22,12 @@ const NAME_DUP = 'Contract Duplicate Name';
 
 const createdSystems = () => [sysA, sysB, sysEmpty, sysDupA, sysDupB];
 
-async function newSystem(type, displayName) {
+// Two systems may share a display name only when a tenant tells them apart:
+// a tenant-less system is identified by (systemType, displayName) (migration 074).
+async function newSystem(type, displayName, tenantId = null) {
   return (await pool.query(
-    `INSERT INTO "Systems" ("systemType", "displayName") VALUES ($1, $2) RETURNING id`,
-    [type, displayName],
+    `INSERT INTO "Systems" ("systemType", "displayName", "tenantId") VALUES ($1, $2, $3) RETURNING id`,
+    [type, displayName, tenantId],
   )).rows[0].id;
 }
 
@@ -37,8 +39,8 @@ beforeAll(async () => {
   sysA = await newSystem('EntraID', NAME_A);
   sysB = await newSystem('SCIM', NAME_B);
   sysEmpty = await newSystem('CSV', NAME_EMPTY);
-  sysDupA = await newSystem('CSV', NAME_DUP);
-  sysDupB = await newSystem('CSV', NAME_DUP);
+  sysDupA = await newSystem('CSV', NAME_DUP, 'contract-dup-a');
+  sysDupB = await newSystem('CSV', NAME_DUP, 'contract-dup-b');
 
   await pool.query(
     `INSERT INTO "Principals" (id, "systemId", "displayName", "principalType")

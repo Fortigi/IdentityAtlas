@@ -33,6 +33,11 @@ const roots = {
       contextType: 'OrgUnit',
       directMemberCount: 0,
       totalMemberCount: 9,
+      // The owner as the read endpoint hands it over: the raw value the source
+      // gave, plus the principal it resolved to.
+      ownerUserId: 'IIQ-4711',
+      ownerPrincipalId: 'p-owner',
+      ownerDisplayName: 'Leo M. Cohen',
     },
   ],
 };
@@ -126,6 +131,23 @@ describe('ContextsPage (mounted)', () => {
     expect(await screen.findByRole('button', { name: 'Tree' })).toBeInTheDocument();
     expect(screen.queryByText('Sync')).not.toBeInTheDocument();
     expect(screen.queryByText('Delete tree…')).not.toBeInTheDocument();
+  });
+
+  it('shows the selected tree owner as a person and opens that account', async () => {
+    const onOpenDetail = vi.fn();
+    renderWithProviders(h(ContextsPage, { onOpenDetail }), { auth: { authFetch: routes() } });
+    const user = userEvent.setup();
+
+    await screen.findByText('Sales OUs');
+    await user.click(screen.getByText('Sales OUs'));
+
+    // The person, not the external id the source stored.
+    const owner = await screen.findByTitle('Owner id: IIQ-4711');
+    expect(owner.textContent).toContain('Leo M. Cohen');
+    expect(owner.textContent).not.toContain('IIQ-4711');
+
+    await user.click(owner);
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p-owner', 'Leo M. Cohen');
   });
 
   it('runs the delete-tree confirm flow and calls DELETE', async () => {

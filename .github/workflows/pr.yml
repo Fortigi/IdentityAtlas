@@ -45,11 +45,27 @@
 
 name: PR Checks
 
+# `feature/**` and `bugfixes/**` are here because CLAUDE.md calls stacked PRs the
+# preferred workflow, and a filter of just [main, release/**] silently gives a
+# stacked PR NO checks at all — not a failure, not a pending gate, simply "no
+# checks" on the page, which reads as nothing to see.
+#
+# That is not hypothetical. PR #1268 was based on a feature branch, showed no
+# checks, was reviewed and merged, and carried three defects that nothing could
+# have caught: two PowerShell files registered for neither mutation testing nor
+# exclusion, a T-SQL guard violation, and an endpoint missing from the OpenAPI
+# spec. All three surfaced the moment its base branch targeted main.
+#
+# The cost is that a stack of N PRs now runs the suite N times. That is the
+# correct trade: a review is worth what its evidence is worth, and a green tick
+# nobody produced is worse than a red one.
 on:
   pull_request:
     branches:
       - main
       - 'release/**'
+      - 'feature/**'
+      - 'bugfixes/**'
 
 # Cancel superseded runs when a PR branch is pushed again, so a stale run can't
 # race the latest commit (or waste runners) (audit finding F4).
@@ -136,6 +152,7 @@ jobs:
       code:    ${{ steps.f.outputs.code }}
       migrations:   ${{ steps.f.outputs.migrations }}
       node_version: ${{ steps.f.outputs.node_version }}
+      azure:        ${{ steps.f.outputs.azure }}
       outcome: ${{ steps.f.outcome }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -155,9 +172,11 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Invoke-CrawlerJobProcess.ps1'
               - 'setup/docker/Build-FGContexts.ps1'
+              - 'app/desktop/node-launcher/**'
               - 'setup/IdentityAtlas.psm1'
               - 'test/unit/**'
               - 'azure/**'
+              - 'tools/release/**'
               # Self-referencing, as coverage.yml does: editing the scope config or this job's
               # own definition must run the job it configures, not silently skip it (#1088).
               - '.ci/psmutant.config.json'
@@ -180,6 +199,8 @@ jobs:
               # The desktop job worker's tests run in the API Vitest suite.
               - 'app/desktop/*.cjs'
               - 'app/desktop/*.test.js'
+              # So do the scale test fixture generator's.
+              - 'tools/scale-dataset/**'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -215,6 +236,11 @@ jobs:
               - 'app/api/src/db/migrations/**'
               - '.ci/migration-hashes.json'
               - 'tools/migrations/**'
+            # The Azure templates: the Bicep sources and the compiled ARM the
+            # Deploy to Azure button and the release package deploy.
+            azure:
+              - 'azure/**'
+              - '.github/workflows/pr.yml'
             # Only the files that can carry a Node version affect that gate.
             node_version:
               - '.nvmrc'
@@ -303,7 +329,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -399,7 +425,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pester-results
           path: pester-coverage.xml
@@ -426,7 +452,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -452,7 +478,7 @@ jobs:
 
       - name: Upload coverage (lcov + text)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: api-coverage
           path: app/api/coverage/
@@ -475,7 +501,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -501,7 +527,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -545,7 +571,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
 
@@ -564,7 +590,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
 
@@ -584,7 +610,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
 
@@ -620,7 +646,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
 
@@ -866,6 +892,11 @@ jobs:
           python3 -m pip install --quiet pytest
           python3 -m pytest tools/filesize/test_ratchet.py -q
 
+      # The report generator image runs this supervisor as its main process: it loads
+      # the model on demand and unloads it when idle. Standard library only.
+      - name: Test the report generator supervisor
+        run: python3 -m pytest setup/docker/report-generator/test_supervisor.py -q
+
       - name: Run file-length ratchet
         run: python3 tools/filesize/ratchet.py
 
@@ -882,7 +913,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: '24'
           cache: npm
@@ -939,11 +970,13 @@ jobs:
           bash test/ci-scripts/test-dor-push-lease.sh
           bash test/ci-scripts/test-dor-finalize-merged-pr.sh
           bash test/ci-scripts/test-dor-sidekick-claim.sh
+          bash test/ci-scripts/test-dor-sparse-workspace.sh
           bash test/ci-scripts/test-dor-run-touched-tests.sh
           bash test/ci-scripts/test-dor-drop-workflow-labels.sh
           bash test/ci-scripts/test-dor-trusted-spec.sh
           bash test/ci-scripts/test-dor-agent-sandbox.sh
           bash test/ci-scripts/test-dor-token-checkpoint.sh
+          bash test/ci-scripts/test-release-prev-tag.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.
@@ -957,6 +990,14 @@ jobs:
           python3 -m pip install --quiet pytest
           python3 -m pytest tools/test_generate_coverage_doc.py \
                             tools/mutation/test_stryker_to_mutation_json.py -q
+
+      # Runs only from cut-release.yml / cut-hotfix.yml, so nothing else would
+      # exercise it until a release was already being cut — and a release is a
+      # bad place to discover that the notes generator throws.
+      - name: Test the release-notes dependency delta
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/release-notes/test_dependency_delta.py -q
 
   # ── Stage 15: Docs site build (strict) ────────────────────────────────────
   # `docs.yml` publishes the site, but it only runs on push to main — so until
@@ -1042,6 +1083,42 @@ jobs:
       - name: Run node-version gate
         run: python3 tools/node-version/ratchet.py
 
+  # ── Stage 19: Compiled Azure templates match their Bicep source ──────────
+  # The Deploy to Azure button and every release package deploy the COMPILED
+  # azure/main.json and main-auth.json, not the .bicep files — so a .bicep change
+  # without a rebuild ships nothing, and a hand edit to the .json ships something
+  # no source describes. Rebuilt here with the Bicep version that produced the
+  # committed file (its metadata names it), so a newer compiler cannot turn this
+  # red on its own. No Azure sign-in: building needs none.
+  azure-templates:
+    name: 'Azure: compiled templates match Bicep'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.azure == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest   # az CLI and jq are preinstalled on the GitHub runner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rebuild and compare
+        run: |
+          set -euo pipefail
+          stale=0
+          for tpl in main main-auth; do
+            json="azure/$tpl.json"
+            version=$(jq -r '.metadata._generator.version' "$json" | cut -d. -f1-3)
+            az bicep install --version "v$version" >/dev/null 2>&1
+            az bicep build --file "azure/$tpl.bicep" --outfile "$RUNNER_TEMP/$tpl.json"
+            if ! diff -q "$json" "$RUNNER_TEMP/$tpl.json" >/dev/null; then
+              echo "::error file=$json::$json is not the build of azure/$tpl.bicep (Bicep $version). Run: az bicep build --file azure/$tpl.bicep --outfile $json"
+              diff -u "$json" "$RUNNER_TEMP/$tpl.json" | head -n 40 || true
+              stale=1
+            else
+              echo "$json matches azure/$tpl.bicep (Bicep $version)"
+            fi
+          done
+          exit $stale
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -1075,6 +1152,7 @@ jobs:
       - docs-build
       - migration-immutability
       - node-version
+      - azure-templates
     if: always()
     runs-on: ubuntu-latest
     steps:

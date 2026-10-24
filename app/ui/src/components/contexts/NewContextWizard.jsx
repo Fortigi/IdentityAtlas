@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
 import { Modal, ErrorBox } from './ModalPrimitives';
 import Stepper from '@ui/components/Stepper';
 import WizardBody from './NewContextWizardBody';
@@ -20,8 +21,9 @@ import {
 // The step bodies live in NewContextWizardBody, the footer in
 // NewContextWizardFooter, and pure data shaping in NewContextWizard.helpers.
 
-export default function NewContextWizard({ open, onClose, onCreated, onRunStarted, onOpenCrawlers }) {
+export default function NewContextWizard({ open, onClose, onCreated, onRunStarted, onOpenCrawlers, onOpenBuilder }) {
   const { authFetch } = useAuth();
+  const canDescribe = useCanBuildContexts() && !!onOpenBuilder;
 
   const [step, setStep] = useState(1);
   const [source, setSource] = useState(null); // 'import' | 'plugin' | 'manual'
@@ -133,6 +135,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
 
   function next() {
     if (step === 1 && source === 'import') { onOpenCrawlers?.(); onClose(); return; }
+    if (step === 1 && source === 'describe') { onOpenBuilder?.(); onClose(); return; }
     setStep(s => s + 1);
   }
   function back() {
@@ -218,7 +221,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
       {/* ─── Step content ─── */}
       <WizardBody
         source={source} step={step} loading={loading}
-        setSource={setSource}
+        setSource={setSource} canDescribe={canDescribe}
         grouped={grouped} selected={selected} setSelected={setSelected}
         params={params} setParams={setParams} systems={systems} principalAttrs={principalAttrs}
         mode={mode} setMode={setMode} refreshKey={refreshKey} setRefreshKey={setRefreshKey}

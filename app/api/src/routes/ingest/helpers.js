@@ -7,8 +7,11 @@
 // behaviour change — pure code move.
 
 import * as db from '../../db/connection.js';
-import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
-import { startSession, continueSession, endSession, hasSession } from '../../ingest/sessions.js';
+import { SOFT_DELETE_TABLES, ingest } from '../../ingest/engine.js';
+import { startSession, continueSession, endSession, hasSession, SessionLimitError } from '../../ingest/sessions.js';
+import { ownedRowPredicate, linkDirectorySystems } from '../../ingest/systemBoundary.js';
+import { managerLinkWarning } from '../../ingest/managerLinks.js';
+import { applyDeleteByKeys } from '../../ingest/deleteByKeys.js';
 
 export function applyIngestDefaults(entityType, body) {
   if (!Array.isArray(body.records)) body.records = [];
@@ -20,6 +23,19 @@ export function applyIngestDefaults(entityType, body) {
       if (r && r.governanceResource === undefined) r.governanceResource = (r.resourceType === 'BusinessRole');
     }
   }
+}
+
+// Systems are registered, never reconciled. A full sync to ingest/systems would
+// treat its batch as the complete set of systems and remove every other one,
+// cascading through all of their data (SEC-2026-09 C-01). It is run as a delta
+// instead of being rejected, so a crawler that still sends 'full' (an older worker
+// image during an upgrade, or an external connector) keeps working. Applied after
+// record validation so a new system still has its required fields checked.
+export function coerceSystemsSyncMode(entityType, body) {
+  if (entityType !== 'systems' || body.syncMode !== 'full') return false;
+  body.syncMode = 'delta';
+  console.warn('ingest/systems: syncMode "full" is not supported for systems; running the batch as a delta');
+  return true;
 }
 
 // Recover the system-only prefix used to namespace deterministic GUIDs.
@@ -79,7 +95,8 @@ export async function handleSessionPath(body, ctx) {
   if (body.syncSession === 'start') {
     const result = await startSession(null, tableName, keyColumns, normalized, {
       systemId: body.systemId, scope, syncMode: body.syncMode || 'full',
-      scopeDeleteFilter, conflictFilter,
+      scopeDeleteFilter, conflictFilter, preserveColumns: ctx.preserveColumns ?? null,
+      crawlerId: ctx.crawlerId, isWorker: ctx.isWorker, restrictSystemIds: ctx.restrictSystemIds ?? null,
     });
     return { status: 201, body: {
       syncId: result.syncId, table: tableName,
@@ -87,7 +104,7 @@ export async function handleSessionPath(body, ctx) {
     } };
   }
   if (body.syncSession === 'continue') {
-    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    if (!body.syncId || !hasSession(body.syncId, ctx.crawlerId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
     const result = await continueSession(body.syncId, null, normalized, keyColumns);
     return { status: 200, body: {
       syncId: result.syncId, table: tableName,
@@ -95,12 +112,13 @@ export async function handleSessionPath(body, ctx) {
     } };
   }
   if (body.syncSession === 'end') {
-    if (!body.syncId || !hasSession(body.syncId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
+    if (!body.syncId || !hasSession(body.syncId, ctx.crawlerId)) return { status: 400, body: { error: 'Invalid or expired syncId' } };
     const result = await endSession(body.syncId, null, normalized, keyColumns, { syncMode: body.syncMode || 'full' });
     return { status: 200, body: {
       syncId: result.syncId, table: tableName,
       inserted: result.inserted, updated: result.updated, deleted: result.deleted,
       totalRecords: result.totalRecords, session: 'completed',
+      ...(result.managerLinks ? { managerLinks: result.managerLinks, warnings: [managerLinkWarning(result.managerLinks)] } : {}),
     } };
   }
   return null;
@@ -109,8 +127,10 @@ export async function handleSessionPath(body, ctx) {
 // Explicit delete-by-id path (Graph /delta @removed rows). Validates the ids are
 // UUIDs, soft- or hard-deletes them, and adds the count to `result.deleted`.
 // Returns a { status, body } error response, or null on success / no-op.
+// For a key restricted to specific systems, only rows those systems own are
+// deleted (SEC-2026-09 H-04); ids of anyone else's rows are ignored.
 // Exported for unit tests.
-export async function applyDeleteByIds(body, tableName, result) {
+export async function applyDeleteByIds(body, tableName, result, restrictSystemIds = null) {
   if (!Array.isArray(body.deletedIds) || body.deletedIds.length === 0) return null;
   // Reject the whole batch if any entry isn't a UUID to avoid ambiguous deletes.
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -118,15 +138,89 @@ export async function applyDeleteByIds(body, tableName, result) {
   if (bad) return { status: 400, body: { error: `deletedIds must be UUIDs (got '${String(bad).slice(0, 50)}')` } };
   try {
     // Soft-delete tables stamp deletedAt (kept for audit); others hard-delete.
+    const { clause, params } = deleteOwnershipClause(tableName, restrictSystemIds, body.deletedIds);
     const delRes = SOFT_DELETE_TABLES.has(tableName)
-      ? await db.query(`UPDATE "${tableName}" SET "deletedAt" = now() WHERE id = ANY($1::uuid[]) AND "deletedAt" IS NULL`, [body.deletedIds])
-      : await db.query(`DELETE FROM "${tableName}" WHERE id = ANY($1::uuid[])`, [body.deletedIds]);
+      ? await db.query(`UPDATE "${tableName}" t SET "deletedAt" = now() WHERE t.id = ANY($1::uuid[]) AND t."deletedAt" IS NULL${clause}`, params)
+      : await db.query(`DELETE FROM "${tableName}" t WHERE t.id = ANY($1::uuid[])${clause}`, params);
     result.deleted += delRes.rowCount || 0;
     return null;
   } catch (delErr) {
     console.error(`Delete-by-id failed on ${tableName}:`, delErr.message);
     return { status: 500, body: { error: 'Delete-by-id failed', message: delErr.message } };
   }
+}
+
+// Both delta tombstone kinds a batch can carry: deletedIds (rows with an id) and
+// deletedKeys (rows named by their composite key, see ingest/deleteByKeys.js).
+// Returns the first error response, or null. Exported for unit tests.
+export async function applyDeletes(body, entityType, tableName, result, restrictSystemIds = null) {
+  return (await applyDeleteByIds(body, tableName, result, restrictSystemIds))
+    ?? applyDeleteByKeys(body, entityType, result, restrictSystemIds);
+}
+
+// The ownership filter applyDeleteByIds appends for a restricted key. Pure.
+export function deleteOwnershipClause(tableName, restrictSystemIds, deletedIds) {
+  if (!Array.isArray(restrictSystemIds)) return { clause: '', params: [deletedIds] };
+  const owned = ownedRowPredicate(tableName, 't', '$2') || 'false';
+  return { clause: ` AND COALESCE((${owned}), false)`, params: [deletedIds, restrictSystemIds] };
+}
+
+// Systems endpoint only: point each dependent system at the directory it reads
+// from (#1247). A registration can complete a pair in either order — the Azure RM
+// crawler may register before the Entra one exists — so this re-runs after every
+// systems batch rather than only when a row is new. Best-effort: the link is a
+// correctness improvement on the NEXT principal batch, never a reason to fail the
+// registration that just succeeded. Returns the number of systems linked.
+// Exported for unit tests.
+export async function linkSystemDirectories(entityType) {
+  if (entityType !== 'systems') return 0;
+  try {
+    return await linkDirectorySystems();
+  } catch (linkErr) {
+    console.error('Failed to link dependent systems to their directory:', linkErr.message);
+    return 0;
+  }
+}
+
+// A system without a tenant is keyed on (systemType, displayName) instead of
+// (systemType, tenantId): NULLs never conflict in a unique constraint, so the
+// tenant key let every re-run register each such system again (migration 074).
+export const TENANTLESS_SYSTEM_KEY = ['systemType', 'displayName'];
+export const TENANTLESS_SYSTEM_FILTER = '"tenantId" IS NULL';
+
+// Run the engine upsert for one batch. Systems go in two groups, each against
+// the unique index that identifies it; every other entity is one call. Exported
+// for unit tests.
+export async function ingestBatch(entityType, tableName, keyColumns, normalized, options) {
+  if (entityType !== 'systems') return ingest(null, tableName, keyColumns, normalized, options);
+  const withTenant = normalized.filter(r => r.tenantId != null);
+  const tenantless = normalized.filter(r => r.tenantId == null);
+  const total = { inserted: 0, updated: 0, deleted: 0 };
+  const groups = [
+    [withTenant, keyColumns, options.conflictFilter],
+    [tenantless, TENANTLESS_SYSTEM_KEY, TENANTLESS_SYSTEM_FILTER],
+  ];
+  for (const [records, keys, conflictFilter] of groups) {
+    if (records.length === 0) continue;
+    const r = await ingest(null, tableName, keys, records, { ...options, conflictFilter });
+    total.inserted += r.inserted; total.updated += r.updated; total.deleted += r.deleted;
+  }
+  return total;
+}
+
+// The system row one registration record resolves to, by the same key the
+// upsert used. Only a record with neither key falls back to the display name.
+async function findSystemRow(rec) {
+  if (rec.tenantId && rec.systemType) {
+    return db.queryOne(`SELECT id FROM "Systems" WHERE "tenantId" = $1 AND "systemType" = $2 ORDER BY id DESC LIMIT 1`, [rec.tenantId, rec.systemType]);
+  }
+  if (rec.displayName && rec.systemType) {
+    return db.queryOne(`SELECT id FROM "Systems" WHERE "systemType" = $1 AND "displayName" = $2 AND "tenantId" IS NULL`, [rec.systemType, rec.displayName]);
+  }
+  if (rec.displayName) {
+    return db.queryOne(`SELECT id FROM "Systems" WHERE "displayName" = $1 ORDER BY id DESC LIMIT 1`, [rec.displayName]);
+  }
+  return null;
 }
 
 // Systems endpoint only: resolve the resulting system IDs so crawlers can use
@@ -137,12 +231,7 @@ export async function lookupSystemIds(entityType, records) {
   try {
     const ids = [];
     for (const rec of records) {
-      let row;
-      if (rec.tenantId && rec.systemType) {
-        row = await db.queryOne(`SELECT id FROM "Systems" WHERE "tenantId" = $1 AND "systemType" = $2 ORDER BY id DESC LIMIT 1`, [rec.tenantId, rec.systemType]);
-      } else if (rec.displayName) {
-        row = await db.queryOne(`SELECT id FROM "Systems" WHERE "displayName" = $1 ORDER BY id DESC LIMIT 1`, [rec.displayName]);
-      }
+      const row = await findSystemRow(rec);
       if (row) ids.push(row.id);
     }
     return ids.length > 0 ? ids : undefined;
@@ -173,8 +262,23 @@ export function writeAuditLog(req, body) {
 // 500. Extracted from the handler's catch so the handler stays under the cognitive
 // complexity ceiling.
 export function ingestErrorResponse(err) {
+  if (err instanceof SessionLimitError) {
+    return { status: 429, body: { error: err.message } };
+  }
   if (err.code === '23514' && /parentContextId cycle/i.test(err.message || '')) {
     return { status: 422, body: { error: 'Context hierarchy would create a cycle', message: err.message } };
   }
   return { status: 500, body: { error: 'Ingest failed', message: err.message } };
+}
+
+// Synced context records that do not name the sending system as their owner
+// (scopeSystemId). A full sync only reconciles contexts the sender owns, so these
+// are never cleaned up when they vanish from the source: not a deletion risk, but
+// silent staleness, so the response says so. Pure. Exported for unit tests.
+export function unownedContextWarning(entityType, records, systemId) {
+  if (entityType !== 'contexts' || !Array.isArray(records)) return null;
+  const n = records.filter(r => r?.variant === 'synced' && Number(r.scopeSystemId) !== Number(systemId)).length;
+  if (!n) return null;
+  return `${n} synced context record(s) carry no scopeSystemId for system ${Number(systemId)}; ` +
+    'a full sync never removes them when they disappear from the source. Set scopeSystemId to the system id.';
 }

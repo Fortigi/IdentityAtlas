@@ -167,7 +167,8 @@ function writeIntersectionCells(ws, group, rowNum, ctx) {
 }
 
 // Cell content: a single type letter, or rich text with one colored letter per type.
-function writeMembershipContent(excelCell, memberTypes) {
+// Shared with the rotated (subjects-as-rows) export.
+export function writeMembershipContent(excelCell, memberTypes) {
   if (!memberTypes || memberTypes.size === 0) return;
 
   const types = [...memberTypes];
@@ -267,11 +268,12 @@ function writeFilterLegend(legendWs, { activeFilters, filterFields }) {
   activeFilters.forEach((af, idx) => {
     const r = filterStart + idx + 1;
     const field = filterFields?.find(f => f.key === af.field);
-    legendWs.getCell(r, 1).value = field?.label || af.field;
+    // Filter labels/values can carry synced data — guard against formula injection.
+    legendWs.getCell(r, 1).value = safeCell(field?.label || af.field);
     legendWs.getCell(r, 1).font = { size: 11, bold: true };
     legendWs.getCell(r, 1).border = thinBorder();
 
-    legendWs.getCell(r, 2).value = af.value;
+    legendWs.getCell(r, 2).value = safeCell(af.value);
     legendWs.getCell(r, 2).font = { size: 11 };
     legendWs.getCell(r, 2).border = thinBorder();
   });

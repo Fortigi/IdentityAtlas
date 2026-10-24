@@ -30,6 +30,11 @@ import base from './vitest.config.js';
 //   src/routes/matrix.js, src/routes/resources.js, src/routes/permissions/**,
 //   src/routes/tags/entities.js    -> lib/attributeLabels.js  (withAttributeLabels)
 //
+// src/db/valueCache.js has exactly one killer set, its own co-located test: the
+// module holds no SQL and no callers reach its decisions except through it
+// (routes/matrix/shared.js and db/columnCache.js both just call get()). Its
+// timing branches are driven with fake timers there, which no route test does.
+//
 // attributeLabelChannel.test.js is what drives that last group — it asserts the `label`
 // channel on the column-discovery responses, so a mutant in withAttributeLabels whose only
 // killer lives there would otherwise read as a survivor. tags/entities.test.js is not
@@ -38,6 +43,15 @@ import base from './vitest.config.js';
 //
 // src/db/matrixHelpers.test.js is deliberately NOT here: matrixHelpers.js imports none of
 // the eight, so its tests can kill nothing and would only add runtime.
+//
+// The background view-refresh coordinator (src/ingest/viewRefresh.js) is reached
+// through src/routes/ingest/matrixViews.js and the classify handler, so both ingest
+// route tests that drive the refresh are included with its own test.
+//
+// The list search (src/lib/entitySearch.js) is reached through the users/groups,
+// resources, identities and contexts list routes, so their tests are included with its
+// own two (entitySearch.migration.test.js reads migration 091, which is inside app/api
+// and therefore inside the sandbox).
 //
 // If you add a module to this scope's `mutate` list, trace its importers and widen this
 // include to match, rather than assuming the co-located test is the only killer.
@@ -48,15 +62,30 @@ export default defineConfig({
     ...base.test,
     include: [
       'src/lib/resourceVisibility.test.js',
+      // lib/extKeys.js — which extendedAttributes keys may be named in SQL. Its
+      // matrix callers' tests are already above; the list filter and the report
+      // builder's are added so a mutant only they kill does not read as a survivor.
+      'src/lib/extKeys.test.js',
+      'src/routes/buildFilterWhere.test.js',
+      'src/nlreports/extFields.test.js',
       'src/matrix/**/*.test.js',
       'src/routes/matrix/**/*.test.js',
       'src/routes/matrix.*.test.js',
       'src/routes/resources.test.js',
       'src/routes/resources/**/*.test.js',
       'src/routes/permissions/**/*.test.js',
+      'src/db/valueCache.test.js',
       'src/lib/attributeLabels.test.js',
       'src/routes/attributeLabels.test.js',
       'src/routes/attributeLabelChannel.test.js',
+      'src/ingest/viewRefresh.test.js',
+      'src/routes/ingest.coverage.test.js',
+      'src/routes/ingest.classify.test.js',
+      'src/lib/entitySearch.test.js',
+      'src/lib/entitySearch.migration.test.js',
+      'src/routes/tags.coverage.test.js',
+      'src/routes/identities/listQuery.test.js',
+      'src/routes/contexts.coverage.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

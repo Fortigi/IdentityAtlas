@@ -24,3 +24,20 @@ describe('demo crawler configSchema', () => {
     expect(validateDemo({ includeVolumeData: 'true' })).toBeTruthy();
   });
 });
+
+describe('demo crawler configSchema — the realism slice', () => {
+  it('accepts includeRealismData as a boolean, either way', () => {
+    expect(validateDemo({ includeRealismData: true })).toBeNull();
+    expect(validateDemo({ includeRealismData: false })).toBeNull();
+  });
+
+  it('rejects a non-boolean includeRealismData', () => {
+    // Same reason as the volume slice: a stringly-typed "true" must not quietly
+    // load 600 extra people into a demo environment, or quietly not load them.
+    expect(validateDemo({ includeRealismData: 'true' })).toBeTruthy();
+  });
+
+  it('accepts both slices at once — they are independent', () => {
+    expect(validateDemo({ includeVolumeData: true, includeRealismData: true })).toBeNull();
+  });
+});

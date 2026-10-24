@@ -107,6 +107,40 @@ const baseProps = {
   onOpenDetail: () => {},
 };
 
+describe('ContextDetailPage — the owner in the header', () => {
+  // The header is the home the owner was given. Both cases come from real data:
+  // the scale environment, whose owners resolve, and the SQL connector's, whose
+  // owners are employee numbers no principal is keyed on.
+  const withOwner = (owner) => ({
+    ...generatedDetail,
+    attributes: { ...generatedDetail.attributes, ...owner },
+  });
+
+  it('shows the resolved owner as a person and opens that account', async () => {
+    const onOpenDetail = vi.fn();
+    const authFetch = routes({
+      '/api/contexts/ctx-1': withOwner({ ownerUserId: 'IIQ-4711', ownerPrincipalId: 'p-owner', ownerDisplayName: 'Leo M. Cohen' }),
+    });
+    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch } });
+
+    const owner = await screen.findByTitle('Owner id: IIQ-4711');
+    expect(owner.textContent).toContain('Leo M. Cohen');
+    await userEvent.setup().click(owner);
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p-owner', 'Leo M. Cohen');
+  });
+
+  it('shows the raw value, unlinked, when the owner resolves to nobody', async () => {
+    const authFetch = routes({
+      '/api/contexts/ctx-1': withOwner({ ownerUserId: '10000737', ownerPrincipalId: null, ownerDisplayName: null }),
+    });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+
+    const owner = await screen.findByTitle('Owner "10000737" does not match any account we hold');
+    expect(owner.textContent).toContain('10000737');
+    expect(owner.tagName).toBe('SPAN');
+  });
+});
+
 describe('ContextDetailPage (mounted)', () => {
   it('shows the loading state before the detail fetch resolves', () => {
     // authFetch that never resolves keeps it in the loading branch.

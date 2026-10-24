@@ -1,13 +1,19 @@
 # ─── Cut a Hotfix Release ─────────────────────────────────────────────────────
 # Manually triggered. Tags the HEAD of a hotfix branch with a new patch version,
-# triggering docker-publish to build :latest + :X.Y.Z.0.
+# triggering docker-publish to build :latest + :X.Y.Z.0. The GitHub release gets
+# both portable Windows ZIPs (IdentityAtlas-portable.zip and
+# IdentityAtlas-portable-postgres.zip).
+#
+# Main first: a hotfix may only contain commits already merged to main through
+# an approved PR. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
+# before the tag is created (v6.0.1 was cut before its PR was approved).
 #
 # Usage:
-#   1. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
-#   2. Fix the bug, push the branch
-#   3. Go to Actions → Cut Hotfix → Run workflow
-#   4. Enter the branch name and new version (e.g. "5.2.1")
-#   5. After the hotfix ships, open a PR to cherry-pick the fix into main
+#   1. Fix the bug on a bugfixes/ branch from main; PR, approval, merge
+#   2. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
+#   3. git cherry-pick -x <the merged commit on main>   ← -x is required
+#   4. Push the branch, then Actions → Cut Hotfix → Run workflow (from main)
+#   5. Enter the branch name and new version (e.g. "5.2.1")
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Hotfix
@@ -39,7 +45,7 @@ jobs:
 
       - name: Generate bot token
         id: bot-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -49,6 +55,33 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
+
+      # The workflow file runs from the ref it was dispatched on (main by
+      # default) but builds the checked-out branch. An older release branch
+      # lacks the shared files below, so check before the tag is pushed rather
+      # than fail halfway with a tag and Docker images but no GitHub release.
+      - name: Check the branch has the files this workflow calls
+        env:
+          BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          missing=0
+          for f in .github/scripts/build_portable_zips.sh                    .github/scripts/release_prev_tag.sh                    tools/release-notes/dependency-delta.py                    tools/release-notes/portable-downloads.md; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f is missing on $BRANCH: that release predates the hotfix tooling and cannot be hotfixed by this workflow."
+              missing=1
+            fi
+          done
+          exit $missing
+
+      # Loaded from this workflow's own commit, not from the hotfix branch, so
+      # the branch cannot ship an edited checker that lets itself through.
+      - name: Refuse commits that are not on main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Run Cut Hotfix from main (it ran from $GITHUB_REF)."; exit 1
+          fi
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD
 
       - name: Create and push hotfix tag
         run: |
@@ -65,7 +98,7 @@ jobs:
           echo "✅ Tagged ${TAG} on ${COMMIT}"
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
 
@@ -76,17 +109,28 @@ jobs:
         run: npm install --prefer-offline
         working-directory: app/desktop
 
-      - name: Build portable Windows ZIP
-        run: npm run build:node-launcher
-        working-directory: app/api
+      # Two ZIPs: the default (PGlite, signed node.exe only) and -postgres
+      # (embedded PostgreSQL for large data sets, unsigned binaries). One shared
+      # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
+      - name: Build portable Windows ZIPs
+        run: bash .github/scripts/build_portable_zips.sh
+
+      # The Azure template, pinned to THIS release's images: azure/ at this tag
+      # with imageTag defaulting to the image version, attached to the release as
+      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
+      # (like the main-only check), so an older hotfix branch without the script
+      # is still packaged; a template from before imageTag gets no package.
+      - name: Package the Azure template
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}.0" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
 
       - name: Generate release notes
         run: |
-          # Compare against the previous tag in the same major.minor series
-          # (e.g. v5.7.2 when cutting v5.7.3), not the globally latest stable.
-          BASE_MINOR=$(echo "${{ github.event.inputs.version }}" | cut -d. -f1,2)
-          PREV_TAG=$(git tag --list "v${BASE_MINOR}.*" --sort=-version:refname \
-            | grep -v beta | grep -v rc | grep -v alpha | grep -v "^${TAG}$" | head -1)
+          # The stable release this one follows. Shared by both cut workflows so
+          # the two cannot drift apart again — see the script for why the
+          # "globally latest tag" and "same series only" rules were each wrong.
+          PREV_TAG=$(bash .github/scripts/release_prev_tag.sh "$TAG")
 
           # Primary source: unmerged changes/*.md fragments on this hotfix branch.
           # bump-version hasn't run yet so fragments aren't in CHANGES.md.
@@ -112,6 +156,7 @@ jobs:
             [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
               "$PREV_TAG" "$TAG"
           } > release-notes.md
+          echo "PREV_TAG=${PREV_TAG}" >> "$GITHUB_ENV"
           echo "--- release-notes.md raw preview ---"
           cat release-notes.md
 
@@ -121,7 +166,7 @@ jobs:
         # continue-on-error: this step only polishes wording — release-notes.md already has valid,
         # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
         # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
-        uses: anthropics/claude-code-action@19dda84776b3518d98b8798e591daee763049ed3 # v1
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--allowedTools Read,Write"
@@ -144,20 +189,41 @@ jobs:
         if: steps.polish.outcome == 'failure'
         run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
 
-      - name: Create GitHub release with portable ZIP
+      # Dependency deltas cannot reach release-notes.md through the changelog:
+      # the PR Hygiene gate's CODE pattern does not cover package-lock.json, so
+      # Dependabot PRs merge without a changes/*.md fragment, and the polish step
+      # above is told to drop tooling bullets with no user-visible effect — which
+      # is how a library bump reads. A library-only patch release would ship
+      # notes with nothing under "## Changes", which is the release where an
+      # operator most needs to see which version moved.
+      #
+      # Appended AFTER polishing on purpose: the model cannot drop or reword a
+      # section it never sees, so the shipped-dependency list is exact.
+      # Which portable ZIP to download is appended after polishing for the same
+      # reason: the model cannot drop or reword it.
+      - name: Append dependency updates and download guide
+        run: |
+          python3 tools/release-notes/dependency-delta.py "${PREV_TAG}" "${TAG}" >> release-notes.md
+          cat tools/release-notes/portable-downloads.md >> release-notes.md
+          echo "--- release-notes.md final ---"
+          cat release-notes.md
+
+      # Publishing the release triggers docs.yml, which deploys the stable docs.
+      # Don't deploy them here as well: two pushes to gh-pages race and one fails.
+      - name: Create GitHub release with portable ZIPs
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
+          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
+                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
+          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
+            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
+          fi
           gh release create "$TAG" \
-            app/api/dist-node-launcher/IdentityAtlas-portable.zip \
+            "${ASSETS[@]}" \
             --title "$TAG" \
             --notes-file release-notes.md \
             --latest
-
-      - name: Deploy versioned docs
-        run: |
-          pip install --quiet -r docs/requirements.txt
-          mike deploy --push --title "$VERSION" stable
 
       - name: Post run summary
         run: |

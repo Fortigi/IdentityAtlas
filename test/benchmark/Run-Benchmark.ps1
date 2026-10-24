@@ -35,6 +35,10 @@
 .PARAMETER FailOnRegression
     Exit with a non-zero code when any endpoint regresses more than
     RegressionPct. Off by default for local use; on for nightly.
+
+.PARAMETER ApiKey
+    Crawler API key. Required: the governed assignments are seeded through
+    /api/ingest, which accepts only a crawler key whatever AUTH_ENABLED says.
 #>
 [CmdletBinding()]
 Param(
@@ -43,7 +47,8 @@ Param(
     [string]$BaselineFile = (Join-Path $PSScriptRoot 'baseline.json'),
     [int]$Runs = 5,
     [int]$RegressionPct = 25,
-    [switch]$FailOnRegression
+    [switch]$FailOnRegression,
+    [string]$ApiKey
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,6 +63,8 @@ function Invoke-Api {
     param([string]$Method = 'GET', [string]$Path, $Body)
     $uri = "$ApiBaseUrl$Path"
     $h = @{ 'Content-Type' = 'application/json' }
+    # Only ingest takes the crawler key; the read endpoints go through user auth.
+    if ($ApiKey -and $Path.StartsWith('/ingest')) { $h['Authorization'] = "Bearer $ApiKey" }
     if ($Body) {
         Invoke-RestMethod -Method $Method -Uri $uri -Headers $h -Body ($Body | ConvertTo-Json -Depth 10 -Compress) -TimeoutSec 600
     } else {
@@ -166,15 +173,17 @@ function Select-BenchmarkUsers {
 }
 
 # ─── 3. Give tagged users governed assignments ──────────────────
-# Build (resourceExternalId, userExternalId) pairs. All assignments share the
-# targetSystemId from step 2 so the deterministic resolver can link them.
+# Build (resource, user) pairs from the ids step 2 read back. Not external ids:
+# the ingest resolves those under the batch's idPrefix, and 'bench-…' is not the
+# namespace the crawler created the roles and users in, so every seeded row
+# pointed at a resource that does not exist and was never classified.
 function Get-AssignmentRecords {
     $records = @()
     foreach ($br in $script:businessRoles) {
         foreach ($u in $script:users15) {
             $records += @{
-                resourceExternalId  = $br.externalId
-                principalExternalId = $u.externalId
+                resourceId          = $br.id
+                principalId         = $u.id
                 assignmentType      = 'Direct'   # membership on a business role; classify (below) flags it governed=true
             }
         }
@@ -192,16 +201,20 @@ function Add-GovernedAssignments {
         syncMode     = 'delta'
         scope        = @{ assignmentType = 'Direct' }
         records      = $records
-        idGeneration = 'deterministic'
-        idPrefix     = 'bench-assignments'
     }
-    try {
-        $r = Invoke-Api -Method POST -Path '/ingest/resource-assignments' -Body $body
-        Write-Host "  Seeded $($r.inserted) governed assignment(s) across $($script:businessRoles.Count) business role(s)" -ForegroundColor Green
-        try { Invoke-Api -Method POST -Path '/ingest/classify-business-role-assignments' -Body @{} | Out-Null } catch { }
-    } catch {
-        Write-Host "  Assignment ingest failed (non-critical): $($_.Exception.Message)" -ForegroundColor Yellow
+    # No try/catch: the filtered-matrix numbers mean nothing without these rows,
+    # so a failure here fails the benchmark instead of being logged past.
+    if (-not $ApiKey) {
+        throw 'Seeding governed assignments needs -ApiKey (a crawler key): /api/ingest accepts nothing else.'
     }
+    $before = (Invoke-Api -Path '/admin/dashboard-stats').governedAssignments
+    $r = Invoke-Api -Method POST -Path '/ingest/resource-assignments' -Body $body
+    Invoke-Api -Method POST -Path '/ingest/classify-business-role-assignments' -Body @{} | Out-Null
+    $after = (Invoke-Api -Path '/admin/dashboard-stats').governedAssignments
+    if (($after - $before) -lt $r.inserted -or $after -lt $records.Count) {
+        throw "Seeded $($records.Count) business-role assignment(s) ($($r.inserted) new) but governed went $before -> $after."
+    }
+    Write-Host "  Seeded $($r.inserted) new of $($records.Count) governed assignment(s) across $($script:businessRoles.Count) business role(s)" -ForegroundColor Green
 }
 
 # ─── 4. Clear perf metrics ──────────────────────────────────────

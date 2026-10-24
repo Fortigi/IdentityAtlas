@@ -42,6 +42,43 @@ const SIMPLE_EXTERNAL_REFS = [
   { field: 'contextExternalId',   target: 'contextId',       ns: 'contexts' },
 ];
 
+// Manager references. The two columns are NOT interchangeable and sit side by
+// side on "Contexts", so swapping them produces a link that reads as correct and
+// points at the wrong table:
+//
+//   managerId         → a PRINCIPAL (an account). Self-referential on
+//                       "Principals"; on "Contexts" it is the org unit's manager
+//                       account (routes/riskScores/list.js joins it to
+//                       "Principals".id).
+//   managerIdentityId → an IDENTITY (a person). "Identities".managerIdentityId is
+//                       the person-level manager (reports/templates/
+//                       missing-managers.js reads exactly this pair, one per
+//                       level). "Identities" has NO managerId column at all.
+//
+// Unlike SIMPLE_EXTERNAL_REFS these are resolved only when the target column
+// really exists on the table being written. Both names are plausible on any
+// person-shaped feed, and resolving one the table cannot store would silently
+// drop it (resolveActiveColumns discards a key that is not a column); leaving it
+// unresolved keeps it in extendedAttributes, where it is at least visible.
+const MANAGER_EXTERNAL_REFS = [
+  { field: 'managerExternalId',         target: 'managerId',         ns: 'principals' },
+  { field: 'managerIdentityExternalId', target: 'managerIdentityId', ns: 'identities' },
+];
+
+// The manager references of one record, resolved only into a column the target
+// table actually has (see MANAGER_EXTERNAL_REFS). Mutates `normalized`; returns
+// the fields it resolved.
+function resolveManagerRefs(rec, normalized, coreSet, sysPrefix) {
+  const resolved = [];
+  for (const { field, target, ns } of MANAGER_EXTERNAL_REFS) {
+    if (rec[field] && coreSet.has(target) && !normalized[target]) {
+      normalized[target] = deterministicGuid(`${sysPrefix}-${ns}`, String(rec[field]));
+      resolved.push(field);
+    }
+  }
+  return resolved;
+}
+
 /**
  * Resolve a record's external-ID references to deterministic UUIDs in the same
  * "<sys>-<entity>" namespace the target entity used, so the generated FKs line
@@ -49,8 +86,16 @@ const SIMPLE_EXTERNAL_REFS = [
  *
  * All target column names come from trusted constants (never the record), so the
  * dynamic `normalized[target]` writes can't be remote-property-injected.
+ *
+ * Returns the names of the fields it resolved. Each is now held by the id column
+ * it filled, and the row that id points at holds the external id itself, so the
+ * caller leaves them out of extendedAttributes: stored there, the two ids of an
+ * assignment were 78 of its 192 bytes (41% of the heap on a 41M-row rig) and
+ * were copied into every history snapshot. A field that did not resolve (its
+ * target was already set) is not returned, and is kept.
  */
 function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
+  const resolved = [];
   // A parentExternalId names the record's parent in the SAME entity family, so it
   // must land on whichever parent FK the target table has: a Context's parent is
   // another Context ("<sys>-contexts" → parentContextId); a resource
@@ -61,25 +106,43 @@ function resolveExternalRefs(rec, normalized, coreSet, sysPrefix) {
   if (rec.parentExternalId) {
     if (coreSet.has('parentContextId') && !normalized.parentContextId) {
       normalized.parentContextId = deterministicGuid(`${sysPrefix}-contexts`, String(rec.parentExternalId));
+      resolved.push('parentExternalId');
     } else if (coreSet.has('parentResourceId') && !normalized.parentResourceId) {
       normalized.parentResourceId = deterministicGuid(`${sysPrefix}-resources`, String(rec.parentExternalId));
+      resolved.push('parentExternalId');
     }
   }
 
   for (const { field, target, ns } of SIMPLE_EXTERNAL_REFS) {
     if (rec[field] && !normalized[target]) {
       normalized[target] = deterministicGuid(`${sysPrefix}-${ns}`, String(rec[field]));
+      resolved.push(field);
     }
   }
+
+  resolved.push(...resolveManagerRefs(rec, normalized, coreSet, sysPrefix));
 
   // A context-member's memberId namespace depends on what kind of entity it is.
   if (rec.memberExternalId && !normalized.memberId) {
     const memberNs = { Identity: 'identities', Principal: 'principals', Resource: 'resources' }[rec.memberType];
     if (memberNs) {
       normalized.memberId = deterministicGuid(`${sysPrefix}-${memberNs}`, String(rec.memberExternalId));
+      resolved.push('memberExternalId');
     }
   }
+  return resolved;
 }
+
+// Columns whose target type is BYTEA. JSON can't carry binary, so crawlers
+// send these base64-encoded and we decode to a Buffer here — node-postgres
+// binds a Buffer straight to a bytea parameter. Validation has already
+// rejected anything that isn't well-formed base64 (see validation.helpers.js),
+// so a value reaching this point is safe to decode.
+//
+// A name list rather than a schema lookup because normalizeRecords works off
+// the table's real columns and never sees the entity schema. Keep in sync with
+// the `type: 'base64'` fields in ingest/validation.js.
+export const BINARY_COLUMNS = new Set(['photo']);
 
 // Copy every core column present on the record into a fresh normalized object,
 // coercing each value. Only property names from the trusted coreSet are written
@@ -88,7 +151,10 @@ function pickCoreColumns(rec, coreSet) {
   const normalized = {};
   for (const key of coreSet) {
     if (Object.prototype.hasOwnProperty.call(rec, key)) {
-      normalized[key] = coerceValue(rec[key]);
+      const value = coerceValue(rec[key]);
+      normalized[key] = (value !== null && BINARY_COLUMNS.has(key))
+        ? Buffer.from(String(value), 'base64')
+        : value;
     }
   }
   return normalized;
@@ -106,10 +172,11 @@ function collectExtendedFields(rec, coreSet) {
 }
 
 // Apply deterministic id + external-ref resolution. No-op unless deterministic
-// id generation is requested. Mutates `normalized`.
+// id generation is requested. Mutates `normalized`; returns the reference
+// fields it resolved (see resolveExternalRefs).
 function applyDeterministicIds(rec, normalized, coreSet, options) {
   const { idGeneration, idPrefix, systemPrefix } = options;
-  if (idGeneration !== 'deterministic') return;
+  if (idGeneration !== 'deterministic') return [];
 
   if (rec.externalId) {
     normalized.id = deterministicGuid(idPrefix, String(rec.externalId));
@@ -124,7 +191,7 @@ function applyDeterministicIds(rec, normalized, coreSet, options) {
   // hyphens (splitting on the first hyphen would resolve to the wrong namespace,
   // e.g. a ContextMembers_contextId_fkey violation).
   const sysPrefix = systemPrefix || idPrefix.split('-')[0];
-  resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
+  return resolveExternalRefs(rec, normalized, coreSet, sysPrefix);
 }
 
 // Interpret an already-present extendedAttributes value as a plain object to
@@ -174,7 +241,8 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     const normalized = pickCoreColumns(rec, coreSet);
     const extended = collectExtendedFields(rec, coreSet);
 
-    applyDeterministicIds(rec, normalized, coreSet, { idGeneration, idPrefix, systemPrefix });
+    const resolved = applyDeterministicIds(rec, normalized, coreSet, { idGeneration, idPrefix, systemPrefix });
+    for (const field of resolved) extended.delete(field);
 
     // Set systemId if provided, the record doesn't override it, AND the table has the column
     if (systemId !== undefined && normalized.systemId === undefined && coreSet.has('systemId')) {
@@ -185,6 +253,30 @@ export function normalizeRecords(records, coreColumns, options = {}) {
 
     return normalized;
   });
+}
+
+// Per-record bounds on extendedAttributes (SEC-2026-09 L-16). Every distinct key a
+// crawler stores becomes a candidate filter column, and column discovery scans
+// them, so an unbounded key set makes every column-list request expensive. The
+// limits sit far above any shipped crawler: the widest records are Entra users
+// with a few dozen selected directory extensions and Entra directory roles whose
+// action list is tens of KB.
+export const EXT_ATTR_MAX_KEYS = 500;
+export const EXT_ATTR_MAX_CHARS = 512 * 1024;
+
+// The first record whose packed extendedAttributes exceeds the bounds, as an
+// error string, or null. Runs on NORMALIZED records (extendedAttributes is the
+// JSON string normalizeRecords produced). Pure.
+export function extendedAttributesBoundsError(normalized, maxKeys = EXT_ATTR_MAX_KEYS, maxChars = EXT_ATTR_MAX_CHARS) {
+  for (let i = 0; i < normalized.length; i++) {
+    const packed = normalized[i].extendedAttributes;
+    if (typeof packed !== 'string') continue;
+    if (packed.length > maxChars) return `Record ${i}: extendedAttributes exceeds ${maxChars} characters`;
+    const parsed = tryParseJson(packed);
+    const keyCount = parsed && typeof parsed === 'object' ? Object.keys(parsed).length : 0;
+    if (keyCount > maxKeys) return `Record ${i}: extendedAttributes has more than ${maxKeys} keys`;
+  }
+  return null;
 }
 
 export function coerceValue(value) {

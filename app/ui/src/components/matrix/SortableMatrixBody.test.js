@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { sortableRowIds } from './SortableMatrixBody';
+import { sortableRowIds } from './SortableMatrixBody.helpers';
 
 // A resource granted by two business roles has a row under each of them, and
 // both rows carry the resource's own id — so only the rows that own their

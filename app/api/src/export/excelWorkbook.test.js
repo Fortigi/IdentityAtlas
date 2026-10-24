@@ -112,6 +112,33 @@ describe('generateWorkbook', () => {
     expect(resources).toContain('includeBusinessRoles = "true"');
   });
 
+  it('documents the Power Query privacy-level prompt in the workbook README (issue #819)', () => {
+    // Every generated query combines two Formula-Firewall data sources:
+    // Excel.CurrentWorkbook() (the BaseUrl/AuthToken named ranges) feeding
+    // Web.Contents() on a dynamic URL. First evaluation therefore raises
+    // Excel's "Information is required about data privacy" prompt, and the
+    // refresh only proceeds once privacy-level checking is ignored for this
+    // workbook. The README must walk the user through that dialog —
+    // otherwise the feature reads as broken.
+    const readme = wb.getWorksheet('README');
+    const lines = [];
+    readme.eachRow((row) => row.eachCell((cell) => lines.push(String(cell.value ?? ''))));
+    const text = lines.join('\n');
+    expect(text).toMatch(/privacy/i);
+    expect(text).toMatch(/ignore.*privacy level/i);
+  });
+
+  it('repeats the privacy-prompt warning on every query sheet, next to the M code', () => {
+    // The prompt fires right after the user pastes the M code and clicks Done
+    // — i.e. while they are looking at a query sheet, not the README. The
+    // paste instruction on each sheet therefore has to mention it too.
+    for (const q of QUERIES) {
+      const instructions = String(wb.getWorksheet(q.sheet).getCell('A4').value ?? '');
+      expect(instructions).toMatch(/privacy/i);
+      expect(instructions).toMatch(/ignore.*privacy level/i);
+    }
+  });
+
   it('auto-expands the extendedAttributes JSONB column', () => {
     // Users of the workbook expect sub-keys (userType, onPremisesSyncEnabled,
     // etc.) to appear as first-class columns, not "Record" cells they have

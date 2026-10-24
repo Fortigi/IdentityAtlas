@@ -46,8 +46,36 @@ function sampleValue(field, schema, urlFields) {
   if (Array.isArray(schema?.enum)) return schema.enum[0];
   if (schema?.type === 'boolean') return true;
   if (schema?.type === 'number' || schema?.type === 'integer') return 1;
+  // A required list (the SQL crawler's `queries`) gets one sampled item, and an
+  // object item gets its own required fields, sampled the same way.
+  if (schema?.type === 'array') return [sampleValue(field, schema.items, urlFields)];
+  if (schema?.type === 'object') {
+    return Object.fromEntries((schema.required || []).map(f => [f, sampleValue(f, schema.properties?.[f], urlFields)]));
+  }
   if (urlFields.includes(field)) return 'https://e2e.example.com/api';
   return 'e2e-placeholder';
+}
+
+/**
+ * The extra fields a schema requires once the sampled values are in — a config
+ * schema states its auth matrix as `allOf: [{ if: { properties: { authMethod:
+ * { const: X } } }, then: { required: [...] } }]`, so picking the first
+ * `authMethod` enum value silently incurs that branch's requirements. Creating
+ * the config succeeds without them (the branch is only enforced on the way to a
+ * run), so leaving them out fails later, at queue time, and looks like a naming
+ * failure. Still derived from the manifest — no crawler type is named here.
+ */
+function conditionalRequirements(schema, config) {
+  const required = [];
+  for (const branch of Array.isArray(schema.allOf) ? schema.allOf : []) {
+    const conditions = Object.entries(branch?.if?.properties || {});
+    if (!conditions.length) continue;
+    const holds = conditions.every(([field, rule]) => (
+      'const' in (rule || {}) ? config[field] === rule.const : (rule?.enum || []).includes(config[field])
+    ));
+    if (holds) required.push(...(branch?.then?.required || []));
+  }
+  return required;
 }
 
 /**
@@ -76,6 +104,9 @@ function queueableCrawlerTypes() {
     const schema = manifest.configSchema || {};
     const config = {};
     for (const field of schema.required || []) {
+      config[field] = sampleValue(field, schema.properties?.[field], urlFields);
+    }
+    for (const field of conditionalRequirements(schema, config)) {
       config[field] = sampleValue(field, schema.properties?.[field], urlFields);
     }
     types.push({ type: manifest.type, config, hasUrlField: urlFields.some(f => f in config) });
@@ -137,6 +168,52 @@ test.describe('Crawler run naming', () => {
       await expect(page.locator(`text=${renamed}`).first()).toBeVisible({ timeout: 15000 });
     } finally {
       await request.delete(`${API}/admin/crawler-configs/${configId}`);
+    }
+  });
+
+  // #1207 shipped the channel and one consumer; #1240 is the rest of the report —
+  // "the System's display name follows the crawler's name, for EVERY crawler
+  // type". Naming the system is each crawler's own job (and is asserted per type
+  // in its unit tests and its Test-<Type>Crawler.ps1), but a type whose runs are
+  // never handed the name cannot do it at all — which is exactly how Entra ID,
+  // Azure RM, Omada and midPoint kept registering "Entra ID (<tenant>)" and
+  // friends after #1207. That precondition is type-agnostic, so it is checked
+  // here for every type at once rather than one type stalling the others.
+  //
+  // Only types whose required fields carry no URL are walked, for the same reason
+  // the test above takes the first candidate: queueing a run for a URL-bearing
+  // type puts the SSRF guard in the path, and that depends on a placeholder
+  // hostname resolving. The types that are skipped for that reason are named in
+  // the run output rather than silently dropped.
+  test('every queueable crawler type is handed its crawler name (#1240)', async ({ request }) => {
+    const all = queueableCrawlerTypes();
+    const candidates = all.filter(c => !c.hasUrlField);
+    test.skip(candidates.length === 0, 'No crawler type in tools/crawlers/ can be configured and queued without type-specific knowledge');
+
+    const stamp = Date.now();
+    const created = [];
+    try {
+      for (const candidate of candidates) {
+        const name = `e2e-crawler-${candidate.type}-${stamp}`;
+        const res = await request.post(`${API}/admin/crawler-configs`, {
+          data: { crawlerType: candidate.type, displayName: name, config: candidate.config },
+        });
+        expect(res.status(), `${candidate.type}: ${await res.text()}`).toBe(201);
+        created.push({ type: candidate.type, name, id: (await res.json()).id });
+      }
+      console.log(`Crawler types walked: ${created.map(c => c.type).join(', ')}`
+        + `; not walked (needs a resolvable host): ${all.filter(c => c.hasUrlField).map(c => c.type).join(', ') || 'none'}`);
+
+      const mismatched = [];
+      for (const { type, name, id } of created) {
+        const got = await queuedRunName(request, type, id);
+        if (got !== name) mismatched.push({ type, got, want: name });
+      }
+      // One assertion over every type, so a failure names all of them rather
+      // than stopping at whichever happens to sort first.
+      expect(mismatched, 'crawler types whose run was not handed the crawler name').toEqual([]);
+    } finally {
+      for (const { id } of created) await request.delete(`${API}/admin/crawler-configs/${id}`);
     }
   });
 });

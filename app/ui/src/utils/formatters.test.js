@@ -6,6 +6,7 @@ import {
   formatDurationMs,
   formatRelativeTime,
   formatCompactNumber,
+  formatBytes,
 } from './formatters';
 
 // ─── formatDate ────────────────────────────────────────────────────────────────
@@ -228,5 +229,35 @@ describe('formatCompactNumber — from DashboardPage.formatNumber (unchanged)', 
   it('formats millions with one decimal', () => {
     expect(formatCompactNumber(1_000_000)).toBe('1.0M');
     expect(formatCompactNumber(2_500_000)).toBe('2.5M');
+  });
+});
+
+// ─── formatBytes ───────────────────────────────────────────────────────────────
+// One formatter for every size the UI shows. The CSV wizard's own copy stopped at
+// GB and the job-trace one at MB, so an 8 TiB limit or a 1.8 GB file read wrong.
+describe('formatBytes', () => {
+  it('renders bytes under a kilobyte without a decimal', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(1023)).toBe('1023 B');
+  });
+  it('switches unit at exactly 1024, with one decimal', () => {
+    expect(formatBytes(1024)).toBe('1.0 KB');
+    expect(formatBytes(2048)).toBe('2.0 KB');
+    expect(formatBytes(1024 * 1024)).toBe('1.0 MB');
+    expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB');
+  });
+  it('renders a real export and the default upload limit in GB', () => {
+    expect(formatBytes(1.8 * 1024 ** 3)).toBe('1.8 GB');
+    expect(formatBytes(8 * 1024 ** 3)).toBe('8.0 GB');
+  });
+  it('goes past 1024 GB to TB, and stays in TB beyond that', () => {
+    expect(formatBytes(1023 * 1024 ** 3)).toBe('1023.0 GB');
+    expect(formatBytes(1024 ** 4)).toBe('1.0 TB');
+    expect(formatBytes(2048 * 1024 ** 4)).toBe('2048.0 TB');
+  });
+  it('treats a missing size as 0 B', () => {
+    expect(formatBytes(undefined)).toBe('0 B');
+    expect(formatBytes(null)).toBe('0 B');
   });
 });

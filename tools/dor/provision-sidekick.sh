@@ -128,7 +128,12 @@ if [ -d "$HOME/stacks/edge" ]; then
 else
   mkdir -p "$HOME/stacks/edge"
   if curl -fsSL "$REPO_RAW/docker-compose.prod.yml" -o "$HOME/stacks/edge/docker-compose.prod.yml"; then
-    ( cd "$HOME/stacks/edge" && docker compose -f docker-compose.prod.yml up -d >/dev/null 2>&1 ) && ok "up" || warn "compose up failed (bring it up manually)"
+    # The prod compose refuses to start without POSTGRES_PASSWORD (no default is
+    # shipped), so give the placeholder stack a generated one — same step as the
+    # public Quick Start.
+    ( cd "$HOME/stacks/edge" \
+      && { [ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env; } \
+      && docker compose -f docker-compose.prod.yml up -d >/dev/null 2>&1 ) && ok "up" || warn "compose up failed (bring it up manually)"
   else
     warn "could not fetch docker-compose.prod.yml — create ~/stacks/edge manually"
   fi

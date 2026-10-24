@@ -3,10 +3,12 @@
 // attribute table through a heavy formatter rewrite.
 //
 // Special cases:
-//   - `Link` key → always rendered as a "Open in Entra ID" hyperlink when
-//     the value looks like a URL. That's the calculated attribute the Entra
-//     crawler stamps on every synced object; we want it discoverable
-//     everywhere the value appears.
+//   - `Link` key → rendered as an "Open in Entra ID" hyperlink when the value
+//     is an https URL on a Microsoft Entra / Azure portal host. That's the
+//     calculated attribute the Entra crawler stamps on every synced object.
+//     Any other system (a CSV or custom connector) can also send a `Link`, so
+//     a URL on any other host falls through to the plain link below and shows
+//     its real address instead of borrowing the trusted label (SEC-2026-09 L-18).
 //   - Any other HTTP(S) URL value → rendered as a generic link showing the
 //     URL text. Matches what a user would hope for when seeing a URL in a
 //     data table.
@@ -24,11 +26,30 @@ function isHttpUrl(v) {
   return typeof v === 'string' && URL_RE.test(v);
 }
 
+// Hosts that serve the Entra admin experience (public and sovereign clouds).
+export const ENTRA_PORTAL_HOSTS = new Set([
+  'entra.microsoft.com',
+  'portal.azure.com',
+  'aad.portal.azure.com',
+  'portal.azure.us',
+  'portal.azure.cn',
+]);
+
+export function isEntraPortalUrl(v) {
+  if (typeof v !== 'string') return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' && !u.username && !u.password && ENTRA_PORTAL_HOSTS.has(u.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 export function renderAttributeValue(key, val) {
   // The Link key is the crawler-calculated Entra portal deep link. Show the
   // friendly "Open in Entra ID" label instead of the full URL — URLs are
   // long, noisy, and every reader's eye should just see the action.
-  if (key === 'Link' && isHttpUrl(val)) {
+  if (key === 'Link' && isEntraPortalUrl(val)) {
     return (
       <a
         href={val}

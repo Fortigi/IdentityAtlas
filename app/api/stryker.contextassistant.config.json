@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the context assistant: the recipe language (validation, matching, related words), the plugin that turns a recipe into a context tree, the model-facing service, and the routes. Scoped like the sibling API configs -- these files plus their own unit tests, which are self-contained (no filesystem outside the sandbox, no PostgreSQL). WHY THESE FILES: every failure here is silent. A recipe that quietly drops a term, a match rule that is one character wider than intended, an exclusion that stops winning over a term, a term-to-child grouping that loses an object -- each produces a context tree that renders perfectly and contains the wrong groups, and the tree is then refreshed after every crawl, so the wrong answer persists. The same shape of risk that the reports config exists for, with one addition: shapeTerms decides which of the model's proposed terms arrive TICKED, which is the guard against a small model inventing what an unknown name means (HAMIS -> health care). A mutant that ticks everything silently widens every context built from then on. MUTATOR SET: StringLiteral and ObjectLiteral disabled, matching the sibling API configs -- so the SQL strings in matches.js/relatedWords.js are not mutated and this cannot tell you the query is right; that stays the contract tests' job. Run: cd app/api && npm run test:mutation:contextassistant NOT YET MEASURED: this config ships with the feature; `break` is deliberately absent until a first run measures a score (a floor invented without a measurement is either slack or a red run on day one). Add `{ pkg: api, name: contextassistant, label: 'API context assistant' }` to .github/workflows/js-mutation.yml once it is measured, and set the floor a few points under what it reports.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.contextassistant.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-contextassistant.json"
+  },
+  "mutate": [
+    "src/contextAssistant/service.js",
+    "src/contexts/plugins/context-recipe.js",
+    "src/contexts/recipe/matches.js",
+    "src/contexts/recipe/recipe.js",
+    "src/contexts/recipe/relatedWords.js",
+    "src/nlreports/assistantHttp.js",
+    "src/nlreports/warmup.js",
+    "src/routes/contextAssistant.js"
+  ],
+  "mutationExclusions": {
+    "src/contextAssistant/prompt.js": "Declaration, not logic: the system prompt's text, the few-shot examples, and the JSON schema handed to the model server as its decoding grammar. With StringLiteral and ObjectLiteral off there is nothing behavioural left to mutate — the numbers that matter (every maxItems / maxLength bound, which is what stops a small model looping until the token cap) are asserted directly in service.test.js, and whether the prompt produces good terms is not a unit-test question at all: it is measured against a model, on real data."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

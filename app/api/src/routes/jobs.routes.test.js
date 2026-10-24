@@ -280,6 +280,7 @@ describe('connector-URL guard on config save and job creation', () => {
   it('POST job re-vets a stored config (saved before the guard existed)', async () => {
     poolQuery.mockImplementation((sql) => {
       if (/SELECT config, "nextRunMode".* FROM "CrawlerConfigs"/.test(sql)) return P({ recordset: [{ config: { baseUrl: 'http://10.0.0.9/' }, nextRunMode: 'delta' }] });
+      if (/"configId" = \$1 AND status IN \('queued', 'running'\)/.test(sql)) return P({ recordset: [] });   // configuration idle
       return P({ recordset: [{ id: 5 }] });
     });
     const res = await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'rest-type', configId: 3 });
@@ -333,6 +334,28 @@ describe('crawler-jobs — lifecycle', () => {
     expect(params[3]).toBe(1);
     expect(JSON.parse(params[1])._scheduledByConfigId).toBe(1);
   });
+  // One job per crawler configuration: a second Run Now while the first is still
+  // going is refused before anything is queued.
+  it('POST 409 for a configuration that already has a job running, and queues nothing', async () => {
+    const base = poolQuery.getMockImplementation();
+    poolQuery.mockImplementation((sql, params) =>
+      /"configId" = \$1 AND status IN \('queued', 'running'\)/.test(sql) && params?.[0] === 1
+        ? P({ rows: [{ id: 77, status: 'running' }] })
+        : base(sql, params));
+    const res = await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'demo', configId: 1, syncMode: 'delta' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/job running \(job 77\)/);
+    expect(poolQuery.mock.calls.some(([q]) => /INSERT INTO "CrawlerJobs"/.test(q))).toBe(false);
+  });
+  it('POST still queues a second configuration while another one runs', async () => {
+    const base = poolQuery.getMockImplementation();
+    poolQuery.mockImplementation((sql, params) =>
+      /"configId" = \$1 AND status IN \('queued', 'running'\)/.test(sql) && params?.[0] === 1
+        ? P({ rows: [{ id: 77, status: 'running' }] })
+        : base(sql, params));
+    const res = await request(app).post('/api/admin/crawler-jobs').send({ jobType: 'demo', configId: 2 });
+    expect(res.status).toBe(201);
+  });
   // SEC-2026-09 H-02
   it('POST of an inline job carrying _scheduledByConfigId stores no configId and drops the key', async () => {
     const res = await request(app).post('/api/admin/crawler-jobs')
@@ -347,6 +370,16 @@ describe('crawler-jobs — lifecycle', () => {
   });
   it('GET list returns jobs', async () => {
     expect((await request(app).get('/api/admin/crawler-jobs')).body).toHaveLength(1);
+  });
+  it('GET list with latestPerMode also asks for the newest job per crawler and mode', async () => {
+    poolQuery.mockImplementation((sql) => P({ recordset: /DISTINCT ON/.test(sql) ? [{ id: 5 }, { id: 2 }] : [] }));
+    const res = await request(app).get('/api/admin/crawler-jobs?limit=10&latestPerMode=true');
+    expect(res.body.map(j => j.id)).toEqual([5, 2]);
+    expect(poolQuery.mock.calls.at(-1)[1]).toEqual([10]);
+  });
+  it('GET list without latestPerMode keeps the plain newest-N query', async () => {
+    await request(app).get('/api/admin/crawler-jobs?latestPerMode=yes');
+    expect(poolQuery.mock.calls.at(-1)[0]).not.toMatch(/DISTINCT ON/);
   });
   it('DELETE cancels a queued job', async () => {
     expect((await request(app).delete('/api/admin/crawler-jobs/5')).status).toBe(200);

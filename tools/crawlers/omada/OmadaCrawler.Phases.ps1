@@ -207,7 +207,7 @@ function Sync-OmadaContexts {
                 -QueryParams @{ '$filter' = 'Deleted eq false' } -PageSize $PageSize -MaxRetries $MaxRetries
             Write-Host "  $($Items.Count) $EntitySet records from Omada" -ForegroundColor Gray
 
-            $Records = @(Build-OmadaContextRecords -Items $Items -EntitySet $EntitySet -ContextType $ContextType)
+            $Records = @(Build-OmadaContextRecords -Items $Items -EntitySet $EntitySet -ContextType $ContextType -SystemId $SystemId)
 
             Write-Step "Ingesting $($Records.Count) $ContextType contexts..."
             $R = Send-IngestBatch -Endpoint 'ingest/contexts' -SystemId $SystemId -SyncMode 'full' `
@@ -895,6 +895,9 @@ function Resolve-OmadaConfig {
     $typeMappings = Merge-TypeMappings -Defaults $DefaultTypeMappings -Overrides $Cfg.typeMappings
 
     return $toggles + @{
+        # The crawler's own name, injected by the job dispatcher. Carried through so
+        # the endpoint system can be named after the crawler instead of the type (#1240).
+        configName            = ([string]$RawConfig['_configName']).Trim()
         baseUrl               = $hostUri + $path
         builtinBaseUrl        = $hostUri + ($path -replace '(?i)/dataobjects$', '/builtin')
         apiVersion            = if ($Cfg.apiVersion) { $Cfg.apiVersion } else { 'v14' }
@@ -954,7 +957,7 @@ function Get-OmadaAvailableEntitySets {
 # failure. Returns @{ systemId; omadaSystemMap; allOmadaSystems; omadaIdentitySystemUId }.
 function Register-OmadaSystems {
     [CmdletBinding()]
-    param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5)
+    param([string]$ApiBaseUrl, [string]$ApiKey, [string]$BaseUrl, [int]$MaxRetries = 5, [string]$ConfigName)
     $AllOmadaSystems = $Null
     $OmadaSystemMap  = @{}
     $SystemId        = 0
@@ -969,8 +972,10 @@ function Register-OmadaSystems {
             [PSCustomObject]@{ systemType = 'Omada'; displayName = $_.DisplayName; tenantId = [string]$_.UId; enabled = $True; syncEnabled = $True }
         })
 
+        # Delta, not full: systems are registered, never reconciled (SEC-2026-09 C-01).
+        # An empty delta says nothing, so zero systems skips the call entirely.
         Write-Step "Registering $($SysRecords.Count) systems in Identity Atlas..."
-        Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{ syncMode = 'full'; records = ConvertTo-JsonArray $SysRecords } | Out-Null
+        if ($SysRecords.Count -gt 0) { Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{ syncMode = 'delta'; records = ConvertTo-JsonArray $SysRecords } | Out-Null }
 
         $AtlasSystems = Invoke-RestMethod -Uri "$ApiBaseUrl/systems" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 30
         foreach ($S in $AtlasSystems) {
@@ -991,7 +996,7 @@ function Register-OmadaSystems {
         Write-Host "  Main Omada IGA system ID: $SystemId (UId: $MainSysUId)" -ForegroundColor Gray
     } catch {
         Write-Host "  Warning: could not register Omada systems — $($_.Exception.Message)" -ForegroundColor Yellow
-        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl -ConfigName $ConfigName
     }
 
     # An Omada that reports NO connected systems is not an error — a fresh or
@@ -1007,7 +1012,7 @@ function Register-OmadaSystems {
     # on an error to reach a normal path is the actual bug; this makes it a step.
     if (-not $SystemId) {
         Write-Host "  Omada reported no connected systems — registering the endpoint itself" -ForegroundColor Yellow
-        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl
+        $SystemId = Register-OmadaEndpointSystem -BaseUrl $BaseUrl -ConfigName $ConfigName
     }
     return @{ systemId = $SystemId; omadaSystemMap = $OmadaSystemMap; allOmadaSystems = $AllOmadaSystems; omadaIdentitySystemUId = $OmadaIdentitySystemUId }
 }

@@ -50,6 +50,7 @@ $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngestStream.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Phases.ps1')

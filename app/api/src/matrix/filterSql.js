@@ -21,9 +21,10 @@
 // for every context referenced anywhere in the filter — the caller injects this
 // map into `buildEntitySubquery` so the module stays free of DB knowledge.
 
+import { EXT_PREFIX, extKeyOf, extValueSql } from '../lib/extKeys.js';
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAFE_IDENT_RE = /^[a-zA-Z0-9_]+$/;
-const EXT_PREFIX = 'ext.';
 
 const TABLE_BY_ENTITY = {
   Principal: 'Principals',
@@ -171,10 +172,10 @@ function buildAttributeClause({ field, values, validColumns, bind }) {
 
   // ext.<key> — JSONB path
   if (field.startsWith(EXT_PREFIX)) {
-    const key = field.slice(EXT_PREFIX.length);
-    if (!SAFE_IDENT_RE.test(key)) return null;
+    const key = extKeyOf(field);
+    if (key === null) return null;
     const placeholders = vals.map(v => bind(v));
-    return `"extendedAttributes"->>'${key}' IN (${placeholders.join(',')})`;
+    return `${extValueSql(key)} IN (${placeholders.join(',')})`;
   }
 
   // real column — must be in the entity's column whitelist

@@ -49,6 +49,11 @@ short version:
 The team reviews every PR, and automated checks run on it (tests, linting,
 coverage). A maintainer approves and merges it.
 
+The developer's version of these steps is
+[`CONTRIBUTING.md` :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/blob/main/CONTRIBUTING.md){ target=_blank rel=noopener }
+in the repository root. It lists the tools and versions you need, the exact
+command for each check, and what is different for a pull request from a fork.
+
 !!! info "Good to know before you dive into code"
     - **One change per branch** — keep each pull request focused on a single
       fix or feature. It's much easier to review.
@@ -62,3 +67,9 @@ coverage). A maintainer approves and merges it.
 Open an [issue](report-an-issue.md) describing what you'd like to do, or comment
 on an existing one to say you'd like to take it. We're happy to point you in the
 right direction before you write any code.
+
+!!! warning "Security vulnerabilities"
+    Don't report a security vulnerability in a public issue or pull request.
+    Follow the
+    [security policy :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/blob/main/SECURITY.md){ target=_blank rel=noopener }
+    instead.

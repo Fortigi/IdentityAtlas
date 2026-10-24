@@ -20,6 +20,11 @@ Nothing here is a Capture the Flag answer. This is the method; [the flags](../de
 
 Open the app. You land on the **Dashboard**: counts, a risk summary, a force-directed graph of your data.
 
+<figure markdown="span">
+  ![The Dashboard: a graph of entity counts on the left, the Loaded data cards on the right, and three feature status cards below](../assets/screenshots/dashboard.png)
+  <figcaption>The Dashboard, with the demo data loaded.</figcaption>
+</figure>
+
 Look at it for ten seconds and then leave. The dashboard is a status board, not an answer machine. Nobody has ever found anything interesting there.
 
 Across the top you have **Matrix**, **Principals (Users)**, **Resources**, **Business Roles**, **Contexts** and **Admin**. Two more — **Identities** and **Risk Scores** — appear only when account linking and risk scoring are switched on, so do not worry if you cannot see them.
@@ -45,6 +50,11 @@ Scope the subjects to a single department. **Engineering** is a good one to prac
 ## Step 3 — Read one cell properly
 
 This is the skill. Everything else is a variation on it.
+
+<figure markdown="span">
+  ![A matrix of the whole demo company: resources down the left, people across the top grouped by department, and D, I and E badges in the filled cells](../assets/screenshots/matrix.png)
+  <figcaption>The demo's unscoped matrix, with resources down the left and people across the top. <strong>D</strong>, <strong>I</strong> and <strong>E</strong> are the Direct, Indirect and Eligible badges.</figcaption>
+</figure>
 
 A filled cell means *this person holds this resource*. The **badge** in the cell says **how**:
 
@@ -80,6 +90,11 @@ What is left when you show only *ungoverned* access is the honest inventory of e
 ## Step 5 — Follow a person across systems
 
 Go to **Principals (Users)** and open someone.
+
+<figure markdown="span">
+  ![A user detail tab on the Relationships view: a graph linking the account to its manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of its direct assignments](../assets/screenshots/user-detail.png)
+  <figcaption>One account, opened on its <strong>Relationships</strong> view.</figcaption>
+</figure>
 
 You are looking at *one account in one system*. Note what the page cannot tell you: an SAP account does not know which department its owner works in. An Azure account does not know their manager.
 

@@ -15,10 +15,30 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 import { authMiddleware } from './middleware/auth.js';
+import { resolveMe, getPrincipalPhoto } from './auth/resolveMe.js';
+import * as dbConnection from './db/connection.js';
+
+// Attach the caller's own photo to a resolveMe() result, so the header avatar
+// needs no second round trip. Only reads the blob when the resolver already
+// said there is one. A failure here must never fail /api/auth-me — the UI
+// depends on that call for its permission gating, and a missing face is
+// cosmetic.
+async function withMyPhoto(me) {
+  if (!me?.principal?.hasPhoto) return me;
+  try {
+    const pool = await dbConnection.getPool();
+    return { ...me, photo: await getPrincipalPhoto(pool, me.principal.id) };
+  } catch {
+    return me;
+  }
+}
 import { resolveModuleVersion } from './version.js';
 import { readFeatures } from './featureFlags.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
+import { createRequestOriginGuard } from './middleware/requestOriginGuard.js';
+import { resolveTrustProxy, principalRateLimitKey } from './middleware/rateLimitKeys.js';
 import permissionsRouter from './routes/permissions.js';
 import matrixRouter from './routes/matrix.js';
 import effectiveAccessRouter from './routes/effectiveAccess.js';
@@ -37,7 +57,11 @@ import resourcesRouter from './routes/resources.js';
 import attributeLabelsRouter from './routes/attributeLabels.js';
 import contextsRouter from './routes/contexts.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
+import lookupsRouter from './routes/lookups.js';
 import reportsRouter from './routes/reports.js';
+import reportViewsRouter from './routes/reportViews.js';
+import nlReportsRouter from './routes/nlReports.js';
+import contextAssistantRouter from './routes/contextAssistant.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
 import llmRouter from './routes/llm.js';
@@ -55,7 +79,7 @@ import updatesRouter from './routes/updates.js';
 import { isAuthEnabled, getTenantId, getClientId } from './config/authConfig.js';
 import { isSchemaReady } from './startupState.js';
 import swaggerUi from 'swagger-ui-express';
-import YAML from 'yamljs';
+import YAML from 'yaml';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -105,6 +129,12 @@ const moduleVersion = resolveModuleVersion();
 export function createApp() {
   const app = express();
 
+  // ─── Proxy trust (SEC-2026-09 M-09) ──────────────────────────────
+  // How many reverse-proxy hops may set X-Forwarded-For. Off unless the operator
+  // declared a proxy (TRUST_PROXY_HOPS / TRUST_PROXY / BEHIND_TLS) — see
+  // middleware/rateLimitKeys.js. Drives req.ip for rate limiters and audit rows.
+  app.set('trust proxy', resolveTrustProxy());
+
   // ─── Security headers ────────────────────────────────────────────
   // HSTS and CSP `upgrade-insecure-requests` are opt-in via BEHIND_TLS=true.
   // The default deployment story is plain HTTP on port 3001; sending these
@@ -119,10 +149,11 @@ export function createApp() {
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],  // Tailwind uses inline styles
         fontSrc: ["'self'"],
+        // The SPA only talks to its own API and to Entra sign-in; every Graph
+        // call is made server-side by the crawlers (SEC-2026-09 L-17).
         connectSrc: [
           "'self'",
           'https://login.microsoftonline.com',
-          'https://graph.microsoft.com',
         ],
         frameSrc: ["'self'", 'https://login.microsoftonline.com'],
         imgSrc: ["'self'", 'data:'],
@@ -150,7 +181,8 @@ export function createApp() {
         : DEV_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // X-Requested-With carries the UI's same-app marker (see requestOriginGuard).
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     exposedHeaders: ['Server-Timing'],  // Allow browser to read Server-Timing header
   };
   app.use(cors(corsOptions));
@@ -170,7 +202,7 @@ export function createApp() {
 
   // ─── Swagger / OpenAPI docs (public) ─────────────────────────────
   try {
-    const openapiSpec = YAML.load(join(__dirname, 'openapi.yaml'));
+    const openapiSpec = YAML.parse(readFileSync(join(__dirname, 'openapi.yaml'), 'utf8'));
     app.get('/api/openapi.json', (req, res) => res.json(openapiSpec));
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
       customSiteTitle: 'Identity Atlas Ingest API',
@@ -193,13 +225,23 @@ export function createApp() {
   // screen. These four endpoints are tiny, read-only and cacheable; the cap is
   // here to bound abuse, not to ration the app's own bootstrap.
   //   600 req/min  =  10 req/sec sustained per IP
-  const publicLimiter = rateLimit({
-    windowMs: 60 * 1000,  // 1 minute
-    max: 600,
+  //
+  // Every limiter here uses a one-minute window, the standard RateLimit-*
+  // headers, and a per-caller key (SEC-2026-09 M-09, middleware/rateLimitKeys.js).
+  const perMinuteLimiter = (max, error, extra = {}) => rateLimit({
+    windowMs: 60 * 1000,
+    max,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many requests, please try again later' },
+    keyGenerator: principalRateLimitKey,
+    message: { error },
+    ...extra,
   });
+  const publicLimiter = perMinuteLimiter(600, 'Too many requests, please try again later');
+
+  // The SPA shell (index.html fallback) has its own bucket so loading the app
+  // never spends the API's public quota (SEC-2026-09 M-09).
+  const spaLimiter = perMinuteLimiter(600, 'Too many requests, please try again later');
 
   // Authenticated /api/* endpoints get a permissive global limit. The
   // point is just to bound DoS / credential-stuffing against the auth
@@ -207,15 +249,28 @@ export function createApp() {
   // rate limiting" otherwise. The cap must NOT bite normal interactive
   // use (matrix page fires 20+ calls on load) or parallel CI tests
   // running through a single source IP, so we leave wide headroom.
-  //   6000 req/min  =  100 req/sec sustained per IP
-  const authedApiLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 6000,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many requests, please slow down' },
+  //   6000 req/min  =  100 req/sec sustained per caller
+  //
+  // Keyed on the verified caller (user oid / read token / else client address),
+  // so an organisation behind one proxy or NAT address doesn't share a single
+  // bucket (SEC-2026-09 M-09). The caller is only known after authMiddleware,
+  // so this limiter is mounted with the first authenticated router below.
+  const authedApiLimiter = perMinuteLimiter(6000, 'Too many requests, please slow down');
+
+  // Before authentication nothing is verified, so the pre-auth limiter keys on
+  // the client address and counts only FAILED requests: it bounds floods of bad
+  // credentials without rationing an office of legitimate users behind one address.
+  const preAuthFailureLimiter = perMinuteLimiter(6000, 'Too many requests, please slow down', {
+    skipSuccessfulRequests: true,
   });
-  app.use('/api', authedApiLimiter);
+  app.use(preAuthFailureLimiter);
+
+  // ─── Host allow-list + cross-site write guard (SEC-2026-09 H-07) ─
+  // Enforced while authentication is off; see middleware/requestOriginGuard.js.
+  // Mounted behind the failure limiter so rejected requests are rate-limited too.
+  app.use(createRequestOriginGuard({
+    extraOrigins: Array.isArray(corsOptions.origin) ? corsOptions.origin : [],
+  }));
 
   // Unauthenticated endpoints (rate-limited)
   // Always 200 so the platform startup/health probe passes as soon as the port
@@ -285,9 +340,14 @@ export function createApp() {
   //     `permissions` excludes the '*' sentinel and `hasWildcard` is the
   //     boolean. Lets the UI distinguish "Admin (full access via *)" from
   //     "RoleMiner (these specific permissions)" for the badge display.
-  app.get('/api/auth-me', authMiddleware, (req, res) => {
+  //   - `me` maps the caller onto the crawled data: their Principal (account)
+  //     and Identity (person). Null when auth is off, nothing matched, or the
+  //     schema isn't up yet. Consumers: the header avatar today, and any
+  //     first-person question ("my groups", "my employees") later — see
+  //     auth/resolveMe.js.
+  app.get('/api/auth-me', authMiddleware, async (req, res) => {
     if (!isAuthEnabled()) {
-      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [] });
+      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [], me: null });
     }
     const perms = req.user?.permissions || new Set();
     const hasWildcard = perms.has('*');
@@ -296,6 +356,7 @@ export function createApp() {
       roles: req.user?.roles || [],
       permissions: Array.from(perms).filter(p => p !== '*'),
       hasWildcard,
+      me: await withMyPhoto(await resolveMe(req.user)),
     });
   });
 
@@ -306,8 +367,10 @@ export function createApp() {
   // ingest body parser, so a large crawler batch is rejected without being read.
   app.use('/api', schemaMigratingGate);
 
-  // Performance metrics routes (auth-protected)
-  app.use('/api', authMiddleware, perfRouter);
+  // Performance metrics routes (auth-protected). This is the first
+  // authenticated mount every remaining /api request passes through, so the
+  // per-caller limiter runs here exactly once per request.
+  app.use('/api', authMiddleware, authedApiLimiter, perfRouter);
 
   // Auth middleware for all other API routes
   app.use('/api', authMiddleware, permissionsRouter);
@@ -327,7 +390,19 @@ export function createApp() {
   app.use('/api', authMiddleware, contextsRouter);
   // Reports — an analyst read surface (it exposes nothing the Contexts page
   // doesn't already show), so plain auth, no admin permission gate.
+  app.use('/api', authMiddleware, lookupsRouter);
   app.use('/api', authMiddleware, reportsRouter);
+  // Saved views of the standard reports. Reading one is plain auth; writing is
+  // gated per route (data.write.reports), for the same reason as below.
+  app.use('/api', authMiddleware, reportViewsRouter);
+  // Custom reports + the local-model report generator (read-only queries).
+  // The experimental-feature gate and the permission gate are applied PER ROUTE
+  // inside the router: a requireFeature on this shared '/api' mount would answer
+  // 404 for every later route while the feature is off.
+  app.use('/api', authMiddleware, nlReportsRouter);
+  // Context assistant — builds context trees from search terms, optionally proposed by
+  // the same local model. Feature and permission gates per route, as above.
+  app.use('/api', authMiddleware, contextAssistantRouter);
   // Context plugins (Admin → Contexts) — admin-only across the board.
   // Permission gates are applied PER ROUTE inside each router (not on the /api
   // mount) — a mount-level requirePermission on the shared '/api' prefix runs
@@ -380,13 +455,16 @@ export function createApp() {
   // servicePrincipalNames, publisherName, etc.) a typical batch can reach
   // 20-30 MB. 50 MB gives ~5x headroom over real-world observed sizes while
   // still keeping a sane upper bound on memory use per request.
-  app.use('/api/ingest', express.json({ limit: '50mb' }));
+  // Crawler authentication runs BEFORE the 50 MB parser so an unauthenticated
+  // body is never read (SEC-2026-09 M-04); the second mount below is then a
+  // no-op for an already-authenticated request.
+  app.use('/api/ingest', crawlerAuthMiddleware, express.json({ limit: '50mb' }));
   app.use('/api', crawlerAuthMiddleware, ingestRouter);
 
   // In production, serve the frontend build output
   const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '../../frontend/dist');
   app.use(express.static(frontendDist));
-  app.get('*path', publicLimiter, (req, res, next) => {
+  app.get('*path', spaLimiter, (req, res, next) => {
     // Only serve index.html for non-API routes (SPA fallback)
     if (req.path.startsWith('/api')) return next();
     res.sendFile(join(frontendDist, 'index.html'));

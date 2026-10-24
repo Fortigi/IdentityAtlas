@@ -6,9 +6,21 @@ const OBJECT_LABELS = [
   ['groupMembers', 'Members'],
 ];
 
-// `config` (the full row) is read for its displayName: with no explicit
-// systemName override the run names the system after the crawler itself, and the
-// card has to show the same name the operator will find in the Systems list.
+const TYPE_DEFAULT = 'SCIM';
+
+/**
+ * The system name this crawler will actually register, mirroring the run's own
+ * rule (tools/crawlers/shared/Get-CrawlerSystemName.ps1): explicit override ▸
+ * crawler name ▸ type default. A stored override that is an exact copy of the
+ * type default is a pre-#1207 leftover and counts as unset — without that the
+ * card would keep showing "SCIM" for a name the run no longer uses (#1240).
+ */
+export function resolveSystemName(cfg, config) {
+  const override = (cfg?.systemName || '').trim();
+  if (override && override !== TYPE_DEFAULT) return override;
+  return (config?.displayName || '').trim() || TYPE_DEFAULT;
+}
+
 export default function Summary({ cfg, config }) {
   const objects = OBJECT_LABELS.filter(([key]) => cfg.selectedObjects?.[key]).map(([, label]) => label);
   const userAttrs = cfg.selectedAttributes?.user?.length || 0;
@@ -24,7 +36,7 @@ export default function Summary({ cfg, config }) {
         </div>
         <div><span className="text-gray-500 dark:text-gray-400">Auth:</span> <span className="dark:text-gray-300">{cfg.authMethod || '—'}</span></div>
         <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-600 dark:text-gray-500">{SECRET_MASK}</span></div>
-        <div><span className="text-gray-500 dark:text-gray-400">System:</span> <span className="dark:text-gray-300">{cfg.systemName || config?.displayName || 'SCIM'}</span></div>
+        <div><span className="text-gray-500 dark:text-gray-400">System:</span> <span className="dark:text-gray-300">{resolveSystemName(cfg, config)}</span></div>
         <div><span className="text-gray-500 dark:text-gray-400">Page size:</span> <span className="dark:text-gray-300">{cfg.pageSize || 100}</span></div>
         <div className="col-span-2">
           <span className="text-gray-500 dark:text-gray-400">Objects:</span>{' '}

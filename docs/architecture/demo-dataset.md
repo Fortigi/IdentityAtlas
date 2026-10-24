@@ -284,6 +284,67 @@ AU-Netherlands
 
 ---
 
+## The realism slice (opt-in)
+
+`Generate-DemoDataset.ps1 -IncludeRealism`, or the **Include the realism slice** tick on the demo
+crawler (`includeRealismData`). Off by default.
+
+**Why it exists.** Everything above is a 26-person company in which every record tells one story.
+That is what makes it a good fixture and a bad measuring stick: most questions an analyst asks have
+zero or one possible answer on it, no first name occurs twice, nobody ever changed jobs, and no
+group has ever lost a member. A custom report or a chat answer can be wrong and still score a pass.
+The realism slice grows a second, messier company on top of the first so that questions have answers
+of several sizes and a wrong reading produces a visibly wrong row count. It is the environment the
+report generator and the Ask assistant are measured in — see
+[The report generator](../reference/report-generator.md).
+
+**What it adds** (counts are from the generator, which is deterministic):
+
+| | |
+|---|---|
+| People | ~600 staff over ten departments and ~55 teams, plus 40 guests from three partner companies, 30 leavers and a dozen non-human accounts |
+| Accounts per person | one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity |
+| Systems | two more that keep their own accounts (on-premises AD, a CRM), beside Azure which keeps none and grants access to Entra principals |
+| Groups | ~180 in naming families (`License-*`, `SG-<dept>-*`, `SG-<team>-*`, `APP-*`, `PRJ-*`, `DL-*`, Teams groups), with security / mail-enabled flags, owners on about a quarter, six empty ones and one holding the whole company |
+| Nesting | all three kinds: a group inside a group (indirect memberships), Azure scope inheritance (a role on a resource group reaching everything inside it), and a business role synchronising groups and application roles to its holders |
+| Roles | 15 Entra directory roles (three held by nobody), 26 business roles granting groups **and** application roles, ~40 eligible (PIM) assignments |
+| Governance | governed assignments with a deliberate provisioning gap, and two attestation campaigns — one closed, one running — with recommendations, decisions and undecided rows |
+| History | `Simulate-AccessChanges.sql` spreads the grants over six months, removes about one membership in sixteen on project, application and distribution groups, and brings a few back |
+
+**What makes it realistic rather than merely large** — each of these is a property a question depends
+on, and each is absent from the standard slice:
+
+- **Job titles do not predict access.** Half the titles are generic (`Medewerker`, `Specialist`,
+  `Consultant`); people on one team hold nearly the same things whatever their title, and two people
+  with the same title on different teams hold very different things. One member of a team in five
+  holds something nobody else on the team has, so the clusters are not perfect.
+- **Careers leave residue.** About 150 people moved department at some point and kept one to three
+  groups of the department they left. Their account says Finance and their access says Engineering.
+- **Projects outlive themselves.** Ten of the 24 project groups finished, some years ago, and every
+  member still holds them.
+- **Leavers.** Half the disabled accounts still hold everything they held on their last day.
+- **Names collide.** 31 people share one first name and 15 full names occur more than once, so
+  pinning a name to a person genuinely needs asking — while the pool is walked without repeats so
+  duplicates stay the exception rather than the rule.
+- **Sign-ins spread** from today to over a year ago, including accounts that never signed in (a row
+  with no timestamp) and accounts with no row at all. Those are different facts and the reports tell
+  them apart.
+
+**What it deliberately does NOT do.** It never touches anything above it: the same ids, the same
+ordering, the same 26-person company. Generating without the switch produces the standard dataset
+byte for byte, which is what `test/unit/DemoRealism.Tests.ps1` asserts first, because
+`Verify-DemoDataset.ps1`'s exact row counts, the Capture-the-Flag answers and the E2E suite all pin
+those numbers. With the slice on, those exact-count checks no longer apply.
+
+**Two things it made visible in the standard slice**, left alone so the pinned counts hold:
+
+1. The two standard guests are `principalType = 'ExternalUser'`. Entra models a B2B guest as a
+   `User` with `userType = 'Guest'`, which is also how the report catalog's `user` entity finds one
+   — so a guest question over the standard data comes back empty however right the pipeline is. The
+   realism slice's guests are modelled the Entra way.
+2. The standard groups set neither `securityEnabled` nor `mailEnabled`, so "mail-enabled groups that
+   are not security groups" cannot be answered over them at all.
+
 ## Capture-the-Flag scenarios
 
 The dataset carries the twelve CTF scenarios from [issue #705](https://github.com/Fortigi/IdentityAtlas/issues/705). The design principle: **every flag must be hard from a raw export and easy in Identity Atlas.** Answers are asserted in two places, so a dataset change can never silently move one:

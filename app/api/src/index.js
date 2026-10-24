@@ -7,6 +7,9 @@
 //   - app.listen + worker bootstrap
 //   - graceful shutdown
 
+// Must stay the FIRST import: resolves <NAME>_FILE secrets into the environment
+// before any other module reads them (SEC-2026-09 I-04).
+import './config/loadFileSecrets.js';
 import { createApp } from './app.js';
 import { enable as enablePerf, isEnabled as isPerfEnabled } from './perf/collector.js';
 import { loadAuthConfig, isAuthEnabled } from './config/authConfig.js';

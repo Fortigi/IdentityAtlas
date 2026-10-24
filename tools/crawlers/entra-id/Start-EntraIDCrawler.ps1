@@ -71,6 +71,12 @@
     assignment whose principal is the holding SP. Fetched per-SP (no bulk endpoint),
     so slow on large tenants. Default: false.
 
+.PARAMETER SyncAppRegistrations
+    Sync app registrations — one AppRegistration resource per application object,
+    carrying credential metadata (secret/certificate dates, never the values),
+    public-client flows, redirect URIs, implicit grant, requested permissions and
+    federated credentials. One paged read. Full runs only. Default: false.
+
 .PARAMETER SyncPrincipalRelationships
     Sync principal→principal relationships — the owners of AI agents and the
     sponsors of guest accounts, stored in PrincipalRelationships. Owners are read
@@ -113,38 +119,22 @@ $ErrorActionPreference = 'Stop'
 $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
+. (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.DeltaSelect.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppRoles.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AccessReviews.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppOwners.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppPermissions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.AppSecurity.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.PrincipalRelationships.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.Photos.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Orchestration.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AttributeLabels.ps1')
-
-# Resolve all sync toggles + attribute lists from the job config.
-$cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
-$SyncMode              = $cfg.SyncMode
-$SyncPrincipals        = $cfg.SyncPrincipals
-$SyncServicePrincipals = $cfg.SyncServicePrincipals
-$SyncResources         = $cfg.SyncResources
-$SyncAssignments       = $cfg.SyncAssignments
-$SyncGovernance        = $cfg.SyncGovernance
-$SyncPim               = $cfg.SyncPim
-$SyncSignInLogs        = $cfg.SyncSignInLogs
-$SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
-$SyncAppRoles          = $cfg.SyncAppRoles
-$SyncAppOwners         = $cfg.SyncAppOwners
-$SyncAppPermissions    = $cfg.SyncAppPermissions
-$SyncPrincipalRelationships = $cfg.SyncPrincipalRelationships
-$SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
-$RefreshViews          = $cfg.RefreshViews
-$SignInLogsDays        = $cfg.SignInLogsDays
-$CustomUserAttributes  = $cfg.CustomUserAttributes
-$CustomGroupAttributes = $cfg.CustomGroupAttributes
-$AINamePatterns        = $cfg.AINamePatterns
-$IdentityFilter        = $cfg.IdentityFilter
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.GroupDelta.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.DeltaScope.ps1')
 
 # ─── Main ─────────────────────────────────────────────────────────
 
@@ -164,7 +154,36 @@ $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
 $script:phases = [System.Collections.Generic.List[object]]::new()
 
 $systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
-    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret'])
+    -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret']) `
+    -ConfigName ([string]$RawConfig['_configName'])
+
+# Resolve all sync toggles + attribute lists from the job config, then narrow a
+# delta run to the phases that read a Graph delta feed (see EntraIDCrawler.DeltaScope.ps1).
+$cfg = Resolve-EntraSyncConfig -RawConfig $RawConfig
+Limit-EntraSyncToDeltaPhases -Cfg $cfg -HasBaseline (Test-EntraDeltaBaseline -Cfg $cfg -SystemId $systemId) | Out-Null
+$SyncMode              = $cfg.SyncMode
+$SyncProfilePhotos     = $cfg.SyncProfilePhotos
+$PhotoMaxAgeDays       = $cfg.PhotoMaxAgeDays
+$SyncPrincipals        = $cfg.SyncPrincipals
+$SyncServicePrincipals = $cfg.SyncServicePrincipals
+$SyncResources         = $cfg.SyncResources
+$SyncAssignments       = $cfg.SyncAssignments
+$SyncGovernance        = $cfg.SyncGovernance
+$SyncPim               = $cfg.SyncPim
+$SyncSignInLogs        = $cfg.SyncSignInLogs
+$SyncOAuth2Grants      = $cfg.SyncOAuth2Grants
+$SyncAppRoles          = $cfg.SyncAppRoles
+$SyncAppOwners         = $cfg.SyncAppOwners
+$SyncAppPermissions    = $cfg.SyncAppPermissions
+$SyncAppRegistrations  = $cfg.SyncAppRegistrations
+$SyncPrincipalRelationships = $cfg.SyncPrincipalRelationships
+$SyncDirectoryRoles    = $cfg.SyncDirectoryRoles
+$RefreshViews          = $cfg.RefreshViews
+$SignInLogsDays        = $cfg.SignInLogsDays
+$CustomUserAttributes  = $cfg.CustomUserAttributes
+$CustomGroupAttributes = $cfg.CustomGroupAttributes
+$AINamePatterns        = $cfg.AINamePatterns
+$IdentityFilter        = $cfg.IdentityFilter
 
 $syncStart = Get-Date
 
@@ -196,6 +215,15 @@ if ($SyncPrincipals) {
         -CustomUserAttributes $CustomUserAttributes -IdentityFilter $IdentityFilter -Timings $phaseTimings
 }
 
+# ─── Sync Profile Photos ─────────────────────────────────────────
+# Opt-in, and runs after Principals because it works off the principals
+# already stored (it asks the API which ones still need a photo). Costs one
+# Graph request per user checked — a photo is a separate resource, not a
+# user property — so it is off unless explicitly selected.
+if ($SyncProfilePhotos) {
+    Sync-EntraUserPhotos -SystemId $systemId -MaxAgeDays $PhotoMaxAgeDays -Timings $phaseTimings
+}
+
 # ─── Sync Service Principals ─────────────────────────────────────
 # $sps is fetched here and reused by the Sign-in Logs phase below, so it's
 # initialized up front and only (re)assigned when this phase runs.
@@ -220,18 +248,12 @@ if ($SyncSignInLogs) {
     Sync-EntraSignInLogs -SystemId $systemId -Sps $sps -SignInLogsDays $SignInLogsDays -Timings $phaseTimings
 }
 
-# ─── Sync Resources (Groups) ─────────────────────────────────────
-# $groups is fetched here and reused by the Assignments and PIM phases below, so
-# it's initialized up front and only (re)assigned when the Resources phase runs.
-$groups = @()
-if ($SyncResources) {
-    $groups = Sync-EntraResources -SystemId $systemId -CustomGroupAttributes $CustomGroupAttributes -Timings $phaseTimings
-}
-
-# ─── Sync Assignments (Group Members + Owners) ───────────────────
-if ($SyncAssignments) {
-    Sync-EntraAssignments -SystemId $systemId -Groups $groups -Timings $phaseTimings
-}
+# ─── Sync Resources (Groups) + Assignments (Members + Owners) ────
+# A full run reads every group and then each group's members and owners; a delta
+# run reads only what changed via /groups/delta (EntraIDCrawler.GroupDelta.ps1).
+# $groups (full runs only) is reused by the PIM phase below.
+$groups = @(Invoke-EntraGroupPhases -SystemId $systemId -SyncMode $SyncMode -SyncResources $SyncResources `
+    -SyncAssignments $SyncAssignments -CustomGroupAttributes $CustomGroupAttributes -Timings $phaseTimings)
 
 # ─── Sync PIM (Eligible group memberships) ───────────────────────
 # Privileged Identity Management gives users "Eligible" (not active) membership
@@ -311,7 +333,7 @@ if ($SyncGovernance) {
 # per-unit complexity ratchet (every inline `if ($SyncX)` guard is a decision point).
 Invoke-EntraApplicationPhases -SystemId $systemId -AINamePatterns $AINamePatterns -Timings $phaseTimings `
     -SyncOAuth2Grants $SyncOAuth2Grants -SyncAppRoles $SyncAppRoles `
-    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions `
+    -SyncAppOwners $SyncAppOwners -SyncAppPermissions $SyncAppPermissions -SyncAppRegistrations $SyncAppRegistrations `
     -SyncPrincipalRelationships $SyncPrincipalRelationships
 
 # ─── Sync Directory Roles ────────────────────────────────────────

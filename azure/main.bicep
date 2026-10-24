@@ -1,23 +1,25 @@
 // Identity Atlas — Azure deployment, STEP 1 of 2.
 //
-// This template deploys the application in OPEN mode (no Entra ID auth).
-// The output URL is the hostname you'll register in the Entra App Reg.
-//
-// To turn auth ON, run STEP 2 (`main-auth.bicep`) against the SAME RG
-// after registering an Entra App with this hostname as the SPA redirect URI.
+// On a first deployment, sign-in is not configured yet: the output URL is the
+// hostname you'll register in the Entra App Reg. Then either run STEP 2
+// (`main-auth.bicep`) against the SAME RG, or — for a deployment you redeploy
+// to upgrade — pass entraTenantId / entraClientId to this template (see below).
 //
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
-//   - Postgres Flexible Server (public endpoint + firewall rule)
-//   - Key Vault (public endpoint, access policies; holds master key + DB password)
+//   - Postgres Flexible Server (firewall limited to the web app's outbound IPs)
+//   - Key Vault (access policies; holds master key + DB password)
 //   - Storage Account + Azure Files share (for /data/uploads)
 //   - 2 user-assigned managed identities (web, deployment-script)
 //   - One-shot deployment script: generates master key + DB password into KV
-//   - Container Apps Environment (Consumption profile, no VNet)
+//   - Container Apps Environment (Consumption profile)
 //   - Container App: worker (always-on, no ingress)
 //   - Optional: Log Analytics workspace (or BYO via parameter)
 //
-// No VNet. No private endpoints. No public IP we provision.
+// networkMode = 'public' (default): no VNet, no private endpoints.
+// networkMode = 'private' (NEW deployments only): a VNet with private endpoints
+// for Key Vault, Storage and Postgres; the web app uses VNet integration and the
+// worker environment runs in the VNet. See docs/architecture/azure-deployment.md.
 
 targetScope = 'resourceGroup'
 
@@ -43,13 +45,56 @@ param sizeProfile string = 's'
 @allowed(['stable', 'edge'])
 param imageChannel string = 'stable'
 
+@description('Optional: the exact release to run, e.g. 6.0.2.0 (a release) or 6.1.0-beta.1 (a pre-release) — every release is published under its version for all three images. When set it overrides imageChannel, so each deployment is reproducible and an upgrade or a rollback is a change to this one value. Empty = follow imageChannel.')
+param imageTag string = ''
+
+@description('Optional: FULL ARM resource ID of your own Azure Container Registry to pull the images from instead of ghcr.io — typically a pull-through cache of ghcr.io/fortigi/* (an ACR cache rule). The images must be at the same paths: fortigi/identity-atlas, fortigi/identity-atlas-worker, fortigi/identity-atlas-report-generator. The template creates a pull identity and grants it AcrPull on this registry, so the deployer needs the right to create role assignments there. Empty = pull from public ghcr.io.')
+param containerRegistryResourceId string = ''
+
+@description('Deploy the EXPERIMENTAL report generator: a small language model in its own container that turns a report described in plain language into a report definition. Scales to zero, so it only costs while in use. Questions and data never leave the deployment. Leave false to keep custom reports hand-built only.')
+param deployReportGenerator bool = false
+
+@description('Optional: the API key the web app uses to reach the report generator. Empty (recommended) = generated once into Key Vault and kept across redeploys. Set it only to choose the key yourself.')
+@secure()
+param reportGeneratorApiKey string = ''
+
+@description('Optional: CIDRs allowed to reach the report generator, e.g. ["20.1.2.3/32"]. The report generator has public ingress (there is no VNet in this shape) and the API key is what protects it; this narrows it further to the web app\'s outbound addresses. deploy.ps1 fills this in from the existing web app, so a first deployment leaves it empty and a re-run narrows it. Empty = any IP may connect, and must still present the key.')
+param reportGeneratorAllowedCallerIps array = []
+
 @description('Optional: FULL ARM resource ID of an existing Log Analytics workspace to forward logs to. Leave empty to create a new workspace (~€3/mo). Must look like /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name> — copy it from the workspace\'s Overview → JSON View, NOT the parent resource group. The deployer needs Log Analytics Reader on the workspace.')
 param existingLogAnalyticsWorkspaceId string = ''
 
-// Entra ID auth is NOT configured by this template. It deploys the app in
-// OPEN mode (anyone with the URL can reach it). To turn auth on, run
-// `main-auth.bicep` (Step 2) against the resulting RG once you've registered
-// an App Reg in Entra with the deployed hostname as a SPA redirect URI.
+@description('Network shape. **public** (default) = public endpoints; Postgres accepts only the web app\'s outbound IPs. **private** = VNet + private endpoints for Key Vault, Storage and Postgres (about EUR 25/mo extra). Choose private only when creating a NEW deployment: an existing Container Apps environment cannot be moved into a VNet.')
+@allowed(['public', 'private'])
+param networkMode string = 'public'
+
+@description('Web app access restriction for requests that match no allow rule. **Allow** (default) = reachable from the internet (sign-in is enforced by the app). **Deny** = only webAllowedIpCidrs (and, in private mode, the worker subnet). In public mode the worker calls the web app\'s public URL, so add its outbound IP to webAllowedIpCidrs before choosing Deny.')
+@allowed(['Allow', 'Deny'])
+param webAccessDefaultAction string = 'Allow'
+
+@description('Optional: IPv4 CIDRs allowed to reach the web app, e.g. ["203.0.113.0/24"]. A non-empty list implies Deny for everything else.')
+param webAllowedIpCidrs array = []
+
+@description('Replace the Postgres admin password with a new random value during this deployment. Leave false for normal redeploys. Set true once on deployments created before random passwords were introduced; the web app restarts onto the new password.')
+param rotatePostgresPassword bool = false
+
+@description('Restore the legacy Postgres firewall rule that admits all Azure services (any tenant). Not recommended; public network mode only.')
+param postgresAllowAllAzureServices bool = false
+
+// Entra ID sign-in: two ways to configure it.
+//   - Step 2 (`main-auth.bicep`) after this one — the Deploy to Azure path,
+//     because the redirect URI needs this deployment's hostname first. But this
+//     template REPLACES the app settings, so every redeploy of it clears what
+//     Step 2 set and users land on "Entra ID setup required" until Step 2 runs
+//     again.
+//   - The two parameters below, for a deployment managed as code: put them in
+//     the parameters file once (after registering the app against the hostname
+//     of the first deployment) and every redeploy keeps sign-in configured.
+@description('Optional: Entra ID tenant (directory) GUID for sign-in. Set it together with entraClientId to keep sign-in configured across redeploys — needed when this template is redeployed for upgrades. Empty = configure sign-in with Step 2 (main-auth), which a redeploy of this template clears again.')
+param entraTenantId string = ''
+
+@description('Optional: Entra ID App Registration (client) GUID for sign-in. See entraTenantId.')
+param entraClientId string = ''
 
 // ─── Size profile → SKUs ─────────────────────────────────────────────────
 
@@ -112,20 +157,29 @@ var profile = sizeMap[sizeProfile]
 // time; resources don't get a per-resource override.
 var location = resourceGroup().location
 
-// Resolve image references from the channel selector.
-var _imageTag = imageChannel == 'stable' ? 'latest' : 'edge'
-var webImage = 'ghcr.io/fortigi/identity-atlas:${_imageTag}'
-var workerImage = 'ghcr.io/fortigi/identity-atlas-worker:${_imageTag}'
+// Resolve image references: an exact version when one is given, otherwise the
+// channel's floating tag.
+var _imageTag = !empty(imageTag) ? imageTag : (imageChannel == 'stable' ? 'latest' : 'edge')
 
-// Postgres admin password. Deterministic — same RG + name prefix always
-// produces the same value, so re-deploys don't rotate the password. Meets
-// Postgres complexity rules (upper + lower + digit + special).
-//
-// Security model: anyone with RG read access can derive this, but they also
-// have admin rights to KV and Postgres firewall, so password unpredictability
-// isn't the boundary. Real security = managed identity + KV access policies +
-// firewall.
-var pgPassword = '${uniqueString(resourceGroup().id, namePrefix, 'pg-base')}!Aa1${take(uniqueString(resourceGroup().id, namePrefix, 'pg-x'), 4)}'
+// Where the images come from. A configured registry is the customer's own ACR,
+// usually a pull-through cache of ghcr.io; its login server comes from the
+// registry itself (acr-pull-role.bicep), so it cannot be mistyped.
+var privateRegistry = !empty(containerRegistryResourceId)
+// Never split an empty ID: the placeholder keeps the indexes below valid when no
+// registry is configured (the modules that use them are then not deployed).
+var _acrIdParts = split(privateRegistry ? containerRegistryResourceId : '/subscriptions/none/resourceGroups/none/providers/Microsoft.ContainerRegistry/registries/none', '/')
+var registryServer = privateRegistry ? acrPullRole!.outputs.loginServer : 'ghcr.io'
+var webImage = '${registryServer}/fortigi/identity-atlas:${_imageTag}'
+var workerImage = '${registryServer}/fortigi/identity-atlas-worker:${_imageTag}'
+var reportGeneratorImage = '${registryServer}/fortigi/identity-atlas-report-generator:${_imageTag}'
+
+// Postgres admin password: generated randomly by the bootstrap script and kept
+// in Key Vault (SEC-2026-09 H-06). It used to be derived here with
+// uniqueString(), a deterministic hash of the subscription ID and resource group
+// name. Existing deployments keep their current password until an operator sets
+// rotatePostgresPassword=true (see modules/bootstrap.bicep).
+
+var privateNetworking = networkMode == 'private'
 
 // ─── Foundation ──────────────────────────────────────────────────────────
 
@@ -151,6 +205,14 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
+module network 'modules/network.bicep' = if (privateNetworking) {
+  name: 'network'
+  params: {
+    namePrefix: namePrefix
+    location: location
+  }
+}
+
 module identities 'modules/identities.bicep' = {
   name: 'identities'
   params: {
@@ -159,9 +221,8 @@ module identities 'modules/identities.bicep' = {
   }
 }
 
-// Compute the KV name HERE (not inside the module) so the `existing`
-// reference below can use the same static value. Bicep can't take
-// dependencies on names produced by `module.outputs.*` (BCP433).
+// Compute the KV name HERE (not inside the module) so the private-network
+// lockdown pass below re-applies the same vault.
 var kvName = take('${namePrefix}-kv-${uniqueString(resourceGroup().id)}', 24)
 
 module kv 'modules/key-vault.bicep' = {
@@ -183,34 +244,77 @@ module bootstrap 'modules/bootstrap.bicep' = {
     location: location
     identityId: identities.outputs.deployScriptIdentityId
     keyVaultName: kv.outputs.kvName
-    pgPasswordToStore: pgPassword
+    rotatePostgresPassword: rotatePostgresPassword
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+    containerRegistryResourceId: containerRegistryResourceId
+    reportGeneratorApiKey: reportGeneratorApiKey
   }
+}
+
+// ─── Images from your own registry (optional) ──────────────────────────
+//
+// An identity that can only pull, granted AcrPull on the customer's registry.
+// The role assignment waits for the bootstrap script, which checks the
+// registry ID's format first so a typo fails with a readable message.
+
+module pullIdentity 'modules/registry-pull-identity.bicep' = if (privateRegistry) {
+  name: 'registry-pull-identity'
+  params: {
+    namePrefix: namePrefix
+    location: location
+  }
+}
+
+module acrPullRole 'modules/acr-pull-role.bicep' = if (privateRegistry) {
+  name: 'acr-pull-role'
+  scope: resourceGroup(_acrIdParts[2], _acrIdParts[4])
+  params: {
+    registryName: _acrIdParts[8]
+    principalId: pullIdentity!.outputs.principalId
+  }
+  dependsOn: [bootstrap]
 }
 
 // ─── Postgres ───────────────────────────────────────────────────────────
 
-module postgres 'modules/postgres.bicep' = {
+// The password is read with getSecret() INSIDE the wrapper, which gets the vault
+// name from the key-vault module's output. Never pass getSecret() on a vault
+// named statically here: ARM then resolves it at preflight, before the vault
+// exists, and every fresh install fails with KeyVaultParameterReferenceNotFound.
+// The value never appears in the template, the parameters or the history.
+module postgres 'modules/postgres-kv-password.bicep' = {
   name: 'postgres'
   params: {
+    keyVaultName: kv.outputs.kvName
     namePrefix: namePrefix
     location: location
-    adminPassword: pgPassword
     skuName: profile.postgresSku
     skuTier: profile.postgresTier
     storageGb: profile.postgresStorageGb
+    publicNetworkAccess: privateNetworking ? 'Disabled' : 'Enabled'
   }
+  // The secret is created (or rotated) by the bootstrap script.
+  dependsOn: [bootstrap]
 }
 
 // ─── App Service (web) ──────────────────────────────────────────────────
 
+// The report generator's hostname is deterministic (app name + environment domain),
+// so the web app can be told where it will be without depending on that module.
+var reportGeneratorUrl = deployReportGenerator ? 'https://${namePrefix}-report-generator.${cae.outputs.defaultDomain}' : ''
+
 module web 'modules/app-service.bicep' = {
   name: 'app-service'
   params: {
+    reportGeneratorUrl: reportGeneratorUrl
+    reportGeneratorKeySecretUri: deployReportGenerator ? bootstrap.outputs.reportGeneratorKeySecretUri : ''
     namePrefix: namePrefix
     location: location
     sku: profile.appServiceSku
     image: webImage
+    registryServer: registryServer
+    pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
+    pullIdentityClientId: privateRegistry ? pullIdentity!.outputs.clientId : ''
     identityId: identities.outputs.webIdentityId
     keyVaultUri: kv.outputs.kvUri
     pgFqdn: postgres.outputs.pgFqdn
@@ -219,8 +323,42 @@ module web 'modules/app-service.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName
     logAnalyticsWorkspaceId: logs.outputs.workspaceId
+    pgPasswordSecretUri: bootstrap.outputs.pgPasswordSecretUri
+    entraTenantId: entraTenantId
+    entraClientId: entraClientId
+    ipSecurityRestrictionsDefaultAction: webAccessDefaultAction
+    allowedIpCidrs: webAllowedIpCidrs
+    vnetIntegrationSubnetId: privateNetworking ? network!.outputs.webSubnetId : ''
+    workerSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
   }
-  dependsOn: [bootstrap]
+}
+
+// ─── Postgres network access ───────────────────────────────────────────────
+
+// Public mode: only the web app's outbound addresses may connect.
+module postgresFirewall 'modules/postgres-firewall.bicep' = if (!privateNetworking) {
+  name: 'postgres-firewall'
+  params: {
+    pgName: postgres.outputs.pgName
+    appOutboundIpAddresses: web.outputs.possibleOutboundIpAddresses
+    allowAllAzureServices: postgresAllowAllAzureServices
+  }
+}
+
+// Private mode: private endpoints for Key Vault, Storage and Postgres.
+module privateEndpoints 'modules/private-endpoints.bicep' = if (privateNetworking) {
+  name: 'private-endpoints'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    subnetId: network!.outputs.privateEndpointSubnetId
+    keyVaultId: kv.outputs.kvId
+    storageAccountId: storage.outputs.storageAccountId
+    postgresId: postgres.outputs.pgId
+    keyVaultZoneId: network!.outputs.keyVaultZoneId
+    fileZoneId: network!.outputs.fileZoneId
+    postgresZoneId: network!.outputs.postgresZoneId
+  }
 }
 
 // ─── Container Apps Environment (for the worker) ─────────────────────────
@@ -234,6 +372,8 @@ module cae 'modules/aca-env.bicep' = {
     workspaceId: logs.outputs.workspaceId
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName
+    promptCacheShareName: storage.outputs.promptCacheShareName
+    infrastructureSubnetId: privateNetworking ? network!.outputs.acaSubnetId : ''
   }
 }
 
@@ -247,10 +387,69 @@ module worker 'modules/aca-app-worker.bicep' = {
     envId: cae.outputs.envId
     uploadsStorageName: cae.outputs.uploadsStorageName
     image: workerImage
+    registryServer: registryServer
+    pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
     webAppHostname: web.outputs.appHostname
     cpu: profile.workerCpu
     memory: profile.workerMemory
   }
+}
+
+// ─── Report generator Container App (experimental, opt-in) ──────────────
+
+module reportGenerator 'modules/report-generator-kv-key.bicep' = if (deployReportGenerator) {
+  name: 'aca-app-report-generator'
+  params: {
+    // The API key is read from Key Vault inside the wrapper (bootstrap writes it).
+    keyVaultName: kv.outputs.kvName
+    namePrefix: namePrefix
+    location: location
+    envId: cae.outputs.envId
+    promptCacheStorageName: cae.outputs.promptCacheStorageName
+    image: reportGeneratorImage
+    registryServer: registryServer
+    pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
+    // Only the web app should reach it. These are shared Azure outbound addresses,
+    // so this narrows the exposure without being a boundary — the API key is that.
+    // NOT in the private network mode: there the web app routes all outbound traffic
+    // through the VNet (vnetRouteAllEnabled, no NAT gateway), so its calls do not
+    // leave from the addresses on this list, and the list would lock it out.
+    allowedCallerIps: privateNetworking ? [] : reportGeneratorAllowedCallerIps
+  }
+}
+
+// ─── Private mode: close the public paths ────────────────────────────────
+//
+// Key Vault and Storage stay open while the deployment runs: the bootstrap
+// script reaches the vault from a Microsoft-hosted container, and the web app
+// and worker need their private endpoints before the share is closed. Once
+// everything above has succeeded, the same modules are applied again with a
+// Deny default. A failed step (for example trying to move an existing
+// deployment's worker environment into the VNet) stops the deployment before
+// this point, so nothing still in use is closed. A redeploy re-opens both for
+// its duration and closes them again at the end.
+
+module kvLockdown 'modules/key-vault.bicep' = if (privateNetworking) {
+  name: 'key-vault-lockdown'
+  params: {
+    location: location
+    kvName: kvName
+    webIdentityPrincipalId: identities.outputs.webIdentityPrincipalId
+    deployScriptPrincipalId: identities.outputs.deployScriptIdentityPrincipalId
+    networkDefaultAction: 'Deny'
+  }
+  dependsOn: [bootstrap, postgres, web, worker, privateEndpoints]
+}
+
+module storageLockdown 'modules/storage.bicep' = if (privateNetworking) {
+  name: 'storage-lockdown'
+  params: {
+    namePrefix: namePrefix
+    location: location
+    networkDefaultAction: 'Deny'
+  }
+  // The report generator mounts its prompt cache from this account as well.
+  dependsOn: [web, cae, worker, privateEndpoints, reportGenerator]
 }
 
 // ─── Outputs ────────────────────────────────────────────────────────────
@@ -272,6 +471,9 @@ output postgresFqdn string = postgres.outputs.pgFqdn
 
 @description('Sizing profile in use.')
 output sizeProfileApplied string = sizeProfile
+
+@description('Network shape in use (public or private).')
+output networkModeApplied string = networkMode
 
 @description('True if a new Log Analytics workspace was created; false if BYO was used.')
 output logAnalyticsCreated bool = logs.outputs.createdNew

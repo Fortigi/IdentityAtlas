@@ -13,13 +13,24 @@
 
 .PARAMETER ConfigPath
     Path to a temporary JSON file containing the crawler configuration. The demo
-    crawler reads one optional key from it:
+    crawler reads two optional keys from it:
 
       includeVolumeData  — when true, generate the dataset with its opt-in volume
                            slice (~520 extra groups with distinct descriptions),
                            so the environment holds more than 500 distinct
                            resource descriptions. See test/demo-dataset/parts/
                            DemoVolume.ps1.
+
+      includeRealismData — when true, add the realism slice: ~600 staff in ten
+                           departments with careers, guests, leavers, accounts in
+                           several systems linked into one identity, ~180 groups
+                           in naming families, nesting, business roles that grant
+                           groups and application roles, and an attestation
+                           campaign. For measuring reports and the chat assistant
+                           against questions that have more than one possible
+                           answer. See test/demo-dataset/parts/DemoRealism*.ps1,
+                           and run test/demo-dataset/Simulate-AccessChanges.sql
+                           afterwards to give the access history a past.
 #>
 [CmdletBinding()]
 param(
@@ -31,19 +42,29 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# The demo job is normally queued with no config at all, so a missing or
-# unreadable file simply means "all defaults" rather than an error.
-$includeVolumeData = $false
-if (Test-Path $ConfigPath) {
+# Which optional slices this run was asked for.
+#
+# The demo job is normally queued with no config at all, so a missing or unreadable
+# file simply means "all defaults" rather than an error: loading demo data is the
+# point of the job, and refusing to do it because a settings file was not there
+# would be the wrong trade.
+function Get-DemoCrawlerOptions {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Path)
+
+    $options = @{ IncludeVolume = $false; IncludeRealism = $false }
+    if (-not (Test-Path $Path)) { return $options }
     try {
-        $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-        if ($config.PSObject.Properties.Name -contains 'includeVolumeData') {
-            $includeVolumeData = [bool]$config.includeVolumeData
-        }
+        $config = Get-Content $Path -Raw | ConvertFrom-Json
+        $named = $config.PSObject.Properties.Name
+        if ($named -contains 'includeVolumeData') { $options.IncludeVolume = [bool]$config.includeVolumeData }
+        if ($named -contains 'includeRealismData') { $options.IncludeRealism = [bool]$config.includeRealismData }
     } catch {
         Write-Host "  Warning: could not read crawler config — using defaults ($($_.Exception.Message))" -ForegroundColor Yellow
     }
+    return $options
 }
+
+$options = Get-DemoCrawlerOptions -Path $ConfigPath
 
 $appRoot     = if ($env:IA_APP_ROOT) { $env:IA_APP_ROOT.TrimEnd('/\') } else { '/app' }
 $datasetPath = "$appRoot/test/demo-dataset/demo-company.json"
@@ -73,12 +94,18 @@ Update-DemoProgress -Step 'Loading demo dataset' -Pct 10
 $genScript = "$appRoot/test/demo-dataset/Generate-DemoDataset.ps1"
 if (Test-Path $genScript) {
     Update-DemoProgress -Step 'Generating demo dataset' -Pct 5
-    if ($includeVolumeData) {
+    # Both slices are opt-in and independent, so the switches are passed through
+    # rather than branched over every combination.
+    $genArgs = @{ OutputPath = $datasetPath }
+    if ($options.IncludeVolume) {
         Write-Host "  Including the high-cardinality volume slice" -ForegroundColor Cyan
-        & $genScript -OutputPath $datasetPath -IncludeVolume
-    } else {
-        & $genScript -OutputPath $datasetPath
+        $genArgs['IncludeVolume'] = $true
     }
+    if ($options.IncludeRealism) {
+        Write-Host "  Including the realism slice (~600 staff, several systems, business roles)" -ForegroundColor Cyan
+        $genArgs['IncludeRealism'] = $true
+    }
+    & $genScript @genArgs
 } elseif (-not (Test-Path $datasetPath)) {
     throw "Demo dataset not found at $datasetPath and generator not available"
 }

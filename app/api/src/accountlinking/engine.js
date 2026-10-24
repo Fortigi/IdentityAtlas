@@ -29,17 +29,18 @@ import {
   normalizeName,
   emailLocalPart,
   stripKnownPrefixes,
-  nameMatchLevel,
+  bestNameMatch,
 } from './classifier.js';
 import {
   norm,
   fullName,
-  personName,
+  personNames,
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
   indexIdentities,
   collectCandidates,
+  resolveNameTie,
   aggregateByIdentity,
 } from './engine.helpers.js';
 
@@ -57,7 +58,7 @@ export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
   // exclusive: only the signal whose level equals the computed best level fires.
   let level;
   const getLevel = () => {
-    if (level === undefined) level = nameMatchLevel(personName(orphan), personName(identity));
+    if (level === undefined) level = bestNameMatch(personNames(orphan), personNames(identity));
     return level;
   };
   for (const sig of (rules.signals || [])) {
@@ -108,25 +109,22 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
 }
 
 /**
- * Best above-threshold candidate identity for a set, plus the tie count at that
- * confidence. Candidates are scored in insertion order; the first to reach the
- * high-water mark wins, later equal scores only bump `ties`.
- * @returns {{ best: object|null, ties: number }}
+ * Best above-threshold candidate identity for a set, and every above-threshold
+ * candidate (which the ambiguity guard needs to see the ties). Candidates are
+ * scored in insertion order; the first to reach the high-water mark wins.
+ * @returns {{ best: object|null, scored: object[] }}
  */
 function pickBest(orphan, candidates, rules, threshold) {
+  const scored = [];
   let best = null;
-  let ties = 0;
   for (const idy of candidates.values()) {
     const { confidence, signals } = scoreMatch(orphan, idy, rules);
     if (confidence < threshold) continue;
-    if (!best || confidence > best.confidence) {
-      best = { identityId: idy.id, confidence, signals };
-      ties = 1;
-    } else if (confidence === best.confidence) {
-      ties++;
-    }
+    const candidate = { identityId: idy.id, confidence, signals };
+    scored.push(candidate);
+    if (!best || confidence > best.confidence) best = candidate;
   }
-  return { best, ties };
+  return { best, scored };
 }
 
 /**
@@ -139,20 +137,28 @@ function buildLinkForOrphan(orphan, ctx) {
   if (!onlyTypes.has(accountType)) return null;
 
   const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes });
-  const { best, ties } = pickBest(orphan, candidates, rules, threshold);
+  const { best, scored } = pickBest(orphan, candidates, rules, threshold);
   if (!best) return null;
 
   // Ambiguity guard: a name-only match (no strong email/employeeId signal) that
   // ties across multiple identities is too risky to auto-pick — leave it orphan
-  // for the principals-clustering / manual review path rather than guess.
+  // for the principals-clustering / manual review path rather than guess. The
+  // tie is read per name first: an account carries several names, and a namesake
+  // on one of them does not veto the person who is the only match on another
+  // (see resolveNameTie).
   const nameOnly = best.signals.length > 0 && best.signals.every(s => nameSigs.has(s));
-  if (nameOnly && ties > 1) return null;
+  const tied = scored.filter(s => s.confidence === best.confidence);
+  let winner = best;
+  if (nameOnly && tied.length > 1) {
+    winner = resolveNameTie(orphan, tied, indexes.byNameKey);
+    if (!winner) return null;
+  }
 
   return {
     principalId: orphan.id,
-    identityId: best.identityId,
-    confidence: best.confidence,
-    signals: best.signals,
+    identityId: winner.identityId,
+    confidence: winner.confidence,
+    signals: winner.signals,
     accountType,
     accountTypePattern: pattern,
     displayName: orphan.displayName ?? null,

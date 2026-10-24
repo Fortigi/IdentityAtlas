@@ -23,6 +23,8 @@ vi.mock('../bootstrap.js', () => ({ getOrCreateTagRoot: vi.fn(async () => 'root-
 vi.mock('../contexts/memberCounts.js', () => ({ recalcMemberCountsForChain: vi.fn(async () => {}) }));
 
 const { default: router } = await import('./tags.js');
+const { createParams } = await import('../db/sqlParams.js');
+const { buildSearchWhere } = await import('../lib/entitySearch.js');
 const app = mountRouter(router);
 
 const VALID = '11111111-1111-1111-1111-111111111111';
@@ -257,6 +259,59 @@ describe('POST /tags/:id/assign-by-filter', () => {
     expect(res.body).toEqual({ ok: true, inserted: 0 });
   });
 
+  // "Tag all N matching" must tag the rows the list showed: same columns, same
+  // mode. Each case compares against the list's own search fragment.
+  it.each([
+    ['user', 'principal', 'Principal'],
+    ['identity', 'identity', 'Identity'],
+    ['resource', 'resource', 'Resource'],
+    ['group', 'resource', 'Resource'],
+  ])('%s: the bulk search is the list search, in both modes', async (entityType, entity, targetType) => {
+    for (const extendedSearch of [false, true]) {
+      query.mockReset();
+      queryOne.mockResolvedValueOnce({ id: VALID, targetType });
+      query.mockResolvedValueOnce({ rowCount: 1 });
+      await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType, search: 'CI0012345', extendedSearch });
+      const { bind } = createParams();
+      bind(VALID); // the tag id is bound first in the bulk query
+      const expected = buildSearchWhere(entity, 'e', 'CI0012345', { extended: extendedSearch, linkedPrincipals: entity === 'identity' }, bind);
+      expect(String(query.mock.calls[0][0])).toContain(`${expected})`);
+    }
+  });
+
+  // "Tag all N matching" must leave out what the list left out before any
+  // search: deleted rows (unless "Include deleted" is ticked) and, on the
+  // Resources list, business roles.
+  it.each([
+    ['user', false, ['e."deletedAt" IS NULL'], ['resourceType']],
+    ['user', true, [], ['deletedAt', 'resourceType']],
+    ['resource', false, ['e."deletedAt" IS NULL', `e."resourceType" NOT IN ('BusinessRole')`], []],
+    ['resource', true, [`e."resourceType" NOT IN ('BusinessRole')`], ['deletedAt']],
+    ['identity', false, [], ['deletedAt', 'resourceType']],
+    ['group', false, [], ['deletedAt', 'resourceType']],
+  ])('%s, includeDeleted=%s: scoped like its list', async (entityType, includeDeleted, present, absent) => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType, includeDeleted });
+    const sql = String(query.mock.calls[0][0]);
+    for (const p of present) expect(sql).toContain(p);
+    for (const a of absent) expect(sql).not.toContain(a);
+  });
+
+  it('only a literal true includes deleted rows', async () => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType: 'user', includeDeleted: 'true' });
+    expect(String(query.mock.calls[0][0])).toContain('e."deletedAt" IS NULL');
+  });
+
+  it('only a literal true switches the bulk search to extended', async () => {
+    queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType: 'user', search: 'CI0012345', extendedSearch: 'yes' });
+    expect(String(query.mock.calls[0][0])).not.toContain('ia_search_text');
+  });
+
   it('applies the __system filter so bulk-tag cannot over-tag other systems', async () => {
     queryOne.mockResolvedValueOnce({ id: VALID, targetType: 'Principal' });
     query.mockResolvedValueOnce({ rowCount: 2 });
@@ -361,6 +416,39 @@ describe('GET /users', () => {
     expect(String(sql)).not.toMatch(/u\."__system"/);
   });
 
+  it('a normal search also matches the employee id and external id', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    await request(app).get('/api/users?search=E-77');
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('u."employeeId" ILIKE $1');
+    expect(sql).toContain('u."externalId" ILIKE $1');
+    expect(sql).not.toContain('ia_search_text');
+  });
+
+  it('an extended search finds a phone number written differently and says where', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{
+        id: VALID, displayName: 'Jan', userPrincipalName: 'jan@x.nl', tagString: null,
+        extendedAttributes: { mobilePhone: '+31 6 1234 5678' },
+      }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/users?search=0612345678&extendedSearch=true');
+    const [sql, params] = query.mock.calls[0];
+    expect(String(sql)).toContain('public.ia_search_text(ARRAY[u."id"::text');
+    expect(params.slice(0, 2)).toEqual(['%0612345678%', '%612345678%']);
+    expect(res.body.data[0].matchedOn).toEqual(['mobilePhone']);
+  });
+
+  it('matchedOn names email under the column it came from, not its userPrincipalName alias', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ id: VALID, displayName: 'X', userPrincipalName: 'jan@x.nl', tagString: null, extendedAttributes: null }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/users?search=jan@x&extendedSearch=1');
+    expect(res.body.data[0].matchedOn).toEqual(['email']);
+  });
+
   it('500 when the query rejects', async () => {
     query.mockRejectedValueOnce(new Error('boom'));
     const res = await request(app).get('/api/users');
@@ -377,6 +465,14 @@ describe('GET /groups', () => {
     const res = await request(app).get(`/api/groups?search=g&tagId=${VALID}&resourceType=Group&filters=${filters}`);
     expect(res.status).toBe(200);
     expect(res.body.total).toBe(1);
+  });
+
+  it('an extended search runs over the resource index expression', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
+    await request(app).get('/api/groups?search=CI0012345&extendedSearch=true');
+    expect(String(query.mock.calls[0][0])).toContain('public.ia_search_text(ARRAY[r."id"::text');
   });
 
   it('200 accepts __resourceTag filter alias', async () => {

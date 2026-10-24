@@ -87,6 +87,21 @@ describe('SEC-NEW-3: delta-token endpoints are scoped to the crawler\'s systems'
     expect(res.status).toBe(200);
   });
 
+  it('rejects reading photo state for a system the crawler cannot access (403)', async () => {
+    // Same scoping rule as the delta tokens: photo state lists the principal
+    // ids of a system, so an out-of-scope crawler must not be able to
+    // enumerate another system's users through it.
+    const res = await request(appAs(ingestOnly)).get('/api/crawlers/photo-state?systemId=9');
+    expect(res.status).toBe(403);
+    expect(mockDbQuery).not.toHaveBeenCalled();
+  });
+
+  it('allows reading photo state for an in-scope system', async () => {
+    mockDbQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await request(appAs(ingestOnly)).get('/api/crawlers/photo-state?systemId=7');
+    expect(res.status).toBe(200);
+  });
+
   it('the worker (systemIds=null) may read any system\'s token', async () => {
     mockDbQuery.mockResolvedValueOnce({ rows: [] });
     const res = await request(appAs(worker)).get('/api/crawlers/delta-tokens/users-delta?systemId=999');
@@ -98,5 +113,13 @@ describe('SEC-NEW-3: delta-token endpoints are scoped to the crawler\'s systems'
       .put('/api/crawlers/delta-tokens/users-delta')
       .send({ systemId: 9, token: 'abc' });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('SEC-2026-09 M-05: job-progress is part of the worker protocol', () => {
+  it('rejects an ingest-only key (403) before reading any job', async () => {
+    const res = await request(appAs(ingestOnly)).post('/api/crawlers/job-progress').send({ jobId: 5, step: 'x' });
+    expect(res.status).toBe(403);
+    expect(mockDbQuery).not.toHaveBeenCalled();
   });
 });

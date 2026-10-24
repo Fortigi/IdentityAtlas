@@ -9,19 +9,6 @@ import noHardcodedCrawlerMeta from './eslint-rules/no-hardcoded-crawler-meta.js'
 import noRelativePackageImports from './eslint-rules/no-relative-package-imports.js';
 import noDuplicateDarkColor from './eslint-rules/no-duplicate-dark-color.js';
 
-// Files that still use native confirm()/alert()/prompt() (the pre-existing
-// backlog). They're downgraded to a warning so CI stays green while new code
-// is gated as an error. Remove a file from this list once it's migrated to an
-// in-app dialog/toast. See the UI Style Guide § Enforcement.
-const NATIVE_DIALOG_ALLOWLIST = [
-  '**/components/AccessPackagesPage.jsx',
-  '**/components/AdminPage.jsx',
-  '**/components/RiskProfileWizard.jsx',
-  '**/components/RolesPermissionsSection.jsx',
-  '**/components/matrix/MatrixFilterWizard.jsx',
-  '**/hooks/useEntityPage.js',
-];
-
 export default [
   { ignores: ['dist', 'playwright-report', 'test-results', 'coverage'] },
   {
@@ -90,11 +77,6 @@ export default [
     files: ['src/**/*.{js,jsx}'],
     ignores: ['src/**/*.test.{js,jsx}', 'src/__tests__/**'],
     rules: { 'local/no-relative-package-imports': 'error' },
-  },
-  {
-    // Pre-existing native-dialog offenders: warn (don't fail CI) until migrated.
-    files: NATIVE_DIALOG_ALLOWLIST,
-    rules: { 'local/no-native-dialogs': 'warn' },
   },
   {
     // The jargon rule definition, tests, and e2e specs legitimately contain the

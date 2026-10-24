@@ -29,6 +29,9 @@
     Resources block and read by the later blocks.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 # ─── Sync OAuth2 Delegated Grants ────────────────────────────────
 # Per-user consent grants: user authorized client-app X to call target-API Y on
 # their behalf with scope Z. Modelled as a child-resource tree:
@@ -39,9 +42,9 @@
 #                 └─ ResourceAssignments(OAuth2Grant)  <-- one row per consenting user
 #
 # The scope resource ID is deterministic over (clientSpId, targetApiSpId, scope)
-# so re-runs idempotently overwrite the same rows. Tenant-wide consents
-# (consentType='AllPrincipals', principalId=null) are skipped — they don't
-# represent a user-specific decision. A distinct relationshipType (
+# so re-runs idempotently overwrite the same rows. A tenant-wide consent
+# (consentType='AllPrincipals') has no user to hold it: it marks the scope
+# resource adminConsented instead. A distinct relationshipType (
 # 'DelegatesScope' not 'Contains') keeps the scoped full-sync delete from
 # wiping out the Access Package 'Contains' relationships produced by the
 # governance sync above.
@@ -63,18 +66,17 @@ function Sync-EntraOAuth2Grants {
         $total = @($grants).Count
         Write-Host "  Fetched $total OAuth2 permission grants" -ForegroundColor Gray
 
-        # Keep only per-user consents — AllPrincipals are tenant-wide admin
-        # consents that we explicitly skip (they don't reflect an individual
-        # user's authorization decision).
-        $userGrants = @($grants | Where-Object { $_.consentType -eq 'Principal' -and $_.principalId })
-        Write-Host "  $($userGrants.Count) per-user consents (skipping $($total - $userGrants.Count) tenant-wide)" -ForegroundColor Gray
+        # A per-user consent names its user; a tenant-wide (admin) one never stands for one user.
+        $userGrants  = @($grants | Where-Object { $_.consentType -eq 'Principal' -and $_.principalId })
+        $adminGrants = @($grants | Where-Object { $_.consentType -eq 'AllPrincipals' })
+        Write-Host "  $($userGrants.Count) per-user + $($adminGrants.Count) tenant-wide consents (of $total)" -ForegroundColor Gray
 
-        if ($userGrants.Count -eq 0) {
+        if ($userGrants.Count + $adminGrants.Count -eq 0) {
             Write-Host "  Nothing to ingest" -ForegroundColor Yellow
         }
         else {
-            $spInfo = Get-EntraOAuth2SpInfo -UserGrants $userGrants
-            Send-EntraOAuth2GrantRecords -UserGrants $userGrants -SpInfo $spInfo -SystemId $SystemId
+            $spInfo = Get-EntraOAuth2SpInfo -UserGrants @($userGrants + $adminGrants)
+            Send-EntraOAuth2GrantRecords -UserGrants $userGrants -AdminGrants $adminGrants -SpInfo $spInfo -SystemId $SystemId
         }
     }
     catch {
@@ -119,14 +121,15 @@ function Get-EntraOAuth2SpInfo {
 # ConvertTo-EntraOAuth2ScopeGraph.
 function Send-EntraOAuth2GrantRecords {
     [CmdletBinding()]
-    param($UserGrants, [hashtable]$SpInfo, [int]$SystemId)
+    param($UserGrants, [hashtable]$SpInfo, [int]$SystemId, $AdminGrants = @())
     $clientIds = [System.Collections.Generic.HashSet[string]]::new()
-    foreach ($g in $UserGrants) { [void]$clientIds.Add($g.clientId) }
+    foreach ($g in @($UserGrants) + @($AdminGrants)) { if ($g.clientId) { [void]$clientIds.Add($g.clientId) } }
     $clientRecords = @($clientIds | ForEach-Object { ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $SpInfo[$_] })
     Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
-    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'Application' } -Records $clientRecords
+    # Delta (upsert only): the app-roles phase alone reconciles Application rows, over every SP.
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'delta' -Scope @{ resourceType = 'Application' } -Records $clientRecords
 
-    $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $UserGrants -SpInfo $SpInfo
+    $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $UserGrants -AdminGrants $AdminGrants -SpInfo $SpInfo
     $scopeRecords = @($scopeGraph.resources)
     Update-CrawlerProgress -Detail "Uploading $($scopeRecords.Count) scope resources..."
     Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'DelegatedPermission' } -Records $scopeRecords
@@ -279,7 +282,7 @@ function Get-EntraAppRoleAssignmentData {
     # either define appRoles[] or require role assignment to use. Graph's
     # /servicePrincipals can return tens of thousands of rows on a large
     # tenant; the $select keeps payload size small.
-    $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,tags&`$top=999"
+    $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,publisherName,tags&`$top=999"
     $allSps = @($sps)
     Write-Host "  Fetched $($allSps.Count) service principals" -ForegroundColor Gray
 
@@ -289,7 +292,6 @@ function Get-EntraAppRoleAssignmentData {
     Write-Host "  $($candidateSps.Count) enterprise apps with role catalogs / required assignment" -ForegroundColor Gray
 
     # Buckets accumulated across all SPs, then uploaded in one batch each.
-    $appResourceMap   = @{}   # spId        -> Application Resource record
     $appRoleMap       = @{}   # roleResId   -> AppRole Resource record
     $relMap           = @{}   # "spId|roleResId" -> relationship record
     $directAssns      = [System.Collections.Generic.List[object]]::new()
@@ -302,7 +304,7 @@ function Get-EntraAppRoleAssignmentData {
             Update-CrawlerProgress -Detail "Inspecting app $spProcessed of $($candidateSps.Count)..."
         }
         Add-EntraSpAppRoleData -Sp $sp -DefaultRoleId $DefaultRoleId `
-            -AppResourceMap $appResourceMap -AppRoleMap $appRoleMap -RelMap $relMap `
+            -AppRoleMap $appRoleMap -RelMap $relMap `
             -DirectAssns $directAssns -GroupAssns $groupAssns
     }
 
@@ -313,8 +315,10 @@ function Get-EntraAppRoleAssignmentData {
     $directRecords   = Select-FGDistinct -Items $directAssns   -Key { "$($_.resourceId)|$($_.principalId)" }
     $indirectRecords = Select-FGDistinct -Items $indirectAssns -Key { "$($_.resourceId)|$($_.principalId)" }
 
+    # One Application row per SP, not only the role-bearing ones: this batch is the
+    # only full sync of Application rows, so an app it left out would be soft-deleted.
     return @{
-        appRecords      = @($appResourceMap.Values)
+        appRecords      = @($allSps | ForEach-Object { ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $_ })
         roleRecords     = @($appRoleMap.Values)
         relRecords      = @($relMap.Values)
         directRecords   = $directRecords
@@ -323,11 +327,11 @@ function Get-EntraAppRoleAssignmentData {
 }
 
 # Fold one enterprise app's role catalog + assignments into the cross-SP accumulators
-# (all mutated in place). SPs with no assignments are skipped entirely (no empty
-# Application/AppRole rows); a failed /appRoleAssignedTo fetch is logged and skipped.
+# (all mutated in place). SPs with no assignments add no AppRole rows; a failed
+# /appRoleAssignedTo fetch is logged and skipped.
 function Add-EntraSpAppRoleData {
     [CmdletBinding()]
-    param($Sp, [string]$DefaultRoleId, [hashtable]$AppResourceMap, [hashtable]$AppRoleMap, [hashtable]$RelMap, $DirectAssns, [hashtable]$GroupAssns)
+    param($Sp, [string]$DefaultRoleId, [hashtable]$AppRoleMap, [hashtable]$RelMap, $DirectAssns, [hashtable]$GroupAssns)
     # Always include the "default access" role — SPs with appRoleAssignmentRequired=true
     # but no custom roles fall back to the zero-GUID role id.
     $rolesByGuid = Get-EntraAppRoleCatalog -ServicePrincipal $Sp -DefaultRoleId $DefaultRoleId
@@ -339,10 +343,6 @@ function Add-EntraSpAppRoleData {
         return
     }
     if ($assignments.Count -eq 0) { return }
-    # Emit the Application Resource (idempotent — the OAuth2 phase may have written it; the endpoint upserts).
-    if (-not $AppResourceMap.ContainsKey($Sp.id)) {
-        $AppResourceMap[$Sp.id] = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $Sp
-    }
     foreach ($a in $assignments) {
         Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $Sp -RolesByGuid $rolesByGuid -DefaultRoleId $DefaultRoleId `
             -AppRoleMap $AppRoleMap -RelMap $RelMap -DirectAssns $DirectAssns -GroupAssns $GroupAssns
@@ -542,9 +542,7 @@ function Sync-EntraResources {
     Update-CrawlerProgress -Step 'Syncing groups' -Pct 20 -Detail 'Fetching groups from Microsoft Graph...'
     $groups = @()
     try {
-        $coreGroupAttrs = @('id','displayName','description','mail','visibility','createdDateTime','groupTypes','securityEnabled','mailEnabled','membershipRule','membershipRuleProcessingState','onPremisesSyncEnabled','resourceProvisioningOptions')
-        $allGroupAttrs = $coreGroupAttrs + $CustomGroupAttributes | Select-Object -Unique
-        $groupSelect = $allGroupAttrs -join ','
+        $groupSelect = Get-EntraGroupSelect -CustomGroupAttributes $CustomGroupAttributes   # EntraIDCrawler.GroupDelta.ps1
         $groups = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/groups?`$select=$groupSelect&`$top=999"
 
         $records = @($groups | ForEach-Object {
@@ -757,13 +755,14 @@ function Get-EntraServicePrincipalData {
         [Parameter(Mandatory)] [int]$SystemId,
         [string]$SyncMode = 'delta'
     )
-    # `tags` and `servicePrincipalType` drive classification; `appId`,
-    # `appOwnerOrganizationId`, and `notes` go into extendedAttributes for
-    # downstream visibility. `accountEnabled` lives in its dedicated column.
+    # `tags` and `servicePrincipalType` drive classification; the rest goes into
+    # extendedAttributes (credentials = metadata only, see AppSecurity.ps1). The delta
+    # feed omits verifiedPublisher / signInAudience / appRoleAssignmentRequired: a
+    # changed SP loses them until the next full run, like `notes` already does.
     $spSelectAttrs = @(
-        'id','appId','displayName','servicePrincipalType','accountEnabled',
-        'tags','appOwnerOrganizationId','createdDateTime','notes',
-        'servicePrincipalNames','homepage','publisherName'
+        'id','appId','displayName','servicePrincipalType','accountEnabled','tags','appOwnerOrganizationId','createdDateTime','notes',
+        'servicePrincipalNames','homepage','publisherName','verifiedPublisher','signInAudience','appRoleAssignmentRequired','replyUrls',
+        'passwordCredentials','keyCredentials'
     )
     $spSelect = $spSelectAttrs -join ','
 
@@ -807,7 +806,7 @@ function Get-EntraServicePrincipalData {
         $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
         try {
             Write-Host "  Priming SP delta token (walks full /servicePrincipals/delta once)..." -ForegroundColor DarkGray
-            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=id"
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=$(Get-EntraDeltaSelect -Select $spSelect -Unsupported @())"
             $newSpsToken = $primeResp.deltaToken
             if ($newSpsToken) { Write-Host "  Primed SP delta token for next run" -ForegroundColor DarkGray }
         } catch {
@@ -1234,45 +1233,8 @@ function Sync-EntraGovernancePolicies {
     Write-Phase -Name 'Governance/AssignmentPolicies' -Duration $__polSW.Elapsed -ErrorMsg $__polErrMsg
 }
 
-# Fetch every decision under an access-review definition's instances and shape
-# them into CertificationDecisions records. All Graph I/O for one definition;
-# per-instance failures are logged and skipped. Pulled out of the review loop so
-# Sync-EntraGovernanceReviews stays under the complexity threshold.
-function Get-EntraAccessReviewCertRecords {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] $Definition,
-        [string]$ApId
-    )
-    $out = [System.Collections.Generic.List[object]]::new()
-    try {
-        $instances = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances?`$top=100")
-        foreach ($inst in $instances) {
-            $out.AddRange([object[]]@(Get-EntraReviewInstanceDecisions -Definition $Definition -Instance $inst -ApId $ApId))
-        }
-    } catch {
-        Write-Host "  Skipping review definition $($Definition.id): $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-    return $out
-}
-
-# All CertificationDecisions records for one access-review instance. Graph caps the
-# decisions collection at 100/page (larger $top 400s — rely on @odata.nextLink). A
-# per-instance failure is logged (with the real Graph error body) and skipped.
-function Get-EntraReviewInstanceDecisions {
-    [CmdletBinding()]
-    param($Definition, $Instance, [string]$ApId)
-    $out = [System.Collections.Generic.List[object]]::new()
-    try {
-        $decisions = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/accessReviews/definitions/$($Definition.id)/instances/$($Instance.id)/decisions")
-        foreach ($d in $decisions) {
-            $out.Add((ConvertTo-EntraCertificationDecisionRecord -Decision $d -Definition $Definition -Instance $Instance -ApId $ApId))
-        }
-    } catch {
-        Write-Host "    Skipping instance $($Instance.id): $(Get-FGGraphErrorDetail $_)" -ForegroundColor Yellow
-    }
-    return $out
-}
+# Get-EntraAccessReviewCertRecords / Get-EntraReviewInstanceDecisions live in
+# EntraIDCrawler.AccessReviews.ps1 (moved out for the file-length ratchet).
 
 # ─── Governance sub-phase: access reviews -> certifications ───────
 # Walk access-review definitions scoped to an access package, pull their
@@ -1469,7 +1431,7 @@ function Get-EntraUserData {
         $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$UserSelect&`$expand=manager(`$select=id)&`$top=999"
         try {
             Write-Host "  Priming delta token (walks full /users/delta once)..." -ForegroundColor DarkGray
-            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=id"
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=$(Get-EntraDeltaSelect -Select $UserSelect)"
             $newUsersToken = $primeResp.deltaToken
             if ($newUsersToken) {
                 Write-Host "  Primed delta token for next run" -ForegroundColor DarkGray
@@ -1638,6 +1600,13 @@ function Resolve-EntraSyncConfig {
         CustomGroupAttributes = @()
         AINamePatterns        = @()
         IdentityFilter        = @{}
+        # Profile photos are off unless explicitly selected: a photo is a
+        # separate Graph request per user, and they are personal data that a
+        # deployment should opt into rather than acquire by default.
+        SyncProfilePhotos     = $false
+        # Re-check a known photo after this many days. Photos change rarely,
+        # so a daily crawl otherwise re-downloads the whole tenant nightly.
+        PhotoMaxAgeDays       = 30
     }
 
     # selectedObjects.<key> -> toggle
@@ -1646,7 +1615,8 @@ function Resolve-EntraSyncConfig {
         Set-EntraTogglesFrom -Cfg $cfg -Source $objects -Map ([ordered]@{
             identity = 'SyncPrincipals'; servicePrincipals = 'SyncServicePrincipals'
             identityGovernance = 'SyncGovernance'; pim = 'SyncPim'; signInLogs = 'SyncSignInLogs'
-            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'; principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
+            oauth2Grants = 'SyncOAuth2Grants'; appsAppRoles = 'SyncAppRoles'; appOwners = 'SyncAppOwners'; appPermissions = 'SyncAppPermissions'; appRegistrations = 'SyncAppRegistrations'; principalRelationships = 'SyncPrincipalRelationships'; directoryRoles = 'SyncDirectoryRoles'
+            profilePhotos = 'SyncProfilePhotos'
         })
         # usersGroupsMembers drives three toggles at once (applied after `identity` so it wins on SyncPrincipals).
         if ($objects.ContainsKey('usersGroupsMembers')) {
@@ -1660,7 +1630,8 @@ function Resolve-EntraSyncConfig {
         syncPrincipals = 'SyncPrincipals'; syncServicePrincipals = 'SyncServicePrincipals'
         syncResources = 'SyncResources'; syncAssignments = 'SyncAssignments'; syncGovernance = 'SyncGovernance'
         syncSignInLogs = 'SyncSignInLogs'; syncOAuth2Grants = 'SyncOAuth2Grants'
-        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'; syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncAppRoles = 'SyncAppRoles'; syncAppOwners = 'SyncAppOwners'; syncAppPermissions = 'SyncAppPermissions'; syncAppRegistrations = 'SyncAppRegistrations'; syncPrincipalRelationships = 'SyncPrincipalRelationships'; syncDirectoryRoles = 'SyncDirectoryRoles'
+        syncProfilePhotos = 'SyncProfilePhotos'
     })
     Set-EntraConfigExtras -Cfg $cfg -RawConfig $RawConfig
     return $cfg
@@ -1682,6 +1653,7 @@ function Set-EntraConfigExtras {
     [CmdletBinding()]
     param([hashtable]$Cfg, [hashtable]$RawConfig)
     if ($RawConfig.ContainsKey('signInLogsDays')) { $Cfg.SignInLogsDays = [int]$RawConfig['signInLogsDays'] }
+    if ($RawConfig.ContainsKey('photoMaxAgeDays')) { $Cfg.PhotoMaxAgeDays = [int]$RawConfig['photoMaxAgeDays'] }
     if ($RawConfig['customUserAttributes'])  { $Cfg.CustomUserAttributes  = @($RawConfig['customUserAttributes']) }
     if ($RawConfig['identityAttributes'])    { $Cfg.CustomUserAttributes += @($RawConfig['identityAttributes']); $Cfg.CustomUserAttributes = $Cfg.CustomUserAttributes | Select-Object -Unique }
     if ($RawConfig['customGroupAttributes']) { $Cfg.CustomGroupAttributes = @($RawConfig['customGroupAttributes']) }
@@ -1700,7 +1672,9 @@ function Initialize-EntraCrawlerRun {
     param(
         [Parameter(Mandatory)] [string]$ApiBaseUrl,
         [Parameter(Mandatory)] [string]$ApiKey,
-        [string]$TenantId, [string]$ClientId, [string]$ClientSecret
+        [string]$TenantId, [string]$ClientId, [string]$ClientSecret,
+        # The crawler's own name (`_configName`), threaded in from the entry point.
+        [string]$ConfigName
     )
     Write-Host "`n=== FortigiGraph EntraID Crawler ===" -ForegroundColor Cyan
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting EntraID sync via Ingest API" -ForegroundColor Cyan
@@ -1725,7 +1699,9 @@ function Initialize-EntraCrawlerRun {
         syncMode = 'delta'
         records  = @(@{
             systemType   = 'EntraID'
-            displayName  = "Entra ID ($Global:TenantId)"
+            # Named after the crawler when the run carries one; the type + tenant
+            # label is only the fallback for an unnamed/inline-config run (#1240).
+            displayName  = (Get-CrawlerSystemName -TypeDefault "Entra ID ($Global:TenantId)" -ConfigName $ConfigName)
             tenantId     = $Global:TenantId
             enabled      = $true
             syncEnabled  = $true

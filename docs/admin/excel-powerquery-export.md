@@ -70,12 +70,46 @@ up.
      editor. Click **Done**.
    - Rename the query to match the sheet name (e.g. `Principals`).
    - **Home → Close & Load To… → Existing worksheet → that sheet, cell A1**.
-5. Back in Excel, **Data → Refresh All**. Every sheet fills with live data.
+5. **The first query you load raises a data-privacy prompt — allow it once for
+   this workbook.** See below; queries return no data until you do.
+6. Back in Excel, **Data → Refresh All**. Every sheet fills with live data.
+
+### The "Information is required about data privacy" prompt
+
+!!! warning "Expected, and mandatory — this is not an error"
+    The first time a pasted query evaluates, Excel shows
+    **"Information is required about data privacy"**. The queries only run once
+    privacy-level checking is switched off **for this workbook**.
+
+Every query reads `BaseUrl` and `AuthToken` from the workbook's named ranges
+and sends them to the Identity Atlas API. Power Query's Formula Firewall sees
+that as two data sources being combined — the workbook and the web API — and
+because the `Web.Contents` URL comes from a cell rather than a literal, setting
+individual privacy levels does not reliably satisfy it. Ignoring privacy levels
+does.
+
+To clear it:
+
+1. On the prompt, click **Continue**.
+2. Tick **"Ignore the Privacy Levels and potentially improve performance"**.
+3. Click **Save**. Refresh again — the data loads.
+
+You can also set it before pasting any query: **File → Options and settings →
+Query Options → CURRENT WORKBOOK → Privacy → "Ignore the Privacy Levels and
+potentially improve performance"**.
+
+!!! danger "Use the Current Workbook setting, never the Global one"
+    The **Global** option turns privacy checking off for every workbook you open
+    — don't touch it. The per-workbook setting is safe here: the only two
+    sources involved are this file and the Identity Atlas API whose read token
+    the file already carries, so it creates no path for data to leak anywhere
+    new.
 
 > **One-click refresh coming soon.** The current workbook requires the
 > paste-into-Advanced-Editor step per sheet. A follow-up PR ships a
-> hand-built template where the queries auto-load on first open — at
-> that point the flow becomes "download → open → Refresh All".
+> hand-built template where the queries auto-load on first open and the
+> per-workbook privacy setting is already saved in the file — at that
+> point the flow becomes "download → open → Refresh All".
 
 ## Rotating or retiring tokens
 

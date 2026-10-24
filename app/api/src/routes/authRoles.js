@@ -16,6 +16,7 @@ import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import * as db from '../db/connection.js';
 import rateLimit from 'express-rate-limit';
+import { principalRateLimitKey } from '../middleware/rateLimitKeys.js';
 import {
   getRolePermissions,
   hasCustomRolePermissions,
@@ -38,6 +39,7 @@ const gate = requirePermission('admin.auth');
 const writeLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
+  keyGenerator: principalRateLimitKey, // per admin, not per proxy address (SEC-2026-09 M-09)
   message: { error: 'Too many role mapping updates, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,

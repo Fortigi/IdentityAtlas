@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { formatBytes } from '@ui/utils/formatters';
 import {
   fmtMs,
-  fmtBytes,
   statusTextClass,
   SYNC_MODE_BADGES,
   PHASE_DOTS,
@@ -77,7 +77,7 @@ function ModalTabs({ activeTab, onSelect, trace, isRunning }) {
       <TabButton id="trace" label="Trace" activeTab={activeTab} onSelect={onSelect} />
       {activeTab === 'trace' && trace.exists && (
         <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-          {fmtBytes(trace.totalLength)}{isRunning && <span className="ml-2 text-blue-600 dark:text-blue-400">● live</span>}
+          {formatBytes(trace.totalLength)}{isRunning && <span className="ml-2 text-blue-600 dark:text-blue-400">● live</span>}
         </span>
       )}
     </div>

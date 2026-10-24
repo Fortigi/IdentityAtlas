@@ -23,6 +23,11 @@ describe('tabBadge', () => {
     expect(tabBadge('report')).toBe('RPT');
   });
 
+  it('shows EDIT (not AP) for the two builder tabs', () => {
+    expect(tabBadge('report-builder')).toBe('EDIT');
+    expect(tabBadge('context-builder')).toBe('EDIT');
+  });
+
   it('falls back to AP for an unknown type', () => {
     expect(tabBadge('something-else')).toBe('AP');
   });

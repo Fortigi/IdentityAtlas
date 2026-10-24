@@ -31,7 +31,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import YAML from 'yamljs';
+import YAML from 'yaml';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SPEC_PATH = join(__dirname, '..', 'openapi.yaml');
@@ -59,6 +59,7 @@ const UNDOCUMENTED_FILES = new Set([
   'identities.js',
   'jobs.js',
   'llm.js',
+  'lookups.js',
   'matrix.js',
   'orgChart.js',
   'perf.js',
@@ -100,6 +101,10 @@ const INTENTIONALLY_UNDOCUMENTED = {
   'GET /crawlers/delta-tokens/{endpoint}': 'delta-token',
   'PUT /crawlers/delta-tokens/{endpoint}': 'delta-token',
   'DELETE /crawlers/delta-tokens/{endpoint}': 'delta-token',
+  // Profile-photo fetch state (selfService.js). Crawler-internal, same class as
+  // the delta tokens above: it tells the photo phase which principals it has
+  // already resolved so it can skip them. Not part of the public read surface.
+  'GET /crawlers/photo-state': 'worker-protocol',
   // internal ingest / seed helpers (ingest.js)
   'POST /ingest/classify-business-role-assignments': 'internal-ingest',
   'POST /ingest/context-members': 'internal-ingest',

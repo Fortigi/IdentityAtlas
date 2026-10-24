@@ -139,3 +139,92 @@ updates:
           - "@eslint/*"
           - "eslint-plugin-*"
           - "globals"
+
+  # ─── Maintained release line: release/5.9 ──────────────────────────────────
+  #
+  # Customers on :latest track a release tag, not main. Keeping their libraries
+  # current means updating the branch those tags are cut from, not just main.
+  #
+  # Two things about how Dependabot reads this are easy to get wrong:
+  #
+  #   * This file is only ever read from the DEFAULT branch. These entries live
+  #     on main and describe work done on release/5.9 — do not copy them onto
+  #     the release branch, where they would be ignored.
+  #   * `target-branch` is a VERSION-UPDATES-ONLY option. Alert-driven security
+  #     updates ignore it entirely and are always raised against the default
+  #     branch (GitHub's dependabot-options-reference, under `target-branch`:
+  #     "security updates always use the default branch for the repository").
+  #
+  # That second point is why these run DAILY rather than weekly. We cannot route
+  # security alerts here, so we do not try: a daily version check picks up the
+  # fixed release of a vulnerable package within a day on its own, with no
+  # cherry-pick and nobody watching an alert feed.
+  #
+  # `dependency-type: production` is what keeps this line quiet enough to merge
+  # unattended. The API image is built with `npm ci --omit=dev` and the UI ships
+  # compiled dist/, so eslint/vitest/playwright updates change nothing a
+  # customer runs — on main they are noise, and on a stable line they are risk
+  # with no upside.
+  #
+  # Merging is unattended for patch and minor only; see
+  # .github/workflows/dependabot-auto-merge.yml for why majors are not.
+
+  - package-ecosystem: "npm"
+    directory: "/app/api"
+    target-branch: "release/5.9"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    allow:
+      - dependency-type: "production"
+    groups:
+      # One PR per day rather than one per package. A stable line should move
+      # as few times as possible, and a single grouped PR is one CI run and one
+      # merge instead of eight.
+      api-production:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/app/ui"
+    target-branch: "release/5.9"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    allow:
+      - dependency-type: "production"
+    groups:
+      ui-production:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Base images carry most of what a container scanner reports, so they matter
+  # to the release line more than any npm package does.
+  - package-ecosystem: "docker"
+    directory: "/app/api"
+    target-branch: "release/5.9"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    ignore:
+      # Same rule as main: a Node major is a repo-wide change gated on .nvmrc
+      # and the node-version ratchet, and can never pass on a release line.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "docker"
+    directory: "/setup/docker"
+    target-branch: "release/5.9"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"

@@ -27,4 +27,14 @@ export default [
       'security/detect-non-literal-fs-filename': 'off',
     },
   },
+  {
+    // Tests build patterns from fixed constants (table names, migration SQL,
+    // guard lists) and run them on fixture text — no request input ever reaches
+    // them, so the ReDoS rules are pure noise here. They stay on for src code.
+    files: ['**/*.test.js'],
+    rules: {
+      'security/detect-non-literal-regexp': 'off',
+      'security/detect-unsafe-regex': 'off',
+    },
+  },
 ];

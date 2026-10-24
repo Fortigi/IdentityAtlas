@@ -31,6 +31,10 @@ export default defineConfig({
     include: [
       'src/hooks/useEntityPage.test.jsx',
       'src/components/EntityListPage.mount.test.jsx',
+      // src/utils/matchedOn.js (the "Matched on" text and the 3-character rule)
+      // joined this scope: its own test, plus the two above that drive it through
+      // useEntityPage and EntityListPage.
+      'src/utils/matchedOn.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

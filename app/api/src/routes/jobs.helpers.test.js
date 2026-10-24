@@ -8,6 +8,7 @@ import {
 } from './jobs.js';
 import {
   splitConfigSecrets, changedHostFields, credentialReentryError, stripServerOwnedKeys,
+  checkConfigConflict,
 } from './jobs/helpers.js';
 
 const SECRET_MASK = '••••••••';
@@ -239,5 +240,29 @@ describe('checkSingletonConflict', () => {
   });
   it('returns null for a singleton type with no active job', async () => {
     expect(await checkSingletonConflict(mockPool([]), 'demo')).toBe(null);
+  });
+});
+
+describe('checkConfigConflict — one job per crawler configuration', () => {
+  it('returns null when the configuration has nothing queued or running', async () => {
+    expect(await checkConfigConflict(mockPool([]), 4)).toBe(null);
+  });
+
+  it('returns a 409 that names the job in the way and its state', async () => {
+    const r = await checkConfigConflict(mockPool([{ id: 88, status: 'running' }]), 4);
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatch(/already has a job running \(job 88\)/);
+  });
+
+  it('says "queued" for a job that has not started yet', async () => {
+    const r = await checkConfigConflict(mockPool([{ id: 90, status: 'queued' }]), 4);
+    expect(r.body.error).toMatch(/job queued \(job 90\)/);
+  });
+
+  it('never blocks an inline job, which belongs to no configuration', async () => {
+    let asked = false;
+    const pool = { query: async () => { asked = true; return { rows: [{ id: 1, status: 'running' }] }; } };
+    expect(await checkConfigConflict(pool, null)).toBe(null);
+    expect(asked).toBe(false);
   });
 });

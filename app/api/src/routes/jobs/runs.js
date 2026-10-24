@@ -12,7 +12,8 @@ import path from 'path';
 import { getConfigSecret, getConfigCredentials, storeJobSecret, storeJobCredentials } from '../../secrets/crawlerSecrets.js';
 import { assertConnectorUrl, checkCrawlerConfigUrls } from './urlPolicy.js';
 import { CRAWLER_MANIFESTS_DIR, _crawlerManifests, validateStoredCrawlerConfig } from '../../crawlerManifests.js';
-import { gate, useSql, VALID_JOB_TYPES, validateCreateJobBody, resolveJobConfig, resolveUploadFolder, prepareJobConfig, checkSingletonConflict, resolveCreatedBy } from './helpers.js';
+import { recentJobsQuery } from '../../lib/crawlerJobQueue.js';
+import { gate, useSql, VALID_JOB_TYPES, validateCreateJobBody, resolveJobConfig, resolveUploadFolder, prepareJobConfig, checkSingletonConflict, checkConfigConflict, resolveCreatedBy } from './helpers.js';
 
 const router = Router();
 
@@ -36,6 +37,8 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
 
     const singletonErr = await checkSingletonConflict(pool, jobType);
     if (singletonErr) return res.status(singletonErr.status).json(singletonErr.body);
+    const busyErr = await checkConfigConflict(pool, configId);
+    if (busyErr) return res.status(busyErr.status).json(busyErr.body);
 
     // Resolve config: from configId (stored config) or inline.
     const cfg = await resolveJobConfig(pool, req.body.config, configId);
@@ -92,15 +95,15 @@ router.post('/admin/crawler-jobs', gate, async (req, res) => {
   }
 });
 
-// GET /api/admin/crawler-jobs — List recent jobs
+// GET /api/admin/crawler-jobs — List recent jobs (?limit=N, ?latestPerMode=true)
 router.get('/admin/crawler-jobs', gate, async (req, res) => {
   if (!useSql) return res.json([]);
 
   try {
     const pool = await db.getPool();
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, MAX_RECENT_JOBS);
-    const result = await pool.query(
-      `SELECT * FROM "CrawlerJobs" ORDER BY "createdAt" DESC LIMIT $1`, [limit]);
+    const { sql, params } = recentJobsQuery(limit, req.query.latestPerMode === 'true');
+    const result = await pool.query(sql, params);
     res.json(result.rows);
   } catch (err) {
     console.error('Error listing crawler jobs:', err.message);

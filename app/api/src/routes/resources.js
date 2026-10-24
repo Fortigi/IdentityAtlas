@@ -11,6 +11,7 @@ import { UUID_RE, cleanRow, getPermissionTable } from './details/shared.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 import { buildResourceContextsSql } from '../matrix/resourceContexts.js';
 import { parseResourceListParams, buildResourceListWhere, mapResourceRow } from './resources/list.js';
+import { withMatchedOn } from '../lib/entitySearch.js';
 import {
   fetchResourceAttributes, mergeResourceRiskScore, fetchResourceTags, fetchMemberBreakdown,
   fetchAccessPackageCount, fetchParentResourceCount, fetchResourceHistoryCount, fetchResourceContextCount,
@@ -87,7 +88,9 @@ router.get('/resources', async (req, res) => {
        ORDER BY ${orderBy}`;
     const dataResult = await db.query(baseSql, params);
 
-    const data = dataResult.rows.map(mapResourceRow);
+    const data = withMatchedOn('resource', dataResult.rows.map(mapResourceRow), parsed.search, {
+      extended: parsed.extendedSearch,
+    });
 
     let total = null;
     if (parsed.offset === 0) {

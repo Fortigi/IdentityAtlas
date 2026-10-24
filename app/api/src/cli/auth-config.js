@@ -26,6 +26,9 @@
 //   - The recovery path (locked out → flip auth off) requires shell access
 //     to the Docker host — the same trust boundary as the database itself.
 
+// First import: resolves <NAME>_FILE secrets (e.g. POSTGRES_PASSWORD_FILE) so the
+// CLI connects the same way the web process does.
+import '../config/loadFileSecrets.js';
 import pg from 'pg';
 import { fileURLToPath } from 'url';
 

@@ -101,7 +101,7 @@ jobs:
           persist-credentials: false
       - name: Mint a Members:read token (who counts as a trusted commenter)
         id: members
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -303,6 +303,18 @@ jobs:
           esac
           { echo "host=$(hostname)"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
 
+      # The workspace is reused across jobs on this box. A sparse checkout left in it by any earlier job
+      # survives actions/checkout's full checkout: its `sparse-checkout disable` writes false only to
+      # config.worktree, then it drops extensions.worktreeConfig, so the `true` in .git/config wins again
+      # and the final checkout re-applies the old pattern. Clear it here so the checkout below is whole.
+      - name: Clear any sparse checkout left in the shared workspace
+        run: |
+          set -uo pipefail
+          [ -d .git ] || exit 0
+          git config --local --unset-all core.sparseCheckout || true
+          git config --local --unset-all core.sparseCheckoutCone || true
+          rm -f .git/info/sparse-checkout
+
       - name: Checkout main (base for the implementation branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -331,7 +343,7 @@ jobs:
 
       - name: Mint a Members:read token (who counts as a trusted commenter)
         id: members
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -378,7 +390,7 @@ jobs:
 
       - name: Mint BOT token (open PR + board moves)
         id: bot
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -429,7 +441,7 @@ jobs:
       - name: Token refresh 1/6 - mint a fresh BOT token
         id: bot_c1
         if: steps.flow.outputs.needs-token == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -462,7 +474,7 @@ jobs:
       - name: Token refresh 2/6 - mint a fresh BOT token
         id: bot_c2
         if: steps.flow_c1.outputs.needs-token == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -495,7 +507,7 @@ jobs:
       - name: Token refresh 3/6 - mint a fresh BOT token
         id: bot_c3
         if: steps.flow_c2.outputs.needs-token == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -528,7 +540,7 @@ jobs:
       - name: Token refresh 4/6 - mint a fresh BOT token
         id: bot_c4
         if: steps.flow_c3.outputs.needs-token == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -561,7 +573,7 @@ jobs:
       - name: Token refresh 5/6 - mint a fresh BOT token
         id: bot_c5
         if: steps.flow_c4.outputs.needs-token == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -594,7 +606,7 @@ jobs:
       - name: Token refresh 6/6 - mint a fresh BOT token
         id: bot_c6
         if: steps.flow_c5.outputs.needs-token == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
@@ -656,7 +668,7 @@ jobs:
       - name: Mint a fresh BOT token to reconcile the board
         if: always()
         id: bot2
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}

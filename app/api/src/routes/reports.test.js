@@ -7,11 +7,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
+import { asBinary, columnA, headerLabels, sheetNamed } from '../../test-utils/xlsxDownload.js';
 
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
 import { registerReport } from '../reports/registry.js';
-import { EXPORT_FORMAT_NAMES } from '../reports/export.js';
+import { EXPORT_FORMAT_NAMES, resolveExportFormat } from '../reports/export.js';
 import { BUILT_IN_REPORTS } from '../reports/templates/index.js';
 import reportsRouter from './reports.js';
 
@@ -56,6 +57,20 @@ describe('GET /api/reports/:name/rows', () => {
     expect(res.body.columns.length).toBe(5);
     expect(res.body.rows[0]).toMatchObject({ displayName: 'Ada', _entity: { kind: 'user', id: 'p1' } });
     expect(Date.parse(res.body.generatedAt)).not.toBeNaN();
+  });
+
+  it('says whether the report stopped at its row cap, and says "no" unless the template says "yes"', async () => {
+    const unregister = registerReport({
+      name: 'zz-capped', displayName: 'Capped', form: 'list', columns: [{ key: 'a', label: 'A' }],
+      async run() { return { rows: [{ a: 1 }], truncated: true }; },
+    });
+    try {
+      expect((await request(app).get('/api/reports/zz-capped/rows').expect(200)).body).toMatchObject({ total: 1, truncated: true });
+      // A built-in template that never mentions truncation is complete.
+      expect((await request(app).get('/api/reports/orphaned-accounts/rows').expect(200)).body.truncated).toBe(false);
+    } finally {
+      unregister();
+    }
   });
 
   it('returns an empty result — not an error — when the report finds nothing', async () => {
@@ -122,8 +137,13 @@ describe('GET /api/reports/:name/export', () => {
     const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
     const download = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
-    const { generatedAt: a, ...served } = rows.body;
+    // `notices` and `constantColumns` are the deliberate differences: both are
+    // context ABOUT the rows rather than part of them, and json does not claim
+    // to carry context. Everything else must match byte for byte.
+    const { generatedAt: a, notices, constantColumns, ...served } = rows.body;
     const { generatedAt: b, ...downloaded } = JSON.parse(download.text);
+    expect(notices).toEqual([]);
+    expect(constantColumns).toEqual([]);
     expect(downloaded).toEqual(served);
     expect(Date.parse(a)).not.toBeNaN();
     expect(Date.parse(b)).not.toBeNaN();
@@ -137,7 +157,7 @@ describe('GET /api/reports/:name/export', () => {
   });
 
   it('400s on a format it does not serve, naming the ones it does', async () => {
-    const res = await request(app).get('/api/reports/downloadable-report/export?format=xlsx').expect(400);
+    const res = await request(app).get('/api/reports/downloadable-report/export?format=pdf').expect(400);
 
     expect(res.body.error).toContain('Unsupported export format');
     for (const name of EXPORT_FORMAT_NAMES) expect(res.body.error).toContain(name);
@@ -151,6 +171,143 @@ describe('GET /api/reports/:name/export', () => {
   it('404s on an unknown report name, before it looks at the format', async () => {
     const res = await request(app).get('/api/reports/not-a-report/export?format=csv').expect(404);
     expect(res.body).toEqual({ error: 'Report not found' });
+  });
+
+  it('gives the notices only to a format that claims it can hold them', async () => {
+    // The seam this route owns: it asks the FORMAT, never the report. csv and
+    // json are unchanged by the arrival of a format that wants notices — a CSV
+    // is a table and a preamble would break every parser reading it.
+    const noticed = registerReport({
+      name: 'noticed-report',
+      displayName: 'Noticed Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({
+        rows: [{ thing: 'widget' }],
+        notices: [{ severity: 'info', text: 'Measured on a Tuesday.' }],
+      }),
+    });
+    try {
+      const csv = await request(app).get('/api/reports/noticed-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing"\r\n"widget"');
+      expect(csv.text).not.toContain('Tuesday');
+
+      const json = await request(app).get('/api/reports/noticed-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).notices).toBeUndefined();
+      expect(json.text).not.toContain('Tuesday');
+
+      const xlsx = await asBinary(request(app).get('/api/reports/noticed-report/export?format=xlsx')).expect(200);
+      expect(xlsx.headers['content-type'])
+        .toMatch(/spreadsheetml\.sheet/);
+      // The notice on the Summary tab, the row in the table.
+      expect(columnA(await sheetNamed(xlsx.body, 'Summary'))).toContain('Measured on a Tuesday.');
+      expect(columnA(await sheetNamed(xlsx.body, 'Data'))).toEqual(['Thing', 'widget']);
+    } finally {
+      noticed();
+    }
+  });
+
+  it('gives the run-constant columns only to a format that claims the context', async () => {
+    // Same seam as the notices. csv keeps every column on every row — it is a
+    // table and is what gets pivoted — and json keeps the key out of its bytes.
+    const constant = registerReport({
+      name: 'constant-report',
+      displayName: 'Constant Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }, { key: 'system', label: 'System' }],
+      run: async () => ({ rows: [{ thing: 'widget', system: 'Ledger' }], constantColumns: ['system'] }),
+    });
+    try {
+      const csv = await request(app).get('/api/reports/constant-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing","System"\r\n"widget","Ledger"');
+
+      const json = await request(app).get('/api/reports/constant-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).constantColumns).toBeUndefined();
+
+      const xlsx = await asBinary(request(app).get('/api/reports/constant-report/export?format=xlsx')).expect(200);
+      // Stated once on the Summary tab…
+      const summary = await sheetNamed(xlsx.body, 'Summary');
+      expect(summary.getCell('A4').value).toBe('System');
+      expect(summary.getCell('B4').value).toBe('Ledger');
+      // …and not a column of the table.
+      expect(headerLabels(await sheetNamed(xlsx.body, 'Data'), 'Thing')).toEqual(['Thing']);
+    } finally {
+      constant();
+    }
+  });
+
+  it('tells the screen every column, whatever the run held constant', async () => {
+    // The report's `columns` contract is the screen's and does not move: only a
+    // format with a header acts on `constantColumns`.
+    const constant = registerReport({
+      name: 'constant-report',
+      displayName: 'Constant Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }, { key: 'system', label: 'System' }],
+      run: async () => ({ rows: [{ thing: 'widget', system: 'Ledger' }], constantColumns: ['system'] }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/constant-report/rows').expect(200);
+      expect(rows.body.columns.map(c => c.key)).toEqual(['thing', 'system']);
+      expect(rows.body.constantColumns).toEqual(['system']);
+      expect(rows.body.rows[0].system).toBe('Ledger');
+    } finally {
+      constant();
+    }
+  });
+
+  it('serves the columns and pivots a run chose over the ones the template declared', async () => {
+    // A report whose columns the reader picks only knows them once it has run.
+    // The declaration has a column the run dropped and lacks one it added, so a
+    // route that kept the metadata — or merged the two — fails both ways.
+    const picked = registerReport({
+      name: 'picked-report',
+      displayName: 'Picked Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }, { key: 'declared', label: 'Declared' }],
+      pivots: [{ name: 'Declared pivot', rows: ['declared'], values: [] }],
+      run: async () => ({
+        rows: [{ thing: 'widget', chosen: 'yes' }],
+        columns: [{ key: 'thing', label: 'Thing' }, { key: 'chosen', label: 'Chosen' }],
+        pivots: [{ name: 'Chosen pivot', rows: ['chosen'], values: [] }],
+      }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/picked-report/rows').expect(200);
+      expect(rows.body.columns.map(c => c.key)).toEqual(['thing', 'chosen']);
+      expect(rows.body.pivots.map(p => p.name)).toEqual(['Chosen pivot']);
+      // …and the download follows the run too: it is the same payload.
+      const csv = await request(app).get('/api/reports/picked-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing","Chosen"\r\n"widget","yes"');
+      // The listing still describes the report as declared — nothing has run.
+      const list = await request(app).get('/api/reports').expect(200);
+      expect(list.body.data.find(r => r.name === 'picked-report').columns.map(c => c.key)).toEqual(['thing', 'declared']);
+    } finally {
+      picked();
+    }
+  });
+
+  it('keeps the declared columns and pivots when a run returns something that is not a list', async () => {
+    const odd = registerReport({
+      name: 'odd-report',
+      displayName: 'Odd Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      pivots: [{ name: 'Declared pivot', rows: ['thing'], values: [] }],
+      run: async () => ({ rows: [{ thing: 'widget' }], columns: 'thing', pivots: {} }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/odd-report/rows').expect(200);
+      expect(rows.body.columns).toEqual([{ key: 'thing', label: 'Thing' }]);
+      expect(rows.body.pivots.map(p => p.name)).toEqual(['Declared pivot']);
+    } finally {
+      odd();
+    }
+  });
+
+  it('defaults the run-constant columns to an empty list for a template that says nothing', async () => {
+    const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
+    expect(rows.body.constantColumns).toEqual([]);
   });
 
   it('recomputes on every download, so a re-download reflects the latest data', async () => {
@@ -223,11 +380,16 @@ describe('the seam — adding a report costs only a template', () => {
     const parameterised = await request(app).get('/api/reports/dummy-seam-report/rows?thing=sprocket').expect(200);
     expect(parameterised.body.rows[0].thing).toBe('sprocket');
 
-    // …and it is downloadable, in every format, on the same terms.
+    // …and it is downloadable, in every format, on the same terms. The payload
+    // check dispatches on the format's own declared content type, never on its
+    // name — a binary format is still expected to carry the row, just not as
+    // text this assertion can read.
     for (const format of EXPORT_FORMAT_NAMES) {
-      const download = await request(app).get(`/api/reports/dummy-seam-report/export?format=${format}`).expect(200);
+      const download = await asBinary(request(app).get(`/api/reports/dummy-seam-report/export?format=${format}`)).expect(200);
       expect(download.headers['content-disposition']).toContain(`.${format}"`);
-      expect(download.text).toContain('widget');
+      const textual = /^(text\/|application\/json)/.test(resolveExportFormat(format).contentType);
+      if (textual) expect(download.body.toString('utf8')).toContain('widget');
+      else expect(download.body.length).toBeGreaterThan(0);
     }
   });
 });

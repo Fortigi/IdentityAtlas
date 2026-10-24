@@ -13,11 +13,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+import { format } from 'node:util';
 
 const UUID = '11111111-1111-1111-1111-111111111111';
 
 const { mockQuery, mockQueryOne, mockIngest, mockStart, mockContinue, mockEnd, mockHasSession } = vi.hoisted(() => {
   process.env.USE_SQL = 'true';
+  process.env.MATRIX_REFRESH_DEBOUNCE_MS = '0';
+  process.env.MATRIX_REFRESH_MIN_INTERVAL_MS = '0';
   return {
     mockQuery: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
     mockQueryOne: vi.fn().mockResolvedValue(null),
@@ -47,6 +50,7 @@ vi.mock('../ingest/sessions.js', () => ({
   continueSession: mockContinue,
   endSession: mockEnd,
   hasSession: mockHasSession,
+  SessionLimitError: class SessionLimitError extends Error {},
 }));
 
 vi.mock('../middleware/crawlerAuth.js', () => ({
@@ -56,12 +60,19 @@ vi.mock('../middleware/crawlerAuth.js', () => ({
 
 vi.mock('../lib/syncVersion.js', () => ({ bumpSyncVersion: vi.fn().mockResolvedValue(undefined) }));
 
+const { mockReconcileStale, mockCountTouched } = vi.hoisted(() => ({ mockReconcileStale: vi.fn().mockResolvedValue(0), mockCountTouched: vi.fn().mockResolvedValue(0) }));
+vi.mock('../ingest/reconcileStale.js', async (importOriginal) => {
+  // Keep the pure request parser real (it is the 400 surface); stub the executor.
+  const real = await importOriginal();
+  return { ...real, reconcileStale: mockReconcileStale, countTouched: mockCountTouched };
+});
+
 vi.mock('../ingest/crawlerPresence.js', () => ({
   normalizePresenceQuery: (body) => ({ tenantId: body?.tenantId, ids: body?.ids || [] }),
   lookupCrawlerPresence: vi.fn().mockResolvedValue({ crawlerDataAvailable: true, present: [] }),
 }));
 
-const { default: router } = await import('./ingest.js');
+const { default: router, viewRefresh, ensureMatrixViewsPopulated } = await import('./ingest.js');
 const crawlerAuth = await import('../middleware/crawlerAuth.js');
 const app = express().use(express.json()).use(router);
 
@@ -77,6 +88,9 @@ beforeEach(() => {
 
 // A valid principals record for the happy path.
 const goodPrincipal = { records: [{ displayName: 'Alice' }], systemId: 1, syncMode: 'full' };
+// The same batch, but carrying a manager link — which is what makes the
+// end-of-load manager repair run at all.
+const withManager = { records: [{ displayName: 'Alice', managerId: UUID }], systemId: 1, syncMode: 'full' };
 
 // ── Empty batches ────────────────────────────────────────────────────────────
 //
@@ -185,6 +199,51 @@ describe('ingest handler — single batch', () => {
     expect(mockIngest).toHaveBeenCalledOnce();
   });
 
+  it('reports the manager links it had to clear, and warns about them', async () => {
+    // The repair is the only thing standing between a dangling managerId and a
+    // principal that reads as "has a manager" while every join through it is
+    // empty — so the response has to say it happened, not just do it.
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => {
+      const s = String(sql);
+      // managerId has to be a real column for the batch to carry the link.
+      if (/information_schema\.columns/.test(s)) {
+        return { rows: [{ column_name: 'id' }, { column_name: 'display_name' }, { column_name: 'manager_id' }], rowCount: 0 };
+      }
+      if (s.includes('"managerId" = NULL')) return { rows: [{ unresolved: 2, selfReferences: 1 }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+
+    const res = await request(app).post('/ingest/principals').send(withManager);
+    expect(res.status).toBe(201);
+    expect(res.body.managerLinks).toEqual({ unresolved: 2, selfReferences: 1 });
+    expect(res.body.warnings).toContain('Manager links cleared: 2 named a manager that was not loaded; 1 named themselves as manager.');
+  });
+
+  it('says nothing about manager links when there were none to clear', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? { rows: [{ column_name: 'id' }, { column_name: 'display_name' }, { column_name: 'manager_id' }], rowCount: 0 }
+      : { rows: [{ unresolved: 0, selfReferences: 0 }], rowCount: 1 }));
+    const res = await request(app).post('/ingest/principals').send(withManager);
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty('managerLinks');
+    expect(res.body).not.toHaveProperty('warnings');
+  });
+
+  it('never runs the manager repair for a non-principals batch', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    await request(app).post('/ingest/resources')
+      .send({ records: [{ displayName: 'G', resourceType: 'Group' }], systemId: 1, syncMode: 'full' });
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('"managerId" = NULL'))).toBe(false);
+  });
+
+  it('never runs it for a principals batch that carries no manager (the photo phase)', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    await request(app).post('/ingest/principals').send(goodPrincipal);
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('"managerId" = NULL'))).toBe(false);
+  });
+
   it('ingests a resources batch (governanceResource derivation path)', async () => {
     mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
     // Discover governanceResource as a core column so the derived flag stays
@@ -242,6 +301,17 @@ describe('ingest handler — single batch', () => {
     const res = await request(app).post('/ingest/principals').send(goodPrincipal);
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/ingest failed/i);
+  });
+
+  // A database error can quote a record value verbatim; one with a line break in
+  // it must not start a second, forged log line (CWE-117).
+  it('logs an engine error on one line, whatever the error text holds', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockIngest.mockRejectedValue(new Error('duplicate key "x"\nINFO admin signed in'));
+    await request(app).post('/ingest/principals').send(goodPrincipal);
+    const logged = format(...spy.mock.calls.find(c => String(c[0]).startsWith('Ingest error'))).trim();
+    spy.mockRestore();
+    expect(logged).toBe('Ingest error (principals): duplicate key "x" INFO admin signed in');
   });
 });
 
@@ -306,6 +376,59 @@ describe('ingest handler — delete-by-id', () => {
   });
 });
 
+// ── delete-by-key path ───────────────────────────────────────────────────────
+
+describe('ingest handler — delete-by-key (removed memberships)', () => {
+  const P = '22222222-2222-2222-2222-222222222222';
+  const key = { resourceId: UUID, principalId: P, assignmentType: 'Direct' };
+  const deleteByKey = (sql) => typeof sql === 'string' && /DELETE FROM "ResourceAssignments" t USING unnest/.test(sql);
+
+  it('accepts a delta batch that only removes memberships, and reports the count', async () => {
+    mockQuery.mockImplementation(async (sql) => (deleteByKey(sql) ? { rowCount: 1, rows: [] } : { rows: [], rowCount: 0 }));
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedKeys: [key] });
+    expect(res.status).toBe(201);
+    expect(res.body.deleted).toBe(1);
+    const [, params] = mockQuery.mock.calls.find(([sql]) => deleteByKey(sql));
+    expect(params).toEqual([[UUID], [P], ['Direct'], [false], 5]);
+  });
+
+  it('adds the key deletes to the id deletes', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (deleteByKey(sql)) return { rowCount: 2, rows: [] };
+      if (typeof sql === 'string' && /DELETE FROM "ResourceAssignments" t WHERE t.id/.test(sql)) return { rowCount: 3, rows: [] };
+      return { rows: [], rowCount: 0 };
+    });
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedIds: [UUID], deletedKeys: [key, key] });
+    expect(res.status).toBe(201);
+    expect(res.body.deleted).toBe(5);
+  });
+
+  it('400 with the bad entry named, before anything is written', async () => {
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedKeys: [key, { ...key, principalId: 'user-7' }] });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual(['deletedKeys[1]: principalId must be a UUID']);
+    expect(mockIngest).not.toHaveBeenCalled();
+    expect(mockQuery.mock.calls.some(([sql]) => deleteByKey(sql))).toBe(false);
+  });
+
+  it('400 on an entity that has no composite key to delete by', async () => {
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 5, syncMode: 'delta', records: [], deletedKeys: [{ id: UUID }] });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual(['deletedKeys is not supported for principals']);
+  });
+
+  it('reports envelope errors without looking at deletedKeys', async () => {
+    const res = await request(app).post('/ingest/resource-assignments')
+      .send({ syncMode: 'delta', records: [], deletedKeys: [{ resourceId: 'x' }] });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toEqual(['systemId is required']);
+  });
+});
+
 // ── POST /ingest/sync-log ────────────────────────────────────────────────────
 
 describe('POST /ingest/sync-log', () => {
@@ -352,6 +475,20 @@ describe('POST /ingest/contexts — DB-enforced acyclicity', () => {
     expect(res.status).toBe(201);
     expect(mockQuery.mock.calls.some(([sql]) => CYCLE_REPAIR_RE.test(sql))).toBe(false);
   });
+
+  it('warns in the response when a synced context names no owning system, and not when it does', async () => {
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const unowned = await request(app).post('/ingest/contexts').send(goodContext);
+    expect(unowned.status).toBe(201);
+    expect(unowned.body.warnings).toEqual([expect.stringMatching(/^1 synced context record\(s\) carry no scopeSystemId for system 1;/)]);
+
+    mockIngest.mockResolvedValueOnce({ inserted: 1, updated: 0, deleted: 0 });
+    const owned = await request(app).post('/ingest/contexts').send({
+      ...goodContext, records: [{ ...goodContext.records[0], scopeSystemId: 1 }],
+    });
+    expect(owned.status).toBe(201);
+    expect(owned.body.warnings).toBeUndefined();
+  });
 });
 
 // ── POST /ingest/principals-presence ─────────────────────────────────────────
@@ -370,6 +507,105 @@ describe('POST /ingest/principals-presence', () => {
   });
 });
 
+// ── POST /ingest/reconcile ───────────────────────────────────────────────────
+
+describe('POST /ingest/reconcile', () => {
+  const body = { entity: 'resource-assignments', systemId: 7, before: '2020-01-01T00:00:00.000Z', scope: { assignmentType: 'Direct', resourceType: 'Entitlement', bogus: 'x' } };
+
+  it('403 without ingest permission', async () => {
+    crawlerAuth.crawlerHasPermission.mockReturnValue(false);
+    expect((await request(app).post('/ingest/reconcile').send(body)).status).toBe(403);
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('400 on a bad request (unsystemed entity), naming the problem', async () => {
+    const res = await request(app).post('/ingest/reconcile').send({ ...body, entity: 'identities' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no system scope/);
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('403 when the key has no access to the system', async () => {
+    crawlerAuth.crawlerHasSystemAccess.mockReturnValue(false);
+    const res = await request(app).post('/ingest/reconcile').send(body);
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/system 7/);
+  });
+
+  it('200 with the deleted count; scope is projected onto the entity\'s scope columns and the arm filter is applied', async () => {
+    mockReconcileStale.mockResolvedValue(5);
+    const res = await request(app).post('/ingest/reconcile').send(body);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ table: 'ResourceAssignments', deleted: 5, before: '2020-01-01T00:00:00.000Z' });
+    const [table, opts] = mockReconcileStale.mock.calls[0];
+    expect(table).toBe('ResourceAssignments');
+    expect(opts.systemId).toBe(7);
+    expect(opts.scope).toEqual({ assignmentType: 'Direct', resourceType: 'Entitlement' });
+    expect(opts.scopeDeleteFilter).toBe('"principalId" IS NOT NULL');
+    expect(opts.before).toBe('2020-01-01T00:00:00.000Z');
+  });
+
+  it('400 when the executor refuses the table, 500 on any other failure', async () => {
+    const { ReconcileRequestError } = await import('../ingest/reconcileStale.js');
+    mockReconcileStale.mockRejectedValueOnce(new ReconcileRequestError('nope'));
+    expect((await request(app).post('/ingest/reconcile').send(body)).status).toBe(400);
+    mockReconcileStale.mockRejectedValueOnce(new Error('db down'));
+    const res = await request(app).post('/ingest/reconcile').send(body);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Reconcile failed');
+  });
+
+  it('logs a reconcile failure on one line', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockReconcileStale.mockRejectedValueOnce(new Error('db down\r\nWARN forged'));
+    await request(app).post('/ingest/reconcile').send(body);
+    const logged = format(...spy.mock.calls.find(c => String(c[0]).startsWith('Reconcile error'))).trim();
+    spy.mockRestore();
+    expect(logged).toBe(`Reconcile error (${body.entity}): db down WARN forged`);
+  });
+});
+
+// ── POST /ingest/count ───────────────────────────────────────────────────────
+
+describe('POST /ingest/count', () => {
+  const body = { entity: 'principals', systemId: 7, before: '2020-01-01T00:00:00.000Z', scope: { principalType: 'User', bogus: 'x' } };
+
+  it('shares the reconcile gate: 403 without permission, 400 on a bad request, 403 without system access', async () => {
+    crawlerAuth.crawlerHasPermission.mockReturnValueOnce(false);
+    expect((await request(app).post('/ingest/count').send(body)).status).toBe(403);
+    const bad = await request(app).post('/ingest/count').send({ ...body, entity: 'contexts' });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toMatch(/no system scope/);
+    crawlerAuth.crawlerHasSystemAccess.mockReturnValueOnce(false);
+    expect((await request(app).post('/ingest/count').send(body)).status).toBe(403);
+    expect(mockCountTouched).not.toHaveBeenCalled();
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('200 with the database count since the run start, over the projected scope — and deletes nothing', async () => {
+    mockCountTouched.mockResolvedValue(22087);
+    const res = await request(app).post('/ingest/count').send(body);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ table: 'Principals', count: 22087, since: '2020-01-01T00:00:00.000Z' });
+    const [table, opts] = mockCountTouched.mock.calls[0];
+    expect(table).toBe('Principals');
+    expect(opts).toMatchObject({ systemId: 7, scope: { principalType: 'User' }, since: '2020-01-01T00:00:00.000Z' });
+    expect(mockReconcileStale).not.toHaveBeenCalled();
+  });
+
+  it('applies the principal-arm filter to assignments, 400 when the table cannot be counted, 500 otherwise', async () => {
+    await request(app).post('/ingest/count').send({ ...body, entity: 'resource-assignments' });
+    expect(mockCountTouched.mock.calls[0][1].scopeDeleteFilter).toBe('"principalId" IS NOT NULL');
+    const { ReconcileRequestError } = await import('../ingest/reconcileStale.js');
+    mockCountTouched.mockRejectedValueOnce(new ReconcileRequestError('nope'));
+    expect((await request(app).post('/ingest/count').send(body)).status).toBe(400);
+    mockCountTouched.mockRejectedValueOnce(new Error('db down'));
+    const res = await request(app).post('/ingest/count').send(body);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Count failed');
+  });
+});
+
 // ── POST /ingest/refresh-views ───────────────────────────────────────────────
 
 describe('POST /ingest/refresh-views', () => {
@@ -379,10 +615,416 @@ describe('POST /ingest/refresh-views', () => {
     expect(res.status).toBe(403);
   });
 
-  it('200 after refreshing the matrix views', async () => {
-    mockQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+  it('202 at once — the refresh runs in the background and does the work', async () => {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
     const res = await request(app).post('/ingest/refresh-views').send({});
+    expect(res.status).toBe(202);
+    expect(res.body.message).toMatch(/scheduled/i);
+    expect(res.body.refresh.pending).toBe(true);
+    const done = await viewRefresh.whenIdle();
+    expect(done.last.ok).toBe(true);
+    expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+    // the bookkeeping that follows the views still runs
+    expect(sqls.some(q => /UPDATE "Systems" s\s+SET "lastSyncDateTime"/.test(q))).toBe(true);
+    expect(sqls.some(q => /"totalMemberCount"/.test(q))).toBe(true);
+  });
+
+  it('?wait=1 answers only after the refresh has run — for scripts that need fresh views', async () => {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => { sqls.push(String(sql)); return { rows: [], rowCount: 0 }; });
+    const res = await request(app).post('/ingest/refresh-views?wait=1').send({});
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/refreshed/i);
+    expect(res.body.refresh).toMatchObject({ pending: false, last: { ok: true } });
+    // the work is already done when the response arrives
+    expect(sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q))).toHaveLength(2);
+  });
+
+  it('?wait=1 answers 500 with the error when the refresh failed', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (/REFRESH MATERIALIZED VIEW/.test(String(sql))) throw new Error('canceling statement due to user request');
+      return { rows: [], rowCount: 0 };
+    });
+    const res = await request(app).post('/ingest/refresh-views?wait=true').send({});
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('refresh-views failed: canceling statement due to user request');
+  });
+
+  it('GET reports the last run, including a failure', async () => {
+    mockQuery.mockImplementation(async (sql) => {
+      if (/REFRESH MATERIALIZED VIEW/.test(String(sql))) throw new Error('No space left on device');
+      return { rows: [], rowCount: 0 };
+    });
+    await request(app).post('/ingest/refresh-views').send({});
+    await viewRefresh.whenIdle();
+    const res = await request(app).get('/ingest/refresh-views');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ state: 'idle', pending: false, last: { ok: false, error: 'No space left on device' } });
+  });
+
+  it('GET is refused without refreshViews/admin permission', async () => {
+    crawlerAuth.crawlerHasPermission.mockReturnValue(false);
+    const res = await request(app).get('/ingest/refresh-views');
+    expect(res.status).toBe(403);
+  });
+});
+
+// ── Startup: build matrix views that are unusable, and only those ───────────
+//
+// Two states are unusable: never populated (first boot), and populated but
+// EMPTY while the rows the view is built from are there. The second one is the
+// defect — `ispopulated` alone calls a view refreshed once against an empty
+// database fine, so nothing ever rebuilt it, and a customer's install sat with
+// 42.6M assignments behind two 40 kB views until someone refreshed by hand.
+//
+// The query mock is SQL-blind, so each case answers the three questions the
+// code asks by matching the query text: the pg_matviews catalog read, the
+// per-view emptiness probe, and the base-table probe.
+describe('ensureMatrixViewsPopulated', () => {
+  const MAIN = 'vw_ResourceUserPermissionAssignments';
+  const BR = 'vw_UserPermissionAssignmentViaBusinessRole';
+  const ONE_ROW = { rows: [{ ok: 1 }] };
+  const NO_ROWS = { rows: [] };
+
+  // states: { [view]: { populated, rows } }. baseRows: which base-table probe finds a row.
+  function stubViews(states, baseRows = { assignments: true, relationships: true }) {
+    const sqls = [];
+    mockQuery.mockImplementation(async (sql) => {
+      const q = String(sql);
+      sqls.push(q);
+      if (/FROM pg_matviews/.test(q)) {
+        return { rows: Object.entries(states).map(([name, s]) => ({ matviewname: name, ispopulated: s.populated })) };
+      }
+      const viewProbe = q.match(/SELECT 1 FROM "(vw_\w+)" LIMIT 1/);
+      if (viewProbe) return states[viewProbe[1]]?.rows ? ONE_ROW : NO_ROWS;
+      if (/FROM "ResourceAssignments"/.test(q)) return baseRows.assignments ? ONE_ROW : NO_ROWS;
+      if (/FROM "ResourceRelationships"/.test(q)) return baseRows.relationships ? ONE_ROW : NO_ROWS;
+      return { rows: [], rowCount: 0 };
+    });
+    // The cooldown claim succeeds unless a test says otherwise.
+    mockQueryOne.mockResolvedValue({ configKey: 'matrixViews.lastProbeRebuildAt' });
+    return sqls;
+  }
+  const refreshes = (sqls) => sqls.filter(q => /REFRESH MATERIALIZED VIEW/.test(q));
+
+  it('leaves populated, non-empty views alone — no REFRESH at startup', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: true }, [BR]: { populated: true, rows: true } });
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('already-populated');
+    expect(refreshes(sqls)).toHaveLength(0);
+  });
+
+  it('builds the views when one was never populated', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: false, rows: false }, [BR]: { populated: true, rows: true } });
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('populating');
+    expect(refreshes(sqls)).toHaveLength(2);
+  });
+
+  // The defect.
+  it('rebuilds a view that is populated but EMPTY while its source rows exist', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: false }, [BR]: { populated: true, rows: true } });
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('rebuilding');
+    expect(refreshes(sqls)).toHaveLength(2);
+    // Plain REFRESH for the empty one, CONCURRENTLY for the sibling that has
+    // rows to protect — a per-view decision, not a per-run one.
+    expect(refreshes(sqls).find(q => q.includes(MAIN))).not.toMatch(/CONCURRENTLY/);
+    expect(refreshes(sqls).find(q => q.includes(BR))).toMatch(/CONCURRENTLY/);
+  });
+
+  // What separates "the view is empty" from "the view is WRONGLY empty". An
+  // install with no governance data has the business-role view empty and
+  // correct; rebuilding that on every restart is what the probe prevents.
+  it('leaves a populated-but-empty view alone when its source rows do not exist either', async () => {
+    const sqls = stubViews(
+      { [MAIN]: { populated: true, rows: true }, [BR]: { populated: true, rows: false } },
+      { assignments: true, relationships: false },
+    );
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('already-populated');
+    expect(refreshes(sqls)).toHaveLength(0);
+  });
+
+  // 3m17s and 7.6 GB per rebuild at 42.6M rows: a probe that over-claims must
+  // not be able to spend that on every container restart.
+  it('refuses a probe-driven rebuild while the cooldown holds, and names the view', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: false }, [BR]: { populated: true, rows: true } });
+    mockQueryOne.mockResolvedValue(null);   // the conditional upsert wrote nothing
+    await expect(ensureMatrixViewsPopulated({ wait: true }))
+      .resolves.toMatch(/^stale, rebuild on cooldown: vw_ResourceUserPermissionAssignments/);
+    expect(refreshes(sqls)).toHaveLength(0);
+  });
+
+  // …but a view that was never built is not negotiable, however recently a
+  // probe-driven rebuild ran.
+  it('ignores the cooldown for a view that was never built', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: false, rows: false }, [BR]: { populated: true, rows: true } });
+    mockQueryOne.mockResolvedValue(null);
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('populating');
+    expect(refreshes(sqls)).toHaveLength(2);
+  });
+
+  // A WorkerConfig that cannot be reached must not silently cancel a rebuild the
+  // probe asked for — losing the cooldown is cheaper than losing the matrix.
+  it('rebuilds anyway when the cooldown claim itself fails', async () => {
+    const sqls = stubViews({ [MAIN]: { populated: true, rows: false }, [BR]: { populated: true, rows: true } });
+    mockQueryOne.mockRejectedValue(new Error('relation "WorkerConfig" does not exist'));
+    await expect(ensureMatrixViewsPopulated({ wait: true })).resolves.toBe('rebuilding');
+    expect(refreshes(sqls)).toHaveLength(2);
+  });
+
+  it('desktop mode keeps refreshing at startup', async () => {
+    process.env.DESKTOP_MODE = 'true';
+    try {
+      const sqls = stubViews({ [MAIN]: { populated: true, rows: true }, [BR]: { populated: true, rows: true } });
+      await expect(ensureMatrixViewsPopulated()).resolves.toBe('refreshed');
+      expect(refreshes(sqls)).toHaveLength(2);
+    } finally {
+      delete process.env.DESKTOP_MODE;
+    }
+  });
+
+  // The rebuild is minutes of work. index.js binds the port before bootstrap
+  // runs; this keeps that true from this end too, so a slow rebuild can never
+  // sit in front of a platform's startup probe the way a slow migration once did.
+  it('does not wait for the rebuild by default', async () => {
+    let release;
+    const blocked = new Promise(r => { release = r; });
+    let refreshesStarted = 0;
+    mockQuery.mockImplementation(async (sql) => {
+      const q = String(sql);
+      if (/FROM pg_matviews/.test(q)) return { rows: [{ matviewname: MAIN, ispopulated: false }] };
+      if (/REFRESH MATERIALIZED VIEW/.test(q)) { refreshesStarted++; await blocked; }
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(ensureMatrixViewsPopulated()).resolves.toBe('populating');
+    expect(refreshesStarted).toBe(1);   // started, and still hanging
+    release();
+  });
+});
+
+// ── SEC-2026-09: the per-system boundary, driven through the handler ─────────
+//
+// These requests carry a crawler identity (set by crawlerAuthMiddleware in
+// production). crawlerHasPermission answers from that identity's permissions;
+// systemBoundary.js runs for real against the SQL-blind query mock.
+
+const RESTRICTED = { id: 21, systemIds: [7], permissions: ['ingest'] };
+const WORKER = { id: 1, systemIds: null, permissions: ['ingest', 'refreshViews', 'admin'] };
+
+function appAs(crawler) {
+  return express().use(express.json())
+    .use((req, _res, next) => { req.crawler = crawler; next(); })
+    .use(router);
+}
+
+// Principals' real columns (snake_case, as information_schema returns them).
+function stagePrincipalColumns() {
+  const cols = ['id', 'system_id', 'display_name', 'extended_attributes', 'risk_score', 'deleted_at'];
+  mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+    ? { rows: cols.map(column_name => ({ column_name })) } : { rows: [], rowCount: 0 }));
+}
+
+function usePermissionsOfCaller() {
+  crawlerAuth.crawlerHasPermission.mockImplementation((req, p) => !!req.crawler?.permissions.includes(p));
+}
+
+describe('ingest handler — per-system boundary (H-04)', () => {
+  beforeEach(usePermissionsOfCaller);
+
+  it('403 for a record that names another system, and nothing is written', async () => {
+    stagePrincipalColumns();
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta', records: [{ displayName: 'x', systemId: 1 }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Record 0: systemId 1 is outside this crawler's systems/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('403 when the batch would overwrite a row another system owns', async () => {
+    mockQuery.mockImplementation(async (sql) => (/jsonb_populate_recordset/.test(String(sql))
+      ? { rows: [{ '?column?': 1 }], rowCount: 1 } : { rows: [], rowCount: 0 }));
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta', records: [{ id: UUID, displayName: 'x' }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/would modify a Principals row owned by a system outside/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('403 for an unscoped full sync of a table without a systemId column', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/identities').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }],
+    });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/needs a scope/);
+  });
+
+  it('an in-bounds batch reaches the engine with the allow-list for the reconcile and deletedIds', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }], deletedIds: [UUID],
+    });
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].restrictSystemIds).toEqual([7]);
+    const del = mockQuery.mock.calls.find(([sql]) => /DELETE FROM|SET "deletedAt" = now\(\)/.test(String(sql)));
+    expect(del[1]).toEqual([[UUID], [7]]);
+  });
+
+  it('the built-in worker is not boundary-checked: no lookup, and no allow-list reaches the engine', async () => {
+    const res = await request(appAs(WORKER)).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x', systemId: 1 }],
+    });
+    expect(res.status).toBe(201);
+    expect(mockQuery.mock.calls.some(([sql]) => /jsonb_populate_recordset/.test(String(sql)))).toBe(false);
+    expect(mockIngest.mock.calls[0][4].restrictSystemIds).toBeNull();
+  });
+
+  it('a session is opened with the caller identity (per-crawler cap + ownership)', async () => {
+    await request(appAs(RESTRICTED)).post('/ingest/principals')
+      .send({ systemId: 7, syncMode: 'full', syncSession: 'start', scope: { principalType: 'User' }, records: [{ displayName: 'x' }] });
+    expect(mockStart.mock.calls[0][4]).toMatchObject({ crawlerId: 21, isWorker: false, restrictSystemIds: [7] });
+  });
+
+  it('429 when the session cap is reached', async () => {
+    const { SessionLimitError } = await import('../ingest/sessions.js');
+    mockStart.mockRejectedValueOnce(new SessionLimitError('Too many open ingest sessions for this crawler (limit 3)'));
+    const res = await request(appAs(RESTRICTED)).post('/ingest/principals')
+      .send({ systemId: 7, syncMode: 'full', syncSession: 'start', records: [{ displayName: 'x' }] });
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/limit 3/);
+  });
+});
+
+describe('ingest handler — server-managed columns are not writable (H-04)', () => {
+  it('a record field named after a server-managed column is kept as an attribute, never written to the column', async () => {
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? { rows: ['id', 'system_id', 'display_name', 'risk_score', 'deleted_at'].map(column_name => ({ column_name })) }
+      : { rows: [], rowCount: 0 }));
+    const res = await request(app).post('/ingest/principals').send({
+      systemId: 1, syncMode: 'delta', records: [{ displayName: 'x', riskScore: 0, deletedAt: '2020-01-01' }],
+    });
+    expect(res.status).toBe(201);
+    const rec = mockIngest.mock.calls[0][3][0];
+    expect(rec).not.toHaveProperty('riskScore');
+    expect(rec).not.toHaveProperty('deletedAt');
+    expect(JSON.parse(rec.extendedAttributes)).toEqual({ riskScore: 0, deletedAt: '2020-01-01' });
+  });
+});
+
+describe('ingest/systems — never reconciled (C-01)', () => {
+  it('runs a full sync of systems as a delta', async () => {
+    mockQueryOne.mockResolvedValue({ id: 42 });
+    const res = await request(app).post('/ingest/systems')
+      .send({ records: [{ displayName: 'X', systemType: 'X', tenantId: 'y' }], syncMode: 'full' });
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].syncMode).toBe('delta');
+  });
+
+  it('still validates the required fields of a full batch before running it as a delta', async () => {
+    const res = await request(app).post('/ingest/systems')
+      .send({ records: [{ tenantId: 'y' }], syncMode: 'full' });
+    expect(res.status).toBe(400);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+
+describe('ingest handler — extendedAttributes bounds (L-16)', () => {
+  it('400 for a record with more extendedAttributes keys than the limit', async () => {
+    stagePrincipalColumns();
+    const extendedAttributes = Object.fromEntries(Array.from({ length: 501 }, (_, i) => [`k${i}`, 'v']));
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'delta', records: [{ displayName: 'x', extendedAttributes }] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Record 0: extendedAttributes has more than 500 keys/);
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+});
+
+describe('data-plane endpoints (M-05)', () => {
+  beforeEach(usePermissionsOfCaller);
+
+  it('sync-log stamps the calling crawler and a system it may access', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/sync-log')
+      .send({ syncType: 'X', startTime: '2026-01-01T00:00:00Z', endTime: '2026-01-01T00:00:10Z', systemId: 7 });
+    expect(res.status).toBe(201);
+    const [sql, params] = mockQuery.mock.calls.find(([s]) => /INSERT INTO "GraphSyncLog"/.test(String(s)));
+    expect(sql).toContain('"crawlerId", "systemId"');
+    expect(params.slice(-2)).toEqual([21, 7]);
+  });
+
+  it('sync-log refuses a system the crawler cannot access', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/sync-log')
+      .send({ syncType: 'X', startTime: '2026-01-01T00:00:00Z', systemId: 1 });
+    expect(res.status).toBe(403);
+  });
+
+  it('classify needs refreshViews — an ingest-only key is refused before any UPDATE', async () => {
+    const res = await request(appAs(RESTRICTED)).post('/ingest/classify-business-role-assignments').send({});
+    expect(res.status).toBe(403);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('classify from a restricted refreshViews key only flags its own systems', async () => {
+    const caller = { ...RESTRICTED, permissions: ['ingest', 'refreshViews'] };
+    const res = await request(appAs(caller)).post('/ingest/classify-business-role-assignments').send({});
+    expect(res.status).toBe(200);
+    const [sql, params] = mockQuery.mock.calls.find(([s]) => /UPDATE "ResourceAssignments"/.test(String(s)));
+    expect(sql).toContain('AND ra."systemId" = ANY($1::int[])');
+    expect(params).toEqual([[7]]);
+  });
+
+  it('principals-presence passes a restricted key its own systems, and the worker none', async () => {
+    const presence = await import('../ingest/crawlerPresence.js');
+    await request(appAs(RESTRICTED)).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
+    expect(presence.lookupCrawlerPresence.mock.calls.at(-1)[3]).toEqual([7]);
+    await request(appAs(WORKER)).post('/ingest/principals-presence').send({ tenantId: 't1', ids: [UUID] });
+    expect(presence.lookupCrawlerPresence.mock.calls.at(-1)[3]).toBeNull();
+  });
+
+  it('matrix-default-filter is worker-only: an ingest key is refused, the worker is not', async () => {
+    const body = { name: 'Default', filter: { rowType: 'user' } };
+    expect((await request(appAs(RESTRICTED)).post('/ingest/matrix-default-filter').send(body)).status).toBe(403);
+    expect((await request(appAs(WORKER)).post('/ingest/matrix-default-filter').send(body)).status).toBe(201);
+  });
+});
+
+// ── Directory ownership reaches the engine (#1247) ──────────────────────────
+//
+// The rule itself is unit-tested in ingest/systemBoundary.test.js and
+// ingest/engine.test.js. What is asserted here is the WIRING: a rule the handler
+// forgets to pass on is a rule that does not exist. Both write paths are checked,
+// because the Azure RM crawler's stubs go through the single-batch one while the
+// Entra crawler's principals go through a session.
+describe('ingest handler — a dependent system may not take over ownership', () => {
+  const stageDirectoryLink = (directorySystemId) => {
+    mockQueryOne.mockImplementation(async (sql) => (
+      String(sql).includes('"directorySystemId"') ? { directorySystemId } : null
+    ));
+  };
+
+  it('passes preserveColumns for a system that reads from a directory', async () => {
+    stageDirectoryLink(1);
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 33, syncMode: 'delta', records: [{ id: UUID, displayName: 'William' }] });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4]).toMatchObject({ preserveColumns: ['systemId'] });
+  });
+
+  it('passes nothing for the directory system itself', async () => {
+    stageDirectoryLink(null);
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 1, syncMode: 'full', records: [{ displayName: 'William' }] });
+
+    expect(res.status).toBe(201);
+    expect(mockIngest.mock.calls[0][4].preserveColumns).toBeNull();
+  });
+
+  it('carries the rule into a multi-batch session as well', async () => {
+    stageDirectoryLink(1);
+    const res = await request(app).post('/ingest/principals')
+      .send({ systemId: 33, syncSession: 'start', syncMode: 'delta', records: [{ id: UUID, displayName: 'W' }] });
+
+    expect(res.status).toBe(201);
+    expect(mockStart.mock.calls[0][4]).toMatchObject({ preserveColumns: ['systemId'] });
   });
 });

@@ -290,6 +290,35 @@ Describe 'Invoke-IngestAPI — retry policy' {
     }
 }
 
+Describe 'Invoke-IngestAPI — -Timing' {
+    BeforeAll { $script:F = [System.Diagnostics.Stopwatch]::Frequency }
+
+    It 'adds the wait for the API to SendTicks and only the serialisation to SerializeTicks' {
+        Mock Invoke-RestMethod { Start-Sleep -Milliseconds 200; @{ inserted = 3 } }
+        $t = @{ SerializeTicks = [long]0; SendTicks = [long]0 }
+        (Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @(1, 2, 3) } -Timing $t).inserted | Should -Be 3
+        ($t.SendTicks / $script:F) | Should -BeGreaterOrEqual 0.19
+        $t.SerializeTicks | Should -BeGreaterThan 0
+        # The 200 ms the API took is not serialisation.
+        ($t.SerializeTicks / $script:F) | Should -BeLessThan 0.1
+    }
+
+    It 'accumulates over calls instead of overwriting' {
+        Mock Invoke-RestMethod { Start-Sleep -Milliseconds 120; @{ inserted = 0 } }
+        $t = @{ SerializeTicks = [long]0; SendTicks = [long]0 }
+        Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } -Timing $t | Out-Null
+        Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } -Timing $t | Out-Null
+        ($t.SendTicks / $script:F) | Should -BeGreaterOrEqual 0.23
+    }
+
+    It 'still counts the time of a call that fails, and the failure still reaches the caller' {
+        Mock Invoke-RestMethod { Start-Sleep -Milliseconds 150; throw (New-HttpError -Status 400 -Message 'Bad Request') }
+        $t = @{ SerializeTicks = [long]0; SendTicks = [long]0 }
+        { Invoke-IngestAPI -Endpoint 'ingest/test' -Body @{ records = @() } -Timing $t } | Should -Throw
+        ($t.SendTicks / $script:F) | Should -BeGreaterOrEqual 0.14
+    }
+}
+
 Describe 'Get-FGIngestErrorDetail — response-body extraction' {
 
     It 'prefers ErrorDetails.Message (the PS7 path, where the stream is already drained)' {

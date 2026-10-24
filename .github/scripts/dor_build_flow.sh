@@ -34,6 +34,8 @@ cd "$WORK"
 use_bot_remote   # push as the BOT app so the PR's CI actually runs (GITHUB_TOKEN pushes don't trigger it)
 # Never let the agent's scratch (.dor/in/*) or the deploy override get committed into the PR.
 grep -qxF '.dor/' .git/info/exclude 2>/dev/null || echo '.dor/' >> .git/info/exclude
+# …nor the hourly sidekick sweep's own checkout (dor-reconcile.yml), should one ever outlive the clean.
+grep -qxF '.dor-sweep/' .git/info/exclude 2>/dev/null || echo '.dor-sweep/' >> .git/info/exclude
 grep -qxF 'dor-tls.override.yml' .git/info/exclude 2>/dev/null || echo 'dor-tls.override.yml' >> .git/info/exclude
 # Before anything else touches the box or the issue: never build over another issue's live env.
 # A continuation passes too — a box held by this same issue counts as free.

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   fmtMs,
-  fmtBytes,
   statusTextClass,
   SYNC_MODE_BADGES,
   PHASE_DOTS,
@@ -27,22 +26,6 @@ describe('fmtMs', () => {
     expect(fmtMs(60000)).toBe('1m 0s');
     expect(fmtMs(65000)).toBe('1m 5s');
     expect(fmtMs(125000)).toBe('2m 5s');
-  });
-});
-
-describe('fmtBytes', () => {
-  it('renders bytes under a kilobyte', () => {
-    expect(fmtBytes(0)).toBe('0 B');
-    expect(fmtBytes(512)).toBe('512 B');
-    expect(fmtBytes(1023)).toBe('1023 B');
-  });
-  it('renders kilobytes under a megabyte', () => {
-    expect(fmtBytes(1024)).toBe('1.0 KB');
-    expect(fmtBytes(2048)).toBe('2.0 KB');
-  });
-  it('renders megabytes at and above a megabyte', () => {
-    expect(fmtBytes(1024 * 1024)).toBe('1.0 MB');
-    expect(fmtBytes(5 * 1024 * 1024)).toBe('5.0 MB');
   });
 });
 

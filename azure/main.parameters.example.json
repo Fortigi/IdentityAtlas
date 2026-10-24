@@ -8,6 +8,9 @@
     "imageChannel": {
       "value": "stable"
     },
+    "containerRegistryResourceId": {
+      "value": ""
+    },
     "existingLogAnalyticsWorkspaceId": {
       "value": ""
     }

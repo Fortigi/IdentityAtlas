@@ -11,12 +11,11 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
 === "Linux / macOS"
 
     ```bash
-    # 1. Download the compose file and environment template
+    # 1. Download the compose file
     curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml
-    curl -O https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example
 
-    # 2. Create your .env file
-    cp .env.example .env
+    # 2. Create .env with a generated database password (skipped when .env already exists)
+    [ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 
     # 3. Start everything (--pull always fetches the newest :latest from the registry)
     docker compose -f docker-compose.prod.yml up -d --pull always
@@ -28,16 +27,17 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
 === "Windows (PowerShell)"
 
     ```powershell
-    # 1. Download the compose file and environment template
+    # 1. Download the compose file
     Invoke-WebRequest `
         -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml `
         -OutFile docker-compose.prod.yml
-    Invoke-WebRequest `
-        -Uri https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/setup/config/.env.example `
-        -OutFile .env.example
 
-    # 2. Create your .env file
-    Copy-Item .env.example .env
+    # 2. Create .env with a generated database password (skipped when .env already exists)
+    if (-not (Test-Path .env)) {
+        $bytes = [byte[]]::new(24)
+        [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        "POSTGRES_PASSWORD=$(-join ($bytes | ForEach-Object { $_.ToString('x2') }))" | Set-Content .env -Encoding ascii
+    }
 
     # 3. Start everything (--pull always fetches the newest :latest from the registry)
     docker compose -f docker-compose.prod.yml up -d --pull always
@@ -52,14 +52,18 @@ To connect your own Entra ID tenant, click **"Connect Entra ID"** on the Crawler
 
 ### The .env File
 
-`docker-compose.prod.yml` reads all configuration from a `.env` file in the same directory. The template has safe defaults for local evaluation — for anything networked or production, set these two variables:
+`docker-compose.prod.yml` reads its configuration from a `.env` file in the same directory. Only one variable is required; every other setting has a default.
 
 | Variable | Default | What to do |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `identity_atlas_local` | **Change this** for any non-local deployment |
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Set an explicit value so you can back it up; if left blank the container generates one and saves it to the `job_data` volume |
+| `POSTGRES_PASSWORD` | *(none — required)* | The compose file ships no default password and refuses to start while this is unset or empty. Step 2 above writes a random one. |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Optional. If left unset, the web container generates a key on first start and saves it to the web-only `web_keys` volume — back that volume up. For a real deployment, set an explicit value before the first start so you hold the key yourself: 32 random bytes, base64-encoded (`openssl rand -base64 32`). |
 
-Full variable reference: [Environment Variables](#environment-variables).
+Step 2 only creates `.env` when it does not exist yet, so the commands are safe to run again. Keep the file: the database keeps the password it was first created with, so a different value in `.env` later locks the web container out of its own database. If you already have a `.env` without a password, add a `POSTGRES_PASSWORD=<strong value>` line to it.
+
+The stack starts without sign-in (`AUTH_ENABLED=false`), which suits a local evaluation. Before you share it, see [Setting up authentication](../admin/authentication.md).
+
+Full variable reference: [Environment Variables](#environment-variables). A commented template with every variable is at [`setup/config/.env.example`](https://github.com/Fortigi/IdentityAtlas/blob/main/setup/config/.env.example).
 
 ### Image Channels
 
@@ -163,6 +167,25 @@ docker compose exec postgres psql -U identity_atlas -d identity_atlas -c \
 ### Swap
 
 Do **not** rely on swap to carry crawler peaks. The workloads here (Node's V8 heap, PowerShell's .NET object graph, Postgres shared buffers) all degrade sharply under paging. If the table above says 12 GB, give it 12 GB of real RAM. A small swap partition (1–2 GB) as a safety net against OOM-kills is fine; anything larger invites false confidence.
+
+---
+
+## Container Security
+
+`docker-compose.prod.yml` (compose file version 4 and later) applies these defaults:
+
+- **Secrets as files, not environment variables.** `POSTGRES_PASSWORD` is still read from `.env`, but Compose hands it to the `postgres` and `web` containers as a secret file under `/run/secrets` (`POSTGRES_PASSWORD_FILE`), so it no longer appears in `docker inspect`. The API accepts `<NAME>_FILE` for `POSTGRES_PASSWORD`, `DATABASE_URL` and `IDENTITY_ATLAS_MASTER_KEY`; a plain variable that is set still wins. Environment-sourced Compose secrets need a recent Docker Compose v2 (v2.20 or later is recommended).
+- **The vault master key is not on the shared volume.** The web container keeps its auto-generated key in the `web_keys` volume (`IDENTITY_ATLAS_KEY_DIR=/data/keys`), which the worker does not mount. On the first start with this compose file, an existing `/data/uploads/.master-key` is copied there, read back, checked against a stored secret, and only then removed from `job_data`. **Back up the `web_keys` volume** (or set `IDENTITY_ATLAS_MASTER_KEY` explicitly).
+- **Fewer secrets in the worker.** The worker receives neither the database password nor the master key, and no longer gets the unused `GRAPH_*` / `LLM_*` variables. Crawler and LLM credentials are configured in the UI and reach the worker per job.
+- **Hardening.** Every service runs with `no-new-privileges` and `cap_drop: [ALL]` (Postgres keeps the five capabilities its entrypoint needs), a `pids_limit`, and a memory limit (`POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT`, default `8g` each; raise them for very large tenants, see [Sizing](#sizing)). The worker image runs as uid 1000, like the web image; on start it recreates a job-log directory left root-owned by an older worker image.
+- **Supply chain.** Base images are pinned by digest, and every published image carries signed build provenance and an SBOM: `gh attestation verify oci://ghcr.io/fortigi/identity-atlas:latest --owner Fortigi`.
+
+### Upgrading from an older compose file
+
+An older `docker-compose.prod.yml` keeps working with the new images: the master key stays at `/data/uploads/.master-key` (it is only moved when `IDENTITY_ATLAS_KEY_DIR` is set), and the database password is passed as before. Download the new file to get the protections above.
+
+- **If you pin `IMAGE_TAG` to an older release**, use the compose file from that release. The new file relies on `POSTGRES_PASSWORD_FILE` support in the web image.
+- **Rolling back after the key has moved.** If you return to an older compose file or image after the key was moved to `web_keys`, copy it out first and set it explicitly: run `docker compose exec web cat /data/keys/.master-key` and put the value in `IDENTITY_ATLAS_MASTER_KEY`. Current images refuse to generate a new key while the vault holds encrypted secrets and log how to recover instead; set `IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true` only if you intend to discard those secrets.
 
 ---
 
@@ -314,7 +337,7 @@ Crawler configs are stored persistently in the `CrawlerConfigs` table and manage
 - **Object types** to sync (Identity, Context, Users & Groups, Governance, Apps, Directory Roles, PIM)
 - **Custom attributes** — additional user/group attributes to fetch from Graph (e.g., `employeeHireDate`, `extension_*`)
 - **Identity filter** — selects which users are treated as identities (e.g., `employeeId` is not null)
-- **Schedule** — hourly/daily/weekly with configurable time
+- **Schedule** — every few minutes, hourly, daily or weekly, each as a delta or full run
 
 ### Custom Attributes
 
@@ -342,11 +365,21 @@ Crawlers can be scheduled directly from the UI. The worker checks `CrawlerConfig
 
 | Frequency | Description |
 |---|---|
+| `interval` | Runs every `intervalMinutes` (5, 10, 15, 20 or 30) on the clock, e.g. `:00`, `:15`, `:30`, `:45` for 15. Shown in the UI as **Every few minutes** |
 | `hourly` | Runs at `:MM` every hour |
 | `daily` | Runs at `HH:MM UTC` every day |
 | `weekly` | Runs at `HH:MM UTC` on a specific day |
 
-Scheduled jobs appear in the "Recent Jobs" table like any other job.
+Each schedule entry also has a `syncMode` (`delta` or `full`).
+
+A crawler configuration only runs one job at a time. If a schedule comes due while a job of the same crawler is still queued or running:
+
+- an **Every few minutes** schedule skips that run and waits for its next one;
+- any other schedule waits and starts as soon as the running job finishes, for up to an hour. So a daily full run is not lost because a five-minute delta happened to be running.
+
+When a full and a delta come due in the same minute, the full goes first.
+
+Scheduled jobs appear in the "Recent Jobs" table like any other job. That table shows the ten newest jobs plus each crawler's last full run and last delta run, so frequent deltas do not push the last full run out of view. It reads `GET /api/admin/crawler-jobs?limit=10&latestPerMode=true`.
 
 ---
 
@@ -403,7 +436,7 @@ Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read fro
 
 | Variable | Default | Description |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `identity_atlas_local` | PostgreSQL password. Safe for local evaluation; **change for any networked deployment**. |
+| `POSTGRES_PASSWORD` | *(none in `docker-compose.prod.yml`)* | PostgreSQL password. **Required** by `docker-compose.prod.yml`, which refuses to start while it is unset or empty. Only the developer compose file (`docker-compose.yml`, built from source) falls back to `identity_atlas_local`. The database keeps the password it was first created with, so do not change the value afterwards without also changing it in PostgreSQL. |
 | `POSTGRES_USER` | `identity_atlas` | PostgreSQL username. Rarely needs changing. |
 | `POSTGRES_DB` | `identity_atlas` | Database name. Rarely needs changing. |
 
@@ -411,7 +444,10 @@ Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read fro
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the container generates a key on first start and persists it to the `job_data` volume. **Set an explicit value for production** so the key can be backed up alongside other root secrets. |
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the web container generates a key on first start and persists it to the web-only `web_keys` volume (`docker-compose.prod.yml` v4+; older compose files use the `job_data` volume). **Set an explicit value for production** so the key can be backed up alongside other root secrets: 32 random bytes, base64-encoded (`openssl rand -base64 32`). Set it before the first start: a different key cannot decrypt secrets that are already stored, so changing it later means following [Master key rotation](llm-and-risk-scoring.md#master-key-rotation). |
+| `IDENTITY_ATLAS_MASTER_KEY_FILE` | — | Path to a file holding the master key (for Docker/Compose secrets). Used when `IDENTITY_ATLAS_MASTER_KEY` is empty. `POSTGRES_PASSWORD_FILE` and `DATABASE_URL_FILE` work the same way. |
+| `IDENTITY_ATLAS_KEY_DIR` | *(unset)* | Directory for the auto-generated master key. The compose files set it to `/data/keys` (a web-only volume). Only set it when that path is a persistent volume. |
+| `POSTGRES_MEM_LIMIT` / `WEB_MEM_LIMIT` / `WORKER_MEM_LIMIT` | `8g` | Container memory limits in `docker-compose.prod.yml`. |
 
 #### Authentication (optional)
 
@@ -424,21 +460,13 @@ Identity Atlas defaults to no-auth (any browser can access the UI). To require E
 | `AUTH_CLIENT_ID` | — | App Registration client ID for the UI. |
 | `AUTH_REQUIRED_ROLES` | — | Optional comma-separated list of app roles required to access the UI. |
 
-#### Crawler credentials (optional — can also configure via the in-browser wizard)
+#### Crawler credentials
 
 | Variable | Default | Description |
 |---|---|---|
 | `CRAWLER_API_KEY` | *(auto-generated)* | API key the worker uses to authenticate with the API. Auto-generated on first start; override only if you need a fixed key. |
-| `GRAPH_TENANT_ID` | — | Entra ID tenant ID for the Graph API crawler. |
-| `GRAPH_CLIENT_ID` | — | App Registration client ID. |
-| `GRAPH_CLIENT_SECRET` | — | App Registration client secret. |
 
-#### LLM / Risk Scoring (optional)
-
-| Variable | Default | Description |
-|---|---|---|
-| `LLM_PROVIDER` | — | `Anthropic`, `OpenAI`, or `AzureOpenAI`. Can also be configured per-tenant via Admin → LLM Settings. |
-| `LLM_API_KEY` | — | API key for the selected LLM provider. |
+Microsoft Graph and LLM credentials are configured in the UI (the crawler wizard and Admin → LLM Settings) and stored encrypted in the vault. The `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `LLM_PROVIDER` and `LLM_API_KEY` environment variables were never read by the containers and are no longer passed to them.
 
 ---
 
@@ -449,7 +477,8 @@ Identity Atlas defaults to no-auth (any browser can access the UI). To require E
 | `app/api/src/` | `/app/backend/src/` | web |
 | `app/ui/` (built) | `/app/frontend/dist/` | web (static) |
 | `tools/` | `/app/tools/` | worker |
-| `job_data` (named volume) | `/data/uploads/` | web (writes), worker (reads) — CSV crawler uploads |
+| `job_data` (named volume) | `/data/uploads/` | web (writes), worker (reads) — CSV crawler uploads, job logs, built-in worker key |
+| `web_keys` (named volume) | `/data/keys/` | web only — auto-generated vault master key |
 
 ---
 

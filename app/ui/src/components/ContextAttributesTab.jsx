@@ -13,9 +13,12 @@ const SYSTEM_COLS = new Set([
   'parentContextId', 'scopeSystemId', 'scopeSystemName', 'sourceAlgorithmId',
   'sourceAlgorithmName', 'sourceAlgorithmDisplayName', 'sourceRunId',
   'createdByUser', 'ownerUserId', 'externalId', 'parentDisplayName',
+  // The owner resolved to a principal by the read endpoint — shown as a person
+  // in the header, so repeating the raw ids down here is noise.
+  'ownerPrincipalId', 'ownerDisplayName',
 ]);
 
-export function cleanAttributes(attrs) {
+function cleanAttributes(attrs) {
   if (!attrs) return {};
   const clean = {};
   for (const [key, value] of Object.entries(attrs)) {

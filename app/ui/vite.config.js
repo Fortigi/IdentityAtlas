@@ -13,6 +13,11 @@ export default defineConfig({
       // '@crawlers/X' → tools/crawlers/X  (use in import statements within tools/crawlers/)
       '@crawlers': path.resolve(__dirname, '../../tools/crawlers'),
     },
+    // Crawler wizards live outside this package (tools/crawlers/<type>/) with no
+    // node_modules of their own. Resolve React from here for them, so a wizard
+    // mount test under the jsdom environment finds it — and there is only ever
+    // one React instance, whichever side imported it.
+    dedupe: ['react', 'react-dom'],
   },
   test: {
     // Also pick up tests co-located with crawler wizard plugins (outside src/,

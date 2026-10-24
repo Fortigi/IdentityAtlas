@@ -3,7 +3,7 @@
 A single, self-contained static landing page (issue #677). No build step, no
 dependencies — `index.html` inlines all CSS/JS; assets live in `assets/`.
 
-- **Sections:** Why · What · How to start · Trust (the four required sections).
+- **Sections:** Watch (explainer video) · Why · What · How to start · Trust (the four required sections plus the video).
 - **Copy source of truth:** [`docs/marketing/`](../docs/marketing/) — keep it in sync.
 - **Brand:** blue-600 interactive, lime brand accent, light/dark aware — mirrors the app and docs.
 
@@ -12,6 +12,13 @@ dependencies — `index.html` inlines all CSS/JS; assets live in `assets/`.
 `assets/mark.png`, `assets/favicon.png`, `assets/og-image.png` are generated from
 `app/ui/public/logo-dark.png` (the transparent logo). To regenerate, re-run the
 crop/resize used in issue #677 (System.Drawing / sharp) against that source.
+
+`assets/explainer.mp4` is the one-minute explainer ("Trust starts with clarity"),
+self-hosted so the page needs no third-party player. It is the original export
+remuxed with `ffmpeg -c copy -movflags +faststart` so playback can start before the
+whole file is downloaded. `assets/explainer-poster.jpg` is its opening title card
+(`ffmpeg -ss 0 -frames:v 1 -vf scale=1280:-1`). If you replace the video, use a new
+file name: `/assets/*` is served with a one-year immutable cache.
 
 ## Preview locally
 

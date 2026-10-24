@@ -1,0 +1,804 @@
+// Natural-language reports (PROTOTYPE) — the semantic catalog.
+//
+// This is the whole vocabulary the LLM is allowed to use. It never sees table or
+// column names: it sees entities, fields and relations described in analyst
+// language, and fills in a report spec (see spec.js). compile.js turns a
+// validated spec into parameterised SQL using the templates below.
+//
+// SQL templates are functions of a table alias, so the same field can be used on
+// the root entity and inside a relation subquery without alias collisions. Every
+// template is a constant — no user or model input is ever interpolated into SQL.
+
+import { aggregateRowWhere, lastSignInExpr } from '../lib/principalActivity.js';
+import { measurementCte } from '../reports/activityWindow.js';
+import { OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
+
+const notDeleted = (t) => `${t}."deletedAt" IS NULL`;
+
+// The contexts a record is a member of — the reverse of a context's resources /
+// accounts / persons relations below. "All groups with the contexts they are
+// part of" had no way to be written while only the context side could reach
+// its members.
+const contextsOf = (memberType, noun) => ({
+  label: 'Contexts', target: 'context', cardinality: 'many',
+  compareNoun: 'contexts',
+  some: 'is in a context', none: 'is not in any context',
+  description: `contexts (tags, departments, catalogue applications, …) this ${noun} is part of`,
+  from: (outer, inner, u) => {
+    const cm = u();
+    return {
+      from: `"ContextMembers" ${cm} JOIN "Contexts" ${inner} ON ${inner}."id" = ${cm}."contextId"`,
+      where: `${cm}."memberId" = ${outer}."id" AND ${cm}."memberType" = '${memberType}'`,
+    };
+  },
+});
+
+// Sign-in activity, read through the same helpers as the standard activity
+// reports, so "last sign-in" and "stale" mean the same thing in a custom report as
+// in Never Signed In / Stale Accounts. Activity is a snapshot per system: the
+// measurement moment (when that system's sign-in data was last collected) is
+// what "days since" counts back from — not today — so a missed sync does not
+// make everyone stale. It is computed once per query, as a CTE.
+const SIGNIN_MEASUREMENT = { name: 'signin_measurement', sql: measurementCte() };
+const lastSignIn = (t) => `(SELECT MAX(${lastSignInExpr('pa')}) FROM "PrincipalActivity" pa
+          WHERE pa."principalId" = ${t}."id" AND ${aggregateRowWhere('pa')})`;
+const signInMeasuredAt = (t) =>
+  `(SELECT sm."measuredAt" FROM ${SIGNIN_MEASUREMENT.name} sm WHERE sm."systemId" = ${t}."systemId")`;
+// `extKey` on the returned template records WHICH extendedAttributes key a field
+// reads. extFields.js uses it to skip keys the static catalog already covers, so
+// `userType` does not also show up as a raw `ext.userType` field.
+const tagged = (key, fn) => Object.assign(fn, { extKey: key });
+const ext = (key) => tagged(key, (t) => `${t}."extendedAttributes"->>'${key}'`);
+const extBool = (key) => tagged(key, (t) => `(${t}."extendedAttributes"->>'${key}')::boolean`);
+
+const col = (name) => (t) => `${t}."${name}"`;
+// Ids are UUID columns, but the catalog offers them as text (contains, starts with,
+// is empty …). Without the cast, text operators are invalid SQL on a UUID — found by
+// contract-tests/customReportsCatalog.contract.test.js.
+const idText = (t) => `${t}."id"::text`;
+const systemName = (t) => `(SELECT s."displayName" FROM "Systems" s WHERE s."id" = ${t}."systemId")`;
+
+// Assignment types that mean "is a member / has it" (Eligible = could activate it).
+const HELD = `('Direct','Indirect')`;
+// The synthetic ownership rows, which are never "a resource someone has". Shared
+// with the risk engine so the two cannot disagree about what ownership is —
+// lib/ownershipTypes.js.
+const OWNERSHIP_TYPES = OWNERSHIP_TYPES_SQL;
+const OWNERSHIP_RELATIONSHIPS = OWNERSHIP_RELATIONSHIP_TYPES_SQL;
+
+export const OPERATORS = {
+  eq: { label: 'is', needsValue: true },
+  neq: { label: 'is not', needsValue: true },
+  contains: { label: 'contains', needsValue: true },
+  notContains: { label: 'does not contain', needsValue: true },
+  startsWith: { label: 'starts with', needsValue: true },
+  endsWith: { label: 'ends with', needsValue: true },
+  isEmpty: { label: 'is empty', needsValue: false },
+  isNotEmpty: { label: 'is not empty', needsValue: false },
+  gt: { label: 'is more than', needsValue: true },
+  lt: { label: 'is less than', needsValue: true },
+  withinLastDays: { label: 'is within the last N days', needsValue: true },
+  olderThanDays: { label: 'is more than N days ago', needsValue: true },
+  // Takes a LIST. Its reason for existing is a follow-up question: "of these
+  // groups, which are in an access package" has to name the groups the previous
+  // answer produced, and naming them one OR-condition at a time is a definition
+  // no small model writes correctly and no reader can check.
+  in: { label: 'is one of', needsValue: true },
+};
+
+export const OPERATORS_BY_TYPE = {
+  text: ['eq', 'neq', 'in', 'contains', 'notContains', 'startsWith', 'endsWith', 'isEmpty', 'isNotEmpty'],
+  enum: ['eq', 'neq', 'in', 'isEmpty', 'isNotEmpty'],
+  boolean: ['eq', 'isEmpty', 'isNotEmpty'],
+  number: ['eq', 'neq', 'gt', 'lt', 'isEmpty', 'isNotEmpty'],
+  date: ['withinLastDays', 'olderThanDays', 'isEmpty', 'isNotEmpty'],
+};
+
+const BASE = {
+  account: {
+    label: 'Account',
+    table: 'Principals',
+    detailKind: 'user',
+    // How a follow-up about 'these groups' reaches them from here (followUp.js).
+    narrowVia: { resource: 'memberOf' },
+    description:
+      'An account in a connected system: a person\'s user account (member or guest), a service principal, ' +
+      'a managed identity or an AI agent. Use this entity only when non-human accounts matter or the request says "accounts" in general.',
+    defaultColumns: ['displayName', 'email', 'principalType', 'accountEnabled'],
+    where: notDeleted,
+    fields: {
+      id: { label: 'ID', type: 'text', sql: idText, description: 'unique account id' },
+      displayName: { label: 'Name', type: 'text', sql: col('displayName'), description: 'display name' },
+      email: { label: 'Email', type: 'text', sql: col('email'), description: 'email / UPN' },
+      principalType: {
+        label: 'Account type', type: 'enum', sql: col('principalType'),
+        description: 'kind of account', valuesFrom: 'principalType',
+      },
+      userType: {
+        label: 'User type', type: 'enum', sql: ext('userType'),
+        description: 'Member or Guest (guest = external / B2B user)', valuesFrom: 'userType',
+      },
+      accountEnabled: {
+        label: 'Enabled', type: 'boolean', sql: col('accountEnabled'),
+        description: 'true = enabled / active, false = disabled / blocked',
+      },
+      givenName: { label: 'First name', type: 'text', sql: col('givenName') },
+      surname: { label: 'Last name', type: 'text', sql: col('surname') },
+      department: { label: 'Department', type: 'text', sql: col('department') },
+      jobTitle: { label: 'Job title', type: 'text', sql: col('jobTitle') },
+      companyName: { label: 'Company', type: 'text', sql: col('companyName') },
+      employeeId: { label: 'Employee ID', type: 'text', sql: col('employeeId') },
+      employeeType: { label: 'Employee type', type: 'text', sql: ext('employeeType') },
+      usageLocation: { label: 'Usage location', type: 'text', sql: ext('usageLocation'), description: 'country code' },
+      externalUserState: {
+        label: 'Guest invitation state', type: 'enum', sql: ext('externalUserState'),
+        description: 'PendingAcceptance or Accepted (guests only)', valuesFrom: 'externalUserState',
+      },
+      createdDateTime: { label: 'Created', type: 'date', sql: col('createdDateTime'), description: 'when the account was created' },
+      system: { label: 'System', type: 'enum', sql: systemName, description: 'source system name', valuesFrom: 'systemName' },
+      riskTier: { label: 'Risk tier', type: 'enum', sql: col('riskTier'), valuesFrom: 'principalRiskTier' },
+      groupCount: {
+        label: 'Group count', type: 'number', counts: 'memberOf',
+        description: 'number of groups the account is a member of',
+        sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra JOIN "Resources" r ON r."id" = ra."resourceId"
+          WHERE ra."principalId" = ${t}."id" AND ra."deletedAt" IS NULL AND r."deletedAt" IS NULL
+          AND r."resourceType" = 'Group' AND ra."assignmentType" IN ${HELD})`,
+      },
+      lastSignIn: {
+        label: 'Last sign-in', type: 'date', sql: lastSignIn,
+        // Kept short on purpose: longer descriptions here that talked about "empty"
+        // values measurably pulled the model toward isEmpty / isNotEmpty on unrelated
+        // boolean fields. How to phrase sign-in questions lives in prompt rule 2c.
+        description: 'most recent sign-in (interactive or not)',
+      },
+      daysSinceLastSignIn: {
+        label: 'Days since last sign-in', type: 'number', cte: SIGNIN_MEASUREMENT,
+        sql: (t) => `(EXTRACT(DAY FROM ${signInMeasuredAt(t)} - ${lastSignIn(t)}))::int`,
+        description: 'days since the last sign-in, counted from when sign-in data was collected',
+      },
+      signInDataCollected: {
+        label: 'Sign-in data collected', type: 'date', cte: SIGNIN_MEASUREMENT, sql: signInMeasuredAt,
+        description: 'when sign-in activity was last collected for this account\'s system',
+      },
+    },
+    relations: {
+      manager: {
+        label: 'Manager', target: 'user', cardinality: 'one',
+        some: 'has a manager', none: 'has no manager',
+        description: 'the account\'s manager (another account)',
+        from: (outer, inner) => ({
+          from: `"Principals" ${inner}`,
+          where: `${inner}."id" = ${outer}."managerId" AND ${notDeleted(inner)}`,
+        }),
+      },
+      directReports: {
+        label: 'Direct reports', target: 'user', cardinality: 'many',
+        compareNoun: 'direct reports',
+        some: 'has a direct report', none: 'has no direct reports',
+        description: 'accounts that have this account as their manager',
+        from: (outer, inner) => ({
+          from: `"Principals" ${inner}`,
+          where: `${inner}."managerId" = ${outer}."id" AND ${notDeleted(inner)}`,
+        }),
+      },
+      memberOf: {
+        label: 'Member of groups', target: 'group', cardinality: 'many',
+        compareNoun: 'group memberships',
+        some: 'is a member of a group', none: 'is not a member of any group',
+        description: 'groups the account is a member of (direct or nested). ONLY groups — for roles, applications or permissions use access',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${inner}."resourceType" = 'Group' AND ${ra}."assignmentType" IN ${HELD}`,
+          };
+        },
+      },
+      businessRoles: {
+        label: 'Business roles', target: 'resource', cardinality: 'many',
+        compareNoun: 'business roles',
+        some: 'is in a business role', none: 'is not in any business role',
+        description: 'business roles / access packages assigned to this account. Use this for "which business roles does X have" and as the businessRoles.names column',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${inner}."resourceType" = 'BusinessRole' AND ${ra}."assignmentType" IN ${HELD}`,
+          };
+        },
+      },
+      access: {
+        label: 'Has access to', target: 'resource', cardinality: 'many',
+        compareNoun: 'access',
+        some: 'has access to a resource', none: 'has no access to any resource',
+        description: 'any resource the account holds: directory roles, groups, app roles, permissions, business roles, Azure roles. Use this for "has the X role"; for business roles only, use businessRoles',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${inner}."resourceType" NOT IN ${OWNERSHIP_TYPES}`,
+          };
+        },
+      },
+      eligibleFor: {
+        label: 'Eligible for', target: 'resource', cardinality: 'many',
+        compareNoun: 'eligible assignments',
+        some: 'is eligible for a resource', none: 'is not eligible for any resource',
+        description: 'roles and other resources the account is ELIGIBLE for (PIM): it can activate or request them, but does not hold them until it does. Use for "eligible", "can activate", "can request", "kan aanvragen", "kan activeren"',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Resources" ${inner} ON ${inner}."id" = ${ra}."resourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" = 'Eligible'`,
+          };
+        },
+      },
+      owns: {
+        label: 'Owner of', target: 'resource', cardinality: 'many',
+        compareNoun: 'ownerships',
+        some: 'owns a resource', none: 'owns no resource',
+        description: 'groups and applications this account is an OWNER of (not membership)',
+        from: (outer, inner, u) => {
+          const ra = u(); const rr = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "ResourceRelationships" ${rr} ON ${rr}."childResourceId" = ${ra}."resourceId"
+              JOIN "Resources" ${inner} ON ${inner}."id" = ${rr}."parentResourceId"`,
+            where: `${ra}."principalId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${rr}."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS}`,
+          };
+        },
+      },
+      identity: {
+        label: 'Person', target: 'identity', cardinality: 'one',
+        some: 'is linked to a person', none: 'is not linked to any person',
+        description: 'the person (identity) this account belongs to, after account linking',
+        from: (outer, inner, u) => {
+          const im = u();
+          return {
+            from: `"IdentityMembers" ${im} JOIN "Identities" ${inner} ON ${inner}."id" = ${im}."identityId"`,
+            where: `${im}."principalId" = ${outer}."id"`,
+          };
+        },
+      },
+      contexts: contextsOf('Principal', 'account'),
+    },
+  },
+
+  identity: {
+    label: 'Identity',
+    table: 'Identities',
+    detailKind: 'identity',
+    description:
+      'A real person, linked to one or more accounts in different systems. Group memberships, access and ownership ' +
+      'belong to the ACCOUNTS — a question about what persons have or are member of uses the user entity instead.',
+    defaultColumns: ['displayName', 'email', 'department', 'jobTitle', 'accountCount'],
+    where: () => 'TRUE',
+    fields: {
+      id: { label: 'ID', type: 'text', sql: idText, description: 'unique identity id' },
+      displayName: { label: 'Name', type: 'text', sql: col('displayName') },
+      email: { label: 'Email', type: 'text', sql: col('email') },
+      givenName: { label: 'First name', type: 'text', sql: col('givenName') },
+      surname: { label: 'Last name', type: 'text', sql: col('surname') },
+      employeeId: { label: 'Employee ID', type: 'text', sql: col('employeeId') },
+      department: { label: 'Department', type: 'text', sql: col('department') },
+      jobTitle: { label: 'Job title', type: 'text', sql: col('jobTitle') },
+      companyName: { label: 'Company', type: 'text', sql: col('companyName') },
+      city: { label: 'City', type: 'text', sql: col('city') },
+      country: { label: 'Country', type: 'text', sql: col('country') },
+      officeLocation: { label: 'Office', type: 'text', sql: col('officeLocation') },
+      analystVerified: { label: 'Verified by analyst', type: 'boolean', sql: col('analystVerified') },
+      linkConfidence: { label: 'Link confidence', type: 'number', sql: col('linkConfidence'), description: 'how sure the account linking is, 0–100' },
+      accountCount: {
+        label: 'Account count', type: 'number', counts: 'accounts', description: 'number of accounts linked to this person',
+        sql: (t) => `(SELECT count(*) FROM "IdentityMembers" im JOIN "Principals" p ON p."id" = im."principalId"
+          WHERE im."identityId" = ${t}."id" AND p."deletedAt" IS NULL)`,
+      },
+    },
+    relations: {
+      accounts: {
+        label: 'Accounts', target: 'account', cardinality: 'many',
+        compareNoun: 'accounts',
+        some: 'has an account', none: 'has no accounts',
+        description: 'the accounts (in any system) linked to this person',
+        from: (outer, inner, u) => {
+          const im = u();
+          return {
+            from: `"IdentityMembers" ${im} JOIN "Principals" ${inner} ON ${inner}."id" = ${im}."principalId"`,
+            where: `${im}."identityId" = ${outer}."id" AND ${notDeleted(inner)}`,
+          };
+        },
+      },
+      manager: {
+        label: 'Manager', target: 'identity', cardinality: 'one',
+        some: 'has a manager', none: 'has no manager',
+        description: 'the person this person reports to',
+        from: (outer, inner) => ({
+          from: `"Identities" ${inner}`,
+          where: `${inner}."id" = ${outer}."managerIdentityId"`,
+        }),
+      },
+      contexts: contextsOf('Identity', 'person'),
+    },
+  },
+
+  resource: {
+    label: 'Resource',
+    table: 'Resources',
+    detailKind: 'resource',
+    // How a follow-up about 'these accounts' reaches them from here (followUp.js).
+    narrowVia: { user: 'members' },
+    description:
+      'Anything that grants access: a group, a directory role, an application, an app role, a permission, ' +
+      'a business role (access package) or an Azure resource. For groups use the group entity.',
+    defaultColumns: ['displayName', 'resourceType', 'description'],
+    where: (t) => `${notDeleted(t)} AND ${t}."resourceType" NOT IN ${OWNERSHIP_TYPES}`,
+    fields: {
+      id: { label: 'ID', type: 'text', sql: idText, description: 'unique resource id' },
+      displayName: { label: 'Name', type: 'text', sql: col('displayName'), description: 'display name' },
+      description: { label: 'Description', type: 'text', sql: col('description') },
+      resourceType: {
+        label: 'Resource type', type: 'enum', sql: col('resourceType'),
+        description: 'kind of resource', valuesFrom: 'resourceType',
+      },
+      mail: { label: 'Mail address', type: 'text', sql: col('mail') },
+      visibility: { label: 'Visibility', type: 'enum', sql: col('visibility'), valuesFrom: 'visibility' },
+      securityEnabled: { label: 'Security enabled', type: 'boolean', sql: extBool('securityEnabled'), description: 'groups: is a security group' },
+      mailEnabled: { label: 'Mail enabled', type: 'boolean', sql: extBool('mailEnabled'), description: 'groups: is mail enabled' },
+      dynamicMembership: {
+        label: 'Dynamic membership', type: 'boolean',
+        sql: (t) => `(${t}."extendedAttributes"->>'membershipRule') IS NOT NULL`,
+        description: 'groups: membership is rule-based (dynamic group)',
+      },
+      roleAssignable: { label: 'Role assignable', type: 'boolean', sql: extBool('isAssignableToRole'), description: 'groups: can be assigned to Entra roles' },
+      createdDateTime: { label: 'Created', type: 'date', sql: col('createdDateTime') },
+      system: { label: 'System', type: 'enum', sql: systemName, valuesFrom: 'systemName' },
+      riskTier: { label: 'Risk tier', type: 'enum', sql: col('riskTier'), valuesFrom: 'resourceRiskTier' },
+      memberCount: {
+        label: 'Member count', type: 'number', counts: 'members',
+        description: 'number of accounts that hold this resource (members / assignees)',
+        sql: (t) => `(SELECT count(*) FROM "ResourceAssignments" ra
+          WHERE ra."resourceId" = ${t}."id" AND ra."deletedAt" IS NULL AND ra."assignmentType" IN ${HELD})`,
+      },
+      ownerCount: {
+        label: 'Owner count', type: 'number', counts: 'owners', description: 'number of owners — WHO the owners are is the owners.names column',
+        sql: (t) => `(SELECT count(*) FROM "ResourceRelationships" rr JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId"
+          WHERE rr."parentResourceId" = ${t}."id" AND rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS} AND ra."deletedAt" IS NULL)`,
+      },
+    },
+    relations: {
+      members: {
+        label: 'Members', target: 'account', cardinality: 'many',
+        compareNoun: 'members',
+        some: 'has a member', none: 'has no members',
+        description: 'accounts that are members of / assigned to this resource (NOT owners)',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
+            where: `${ra}."resourceId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" IN ${HELD}`,
+          };
+        },
+      },
+      eligibleMembers: {
+        label: 'Eligible members', target: 'account', cardinality: 'many',
+        compareNoun: 'eligible members',
+        some: 'has an eligible member', none: 'has no eligible members',
+        description: 'accounts that are ELIGIBLE for this resource (PIM): they can activate or request it but do not hold it now. NOT the same as members. Use for "who can request / activate X", "wie kan X aanvragen", "eligible for X"',
+        from: (outer, inner, u) => {
+          const ra = u();
+          return {
+            from: `"ResourceAssignments" ${ra} JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
+            where: `${ra}."resourceId" = ${outer}."id" AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}
+              AND ${ra}."assignmentType" = 'Eligible'`,
+          };
+        },
+      },
+      owners: {
+        label: 'Owners', target: 'account', cardinality: 'many',
+        compareNoun: 'owners',
+        some: 'has an owner', none: 'has no owner',
+        description: 'accounts that OWN this group or application (NOT members). "nobody owns" = owners none',
+        from: (outer, inner, u) => {
+          const ra = u(); const rr = u();
+          return {
+            from: `"ResourceRelationships" ${rr} JOIN "ResourceAssignments" ${ra} ON ${ra}."resourceId" = ${rr}."childResourceId"
+              JOIN "Principals" ${inner} ON ${inner}."id" = ${ra}."principalId"`,
+            where: `${rr}."parentResourceId" = ${outer}."id" AND ${rr}."relationshipType" IN ${OWNERSHIP_RELATIONSHIPS}
+              AND ${ra}."deletedAt" IS NULL AND ${notDeleted(inner)}`,
+          };
+        },
+      },
+      businessRoles: {
+        label: 'In business roles', target: 'resource', cardinality: 'many',
+        compareNoun: 'business roles',
+        some: 'is in a business role', none: 'is not in any business role',
+        description: 'business roles / access packages that contain this resource',
+        from: (outer, inner, u) => {
+          const rr = u();
+          return {
+            from: `"ResourceRelationships" ${rr} JOIN "Resources" ${inner} ON ${inner}."id" = ${rr}."parentResourceId"`,
+            where: `${rr}."childResourceId" = ${outer}."id" AND ${rr}."relationshipType" = 'Contains'
+              AND ${inner}."resourceType" = 'BusinessRole' AND ${notDeleted(inner)}`,
+          };
+        },
+      },
+      contexts: contextsOf('Resource', 'group or resource'),
+    },
+  },
+};
+
+// ── What changed, and when ───────────────────────────────────────────────
+//
+// Every other entity here answers "what is true now". This one answers "what
+// became true, and when" — the question a manager actually asks, and the one
+// the catalog could not express at all: "zijn er recent leden aan deze groepen
+// toegevoegd of verwijderd?"
+//
+// It reads the `AssignmentChanges` view (migration 070), which projects the
+// audit trail into rows with a date and an action. The awkward part lives in
+// the view rather than here: a REMOVED membership is recorded as an UPDATE that
+// stamps `deletedAt`, not as a delete, because ResourceAssignments is a
+// soft-delete table. Anything reading `_history` directly and looking for
+// deletions finds only the hard ones, which stopped the day soft delete
+// shipped.
+//
+// `managerId` is a column rather than a second hop for a reason a report
+// author would not guess: a condition may nest a relation ONE level deep
+// (spec.js), so "changes to the access of the people who report to me" cannot
+// be walked as change → account → manager. It has to be reachable in one step.
+const CHANGE = {
+  label: 'Change',
+  table: 'AssignmentChanges',
+  // No detail page exists for a change — it is an event, not a record. Null
+  // keeps the bot from offering a link to one, and from carrying changes
+  // forward as the subject of a follow-up question.
+  detailKind: null,
+  // Alphabetical order on a list of events is useless; the newest change is
+  // the point. Nothing else in the catalog needs a default, so this is the
+  // only entity that sets one.
+  defaultSort: { field: 'changedAt', direction: 'desc' },
+  description:
+    'A membership or access grant that was ADDED or REMOVED, and when. Use this entity — and ONLY this entity — '
+    + 'for questions about what CHANGED, what is NEW, what was REMOVED, or what happened "recently" / "lately" / '
+    + '"in the last N days". Every other entity describes what is true now and cannot answer those. '
+    + 'Covers group membership, access packages, app roles and directory roles alike.',
+  defaultColumns: ['changedAt', 'action', 'account.displayName', 'resource.displayName'],
+  // Which relation a follow-up question means by "these groups" / "these
+  // accounts". Declared rather than inferred: both `account` and `manager`
+  // point at accounts, so a rule that picked the first relation with a
+  // matching target would depend on the order they happen to be written in.
+  narrowVia: { resource: 'resource', user: 'account' },
+  where: () => 'TRUE',
+  fields: {
+    id: { label: 'ID', type: 'text', sql: idText, description: 'unique change id' },
+    displayName: {
+      label: 'Change', type: 'text', sql: col('displayName'),
+      description: 'who and what, as one line ("Jan de Vries — Finance")',
+    },
+    changedAt: {
+      label: 'Changed', type: 'date', sql: col('changedAt'),
+      description: 'when the change happened. "recently" / "recent" / "de laatste tijd" is this field, within the last 30 days unless the request says otherwise',
+    },
+    action: {
+      label: 'Action', type: 'enum', sql: col('action'), valuesFrom: 'changeAction',
+      description: '"Added" (granted, or granted back) or "Removed" (revoked)',
+    },
+    assignmentType: {
+      label: 'Assignment type', type: 'enum', sql: col('assignmentType'), valuesFrom: 'assignmentType',
+      description: 'Direct, Indirect (through a group) or Eligible (can activate it)',
+    },
+  },
+  relations: {
+    account: {
+      label: 'Account', target: 'account', cardinality: 'one',
+      some: 'has an account', none: 'has no account',
+      description: 'the account this change was about — who gained or lost the access',
+      from: (outer, inner) => ({
+        from: `"Principals" ${inner}`,
+        where: `${inner}."id" = ${outer}."principalId"`,
+      }),
+    },
+    resource: {
+      label: 'Resource', target: 'resource', cardinality: 'one',
+      some: 'is about a resource', none: 'is about no resource',
+      description: 'the group, application or role the access was on',
+      from: (outer, inner) => ({
+        from: `"Resources" ${inner}`,
+        where: `${inner}."id" = ${outer}."resourceId"`,
+      }),
+    },
+    manager: {
+      label: 'Manager', target: 'account', cardinality: 'one',
+      some: 'the account has a manager', none: 'the account has no manager',
+      description: 'the manager of the account this change was about. "changes for my people / my team / mijn medewerkers" is this relation',
+      from: (outer, inner) => ({
+        from: `"Principals" ${inner}`,
+        where: `${inner}."id" = ${outer}."managerId"`,
+      }),
+    },
+  },
+};
+
+// ── Contexts ─────────────────────────────────────────────────────────────
+//
+// A context groups things: a department groups people, a tag groups whatever it
+// was put on, an application catalogue groups the entitlements of each
+// application. What a context MEANS is the deployment's own business — it is in
+// `contextType`, a value, never in this file — so one entity covers all of them
+// and a report on "logical applications" is this entity with a contextType
+// condition, built by the analyst.
+//
+// The catalogue facts a source stamps on its contexts (a CMDB reference, a
+// connection type) are `extendedAttributes` keys and arrive as discovered
+// `ext.*` fields like everywhere else (extFields.js).
+//
+// NOT offered to the language model (`modelFacing: false`): the entity list is
+// part of the system prompt and of the reply grammar, and adding to either
+// changes what the published accuracy figures were measured on. It is built in
+// the definition editor until an evaluation run says the model handles it —
+// the same reasoning as NOT_OFFERED_TO_MODEL in prompt.js. There is a budget
+// reason too: its fields alone are ~1,000 prompt tokens, and the prompt already
+// sits near the model's 8k context (ollama.js). What the model CAN do is the
+// other direction — the `contexts` relation of a group, resource, account or
+// person (contextsOf, above), which costs one line per entity.
+const memberOfType = (memberType, table) => (outer, inner, u) => {
+  const cm = u();
+  return {
+    from: `"ContextMembers" ${cm} JOIN "${table}" ${inner} ON ${inner}."id" = ${cm}."memberId"`,
+    where: `${cm}."contextId" = ${outer}."id" AND ${cm}."memberType" = '${memberType}'`,
+  };
+};
+
+const CONTEXT = {
+  label: 'Context',
+  table: 'Contexts',
+  detailKind: 'context',
+  modelFacing: false,
+  description:
+    'A grouping of people, accounts or resources: a department, a tag, an application from an application ' +
+    'catalogue, a cluster. The kind of grouping is its context type.',
+  defaultColumns: ['displayName', 'contextType', 'memberCount'],
+  where: () => 'TRUE',
+  fields: {
+    id: { label: 'ID', type: 'text', sql: idText, description: 'unique context id' },
+    displayName: { label: 'Name', type: 'text', sql: col('displayName'), description: 'display name' },
+    description: { label: 'Description', type: 'text', sql: col('description') },
+    // The source's own id for the grouping — for a logical application from a
+    // catalogue, usually the id the CMDB knows it by. Only on Context: it is the
+    // one entity the model is not shown, so adding it changes no prompt.
+    externalId: {
+      label: 'External ID', type: 'text', sql: col('externalId'),
+      description: 'the id the source system knows this context by',
+    },
+    contextType: {
+      label: 'Context type', type: 'enum', sql: col('contextType'), valuesFrom: 'contextType',
+      description: 'what kind of grouping this is (department, tag, application, …)',
+    },
+    targetType: {
+      label: 'Groups', type: 'enum', sql: col('targetType'), valuesFrom: 'contextTargetType',
+      description: 'what the context contains: Identity, Resource, Principal or System',
+    },
+    variant: {
+      label: 'Source', type: 'enum', sql: col('variant'), valuesFrom: 'contextVariant',
+      description: 'synced from a system, generated by an algorithm, or made by hand',
+    },
+    // The owner as a person where the stored value matches an account, and as
+    // stored otherwise: a catalogue writes an employee number or an account key
+    // here, and a report that showed only the matches would hide every owner
+    // the directory does not know.
+    owner: {
+      label: 'Owner', type: 'text', description: 'the owner, by name when the stored owner matches an account',
+      sql: (t) => `COALESCE((SELECT pr."displayName" FROM "Principals" pr
+          WHERE pr."deletedAt" IS NULL AND (pr."externalId" = ${t}."ownerUserId" OR pr."employeeId" = ${t}."ownerUserId")
+          ORDER BY (pr."externalId" = ${t}."ownerUserId") DESC LIMIT 1), ${t}."ownerUserId")`,
+    },
+    system: {
+      label: 'System', type: 'enum', valuesFrom: 'systemName', description: 'the system the context was synced from',
+      sql: (t) => `(SELECT s."displayName" FROM "Systems" s WHERE s."id" = ${t}."scopeSystemId")`,
+    },
+    memberCount: {
+      label: 'Member count', type: 'number', description: 'number of members of any kind, in this context itself',
+      sql: (t) => `(SELECT count(*) FROM "ContextMembers" cm WHERE cm."contextId" = ${t}."id")`,
+    },
+    // The counts below are STORED on the context and recalculated after each sync
+    // (contexts/assignmentCounts.js), because they cannot be computed inside the
+    // statement limit when a report asks: 101 s for one of them at 41 million
+    // assignments. So they are as of the last sync, and empty on a context that
+    // does not group resources or has not been counted yet.
+    resourceCount: {
+      label: 'Resource count', type: 'number', sql: col('resourceCount'),
+      description: 'number of resources (groups, entitlements, roles, …) in this context, as of the last sync',
+    },
+    directAssignmentCount: {
+      label: 'Assigned directly', type: 'number', sql: col('directAssignmentCount'),
+      description: 'assignments held directly on the resources in this context',
+    },
+    indirectAssignmentCount: {
+      label: 'Assigned via a role', type: 'number', sql: col('indirectAssignmentCount'),
+      description: 'assignments held through a role or a group on the resources in this context',
+    },
+    assignmentCount: {
+      label: 'Assignments', type: 'number',
+      description: 'assignments on the resources in this context, direct and via a role together',
+      sql: (t) => `(${t}."directAssignmentCount" + ${t}."indirectAssignmentCount")`,
+    },
+    eligibleAssignmentCount: {
+      label: 'Eligible', type: 'number', sql: col('eligibleAssignmentCount'),
+      description: 'assignments that can be activated on demand on the resources in this context',
+    },
+    holderCount: {
+      label: 'Holders', type: 'number', sql: col('holderCount'),
+      description: 'different people or accounts holding at least one resource in this context',
+    },
+    childCount: {
+      label: 'Sub-context count', type: 'number', description: 'number of contexts directly under this one',
+      sql: (t) => `(SELECT count(*) FROM "Contexts" cc WHERE cc."parentContextId" = ${t}."id")`,
+    },
+  },
+  relations: {
+    parent: {
+      label: 'Parent context', target: 'context', cardinality: 'one',
+      some: 'has a parent context', none: 'has no parent context',
+      description: 'the context this one sits under',
+      from: (outer, inner) => ({
+        from: `"Contexts" ${inner}`,
+        where: `${inner}."id" = ${outer}."parentContextId"`,
+      }),
+    },
+    children: {
+      label: 'Sub-contexts', target: 'context', cardinality: 'many',
+      compareNoun: 'sub-contexts',
+      some: 'has a sub-context', none: 'has no sub-contexts',
+      description: 'the contexts directly under this one',
+      from: (outer, inner) => ({
+        from: `"Contexts" ${inner}`,
+        where: `${inner}."parentContextId" = ${outer}."id"`,
+      }),
+    },
+    resources: {
+      label: 'Resources', target: 'resource', cardinality: 'many',
+      compareNoun: 'resources',
+      some: 'contains a resource', none: 'contains no resources',
+      description: 'the resources (groups, entitlements, roles, …) in this context',
+      from: (outer, inner, u) => {
+        const base = memberOfType('Resource', 'Resources')(outer, inner, u);
+        return {
+          from: base.from,
+          where: `${base.where} AND ${notDeleted(inner)} AND ${inner}."resourceType" NOT IN ${OWNERSHIP_TYPES}`,
+        };
+      },
+    },
+    accounts: {
+      label: 'Accounts', target: 'account', cardinality: 'many',
+      compareNoun: 'accounts',
+      some: 'contains an account', none: 'contains no accounts',
+      description: 'the accounts in this context',
+      from: (outer, inner, u) => {
+        const base = memberOfType('Principal', 'Principals')(outer, inner, u);
+        return { from: base.from, where: `${base.where} AND ${notDeleted(inner)}` };
+      },
+    },
+    identities: {
+      label: 'Persons', target: 'identity', cardinality: 'many',
+      compareNoun: 'persons',
+      some: 'contains a person', none: 'contains no persons',
+      description: 'the persons in this context',
+      from: memberOfType('Identity', 'Identities'),
+    },
+  },
+};
+
+// Analysts think in "users" and "groups", and small models reliably forget the
+// "principalType = User" / "resourceType = Group" filter when those are only a
+// field. So they are entities of their own: the base entity with the type
+// filter built in and the type field removed. A spec that still states the
+// implied type (e.g. group + resourceType = Group) is accepted — see spec.js.
+function derive(base, { label, description, typeField, typeValue, defaultColumns }) {
+  const fields = { ...base.fields };
+  delete fields[typeField];
+  return {
+    ...base, label, description, defaultColumns, fields,
+    implicit: { field: typeField, value: typeValue },
+    where: (t) => `${base.where(t)} AND ${t}."${typeField}" = '${typeValue}'`,
+  };
+}
+
+export const ENTITIES = {
+  user: derive(BASE.account, {
+    label: 'User', typeField: 'principalType', typeValue: 'User',
+    description: 'A user account of a person (members and guests). Use for "users", "accounts", "guests" — and for what people are member of or have access to.',
+    defaultColumns: ['displayName', 'email', 'userType', 'accountEnabled'],
+  }),
+  group: derive(BASE.resource, {
+    label: 'Group', typeField: 'resourceType', typeValue: 'Group',
+    description: 'A security or Microsoft 365 group. Use for "groups".',
+    defaultColumns: ['displayName', 'description', 'memberCount'],
+  }),
+  identity: BASE.identity,
+  account: BASE.account,
+  resource: BASE.resource,
+  change: CHANGE,
+  context: CONTEXT,
+};
+
+// The entities the language model is told about and may name in a reply. An
+// entity with `modelFacing: false` is still validated, compiled and offered in
+// the definition editor — it is only kept out of the prompt, the reply grammar
+// and the question vocabulary, so adding one leaves the system prompt
+// byte-identical (and the prompt cache and accuracy figures valid).
+export const MODEL_ENTITIES = Object.fromEntries(
+  Object.entries(ENTITIES).filter(([, e]) => e.modelFacing !== false));
+
+// ─── Fields, including the discovered extendedAttributes ones ────────
+//
+// The static catalog above is the vocabulary every deployment shares. On top of
+// it, each install has its own `extendedAttributes` keys — `sfDepartmentID`,
+// `fgGroupDN_OuPath`, whatever the crawlers stamp — and an analyst must be able
+// to filter, show and group on those too. They are discovered per request (see
+// extFields.js) and merged in HERE rather than mutated into ENTITIES, so nothing
+// deployment-specific ever reaches the byte-stable system prompt or leaks between
+// tests.
+
+/** The entity's own fields, plus the discovered `ext.*` fields handed in. */
+export function fieldsOf(entityName, extFields) {
+  const base = ENTITIES[entityName].fields;
+  const extra = extFields?.[entityName];
+  return extra ? { ...base, ...extra } : base;
+}
+
+/** The `extendedAttributes` keys the static fields of an entity already read. */
+export function staticExtKeys(entityName) {
+  return new Set(Object.values(ENTITIES[entityName].fields).map(f => f.sql.extKey).filter(Boolean));
+}
+
+// Words analysts use interchangeably. Rendered into the prompt, so the model maps
+
+// every synonym to the same entity or filter. Dutch terms included: questions
+// arrive in both languages.
+export const GLOSSARY = [
+  { terms: ['person', 'people', 'identity', 'human', 'persoon', 'personen', 'medewerker'], means: 'the identity entity (a real person). For what a person is member of, has access to or owns, use the user entity.' },
+  { terms: ['account', 'user', 'user account', 'principal', 'login', 'gebruiker', 'gebruikersaccount'], means: 'the user entity; the account entity when non-human accounts (service principals, managed identities, AI agents) are included' },
+  { terms: ['business role', 'access package', 'role package', 'bedrijfsrol', 'toegangspakket'], means: 'a resource with resourceType BusinessRole; the business roles an account or a group is in are the businessRoles relation — as a condition ("in business role X") and as the businessRoles.names column' },
+  { terms: ['group', 'security group', 'Microsoft 365 group', 'team', 'groep'], means: 'the group entity' },
+  { terms: ['directory role', 'admin role', 'Entra role', 'administrator role', 'beheerrol'], means: 'a resource with resourceType EntraDirectoryRole' },
+  { terms: ['application', 'enterprise application', 'app', 'applicatie'], means: 'a resource with resourceType Application' },
+  { terms: ['service principal', 'app identity', 'service account'], means: 'an account with principalType ServicePrincipal' },
+  { terms: ['guest', 'external user', 'B2B user', 'gast', 'externe gebruiker'], means: 'userType Guest' },
+  { terms: ['disabled', 'inactive', 'blocked', 'uitgeschakeld'], means: 'accountEnabled false' },
+  { terms: ['owner', 'eigenaar'], means: 'the owners / owns relation — never membership. "with the owner(s)" = the owners.names column' },
+  { terms: ['context', 'tag', 'label', 'contexten'], means: 'the contexts relation — the column contexts.names; "in context X" = contexts some with displayName contains X' },
+  { terms: ['eligible', 'PIM', 'can activate', 'can request', 'may request', 'in aanmerking', 'kan aanvragen', 'kan activeren', 'aanvraagbaar'], means: 'an assignment of type Eligible: the eligibleMembers relation of a resource ("who can request X") or the eligibleFor relation of a user ("what can X activate"); members and access are what is held NOW' },
+  { terms: ['rights', 'rechten', 'permissions', 'entitlements', 'toegang', 'toegangsrechten', 'bevoegdheden'], means: 'every kind of resource an account holds. "Which rights does X have" = the resource entity with NO resourceType condition and members some for X; "who has right X" = the user entity with the access relation' },
+  { terms: ['change', 'changed', 'changes', 'added', 'removed', 'new', 'recent', 'recently', 'lately', 'wijziging', 'wijzigingen', 'veranderd', 'toegevoegd', 'verwijderd', 'nieuw'], means: 'the change entity — what was added or removed over time. Every other entity only describes the present. "added" / "toegevoegd" = action Added; "removed" / "verwijderd" = action Removed; "added or removed", "changes", "updates" = no condition on action. The account changed is the account relation, the group is the resource relation (resourceType Group).' },
+  { terms: ['my people', 'my team', 'my staff', 'my employees', 'mijn medewerkers', 'mijn team', 'mijn mensen'], means: 'the accounts whose manager is the person asking' },
+];
+
+// Distinct-value lookups for enum fields — metadata only (a handful of type
+// names), used to ground the prompt and to normalise model output.
+export const VALUE_QUERIES = {
+  // Not read from the view: the two values are defined by the view's own CASE,
+  // so asking the data would return whichever of them happen to have occurred
+  // — and a deployment with no removals yet would leave "Removed" unknown, so
+  // a question about removals would be rejected as an unknown value.
+  changeAction: `SELECT unnest(ARRAY['Added', 'Removed']) v`,
+  assignmentType: `SELECT unnest(ARRAY['Direct', 'Indirect', 'Eligible']) v`,
+  principalType: `SELECT DISTINCT "principalType" v FROM "Principals" WHERE "deletedAt" IS NULL AND "principalType" IS NOT NULL`,
+  userType: `SELECT DISTINCT "extendedAttributes"->>'userType' v FROM "Principals" WHERE "extendedAttributes"->>'userType' IS NOT NULL`,
+  externalUserState: `SELECT DISTINCT "extendedAttributes"->>'externalUserState' v FROM "Principals" WHERE "extendedAttributes"->>'externalUserState' IS NOT NULL`,
+  resourceType: `SELECT DISTINCT "resourceType" v FROM "Resources" WHERE "deletedAt" IS NULL AND "resourceType" IS NOT NULL
+    AND "resourceType" NOT IN ${OWNERSHIP_TYPES}`,
+  visibility: `SELECT DISTINCT "visibility" v FROM "Resources" WHERE "visibility" IS NOT NULL`,
+  systemName: `SELECT DISTINCT "displayName" v FROM "Systems"`,
+  contextType: `SELECT DISTINCT "contextType" v FROM "Contexts"`,
+  // Fixed by the table's own CHECK constraints (migration 018), so not read
+  // from the data: a deployment with no manual context yet still has the value.
+  contextTargetType: `SELECT unnest(ARRAY['Identity', 'Resource', 'Principal', 'System']) v`,
+  contextVariant: `SELECT unnest(ARRAY['synced', 'generated', 'manual']) v`,
+  principalRiskTier: `SELECT DISTINCT "riskTier" v FROM "Principals" WHERE "riskTier" IS NOT NULL`,
+  resourceRiskTier: `SELECT DISTINCT "riskTier" v FROM "Resources" WHERE "riskTier" IS NOT NULL`,
+};

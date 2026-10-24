@@ -1,5 +1,9 @@
 ﻿import { useMemo, useState } from 'react';
 import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
+import usePersistedState from '@ui/hooks/usePersistedState';
+import ExtendedSearchToggle from '@ui/components/ExtendedSearchToggle';
+import ContextSearchResults from './ContextSearchResults';
 
 function renderMemberCounts(n) {
   const d = typeof n.directMemberCount === 'number' ? n.directMemberCount : null;
@@ -19,10 +23,15 @@ function renderMemberCounts(n) {
 // Filter bar on top: target type, variant, system. Useful when there are
 // dozens of trees.
 
-export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoot, onNewTree, loading }) {
+export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoot, onNewTree, onOpenContext, loading }) {
   const [filterTarget, setFilterTarget] = useState('');
   const [filterVariant, setFilterVariant] = useState('');
   const [filterSystem, setFilterSystem] = useState('');
+  // Typing a search swaps the tree list for matches from every level.
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const [extendedSearch, setExtendedSearch] = usePersistedState('iatlas.list.context.extendedSearch', false);
+  const searching = debouncedSearch.trim() !== '';
 
   const systems = useMemo(() => {
     const seen = new Map();
@@ -65,6 +74,17 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
       </div>
 
       <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2 text-xs">
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            aria-label="Find a context"
+            placeholder="Find a context…"
+            className="flex-1 min-w-0 border rounded px-1.5 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:placeholder-gray-500"
+          />
+          <ExtendedSearchToggle checked={extendedSearch} onChange={setExtendedSearch} className="flex-shrink-0" />
+        </div>
         <div className="flex gap-2">
           <select aria-label="Filter by target type" value={filterTarget} onChange={e => setFilterTarget(e.target.value)} className="flex-1 border rounded px-1 py-0.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
             <option value="">All targets</option>
@@ -88,6 +108,11 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
         )}
       </div>
 
+      {searching ? (
+        <div className="flex-1 overflow-auto">
+          <ContextSearchResults term={debouncedSearch} extended={extendedSearch} onOpenContext={onOpenContext} />
+        </div>
+      ) : (
       <div className="flex-1 overflow-auto">
         {loading && <div className="p-3 text-xs text-gray-500 dark:text-gray-400">Loading…</div>}
         {!loading && filtered.length === 0 && (
@@ -133,6 +158,7 @@ export default function ContextTreeSelector({ roots, selectedRootId, onSelectRoo
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

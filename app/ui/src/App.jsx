@@ -83,7 +83,7 @@ export default function App() {
   const [wizardMode, setWizardMode] = useReducer(setStateReducer, wizardOpening());
 
   const { data, rollup, counts, accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, loading, refreshing, error, forceRefresh, hasData, defaultFilter, refetchPreChecks } = useMatrix(matrixFilter);
-  const { account, logout, authFetch } = useAuth();
+  const { account, me, logout, authFetch } = useAuth();
   const [page, navigate] = useHashPage();
   const [moduleVersion, setModuleVersion] = useState(null);
   const [features, setFeatures] = useState({ riskScoring: true, accountLinking: true });
@@ -349,6 +349,7 @@ export default function App() {
         isDark={isDark}
         settingsRef={settingsRef}
         account={account}
+        me={me}
         settingsOpen={settingsOpen}
         onToggleSettings={() => setSettingsOpen(prev => !prev)}
         onCloseSettings={() => setSettingsOpen(false)}

@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import * as db from '../../db/connection.js';
 import { UUID_RE } from '../../matrix/filterSql.js';
 import { savedMatrixShape } from './shareLinking.js';
+import { savedMatrixHistory } from './savedFilterHistory.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -140,6 +141,42 @@ router.delete('/matrix/saved-filters/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE matrix/saved-filters/:id failed:', err.message);
     res.status(500).json({ error: 'Failed to delete filter' });
+  }
+});
+
+// ─── GET /api/matrix/saved-filters/:id/history ──────────────────────
+//
+// Who created this matrix, who has changed it since, and what they changed.
+// A saved matrix is org-wide, so "it used to work" needs an addressable answer;
+// migration 069 records the trail and savedFilterHistory.js reads it.
+//
+// The row's own createdBy/updatedBy ride along because history is FORWARD-ONLY:
+// a matrix saved before 069 has no events at all, and its header must still be
+// able to say who first saved it.
+const HISTORY_LIMIT = 200;
+
+router.get('/matrix/saved-filters/:id/history', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
+  if (!useSql) return res.json({ id: req.params.id, events: [] });
+  try {
+    const row = await db.queryOne(
+      `SELECT id, "name", "createdBy", "createdAt", "updatedBy", "updatedAt"
+         FROM "SavedMatrixFilters" WHERE id = $1`,
+      [req.params.id],
+    );
+    if (!row) return res.status(404).json({ error: 'Filter not found' });
+    const r = await db.query(
+      `SELECT operation, "changedAt", "rowData", "prevData"
+         FROM "_history"
+        WHERE "tableName" = 'SavedMatrixFilters' AND "rowId" = $1
+        ORDER BY "changedAt" DESC, id DESC
+        LIMIT ${HISTORY_LIMIT}`,
+      [req.params.id],
+    );
+    res.json({ ...row, events: savedMatrixHistory(r.rows) });
+  } catch (err) {
+    console.error('GET matrix/saved-filters/:id/history failed:', err.message);
+    res.status(500).json({ error: 'Failed to load matrix history' });
   }
 });
 

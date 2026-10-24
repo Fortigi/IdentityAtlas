@@ -9,6 +9,9 @@
     exactly as before. Behaviour is unchanged.
 #>
 
+# Get-CrawlerSystemName — shared crawler-name-before-type-literal rule (#1240).
+. (Join-Path $PSScriptRoot '..' 'shared' 'Get-CrawlerSystemName.ps1')
+
 #region Functions
 
 function ConvertTo-AtlasResourceCategory {
@@ -120,18 +123,24 @@ function Send-IngestBatch {
 # records, dropping any without an externalId/displayName. Orgunit carries a parent
 # hierarchy, so its records are topologically sorted (parent before child).
 # Extracted from Sync-OmadaContexts to keep that phase under the complexity ceiling.
+# -SystemId stamps each record as owned by that system (scopeSystemId). A full sync
+# of the shared Contexts table only reconciles contexts its sender owns, so an
+# unstamped context is never cleaned up when it leaves Omada.
 function Build-OmadaContextRecords {
     [CmdletBinding()]
-    param($Items, [string]$EntitySet, [string]$ContextType)
+    param($Items, [string]$EntitySet, [string]$ContextType, [int]$SystemId = 0)
     if ($EntitySet -eq 'Orgunit') {
         $RawRecords = @($Items | ForEach-Object {
             ConvertTo-OmadaOrgUnitContextRecord -OrgUnit $_ -DefaultContextType $ContextType
         } | Where-Object { $_.externalId -and $_.displayName })
-        return @(Get-OmadaContextsInTopologicalOrder -Records $RawRecords)
+        $Records = @(Get-OmadaContextsInTopologicalOrder -Records $RawRecords)
+    } else {
+        $Records = @($Items | ForEach-Object {
+            ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
+        } | Where-Object { $_.externalId -and $_.displayName })
     }
-    return @($Items | ForEach-Object {
-        ConvertTo-OmadaFlatContextRecord -Item $_ -ContextType $ContextType
-    } | Where-Object { $_.externalId -and $_.displayName })
+    if ($SystemId -gt 0) { foreach ($r in $Records) { $r | Add-Member -NotePropertyName scopeSystemId -NotePropertyValue $SystemId -Force } }
+    return $Records
 }
 
 # Combine the role and CRA assignments for one Omada system, dedup by
@@ -167,10 +176,19 @@ function Send-OmadaGovernanceAssignmentForSystem {
 # somewhere to put accounts.
 function Register-OmadaEndpointSystem {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$BaseUrl)
+    param(
+        [Parameter(Mandatory)][string]$BaseUrl,
+        # The crawler's own name (`_configName`), threaded in from the entry point.
+        [string]$ConfigName
+    )
+    # Named after the crawler when the run carries one; the type + base URL label is
+    # only the fallback for an unnamed config or an inline-config run (#1240).
+    $displayName = Get-CrawlerSystemName -TypeDefault "Omada ($BaseUrl)" -ConfigName $ConfigName
+    # Systems are registered, never reconciled — a full sync would ask the API to
+    # treat this one record as the complete set of systems (SEC-2026-09 C-01).
     $result = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{
-        syncMode = 'full'
-        records  = @(@{ systemType = 'Omada'; displayName = "Omada ($BaseUrl)"; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
+        syncMode = 'delta'
+        records  = @(@{ systemType = 'Omada'; displayName = $displayName; tenantId = $BaseUrl; enabled = $True; syncEnabled = $True })
     }
     $id = [int]($result.systemIds[0])
     Write-Host "  Endpoint system ID: $id" -ForegroundColor Gray

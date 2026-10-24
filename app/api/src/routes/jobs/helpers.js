@@ -11,6 +11,7 @@ import path from 'path';
 import { getUploadFolderPath } from '../crawlerFiles.js';
 import { vaultedConfigFields, CONFIG_SECRET_FIELDS } from '../../secrets/crawlerSecrets.js';
 import { stampConfigName } from '../../lib/jobConfig.js';
+import { findActiveConfigJob } from '../../lib/crawlerJobQueue.js';
 import { VALID_JOB_TYPES, validateCrawlerConfig, isSingletonJob } from '../../crawlerManifests.js';
 
 // Re-exported for existing consumers (scheduler.js, jobs.*.test.js) that import
@@ -229,6 +230,17 @@ export async function checkSingletonConflict(pool, jobType) {
   );
   if (dup.rows.length > 0) return { status: 409, body: { error: `A ${jobType} job is already queued or running` } };
   return null;
+}
+
+// One crawler configuration runs at most one job at a time (lib/crawlerJobQueue.js).
+// The Run Now form of that rule: a 409 naming the job that is in the way.
+export async function checkConfigConflict(pool, configId) {
+  const active = await findActiveConfigJob((sql, params) => pool.query(sql, params), configId);
+  if (!active) return null;
+  return {
+    status: 409,
+    body: { error: `This crawler already has a job ${active.status} (job ${active.id}). Wait for it to finish, or stop it, before starting another.` },
+  };
 }
 
 // Best display name to stamp as the job's creator. Exported for unit tests.

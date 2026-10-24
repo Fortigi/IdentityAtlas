@@ -1,8 +1,10 @@
 // Grid controls that sit in the grid's own header corner, at the axis they act
 // on, instead of in the toolbar above the grid (#1202):
 //
-//   - ColumnAxisControls — top-left corner: the "?" legend, and ONE fold/unfold
-//     toggle for every top-level column group;
+//   - ColumnAxisControls — top-left corner: the "?" legend, ONE fold/unfold
+//     toggle for every top-level column group, and — where the column axis has
+//     more than one fold level (the roll-up's layered attribute fold) — a pair
+//     of controls that move the WHOLE axis one level at a time;
 //   - RowAxisControls — the corner above the row labels: expand/collapse nested
 //     groups, fold/unfold business roles, and reset a custom row order.
 //
@@ -16,7 +18,7 @@ import { createPortal } from 'react-dom';
 import MatrixLegend from './MatrixLegend';
 import { usePopover } from './usePopover';
 
-const BASE_BTN = 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-xs font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-gray-800';
+const BASE_BTN = 'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border text-xs font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-1 dark:focus-visible:ring-blue-400 dark:focus-visible:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-40';
 const IDLE_BTN = 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700';
 const ACTIVE_BTN = 'border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-200 dark:hover:bg-blue-900/60';
 
@@ -76,6 +78,43 @@ export function ColumnFoldToggle({ canFold, foldState = 'none', onFoldAll, onUnf
   );
 }
 
+// Walk the column axis one FOLD LEVEL at a time, moving every group together.
+//
+// A per-group fold key can only ever say "this one group stops here", and
+// unfolding one drops it straight back to the deepest attribute — so on a
+// hundreds-of-columns axis there was no way to step the whole thing in or out.
+// These two buttons are that way: each click is one level, `level`/`maxLevel`
+// says where you are, and the ends disable rather than disappear so the axis's
+// depth stays visible.
+//
+// Renders nothing when the axis has no level dimension (maxLevel < 2) — the
+// flat grid, and any roll-up folded by a single attribute.
+export function ColumnLevelControls({ level = 0, maxLevel = 0, onSetLevel }) {
+  if (maxLevel < 2 || level < 1) return null;
+  const atTop = level <= 1;
+  const atBottom = level >= maxLevel;
+  const where = `Showing ${level} of ${maxLevel} levels`;
+  return (
+    <>
+      <CornerIconButton
+        label="Fold all columns one level" disabled={atTop}
+        title={atTop ? `${where} — already folded to the top level` : `Fold every column group one level (${where})`}
+        onClick={() => onSetLevel(level - 1)}>
+        <Icon name="foldColumns" />
+      </CornerIconButton>
+      <span className="shrink-0 text-[10px] font-medium tabular-nums text-gray-600 dark:text-gray-400" aria-hidden="true">
+        {level}/{maxLevel}
+      </span>
+      <CornerIconButton
+        label="Unfold all columns one level" disabled={atBottom}
+        title={atBottom ? `${where} — already at the deepest level` : `Unfold every column group one level (${where})`}
+        onClick={() => onSetLevel(level + 1)}>
+        <Icon name="unfoldColumns" />
+      </CornerIconButton>
+    </>
+  );
+}
+
 // Where the legend popover goes: under the trigger, kept inside the viewport.
 // Fixed-positioned and portalled, so the grid's scroll container can't clip it.
 const PANEL_W = 544;
@@ -112,13 +151,19 @@ export function MatrixLegendButton({ showBusinessRoles = false }) {
   );
 }
 
-// Top-left corner: the legend, plus the column fold toggle where it applies.
-export function ColumnAxisControls({ showBusinessRoles, canFoldColumns, columnFoldState, onFoldAllColumns, onUnfoldAllColumns }) {
+// Top-left corner: the legend, plus whichever column control applies — the flat
+// grid's one-shot fold toggle, or the roll-up's level stepper. A grid passes the
+// props for its own model and gets nothing for the other.
+export function ColumnAxisControls({
+  showBusinessRoles, canFoldColumns, columnFoldState, onFoldAllColumns, onUnfoldAllColumns,
+  foldLevel, foldMaxLevel, onSetFoldLevel,
+}) {
   return (
     <div className="flex items-center gap-1">
       <MatrixLegendButton showBusinessRoles={showBusinessRoles} />
       <ColumnFoldToggle canFold={canFoldColumns} foldState={columnFoldState}
         onFoldAll={onFoldAllColumns} onUnfoldAll={onUnfoldAllColumns} />
+      <ColumnLevelControls level={foldLevel} maxLevel={foldMaxLevel} onSetLevel={onSetFoldLevel} />
     </div>
   );
 }

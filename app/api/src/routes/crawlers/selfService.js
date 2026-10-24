@@ -13,16 +13,21 @@ import { injectJobSecret, deleteJobSecrets } from '../../secrets/crawlerSecrets.
 import { runPostCrawlJobs } from '../../postCrawlJobs.js';
 import { crawlerHasPermission, crawlerHasSystemAccess } from '../../middleware/crawlerAuth.js';
 import { recordComponentVersion } from '../../updates/componentVersions.js';
+import { CLAIM_NEXT_JOB_SQL } from '../../lib/crawlerJobQueue.js';
 import { useSql, generateApiKey, hashKey } from './shared.js';
 
 const selfServiceCrawlersRouter = Router();
 
 // ─── Crawler self-service endpoints (API key auth) ───────────────
 
-// GET /api/crawlers/whoami — Return own metadata
+// GET /api/crawlers/whoami — Return own metadata.
+//
+// `serverTime` is this container's clock. A crawler that reconciles a streamed
+// full sync by timestamp (POST /ingest/reconcile) reads it at job start and
+// hands it back as `before`, so the comparison never involves the worker's clock.
 selfServiceCrawlersRouter.get('/crawlers/whoami', (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
-  res.json(req.crawler);
+  res.json({ ...req.crawler, serverTime: new Date().toISOString() });
 });
 
 // POST /api/crawlers/rotate — Rotate own key
@@ -89,7 +94,10 @@ function mergeJobProgress(existingProgress, safe) {
   return merged;
 }
 
-selfServiceCrawlersRouter.post('/crawlers/job-progress', async (req, res) => {
+// Worker-class keys only: jobs are claimed and run by the worker, and a job row
+// carries no owning crawler, so any other key could otherwise rewrite the
+// progress of any job (SEC-2026-09 M-05).
+selfServiceCrawlersRouter.post('/crawlers/job-progress', requireWorkerCrawler, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
 
@@ -152,23 +160,10 @@ selfServiceCrawlersRouter.post('/crawlers/jobs/claim', requireWorkerCrawler, asy
   if (workerVersion) recordComponentVersion('worker', workerVersion).catch(() => {});
 
   try {
-    // Atomic claim using FOR UPDATE SKIP LOCKED — postgres-native pattern that
-    // lets multiple workers (if we ever scale out) safely contend for the next
-    // queued job without double-pickup.
-    const r = await db.query(`
-      WITH next_job AS (
-        SELECT id FROM "CrawlerJobs"
-         WHERE "status" = 'queued'
-         ORDER BY "createdAt" ASC
-         LIMIT 1
-         FOR UPDATE SKIP LOCKED
-      )
-      UPDATE "CrawlerJobs" cj
-         SET "status" = 'running', "startedAt" = (now() AT TIME ZONE 'utc')
-        FROM next_job
-       WHERE cj.id = next_job.id
-       RETURNING cj.id, cj."jobType", cj."config", cj."configId"
-    `);
+    // Atomic claim (FOR UPDATE SKIP LOCKED) of the oldest queued job whose
+    // crawler configuration has nothing running — one configuration runs one job
+    // at a time (lib/crawlerJobQueue.js).
+    const r = await db.query(CLAIM_NEXT_JOB_SQL);
     if (r.rows.length === 0) {
       return res.json({ job: null });
     }
@@ -284,6 +279,55 @@ selfServiceCrawlersRouter.put('/crawlers/delta-tokens/:endpoint', async (req, re
   } catch (err) {
     console.error('Delta-token write failed:', err.message);
     res.status(500).json({ error: 'Failed to write delta token' });
+  }
+});
+
+// ─── Profile-photo state ─────────────────────────────────────────────────
+//
+// "Which principals of this system do I already have a photo answer for, and
+// how old is it?" Lets the photo phase skip users it has already resolved
+// instead of re-asking Graph once per user per run — the single biggest cost
+// saving in that phase, because a photo is a separate request per user.
+//
+// Returns EVERY user principal of the system as { id: ISO-timestamp|null }.
+// null means never checked; a timestamp means we have an answer, and a NULL
+// photo alongside it is a real answer worth caching ("we asked, they have
+// none").
+//
+// The candidate list comes from here rather than from a Graph query on the
+// crawler side on purpose. Photo records are partial principal updates sent in
+// delta mode, which skips required-field validation — so an id that is NOT
+// already a principal would be INSERTED as a row carrying nothing but an id
+// and an image. Sourcing the ids from what is already ingested makes that
+// impossible, and it inherits any identity filter the principals phase applied
+// for free.
+selfServiceCrawlersRouter.get('/crawlers/photo-state', async (req, res) => {
+  if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  const systemId = parseInt(req.query.systemId, 10);
+  if (!Number.isInteger(systemId) || systemId <= 0) {
+    return res.status(400).json({ error: 'systemId query param required' });
+  }
+  if (!crawlerHasSystemAccess(req, systemId)) {
+    return res.status(403).json({ error: 'Crawler not authorized for this system' });
+  }
+  try {
+    // The photo bytes are deliberately NOT selected — only the timestamp. The
+    // caller is deciding what to fetch, not reading images back.
+    const r = await db.query(
+      `SELECT "id", "photoFetchedAt"
+         FROM "Principals"
+        WHERE "systemId" = $1
+          AND "principalType" = 'User'
+          AND "deletedAt" IS NULL`,
+      [systemId]
+    );
+    const state = {};
+    for (const row of r.rows) state[row.id] = row.photoFetchedAt;
+    res.json({ state });
+  } catch (err) {
+    console.error('Photo-state read failed:', err.message);
+    res.status(500).json({ error: 'Failed to read photo state' });
   }
 });
 

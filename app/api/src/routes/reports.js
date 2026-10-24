@@ -10,7 +10,7 @@
 // the response carries whatever `form` and `columns` the template declares.
 
 import { Router } from 'express';
-import { getReport, listReports, reportMetadata } from '../reports/registry.js';
+import { listAllReports, reportMetadata, resolveReport } from '../reports/registry.js';
 import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
 } from '../reports/export.js';
@@ -19,12 +19,31 @@ const router = Router();
 
 // One run, one payload — shared by the rows endpoint and the download, so a
 // downloaded file can never contain something the screen didn't show.
+//
+// `notices` is whatever the template returned, passed through untouched: the
+// engine never reads a notice, exactly as it never reads a row.
+//
+// `columns` and `pivots` are the template's declaration unless the run returned
+// its own: a report whose columns are picked by the reader (a parameter) only
+// knows them once it has run. The screen, the CSV and the workbook all read the
+// payload, so they follow the run either way.
 async function runReport(report, params) {
-  const { rows } = await report.run(params, {});
+  const { rows, notices, truncated, constantColumns, columns, pivots } = await report.run(params, {});
+  const metadata = reportMetadata(report);
   return {
-    ...reportMetadata(report),
+    ...metadata,
+    columns: Array.isArray(columns) ? columns : metadata.columns,
+    pivots: Array.isArray(pivots) ? pivots : metadata.pivots,
     rows,
+    notices: Array.isArray(notices) ? notices : [],
+    // Column keys THIS run holds one value for. `columns` above is the report's
+    // and does not change: the screen shows every column whatever the run said,
+    // and only a format with room for a header acts on this.
+    constantColumns: Array.isArray(constantColumns) ? constantColumns : [],
     total: rows.length,
+    // A template that stops at a row cap says so; the screen and the download must
+    // not present the first N rows as the whole answer.
+    truncated: truncated === true,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -37,14 +56,19 @@ function reportFailed(res, report, route, err) {
 }
 
 // GET /api/reports
-router.get('/reports', (req, res) => {
-  const data = listReports().map(reportMetadata);
-  res.json({ data, total: data.length });
+router.get('/reports', async (req, res) => {
+  try {
+    const data = (await listAllReports()).map(reportMetadata);
+    res.json({ data, total: data.length });
+  } catch (err) {
+    console.error('GET /reports failed:', err.message);
+    res.status(500).json({ error: 'Failed to list reports' });
+  }
 });
 
 // GET /api/reports/:name/rows
 router.get('/reports/:name/rows', async (req, res) => {
-  const report = getReport(req.params.name);
+  const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
   try {
     res.json(await runReport(report, req.query || {}));
@@ -57,7 +81,7 @@ router.get('/reports/:name/rows', async (req, res) => {
 // `format` is the download's own parameter; every other query parameter is
 // passed through to the template, exactly as the rows endpoint does.
 router.get('/reports/:name/export', async (req, res) => {
-  const report = getReport(req.params.name);
+  const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
 
   const { format = DEFAULT_EXPORT_FORMAT, ...params } = req.query || {};
@@ -69,11 +93,24 @@ router.get('/reports/:name/export', async (req, res) => {
   }
 
   try {
-    const payload = await runReport(report, params);
+    // Whether a run's context — its notices, and the columns it declared
+    // constant — travels with the rows is the FORMAT's call, not this route's. A
+    // CSV is a table and nothing else, so a preamble above the header would
+    // break every parser that reads it; a workbook has room above the table and
+    // a reader who expects to find context there. So a format declares
+    // `carriesContext` and gets it, and every other format is served exactly the
+    // payload it was served before. The engine still never asks which report
+    // this is — only what the chosen format can hold.
+    const full = await runReport(report, params);
+    const { notices: _screenOnly, constantColumns: _headerOnly, ...rowsOnly } = full;
+    const payload = exportFormat.carriesContext ? full : rowsOnly;
+
     const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
     res.setHeader('Content-Type', exportFormat.contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(exportFormat.serialize(payload));
+    // A serializer may be async — a workbook is assembled and zipped, not
+    // concatenated — so every format is awaited, including the synchronous ones.
+    res.send(await exportFormat.serialize(payload));
   } catch (err) {
     reportFailed(res, report, 'export', err);
   }

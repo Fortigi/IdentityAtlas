@@ -12,7 +12,7 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { dirname, join, relative, posix } from 'path';
 import { fileURLToPath } from 'url';
-import YAML from 'yamljs';
+import YAML from 'yaml';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(here, '../../../..');
@@ -45,7 +45,7 @@ export function listPages(dir = DOCS_ROOT) {
 
 /** The mkdocs nav, flattened to [{ tab, title, page }] in document order. */
 export function navEntries() {
-  const nav = YAML.parse(readFileSync(MKDOCS, 'utf8')).nav || [];
+  const nav = YAML.parse(readFileSync(MKDOCS, 'utf8'), { logLevel: 'error' }).nav || [];
   const out = [];
   for (const top of nav) {
     const [tab, value] = Object.entries(top)[0];

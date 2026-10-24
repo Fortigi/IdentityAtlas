@@ -1,0 +1,95 @@
+# Report generator — the local model server for custom reports.
+#
+# llama.cpp's server (CPU build) with ONE model baked in. The model is part of the
+# release: customers never download it, and we know exactly which model answered.
+#
+# It speaks only to the Identity Atlas web container:
+#   • Docker: an internal compose network, no published port, no internet egress
+#   • Azure:  a Container App with public ingress, so an API key is required
+#             (LLAMA_API_KEY) and it scales to zero when unused
+#
+# Build (the model is downloaded at build time, verified against its checksum):
+#   docker build -f setup/docker/Dockerfile.report-generator \
+#     --build-arg MODEL_URL=... --build-arg MODEL_SHA256=... -t identity-atlas-report-generator .
+#
+# The image carries the model's licence next to the binary — see docs/reference/report-generator.md.
+
+# llama.cpp server, CPU build. Pinned by digest: the prompt cache written by one
+# build is only guaranteed to be readable by the same build.
+FROM ghcr.io/ggml-org/llama.cpp@sha256:b15cd87030b2eb8a284d398c095e03c6ba8baf386b68e1b83ab8b46e9555ffe8
+
+# Qwen3-4B-Instruct-2507, 4-bit (Q4_K_M) — Apache-2.0. URL and checksum are pinned
+# here, in the repo, so a release ships and verifies the exact file we measured.
+ARG MODEL_URL=https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+ARG MODEL_SHA256=3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597
+ARG MODEL_NAME=qwen3:4b-instruct-2507-q4_K_M
+
+# Bake the release version in, like the web and worker images, so all three
+# report the same version (imageVersionStamp.guard.test.js checks this).
+ARG MODULE_VERSION=""
+ENV MODULE_VERSION=$MODULE_VERSION
+
+USER root
+RUN set -eux; \
+    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*; \
+    mkdir -p /models /slots; \
+    curl -fsSL -o /models/model.gguf "$MODEL_URL"; \
+    if [ -z "${MODEL_SHA256:-}" ]; then echo "ERROR: MODEL_SHA256 is empty — refusing to ship an unverified model" >&2; exit 1; fi; \
+    echo "${MODEL_SHA256}  /models/model.gguf" | sha256sum -c -; \
+    chown -R 1000:1000 /slots
+
+# The model's licence and attribution travel WITH the model. Kept in the repo and
+# copied in rather than downloaded: Apache-2.0 requires the licence to accompany
+# the work, and the previous build-time fetch quietly 404'd and left a placeholder
+# note in its place. llama.cpp's MIT licence is added for the same reason: the
+# upstream image ships its binaries without it. A guard test checks all three.
+COPY setup/docker/report-generator/MODEL-LICENSE.txt setup/docker/report-generator/MODEL-NOTICE.txt setup/docker/report-generator/LLAMA-CPP-LICENSE.txt /models/
+
+# The processed system prompt is written here (~600 MB) so a restart is instant.
+# Mount a volume to keep it across container replacements.
+VOLUME ["/slots"]
+
+# Threads is the one setting a deployment tunes, and llama.cpp does read it from
+# the environment.
+ENV LLAMA_ARG_THREADS=2
+
+# The API key is read from LLAMA_API_KEY — the ONLY env var llama.cpp accepts for
+# it. `--api-key` does NOT read LLAMA_ARG_API_KEY, and with no key the server
+# answers every request unauthenticated, which on Azure's public ingress means an
+# open model endpoint. Deployments that expose this container (Azure) MUST set
+# LLAMA_API_KEY; a guard test keeps the spelling honest on both sides.
+#
+# The rest are flags, not env vars, on purpose: --slot-save-path has NO
+# environment variable, and setting LLAMA_ARG_SLOT_SAVE_PATH silently left the
+# prompt cache disabled (the server answers 501 to a save).
+#
+#   --slot-save-path  where the processed system prompt is saved and restored
+#   --no-slots        turns OFF the slots monitoring endpoint, which would let a
+#                     caller read the current prompt. Save/restore still work.
+#
+# The model is loaded ONLY WHILE IT IS USED. llama-server holds ~3 GB it cannot give
+# back for as long as it runs, so it is not the container's main process: the
+# supervisor is. The supervisor listens on 8080, starts llama-server (bound to
+# 127.0.0.1:8081, unreachable from outside the container) on the first request that
+# needs it, passes every request through unchanged, and stops it after
+# REPORT_GENERATOR_IDLE_SECONDS without use. 0 keeps the model loaded from boot.
+# The supervisor checks the API key before it starts anything, and needs no
+# privileges — it only starts and stops its own child. Python is already in the
+# base image; the supervisor uses nothing but its standard library.
+COPY setup/docker/report-generator/supervisor.py /app/supervisor.py
+ENV REPORT_GENERATOR_IDLE_SECONDS=900
+
+EXPOSE 8080
+# /health is answered by the supervisor, so an unloaded model is still a healthy container.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+  CMD ["/bin/sh", "-c", "curl -fsS -o /dev/null http://127.0.0.1:8080/health || exit 1"]
+
+USER 1000
+ENTRYPOINT ["python3", "/app/supervisor.py"]
+CMD ["/app/llama-server", \
+     "-m", "/models/model.gguf", \
+     "--alias", "qwen3:4b-instruct-2507-q4_K_M", \
+     "-c", "8192", \
+     "-np", "1", \
+     "--slot-save-path", "/slots", \
+     "--no-slots"]

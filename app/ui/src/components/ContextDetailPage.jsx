@@ -152,7 +152,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
       {/* Header */}
-      <ContextDetailHeader attrs={detail.attributes} onClose={onClose} />
+      <ContextDetailHeader attrs={detail.attributes} onClose={onClose} onOpenDetail={onOpenDetail} />
       {detail.attributes.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{detail.attributes.description}</div>
       )}

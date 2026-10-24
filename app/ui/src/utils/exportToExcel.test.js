@@ -366,6 +366,26 @@ describe('exportToExcel', () => {
     expect(foundLink).toBe(true);
   });
 
+  it('guards the Legend filter label and value against formula injection (SEC-2026-09 M-13)', async () => {
+    const activeFilters = [
+      { field: 'dept', value: '=HYPERLINK("https://x.example","HR")' },
+      { field: '@unlabelled', value: 'Plain' },
+    ];
+    const filterFields = [{ key: 'dept', label: '\tDepartment' }];
+
+    await exportToExcel(baseInput({ activeFilters, filterFields }));
+    const wb = await loadCapturedWorkbook();
+    const legend = wb.getWorksheet('Legend');
+
+    const cells = [];
+    legend.eachRow((row) => row.eachCell((cell) => cells.push(cell.value)));
+    expect(cells).toContain(`'=HYPERLINK("https://x.example","HR")`);
+    expect(cells).toContain(`'\tDepartment`);
+    expect(cells).toContain(`'@unlabelled`);
+    expect(cells).toContain('Plain');
+    expect(cells).not.toContain('=HYPERLINK("https://x.example","HR")');
+  });
+
   it('names the download file using the active filter values and ISO date', async () => {
     const activeFilters = [{ field: 'dept', value: 'HR' }];
     const filterFields = [{ key: 'dept', label: 'Department' }];

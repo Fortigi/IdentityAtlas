@@ -82,44 +82,47 @@ function Get-FGGraphErrorDetail {
 # changed. If Graph rejects the token (typically HTTP 400 with code
 # "SyncStateNotFound" or 410), the caller DELETEs the row and falls back
 # to a full fetch — next run will save a fresh token.
+#
+# The three calls themselves live in ../shared/Invoke-CrawlerDeltaToken.ps1 —
+# the SQL connector stores its per-statement high-water mark in the same table,
+# and one client is what keeps the endpoint-key rules in one place. These keep
+# their names because every phase in this crawler calls them.
 function Get-FGDeltaToken {
     [CmdletBinding()]
     param([int]$SystemId, [string]$Endpoint)
+    return Get-CrawlerDeltaToken -SystemId $SystemId -Endpoint $Endpoint
+}
+
+# Which principals of this system already have a photo answer, as
+# @{ principalId = <ISO timestamp> }. Empty on any failure, which degrades to
+# "check everyone" — slower, never wrong.
+function Get-EntraKnownPhotoDates {
+    [CmdletBinding()]
+    param([int]$SystemId)
+    $result = @{}
     try {
         $headers = @{ 'Authorization' = "Bearer $ApiKey" }
-        $uri = "$ApiBaseUrl/crawlers/delta-tokens/$([uri]::EscapeDataString($Endpoint))?systemId=$SystemId"
-        $r = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -TimeoutSec 10
-        if ($r.token) { return $r.token }
+        $uri = "$ApiBaseUrl/crawlers/photo-state?systemId=$SystemId"
+        $r = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -TimeoutSec 30
+        if ($r.state) {
+            foreach ($p in $r.state.PSObject.Properties) { $result[$p.Name] = $p.Value }
+        }
     } catch {
-        # Token not found is the common case on a first run. 500s are logged
-        # but we fall through to "no token" which is safe (full fetch).
-        Write-Host "  (delta token lookup for $Endpoint returned no token)" -ForegroundColor DarkGray
+        Write-Host "  (photo state lookup failed — will check every user this run)" -ForegroundColor DarkGray
     }
-    return $null
+    return $result
 }
 
 function Set-FGDeltaToken {
     [CmdletBinding()]
     param([int]$SystemId, [string]$Endpoint, [string]$Token, [int]$RecordsLastSeen = 0)
-    if (-not $Token) { return }
-    try {
-        $headers = @{ 'Authorization' = "Bearer $ApiKey"; 'Content-Type' = 'application/json' }
-        $uri = "$ApiBaseUrl/crawlers/delta-tokens/$([uri]::EscapeDataString($Endpoint))"
-        $body = @{ systemId = $SystemId; token = $Token; recordsLastSeen = $RecordsLastSeen } | ConvertTo-Json
-        Invoke-RestMethod -Uri $uri -Method Put -Headers $headers -Body $body -TimeoutSec 10 | Out-Null
-    } catch {
-        Write-Host "  (delta token save failed for ${Endpoint}: $($_.Exception.Message))" -ForegroundColor DarkGray
-    }
+    Set-CrawlerDeltaToken -SystemId $SystemId -Endpoint $Endpoint -Token $Token -RecordsLastSeen $RecordsLastSeen
 }
 
 function Remove-FGDeltaToken {
     [CmdletBinding()]
     param([int]$SystemId, [string]$Endpoint)
-    try {
-        $headers = @{ 'Authorization' = "Bearer $ApiKey" }
-        $uri = "$ApiBaseUrl/crawlers/delta-tokens/$([uri]::EscapeDataString($Endpoint))?systemId=$SystemId"
-        Invoke-RestMethod -Uri $uri -Method Delete -Headers $headers -TimeoutSec 10 | Out-Null
-    } catch { }
+    Remove-CrawlerDeltaToken -SystemId $SystemId -Endpoint $Endpoint
 }
 
 # Extract the deltatoken query-string value from a full Graph deltaLink URL.

@@ -87,7 +87,19 @@ describe('crawler-configs/:configId/files — type gating', () => {
     // default UPLOAD_ROOT in this test environment.
     const res = await request(makeApp()).get('/api/admin/crawler-configs/9999999/files');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ files: [] });
+    // The folder is still reported: it is where a copied-in file would be read from.
+    expect(res.body).toEqual({ files: [], folder: getUploadFolderPath('csv', 9999999) });
+  });
+});
+
+describe('GET /admin/crawler-uploads/limits', () => {
+  it('reports the per-file cap multer enforces, so a wizard never carries its own copy', async () => {
+    const res = await request(makeApp()).get('/api/admin/crawler-uploads/limits');
+    expect(res.status).toBe(200);
+    // No UPLOAD_MAX_FILE_BYTES in this environment: the 8 GiB default, not the
+    // 1 GB the CSV wizard used to hard-code.
+    expect(res.body).toEqual({ maxFileBytes: 8 * 1024 * 1024 * 1024 });
+    expect(mockDbQuery).not.toHaveBeenCalled();
   });
 });
 

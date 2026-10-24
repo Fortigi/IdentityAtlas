@@ -37,6 +37,18 @@ tags:
     description: Display names for extendedAttributes keys — shared by the web UI and the Power Query workbook
   - name: Reports
     description: Pluggable reports — self-describing templates, computed per request
+  - name: Custom Reports
+    description: >
+      Experimental report builder (feature flag `customReports`). Every route answers 404 while
+      the feature is off. The caller's permission is checked first, so a caller without it gets
+      403 whether or not the feature is on.
+  - name: Context Assistant
+    description: >
+      Experimental context builder (feature flag `contextAssistant`). An analyst describes a
+      subject, the local model proposes search terms, and the terms are searched for; the result
+      is stored as the parameters of the `context-recipe` context plugin. Every route answers
+      404 while the feature is off. The caller's permission is checked first, so a caller without
+      it gets 403 whether or not the feature is on.
 
 paths:
   # ─── Ingest Endpoints ──────────────────────────────────────────
@@ -244,15 +256,197 @@ paths:
         '201':
           $ref: '#/components/responses/IngestSuccess'
 
+  /ingest/reconcile:
+    post:
+      tags: [Ingest]
+      summary: Reconcile a streamed full sync by timestamp
+      operationId: reconcileStale
+      description: >-
+        The full-sync delete for a crawler that streams its source in independent
+        delta chunks instead of one sync session (sources of tens of millions of
+        rows). Every row of the given system and scope that no ingest has touched
+        since `before` is reconciled away: soft-deleted (deletedAt stamped) on
+        Principals, Resources and ResourceAssignments, removed on other tables.
+        Entities without a system scope (identities, identity-members, contexts,
+        context-members) are refused. Use the `serverTime` from GET /crawlers/whoami,
+        read at the start of the run, as `before`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRequest'
+      responses:
+        '200':
+          description: Reconcile result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconcileResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /ingest/count:
+    post:
+      tags: [Ingest]
+      summary: Count the rows a run touched, for end-of-run verification
+      operationId: countTouched
+      description: >-
+        Counts the live rows of the given system and scope that an ingest has
+        touched since `before`, in the database rather than from the ingest's own
+        inserted/updated totals, which count every record sent even when several
+        share a key. A streaming crawler calls it once per scope after its run and
+        fails the job when the count differs from what the source returned. Same
+        request shape and refusals as POST /ingest/reconcile; pass the run's
+        `serverTime` from GET /crawlers/whoami as `before`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileRequest'
+      responses:
+        '200':
+          description: Count result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /ingest/stages:
+    post:
+      tags: [Ingest]
+      summary: Open a staged full load
+      operationId: openIngestStage
+      description: >-
+        Opens a stage for one (entity, system, scope): rows are appended to an unindexed
+        staging table and applied in one step at finalize. Nothing is written to the
+        target table before then. Entities - resource-assignments, principals, resources,
+        resource-relationships. Requires ingest permission and access to the system.
+      responses:
+        '201':
+          description: Stage opened; the body carries stageId
+        '400':
+          description: Unknown entity or invalid systemId
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /ingest/stages/{id}/rows:
+    post:
+      tags: [Ingest]
+      summary: Append records to a stage
+      operationId: appendIngestStageRows
+      description: >-
+        Records get the same defaults, validation, id normalization and per-system
+        boundary checks as a batch on /ingest/{entity}. Every batch of a stage must carry
+        the same columns. A stage may carry only key columns (a key sweep).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Rows staged so far
+        '400':
+          description: Invalid records, or a batch that adds columns
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Unknown or expired stage
+  /ingest/stages/{id}/finalize:
+    post:
+      tags: [Ingest]
+      summary: Apply one stage
+      operationId: finalizeIngestStage
+      description: >-
+        Applies the stage. Into an empty table - drop the non-constraint indexes, insert
+        bare, rebuild (under an exclusive lock, falling back when it cannot be had);
+        otherwise insert new rows, update only changed rows, and with deleteMissing remove
+        rows of the system and scope that are not in the stage. The body reports which path ran.
+        maxDeleteShare (0 < share <= 1) caps that removal at a share of the scope's live rows:
+        above it the finalize is rolled back and answers 409, so a source read mid-aggregation
+        cannot empty a scope. Omit it for no ceiling.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: >-
+            path, inserted, updated, deleted, rows (records received) and distinct (distinct keys
+            among them); without deleteMissing also present (how many of those keys are live afterwards)
+        '400':
+          description: maxDeleteShare is not a share
+        '404':
+          description: Unknown or expired stage
+        '409':
+          description: The removal exceeds maxDeleteShare; nothing was written
+  /ingest/stages/finalize:
+    post:
+      tags: [Ingest]
+      summary: Apply several stages of one table together
+      operationId: finalizeIngestStages
+      description: >-
+        Finalizes a crawler run's stages together so the whole run gets one chance at the
+        empty-table path; otherwise each stage merges in its own transaction. deleteMissing and
+        maxDeleteShare apply to every stage of the call, as on the single-stage finalize.
+      responses:
+        '200':
+          description: One result per stage, in the order given
+        '400':
+          description: Bad stageIds, stages of different tables, or maxDeleteShare is not a share
+        '409':
+          description: A stage's removal exceeds maxDeleteShare; nothing was written
+  /ingest/stages/{id}:
+    delete:
+      tags: [Ingest]
+      summary: Abandon a stage
+      operationId: abortIngestStage
+      description: Drops the stage and its rows. Nothing was written to the target table.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204':
+          description: Stage dropped; nothing was written
   /ingest/refresh-views:
     post:
       tags: [Ingest]
-      summary: Refresh materialized views
+      summary: Schedule a refresh of the materialized views
       operationId: refreshMaterializedViews
-      description: Triggers a refresh of cached SQL views. Requires refreshViews permission.
+      description: >-
+        Asks for a refresh of the matrix materialized views and the bookkeeping that
+        follows ingest. Returns at once; the refresh runs in the background, debounced
+        and one at a time. Poll GET /ingest/refresh-views for the outcome, or pass
+        wait=1 to have the request return only once the refresh has finished (for
+        scripts that need fresh views before their next step). Requires refreshViews
+        permission.
+      parameters:
+        - name: wait
+          in: query
+          required: false
+          schema: { type: string, enum: ['1', 'true'] }
+          description: Wait for the refresh to finish before answering.
+      responses:
+        '202':
+          description: Refresh scheduled; the body carries the current refresh status
+        '200':
+          description: With wait=1 — the refresh finished successfully
+        '500':
+          description: With wait=1 — the refresh failed; the body carries the error
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Ingest]
+      summary: Status of the background view refresh
+      operationId: getMaterializedViewRefreshStatus
+      description: >-
+        State of the background refresh (idle, scheduled, running), how many were asked
+        for and run, and the outcome of the last run (ok, error, duration). Requires
+        refreshViews permission.
       responses:
         '200':
-          description: Views refreshed
+          description: Refresh status
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -568,7 +762,9 @@ paths:
       description: >
         Runs the named report template against the current data and returns its rows. Content is
         computed per request — there are no stored runs, so a re-fetch always reflects the latest
-        data. Any query parameters are passed to the template as its parameters.
+        data. Any query parameters are passed to the template as its parameters. `columns` and
+        `pivots` are this run's: a report whose columns are picked through its parameters returns
+        the ones it was asked for, which may differ from what `GET /reports` declares.
       security:
         - EntraIdBearer: []
       parameters:
@@ -597,6 +793,11 @@ paths:
                           additionalProperties: true
                       total:
                         type: integer
+                      truncated:
+                        type: boolean
+                        description: >
+                          True when the report stopped at its row cap, so `rows` holds only the first
+                          `total` rows. Custom reports cap at their definition's limit (1,000 by default).
                       generatedAt:
                         type: string
                         format: date-time
@@ -654,6 +855,9 @@ paths:
                           additionalProperties: true
                       total:
                         type: integer
+                      truncated:
+                        type: boolean
+                        description: True when the report stopped at its row cap; the file then holds only the first rows.
                       generatedAt:
                         type: string
                         format: date-time
@@ -663,6 +867,1403 @@ paths:
           description: No report template with that name is registered
         '500':
           description: The report template failed to run
+
+  # ─── Report views ──────────────────────────────────────────────
+  /report-views:
+    post:
+      tags: [Reports]
+      summary: Save a view of a standard report
+      operationId: createReportView
+      description: >
+        Stores a standard report's parameters under a name, shared across the deployment. The
+        view is then listed and run through `GET /reports` as a report named `view-<id>`, which
+        runs the standard report with these parameters (overlaid by any given on the run).
+        Only parameters the report declares are kept. Needs `data.write.reports`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportViewInput'
+      responses:
+        '201':
+          description: The saved view
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportView' }
+        '400':
+          description: No name, or not a standard report that takes parameters
+        '403':
+          description: The caller may not save views
+        '409':
+          description: A view with that name already exists
+  /report-views/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Reports]
+      summary: One saved report view, for editing
+      operationId: getReportView
+      description: >
+        The stored view: its name, description and the parameters it saves. Running it goes
+        through `GET /reports/view-<id>/rows`. Any signed-in reader may fetch it.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The view
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportView' }
+        '404':
+          description: No such view
+    put:
+      tags: [Reports]
+      summary: Change a saved view's name, description or parameters
+      operationId: updateReportView
+      description: The report a view is of cannot change. Needs `data.write.reports`.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportViewInput'
+      responses:
+        '200':
+          description: The updated view
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportView' }
+        '400':
+          description: No name
+        '403':
+          description: The caller may not change views
+        '404':
+          description: No such view
+        '409':
+          description: A view with that name already exists
+    delete:
+      tags: [Reports]
+      summary: Delete a saved view
+      operationId: deleteReportView
+      description: Needs `data.write.reports`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: The caller may not delete views
+        '404':
+          description: No such view
+
+  # ─── Custom Reports (experimental) ─────────────────────────────
+  /nl-reports/catalog:
+    get:
+      tags: [Custom Reports]
+      summary: Report builder catalog
+      operationId: getCustomReportCatalog
+      description: >
+        The entities, fields, relations, operators and pickable columns a report definition may
+        use, with the known values of enumerated fields. Alongside the fields every deployment has,
+        this includes the `extendedAttributes` keys discovered in this deployment's own data, named
+        `ext.<rawKey>` and marked `discovered`. Requires `data.read.reports` or `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Builder catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entities:
+                    type: object
+                    description: Keyed by entity name.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        label: { type: string }
+                        table: { type: string }
+                        description: { type: string }
+                        compareRelations:
+                          type: array
+                          items: { type: string }
+                        defaultColumns:
+                          type: array
+                          items: { type: string }
+                        fields:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              label: { type: string }
+                              type: { type: string }
+                              values:
+                                type: array
+                                description: Known values, for enumerated fields only.
+                                items: { type: string }
+                              discovered:
+                                type: boolean
+                                description: >
+                                  Present on a field read from this deployment's own
+                                  `extendedAttributes` rather than from the shared catalog.
+                        relations:
+
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              label: { type: string }
+                              target: { type: string }
+                              cardinality: { type: string }
+                        columns:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ReportColumn'
+                        groupableFields:
+                          type: array
+                          description: The fields this entity can be counted per (no date fields).
+                          items:
+                            type: object
+                            properties:
+                              name: { type: string }
+                              label: { type: string }
+                              discovered: { type: boolean }
+                  operators:
+
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        label: { type: string }
+                        needsValue: { type: boolean }
+                  operatorsByType:
+                    type: object
+                    description: Operator names allowed per field type.
+                    additionalProperties:
+                      type: array
+                      items: { type: string }
+                  compareMeasures:
+                    type: object
+                    description: Compare measure name → label.
+                    additionalProperties: { type: string }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/lookup:
+    get:
+      tags: [Custom Reports]
+      summary: Search object names for a compare reference
+      operationId: lookupCustomReportNames
+      description: >
+        Fuzzy name search used by the builder's reference picker. A search text shorter than 2
+        or longer than 100 characters returns an empty list. Requires `data.read.reports` or `data.write.reports`;
+        answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: entity
+          in: query
+          required: true
+          description: Entity name from the catalog.
+          schema: { type: string }
+        - name: q
+          in: query
+          required: true
+          description: Search text.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Best matches, most similar first (at most 5)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        type:
+                          type: string
+                          nullable: true
+                        score: { type: number }
+        '400':
+          description: Unknown entity
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/status:
+    get:
+      tags: [Custom Reports]
+      summary: Report generator availability
+      operationId: getCustomReportGeneratorStatus
+      description: >
+        Whether the local model server is reachable and serves the configured model. Never fails
+        on an unreachable server — it reports `available: false` with a reason instead. Requires
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Generator status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  model:
+                    type: string
+                    nullable: true
+                  loaded: { type: boolean }
+                  promptCache:
+                    type: string
+                    enum: [cold, warming, ready, failed]
+                  reason:
+                    type: string
+                    nullable: true
+                    description: "`model-not-installed` or `server-unreachable`; null when available."
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+
+  /nl-reports/warm:
+    post:
+      tags: [Custom Reports]
+      summary: Warm up the report generator
+      operationId: warmCustomReportGenerator
+      description: >
+        Loads the configured model and restores its prompt cache. Waits at most a few seconds:
+        when the warm-up is still running it answers `state: preparing` and continues in the
+        background. Requires `data.write.reports`; answers 404 while the `customReports` feature
+        is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Warm-up finished (`ready`) or still running (`preparing`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties:
+                  state:
+                    type: string
+                    enum: [ready, preparing]
+                  model:
+                    type: string
+                    description: Present when ready.
+                  ms:
+                    type: integer
+                    description: Warm-up duration, present when ready.
+                  restored:
+                    type: boolean
+                    description: Whether a saved prompt cache was restored (llama.cpp backend only).
+                  message:
+                    type: string
+                    description: Present while preparing.
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /nl-reports/interpret:
+    post:
+      tags: [Custom Reports]
+      summary: Turn a question into a report definition
+      operationId: interpretCustomReportQuestion
+      description: >
+        Sends a plain-language question (plus earlier conversation turns) to the local model and
+        returns a validated report definition (`report`), a definition whose named objects need
+        confirming (`confirm`), a clarifying question (`clarify`), or `error` when the model's
+        answer could not be used. Requires `data.read.reports`; answers 404 while the
+        `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  maxLength: 2000
+                history:
+                  type: array
+                  maxItems: 12
+                  description: Earlier turns, at most 10,000 characters of content in total.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                        maxLength: 20000
+                model:
+                  type: string
+                  pattern: '^[A-Za-z0-9._:/-]{1,100}$'
+                  description: Evaluation override of the configured model; the UI never sends it.
+                conversationId:
+                  type: string
+                  pattern: '^[A-Za-z0-9:_-]{1,100}$'
+                  description: >
+                    Client-generated key shared by every turn of one chat, so the conversation
+                    store can thread them. Optional.
+      responses:
+        '200':
+          description: The model's interpretation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kind]
+                properties:
+                  kind:
+                    type: string
+                    enum: [report, confirm, clarify, error]
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+                  confirm:
+                    $ref: '#/components/schemas/ReportConfirmation'
+                  explanation:
+                    $ref: '#/components/schemas/ReportExplanation'
+                  assumptions:
+                    type: array
+                    items: { type: string }
+                  warnings:
+                    type: array
+                    items: { type: string }
+                  sql:
+                    type: string
+                    description: Compiled SQL (`report` only).
+                  question:
+                    type: string
+                    description: Clarifying question (`clarify` only).
+                  options:
+                    type: array
+                    description: Up to 4 suggested answers (`clarify` only).
+                    items: { type: string }
+                  message:
+                    type: string
+                    description: What went wrong (`error` only).
+                  errors:
+                    type: array
+                    items: { type: string }
+                  raw:
+                    type: string
+                    description: The model's raw reply.
+                  context:
+                    type: string
+                    description: What was put in front of the question for the model on this turn.
+                  logId:
+                    type: string
+                    format: uuid
+                    description: >
+                      The conversation-store row this turn wrote. Pass it to /nl-reports/run so
+                      the row is completed with what the definition returned.
+                  timing:
+                    type: object
+                    additionalProperties: true
+                  model: { type: string }
+                  repaired:
+                    type: boolean
+                    description: Whether a repair round was needed.
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '429':
+          description: The caller's previous question is still being answered (one at a time per user)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /nl-reports/resolve:
+    post:
+      tags: [Custom Reports]
+      summary: Apply a confirmation answer and look named objects up again
+      operationId: resolveCustomReportReferences
+      description: >
+        Validates a report definition, applies the analyst's answer to a "did you mean"
+        confirmation (when `choice` is given), and looks up the objects it names again. No model
+        is involved. Requires `data.read.reports` or `data.write.reports`; answers 404 while the `customReports` feature
+        is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spec]
+              properties:
+                spec:
+                  $ref: '#/components/schemas/ReportDefinition'
+                choice:
+                  type: object
+                  required: [path, name]
+                  properties:
+                    path:
+                      type: array
+                      description: The `path` of the confirmation being answered.
+                      items: { type: integer }
+                    name:
+                      type: string
+                      description: The chosen or typed exact name.
+                    id:
+                      type: string
+                      description: The chosen record, when known.
+                    keep:
+                      type: boolean
+                      description: Use a "name is X" value as written, without checking it again.
+      responses:
+        '200':
+          description: The updated definition and the next confirmation, if any
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+                  confirm:
+                    allOf:
+                      - $ref: '#/components/schemas/ReportConfirmation'
+                    nullable: true
+                  explanation:
+                    $ref: '#/components/schemas/ReportExplanation'
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/run:
+    post:
+      tags: [Custom Reports]
+      summary: Run a report definition
+      operationId: runCustomReportDefinition
+      description: >
+        Validates and runs a report definition in a read-only transaction with a statement
+        timeout. A definition that is invalid, or names an object that still needs confirming,
+        answers 400 with the errors, the confirmation and the validated definition. Requires
+        `data.read.reports` or `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spec]
+              properties:
+                spec:
+                  $ref: '#/components/schemas/ReportDefinition'
+                logId:
+                  type: string
+                  format: uuid
+                  description: >
+                    The row /nl-reports/interpret wrote for this definition. When given, and only
+                    when the definition run is exactly the one logged, the row is completed with
+                    the row count, column names and query time. Optional.
+      responses:
+        '200':
+          description: Report rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+                  explanation:
+                    $ref: '#/components/schemas/ReportExplanation'
+                  columns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReportColumn'
+                  rows:
+                    type: array
+                    description: >
+                      One object per row, keyed by column key, with an `_entity` property
+                      ({kind, id}) linking the row to an entity detail page.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+                  truncated:
+                    type: boolean
+                    description: More rows matched than the definition's limit.
+                  sql:
+                    type: string
+                  params:
+                    type: array
+                    items: {}
+                  elapsedMs:
+                    type: integer
+        '400':
+          description: Missing or invalid definition, or a named object needs confirming
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  errors:
+                    type: array
+                    items: { type: string }
+                  confirm:
+                    $ref: '#/components/schemas/ReportConfirmation'
+                  spec:
+                    $ref: '#/components/schemas/ReportDefinition'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/saved:
+    post:
+      tags: [Custom Reports]
+      summary: Save a new custom report
+      operationId: createSavedCustomReport
+      description: >
+        Stores a named report definition. Saved reports are listed, run and downloaded through
+        `/reports` as `custom-<id>`. Requires `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedReportInput'
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '409':
+          description: A report with that name already exists
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /nl-reports/saved/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Saved report id (UUID), as in `editable.builderId` of the report metadata.
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Custom Reports]
+      summary: Get a saved custom report
+      operationId: getSavedCustomReport
+      description: >
+        One saved report with its definition, for editing in the builder. Requires
+        `data.read.reports` or `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Saved report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: Report not found, or the feature is off
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+    put:
+      tags: [Custom Reports]
+      summary: Update a saved custom report
+      operationId: updateSavedCustomReport
+      description: >
+        Replaces a saved report's name, description, question and definition. Requires
+        `data.write.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedReportInput'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedReport'
+        '400':
+          $ref: '#/components/responses/CustomReportsBadRequest'
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: Report not found, or the feature is off
+        '409':
+          description: Another report with that name already exists
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+    delete:
+      tags: [Custom Reports]
+      summary: Delete a saved custom report
+      operationId: deleteSavedCustomReport
+      description: >
+        Deletes a saved report. Requires `data.write.reports`; answers 404 while the
+        `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: Report not found, or the feature is off
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+
+  /admin/nl-reports/config:
+    get:
+      tags: [Custom Reports]
+      summary: Get the report generator model configuration
+      operationId: getCustomReportModelConfig
+      description: >
+        The configured model and the models installed on the local model server. `fixed` is true
+        when the release pins the model, in which case it cannot be changed. Requires
+        `admin.llm`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Model configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    type: string
+                    nullable: true
+                  models:
+                    type: array
+                    description: Empty when the model server is unreachable.
+                    items:
+                      $ref: '#/components/schemas/ReportGeneratorModel'
+                  reachable: { type: boolean }
+                  fixed: { type: boolean }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '500':
+          $ref: '#/components/responses/CustomReportsFailed'
+    put:
+      tags: [Custom Reports]
+      summary: Choose the report generator model
+      operationId: setCustomReportModelConfig
+      description: >
+        Selects which installed model generates reports. Requires `admin.llm`; answers 404 while
+        the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model:
+                  type: string
+                  pattern: '^[A-Za-z0-9._:/-]{1,100}$'
+      responses:
+        '200':
+          description: Model saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    enum: [true]
+                  model: { type: string }
+        '400':
+          description: Invalid model name, or the model is not installed on the model server
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+        '409':
+          description: The model is fixed by this release
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  # ─── Context Assistant (experimental) ──────────────────────────
+  /nl-reports/conversations:
+    get:
+      tags: [Custom Reports]
+      summary: Earlier conversations of the signed-in person
+      operationId: listCustomReportConversations
+      description: >
+        The Ask tab's history: this person's earlier conversations, newest first, one line each.
+        Scoped to the caller; with nobody signed in the list is empty. Requires
+        `data.read.reports`; answers 404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Conversations, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        conversationId: { type: string }
+                        firstQuestion: { type: string }
+                        startedAt: { type: string, format: date-time }
+                        lastAt: { type: string, format: date-time }
+                        turns: { type: integer }
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          $ref: '#/components/responses/CustomReportsDisabled'
+
+  /nl-reports/conversations/{id}:
+    get:
+      tags: [Custom Reports]
+      summary: The turns of one earlier conversation
+      operationId: getCustomReportConversation
+      description: >
+        Everything said in one conversation, in order, with the model's raw replies — what the
+        Ask tab needs to pick the conversation back up. A conversation that is not the caller's
+        answers 404 exactly like one that does not exist. Requires `data.read.reports`; answers
+        404 while the `customReports` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, pattern: '^[A-Za-z0-9:_-]{1,100}$' }
+      responses:
+        '200':
+          description: The conversation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversationId: { type: string }
+                  turns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        question: { type: string }
+                        definition:
+                          $ref: '#/components/schemas/ReportDefinition'
+                        outcome: { type: string }
+                        clarification: { type: string, nullable: true }
+                        rawReply: { type: string, nullable: true }
+                        rowCount: { type: integer, nullable: true }
+                        createdAt: { type: string, format: date-time }
+        '400':
+          description: The id is not a plain key
+        '403':
+          $ref: '#/components/responses/CustomReportsForbidden'
+        '404':
+          description: No such conversation for this caller, or the feature is off
+
+  /context-assistant/options:
+    get:
+      tags: [Context Assistant]
+      summary: What a context recipe may search
+      operationId: getContextAssistantOptions
+      description: >
+        The resource types that exist in this deployment and the text fields a recipe may search.
+        Requires `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Scope options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resourceTypes:
+                    type: array
+                    items: { type: string }
+                  fields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        label: { type: string }
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+
+  /context-assistant/status:
+    get:
+      tags: [Context Assistant]
+      summary: Report generator availability
+      operationId: getContextAssistantStatus
+      description: >
+        Whether the local model server is reachable and serves the configured model. Never fails
+        on an unreachable server — it reports `available: false` with a reason instead. The
+        builder works without it: the analyst types the search terms themselves. Requires
+        `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Generator status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  model:
+                    type: string
+                    nullable: true
+                  loaded: { type: boolean }
+                  promptCache:
+                    type: string
+                    enum: [cold, warming, ready, failed]
+                  reason:
+                    type: string
+                    nullable: true
+                    description: "`model-not-installed` or `server-unreachable`; null when available."
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+
+  /context-assistant/warm:
+    post:
+      tags: [Context Assistant]
+      summary: Warm up the context assistant's prompt
+      operationId: warmContextAssistant
+      description: >
+        Loads the model and restores this assistant's prompt cache. The generator has one slot and
+        each assistant keeps its own prompt, so custom reports and the context assistant take
+        turns; restoring is fast, preparing a prompt for the first time after an update takes
+        minutes and continues in the background (`state: preparing`). Requires
+        `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: Warm-up finished (`ready`), the model is loading (`starting`), or the prompt cache is being prepared (`preparing`)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties:
+                  state:
+                    type: string
+                    enum: [ready, starting, preparing]
+                  model: { type: string }
+                  ms: { type: integer }
+                  restored: { type: boolean }
+                  message: { type: string }
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /context-assistant/interpret:
+    post:
+      tags: [Context Assistant]
+      summary: Turn a description into search terms
+      operationId: interpretContextDescription
+      description: >
+        Sends a description of the subject (plus earlier conversation turns) to the local model and
+        returns proposed search terms (`terms`), one clarifying question (`clarify`), or `error`
+        when the model's answer could not be used. Only terms containing the analyst's own words
+        arrive with `state: accepted`; everything else the model adds arrives `rejected`, for the
+        analyst to tick after seeing what it finds. One question at a time per caller (429).
+        Requires `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  maxLength: 2000
+                history:
+                  type: array
+                  maxItems: 12
+                  description: Earlier turns, at most 10,000 characters of content in total.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                        maxLength: 20000
+      responses:
+        '200':
+          description: The model's proposal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextTermsReply'
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '429':
+          description: The caller's previous question is still being answered
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /context-assistant/suggest:
+    post:
+      tags: [Context Assistant]
+      summary: Ask for more search terms
+      operationId: suggestContextTerms
+      description: >
+        Asks the model for terms that are not in the recipe yet, told which terms the analyst kept
+        and which they dropped. Requires `data.write.contexts`; answers 404 while the
+        `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question, recipe]
+              properties:
+                question:
+                  type: string
+                  maxLength: 2000
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+      responses:
+        '200':
+          description: New terms
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextTermsReply'
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '429':
+          description: The caller's previous question is still being answered
+        '502':
+          $ref: '#/components/responses/ModelServerFailed'
+
+  /context-assistant/evaluate:
+    post:
+      tags: [Context Assistant]
+      summary: What a recipe finds
+      operationId: evaluateContextRecipe
+      description: >
+        Runs the recipe read-only and returns the normalised recipe, per-term numbers (hits, hits
+        only that term finds, per field, whether it is too broad) and the matched objects with
+        their status. No model involved. Requires `data.write.contexts`; answers 404 while the
+        `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipe]
+              properties:
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+      responses:
+        '200':
+          description: The recipe as it will run, and what it finds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recipe:
+                    $ref: '#/components/schemas/ContextRecipe'
+                  errors:
+                    type: array
+                    description: What was dropped or corrected while normalising the recipe.
+                    items: { type: string }
+                  scopeTotal:
+                    type: integer
+                    description: Objects in scope, whether they match or not.
+                  truncated:
+                    type: boolean
+                    description: More objects matched than were returned.
+                  memberCount:
+                    type: integer
+                  addedByModel:
+                    type: integer
+                    description: Members found only by kept terms the model added that carry none of the analyst's own words.
+                  terms:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        text: { type: string }
+                        key: { type: string }
+                        match:
+                          type: string
+                          enum: [token, wordStart, contains]
+                        state:
+                          type: string
+                          enum: [accepted, rejected]
+                        origin:
+                          type: string
+                          enum: [model, analyst, related]
+                        own: { type: boolean }
+                        why: { type: string }
+                        hits: { type: integer }
+                        unique: { type: integer }
+                        tooBroad: { type: boolean }
+                        byField:
+                          type: object
+                          additionalProperties: { type: integer }
+                  matches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        displayName: { type: string }
+                        description:
+                          type: string
+                          nullable: true
+                        resourceType: { type: string }
+                        systemName:
+                          type: string
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [member, included, excluded, candidate]
+                        hits:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              term: { type: string }
+                              accepted: { type: boolean }
+                              fields:
+                                type: array
+                                items: { type: string }
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/related:
+    post:
+      tags: [Context Assistant]
+      summary: Words typical of what the recipe finds
+      operationId: getContextRelatedWords
+      description: >
+        Words that occur far more often in the names of the objects the recipe finds than in the
+        names of everything in scope, ranked by that ratio. Found in the data, not by the model —
+        this is what finds a deployment's own names. Requires `data.write.contexts`; answers 404
+        while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipe]
+              properties:
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+      responses:
+        '200':
+          description: Suggested words
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contextSize: { type: integer }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        word: { type: string }
+                        inContext: { type: integer }
+                        outside: { type: integer }
+                        lift: { type: number }
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/lookup:
+    get:
+      tags: [Context Assistant]
+      summary: Find an object by name
+      operationId: lookupContextObjects
+      description: >
+        Fuzzy name search, to include an object by hand that no term finds. Requires
+        `data.write.contexts`; answers 404 while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+      responses:
+        '200':
+          description: Matching objects (empty for a query shorter than 2 characters)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        type: { type: string }
+                        score: { type: number }
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          $ref: '#/components/responses/ContextAssistantDisabled'
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/recipe/{id}:
+    get:
+      tags: [Context Assistant]
+      summary: The recipe behind a context tree
+      operationId: getContextRecipe
+      description: >
+        The stored recipe of a context tree built with the assistant, and the description it was
+        built from, so it can be edited and re-run. Requires `data.write.contexts`; answers 404
+        while the `contextAssistant` feature is off, and for a context built by anything else.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The root context of the tree.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The stored recipe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contextId: { type: string, format: uuid }
+                  question: { type: string }
+                  recipe:
+                    $ref: '#/components/schemas/ContextRecipe'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          description: Not a context built with the assistant, or the feature is off
+        '500':
+          $ref: '#/components/responses/ContextAssistantFailed'
+
+  /context-assistant/save:
+    post:
+      tags: [Context Assistant]
+      summary: Build the context tree, or refresh an existing one
+      operationId: saveContextRecipe
+      description: >
+        Runs the `context-recipe` plugin with this recipe and waits for it. Without `contextId` it
+        creates a new tree (201); with one it refreshes that tree in place (200), keeping the
+        analyst's renames and re-parenting. The recipe is stored as the run's parameters, so the
+        tree is refreshed with it after every crawl. Requires `data.write.contexts`; answers 404
+        while the `contextAssistant` feature is off.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipe]
+              properties:
+                recipe:
+                  $ref: '#/components/schemas/ContextRecipe'
+                question:
+                  type: string
+                  maxLength: 2000
+                  description: The description the context was built from, kept for editing later.
+                contextId:
+                  type: string
+                  format: uuid
+                  description: The tree to refresh; omit to create a new one.
+      responses:
+        '200':
+          description: The tree was refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextSaveResult'
+        '201':
+          description: The tree was created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextSaveResult'
+        '400':
+          $ref: '#/components/responses/ContextAssistantBadRequest'
+        '403':
+          $ref: '#/components/responses/ContextAssistantForbidden'
+        '404':
+          description: The context to refresh was not built with the assistant, or the feature is off
+        '500':
+          description: The run failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  detail:
+                    type: string
+                    nullable: true
+                  runId: { type: string, format: uuid }
 
 components:
   securitySchemes:
@@ -677,6 +2278,160 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    ContextRecipe:
+      type: object
+      description: >
+        What a context built with the assistant searches for, and the analyst's corrections to it.
+        Stored as the parameters of the `context-recipe` context plugin and re-applied after every
+        crawl. Include and exclude live here rather than as member edits, because a plugin run
+        replaces every member it added.
+      properties:
+        version:
+          type: integer
+          enum: [1]
+        name:
+          type: string
+          maxLength: 200
+        target:
+          type: string
+          enum: [resource]
+        resourceTypes:
+          type: array
+          maxItems: 20
+          items: { type: string }
+        fields:
+          type: array
+          description: Text fields to search, by catalog name.
+          items:
+            type: string
+            enum: [displayName, description, mail]
+        terms:
+          type: array
+          maxItems: 40
+          items:
+            type: object
+            required: [text]
+            properties:
+              text:
+                type: string
+                maxLength: 60
+              key:
+                type: string
+                description: The term reduced to lowercase letters, digits and single spaces — what is matched.
+              match:
+                type: string
+                enum: [token, wordStart, contains]
+              state:
+                type: string
+                enum: [accepted, rejected]
+              origin:
+                type: string
+                enum: [model, analyst, related]
+              own:
+                type: boolean
+                description: A model term containing one of the analyst's own words; only these arrive ticked.
+              why:
+                type: string
+                maxLength: 40
+        include:
+          type: array
+          maxItems: 2000
+          description: Objects kept in whatever the terms find.
+          items: { type: string, format: uuid }
+        exclude:
+          type: array
+          maxItems: 2000
+          description: Objects kept out; wins over every term.
+          items: { type: string, format: uuid }
+        structure:
+          type: string
+          enum: [byTerm, flat]
+    ContextTermsReply:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [terms, clarify, error]
+        name:
+          type: string
+          description: A name for the context, proposed by the model.
+        terms:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+              match:
+                type: string
+                enum: [token, wordStart, contains]
+              state:
+                type: string
+                enum: [accepted, rejected]
+              origin:
+                type: string
+                enum: [model]
+              own: { type: boolean }
+              why: { type: string }
+        notes:
+          type: array
+          items: { type: string }
+        question:
+          type: string
+          description: Present when kind is clarify.
+        options:
+          type: array
+          items: { type: string }
+        message:
+          type: string
+          description: Present when kind is error.
+        raw:
+          type: string
+          description: The model's reply as it came back.
+        timing:
+          type: object
+          additionalProperties: { type: integer }
+    ContextSaveResult:
+      type: object
+      properties:
+        runId: { type: string, format: uuid }
+        contextId:
+          type: string
+          format: uuid
+          nullable: true
+        membersAdded: { type: integer }
+        membersRemoved: { type: integer }
+    ReportViewInput:
+      type: object
+      required: [name]
+      properties:
+        reportName:
+          type: string
+          description: The standard report this is a view of. Required on create; ignored on update.
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        params:
+          type: object
+          description: >
+            The report's parameters, as its `parametersSchema` declares them. Each value is a
+            string or a list of strings; undeclared keys and empty values are dropped.
+          additionalProperties: true
+    ReportView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        report:
+          type: string
+          description: The name the view is listed and run under in `/reports` (`view-<id>`).
+        reportName: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        params:
+          type: object
+          additionalProperties: true
+        createdBy: { type: string, nullable: true }
+        updatedBy: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
     ReportMetadata:
       type: object
       description: Everything a client needs to list and render a report — no report-specific knowledge.
@@ -714,6 +2469,256 @@ components:
           items:
             type: string
           example: [csv, json]
+        pivots:
+          type: array
+          description: >
+            Pivot tables the `xlsx` download opens with, each on its own tab over the report's
+            rows. Every field is a column key; values are summed. Empty for most reports.
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, description: "Tab name." }
+              rows: { type: array, items: { type: string }, description: "Row fields, outermost first." }
+              filters: { type: array, items: { type: string }, description: "Filter fields." }
+              values: { type: array, items: { type: string }, description: "Summed fields." }
+        charts:
+          type: array
+          description: >
+            Pie charts the `xlsx` download opens with, on a Charts tab after the summary. Each
+            splits the rows over one column key, counting rows or summing `value`. Empty for most
+            reports.
+          items:
+            type: object
+            required: [name, type, category]
+            properties:
+              name: { type: string }
+              type: { type: string, enum: [pie] }
+              category: { type: string, description: "Column key whose values are the slices." }
+              value: { type: string, description: "Column key summed per slice; omitted, rows are counted." }
+              title: { type: string }
+              valueLabel: { type: string }
+              colors: { type: object, additionalProperties: { type: string }, description: "Slice colour per category, RRGGBB." }
+        source:
+          type: string
+          enum: [builtin, custom, view]
+          description: >
+            `builtin` ships with Identity Atlas; `custom` was built by someone in this
+            deployment (the experimental custom reports feature); `view` is a saved view of a
+            built-in report. Clients list them apart.
+        view:
+          type: object
+          nullable: true
+          description: For a saved view, which view it is and which standard report it runs. Null otherwise.
+          properties:
+            id: { type: string, format: uuid }
+            reportName: { type: string }
+            reportDisplayName: { type: string }
+        author:
+          type: object
+          nullable: true
+          description: Who built a custom report and who last changed it. Null for built-in reports.
+          properties:
+            createdBy:
+              type: string
+              nullable: true
+            updatedBy:
+              type: string
+              nullable: true
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+        editable:
+          type: object
+          nullable: true
+          description: >
+            Present on a custom report. `builderId` opens it in the report builder. Editing and
+            deleting it also require the `data.write.reports` permission.
+          properties:
+            builderId:
+              type: string
+
+    ErrorMessage:
+      type: object
+      properties:
+        error:
+          type: string
+
+    ReportColumn:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        discovered:
+          type: boolean
+          description: >
+            Only in the builder catalog: the column reads an `extendedAttributes` key found in this
+            deployment's own data rather than a field of the shared catalog.
+
+
+    ReportDefinition:
+      type: object
+      description: >
+        A custom report definition — `{ entity, match, conditions, columns, groupBy?, sort?, limit? }`.
+        Conditions are `field`, `relation`, `group` or `compare` objects; the catalog lists the
+        entities, fields, relations and operators they may use. The server validates every
+        definition and returns the normalised form.
+
+      required: [entity]
+      additionalProperties: true
+      properties:
+        entity:
+          type: string
+        match:
+          type: string
+          enum: [all, any]
+        conditions:
+          type: array
+          maxItems: 25
+          items:
+            type: object
+            additionalProperties: true
+        columns:
+          type: array
+          maxItems: 15
+          items:
+            type: string
+        groupBy:
+          type: string
+          description: >
+            Count records per distinct value of this field instead of listing them. The result then
+            has two columns — the value and `count` — and no record to open per row. Not combinable
+            with a compare condition, and not allowed on a date field.
+        sort:
+          type: object
+          description: >
+            On a grouped definition the field must be the grouped field or `count`; the default is
+            the largest count first.
+          properties:
+            field:
+              type: string
+            direction:
+              type: string
+        limit:
+          type: integer
+          maximum: 5000
+          default: 1000
+
+
+    ReportConfirmation:
+      type: object
+      description: >
+        A named object in the definition that did not match exactly — the analyst picks one of
+        `choices` or types the exact name, and sends it to `/nl-reports/resolve`.
+      properties:
+        kind:
+          type: string
+          enum: [reference, value]
+        path:
+          type: array
+          description: Index path to the condition in the definition.
+          items:
+            type: integer
+        name:
+          type: string
+        label:
+          type: string
+        message:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+                nullable: true
+              score:
+                type: number
+
+    ReportExplanation:
+      type: object
+      description: The definition in plain language, one line per condition.
+      properties:
+        title:
+          type: string
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              depth:
+                type: integer
+              text:
+                type: string
+
+    SavedReportInput:
+      type: object
+      required: [name, definition]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          description: Unique (case-insensitive).
+        description:
+          type: string
+          maxLength: 2000
+        question:
+          type: string
+          maxLength: 2000
+          description: The question the report was built from, if any.
+        definition:
+          $ref: '#/components/schemas/ReportDefinition'
+
+    SavedReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: '#/components/schemas/ReportDefinition'
+        question:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReportGeneratorModel:
+      type: object
+      description: A model on the local model server. Size details are reported by the Ollama backend only.
+      properties:
+        name:
+          type: string
+        loaded:
+          type: boolean
+        sizeBytes:
+          type: integer
+        parameterSize:
+          type: string
+        quantization:
+          type: string
 
     IngestEnvelope:
       type: object
@@ -770,6 +2775,48 @@ components:
         durationMs:
           type: integer
 
+    ReconcileRequest:
+      type: object
+      required: [entity, systemId, before]
+      properties:
+        entity:
+          type: string
+          description: Ingest entity type (e.g. resource-assignments); must carry a system scope
+        systemId:
+          type: integer
+        scope:
+          type: object
+          description: 'Narrow the reconcile to a scope (e.g. { assignmentType: "Direct", resourceType: "Entitlement" })'
+          additionalProperties:
+            type: string
+        before:
+          type: string
+          format: date-time
+          description: Rows not ingested since this moment are reconciled away
+
+    ReconcileResult:
+      type: object
+      properties:
+        table:
+          type: string
+        deleted:
+          type: integer
+        before:
+          type: string
+          format: date-time
+
+    CountResult:
+      type: object
+      properties:
+        table:
+          type: string
+        count:
+          type: integer
+          description: Live rows of the system and scope touched since `since`
+        since:
+          type: string
+          format: date-time
+
     CrawlerInfo:
       type: object
       properties:
@@ -777,6 +2824,10 @@ components:
           type: integer
         displayName:
           type: string
+        serverTime:
+          type: string
+          format: date-time
+          description: The API container's clock at the time of the call
         systemIds:
           type: array
           items:
@@ -834,6 +2885,33 @@ components:
           nullable: true
 
   responses:
+    ContextAssistantForbidden:
+      description: The caller lacks `data.write.contexts` (checked before the feature flag)
+    ContextAssistantDisabled:
+      description: The `contextAssistant` feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    ContextAssistantBadRequest:
+      description: The request or the recipe is invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              errors:
+                type: array
+                items:
+                  type: string
+    ContextAssistantFailed:
+      description: The request failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
     IngestSuccess:
       description: Ingest successful
       content:
@@ -857,3 +2935,36 @@ components:
       description: Missing or invalid API key
     Forbidden:
       description: Insufficient permissions or system access
+    CustomReportsForbidden:
+      description: The caller lacks the required permission (checked before the feature flag)
+    CustomReportsDisabled:
+      description: The `customReports` feature is not enabled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    CustomReportsBadRequest:
+      description: The request or report definition is invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              errors:
+                type: array
+                items:
+                  type: string
+    CustomReportsFailed:
+      description: The request failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    ModelServerFailed:
+      description: The local model server is not reachable or failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'

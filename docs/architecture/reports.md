@@ -86,12 +86,343 @@ know renders an explanatory panel rather than breaking the page.
 | Name | Form | What it lists |
 |------|------|---------------|
 | `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
+| `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
+| `access-review-adoption` | `list` | *Access Review Adoption* — one row per business role with when a **person** last reviewed it and a status (never reviewed, never by a person, latest not by a person, partly, too long ago, reviewed, in progress, new), worst first. Two pies and two pivots in the workbook. See [Access review adoption](../ui/access-review-adoption.md). |
+| `access-reviewer-response` | `list` | *Access Reviewer Response* — one row per reviewer: review rounds asked, answered by themselves, missed, and how they decided. Worst first. |
+
+Both access-review reports share one definition of "a decision a person made",
+`app/api/src/reports/humanReview.js`: a decision value that is not a "nobody answered" value of any
+source, with a reviewer recorded, who is not the platform (Entra ID's all-zero reviewer id, or a
+reviewer named "… Access Reviews"). This is stricter than the compliance view's
+`decision <> 'NotReviewed'`, which counts a review Entra ID closed by applying its default decision as
+done.
+
+| `high-risk-application-permissions` | `list` | One row per application (app-only) permission a service principal actually holds — an `ApplicationPermission` resource with a live `Direct` assignment — that is on the shortlist in `reports/appPermissionRisk.js`, with a fixed category and severity. See [below](#high-risk-application-permissions). |
+| `risky-applications` | `list` | One row per service principal with a 0–100 risk score and the findings behind it: reputation, permissions, consent, set-up, credentials, ownership and activity. See [below](#risky-applications). |
+
+### High-risk application permissions
+
+Reads what the Entra ID crawler's `SyncAppPermissions` phase stores from
+`/servicePrincipals/{id}/appRoleAssignments`: the app roles an SP was **granted** on another API. It
+can never show a permission that was only requested, because the crawler does not store
+`requiredResourceAccess`. Delegated consent (`DelegatedPermission`) and users' assignments to an app's
+own roles (`AppRole`) are other resource types and are not read. Revoked grants drop out because the
+phase full-syncs its scope, which soft-deletes what Graph no longer returns.
+
+The shortlist is keyed by the target API's **appId** (the same in every tenant), then by the exact
+permission value. A role called `Mail.Read` on any API that is not listed is never classified. Extend
+the list by adding a permission to an API's map, or an API with its appId.
+
+A reader can change the selection per run, without a code change. There are two parameters:
+
+| Parameter | What it does |
+|---|---|
+| `includeStandard` | On by default. Off lists only the additions. |
+| `extraPermissions` | Further permissions to list, picked through the `application-permissions` lookup. That lookup offers the permissions actually granted in this deployment, with the API and the number of holding apps. |
+
+A pick is stored as `<apiAppId>|<permission>`, so it selects that permission on that API only. An
+added permission carries the category *Added to this report* and no severity, because only the
+shortlist assigns one. A choice can be kept as a [saved view](#saved-views). The crawler stamps
+`targetApiAppId` on each permission. For data crawled before that, the report falls back to the API's
+own service-principal record, and it states how many grants it could not identify. An empty result
+says that nothing was collected, because the phase is off by default.
+
+### Risky applications
+
+`risky-applications` judges each enterprise application, managed identity and AI agent as a whole.
+High-risk application permissions lists grants; this report scores the app. Each row is one service
+principal with a 0–100 score, a level, its three main reasons, and in the *Findings* column every
+finding with its points.
+
+The score is a **sum of named findings**, not a model. Every point traces to one sentence a reviewer
+can check in Entra. The rules and their weights live in one table (`POINTS` in
+`reports/appRiskRules.js`):
+
+| Category | Findings |
+|---|---|
+| Reputation | appId on the OAuthSentry malicious-app list (overrides everything: Critical, 100); Microsoft-looking name registered in another organisation's tenant; third-party app without a verified publisher |
+| Permissions | highest app-only permission tier; several high-risk app-only permissions |
+| Consent | scopes an administrator consented to for every user; scopes users consented to themselves (more when ten or more did) |
+| Configuration | public-client flows allowed (ROPC, device code); implicit grant issuing access tokens; wildcard or off-machine `http` redirect URIs; one of this tenant's apps open to any organisation |
+| Credentials | a secret valid for more than two, or more than ten, years; secrets on the enterprise application itself; expired credentials left behind; three or more valid secrets; federated credentials that match a pattern |
+| Ownership | disabled or deleted owners; guest owners; user owners of an app with critical app-only permissions (they can add a secret and act as it); no owner on this tenant's high-reach app |
+| Activity | high-reach app unused for `inactiveDays`; app created in the last 30 days that already holds critical permissions |
+
+Levels: Critical from 60, High from 35, Medium from 15, Low above 0. A disabled app keeps its
+findings but counts half.
+
+**One permission tier.** `reports/appRiskPermissions.js` combines the two lists that already existed.
+The appId-keyed shortlist above (`appPermissionRisk.js`) decides app-only permissions it names. The
+name tiering of the risky-consent plugin (`riskyConsentRiskMap.js`) covers delegated scopes and the
+rest. That name tiering is applied only to Microsoft's own APIs, matched by appId. Anything else is
+*Unknown* and adds nothing.
+
+**Coverage.** The report reads what the crawler's toggles collected. *Service Principals* defines the
+apps. *Application Permissions*, *OAuth2 Delegated Grants*, *App Owners* and *App Registrations &
+Credentials* each feed their rules. A rule whose data was not collected stays silent: "no owners"
+is only said when owners were crawled. A notice names every missing source, and also says when the
+malicious-app list could not be read. Microsoft's first-party apps (registered in Microsoft's own
+tenants) are left out unless `includeMicrosoft` is on.
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `minimumLevel` | Medium | Leave out apps below this level |
+| `includeMicrosoft` | off | Include Microsoft's first-party apps |
+| `useThreatFeed` | on | Look up each appId in the OAuthSentry list (needs internet access; a failure becomes a notice, not an error) |
+| `inactiveDays` | 90 | When a high-reach app counts as unused |
 
 Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
 `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
 the same question, so they must not be able to drift apart. Note that before account linking has run
 there are no `IdentityMembers` at all, so every account is legitimately listed — the report's
 description says so.
+
+## Parameters that mean an entity — `x-lookup`
+
+A parameter whose value is an entity (an application, a system, a business role) should be **picked**,
+not typed: a name can match several entities, and a report parameterised by a typed name silently
+runs over all of them.
+
+A template says so with one annotation, and nothing else changes:
+
+```js
+contexts: {
+  type: 'array',
+  title: 'Contexts',
+  'x-lookup': 'resource-contexts',           // a source name, not a query
+  'x-lookupPlaceholder': 'Search contexts…',
+},
+```
+
+When the options depend on an earlier choice, the parameter says which with
+`'x-lookupDependsOn': ['contexts']`. The form hands those values to the picker, the picker sends them
+along as query parameters (`?q=…&contexts=a,b`), and the route passes every parameter that is not its
+own (`q`, `limit`, `ids`) to the source as `params` — capped at ten keys of 200 values each. The
+access review's field picker uses this to offer only the attributes the picked contexts carry.
+
+`SchemaConfigForm` checks `x-lookup` **before** `type`, because it says what the value *means* while
+`type` only says how it is carried, and renders `components/inputs/EntityLookup`. The stored value is
+still an array of strings, so a hand-written URL and an older bookmark keep working. Same annotation
+style as `x-attributeSource` in the context-plugin schemas.
+
+The server half is a registry with the same shape as the report registry — `app/api/src/lookups/`:
+
+| Piece | Job |
+|---|---|
+| `lookups/types.js` | the `LookupSource` contract: `name`, `displayName`, `search({q, limit, params})`, optional `resolve({ids, params})` |
+| `lookups/sources/<name>.js` | one source; returns **options** (`value` / `label` / `hint`), never rows |
+| `lookups/sources/index.js` | the one registration line |
+| `lookups/registry.js` | `registerLookup` / `getLookup` / `listLookups` |
+| `routes/lookups.js` | `GET /api/lookups`, `GET /api/lookups/:source?q=` and `?ids=` |
+
+Adding a lookup is a source file plus one index line. The route, the registry and the form never name
+a source — `routes/lookups.test.js` proves it by registering one the route has never heard of.
+
+Three details that are load-bearing rather than decorative:
+
+- **The source normalises, the client does not.** Returning `{ value, label, hint }` is what lets one
+  control render every source; a client that knew about contexts could not also render systems.
+- **The response echoes `q`.** A reply for an earlier keystroke arriving late is discarded instead of
+  drawn over the current one. Without it the list flickers backwards under fast typing — the same
+  guard `/api/matrix/column-values` makes by echoing `column`.
+- **`resolve({ids})` exists so a bookmark reads as names.** Ids that arrive in a URL are turned back
+  into labels; a source may omit it, and the chips then show the raw ids.
+
+`EntityLookup` is deliberately **not** a merge of `PeoplePicker`. That one's value is a list of
+objects keyed on a person's sign-in name, because a share recipient is matched on that string rather
+than on a directory id — a different contract from "a list of entity ids".
+
+## Downloads, and which formats carry a run's context
+
+`app/api/src/reports/export.js` is keyed on the **format** name, never on a report name, so every
+registered template is downloadable the moment it exists. Today: `csv`, `xlsx`, `json` — in that
+order, which is the order the UI offers them and the first is the default.
+
+A run produces two things a plain table cannot hold:
+
+| Field | What it is |
+|---|---|
+| `notices` | statements ABOUT the rows — what the numbers were computed from, which of them is a summary, when they stop being trustworthy |
+| `constantColumns` | column keys the run declares hold **one value throughout it** — the application a review is about, say |
+
+Both used to be stripped from every download, on the rule "a download is the rows". That was really a
+statement about CSV rather than about downloads: a CSV *is* a table, so anything above the header row
+breaks every parser that reads it. A workbook has room above the table and a reader who expects
+context there.
+
+So the decision belongs to the format and is declared there:
+
+```js
+xlsx: { contentType: '…spreadsheetml.sheet', carriesContext: true, serialize: toXlsx },
+```
+
+`routes/reports.js` strips both fields for every format that does not claim them, so **csv and json
+are byte-for-byte what they were**. A future format (pdf, html) opts in the same way, and the route
+still never asks which report it is serving — only what the chosen format can hold. (The flag was
+`carriesNotices` while notices were the only such field; it is named for the category now that it
+gates two.)
+
+### `constantColumns` — declared by the run, never derived
+
+A workbook opens on a **Summary** tab — report name, run line, the declared constant columns as
+label/value pairs, then every notice — followed by a **Data** tab that holds only the table, header on
+row 1. The serializer writes each declared column once, on the Summary tab, and leaves it out of the
+table. So a review pack for **one** context opens with what the context is — whichever of its fields
+and attributes the reader picked (name, owner, a CMDB reference…) — instead of repeating those values
+down 21,000 rows. A run over **several** contexts declares nothing constant, because they genuinely
+vary per row.
+
+**Exception — a column a pivot is built on stays in the table** (and is still stated on the Summary
+tab). A pivot can only read what the table holds, and the owner reads the pivot the same way for one
+application as for many; see [Pivot tables in the workbook](#pivot-tables-in-the-workbook).
+
+Three rules hold it together:
+
+- **The run declares it; the serializer does not guess.** A column can hold one distinct value by
+  accident — every entitlement in a small application being non-requestable — and a serializer that
+  derived constancy from the rows would silently delete a real column.
+- **The serializer takes the declaration at its word.** It reads the value from the first row and
+  does not check the others. A run that declares a column constant and is wrong has a bug in the
+  report; quietly keeping the column would hide it.
+- **`columns` does not move.** It is the report's contract with the *screen*, which shows every
+  column whatever the run said. Only the sheet's body is a subset, and no value is lost — what leaves
+  the table appears in the header.
+
+Nothing is dropped when dropping would leave no table at all.
+
+Two more consequences worth knowing:
+
+- **A serializer may be async.** The route awaits every format, because a workbook is assembled and
+  zipped rather than concatenated.
+- **The xlsx serializer writes cell values raw** — no leading-apostrophe guard. The CSV guard
+  (security finding M-05) exists because a CSV cell has no type and the spreadsheet decides what
+  `=cmd|calc` means when it opens the file. An xlsx cell *is* typed: a string is stored as a string,
+  never as an `<f>` formula. The apostrophe would be a character of corruption, not a defence, so the
+  tests pin the invariant that actually matters — the cell round-trips with its exact original text
+  **and** with cell type `String`. (The UI's own xlsx exports do apply the apostrophe; that is a
+  separate, older path and was left alone.)
+
+### Pivot tables in the workbook
+
+A template may declare `pivots` — each `{ name, rows, filters, values }` in column keys, values
+summed — and the xlsx download then has one ready-made pivot per declaration, each on its own tab
+after Data. The Entitlement Pivot has the two its owners used to build by hand: *Direct assignments*
+(rows: the picked pivot rows → Entitlement; filters: the picked pivot filters + Users assigned via a
+role) and *Assignments via roles* (rows: Granted by role(s) → Entitlement; filters: the picked pivot
+filters). Because they depend on the run's parameters, the run returns them — see below.
+
+ExcelJS 4.4 (the released line) writes no pivot tables, so `reports/xlsxPivots.js` adds them to the
+zip ExcelJS produced: one pivot cache over the Data table, shared by every pivot and marked
+`refreshOnLoad` so Excel lays the pivots out from the sheet when the file opens, and one pivot table
+part per tab. The declaration is metadata (`reportMetadata` carries `pivots`), so the serializer still
+never asks which report it is writing. Measured in Excel: a 50,000-row workbook has both pivots ready
+about 4 s after opening, and the pivots add ~0.5 s and ~1 MB to the export.
+
+### Pie charts in the workbook
+
+A template may declare `charts` — each `{ name, type: 'pie', category, value?, title?, valueLabel?,
+colors? }` — and the xlsx download then opens with a **Charts** tab right after the Summary. Each chart
+splits the rows over the `category` key, counting rows, or summing the `value` key when one is named.
+The small table each pie reads is written beside it on the same tab, in the order categories first
+appear in the rows, so a report that sorts worst-first gets a legend that reads worst-first. `colors`
+maps a category to an `RRGGBB` slice colour; anything else keeps Excel's theme colour.
+
+ExcelJS writes no charts either, so `reports/xlsxCharts.js` adds them the same way as the pivots: one
+drawing on the Charts tab, one chart part per declaration, wired in after ExcelJS has written the zip.
+Like `pivots`, `charts` is metadata that `reportMetadata` carries, and a saved view inherits its
+report's. A report with no rows, or with no charts declared, gets no Charts tab.
+
+## Columns the reader picks
+
+A template's `columns` and `pivots` are a declaration, but a run may return its own: `run()` can
+return `columns` and `pivots` next to `rows`, and `routes/reports.js` then serves those instead (a
+value that is not a list leaves the declaration standing). The screen, the CSV and the workbook all
+read the payload, so they follow the run. The listing (`GET /api/reports`) still shows the
+declaration, which should describe a run with every parameter left at its default.
+
+The Entitlement Pivot uses this to name no attribute of any one deployment. Its columns between the
+entitlement and its counts are **field keys** from `reports/accessReviewFields.js`, the one place a key
+is turned into a heading and a value:
+
+| Key | What it reads |
+|---|---|
+| `context.name` / `.type` / `.description` / `.owner` | the context's own facts |
+| `entitlement.type` / `.system` / `.description` / `.owner` / `.ownerEmail` / `.eligibleAssignments` | the resource's own facts, its owner through the ownership model, its Eligible holders |
+| `context.ext.<key>` | any scalar the context's source stored in `extendedAttributes` |
+| `entitlement.ext.<key>` | any scalar the resource's source stored in `extendedAttributes` |
+
+Three parameters take field keys — `fields` (columns), `pivotRows`, `pivotFilters` — each picked
+through the `access-review-fields` lookup, which offers the built-ins plus the attributes the picked
+contexts and their live resources actually carry, with how many rows carry each. A field used in a
+pivot becomes a column even when it was not picked as one (a pivot can only read the table), and a
+field that is a row of a pivot is left off that pivot's filters (Excel refuses one field on two axes).
+`extendedAttributes` keys are read in JavaScript from rows already fetched — a key never reaches SQL.
+A picked attribute no row carries is reported in one notice rather than left as a mysterious empty
+column.
+
+This replaced a version with one customer's catalogue in the code: a `requestable` flag that split
+the rows into three sections, a certification frequency with its own typo check, and eight catalogue
+columns (CMDB reference, onboarding sector, …) read under every spelling that had been seen. On any
+other deployment those were empty, and a missing `requestable` silently put every entitlement in the
+"information only" section. Those values are now attributes like any other: pick them.
+
+## Saved views
+
+A **view** is a built-in report with its parameters filled in and a name, shared across the deployment
+(`ReportViews`, migration 090; `reports/views.js`; `routes/reportViews.js`). It is served through
+`registerReportSource` as a report named `view-<id>`, so the Reports page, the report tab, Refresh and
+every download format work for it with no new code. The template a view becomes:
+
+- runs the built-in report with `{ ...savedParams, ...runParams }`, so the tab can still adjust one
+  run without changing the view;
+- carries the built-in report's `parametersSchema` with the saved values as each property's `default`,
+  and drops from `required` whatever the view fills, so its tab opens with its own choices filled in;
+- declares `source: 'view'` and `view: { id, reportName, reportDisplayName }`, which `reportMetadata`
+  passes through so the UI can say what it is a view of and offer *Edit view*.
+
+On save, only the parameters the report's schema declares are kept, each as text or a list of text
+(capped), and an update can never move a view to another report. A view whose report has been removed
+disappears from the list rather than failing it. Writes need `data.write.reports`; unlike custom
+reports there is no feature flag, because a view only stores settings for a report everyone already has.
+
+The *Save as view* wizard (`ui/.../reports/ReportViewWizard.jsx`) is report-agnostic too. A template
+groups its parameters into wizard steps with `x-step` on each property; the Entitlement Pivot declares
+*Scope*, *Columns* and *Excel pivots*. A property without one goes into a *Settings* step, and the
+last step names the view.
+
+## Counting assignments at scale
+
+A report that counts assignments per resource is the one shape in this framework that can degenerate
+into a whole-table scan, and `ResourceAssignments` is the largest table in the product — 46 million
+rows on the deployment these numbers come from. Three things were measured on a Postgres 16 copy of
+an IdentityIQ-shaped dataset (96,140 entitlements, 4,969,395 assignments, 842 MB heap), counting the
+holders of the largest application's 16,387 entitlements — 864,796 assignment rows in scope.
+
+| Query shape | Time | Plan |
+|---|---:|---|
+| Entitlement ids as a **CTE sub-select** (`WHERE "resourceId" IN (SELECT id FROM ent)`) | **12,478 ms** | Merge join against a **full index scan of all 4.97M rows** — the planner has no row estimate for a CTE, so it falls back to its default and prices a whole-table merge as cheap. |
+| Ids as an explicit `uuid[]` parameter, `count(DISTINCT …)` inside the aggregate | 2,315 ms | Index scan on `ix_RA_resourceId` + incremental sort; 642k random heap reads. `count(DISTINCT …)` forces a sorted `GroupAggregate`. |
+| Ids as a `uuid[]`, de-duplicated by an **inner `SELECT DISTINCT`** | **809 ms** | Parallel seq scan + hash aggregate. Same numbers, no random access. |
+
+So the two rules for any report doing this:
+
+1. **Resolve the ids first and pass them as an explicit array.** A CTE or a sub-select hides the set
+   size from the planner; an array parameter does not. Worth 12× here on its own.
+2. **De-duplicate with an inner `DISTINCT`, not `count(DISTINCT …)`.** The de-duplication is needed —
+   the governed model stores intent and actual as two assignment rows differing only in `governed`,
+   so `count(*)` reports one person as two — but doing it inside the aggregate forces a sort and with
+   it the random-access plan. Worth another 2.9×. The same rewrite took the scope-wide unique-user
+   count from 1,014 ms (with a 41 MB on-disk sort) to 313 ms.
+
+**A covering index was measured and deliberately not added.**
+`("resourceId", "principalId", "assignmentType") INCLUDE ("identityId") WHERE "deletedAt" IS NULL`
+turns the count into a heap-free index-only scan: 809 ms → 515 ms, and the unique-user count
+313 ms → 243 ms. That is 1.4× on the shape we ship, for 330 MB on an 842 MB heap (≈3 GB at the
+production row count), permanent write amplification on the hottest ingest path, and a
+`CREATE INDEX` that the migration runner executes **inside a transaction** during container startup —
+the failure mode that crash-looped a deployment when migration 055's index build outran the startup
+probe. 1.4× does not buy that. If a deployment does hit the wall, the index is the fix, built
+`CONCURRENTLY` outside the migration runner rather than inside it.
 
 ## What keeps the seam honest
 
@@ -102,6 +433,14 @@ description says so.
 - `app/api/src/routes/reports.test.js` — a live seam test: a template registered by the test alone is
   listed and served, with zero engine edits.
 - `app/api/contract-tests/reports.contract.test.js` — the orphan anti-join against real PostgreSQL.
+
+## Custom reports
+
+Analysts can also build their own reports; a saved one is served through this same
+registry as a `list` report named `custom-<id>`, so the report tab, refresh and
+download work for it with no engine change. The engine still never names a report.
+The definition language, the local model that fills one in, and the seams are in
+[Custom Reports Internals](custom-reports.md).
 
 ## Not in scope yet
 

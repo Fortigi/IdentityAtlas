@@ -64,7 +64,12 @@ def node_runtime_ref():
     m = re.search(r"^FROM\s+(\S+)\s+AS\s+runtime", text, re.MULTILINE | re.IGNORECASE)
     if not m:
         m = re.search(r"^FROM\s+(node:\S+)", text, re.MULTILINE | re.IGNORECASE)
-    return m.group(1) if m else None
+    return _strip_digest(m.group(1)) if m else None
+
+
+def _strip_digest(ref):
+    """'node:24-slim@sha256:abc…' -> 'node:24-slim' (base images are digest-pinned)."""
+    return ref.split("@", 1)[0]
 
 
 def powershell_ref():

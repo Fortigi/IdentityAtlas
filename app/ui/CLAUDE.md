@@ -93,7 +93,7 @@ import { formatDate } from '../../../app/ui/src/utils/formatters';
 Before writing any utility function, helper, constant, or component — **search first**. If equivalent logic already exists, use or extend it. Only create something new when nothing suitable exists.
 
 **Known shared utilities in `src/utils/` and `src/hooks/`:**
-- `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
+- `utils/formatters.js` — `formatDate`, `formatDateOnly`, `formatDurationSeconds`, `formatDurationMs`, `formatRelativeTime`, `formatCompactNumber`, `formatBytes` (B…TB — the one byte-size formatter), `formatValue`, `computeHistoryDiffs`, `friendlyLabel`
 - `utils/colors.js` — `TAG_COLORS`, AP color palettes, `getAccessPackageColor`, `TYPE_COLORS`, `tagPillStyle(hex, isDark)` (contrast-safe inline styles for a tag/category pill built from arbitrary hex — use this instead of `color + '20'`), `contrastRatio(a, b)` (WCAG ratio between two `{r,g,b}` colors)
 - `utils/accessPackageStyles.js` — `ASSIGNMENT_TYPE_STYLES` badge classes
 - `utils/attributeEntries.js` — `buildAttributeEntries` (merges core + extendedAttributes)
@@ -106,7 +106,8 @@ Before writing any utility function, helper, constant, or component — **search
 - `components/dialogContext.js` + `components/DialogProvider.jsx` — the in-app replacement for the browser's native `alert`/`confirm`/`prompt` (which are blocked by the `local/no-native-dialogs` ESLint rule — they don't theme/dark-mode and block the thread). `DialogProvider` is mounted once at the app root (`main.jsx`); call `const dialog = useDialog()` and use its **async** API. **Never call `window.alert/confirm/prompt`.** See "In-app dialogs" below.
 - `components/ConfidenceBar.jsx` — correlation confidence bar
 - `components/DetailSection.jsx` — `Section` and `CollapsibleSection` for detail pages
-- `components/ScheduleEditor.jsx` — one schedule-entry editor (frequency/hour/minute/day/syncMode), used by every crawler wizard's Schedule step and Risk Scoring; props: `schedule: {frequency, hour?, minute?, day?, syncMode}`, `onChange(updated)`, `onRemove()` — the component is uncontrolled-by-index, so the caller owns the schedules array and supplies one `schedule`/`onChange`/`onRemove` per entry (see `tools/crawlers/omada/ConfigWizard.jsx`'s Schedule step for the list-of-entries pattern)
+- `components/ScheduleEditor.jsx` — one schedule-entry editor (frequency/intervalMinutes/hour/minute/day/syncMode), used by every crawler wizard's Schedule step; props: `schedule: {frequency, intervalMinutes?, hour?, minute?, day?, syncMode}`, `onChange(updated)`, `onRemove()` — the component is uncontrolled-by-index, so the caller owns the schedules array and supplies one `schedule`/`onChange`/`onRemove` per entry (see `tools/crawlers/omada/ConfigWizard.jsx`'s Schedule step for the list-of-entries pattern)
+- `utils/schedules.js` — `INTERVAL_MINUTES` (mirrors the API scheduler), `withFrequency(schedule, frequency)` (switching to `interval` fills in a valid interval), `formatSchedule(s)` (the one-line label on the crawler card)
 - `components/inputs/Combobox.jsx` — free-text input with live-discovery dropdown; props: `value`, `onChange`, `options: string[]`, `defaultOption: {value,label}`, `placeholder`, `className`, `wrapperClassName`
 - `components/inputs/Select.jsx` — styled native `<select>` with `ChevronDown` overlay; props: `value`, `onChange`, `id`, `wrapperClassName`, children as `<option>` elements
 - `components/inputs/ChevronDown.jsx` — shared SVG chevron icon; used by both `Select` and `Combobox`

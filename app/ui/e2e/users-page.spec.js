@@ -100,10 +100,11 @@ test.describe('Principals Page', () => {
   });
 
   test('checkbox selection works', async ({ page }) => {
-    const checkboxes = page.locator('input[type="checkbox"]');
-    if (await checkboxes.count() > 1) {
-      // Click first data checkbox (skip header "select all")
-      await checkboxes.nth(1).check();
+    // Row checkboxes only: the filter bar has its own ("All attributes",
+    // "Include deleted"), so a page-wide nth() picks whichever comes first.
+    const checkboxes = page.locator('table tbody tr input[type="checkbox"]');
+    if (await checkboxes.count() > 0) {
+      await checkboxes.first().check();
 
       // Action bar should appear with tag assignment options
       const actionBar = page.getByText(/selected/i);

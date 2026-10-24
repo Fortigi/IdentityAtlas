@@ -1,5 +1,686 @@
 ## Changes in this PR
 
+- Updated third-party dependencies of the API and web UI to versions that fix newly published security advisories (zod, body-parser, multer, undici, fast-uri, ip-address)
+
+## Changes in this PR
+
+- Fixed enterprise applications that have only consent grants (such as PnP Management Shell) disappearing as resources after every full Entra ID crawl; links to them no longer end in "HTTP 404"
+- Every enterprise application now has a resource after a full crawl, not only the apps with app roles, consent grants, owners or app-only permissions
+
+## Changes in this PR
+
+- Fixed clicking an app in the Risky Applications and High-risk Application Permissions reports showing "HTTP 404": the row now opens the app's service-principal detail page
+
+## Changes in this PR
+
+- Excel export now works in the rotated matrix layout (subjects as rows, resources as columns), for example the matrix opened from a logical-application context. The workbook matches the on-screen grid: resource type and name headers, one row per subject with department and job title, membership letters per resource, governed cells highlighted, plus the usual Legend sheet with the shareable link.
+
+## Changes in this PR
+
+- Fixed Account Linking reading academic titles and surname particles as names, which could attach an account to a namesake instead of its real owner. "Jan de Vries MSc" was parsed as given name "Jan", surname "MSc", so the person never matched her own accounts.
+- Account Linking now matches a person on every name they are known by: the given-name and surname fields the source provides *and* the name parsed from their display name. HR systems commonly record a birth surname in the surname field while the display name and the accounts carry the name in use (a partner name or a double name), and either one is now enough to find a match.
+- An account matches the one person who is actually called that, even when other people share only their birth surname — a shared name no longer blocks a match that is unique. An account is given to the person who goes by the name it carries, rather than to someone who merely used to: "Anna Jansen" is linked to Anna Jansen and not left for review because an Anna de Boer-Jansen was born Jansen.
+- An account is still left for review where the people sharing a name have an equal claim to it: two people who both go by it, or two for whom it is equally a former name.
+- Pre- and post-nominal titles (drs., dr., ir., ing., prof., MSc, BSc, MBA, LLM, PhD and similar) are stripped from a display name before it is parsed, including several titles at once.
+- Multi-word surnames keep their particles, so "van den Berg" and "ter Horst" are matched in full and "van der Steen" is no longer treated as the same surname as "Schilder-van der Steen".
+- Two people who genuinely share a name are now both found as candidates, so an account that could belong to either is left for review rather than confidently attached to one of them.
+- Note: links that were already written to the wrong person are not corrected automatically — Account Linking only considers accounts that belong to nobody. Reject or move those from the identity's Linked Accounts.
+- The demo dataset's realism slice now writes academic titles in HR display names while keeping the name fields clean, so this case is covered by the sample data.
+
+## Changes in this PR
+
+- CSV import: `Users.csv` now has official `EmployeeId`, `GivenName` and `Surname` columns, matching `Identities.csv`. Previously an employee number supplied there was kept only as an extended attribute, so Account Linking — whose strongest signal is the employee number — could never use it and the accounts stayed unlinked.
+- An existing import that already carries those columns picks the values up as real fields on its next run, so they show as Employee Id / Given Name / Surname on the account's detail page and Account Linking can finally use them. The copy an earlier run filed under Extended Attributes is left in place, so until it is cleared such an account lists the value twice — once as the real field, once badged `ext`.
+- The downloadable `Users.csv` template and the upload wizard's column hint list the three new columns.
+- Clarified in the CSV import schema documentation that case-insensitive column matching applies to a file's own schema columns; an extra column keeps the spelling your header gives it and is stored as an extended attribute.
+
+## Changes in this PR
+
+- Fixed development (`:edge`) builds still reporting a 5.x version after 6.0 was released. Dev builds now take their major version from the newest release, so they show 6.x now and will move to 7.x automatically once 7.0 is released.
+
+## Changes in this PR
+
+- Resolved a code-scanning alert on attribute-based matrix roll-ups. No change to which attribute names are accepted.
+
+## Changes in this PR
+
+- Fixed the report builder failing with a permission error for users who may build custom reports but not ask questions in plain language. They now get the builder without the "Describe it" (local model) panel.
+
+## Changes in this PR
+
+- Added the "Risky Applications (Entra ID)" report: every enterprise application, managed identity and AI agent gets a 0–100 risk score with the findings behind it. It covers apps on a public list of malicious apps, Microsoft look-alikes, high-risk app-only permissions, admin and user consent, public-client flows (ROPC), wildcard or http redirect URIs, secrets that never expire or are hidden on the enterprise application, departed or guest owners, and unused apps that keep powerful permissions.
+- The report says which checks it could not run because a crawler option was off, and leaves Microsoft's own apps out unless asked.
+
+## Changes in this PR
+
+- Added an "App Registrations & Credentials" option to the Entra ID crawler. It reads every app registration with its secret and certificate dates (never the values), whether public-client flows such as ROPC and device-code sign-in are allowed, redirect URIs, implicit grant settings, requested permissions and federated credentials.
+- Service principals now carry their own credentials (a secret on the service principal is hidden from the portal's App registrations page), verified publisher, sign-in audience, reply URLs and whether users need an assignment to sign in.
+- OAuth2 consent grants now include tenant-wide admin consents. They mark the consented scope as admin-consented instead of being skipped, and per-user consents are labelled as such.
+- Application (app-only) permissions now record when each permission was granted.
+
+## Changes in this PR
+
+- Added the **Access Review Adoption** report. It lists each business role with when a person last really reviewed it, longest ago first. Reviews that Entra ID completed by applying the default decision because nobody responded do not count as reviewed. Roles never reviewed and roles too new for a review are listed as their own categories. Roles whose policies do not require an access review are left out, unless you choose to include them.
+- Added the **Access Reviewer Response** report. It lists each reviewer with how many reviews they were asked to do, how many they answered themselves and how they decided, so you can see whom to follow up with and whom to thank.
+- Report Excel downloads can now open with pie charts. Both new reports have two, plus ready-made pivot tables.
+- The Entra ID crawler now records the reviewers each access review contacted, the review's "if reviewers don't respond" setting, and who applied each decision. Run a full sync to fill them in.
+- Added the **High-risk Application Permissions (Entra ID)** report to the Reports list: one row per application (app-only) permission a service principal actually holds that reaches SharePoint/OneDrive content, mailboxes, or directory control tenant-wide, with the API, a category and a severity from an explicit shortlist. Requested-but-unconsented permissions and delegated (user) consent are never listed; the report says when nothing was collected or when a grant's API could not be identified.
+- The report can be widened per run: pick further permissions from the ones granted in your tenant (each picked on its own API), or switch the standard list off to list only your picks. Save the choice as a view to keep it.
+- The Entra ID crawler's application-permission sync now records the tenant-independent application ID of the holding app and of the target API next to the permission, so a permission on Microsoft Graph is told apart from a same-named one on another API.
+
+## Changes in this PR
+
+- Entra ID delta runs now take minutes instead of hours. A delta reads only what changed: new, changed and deleted users, service principals and groups, plus members and owners added to or removed from groups. Delta runs used to re-read every group's members and took as long as a full sync.
+- PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, nested (indirect) group memberships and sign-in activity are refreshed by full runs only. Keep at least one full run a day.
+- A delta run on an Entra ID crawler that has never completed a sync now runs as a full sync, so a new crawler never shows users without their groups.
+- Crawler schedules can now run every 5, 10, 15, 20 or 30 minutes: pick "Every few minutes" as the frequency. A new Entra ID crawler proposes a delta every 15 minutes plus a daily full sync.
+- A scheduled full run that comes due while another run of the same crawler is still going now waits and starts as soon as that run finishes, for up to an hour, instead of being skipped until the next day. When a full and a delta are due in the same minute, the full goes first.
+- The Recent Jobs list on the Crawlers page now always includes each crawler's last full run and last delta run, so a crawler with frequent deltas still shows when its last full sync ran and how it went.
+- Connectors can now remove individual assignments in a delta sync by naming them (`deletedKeys` on the ingest API), for example a group member that was removed.
+
+## Changes in this PR
+
+- Azure: new guide "Managing the Azure deployment as code", with ready-to-copy workflows. One proposes each new stable release as a pull request with the release notes; the other shows a what-if on that pull request and deploys after the merge. Template changes arrive in the same reviewable pull request as the new images.
+- Azure: sign-in can now be configured in the deployment template itself (`entraTenantId` / `entraClientId`), so redeploying to upgrade no longer clears it. Configuring it afterwards with Step 2 keeps working as before.
+
+## Changes in this PR
+
+- Every release now includes `IdentityAtlas-azure-<version>.zip`: the Azure template as it is at that release, set to deploy exactly that release's images by default. Keep it in your own repository to manage the deployment as code: the template and the images it runs can no longer drift apart, and an upgrade brings template changes and new images in together.
+
+## Changes in this PR
+
+- Azure: deploy an exact release with the new `imageTag` parameter (for example `6.0.2.0`). It applies to the web app, the worker and the report generator together, overrides `imageChannel`, and makes every deployment reproducible: upgrading or rolling back is a change to one value, and redeploying creates the new revision without a manual restart. Leaving it empty keeps today's behaviour.
+- Azure: pull the images from your own Azure Container Registry (for example a pull-through cache of ghcr.io) with the new `containerRegistryResourceId` parameter. The template creates a pull-only identity and grants it AcrPull on that registry.
+- Azure: redeploying no longer issues a new report generator API key every time, which restarted both containers even when nothing had changed. The key is now generated once and kept in Key Vault.
+
+## Changes in this PR
+
+- Fixed the Reports page intermittently failing with "Error loading reports (HTTP 500)" on deployments with several custom reports and a large dataset. The page no longer looks up the deployment's attributes and value lists once per custom report, and requests that arrive together now share one lookup instead of each starting their own.
+
+## Changes in this PR
+
+- Releases can no longer contain code that has not been merged to `main` through an approved pull request. Cut Release and Cut Beta refuse a ref that is not on `main`. Cut Hotfix refuses any commit that is not a clean `git cherry-pick -x` of a commit on `main`. All three must be started from `main`.
+- Changed the hotfix procedure: fix on `main` first (PR, approval, merge), then cherry-pick the merged commit with `-x` onto a branch from the release tag.
+
+## Changes in this PR
+
+- Fixed the **Deploy to Azure** button failing on every fresh install with "The specified KeyVault … could not be found" (`KeyVaultParameterReferenceNotFound`). The template now reads the Postgres password from Key Vault only after the vault has been created. Existing deployments are not affected and keep their password.
+
+## Changes in this PR
+
+- Fixed the report assistant not recognising you as the person asking when "I" is typed in lower case ("groups i'm in", "what do i own") or when access is "assigned to me" / "van mij": these now give a report about your own account instead of one about everybody.
+- The report assistant can now show who owns each group: "all groups with the group owner" lists the owners' names instead of only an owner count.
+- Group, resource, user and person reports can now show the contexts each row is part of (a *Contexts* column) and filter on them ("groups in the Crown Jewels context", "groups in no context"), both in the definition editor and from the *Ask* box.
+
+## Changes in this PR
+
+- Attributes whose name contains a space, dash, dot or accented letter (such as "CMDB Reference" or "Cost-Center") can now be used everywhere other attributes can: as a filter on the Users and Resources lists, as a matrix filter or grouping, and as a column or condition in the report builder. Before, they were stored and shown on the detail page but silently left out of all of these.
+- Added the External ID to the Context entity in the report builder, so a report of logical applications can list the id the source knows each one by.
+
+## Changes in this PR
+
+- Fixed "Tag all N matching" on the Users and Resources lists also tagging deleted accounts and resources the list was hiding. It now follows the "Include deleted" checkbox, just like the list.
+- Fixed "Tag all N matching" on the Resources list also tagging business roles, which that list does not show.
+
+## Changes in this PR
+
+- Added an "All attributes" checkbox next to the search box on the Users, Identities and Resources lists. When it is ticked, the search also matches phone numbers, CMDB references, HR numbers and every other attribute a source sends, and a "Matched on" column shows where each result was found. The setting is remembered per list.
+- Added a "Find a context" search box to the Contexts page. It searches every level of every tree, opens the context you pick, and with "All attributes" ticked it also finds a logical application by its CMDB reference.
+- The search on the Users list now also finds an account by its employee ID or external ID, and the Resources, Groups and Contexts searches also match the external ID.
+- Added an extended search to the Users, Identities, Resources, Groups and Contexts lists that matches every attribute a source sends, such as a CMDB reference on a logical application, an employee number or a phone number. Each result says which field matched.
+- Extended search finds a phone number however it is written: "+31 6 1234 5678", "06-12345678" and "0612345678" find each other.
+- Extended search on Identities also finds a person through their linked accounts, for example by the mobile number on their Entra account.
+- Fixed "Tag all N matching" on the Identities list tagging a different set than the list showed: a search that matched on job title or employee ID was not applied to the bulk tag. Bulk tagging now always uses the same search as the list, including extended search.
+- Searching Contexts now looks at every level, not only the top-level contexts, so a logical application under a catalogue can be found directly.
+
+## Changes in this PR
+
+- Lint warnings now fail the PR checks, in both the UI and the API, instead of passing silently as yellow notes on the PR
+- Fixed two phrase patterns in the report assistant that slowed down sharply on a question with a long run of spaces
+
+## Changes in this PR
+
+- Added `-WithLLM` to the portable launcher (`Start-IdentityAtlas.ps1`): custom reports can now be described in plain language on a laptop without Docker. The local report model and llama.cpp are downloaded once on first use and checked against a pinned checksum, or taken from files copied into the LLM folder beforehand on a machine without internet access (`-LlmRoot` picks the folder). The model loads on first use and is unloaded after 15 minutes idle; when anything is missing or blocked, the app still starts and reports can be built by hand.
+- Fixed the report generator's startup warm-up never running in the portable build, which made the first question there take minutes longer than it should.
+
+## Changes in this PR
+
+- The Application Access Review is renamed **Entitlement Pivot**. It now works for any context of resources (a logical application, a department, a tag) and for every resource type in it, not only IdentityIQ entitlements.
+- You choose the report's columns: the context's and the resource's own facts (name, type, owner, system, description) plus any attribute their source stored. The picker only offers attributes the contexts you picked actually carry, and shows how many resources carry each one.
+- You choose the rows and filters of the two pivot tables in the Excel download.
+- Removed the built-in "requestable" sections, the certification-frequency summaries and the fixed catalogue columns (CMDB reference, onboarding sector, …). Those values are still available as attributes you can pick.
+- The report tells you when a picked attribute has no value on any row in scope.
+- Existing links to the report, including ones that name applications with the old `applications` parameter, still open.
+- Save a standard report's settings as a named **view** that everyone can open from the new **Saved views** section of the Reports page, so a configured Entitlement Pivot (contexts, columns, Excel pivots) no longer has to be set up again for every run.
+- **Save as view** walks through the report's settings step by step: for the Entitlement Pivot that is Scope, Columns and Excel pivots, followed by a name.
+- Open a view and choose **Edit view** to change it for everyone, or save it as a new view. Delete views from the Reports page.
+- Saving, changing and deleting views needs the Build custom reports permission; no experimental feature has to be switched on.
+- Added a documentation page for the Entitlement Pivot and saved views.
+
+## Changes in this PR
+
+- The "Describe it" box in the report builder now says it is checking the model server, and after a few seconds that the model server is starting up and can take a few minutes, instead of showing an empty card while a scaled-down model server starts
+
+## Changes in this PR
+
+- The Excel Power Query workbook now explains the "Information is required about data privacy" prompt Excel raises the first time a query runs, and walks you through the mandatory "Ignore the Privacy Levels" step — on the README sheet and on every query sheet, next to the M code you paste. Previously the prompt appeared with no explanation and the queries returned no data, making the export look broken.
+- Documented the same step in the Excel Power Query export guide, including why the per-workbook setting (never the global one) is the safe choice.
+- The Excel template authoring guide now tells maintainers to save the per-workbook privacy setting into the template, and to verify it survived the save.
+
+## Changes in this PR
+
+- Fixed release publishing so a patch release cut from an older release branch no longer stops halfway, and the documentation deploy no longer fails when a release is published
+
+## Changes in this PR
+
+- Removed a moderate-severity dependency advisory (sprintf-js) by switching the API's YAML parser to a maintained library
+
+## Changes in this PR
+
+- Fixed an intermittent test failure in the people picker that could turn unrelated pull requests red
+
+## Changes in this PR
+
+- Contexts that group resources now show how much access they carry: the number of resources, the number of assignments (direct and via a role) and the number of different holders. The numbers are recalculated after each sync, shown on the context page, and available as fields and columns in the report builder
+- The report builder can now report on contexts (departments, tags, application catalogues and other groupings): filter on context type, show the owner, parent and member and resource counts, and use the attributes a source stores on its contexts as fields and columns
+
+## Changes in this PR
+
+- A delta SQL import now loads assignments through the same staged load a full import uses. A delta run that has no watermark yet (every delta run until one has completed and verified) reads everything, and used to write all of it batch by batch; it now takes the fast path, and unchanged assignments are no longer rewritten.
+- In a delta run, assignments read as a window (only what changed since the last run) are also staged: only rows whose values actually changed are written, instead of every row the source re-stamped. Removals are still found by the key sweep.
+- A delta run's assignments are verified against what was applied rather than against a recount of the source, so a source that is being written to during the read no longer fails the run.
+- The `stagedFullLoad` setting now applies to delta runs as well as full ones.
+
+## Changes in this PR
+
+- Fixed a full SQL import failing its final verification although every assignment had loaded. A source that is still being written to during a long read (IdentityIQ during aggregation) could differ from the database by a few rows more than the allowed slack, which failed the job and stored no watermark, so the next run read everything again. Assignments loaded in a full sync are now verified exactly against what was applied, and the source's own count afterwards is reported as information.
+- A full sync's assignments are now verified even when the source could not be counted (for example when the count timed out); those scopes used to be reported as not verified.
+
+## Changes in this PR
+
+- Added the one-minute explainer video ("Trust starts with clarity") to the identityatlas.io homepage as a new "Watch" section, linked from the hero, the navigation and the footer; the video is self-hosted on the site with no third-party player.
+
+## Changes in this PR
+
+- Assignments can now record where they came from: assigned automatically by a rule, requested and approved, or found on the target system. Connectors that do not supply this keep working unchanged and their assignments simply show no origin
+
+## Changes in this PR
+
+- Updated transitive dependencies to clear the npm audit advisories that blocked every PR: source-map-js (event-loop DoS, high) in both the UI and the API, and proxy-addr (IP spoofing via IPv4-mapped IPv6, critical) in the API.
+
+## Changes in this PR
+
+- Fixed the SQL crawler marking millions of unchanged assignments as changed on every import: a statement's watermark column (e.g. IdentityIQ's `modified`) is no longer stored as an attribute of the row. A source that re-stamps its rows during a refresh no longer causes rewrites, history entries or a slow import. Rows imported before this fix keep the value they already had.
+- The IdentityIQ preset's "Role assignments" statement no longer selects `idx` (the role's position in the list), which shifted whenever a role was removed. Existing configurations keep their own SQL: remove `idx` from the statement to get the same effect.
+
+## Changes in this PR
+
+- Every release (stable, beta and hotfix) now ships two portable Windows downloads: `IdentityAtlas-portable.zip` (the default, PGlite, every executable code-signed) and `IdentityAtlas-portable-postgres.zip` (embedded PostgreSQL 16 for large data sets; start with `-Database Postgres`; its PostgreSQL binaries are not code-signed and need the Visual C++ runtime `VCRUNTIME140.dll`)
+- Release notes now end with a short guide explaining which portable ZIP to download
+- The README and the portable launcher guide explain which ZIP to pick and why
+
+## Changes in this PR
+
+- The security policy now says to use the support mailbox when GitHub does not offer private vulnerability reporting, and explains how a security fix reaches the current release.
+- The contributor guide now lists every check a pull request must pass before it can be merged.
+
+## Changes in this PR
+
+- Fixed the first-time Docker install: the quick start commands on the website, in the README and in the documentation now generate a database password into `.env` before starting the stack. Previously they left it empty, and the stack refused to start.
+- The website, README, Quick Start and Docker Setup pages now give the same install steps, with a PowerShell version for Windows. Running the steps again keeps the existing password.
+- Corrected the documentation that listed a default database password for the production stack: there is none, and setting one is required.
+- Corrected the advice on the secrets master key: it must be 32 random bytes in base64 (`openssl rand -base64 32`), not any 32-character string, and it is generated and kept in the `web_keys` volume when you do not set one.
+- The website no longer says sign-in is enforced from the first deployment for every install: that applies to the Azure deployment. The Docker evaluation stack starts without sign-in, and the install pages now say so.
+- The error shown when the database password is missing now says where to set it.
+
+## Changes in this PR
+
+- Added product screenshots to the documentation: the permission matrix (flat and folded by department), the dashboard, a user detail tab, a business role detail tab, the Contexts tab and the Add Crawler type picker, all captured from the public demo's synthetic dataset
+- The README now opens with a screenshot of the permission matrix and links to the live demo
+- Fixed the README's stale note that the documentation site was not yet published
+
+## Changes in this PR
+
+- Added a security policy (`SECURITY.md`): how to report a vulnerability privately, what to include, which versions receive security fixes, where the published security assessments are, and the settings a security team should check before a networked deployment.
+- Added a contributor guide (`CONTRIBUTING.md`): the tools and versions needed, the exact command for each check, the branch and pull request rules, what is different for a pull request from a fork, and what happens to an issue after it is filed.
+- The README and the "Contribute a change" documentation page now link to both files.
+
+## Changes in this PR
+
+- A crawler now runs only one job at a time: a scheduled run is skipped while a previous run of the same crawler is still queued or running, and "Run now" explains which job is in the way instead of starting a second one beside it
+- Fixed a scheduled delta starting alongside a long full import of the same crawler, which doubled the load and could make both runs fail
+- Updated bundled third-party libraries (undici, brace-expansion, ip-address, fast-uri) to releases that fix published security advisories
+
+## Changes in this PR
+
+- After a staged import applies its rows, Identity Atlas now refreshes the database's statistics for that table straight away, so the matrix refresh that follows a large first load no longer runs many times slower than it should (measured: 353 s instead of 17 s after 4.1 million assignments).
+
+## Changes in this PR
+
+- The SQL Server crawler prepares assignment rows (the entitlement and role grants, usually tens of millions of rows) about ten times faster, so a large full import is no longer held back by the crawler's own per-row work. What is imported is unchanged.
+- The SQL Server crawler keeps reading from the source while Identity Atlas stores the assignment and relationship batches it already sent — by default three at a time, set with the new `ingestConcurrency` setting (1 restores one batch at a time). A large import no longer waits for the database after every batch.
+- The SQL Server crawler's job log now shows where each statement's time went — reading the source, shaping rows, building the request, waiting for Identity Atlas, and the verification counts — and ends with one table of all statements and their rows per second, so a slow import can be traced to the database server, the crawler or Identity Atlas.
+- A full sync of the SQL Server crawler now loads its assignments through a staged load and applies them in one step at the end of the run: re-importing unchanged data rewrites nothing, a first load is indexed once instead of batch by batch, and a full sync that fails part-way leaves the existing assignments untouched. Set `stagedFullLoad` to false to stream as before.
+
+## Changes in this PR
+
+- Hardened the API logs: ingest warnings and errors that can include crawler-supplied text are now always written as a single line, so a crafted value cannot fake extra log entries
+- Updated bundled third-party libraries (undici, brace-expansion, ip-address, fast-uri) to releases that fix published security advisories
+
+## Changes in this PR
+
+- Plain-language questions are understood a great deal better. Two weeks of testing against 89 real analyst questions in Dutch and English went from 28 of 58 right to 67 of 72, and almost all of that came from correcting the model's one-reading mistakes in code instead of asking it again — so answers also got faster.
+- Asking a question and building saved reports are now separate rights. Someone with the new "Ask questions in plain language" permission can ask and read answers without being able to create or delete the saved reports every analyst sees; building does not imply asking either. The seed RoleMiner role carries both, so nothing anyone could do before changes.
+- You can now ask what CHANGED, not only what is true today: "zijn er recent leden aan deze groepen toegevoegd of verwijderd?" or "which groups was Jan added to in the last 90 days?". Membership history became something a question can reach.
+- You can now ask about eligible (PIM) access: "who can request the Global Administrator role", "kan Jan die rol aanvragen". Being eligible for something is a different answer from holding it, and the two are no longer confused.
+- A name in a question is looked up before the report runs. One match is pinned to that person ("Name is Jan de Vries"); several matches ask which one you meant, instead of quietly reporting on everybody whose name resembles the one you typed. A first name in lower case ("jan") is recognised as a name too, and the particles of a surname ("van", "den") no longer are.
+- "My groups", "mijn medewerkers" and "waar heb ik toegang toe" resolve to whoever is asking. A question about yourself whose definition forgot you is corrected rather than answered about everyone, and a definition that says "@me" means whoever runs it — so a saved "my groups" report opened by a colleague shows theirs.
+- Questions about sign-in activity are read the same way every time: "guests that have not signed in for 90 days" means accounts of type Guest whose last sign-in is more than 90 days before the sign-in data was collected, and "never signed in" is a different question from that, not a variant of it.
+- A yes/no question about one person and one thing ("does Jan have the Global Administrator role?", "zit Jan in groep X?") is answered with that one role or group — a row means yes, no rows means no — instead of a list of everything the person holds.
+- Follow-up questions work: "and which of those are in an access package?", "zijn er updates aan deze groepen", "en kan hij die rol aanvragen?". The follow-up keeps the person, the time window and the records of the answer before it, including after an answer that found nothing.
+- The assistant declines what it should not answer: general knowledge ("is Trump the president?"), small talk, and any request to CHANGE access. It says so plainly rather than inventing a report.
+- When a question needs information this deployment does not have (MFA, licence cost, salaries), the assistant says which information is missing instead of quietly substituting a field that happens to exist.
+- Grouped counts are produced only when the question asks for counts ("how many … per …"). "Which groups …" always lists the groups; it used to be able to answer "5".
+- Mistakes with one sensible reading are corrected without a second model round, which on a small CPU box saves one to three minutes per answer: "added AND removed" that can never both be true, a time window pointing the wrong way, a count that contradicts the thing it counts, a list written as "is" instead of "one of", a column the question asked to see, an access package written as a resource type.
+- A correction round may now only change what it was told was wrong. A corrected definition that quietly dropped another condition — the 90-day window, the person, a relation — is refused and the first answer kept.
+- Every answer states the reading that actually ran, above the model's own assumptions, so a wrong reading is visible instead of hidden behind well-formatted rows.
+- Every question asked in plain language is recorded against the person who asked: the question, what the model was told, what it replied, the definition that ran, how it ended and how long each step took. Result rows are never stored. Retention follows `NL_REPORTS_LOG_RETENTION_DAYS` (90 days by default) and nobody sees anyone else's questions.
+- One question at a time per person, with a clear message instead of a queue: a second question while the first is still being answered is refused rather than made to wait behind it on a single model slot.
+- Fixed: the recent-changes timelines on a user, group, access package and identity showed additions but never removals, because removing a membership stamps the row instead of deleting it.
+- Fixed: "X of Y" in a Dutch question is recognised as "either X or Y". It was understood only in English, so a Dutch question asking for two alternatives was answered as needing both at once.
+- Fixed: a report whose definition could never match anything (asking for changes both newer and older than the same date) answered "nothing matches" instead of saying the definition was impossible.
+- Added an accuracy evaluation you can run yourself (`tools/nl-reports/eval.mjs`): a held-out set, a tuning set and a conversation set of 72 graded turns — Dutch and English pairs, follow-ups in the same conversation, out-of-scope questions, questions about data we do not have, a person who does not exist, and a genuinely ambiguous question. It grades what the rows actually are, enforces a per-answer time limit, and can be pointed at a signed-in deployment over HTTPS with a bearer token it mints per request.
+- The evaluation sets name fictitious people and groups only. Point them at a real directory with `--names`, which maps the made-up names onto real ones at run time and stays out of the repository.
+- Added an opt-in "realism slice" to the demo dataset (`-IncludeRealism`, or the tick on the demo crawler): about 600 staff in ten departments with careers, guests, leavers, accounts in several systems linked into one identity, 180 groups in naming families, three kinds of nesting, business roles that grant groups and application roles, directory roles with eligible assignments, and two attestation campaigns. The standard 26-person demo dataset is untouched.
+- Added `test/demo-dataset/Simulate-AccessChanges.sql`, which gives a demo environment six months of access history — grants spread over time, memberships removed again, a few restored — so questions about what changed have answers.
+- Documented the whole thing: what the model is told (the full prompt), what it does and does not answer, every correction the pipeline makes on its behalf, and how it is tested — in Ask Assistant, with the measured numbers in The report generator.
+
+## Changes in this PR
+
+- The Application Access Review Excel download now opens with two ready-made pivot tables, each on its own tab: "Direct assignments" (users assigned directly, by application owner, application, entitlement owner, certification frequency and entitlement, with Requestable and Users-assigned-via-a-role as filters) and "Assignments via roles" (users assigned via a role, by business role and entitlement). No more building them by hand after every export.
+- Reports can now declare pivot tables for their Excel download; the pivots refresh from the report's own data when the workbook is opened.
+- Every report's Excel download now has a separate "Summary" tab (report name, run details, one-value fields such as the application's description, and the notices) and a "Data" tab that holds only the table, starting on the first row — ready to filter or pivot without selecting a range.
+
+## Changes in this PR
+
+- Resolved the open GitHub code-quality findings: removed unused code, closed files properly in the scale-rehearsal analysis script, and added tests for how business-role assignments are classified
+
+## Changes in this PR
+
+- An Excel export of a report run over a **single** application now opens with that application — name, owner, description, CMDB reference, connection type, onboarding sector, abbreviation and manager — above the summaries, and leaves those columns out of the table below. The file reads as a document about an application followed by its entitlements, rather than eight values repeated on every row.
+- A field the source has not filled in still gets its line in that block, so an empty CMDB reference is visible rather than silent.
+- An export covering **several** applications keeps those details on each row, where they genuinely differ, and shows no header block.
+- CSV and JSON downloads are unchanged, and the report on screen still shows every column.
+
+## Changes in this PR
+
+- Report parameters that mean an entity are now **picked from a searchable list** instead of typed from memory. Start typing and matching entries are offered, each with a second line — size, source system — that tells two similarly named ones apart.
+- Picking from the list stores the entry's **identity**, not its name. An application whose name is shared with two others can no longer select all three by accident, so you find out about the ambiguity while choosing rather than from a warning after the report has run.
+- The Application Access Review report's application parameter uses the new picker. A link or bookmark that carries the ids still works, and now shows the application names rather than raw ids.
+- A report that explains why it has nothing to show — waiting for a parameter, a name that matched nothing, an application with no entitlements — no longer also tells you to refresh after the next crawler run. Only its own explanation is shown.
+
+## Changes in this PR
+
+- SQL Database crawler: a run no longer fails when a statement produces the same relationship twice. A relationship is identified by the pair of things it links, so two source rows describing the same link — a business role reaching one entitlement through two different source applications, for example — are one link and collapsing them loses nothing. The run used to stop with "rows sharing an id overwrite each other, so 6 were lost" even though the source and the database agreed exactly.
+- The same now applies to owner assignments, which are identified by the resource and the person rather than by an id of their own.
+- A collapse is still reported, so a statement whose join unexpectedly fans out is visible in the verification table.
+- Unchanged: two resources or two accounts sharing an id is still a failure, because there one record really does replace another.
+
+## Changes in this PR
+
+- Added fold and unfold controls to the roll-up matrix's grid corner: they move the whole column axis one attribute level at a time, in either direction, and show which level you are on out of how many. Previously a roll-up could only be folded one group at a time, and unfolding a group jumped it straight to the deepest attribute.
+- Added the Contexts column to the roll-up matrix, pinned next to the resource names like the per-subject matrix has it — so the group category, tags and clusters a resource belongs to are visible on the roll-up too. It applies to every roll-up shape, including business roles as rows and the Manager Hierarchy view.
+
+## Changes in this PR
+
+- The matrix views are now rebuilt at the end of every SQL Database crawl whatever the run's verdict. A run that loaded everything but failed verification used to leave the matrix and the entitlement lists blank even though the data was complete and correct.
+- A failed or unverified run still does not store its watermarks or sweep marks, so the next run re-reads the same window and re-sweeps rather than stepping over rows it never loaded.
+- Identity Atlas now detects a matrix view that was built while the database was still empty and stays empty afterwards, and rebuilds it at startup instead of leaving the matrix blank until someone refreshes by hand. The rebuild runs in the background, so it never delays the application coming up, and a view that already holds data is still left alone.
+- The SailPoint IdentityIQ preset reads the logical-application catalogue through a form that both forces the fast query plan and can still be counted by the end-of-run verification, so that statement no longer has to be hand-edited into a shape that silently loses its row-count check.
+
+## Changes in this PR
+
+- SQL Database crawler: a run no longer fails because most rows of a context-membership statement name no context. Entitlements that belong to no logical application are normal, and they are now counted and reported on their own ("633,012 naming no context") instead of being lumped in with rows that were skipped for missing a required column — which could push a healthy run past the 5% limit on rows that could not be placed and, with it, stop every statement's delta watermark from being saved.
+- The job log no longer describes those rows as skipped, and no longer warns that "every row was skipped" when a statement's rows simply carry no optional reference.
+- Unchanged: a row missing the required member id, a row naming a resource the run did not load, and a row naming a context the catalogue does not have are all still reported exactly as before.
+
+## Changes in this PR
+
+- Renamed the "Access Packages" category in the relationship graph on identity, user and account detail pages to "Business Roles" — the same wording the resource graph already used. The graph shows governance data from every connected system (Entra access packages, Omada business roles, SailPoint access profiles), so it no longer uses one vendor's name for it. Breadcrumbs above the list under the graph follow the new wording.
+- Removed the leftover "access package" synonym from the matrix legend, which now says "governed by a business role" in line with the rest of the legend.
+- Added a guard so a source-specific vendor word (Entra, Omada or SailPoint vocabulary) can no longer be introduced as a category name in the relationship graph.
+
+## Changes in this PR
+
+- Reports can now be downloaded as **Excel**, alongside CSV and JSON. The sheet opens with the report's name, when it was run, and every summary and warning the report produced — then the table below, with the header row frozen and a filter on it.
+- A report's summaries used to be visible only on screen and were lost on download. They now travel in the Excel file, so a review pack you send to someone else still says what it was measured from. CSV and JSON downloads are unchanged.
+- An Excel export of a report that stopped at its row cap says so in the sheet, in red, above the table — a partial answer no longer reads as the whole one.
+
+## Changes in this PR
+
+- SQL Database crawler: a run against a large live source that is updated while it is being read no longer fails verification. The crawler now counts each statement's rows in the source both before and after it reads them, and a complete read only has to fall between the two — so a source that gained or lost rows mid-read verifies, while a read that stopped early still fails.
+- The amount the source moved during each read is now reported in the job log and in the verification table, pass or fail ("the source moved by 15,455 rows during the read").
+- Fixed: one drifting statement used to cost the whole run its delta watermarks, because verification runs before they are stored. Against a continuously updated source that made every run fail identically and the delta import could never establish a baseline.
+- The assignment count against the database is allowed the same movement, so it no longer fails for the same reason.
+- Unchanged and still strict: a source that did not move is held to an exact count, the limit on rows that arrive but cannot be placed, and the check that fails a statement whose id column repeats.
+
+## Changes in this PR
+
+- Added an **Application Access Review** report: pick one or more logical applications and get one row per entitlement, split into what the application owner has to decide on (requestable, not granted by a business role), what is information only, and what a business role already manages.
+- Each row carries the certification frequency and entitlement owner exactly as the source stores them, whether the entitlement is requestable, which business role(s) grant it, and how many people hold it directly versus through a role — the split that tells an owner whether an entitlement is reviewable at all.
+- An entitlement with no certification frequency now reads "Not set" rather than a blank cell, and the report warns when the same frequency is stored under near-duplicate spellings instead of quietly merging them.
+- The report summarises the application in five figures: unique users with access, entitlements in scope, distinct entitlement owners, the share of entitlements a role already manages, and the share per certification frequency.
+- The application's own description, owner, abbreviation, CMDB reference, connection type, onboarding sector and application manager travel on every row, so the downloaded CSV stands on its own.
+- Report tables are now paged, so a report with tens of thousands of rows opens instead of freezing the browser. Downloads are unaffected and still contain every row.
+- The IdentityIQ-shaped test fixture now matches what production catalogues actually look like: almost no entitlement has a certification frequency set, and the ones that do use a vocabulary with real-world inconsistencies.
+
+## Changes in this PR
+
+- Library updates now reach the maintained release line on their own. Dependabot checks the release branch daily for updates to the packages and base images that actually ship, and those updates merge themselves once the tests pass — so a release built from that line carries current libraries without anyone shepherding updates onto it.
+- Only production dependencies and container base images are updated on the release line; build- and test-only tooling is left alone, since none of it is present in what customers run.
+- Major version updates are never merged unattended. They still get raised, with a note explaining that a person needs to decide whether the change belongs on a stable line.
+- Added documentation on maintaining a release line: what updates itself, what does not, how to port a fix from the main branch, and how to start the next line.
+- Dependency updates are only merged unattended while the pull request is untouched: if anyone pushes a commit to one, it reverts to being merged by hand.
+
+## Changes in this PR
+
+- Release notes now list the dependency updates a release actually ships: a "Dependency updates" section naming each package that moved, what it moved from and to, and any change to the container base images. Previously a release made up only of library upgrades produced notes with nothing in them, which was exactly the release where operators most needed to see which versions changed.
+- The section reports only what reaches the published image — the API's installed production packages, the libraries bundled into the UI, and the pinned base images — so build- and test-only tooling no longer crowds out the updates that matter.
+- Fixed the release a set of notes is compared against. Patch releases cut from a maintained release line were compared against the newest release overall, so a patch could be described as removing everything a later version had added; a release that was the first of its series could lose its change list and changelog link entirely. Both release workflows now determine this the same way.
+- Added documentation covering how a release's notes are assembled, and corrected the branching guide, which stated that releases can only be cut from the tip of the main branch.
+- No change to behaviour from the lockfile-reading split; it is the same parsing in three smaller pieces.
+
+## Changes in this PR
+
+- The SQL connector can now refresh incrementally instead of re-reading its whole source. A query opts in by naming the column it advances on (e.g. `modified`) and referencing `@Since` in its SQL; the crawler then reads only the rows that changed since the last successful run. The shipped IdentityIQ example does this for the two entitlement-grant queries, which are the ones large enough for a full read to be an overnight job.
+- Removals are found by a periodic **key sweep**: the query's complete set of ids is read and anything Identity Atlas still holds but the source no longer has is removed. It runs at most once every `sweepIntervalHours` (a day by default), so a removal shows within one interval while routine refreshes stay small.
+- A sweep refuses to remove more than 5% of a scope in one go, and writes nothing when it would — a source read while it is being re-aggregated looks exactly like a mass revocation. `sweepOverride` lets a genuinely large removal through for one run.
+- A query's position is remembered only after the run has been verified end to end, and the stored position is keyed on the text of the query — so editing a query makes the next run read everything again rather than silently skipping the rows its new shape would have returned.
+- Each incremental read goes back a short overlap (15 minutes by default, `watermarkOverlapSeconds`) so rows written by a source whose servers disagree slightly about the time are not stepped over.
+- Stale rows are now removed on the basis of what a query actually read rather than on whether the run was labelled "full": a query that reads its whole table keeps its data exact on every run, incremental ones included. Previously an incremental run removed nothing at all.
+- The Queries step of the SQL wizard gained a **Watermark column** field and, for assignment queries, a **Key sweep** toggle, and reports the combinations that cannot work (a watermark column with no `@Since`, or the other way round).
+- The IdentityIQ-shaped test fixture gained a mutation script, so an incremental refresh can be rehearsed against a source that actually changed.
+
+## Changes in this PR
+
+- SQL connector: the owner a query selects can now become a real owner you can click, instead of an identifier shown as text. Alias the column `ownerId` and tick "Owners from ownerId" on the query, and each resource gets an owner entry linked to it — the same way group owners already work, so the owner shows on the resource, gets its own matrix row, and counts as control rather than as access.
+- The owner may be written as an account id or as an employee number; both are matched against the accounts the same run loaded. An owner matching nobody is reported with the values and how many resources carry each, and no owner is ever invented — the raw value stays where it always was.
+- Owner links are off unless a query asks for them: they add three rows per resource that has an owner, which is around 1.45 million rows on a catalogue of 800,000 entitlements. The shipped SailPoint IdentityIQ examples turn them on for business roles and leave them off for entitlements, with the column already selected so it is one checkbox to change.
+- Fixed: owners of enterprise applications and app registrations were being counted as ordinary members, inflating the member count of what they own and their holder's risk score. Every kind of owner is now excluded from member counts, as group owners already were.
+- Fixed: a SQL query loading people could fail near the end of a first run with a database error about identity members, because the last partial batch of a query was sent in an order that linked people to records that had not been written yet.
+
+## Changes in this PR
+
+- The SQL Database connector can now create one Identity Atlas system per technical connector in the source, instead of loading everything into a single flat system. Add a query with the new **Systems** target (for SailPoint IdentityIQ, one row per `spt_application`) and the shipped IdentityIQ examples now include it.
+- Resources, principals, assignments and relationships can say which of those systems they belong to, with a `systemId` (the source's own key for the connector) or `systemName` column — the same idea as the CSV import's Systems file and SystemName column. Both columns are still shown as attributes on the detail page.
+- An assignment goes to its resource's system and a relationship to its parent's, so the grant table — usually the largest in the source — needs no extra join to be routed.
+- A grant can span two systems: a person in the directory holding an entitlement in a connector's system is stored and shown correctly.
+- A row naming a system that no Systems query created is kept, loaded into the crawler's own system, and reported by name with a count, rather than disappearing into it silently. Past 5% of a query's rows the job fails, because at that point the two queries disagree about which connectors exist.
+- A full sync now reconciles each system separately, so a routed system's removed rows are cleaned up and a system that received nothing this run is left untouched.
+- The job fails, naming the ids, if two systems claim the same external id — those rows would otherwise overwrite each other.
+- Existing SQL crawler configurations are unaffected: without a Systems query nothing routes, and every id stays exactly as it was.
+
+## Changes in this PR
+
+- The owner of a context is now shown as a person rather than an internal id, on both the context detail header and the contexts page, and clicking it opens that account. An owner that matches no account still shows the value the source gave, so a missing owner is visible instead of silently blank.
+- The SQL Database crawler now resolves an owner the source names by employee number to the matching account, so owners from an IdentityIQ application catalogue resolve to real people. Owners that match nobody are kept exactly as the source spells them and counted in the job log.
+- Logical applications imported from a SQL catalogue now appear as a tree under one root ("Logical Applications") instead of as a flat list of hundreds of top-level entries. The root name is configurable per contexts query in the crawler wizard.
+- The generated scale dataset builds the same single-root tree, so a generated environment and a real SQL connector look alike.
+- Fixed the IdentityIQ preset's application-owner lookup, which returned nothing on deployments that spell the XML key in lower case.
+
+## Changes in this PR
+
+- The SQL Database crawler now imports the manager relationship. An IdentityIQ (or any other) query that returns the manager's key — aliased `managerId`, as the shipped presets do, or `managerExternalId` — now fills the manager on the account and on the person, instead of leaving it as a raw attribute. Org charts, "reports to" filters and the manager-hierarchy contexts work on SQL sources for the first time.
+- The CSV import now maps the `ManagerExternalId` column in `Users.csv`. The column was already documented and already in the sample file, but nothing read it; existing exports start producing an org chart without being changed.
+- A manager may be listed anywhere in the import — before their report, after them, or in an earlier run — and still links.
+- A manager the source never exported, or a person listed as their own manager, no longer becomes a link that points at nobody: the field is left empty and the number of such rows is reported in the import result and the job log.
+- The scale test fixture now generates a realistic organisation: seven levels, roughly 6% of people managing anybody, the typical manager with a dozen direct reports and the largest with ninety, and a small share reporting to nobody. Previously it generated no manager relationships at all, so org-chart and manager-filter behaviour could not be tested at scale.
+
+## Changes in this PR
+
+- Updated the 41-million-assignment scale report with a full re-measurement after the scale fixes: before-and-after figures for the load, the post-sync work, a restart, every screen, a repeat import and filter-value discovery, what did not improve, and how the test data differs from a real customer's.
+
+## Changes in this PR
+
+- Fixed the API running out of database connections, and failing requests with "timeout exceeded when trying to connect", while a crawler or report client sends requests in quick succession. Recording when a crawler key or read token was last used no longer writes on every request.
+
+## Changes in this PR
+
+- Opening the filters on the Principals page is no longer slow on a large directory. On a 176,789-principal / 805,497-resource install it now answers in 8 ms once warm instead of ~500 ms every single time, and in 1.7 s instead of 3.8 s on the very first load after a restart.
+- The filter bar no longer re-runs the expensive "which relationships have data here" check on every page load and every sub-tab switch. That check went from 434 ms to 2 ms — and from over 8 seconds on a directory that records no owner or sponsor relationships, where it previously scanned the whole Principals table once per account.
+- Discovering the values you can filter on reads each table far fewer times: the Resources filter bar and the matrix wizard's Resource step open in 6.5 s instead of 10.1 s cold, the matrix wizard in 6.0 s instead of 9.1 s, and identity filters in 2.2 s instead of 3.6 s. The lists of values offered are unchanged.
+- Filter values are now refreshed in the background instead of at a user's expense. Previously the five-minute cache expiry meant one unlucky user waited for the whole discovery again every five minutes; now the cached list is shown immediately and refreshed behind the request.
+- A filter dropdown no longer disappears entirely when a single record holds an unexpected shape of extended attributes.
+
+## Changes in this PR
+
+- Fixed: the SailPoint IdentityIQ example queries loaded only the entitlements whose IdentityIQ type is "Entitlement". In a real instance that can be a tiny fraction (most entitlements are account groups), so a run could load a few hundred entitlements out of hundreds of thousands and still report success. Every entitlement is now loaded, with its type kept as an attribute
+- The IdentityIQ role composition query now links each business role to the actual entitlements it grants, instead of to profile ids that never matched anything
+- A SQL connector run now fails when more than 5% of a statement's rows cannot be placed, because they point at something the run did not load or miss a required column. Previously those rows were only mentioned in the job log, so a run that placed a small fraction of its grants could still finish successfully
+
+## Changes in this PR
+
+- Fixed a staged full load re-importing business-role assignments adding an ungoverned duplicate of each one, the same defect already fixed for ordinary imports.
+
+## Changes in this PR
+
+- Fixed: a full sync from one connector could delete context data that did not belong to it. Loading a second SQL Server source removed the first source's logical applications, and a routine SQL, CSV or Omada refresh removed every context membership outside its own data, including tags an analyst had assigned by hand. A full sync now only removes contexts and memberships that its own system owns
+- A membership an analyst added by hand is no longer removed by any connector's sync, even on a context the connector owns
+- A connector that sends contexts without saying which system owns them now gets a warning in its job log, because those contexts are never cleaned up when they disappear from the source
+
+## Changes in this PR
+
+- A system's first import no longer writes an audit-history entry for every row it creates. On large imports that history was most of the database (25.7 of 34.9 GB at 41 million assignments) and slowed the import more than all of its indexes. The import is recorded once per table instead, so the matrix scope timeline still starts at the first import. Changes after the first import — and every update or deletion, including during it — are still recorded.
+
+## Changes in this PR
+
+- The SQL connector can now load a catalogue of groupings as Contexts, for example IdentityIQ logical applications kept in XML, and place each entitlement in its application. Names are matched ignoring case and surrounding spaces, and the job log reports every spelling it had to match that way and every application name the catalogue does not have, instead of silently folding or dropping them
+- The SailPoint IdentityIQ preset now loads each identity as a principal and splits entitlement grants into direct ones and ones that came from a role (shown as Indirect)
+- Added a second IdentityIQ preset that also reads typical identity extension columns (organisation levels, company, cost centre, employee status) and the logical-application catalogue
+- A SQL connector run now checks, per object type, what the source returned against what Identity Atlas holds afterwards, and fails the job on any difference. A statement that returns several rows for the same id (so that all but one are silently overwritten) now fails the job and says how many were lost, instead of reporting success
+- A SQL connector run now also checks, per statement, that it read every row the source returns, and fails the job when it did not. Before this, a read that stopped early passed every check, because everything that did arrive was loaded correctly
+- Added a **SQL Database crawler**: connect to a Microsoft SQL Server database with SQL authentication, write your own `SELECT` statements, and choose per statement what its rows become — identities, accounts, account links, entitlements or business roles, assignments, or role composition. Nothing about the source schema is assumed, so any product with a readable database can be imported.
+- Existing queries can be used **exactly as written**: instead of rewriting a statement with aliases, map its column names onto the fields Identity Atlas expects (for example `EntitlementID` → the resource id) in the query's column mapping.
+- The crawler streams rows straight from the database, so a source table with tens of millions of rows (an entitlement-assignment table, typically) imports without the memory or time limits a single upload would hit. Statements that reference `@Offset` and `@PageSize` are paged automatically.
+- A full sync now removes only what genuinely disappeared from the source: rows the run did not see are cleaned up per object type at the end, and a run that fails part-way deletes nothing.
+- Ships a **SailPoint IdentityIQ** example query set that fills in identities, entitlements, business roles, their assignments, and role composition in one click, ready to adapt to your own extended attributes.
+- Added a four-step setup wizard (connection, credentials, queries, schedule) with per-statement validation, and a crawler card summarising the server, database and configured queries.
+- Crawler passwords are stored in the secrets vault and never appear in a job log, including when a connection fails.
+- Fixed: in the portable Windows build, crawlers failed with `AuthorizationManager check failed` and a job whose only detail was `pwsh.exe exited with code 1` whenever the zip had been downloaded rather than built locally. Crawler runs were the one part of the launcher started without an execution policy, so Windows' mark on downloaded files blocked them before any log could be written. Setting the policy to Unrestricted did not help, because that setting only prompts, and a background crawler cannot answer a prompt.
+- The SailPoint IdentityIQ example queries now select only columns confirmed to exist in a real IdentityIQ database. Identity attributes are configured per deployment, so the example previously risked failing with "Invalid column name"; the optional columns are now listed in comments for you to add, and the role-hierarchy query, which assumed a table layout not every instance has, is gone.
+- Fixed: a SQL crawler configured with exactly one enabled query failed immediately after registering its system, with "Cannot bind argument to parameter 'Slot' because it is null". Running one query at a time is the natural way to try the crawler out, so this hit first use.
+- Fixed: the SQL crawler failed on the first row of any statement returning many columns, with "Invalid attempt to read from column ordinal '0'". The reader was opened in a mode meant for streaming large binary values, which forbids revisiting an earlier column and gained nothing here.
+- A SQL read that is cut short by a dropped connection now fails the job instead of reporting success. Previously a result set that ended early looked exactly like one that finished, so a partial import could be recorded as a clean run.
+- Identity records can now carry city, country and office location as real fields rather than extra attributes.
+- Fixed: every SQL crawler job run by the worker kept only one row in eight, or failed with "Invalid attempt to read when no data is present" when the row count did not divide evenly. A statement returning 176,703 identities imported 22,087 of them and still reported success. The job log the worker writes for every run made PowerShell read ahead through the result set and skip rows. Running the crawler by hand, without a job log, was never affected, which is why it went unnoticed.
+- The SQL Database crawler is now called **SQL Server** and its type is `mssql`. It reads Microsoft SQL Server specifically, and every other crawler is named for the system it reads, so `sql` was both vague and ambiguous. No stored configuration is affected: this crawler has not shipped in any release, so no deployment can hold a crawler of the old type.
+
+## Changes in this PR
+
+- Fixed re-running a CSV crawler (or any connector that registers systems without a tenant) creating a second copy of every one of its systems and moving all of their accounts, resources and assignments onto the copies. A crawler configuration now maps to the same systems on every run. Duplicates left behind by earlier re-runs are merged into one system when you upgrade.
+- Fixed a re-import duplicating business-role assignments (one governed, one not) and business-role classification then failing on every later run. Existing duplicates are cleaned up by the next classification.
+- A CSV crawler run now fails when business-role classification, the view refresh request or the sync-log entry fails, instead of reporting success.
+- Reduced the storage used by assignments imported by external id: the two ids are no longer stored a second time in the assignment's extended attributes (about 40% of each assignment row). Rows already stored keep them until they are next rewritten.
+- The Docker Compose files now give PostgreSQL 1 GB of shared memory instead of Docker's 64 MB default, which made parallel vacuum and parallel queries fail on large databases.
+
+## Changes in this PR
+
+- Added a staged full-load interface to the ingest API for very large scopes: a connector streams a system's complete set of rows into a staging area and applies it in one step. Re-importing unchanged data no longer rewrites every row (about 3× faster on 4.1 million assignments), and a first load into an empty installation builds its indexes once at the end (about 1.6× faster). Connectors adopt it separately.
+
+## Changes in this PR
+
+- Added an IdentityIQ-shaped SQL Server test fixture (a container definition and a re-runnable schema script) so the SQL connector can be developed and verified without access to a production IdentityIQ database
+- Added a seeded generator that fills the fixture with synthetic data at up to full scale (180,000 identities, 800,000 entitlements, 40 million grants), producing the same dataset as the CSV scale fixture so loads through either connector can be compared, plus a load script that fails when any table's row count differs from what was generated
+
+## Changes in this PR
+
+- Fixed the matrix refresh after a large import: it now runs once, in the background, instead of timing out inside the crawler's request and being retried into a queue of repeated full refreshes.
+- A crawler job now reports whether the matrix refresh succeeded, and fails with a clear message if it did not, instead of calling the failure "non-critical" and reporting success.
+- Restarting Identity Atlas no longer rebuilds the matrix from scratch when it is already populated, which on large datasets took minutes and several gigabytes of disk.
+
+## Changes in this PR
+
+- Fixed context pages with many members (for example a logical application with 100,000 entitlements) taking minutes to open, and far pages of their member list never loading.
+
+## Changes in this PR
+
+- Fixed opening a very large permissions matrix taking the whole server down: a matrix with more than 400,000 assignments is now refused straight away with the "too many to load" message, instead of being loaded into memory first and crashing the API for every user.
+
+## Changes in this PR
+
+- Added a scale test fixture generator (`tools/scale-dataset/`) that writes a synthetic identity-governance export in the CSV import schema, from 1% up to 180,000 principals, 810,000 resources and 41 million assignments, reproducibly from a seed. It builds in the properties that matter at scale: skewed assignment counts, a disabled majority, uneven systems, logical applications that span systems, LDAP distinguished names with commas, and near-duplicate names.
+- Added a small comma-delimited fixture with quoted distinguished names, a regression case for importing values that contain commas.
+- Added "Scale Rehearsal: 41 M Assignments" to the architecture docs: what happens when a 41-million-assignment dataset is loaded, where it stops coping, and why.
+
+## Changes in this PR
+
+- The portable Windows build can now run a real PostgreSQL server instead of the built-in PGlite database, for tenants too large for PGlite's fixed memory and 4 GB limits. A package built with the new `--with-postgres` option carries the server; the launcher starts it as the current user on `127.0.0.1:5433`, with no installation or administrator rights and a random, owner-only database password, and tunes it to the machine's memory. Existing PGlite installs keep using PGlite unless asked to switch (`-Database Postgres`); their data is not moved, so re-import after switching.
+- The portable launcher now falls back to PGlite, with a message naming the cause, when the bundled PostgreSQL cannot run on the machine — for example when application control blocks its unsigned executables, or the Visual C++ runtime is missing.
+- The portable launcher no longer kills a slow start after 90 seconds. It warns after a configurable time (`-StartupTimeoutSec`) and keeps waiting, reports at once when the app exits during startup (with its exit code), and opens the browser only once the database schema is ready.
+- Stopping the portable app now shuts everything down cleanly however it is stopped — Ctrl+C, closing its window, or ending the launcher process — without leaving `node.exe` or PostgreSQL running. A leftover from an earlier crash is recognised and stopped on the next start, and starting a second copy on the same data no longer interferes with the first.
+- When the portable app stops on an unexpected error it now writes the details to `startup-error.log` in its data folder, so a failed start leaves something to send.
+
+## Changes in this PR
+
+- Fixed the CSV wizard refusing files over 1 GB before uploading them: it now shows and applies the server's own per-file limit (default 8 GiB, set with `UPLOAD_MAX_FILE_BYTES`), and an over-limit upload is refused with a message naming the limit.
+- Fixed a refused upload showing as "Failed to fetch": the wizard now shows the real reason.
+- The CSV wizard now shows the crawler's folder on the server when editing; a large export can be copied straight into it instead of uploaded.
+- CSV import now handles very large exports: `Assignments.csv` (tens of millions of rows) and `Resources.csv` are read and sent in batches with flat memory use, and a full sync still removes the rows the file no longer contains.
+- Fixed quoted CSV values containing the delimiter (for example LDAP distinguished names in a comma-delimited file) being split and shifting every later column in `Resources.csv`, `Assignments.csv` and `Certifications.csv`. Quoted values may now also contain doubled quotes and line breaks, and a row that cannot be parsed fails the import with its file and line number instead of loading misaligned data.
+- Columns outside the CSV schema are now kept in `extendedAttributes` for Systems, Contexts, Resources, Resource Relationships, Users, Identities and Certifications, as documented. Assignments, Identity Members and Context Members do not keep them, and the job log names the columns it ignored.
+- Fixed a schema column written in a different case (for example `department`) being dropped from the imported record.
+- Fixed an assignment held both Direct and Eligible in the same file losing one of the two.
+- The CSV job log now warns, per file, when rows name a `SystemName` that `Systems.csv` does not declare, with the row count and the unknown names; those rows still load into the crawler's own system.
+- `ContextMembers.csv` now reads faster and with far less memory for large membership files.
+- Added `POST /api/ingest/reconcile` and a `serverTime` on `GET /api/crawlers/whoami`, so a crawler that streams a very large source can still remove rows that disappeared from it.
+- Corrected the CSV documentation: the accepted `AssignmentType` values, the real file names, and which files keep extra columns.
+
+## Changes in this PR
+
+- Added optional profile photo syncing for Microsoft Entra ID. When enabled, each user's profile picture is collected during the crawl and shown next to their name on the user detail page.
+- The signed-in user's own profile photo now appears in the header, in place of their initial.
+- Profile photos are off by default and are enabled per crawler under "Profile Photos" in the Entra ID setup wizard, which warns that photos are personal data and that the first crawl fetches one photo per user. Turning them on is a deliberate choice rather than something a crawl picks up automatically.
+- Photos already collected are re-checked only every 30 days, and accounts without a photo are remembered as such, so repeat crawls stay fast.
+- Where no photo is available the initial is shown, exactly as before.
+
+## Changes in this PR
+
+- Fixed accounts bouncing between systems when two crawlers see the same directory: the Entra ID and Azure RM crawlers each claimed the same user on every run, which filled the user's Timeline with changes nobody made. A system now records which directory its accounts come from, and only that directory owns them.
+- Fixed Azure role assignments disappearing and reappearing between runs. Because the shared account had been reassigned to the Azure RM system, the next Azure RM run no longer recognised it as a directory account and removed its role assignments as orphaned.
+- Fixed the Azure RM crawler re-enabling accounts that are disabled in Entra ID. It no longer reports account state it cannot know.
+- Fixed users deleted in Entra ID sometimes staying visible: an account that had been reassigned to another system fell outside the Entra ID crawler's own clean-up.
+- Existing environments are corrected automatically on upgrade — no re-crawl needed.
+
+## Changes in this PR
+
+- Custom reports can now show and filter on the business roles a user or account holds. "Add the business role column" and "users in business role X" previously came back as "there is no such field" — business roles could only be reached from the other end, starting at a group or a resource.
+
+## Changes in this PR
+
+- Custom reports can now count records per value: pick **Count per** in the report builder, or ask "how many users per department", and the report comes back as one row per distinct value with the number of records that have it — including a row for the records that have no value at all.
+- The report builder now offers the attributes your own crawlers stamp on the data (such as `sfDepartmentID`, `employeeType` or an OU path) alongside the built-in fields, so you can filter on them, show them as a column and count per them. They are listed under "From your data", by their readable name rather than the long `extension_<id>_...` key they arrive under.
+- Asking the report generator a question that names one of those attributes now works: the attribute is looked up in your data and handed to the model, instead of the question coming back as something it cannot build.
+
+## Changes in this PR
+
+- The matrix name menu has a new **History…** entry: it shows who first saved a matrix, who has changed it since, and what each change touched — a rename, the subjects, the resources, the roll-up or the governed lens.
+- The "Open a matrix" list now says who last changed each saved matrix, not only when.
+- Changes to saved matrices are recorded from this release onwards, so a matrix saved earlier starts its trail at its next change.
+
+## Changes in this PR
+
+- The system a crawler registers is now named after the crawler itself for every crawler type — Entra ID, Azure RM, Omada, midPoint and SCIM. A crawler called "HBR EntraID" now shows up as the system "HBR EntraID" instead of "Entra ID (contoso.onmicrosoft.com)", so several connectors of the same type are finally distinguishable on the Systems page, in the matrix and in every system filter.
+- Renaming a crawler renames its system on the next run: the existing system is renamed in place, not duplicated.
+- An explicitly set System name in the crawler's wizard still wins over the crawler's name.
+- SCIM crawlers saved before this behaviour existed no longer stay stuck on the name "SCIM". The old wizard stored that literal whenever the System name field was left blank; a stored value of exactly "SCIM" is now treated as "not set", so those crawlers follow their own name without being re-saved. Any other value, including "SCIM Test", is kept as the override it looks like. The crawler card on Admin → Crawlers shows the same name the run will register.
+- Heads-up: the first run after this update renames existing systems. Saved matrix filters and report parameters that stored a system name as text stop matching until re-saved — the same as when a system is renamed by hand on the Systems page.
+- The midPoint and Omada integration tests now find their system by endpoint rather than by display name, so they keep working once the display name follows the crawler.
+
+## Changes in this PR
+
+- Added the context assistant (experimental, off by default — switch on under Admin → Experimental): a fourth way to create a context tree, "Describe it". Describe a process, application or project, and the local model proposes search terms; keep or drop each term while seeing how many groups it finds, include or exclude individual groups, and save. The model never sees your groups — it only proposes words, which are then searched for.
+- Contexts built this way are refreshed after every crawl: new groups that match a kept term join automatically, excluded groups stay out. Reopen one with "Edit search terms" on the context.
+- Added the permission **Build contexts** (`data.write.contexts`): create manual contexts, edit context members and use the context assistant without the Context plugins admin permission. Existing mappings keep working; customised role mappings must grant it by hand to use the assistant.
+- Only the model's terms that contain your own words start ticked; everything else it suggests starts unticked with its hit counts, so a wrong guess about a name the model does not know never silently widens the context. A warning appears when ticked suggestions bring in far more groups than your own words do.
+- The report generator now prepares the prompts of both custom reports and the context assistant when the API starts, so the first person to use either does not wait for it.
+
+## Changes in this PR
+
+- Fixed the Azure deploy script (`azure/deploy.ps1`) failing to start in Windows PowerShell 5.1 with "The string is missing the terminator". The file is now saved so both PowerShell 5.1 and 7 read it correctly.
+
+## Changes in this PR
+
+- The report generator now looks up the names in a question (an organisation such as "Contoso", a group, a person) in the data, and tells the model which fields they occur in — so "guest accounts from Contoso" filters on company or email instead of guessing a system.
+- When a generated report still does not use a name from the question, the assistant asks where it should apply (for example Company or Email) instead of running a guess, and offers to replace a system filter that does not match the question.
+
+## Changes in this PR
+
+- Added custom reports (experimental, off by default — switch on under Admin → Experimental): build your own report on the Reports tab by choosing what to report on, adding conditions and picking columns. Saved reports sit in their own section next to the built-in ones and open, refresh and download the same way.
+- Added a report builder that opens in its own tab for creating or editing a report. It shows, in plain language, exactly what the report will ask before you run it, and previews the result.
+- Added "describe it in plain language": type the report you want and a small language model running inside your own deployment turns it into report criteria you can check and edit, shown back in plain language before anything runs. It says so when the data you ask about is not something Identity Atlas collects. It is usually right, not always — check the summary before saving.
+- The model never sees your data and nothing leaves your deployment: it receives only your question and the names of the fields and types that exist, never records or results.
+- Reports can compare against a named record — for example "groups with exactly the same members as business role X" or "groups at least 80% like group Y" — showing similarity and the extra and missing members per row. Useful for role mining.
+- When a report names a business role, group or user that does not match exactly, the builder suggests the closest matches and asks which one you meant.
+- The plain-language box understands interchangeable terms: person and identity; account, principal and user; business role and access package.
+- Custom reports can use sign-in activity: last sign-in, days since last sign-in (counted from when the data was collected, like the Stale Accounts report) and when sign-in data was collected — so "not signed in for 90 days" and "never signed in" can be built by hand or asked for in plain language.
+- A report that stops at its row limit now says so above the results, instead of presenting the first rows as the whole answer.
+- Added the "Build custom reports" permission. Anyone who can read data can open and run saved reports; only this permission can create, change or delete them.
+- The plain-language half needs an optional extra container, the report generator (2 CPU, 4 GB memory, no GPU). On Docker it is a compose profile on an internal network with no published port and no internet access; on Azure an opt-in Container App that scales to zero, so it only costs while in use, protected by a per-deployment API key. Existing installations get custom reports with a normal update; the generator is added only when an operator chooses to deploy it. Without it, reports are built by hand.
+- On Docker the report generator loads its model only while it is used: opening the report builder loads it in seconds (with a timer), and after 15 minutes without a question it is unloaded and gives its memory back. The idle time is configurable, and 0 keeps the model loaded.
+- Admin → LLM shows which model this release ships for the report generator and whether it is answering.
+- Documentation: Custom Reports (how to build one and what it cannot do), Report Generator (why it exists, the model and its licence, the measurements and every model evaluated, privacy, sizing, Docker and Azure deployment, and what an existing installation has to do), and the internals for maintainers.
+
+## Changes in this PR
+
+- Added sign-in activity to the user detail page: last interactive, non-interactive and successful sign-in (and the extra service-principal variants), last use per application when sign-in logs are collected, each shown with the date the data was measured
+- Added a sortable, filterable "Last sign-in" column to the Users list (Never / over 30, 90 or 180 days), included in the list export
+- Added eight standard audit reports: Stale Accounts, Never Signed In, Stale Guest Accounts, Disabled Accounts With Access, Missing Managers, Privileged Accounts, Access Outside Roles and Empty Groups
+- Activity-based reports count inactivity from when each system's activity data was last collected rather than from today, state that measurement date, warn when the data is more than two days old, and skip systems with no activity data instead of listing every account as stale
+- Reports with a threshold (such as the number of inactive days) now show a form to change it
+- Fixed the "measured on" date of sign-in activity staying at the first time an account was ever crawled
+- Fixed Entra ID delta syncs missing attribute changes (department, job title, …) on users and service principals between full syncs
+- New Entra ID crawlers now propose a daily full sync at 02:00 plus an hourly delta sync by default
+
+## Changes in this PR
+
+- Hardened installations running with authentication disabled: state-changing requests that a browser marks as coming from another website are now refused, and requests for a host name the server does not recognise are answered with "421 Misdirected Request". IP addresses, `localhost`, single-label intranet names and `.local` names keep working without configuration; add any other host name users type to the new `ALLOWED_HOSTS` setting (or set `PUBLIC_BASE_URL`).
+- "Clean Database" now requires an explicit confirmation in the request itself (`{"confirm": "DELETE ALL DATA"}`), in every authentication mode. The Admin → Data page sends it automatically; scripts calling the endpoint directly must add it.
+- Hardened crawler API-key authentication against request floods: invalid keys are rejected before large upload bodies are read, key verification no longer blocks the server while it runs, repeated failures from one client are throttled, and the crawler audit log is capped per crawler (`CRAWLER_AUDIT_LOG_MAX_ROWS`, default 10,000 rows).
+- Fixed rate limiting behind Azure App Service and other reverse proxies: users are now limited individually instead of sharing one organisation-wide bucket, audit logs record the real client address, and loading the app page no longer uses up the API's request budget. The number of trusted proxies can be set with `TRUST_PROXY_HOPS`.
+- Starting a risk scoring run while another one is still in progress is now refused, and AI profile/classifier generation is limited to 10 requests per minute per user.
+- Crawler file uploads are refused when they would leave less than 1 GiB free on the upload volume (`UPLOAD_MIN_FREE_BYTES`), with an optional per-configuration storage quota (`UPLOAD_CONFIG_QUOTA_BYTES`). The 1 GB per-file limit is unchanged.
+- Fixed spreadsheet formula injection in the drill-down list CSV export and in the filter legend of the matrix Excel export.
+- Removed Microsoft Graph from the browser's allowed connection targets; the app never calls Graph from the browser.
+- An attribute named `Link` is only shown as "Open in Entra ID" when it points to the Entra or Azure portal; links to any other site are shown with their real address.
+
+## Changes in this PR
+
+- Fixed every automated build failing within seconds of approval ("dor_trusted_spec.sh: No such file or directory"): the hourly sidekick sweep left the build box's workspace holding a single script, so the build started without the rest of the repository
+- Automated builds now clear any leftover partial checkout on their sidekick before they start, so a workspace left in that state can no longer break a build
+
+## Changes in this PR
+
+- Fixed a full sync sent to the systems ingest endpoint being able to remove other registered systems and all of their data; systems are now always registered as a delta, and the Omada crawler no longer requests a full sync for them.
+- Hardened crawler API keys that are restricted to specific systems: they can no longer create, overwrite, tombstone or delete data belonging to other systems, and cannot write server-managed fields such as risk scores, deletion stamps or analyst decisions.
+- Hardened the crawler data-plane endpoints: business-role classification now needs the refresh-views permission and only touches the caller's systems, matrix view refreshes run one at a time, the default matrix filter can only be set by the built-in worker, sync-log entries record which crawler wrote them, principal presence lookups are limited to the caller's systems, and job progress can only be reported by the worker.
+- Hardened the API against a crawler key holding database connections: open multi-batch ingest sessions are now capped per crawler and in total, and connections left idle inside a transaction are closed.
+- Hardened ingest against very large attribute sets: a record's extended attributes are limited in key count and size, and filter-column discovery only surfaces the most common attribute keys.
+
+## Changes in this PR
+
+- Hardened Azure deployments: the Postgres admin password is now random and kept in Key Vault instead of being derived from resource names. Existing deployments keep their current password until you rotate it with the new `rotatePostgresPassword` deployment parameter.
+- Hardened Azure deployments: Postgres now only accepts connections from the web app's own outbound IP addresses instead of from every Azure service.
+- Added an opt-in private network mode for new Azure deployments (`networkMode=private`): a virtual network with private endpoints for Key Vault, Storage and Postgres.
+- Added Azure deployment parameters to restrict who can reach the web app (`webAccessDefaultAction`, `webAllowedIpCidrs`).
+- Hardened Docker Compose installs: the auto-generated secrets-vault master key now lives on a web-only volume that the worker container cannot read; an existing key is moved there automatically after it is verified.
+- The web app no longer generates a new vault master key while encrypted secrets exist, so a lost or misplaced key can be restored instead of silently making stored credentials unreadable.
+- Secrets can now be supplied as files (`POSTGRES_PASSWORD_FILE`, `DATABASE_URL_FILE`, `IDENTITY_ATLAS_MASTER_KEY_FILE`); the production compose file passes the database password as a Compose secret instead of a plain environment variable.
+- Hardened the containers: the worker now runs as a non-root user, and every service runs with no-new-privileges, a minimal capability set, and process and memory limits (configurable with `POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT`).
+- The worker container no longer receives unused Microsoft Graph and LLM credential environment variables, and its image no longer ships repository tooling.
+- Published images are now built from digest-pinned base images and carry signed build provenance and an SBOM attestation.
+
+## Changes in this PR
+
 - Fixed autonomous builds failing with an authentication error ("Invalid username or token") and landing in Exceptions when the build ran longer than one hour; long builds now pick up a fresh bot credential and continue where they stopped, without extra fix attempts
 - Fixed a usage-limit pause on a long build silently losing its saved work-in-progress when the bot credential had already expired
 

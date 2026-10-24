@@ -15,13 +15,6 @@ export function fmtMs(ms) {
   return `${m}m ${rem}s`;
 }
 
-// Human-readable byte size for the trace size readout.
-export function fmtBytes(n) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 // Text colour for the job status line — failed/completed get a semantic colour,
 // everything else stays neutral.
 const STATUS_TEXT_CLASS = {

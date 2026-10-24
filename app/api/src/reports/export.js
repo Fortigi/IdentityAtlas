@@ -7,6 +7,28 @@
 // The serializers take exactly the payload the rows endpoint returns, so a
 // downloaded file can never disagree with what the screen showed: same columns,
 // same rows, same `generatedAt`.
+//
+// CONTEXT BEYOND THE ROWS. A run produces two things a plain table cannot hold:
+// its NOTICES (what the numbers were computed from, which of them is a summary,
+// when they stop being trustworthy) and its CONSTANT COLUMNS (keys the run
+// declares hold one value throughout — the application a review is about, say).
+// Both belong above the table, not in it.
+//
+// That used to be framed as "a download is the rows", which was really a
+// statement about CSV: a CSV *is* a table, so anything above the header row
+// breaks every parser that reads it. A workbook has room above the table and a
+// reader who expects context there. So the decision is the format's, declared
+// here as `carriesContext`; routes/reports.js strips both fields for every
+// format that does not claim them, and csv and json stay byte-for-byte what they
+// were. Generic on purpose — a future format (pdf, html) opts in the same way.
+//
+// The flag was called "carriesNotices" while notices were the only such field.
+// It gates two now, so it is named for the category rather than for the first
+// member of it.
+
+import ExcelJS from 'exceljs';
+import { addPivotTables } from './xlsxPivots.js';
+import { addCharts, writeChartTables } from './xlsxCharts.js';
 
 const FILENAME_PREFIX = 'identity-atlas';
 
@@ -42,8 +64,215 @@ function toJson(report) {
   return JSON.stringify(report, null, 2);
 }
 
+// ─── xlsx ─────────────────────────────────────────────────────────────────
+
+// Excel's own limit. A report that stops at its own cap is already flagged
+// `truncated`; this is the floor under a template that has no cap at all.
+const SHEET_ROW_LIMIT = 1048575;
+// Column widths are derived from content, then clamped: a description column
+// sized to its longest value would be hundreds of characters wide.
+const MIN_WIDTH = 10;
+const MAX_WIDTH = 60;
+const WIDTH_SAMPLE = 200;
+
+const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+const HEADER_FONT = { bold: true, size: 11, color: { argb: 'FF374151' } };
+const MUTED_FONT = { size: 10, color: { argb: 'FF6B7280' } };
+
+// The workbook's fixed tabs, before any pivot tabs.
+const SUMMARY_SHEET = 'Summary';
+const DATA_SHEET = 'Data';
+const SUMMARY_LABEL_WIDTH = 28;
+// The Data tab is only the table, so its header is always the first row.
+const HEADER_ROW = 1;
+
+/** Excel rejects these in a sheet name, and caps it at 31 characters. */
+function sheetName(displayName) {
+  return String(displayName || 'Report').replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || 'Report';
+}
+
+/**
+ * A column's width from the header and the first rows — enough to read the
+ * table without opening it, without sizing the sheet to one outlier. Only the
+ * first `WIDTH_SAMPLE` rows are measured: the width is cosmetic and a report can
+ * be 50,000 rows long.
+ */
+function columnWidth(column, rows) {
+  let longest = String(column.label ?? '').length;
+  for (let i = 0; i < rows.length && i < WIDTH_SAMPLE; i++) {
+    const value = rows[i]?.[column.key];
+    if (value !== null && value !== undefined) longest = Math.max(longest, String(value).length);
+  }
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, longest + 2));
+}
+
+/**
+ * The columns a run declared constant, paired with their label and the value
+ * they hold — and the columns left to tabulate.
+ *
+ * The value is read from the first row because the run asserted there is only
+ * one; it is not checked against the others, and deliberately so. A run that
+ * declares a column constant and is wrong has a bug in the report, and silently
+ * "correcting" it here by keeping the column would hide that. A key the report
+ * does not declare as a column is ignored.
+ *
+ * Nothing is dropped when dropping would leave no table: a sheet of nothing but
+ * a header is worse than a repeated column. A key in `keep` — a column a pivot
+ * is built on — is stated in the header AND stays in the table: a pivot can only
+ * read what the table holds.
+ */
+export function splitConstantColumns(columns, rows, constantColumns, keep = []) {
+  const wanted = new Set(Array.isArray(constantColumns) ? constantColumns : []);
+  if (wanted.size === 0 || rows.length === 0) return { header: [], body: columns };
+
+  const kept = new Set(keep);
+  const order = constantColumns.filter(key => columns.some(c => c.key === key));
+  const body = columns.filter(c => !wanted.has(c.key) || kept.has(c.key));
+  if (body.length === 0) return { header: [], body: columns };
+
+  const header = order.map(key => ({
+    key,
+    label: columns.find(c => c.key === key).label,
+    value: rows[0][key],
+  }));
+  return { header, body };
+}
+
+/**
+ * The Summary tab: what this is, when it was computed, whatever the run
+ * declared constant, and every notice the report returned — which is where a
+ * summary lives now that a download can hold one. Its own tab, so the Data tab
+ * is nothing but the table: row 1 is the header, and a pivot or filter built on
+ * it by hand needs no range picking.
+ */
+function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [] }) {
+  sheet.getColumn(1).width = SUMMARY_LABEL_WIDTH;
+  sheet.getColumn(2).width = MAX_WIDTH;
+  sheet.getCell('A1').value = String(displayName ?? 'Report');
+  sheet.getCell('A1').font = { bold: true, size: 14 };
+
+  const counted = Number.isFinite(total) ? total : 0;
+  sheet.getCell('A2').value = `${counted.toLocaleString('en-US')} row(s) · generated ${generatedAt ?? ''}`.trim();
+  sheet.getCell('A2').font = MUTED_FONT;
+
+  let row = 4;
+  for (const entry of header) {
+    // Label and value in two cells rather than one string, so the block can be
+    // read, sorted and copied as data. An empty value still gets its label: a
+    // field that exists and is unfilled is a finding, and silence is not.
+    sheet.getCell(`A${row}`).value = entry.label;
+    sheet.getCell(`A${row}`).font = { bold: true };
+    sheet.getCell(`B${row}`).value = entry.value === undefined ? null : entry.value;
+    row += 1;
+  }
+  if (header.length) row += 1;
+
+  if (truncated) {
+    // Louder than a notice, because it changes what the file IS: the first N
+    // rows of an answer, presented as a file, read as the whole answer.
+    sheet.getCell(`A${row}`).value = 'This export stops at the report\'s row cap and is NOT the complete result.';
+    sheet.getCell(`A${row}`).font = { bold: true, color: { argb: 'FF991B1B' } };
+    row += 1;
+  }
+  for (const notice of notices) {
+    sheet.getCell(`A${row}`).value = String(notice?.text ?? '');
+    if (notice?.severity === 'warning') sheet.getCell(`A${row}`).font = { color: { argb: 'FF92400E' } };
+    row += 1;
+  }
+}
+
+/** Every column key the declared pivots are built on. */
+function pivotKeys(pivots) {
+  return pivots.flatMap(p => [...(p.rows || []), ...(p.filters || []), ...(p.values || [])]);
+}
+
+/**
+ * The whole report as a workbook: a Summary tab, then a Data tab holding the
+ * same table the CSV holds, then one tab per declared pivot.
+ *
+ * Cell values are written RAW — no leading-apostrophe guard, deliberately. The
+ * CSV guard (M-05) exists because a CSV cell has no type: a spreadsheet decides
+ * what `=cmd|calc` means when it opens the file. An xlsx cell is typed, and a
+ * string written here is stored as a string, never as a `<f>` formula, so the
+ * apostrophe would be a character of corruption rather than a defence. The
+ * invariant that actually matters is pinned by the tests, which assert the cell
+ * round-trips with its exact original text AND with cell type String.
+ *
+ * A report that declares `pivots` gets each one on its own tab after the data,
+ * over that same table — see xlsxPivots.js.
+ */
+async function toXlsx({
+  displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns, pivots = [],
+  charts = [],
+} = {}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Identity Atlas';
+  workbook.created = new Date();
+
+  // The table's columns are this RUN's, not the report's: a value the run holds
+  // constant is stated once on the Summary tab instead of repeated down every
+  // row — unless a pivot is built on it, which needs it in the table.
+  // `columns` in the payload is untouched — the screen still shows all of them.
+  const { header, body: columns } = splitConstantColumns(declared, rows, constantColumns, pivotKeys(pivots));
+
+  writeSummary(workbook.addWorksheet(SUMMARY_SHEET), { displayName, generatedAt, total, notices, truncated, header });
+  const headerRow = HEADER_ROW;
+  const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
+  // Charts read the rows, not the table, so a column the run held constant can
+  // still be charted. Their tab sits right after the Summary: it is what a
+  // reader opens the workbook for.
+  const chartPlan = writeChartTables(workbook, charts, capped);
+  const sheet = workbook.addWorksheet(DATA_SHEET);
+
+  columns.forEach((column, i) => { sheet.getColumn(i + 1).width = columnWidth(column, rows); });
+
+  const labelRow = sheet.getRow(headerRow);
+  columns.forEach((column, i) => {
+    const cell = labelRow.getCell(i + 1);
+    cell.value = column.label;
+    cell.font = HEADER_FONT;
+    cell.fill = HEADER_FILL;
+  });
+  labelRow.commit?.();
+
+  capped.forEach((row, i) => {
+    const target = sheet.getRow(headerRow + 1 + i);
+    columns.forEach((column, c) => {
+      const value = row[column.key];
+      target.getCell(c + 1).value = value === undefined ? null : value;
+    });
+  });
+
+  if (columns.length) {
+    // Freeze the header, so scrolling a 39,000-row review keeps the column names.
+    sheet.views = [{ state: 'frozen', ySplit: headerRow }];
+    sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: columns.length } };
+  }
+
+  // A pivot over no rows has no items to show, so an empty report gets none.
+  const pivotSheets = capped.length && columns.length
+    ? pivots.map(pivot => ({ sheetId: workbook.addWorksheet(sheetName(pivot.name)).id, pivot }))
+    : [];
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  const lastColumn = sheet.getColumn(columns.length || 1).letter;
+  const withPivots = await addPivotTables(buffer, {
+    sheet: sheet.name,
+    ref: `A${headerRow}:${lastColumn}${headerRow + capped.length}`,
+    columns,
+    rows: capped,
+  }, pivotSheets);
+  return addCharts(withPivots, chartPlan);
+}
+
+// Order is the order the UI offers them in, and the first is the default.
 const SERIALIZERS = {
   csv: { contentType: 'text/csv; charset=utf-8', serialize: toCsv },
+  xlsx: {
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // The one format with room for them. See NOTICES at the top of this file.
+    carriesContext: true,
+    serialize: toXlsx,
+  },
   json: { contentType: 'application/json; charset=utf-8', serialize: toJson },
 };
 
@@ -55,7 +284,9 @@ const SERIALIZERS = {
 // greps `app/api/src` and `app/ui/src` for quoted crawler-type literals so that
 // core can't hardcode crawler behaviour.
 export const EXPORT_FORMATS = Object.fromEntries(
-  Object.entries(SERIALIZERS).map(([name, format]) => [name, { extension: name, ...format }]),
+  Object.entries(SERIALIZERS).map(([name, format]) => [
+    name, { extension: name, carriesContext: false, ...format },
+  ]),
 );
 
 /** Format names offered for download, in the order the UI should show them. */

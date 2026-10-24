@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../db/connection.js', () => ({ query: vi.fn(), queryOne: vi.fn() }));
 vi.mock('../ingest/sessions.js', () => ({
   startSession: vi.fn(), continueSession: vi.fn(), endSession: vi.fn(), hasSession: vi.fn(),
+  SessionLimitError: class SessionLimitError extends Error {},
 }));
 
 import * as db from '../db/connection.js';
@@ -13,8 +14,9 @@ import { startSession, endSession, hasSession } from '../ingest/sessions.js';
 import { SOFT_DELETE_TABLES } from '../ingest/engine.js';
 import {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor,
-  discoverCoreColumns, handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog,
+  discoverCoreColumns, handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog,
 } from './ingest.js';
+import { unownedContextWarning } from './ingest/helpers.js';
 
 const UUID = '11111111-1111-1111-1111-111111111111';
 
@@ -100,6 +102,21 @@ describe('handleSessionPath', () => {
   it('returns null when the request is not a session command', async () => {
     expect(await handleSessionPath({}, ctx)).toBe(null);
   });
+  it('end → passes the manager-link repair through, with the warning spelled out', async () => {
+    hasSession.mockReturnValue(true);
+    endSession.mockResolvedValue({ syncId: 's1', inserted: 0, updated: 0, deleted: 0, totalRecords: 10,
+      managerLinks: { unresolved: 7, selfReferences: 1 } });
+    const r = await handleSessionPath({ syncSession: 'end', syncId: 's1' }, ctx);
+    expect(r.body.managerLinks).toEqual({ unresolved: 7, selfReferences: 1 });
+    expect(r.body.warnings).toEqual(['Manager links cleared: 7 named a manager that was not loaded; 1 named themselves as manager.']);
+  });
+  it('end → says nothing about manager links when nothing was repaired', async () => {
+    hasSession.mockReturnValue(true);
+    endSession.mockResolvedValue({ syncId: 's1', inserted: 0, updated: 0, deleted: 0, totalRecords: 10 });
+    const r = await handleSessionPath({ syncSession: 'end', syncId: 's1' }, ctx);
+    expect(r.body).not.toHaveProperty('managerLinks');
+    expect(r.body).not.toHaveProperty('warnings');
+  });
 });
 
 describe('applyDeleteByIds', () => {
@@ -154,5 +171,139 @@ describe('writeAuditLog', () => {
     writeAuditLog({ crawler: { id: 'c1' }, originalUrl: '/api/ingest/principals', ip: '1.2.3.4' }, { records: [{}, {}] });
     expect(db.query).toHaveBeenCalled();
     expect(db.query.mock.calls.at(-1)[0]).toContain('CrawlerAuditLog');
+  });
+});
+
+// ─── SEC-2026-09: per-system boundary helpers ───────────────────────────────
+
+const { coerceSystemsSyncMode, deleteOwnershipClause, ingestErrorResponse } = await import('./ingest/helpers.js');
+const { SessionLimitError } = await import('../ingest/sessions.js');
+
+describe('coerceSystemsSyncMode (C-01)', () => {
+  it('runs a full sync of systems as a delta — systems are registered, never reconciled', () => {
+    const body = { syncMode: 'full', records: [] };
+    expect(coerceSystemsSyncMode('systems', body)).toBe(true);
+    expect(body.syncMode).toBe('delta');
+  });
+
+  it('leaves every other entity, and a systems delta, alone', () => {
+    const principals = { syncMode: 'full' };
+    expect(coerceSystemsSyncMode('principals', principals)).toBe(false);
+    expect(principals.syncMode).toBe('full');
+    const systemsDelta = { syncMode: 'delta' };
+    expect(coerceSystemsSyncMode('systems', systemsDelta)).toBe(false);
+    expect(systemsDelta.syncMode).toBe('delta');
+  });
+});
+
+describe('deleteOwnershipClause (H-04)', () => {
+  it('adds nothing for an unrestricted key', () => {
+    expect(deleteOwnershipClause('Principals', null, [UUID])).toEqual({ clause: '', params: [[UUID]] });
+  });
+
+  it('limits the delete to rows the caller\'s systems own, bound as $2', () => {
+    expect(deleteOwnershipClause('Principals', [7], [UUID])).toEqual({
+      clause: ' AND COALESCE((t."systemId" = ANY($2::int[])), false)',
+      params: [[UUID], [7]],
+    });
+  });
+
+  it('uses the derived owner for a table without a systemId column', () => {
+    expect(deleteOwnershipClause('Contexts', [7], [UUID]).clause).toContain('t."scopeSystemId" = ANY($2::int[])');
+  });
+});
+
+describe('applyDeleteByIds — restricted key (H-04)', () => {
+  it('passes the allow-list and the ownership clause to the soft delete', async () => {
+    db.query.mockResolvedValue({ rowCount: 1 });
+    const result = { deleted: 0 };
+    await applyDeleteByIds({ deletedIds: [UUID] }, 'Principals', result, [7]);
+    const [sql, params] = db.query.mock.calls.at(-1);
+    expect(sql).toMatch(/UPDATE "Principals" t SET "deletedAt" = now\(\) WHERE t.id = ANY\(\$1::uuid\[\]\) AND t."deletedAt" IS NULL AND COALESCE/);
+    expect(params).toEqual([[UUID], [7]]);
+    expect(result.deleted).toBe(1);
+  });
+
+  it('passes it to the hard delete too', async () => {
+    db.query.mockResolvedValue({ rowCount: 0 });
+    await applyDeleteByIds({ deletedIds: [UUID] }, 'Contexts', { deleted: 0 }, [7]);
+    const [sql, params] = db.query.mock.calls.at(-1);
+    expect(sql).toMatch(/^DELETE FROM "Contexts" t WHERE t.id = ANY\(\$1::uuid\[\]\) AND COALESCE/);
+    expect(params).toEqual([[UUID], [7]]);
+  });
+});
+
+describe('handleSessionPath — session ownership and caps (H-04 / M-07)', () => {
+  const ctx = { tableName: 't', keyColumns: ['id'], normalized: [], scope: {}, scopeDeleteFilter: null,
+    conflictFilter: null, crawlerId: 12, isWorker: false, restrictSystemIds: [7] };
+
+  it('opens the session with the caller identity and allow-list', async () => {
+    startSession.mockResolvedValue({ syncId: 's1', inserted: 0, updated: 0 });
+    await handleSessionPath({ syncSession: 'start', systemId: 7 }, ctx);
+    expect(startSession.mock.calls.at(-1)[4]).toMatchObject({ crawlerId: 12, isWorker: false, restrictSystemIds: [7] });
+  });
+
+  it('looks the syncId up for THIS crawler on continue and end', async () => {
+    hasSession.mockReturnValue(false);
+    expect((await handleSessionPath({ syncSession: 'continue', syncId: 's1' }, ctx)).status).toBe(400);
+    expect(hasSession).toHaveBeenLastCalledWith('s1', 12);
+    expect((await handleSessionPath({ syncSession: 'end', syncId: 's1' }, ctx)).status).toBe(400);
+    expect(hasSession).toHaveBeenLastCalledWith('s1', 12);
+  });
+});
+
+describe('ingestErrorResponse — session cap (M-07)', () => {
+  it('maps a SessionLimitError to 429 with its message', () => {
+    expect(ingestErrorResponse(new SessionLimitError('Too many open ingest sessions (limit 7)')))
+      .toEqual({ status: 429, body: { error: 'Too many open ingest sessions (limit 7)' } });
+  });
+
+  it('keeps 500 for any other failure', () => {
+    expect(ingestErrorResponse(new Error('x')).status).toBe(500);
+  });
+});
+
+describe('linkSystemDirectories', () => {
+  it('only runs for the systems endpoint', async () => {
+    db.query.mockReset();
+    expect(await linkSystemDirectories('principals')).toBe(0);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('links dependent systems after a systems batch', async () => {
+    db.query.mockReset();
+    db.query.mockResolvedValue({ rowCount: 1 });
+    expect(await linkSystemDirectories('systems')).toBe(1);
+    expect(db.query).toHaveBeenCalledOnce();
+  });
+
+  it('never fails the registration it follows', async () => {
+    // The link is a correctness improvement on the NEXT principal batch. A crawler
+    // that just registered successfully must not get a 500 because of it.
+    db.query.mockReset();
+    db.query.mockRejectedValue(new Error('deadlock detected'));
+    await expect(linkSystemDirectories('systems')).resolves.toBe(0);
+  });
+});
+
+// ─── unownedContextWarning ──────────────────────────────────────────────────
+// A full sync only reconciles contexts the sender owns (scopeSystemId), so a
+// synced context that names no owner is never cleaned up. The ingest says so.
+describe('unownedContextWarning', () => {
+  it('counts synced contexts whose scopeSystemId is missing or another system\'s', () => {
+    const w = unownedContextWarning('contexts', [
+      { variant: 'synced', scopeSystemId: 7 },
+      { variant: 'synced', scopeSystemId: '7' },
+      { variant: 'synced' },
+      { variant: 'synced', scopeSystemId: 8 },
+      { variant: 'manual' },
+    ], 7);
+    expect(w).toMatch(/^2 synced context record\(s\) carry no scopeSystemId for system 7;/);
+  });
+
+  it('is silent when every synced context is stamped, for other entities, and without records', () => {
+    expect(unownedContextWarning('contexts', [{ variant: 'synced', scopeSystemId: 7 }], 7)).toBeNull();
+    expect(unownedContextWarning('context-members', [{ variant: 'synced' }], 7)).toBeNull();
+    expect(unownedContextWarning('contexts', undefined, 7)).toBeNull();
   });
 });

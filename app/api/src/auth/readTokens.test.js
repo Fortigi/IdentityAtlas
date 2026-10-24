@@ -182,10 +182,17 @@ describe('revokeIdleTokens', () => {
 describe('findActiveByPlaintext', () => {
   const PLAINTEXT = 'fgr_live-token';
 
-  // Stage the lookup SELECT, then a resolved UPDATE for the fire-and-forget
-  // lastUsedAt touch (the module calls .catch() on it, so it must be a promise).
-  function stageLookup(rows, { touch = Promise.resolve({ rows: [] }) } = {}) {
-    query.mockResolvedValueOnce({ rows }).mockReturnValueOnce(touch);
+  // Stage the lookup SELECT, then the fire-and-forget lastUsedAt touch.
+  //
+  // `touch` is a FACTORY, not a promise, and that matters. Built eagerly, a
+  // rejected promise that the throttle then declines to use is never consumed
+  // by anyone, and Node reports an unhandled rejection that fails the whole
+  // run even though every assertion passed. Built on invocation, it only
+  // exists when the module is actually about to attach its .catch() to it.
+  function stageLookup(rows, { touch } = {}) {
+    query.mockResolvedValueOnce({ rows });
+    if (touch) query.mockImplementationOnce(touch);
+    else       query.mockResolvedValueOnce({ rows: [] });
   }
 
   it('looks the token up by hash, never by plaintext', async () => {
@@ -274,10 +281,18 @@ describe('findActiveByPlaintext', () => {
   });
 
   it('still authenticates when the lastUsedAt write fails', async () => {
-    const row = { id: 42, name: 't', revoked: false, expiresAt: null };
-    stageLookup([row], { touch: Promise.reject(new Error('write failed')) });
+    // A token id of its own, deliberately. The throttle keeps one timestamp per
+    // id in module scope for the lifetime of the file, so reusing an id an
+    // earlier test already stamped means the write under test never happens and
+    // the case goes untested.
+    const row = { id: 4242, name: 't', revoked: false, expiresAt: null };
+    stageLookup([row], { touch: () => Promise.reject(new Error('write failed')) });
     // The rejection is swallowed by the module's .catch() — if it were not,
     // this would surface as an unhandled rejection and fail the run.
     await expect(findActiveByPlaintext(PLAINTEXT)).resolves.toEqual(row);
+    // Assert the stamp was actually attempted. Without this the test passes
+    // just as happily when the throttle skips the write, and then it proves
+    // nothing about what happens when the write fails.
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });

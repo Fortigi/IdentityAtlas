@@ -3,6 +3,12 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Parallel workers exchange data through /dev/shm. Docker's 64 MB default is
+    # too small at scale: a parallel VACUUM failed with "could not resize shared
+    # memory segment ... No space left on device" on a 41M-assignment database, and
+    # a parallel hash join hits the same limit. A ceiling, not a reservation:
+    # tmpfs only uses memory for what is actually written.
+    shm_size: 1gb
     environment:
       POSTGRES_DB: identity_atlas
       POSTGRES_USER: identity_atlas
@@ -13,6 +19,11 @@ services:
       timeout: 3s
       retries: 30
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    pids_limit: 2048
 
   web:
     image: identity-atlas-web:ci
@@ -36,13 +47,24 @@ services:
       # in isolation — shares.test.js (every share route 404s) and the UI mount
       # tests for the wizard step, toolbar button and Admin tab.
       FEATURE_MATRIX_SHARING: "true"
+      # Custom reports on, but no model server in this stack: the e2e suite proves
+      # the builder works by hand and that the assistant reports itself unavailable.
+      FEATURE_CUSTOM_REPORTS: "true"
       PORT: "3001"
+      # Mirrors docker-compose.prod.yml: the vault master key lives on a
+      # web-only volume, not on job_data (which the worker mounts).
+      IDENTITY_ATLAS_KEY_DIR: /data/keys
     ports: ["3001:3001"]
     volumes:
       - job_data:/data/uploads
+      - web_keys:/data/keys
       - ./setup/IdentityAtlas.psd1:/app/setup/IdentityAtlas.psd1:ro
     depends_on:
       postgres: { condition: service_healthy }
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 2048
 
   worker:
     image: identity-atlas-worker:ci
@@ -54,7 +76,12 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       web: { condition: service_started }
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    pids_limit: 4096
     restart: "no"
 
 volumes:
   job_data:
+  web_keys:

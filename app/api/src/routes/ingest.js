@@ -17,14 +17,16 @@
 import { Router } from 'express';
 import handlersRouter from './ingest/handlers.js';
 import matrixViewsRouter from './ingest/matrixViews.js';
+import stagesRouter from './ingest/stages.js';
 
 const router = Router();
 router.use(handlersRouter);
 router.use(matrixViewsRouter);
+router.use(stagesRouter);
 
 export {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,
-  handleSessionPath, applyDeleteByIds, lookupSystemIds, writeAuditLog,
+  handleSessionPath, applyDeleteByIds, lookupSystemIds, linkSystemDirectories, writeAuditLog,
 } from './ingest/helpers.js';
-export { refreshKeyword, refreshMatrixViews } from './ingest/matrixViews.js';
+export { refreshKeyword, refreshMatrixViews, ensureMatrixViewsPopulated, viewRefresh } from './ingest/matrixViews.js';
 export default router;

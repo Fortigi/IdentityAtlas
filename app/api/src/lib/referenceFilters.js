@@ -43,57 +43,100 @@ const VALUE_TO_OPN = Object.assign(Object.create(null), {
 const SAFE_ALIAS_RE = /^[a-z][a-z0-9]*$/;
 
 // ─── Registry ───────────────────────────────────────────────────
-// Each entry: a correlated scalar-count expression over the subject row `<a>`.
-// countSql already filters soft-deleted counted rows so the count matches the
-// live-only list the routes render (the outer query hides `deletedAt IS NOT
-// NULL`; an owner/member whose account is tombstoned must not keep a row
-// "owned"). `card:'one'` relations use a CASE so the same count machinery and
-// emitter cover a single-valued column with no special path.
+// Each entry declares its relation ONCE, as a FROM clause plus a WHERE
+// predicate that ties the related rows to the subject row `<a>`. Two SQL
+// shapes are generated from that one declaration:
+//
+//   countSql(a)  — the correlated scalar count used by the list-page filter
+//                  (`rel.owners = '2 or more'`), which needs a real number.
+//   probeSql(…)  — the "does ANY row in this view have this relation" check
+//                  the columns endpoints use to decide whether to offer the
+//                  filter at all. It needs a boolean, not a count.
+//
+// They are generated rather than written twice on purpose. The probe used to
+// be `EXISTS(SELECT 1 FROM Subject X WHERE scope AND (countSql) >= 1)`, and an
+// aggregate is an optimisation fence: Postgres cannot flatten it into a
+// semi-join, so it evaluated the correlated count once per subject row and
+// stopped only when it found a hit. With no `directReports` index and no hit
+// near the start of the heap that is a full table scan PER ROW — 8.1 s on a
+// 176 k-principal tenant, on every filter-bar load, and unbounded when the
+// relation is empty. Driving the probe from the relation side instead lets the
+// planner use a plain semi-join (8.1 s → 22 ms, and 1.9 ms with the
+// `ix_Principals_managerId` index from migration 075).
+//
+// `from` is null for a single-valued relation (a `managerId` column): there is
+// no second table, so the count degrades to a CASE and the probe to a plain
+// column test, with no special path in either generator.
+//
+// The relation's WHERE already filters soft-deleted related rows so the count
+// matches the live-only list the routes render (the outer query hides
+// `deletedAt IS NOT NULL`; an owner/member whose account is tombstoned must not
+// keep a row "owned").
 const REGISTRY = [
   // Principals ----------------------------------------------------
   {
     key: 'owners', label: 'Owners', table: 'principals', card: 'many',
-    countSql: (a) => `(SELECT count(*) FROM "PrincipalRelationships" pr
-       JOIN "Principals" rp ON rp.id = pr."relatedPrincipalId" AND rp."deletedAt" IS NULL
-      WHERE pr."principalId" = ${a}.id AND pr."relationshipType" = 'Owner')`,
+    from: `"PrincipalRelationships" pr
+       JOIN "Principals" rp ON rp.id = pr."relatedPrincipalId" AND rp."deletedAt" IS NULL`,
+    where: (a) => `pr."principalId" = ${a}.id AND pr."relationshipType" = 'Owner'`,
   },
   {
     key: 'sponsors', label: 'Sponsors', table: 'principals', card: 'many',
-    countSql: (a) => `(SELECT count(*) FROM "PrincipalRelationships" pr
-       JOIN "Principals" rp ON rp.id = pr."relatedPrincipalId" AND rp."deletedAt" IS NULL
-      WHERE pr."principalId" = ${a}.id AND pr."relationshipType" = 'Sponsor')`,
+    from: `"PrincipalRelationships" pr
+       JOIN "Principals" rp ON rp.id = pr."relatedPrincipalId" AND rp."deletedAt" IS NULL`,
+    where: (a) => `pr."principalId" = ${a}.id AND pr."relationshipType" = 'Sponsor'`,
   },
   {
     key: 'manager', label: 'Manager', table: 'principals', card: 'one',
-    countSql: (a) => `(CASE WHEN ${a}."managerId" IS NOT NULL THEN 1 ELSE 0 END)`,
+    from: null,
+    where: (a) => `${a}."managerId" IS NOT NULL`,
   },
   {
     key: 'ownsAgents', label: 'Owns agents', table: 'principals', card: 'many',
-    countSql: (a) => `(SELECT count(*) FROM "PrincipalRelationships" pr
-       JOIN "Principals" sp ON sp.id = pr."principalId" AND sp."deletedAt" IS NULL
-      WHERE pr."relatedPrincipalId" = ${a}.id AND pr."relationshipType" = 'Owner')`,
+    from: `"PrincipalRelationships" pr
+       JOIN "Principals" sp ON sp.id = pr."principalId" AND sp."deletedAt" IS NULL`,
+    where: (a) => `pr."relatedPrincipalId" = ${a}.id AND pr."relationshipType" = 'Owner'`,
   },
   {
     key: 'directReports', label: 'Direct reports', table: 'principals', card: 'many',
-    countSql: (a) => `(SELECT count(*) FROM "Principals" m
-      WHERE m."managerId" = ${a}.id AND m."deletedAt" IS NULL)`,
+    from: `"Principals" m`,
+    where: (a) => `m."managerId" = ${a}.id AND m."deletedAt" IS NULL`,
   },
   // Resources -----------------------------------------------------
   {
     // All assignment types (Direct/Indirect/Eligible) to match the resource
     // detail page's memberCount — one definition of "member".
     key: 'members', label: 'Members', table: 'resources', card: 'many',
-    countSql: (a) => `(SELECT count(*) FROM "ResourceAssignments" ra
-      WHERE ra."resourceId" = ${a}.id AND ra."deletedAt" IS NULL)`,
+    from: `"ResourceAssignments" ra`,
+    where: (a) => `ra."resourceId" = ${a}.id AND ra."deletedAt" IS NULL`,
   },
   {
     key: 'owners', label: 'Owners', table: 'resources', card: 'many',
-    countSql: (a) => `(SELECT count(*) FROM "ResourceRelationships" rr
+    from: `"ResourceRelationships" rr
        JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId"
-            AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
-      WHERE rr."parentResourceId" = ${a}.id AND rr."relationshipType" = 'HasOwnership')`,
+            AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL`,
+    where: (a) => `rr."parentResourceId" = ${a}.id AND rr."relationshipType" = 'HasOwnership'`,
   },
 ];
+
+// The correlated scalar count of related rows for subject row `<alias>`.
+// A single-valued relation has no rows to count, so it yields 0 or 1 directly.
+export function countSqlFor(entry, alias) {
+  return entry.from
+    ? `(SELECT count(*) FROM ${entry.from}
+      WHERE ${entry.where(alias)})`
+    : `(CASE WHEN ${entry.where(alias)} THEN 1 ELSE 0 END)`;
+}
+
+// "Does at least one subject row matching `subjectWhere` have this relation?"
+// The subject table is listed in the SAME FROM as the relation, so the whole
+// thing is one flat join the planner can answer with a semi-join — never a
+// per-row correlated aggregate. `subjectWhere` is written against alias `X`.
+export function probeSqlFor(entry, subjectTable, subjectWhere) {
+  const from = entry.from ? `"${subjectTable}" X, ${entry.from}` : `"${subjectTable}" X`;
+  return `EXISTS(SELECT 1 FROM ${from}
+      WHERE ${subjectWhere} AND ${entry.where('X')})`;
+}
 
 const TABLES = { principals: 'Principals', resources: 'Resources' };
 const SCOPE_COL = { principals: 'principalType', resources: 'resourceType' };
@@ -139,7 +182,7 @@ export function buildRelationshipWhere(relFilters, table, alias) {
       where += ' AND 1=0';
       continue;
     }
-    where += ` AND (${entry.countSql(alias)}) ${opn.op} ${opn.n}`;
+    where += ` AND (${countSqlFor(entry, alias)}) ${opn.op} ${opn.n}`;
   }
   return where;
 }
@@ -164,9 +207,7 @@ export async function discoverReferenceFields(table, scope = {}, conn = db) {
     scopeWhere += ` AND X."${SCOPE_COL[table]}" = $${params.length}`;
   }
 
-  const cols = entries.map(
-    (e, i) => `EXISTS(SELECT 1 FROM "${t}" X WHERE ${scopeWhere} AND (${e.countSql('X')}) >= 1) AS c${i}`,
-  );
+  const cols = entries.map((e, i) => `${probeSqlFor(e, t, scopeWhere)} AS c${i}`);
   const r = await conn.query(`SELECT ${cols.join(', ')}`, params);
   const row = r.rows[0] || {};
   return entries

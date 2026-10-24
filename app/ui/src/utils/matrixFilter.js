@@ -59,6 +59,11 @@ export const EMPTY_FILTER = {
   // Folded tuple keys in the layered attribute view (default none = all chosen
   // attributes shown as header rows; fold collapses a group).
   rollupCollapsed: [],
+  // How many attribute levels the layered fold shows at once. null = all of
+  // them. The grid corner's fold/unfold controls move this one level at a time,
+  // which folds or unfolds EVERY group together — rollupCollapsed can only say
+  // "this one group stops here".
+  rollupLevel: null,
   // Set automatically for an oversized attribute fold: serve it as a layered,
   // server-aggregated view instead of a flat per-subject grid.
   foldAttributes: false,
@@ -89,6 +94,11 @@ const oneOf = (value, allowed) => (allowed.includes(value) ? value : allowed[0])
 const text = (value) => (typeof value === 'string' && value ? value : null);
 // An array, deep-copied so wizard edits can't mutate the caller's filter.
 const list = (value) => (Array.isArray(value) ? structuredClone(value) : []);
+// A whole number of visible fold levels (1..6), else null = "show all levels".
+// Anything else — 0, a negative, a fraction, a numeric string, NaN — means no
+// cap rather than an error, so a hand-edited or older filter opens at full depth
+// instead of collapsing to a single column.
+const level = (value) => (Number.isInteger(value) && value >= 1 ? Math.min(value, 6) : null);
 
 // One condition block (subject / resource): both sides always present, always
 // arrays, always copied.
@@ -133,6 +143,7 @@ export function normalizeMatrixFilter(f) {
     // reopening the wizard doesn't collapse what the analyst expanded.
     rollupExpanded: list(src.rollupExpanded),
     rollupCollapsed: list(src.rollupCollapsed),
+    rollupLevel: level(src.rollupLevel),
     foldAttributes: !!src.foldAttributes,
     sortAttributes: normalizeSort(src.sortAttributes),
     sortHierarchy: normalizeHierarchy(src.sortHierarchy),
@@ -157,7 +168,7 @@ export function normalizeMatrixFilter(f) {
 //   * view state. Which groups are folded and how far the analyst has drilled
 //     is where they are IN the matrix, not which matrix it is; the wizard
 //     rewrites those keys on every apply.
-const VIEW_STATE_KEYS = ['rollupExpanded', 'rollupCollapsed', 'rollupPath', 'foldAttributes'];
+const VIEW_STATE_KEYS = ['rollupExpanded', 'rollupCollapsed', 'rollupLevel', 'rollupPath', 'foldAttributes'];
 
 // Stable key order, so two semantically-equal filters built along different
 // paths (the wizard vs. a JSONB round-trip out of the database) compare equal.

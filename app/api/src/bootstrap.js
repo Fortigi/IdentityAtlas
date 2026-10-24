@@ -14,17 +14,19 @@
 // worker would have read from WorkerConfig in v4.
 
 import crypto from 'crypto';
-import { writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import * as db from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { stampSchemaVersion } from './updates/componentVersions.js';
-import { selfTest as vaultSelfTest, rebindLegacySecrets } from './secrets/vault.js';
+import { ensureMasterKey } from './secrets/masterKeyStore.js';
+import { rebindLegacySecrets } from './secrets/vault.js';
 import { startScheduler } from './scheduler.js';
 import { seedContextAlgorithms } from './contexts/seedAlgorithms.js';
 import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js';
 import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
 import { revokeIdleTokens } from './auth/readTokens.js';
+import { capCrawlerAuditLog, resolveAuditLogCap } from './lib/crawlerAuditLogCap.js';
 import { startUpdateCheckJob } from './updates/job.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
@@ -176,6 +178,14 @@ function startHistoryPruneJob() {
       console.error('Read-token idle revoke failed (will retry next interval):', err.message);
     }
 
+    // Keep CrawlerAuditLog bounded per crawler (independent of history retention).
+    try {
+      const trimmed = await capCrawlerAuditLog(db, resolveAuditLogCap());
+      if (trimmed > 0) console.log(`Crawler audit log: trimmed ${trimmed} row(s) beyond the per-crawler cap`);
+    } catch (err) {
+      console.error('Crawler audit log trim failed (will retry next interval):', err.message);
+    }
+
     try {
       const r = await db.queryOne(
         `SELECT "configValue" FROM "WorkerConfig" WHERE "configKey" = $1`,
@@ -205,70 +215,6 @@ function startHistoryPruneJob() {
 
   setTimeout(prune, FIRST_RUN_DELAY_MS);
   setInterval(prune, PRUNE_INTERVAL_MS);
-}
-
-// Verify the secrets vault has a usable master key. Resolution order:
-//   1. IDENTITY_ATLAS_MASTER_KEY env var (preferred — user controls it)
-//   2. /data/uploads/.master-key file (auto-generated on first boot, persisted
-//      across restarts in the same docker volume as the worker key)
-//
-// The file fallback exists so the docker-compose stack works out of the box
-// without requiring the operator to set an env var before first start. The file
-// has 0600 perms and lives inside the same volume that already holds other
-// secrets-equivalent data (the built-in worker API key). For real production
-// deployments, setting IDENTITY_ATLAS_MASTER_KEY explicitly is still preferred
-// (so it can be sourced from a real secret store) and the file fallback never
-// kicks in.
-import { readFileSync } from 'fs';
-const MASTER_KEY_FILE = process.env.MASTER_KEY_FILE || '/data/uploads/.master-key';
-
-function ensureVaultKey() {
-  if (process.env.IDENTITY_ATLAS_MASTER_KEY) {
-    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — check IDENTITY_ATLAS_MASTER_KEY');
-    return;
-  }
-  // Try to read the key file directly — avoids TOCTOU between existsSync and readFileSync.
-  let key;
-  try {
-    key = readFileSync(MASTER_KEY_FILE, 'utf8').trim();
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      // File exists but is unreadable (permissions, ownership mismatch, etc.)
-      throw new Error(
-        `Master key file exists at ${MASTER_KEY_FILE} but could not be read: ${err.message}. ` +
-        `This usually means the file is owned by a different user than the web container. ` +
-        `Fix with: docker compose exec -u 0 web chown -R node:node /data`
-      );
-    }
-    // ENOENT → first boot — fall through to generate a new key
-    key = null;
-  }
-  if (key !== null) {
-    if (!key) {
-      throw new Error(`Master key file ${MASTER_KEY_FILE} is empty. Delete it and restart the web container to regenerate.`);
-    }
-    process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-    if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed — master key file is corrupt');
-    console.log(`Master key loaded from ${MASTER_KEY_FILE}`);
-    return;
-  }
-  // First boot — generate a key and persist it
-  key = crypto.randomBytes(32).toString('base64');
-  process.env.IDENTITY_ATLAS_MASTER_KEY = key;
-  try {
-    mkdirSync(dirname(MASTER_KEY_FILE), { recursive: true });
-    writeFileSync(MASTER_KEY_FILE, key, { mode: 0o600, encoding: 'utf8' });
-    console.log(`Master key generated and persisted to ${MASTER_KEY_FILE}`);
-    console.log('For production, prefer setting IDENTITY_ATLAS_MASTER_KEY explicitly so the key can be backed up.');
-  } catch (err) {
-    // Can't persist → refuse to continue. Running with an ephemeral key would
-    // silently lose all secrets on the next container restart.
-    throw new Error(
-      `Could not persist master key to ${MASTER_KEY_FILE}: ${err.message}. ` +
-      `Set IDENTITY_ATLAS_MASTER_KEY explicitly in the compose env, or fix the volume permissions.`
-    );
-  }
-  if (!vaultSelfTest()) throw new Error('Secrets vault self-test failed after key generation');
 }
 
 // ─── Tag-root bootstrap ─────────────────────────────────────────────────────
@@ -349,6 +295,29 @@ export async function getOrCreateTagRoot(targetType) {
 // (this is what hit a customer during a version upgrade). Migrating first
 // guarantees a newer version always upgrades the schema before anything else
 // touches the database.
+// The assistants that use the report generator, each warmed only where its own
+// feature is on and a model server is configured (their warmAtStartup decides).
+// The paths are literals on purpose: the portable build bundles the API with
+// esbuild, which only follows import() of a literal, so a path in a variable
+// there resolves to a file that does not exist and the warm-up never ran.
+export const GENERATOR_WARMUPS = [
+  () => import('./nlreports/service.js'),
+  () => import('./contextAssistant/service.js'),
+];
+
+// One after the other: the server has a single slot, so preparing both prompts at
+// once would only queue behind itself. A failure in one never stops the next.
+export async function warmReportGenerators(loaders = GENERATOR_WARMUPS, warn = console.warn) {
+  for (const load of loaders) {
+    try {
+      const { warmAtStartup } = await load();
+      await warmAtStartup();
+    } catch (err) {
+      warn('Report generator warm-up skipped:', err.message);
+    }
+  }
+}
+
 export async function migrateDatabase() {
   if (process.env.USE_SQL !== 'true') return;
   const pool = await db.getPool();
@@ -367,7 +336,7 @@ export async function migrateDatabase() {
 export async function bootstrapWorker() {
   if (process.env.USE_SQL !== 'true') return;
   try {
-    ensureVaultKey();
+    await ensureMasterKey();
     await ensureBuiltinCrawler();
     // Move any legacy plaintext crawler clientSecrets into the encrypted vault.
     try {
@@ -414,19 +383,36 @@ export async function bootstrapWorker() {
       }
     } catch { /* CrawlerJobs table may not exist on first boot */ }
 
-    // Initial matrix-view refresh. Migration 013 creates the matrix
-    // materialized views WITH NO DATA, so they're empty on first boot
-    // after the migration runs. Any request to /api/permissions would
-    // return zero rows until something triggers a refresh. Kick it off
-    // here so the UI is usable immediately. If the data is already
-    // populated, CONCURRENTLY makes this cheap (incremental).
+    // Staged loads live in memory; any stage table left by a previous run is
+    // unreachable now (see ingest/stages.js).
     try {
-      const { refreshMatrixViews } = await import('./routes/ingest.js');
-      await refreshMatrixViews();
-      console.log('Matrix views refreshed');
+      const { dropAbandonedStages } = await import('./ingest/stages.js');
+      const dropped = await dropAbandonedStages();
+      if (dropped) console.log(`Dropped ${dropped} abandoned ingest stage table(s)`);
     } catch (err) {
-      console.warn('Matrix-view refresh skipped:', err.message);
+      console.warn('Stage cleanup skipped:', err.message);
     }
+
+    // Migration 013 creates the matrix materialized views WITH NO DATA, so on
+    // first boot they are empty until something builds them — and a view that was
+    // refreshed once while the database was still empty stays populated-AND-empty
+    // forever, because `ispopulated` says it is fine. Build them here in those two
+    // cases only. A populated, non-empty view is NOT refreshed on start: at scale
+    // that is minutes of work and gigabytes of result, and it used to run on every
+    // restart — including the restart after a crash (scale-rehearsal.md).
+    //
+    // The rebuild runs in the background, so nothing here can hold up the port
+    // index.js has already bound.
+    try {
+      const { ensureMatrixViewsPopulated } = await import('./routes/ingest.js');
+      const outcome = await ensureMatrixViewsPopulated();
+      console.log(`Matrix views at startup: ${outcome}`);
+    } catch (err) {
+      console.warn('Matrix-view population skipped:', err.message);
+    }
+    // Report generator (experimental): prepare the model's prompt cache in the
+    // background. Never blocks startup.
+    void warmReportGenerators();
     console.log('Bootstrap complete');
   } catch (err) {
     console.error('Bootstrap failed (will retry on next request):', err.message);
