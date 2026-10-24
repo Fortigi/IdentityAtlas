@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for Adjust tree (docs/architecture/adjust-tree.md): tree keys, validating and describing adjustments, recognising a re-keyed unit or renamed value, the apply/undo handlers, the service that re-applies a tree after every rebuild, the read views and the attention list, the routes, and the manager hierarchy's layout options (choosing the top, naming from members, splitting by department, Not placed). WHY THESE FILES: an adjustment that is silently dropped, followed to the wrong unit, or applied twice moves people and units in a tree that access reviews and reports read -- and it repeats on every crawl. MUTATOR SET: StringLiteral and ObjectLiteral disabled like the sibling configs, so SQL text is not mutated; the SQL is the job of contract-tests/treeAdjustments.contract.test.js. KNOWN GAP: the database-bound handlers (apply.js, applySplit.js, applyCommon.js, undo.js, service.js, view.js, attention.js) are exercised end to end only by that contract test, so their unit-run mutation score will be low until they get unit tests over a fake runner. Run: cd app/api && npm run test:mutation:adjusttree NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.adjusttree.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-adjusttree.json"
+  },
+  "mutate": [
+    "src/contexts/adjustments/afterSync.js",
+    "src/contexts/adjustments/apply.js",
+    "src/contexts/adjustments/applyCommon.js",
+    "src/contexts/adjustments/applySplit.js",
+    "src/contexts/adjustments/attention.js",
+    "src/contexts/adjustments/detect.js",
+    "src/contexts/adjustments/ops.js",
+    "src/contexts/adjustments/service.js",
+    "src/contexts/adjustments/treeKey.js",
+    "src/contexts/adjustments/treeStore.js",
+    "src/contexts/adjustments/undo.js",
+    "src/contexts/adjustments/view.js",
+    "src/contexts/plugins/manager-hierarchy.layout.js",
+    "src/contexts/plugins/manager-hierarchy.options.js",
+    "src/routes/contexts/trees.js"
+  ],
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

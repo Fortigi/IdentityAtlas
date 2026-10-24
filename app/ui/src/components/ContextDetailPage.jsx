@@ -204,9 +204,11 @@ function riskShown(features, riskData) {
 
 // The header's actions for this reader: Back to Contexts for the analyst on
 // the standalone page (a business reader gets no way out to the app), Open as
-// page when embedded, Edit and Add sub-unit where edits last.
+// page when embedded, Edit and Add sub-unit where edits last, and Adjust tree
+// for the analyst (the API says whether this unit's tree can be adjusted).
 function headerActions({ analyst, editable, embedded, attrs, onClose, onOpenAsPage, onEdit, onAddSubUnit }) {
   return {
+    canAdjustTree: analyst,
     onClose: analyst ? onClose : undefined,
     onOpenAsPage: embedded ? () => onOpenAsPage?.(attrs) : undefined,
     onEdit: editable ? onEdit : undefined,
