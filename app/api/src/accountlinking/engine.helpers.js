@@ -69,14 +69,31 @@ export function suffixesFrom(rules) {
   return (rules.signals || []).find(s => s.type === 'fuzzy')?.stripSuffixes || [];
 }
 /**
- * The names of every signal that is a name match and nothing else. `fuzzy` is
- * included: it is the legacy single-signal name comparison, so a match resting
- * only on it is just as uncorroborated as one resting on `fullName`.
+ * The level each signal that is a name match and nothing else fires at, by
+ * signal name. `fuzzy` is included: it is the legacy single-signal name
+ * comparison, so a match resting only on it is just as uncorroborated as one
+ * resting on `fullName` — and it compares whole names, so it reports `full`.
+ *
+ * @returns {Map<string, 'full'|'surnameInitial'>}
  */
-export function nameSignalNames(rules) {
-  return new Set((rules.signals || [])
+export function nameSignalLevels(rules) {
+  return new Map((rules.signals || [])
     .filter(s => s.type === 'name' || s.type === 'fuzzy')
-    .map(s => s.name));
+    .map(s => [s.name, s.type === 'fuzzy' ? 'full' : s.level]));
+}
+
+/** The names of every signal that is a name match and nothing else. */
+export function nameSignalNames(rules) {
+  return new Set(nameSignalLevels(rules).keys());
+}
+
+/**
+ * The level a name-only match rests on. The name signals are mutually exclusive
+ * — exactly one of them fires — so the first name signal among those that did is
+ * the level, and null means the match fired no name signal at all.
+ */
+export function matchLevelOf(signals, nameLevels) {
+  return signals.map(s => nameLevels.get(s)).find(Boolean) ?? null;
 }
 
 /** True when a match fired at least one signal and every one of them is a name signal. */
@@ -170,25 +187,52 @@ function strongestClaims(underKey, key, carried, variantsOf) {
 }
 
 /**
- * Everyone with a claim to ONE of the names an account carries.
+ * Everyone with a claim to ONE of the names an account carries, weighed at the
+ * level the name's own evidence rests on.
  *
- * The name is read at both levels the engine scores a name at, and a claim at
- * either level counts: the people spelled exactly that name, and the people who
- * share its surname and given initial. The second half is what the tie between
- * top-scoring candidates cannot see — `Johannes Jansen` never scores high enough
- * to tie with the `Jan Jansen` an account is named after, yet he is exactly who
- * that account may belong to (#1440).
+ * The name is read at the two levels the engine scores a name at, but not at
+ * both at once: whoever is spelled exactly that name answers to it, and only
+ * when NOBODY is does sharing its surname and given initial make somebody a
+ * claimant. That fallback is what the tie between top-scoring candidates cannot
+ * see — an account spelled `Johan Jansen` matches nobody exactly, and both the
+ * `Jan` and the `Johannes` it may belong to stand one initial away (#1440).
+ *
+ * Reading both levels at once instead made every near spelling a rival of a name
+ * only one person answers to, so `Youssef El Mahdi` could not be placed while a
+ * Yasmina or a Yassin existed (#1460). A rival at a weaker level is not a
+ * competing answer to the name the account actually carries.
  *
  * @returns {Map<string, object>} identity id → identity
  */
 function claimantsOfName(v, indexes, exactCarried, initialCarried) {
   const ek = EXACT_KEY(v);
   const ik = INITIAL_KEY(v);
-  const under = new Map();
-  const add = (list) => { for (const idy of list) under.set(idy.id, idy); };
-  add(strongestClaims(indexes.byNameKey.get(ek) || [], ek, exactCarried.get(ek), nameKeyVariants));
-  add(strongestClaims(indexes.bySurnameInitial.get(ik) || [], ik, initialCarried.get(ik), nameInitialVariants));
-  return under;
+  const spelled = indexes.byNameKey.get(ek) || [];
+  const claims = spelled.length
+    ? strongestClaims(spelled, ek, exactCarried.get(ek), nameKeyVariants)
+    : strongestClaims(indexes.bySurnameInitial.get(ik) || [], ik, initialCarried.get(ik), nameInitialVariants);
+  return new Map(claims.map(idy => [idy.id, idy]));
+}
+
+/**
+ * Whether one of the account's names is also shared — at the weaker surname +
+ * given initial level only — by somebody other than the people spelled it.
+ *
+ * `claimantsOfName` disregards those, so a link this run makes on such a name is
+ * one the pre-#1460 cross-level reading would have held for review, and would
+ * have detached if an earlier run had made it. A run counts the links of this
+ * class it creates (`linksRestored`) so the one-off restore after the upgrade is
+ * visible to an analyst rather than silent.
+ */
+export function sharedAtWeakerLevel(person, indexes) {
+  for (const v of personNames(person)) {
+    const ik = INITIAL_KEY(v);
+    if (!ik) continue;
+    const spelled = new Set((indexes.byNameKey.get(EXACT_KEY(v)) || []).map(idy => idy.id));
+    if (!spelled.size) continue; // nobody is spelled it, so the claim already rests here
+    if ((indexes.bySurnameInitial.get(ik) || []).some(idy => !spelled.has(idy.id))) return true;
+  }
+  return false;
 }
 
 /**
@@ -197,11 +241,12 @@ function claimantsOfName(v, indexes, exactCarried, initialCarried) {
  * A person is indexed under every name they are known by (their name in use and
  * the birth surname an HR column holds), so this is not one question but one per
  * name the account carries. A name singles someone out when they are its only
- * claimant at either level. The account's name points at exactly one person when
- * some name singles them out and no other name singles out anybody else: two
- * people sharing only a birth surname then do not block the match that is unique
- * on the name in use, while a second person spelled the same — or near enough to
- * be the same name — leaves nothing to choose between them.
+ * claimant at the level that name's evidence rests on (see `claimantsOfName`).
+ * The account's name points at exactly one person when some name singles them
+ * out and no other name singles out anybody else: two people sharing only a
+ * birth surname then do not block the match that is unique on the name in use,
+ * while a second person spelled the same leaves nothing to choose between them —
+ * as do two people one initial away from a spelling neither of them has.
  *
  * Names that can never fire a name signal (no surname, or no given name) are
  * skipped: indexed under a bare surname they would collect claimants the engine

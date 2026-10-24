@@ -61,6 +61,37 @@ describe('NameOnlyMatchesCard (mounted)', () => {
     expect(within(single).getByText('no second signal')).toBeInTheDocument();
   });
 
+  it('says which name the rivals share, at the level the match rested on', async () => {
+    // Two holds, two different findings: one rival is spelled the account's full
+    // name, the other only shares its surname and first initial. One sentence for
+    // both reads as "these people answer to this name", which is false of the
+    // second and sends the analyst looking for a namesake who does not exist.
+    mount([{ status: 'completed', nameOnlyMatches: 2, nameOnlySuggestions: [
+      ambiguous({
+        principalId: 'p-exact', displayName: 'Youssef El Mahdi', matchLevel: 'full',
+        rivals: [{ identityId: 'i9', identityName: 'Youssef El Mahdi' }],
+      }),
+      ambiguous({
+        principalId: 'p-initial', displayName: 'Youri El Mahdi', matchLevel: 'surnameInitial',
+        rivals: [{ identityId: 'i2', identityName: 'Yassin El Mahdi' }],
+      }),
+    ] }]);
+
+    const exact = (await screen.findByText('Youssef El Mahdi')).closest('tr');
+    expect(within(exact).getByText(/full name also answered to by Youssef El Mahdi/i)).toBeInTheDocument();
+    const initial = screen.getByText('Youri El Mahdi').closest('tr');
+    expect(within(initial).getByText(/surname and first initial also shared by Yassin El Mahdi/i))
+      .toBeInTheDocument();
+  });
+
+  it('keeps the old wording for a stored run that predates the matched level', async () => {
+    // A run stored before the field existed cannot say which name was shared, and
+    // guessing "full name" for it would be a claim the run never made.
+    mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [ambiguous()] }]);
+
+    expect(await screen.findByText(/^name also answered to by Johanna Doe$/i)).toBeInTheDocument();
+  });
+
   it('counts the rivals it did not name', async () => {
     // The stored rival list is capped. Showing only the two it holds would report a
     // four-way namesake as a straight choice between two people.

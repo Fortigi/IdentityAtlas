@@ -16,11 +16,14 @@ import {
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
+  nameSignalLevels,
+  matchLevelOf,
   isNameOnly,
   parseLinkSignals,
   indexIdentities,
   collectCandidates,
   nameClaim,
+  sharedAtWeakerLevel,
   aggregateByIdentity,
 } from './engine.helpers.js';
 import { DEFAULT_RULES } from './defaultRules.js';
@@ -318,6 +321,88 @@ describe('signal lookup by type', () => {
   });
 });
 
+// ── Which level a name signal fires at ───────────────────────────────────────
+//
+// The held-for-review card explains an ambiguous hold by naming what the rivals share,
+// and that is a different name at each level. The level comes off the signal that fired.
+
+describe('nameSignalLevels / matchLevelOf', () => {
+  const rules = {
+    signals: [
+      { type: 'exact', name: 'email', field: 'email' },
+      { type: 'name',  name: 'fullName',       level: 'full' },
+      { type: 'name',  name: 'surnameInitial', level: 'surnameInitial' },
+      { type: 'fuzzy', name: 'legacyName' },
+    ],
+  };
+  const levels = nameSignalLevels(rules);
+
+  it('maps each name signal to the level it fires at, and skips the rest', () => {
+    expect(Object.fromEntries(levels)).toEqual({
+      fullName: 'full', surnameInitial: 'surnameInitial', legacyName: 'full',
+    });
+  });
+
+  it('calls the legacy fuzzy signal a full-name match', () => {
+    // It compares whole names, so a hold resting on it has rivals spelled the account's
+    // name -- reading it as a surname+initial hold would describe the hold wrongly.
+    expect(levels.get('legacyName')).toBe('full');
+  });
+
+  it('reads the level off the name signal among the ones that fired', () => {
+    // A match can fire a non-name signal alongside (an above-threshold name-only match is
+    // the guard's subject, but the level is a property of the name evidence either way).
+    expect(matchLevelOf(['surnameInitial'], levels)).toBe('surnameInitial');
+    expect(matchLevelOf(['email', 'fullName'], levels)).toBe('full');
+  });
+
+  it('reports no level for a match that fired no name signal at all', () => {
+    expect(matchLevelOf(['email'], levels)).toBeNull();
+    expect(matchLevelOf([], levels)).toBeNull();
+  });
+});
+
+// ── A rival one level down (#1460) ───────────────────────────────────────────
+//
+// What the level-scoped claim deliberately ignores, and what a run counts so the
+// one-off re-link of that whole class on upgrade is visible instead of silent.
+
+describe('sharedAtWeakerLevel', () => {
+  const youssef = { id: 'youssef', displayName: 'Youssef El Mahdi' };
+  const yasmina = { id: 'yasmina', displayName: 'Yasmina El Mahdi' };
+
+  it('is true when somebody shares the surname and initial of a name spelled by one person', () => {
+    expect(sharedAtWeakerLevel({ id: 'o', displayName: 'Youssef El Mahdi' },
+      indexIdentities([youssef, yasmina]))).toBe(true);
+  });
+
+  it('is false when the only other claimant is spelled the name too', () => {
+    // A rival at the SAME level is not one level down -- that match is still held, so
+    // counting it as restored would report a re-link that did not happen.
+    const twin = { id: 'twin', displayName: 'Youssef El Mahdi' };
+    expect(sharedAtWeakerLevel({ id: 'o', displayName: 'Youssef El Mahdi' },
+      indexIdentities([youssef, twin]))).toBe(false);
+  });
+
+  it('is false when nobody is spelled the name, so the claim already rests at that level', () => {
+    expect(sharedAtWeakerLevel({ id: 'o', displayName: 'Youri El Mahdi' },
+      indexIdentities([youssef, yasmina]))).toBe(false);
+  });
+
+  it('is false for a name nobody is anywhere near', () => {
+    expect(sharedAtWeakerLevel({ id: 'o', displayName: 'Youssef El Mahdi' },
+      indexIdentities([youssef]))).toBe(false);
+  });
+
+  it('ignores a name that could never fire a name signal', () => {
+    // A single-token display name parses to a bare surname with no initial key, so it has
+    // no weaker level to be shared at -- counted, every surname-less account would report
+    // as restored.
+    expect(sharedAtWeakerLevel({ id: 'o', displayName: 'Mahdi' },
+      indexIdentities([youssef, yasmina, { id: 'bare', displayName: 'Mahdi' }]))).toBe(false);
+  });
+});
+
 // ── isNameOnly / parseLinkSignals ────────────────────────────────────────────
 //
 // The two predicates behind the name-only guard. isNameOnly decides whether a match is
@@ -466,25 +551,25 @@ describe('nameClaim', () => {
   });
 });
 
-// ── A near-identical name is a rival too (#1440) ─────────────────────────────
+// ── A near-identical name is a rival where nobody is spelled it (#1440) ──────
 //
 // The tie between top-scoring candidates cannot see the case that actually went
 // wrong: the real owner is spelled a little differently, so she scores BELOW the
-// namesake who matches cleanly and never ties with her. Reading a name at both
-// levels the engine scores names at -- the full name and the surname + given
-// initial -- is what makes her visible.
+// candidate who matches cleanly and never ties with her. Reading the surname +
+// given initial level is what makes her visible -- and #1460 scoped that reading
+// to the names nobody is spelled exactly, where it is the only reading there is.
 
 describe('nameClaim - a namesake behind a near-identical spelling (#1440)', () => {
   const jan = { id: 'jan', displayName: 'Jan Jansen' };
   const johannes = { id: 'johannes', displayName: 'Johannes Jansen' };
   const account = { id: 'o', displayName: 'Jan Jansen' };
 
-  it('points at nobody when a second person shares the surname and initial', () => {
+  it('points at the exact match even when a second person shares the initial', () => {
     // "Jan Jansen" is an exact match for one of them and a plausible spelling of
-    // the other. Nothing in the name says which, so neither may have it.
+    // the other -- but only one of them is called it, and that settles it (#1460).
     const claim = nameClaim(account, indexIdentities([jan, johannes]));
-    expect(claim.sole).toBeNull();
-    expect(claim.claimants).toEqual([jan, johannes]);
+    expect(claim.sole).toBe(jan);
+    expect(claim.claimants).toEqual([jan]);
   });
 
   it('points at the exact match when the tenant holds nobody near it', () => {
@@ -576,6 +661,66 @@ describe('nameClaim - name in use vs birth surname under one key (#1439)', () =>
     // it would hand the account to a stranger over its own name in use.
     const fromHr = { id: 'o2', displayName: 'Anna de Boer-Jansen', givenName: 'Anna', surname: 'Jansen' };
     expect(nameClaim(fromHr, indexIdentities([jansen, deBoer])).sole).toBe(deBoer);
+  });
+});
+
+// ── Rivalry is scoped to the matched level (#1460) ───────────────────────────
+//
+// A claim is weighed at the level the name's own evidence rests on. Read across
+// both levels at once, every identity sharing a surname and first initial votes
+// against a spelling only one of them answers to: "Youssef El Mahdi" is held
+// because Yasmina and Yassin exist, though neither is called that. The exact
+// level therefore decides whenever anybody is spelled the name, and the initial
+// level only steps in when nobody is — which is the level an account that shows
+// no full name (#1455) rests on, and where the near-identical rival of #1440 is
+// still counted.
+
+describe('nameClaim - rivalry is scoped to the level the name matches at (#1460)', () => {
+  const youssef = { id: 'youssef', displayName: 'Youssef El Mahdi' };
+  const yasmina = { id: 'yasmina', displayName: 'Yasmina El Mahdi' };
+  const yassin = { id: 'yassin', displayName: 'Yassin El Mahdi' };
+  const account = { id: 'o', displayName: 'Youssef El Mahdi' };
+
+  it('points at the one person spelled exactly this name, despite initial-level rivals', () => {
+    expect(nameClaim(account, indexIdentities([youssef, yasmina, yassin])).sole).toBe(youssef);
+  });
+
+  it('names only the matched level’s rivals as claimants', () => {
+    // The claimant list is what a held match shows the analyst as "who else
+    // answers to this name". Yasmina and Yassin do not answer to it, so listing
+    // them describes the hold wrongly as well as causing it.
+    expect(nameClaim(account, indexIdentities([youssef, yasmina, yassin])).claimants).toEqual([youssef]);
+  });
+
+  it('points at nobody when a second person is spelled exactly the same', () => {
+    // Two real namesakes tie at the exact level, which is the case the guard
+    // exists for: scoping rivalry to the matched level must not reduce to
+    // "whoever matches best wins".
+    const twin = { id: 'twin', displayName: 'Youssef El Mahdi' };
+    const claim = nameClaim(account, indexIdentities([youssef, twin, yasmina]));
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants).toEqual([youssef, twin]);
+  });
+
+  it('points at nobody when the namesake’s spelling differs only by a title', () => {
+    // #1443's measured wrong-link class: a title is stripped before keying, so
+    // "drs. Youssef El Mahdi" is the same name and shares the exact key.
+    const titled = { id: 'titled', displayName: 'drs. Youssef El Mahdi' };
+    expect(nameClaim(account, indexIdentities([youssef, titled])).sole).toBeNull();
+  });
+
+  it('weighs a name nobody is spelled exactly at the initial level instead', () => {
+    // "Youri" is nobody's name here, so this account's evidence sits at the
+    // initial level — where two people stand, and it still points at neither.
+    const claim = nameClaim({ id: 'o2', displayName: 'Youri El Mahdi' }, indexIdentities([youssef, yassin]));
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants).toEqual([youssef, yassin]);
+  });
+
+  it('points at the only person sharing the surname and initial when nobody is spelled it', () => {
+    // The paired case, and what #1455 rests on: the initial level is load-bearing
+    // precisely where the exact level has nothing to say.
+    expect(nameClaim({ id: 'o3', displayName: 'Youri El Mahdi' }, indexIdentities([youssef])).sole).toBe(youssef);
   });
 });
 

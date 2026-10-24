@@ -46,10 +46,13 @@ import {
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
+  nameSignalLevels,
+  matchLevelOf,
   isNameOnly,
   indexIdentities,
   collectCandidates,
   nameClaim,
+  sharedAtWeakerLevel,
   aggregateByIdentity,
 } from './engine.helpers.js';
 import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
@@ -126,6 +129,7 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
     prefixes: prefixesFrom(rules),
     suffixes: suffixesFrom(rules),
     nameSigs: nameSignalNames(rules),
+    nameLevels: nameSignalLevels(rules),
     allowNameOnly: rules.allowNameOnlyLinks !== false,
     indexes: indexIdentities(identities),
   };
@@ -164,8 +168,12 @@ function pickBest(orphan, candidates, rules, threshold) {
   return { best, scored };
 }
 
-/** The row to write for a scored candidate. */
-function linkFrom(orphan, candidate, accountType, pattern) {
+/**
+ * The row to write for a scored candidate. `weakerLevelRival` is not stored on
+ * the member row — the run reads it off the links it creates to report
+ * `linksRestored` (see `sharedAtWeakerLevel`).
+ */
+function linkFrom(orphan, candidate, accountType, pattern, weakerLevelRival = false) {
   return {
     principalId: orphan.id,
     identityId: candidate.identityId,
@@ -175,6 +183,7 @@ function linkFrom(orphan, candidate, accountType, pattern) {
     accountTypePattern: pattern,
     displayName: orphan.displayName ?? null,
     accountEnabled: orphan.accountEnabled ?? null,
+    weakerLevelRival,
   };
 }
 
@@ -182,8 +191,15 @@ function linkFrom(orphan, candidate, accountType, pattern) {
  * The held-for-review record of a name-only match: who nearly linked to whom,
  * on what evidence, why it was held, and who else answers to the name — which
  * is what makes the match reviewable rather than merely counted.
+ *
+ * `matchLevel` is the level the match itself rested on, and it is what makes the
+ * rival list readable: at `full` the rivals are spelled exactly the account's
+ * name, at `surnameInitial` they merely share its surname and first initial, and
+ * calling both "answers to this name" sends the reviewer after a namesake who
+ * does not exist. Recorded for either reason, since it describes the match and
+ * not the hold.
  */
-function suggestionFrom(orphan, candidate, accountType, reason, claimants) {
+function suggestionFrom(orphan, candidate, accountType, reason, claimants, matchLevel) {
   const rivals = claimants.filter(c => c.id !== candidate.identityId);
   return {
     principalId: orphan.id,
@@ -194,6 +210,7 @@ function suggestionFrom(orphan, candidate, accountType, reason, claimants) {
     signals: candidate.signals,
     accountType,
     reason,
+    matchLevel,
     rivals: rivals.slice(0, MAX_NAME_ONLY_RIVALS)
       .map(c => ({ identityId: c.id, identityName: c.displayName ?? null })),
     rivalCount: rivals.length,
@@ -209,7 +226,8 @@ function suggestionFrom(orphan, candidate, accountType, reason, claimants) {
  *   (the match a guard held for review) is set.
  */
 function buildLinkForOrphan(orphan, ctx) {
-  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes, nameSigs, allowNameOnly, indexes } = ctx;
+  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes,
+    nameSigs, nameLevels, allowNameOnly, indexes } = ctx;
   const { accountType, pattern } = classifyAccount(orphan, compiled);
   if (!onlyTypes.has(accountType)) return null;
 
@@ -222,10 +240,10 @@ function buildLinkForOrphan(orphan, ctx) {
 
   // The name-uniqueness guard. A match resting on name signals alone links only
   // where the account's name points at exactly one person (see nameClaim): a
-  // name shared with a second person — spelled the same, or near enough to be
-  // the same name — is no evidence of which of them the account belongs to, and
-  // the wrong one then inherits that person's access review, risk score and
-  // leaver handling. Those matches are held for review instead.
+  // name a second person answers to at the level the match rests on is no
+  // evidence of which of them the account belongs to, and the wrong one then
+  // inherits that person's access review, risk score and leaver handling. Those
+  // matches are held for review instead.
   //
   // The person the name points at has to be one of the top-scoring candidates
   // to win: a name that singles out somebody the score ranks lower settles
@@ -237,10 +255,12 @@ function buildLinkForOrphan(orphan, ctx) {
     : null;
   const winner = resolved ?? best;
   if (resolved && allowNameOnly) {
-    return { link: linkFrom(orphan, winner, accountType, pattern), suggestion: null };
+    const link = linkFrom(orphan, winner, accountType, pattern, sharedAtWeakerLevel(orphan, indexes));
+    return { link, suggestion: null };
   }
   const reason = resolved ? 'uncorroborated' : 'ambiguousName';
-  return { link: null, suggestion: suggestionFrom(orphan, winner, accountType, reason, claimants) };
+  const matchLevel = matchLevelOf(winner.signals, nameLevels);
+  return { link: null, suggestion: suggestionFrom(orphan, winner, accountType, reason, claimants, matchLevel) };
 }
 
 async function loadRules(configId) {
@@ -360,7 +380,17 @@ export async function runLinking(runId, configId = null) {
 
     await updateRun({ step: 'Writing links', pct: 70 });
     const counts = { created: 0, updated: 0, skipped: 0 };
-    for (const link of links) counts[await writeLink(link)] += 1;
+    // Links this run newly attached on a name somebody else shares only at the
+    // weaker surname + initial level: the class the pre-#1460 reading held for
+    // review and detached on sight. Counting only the *created* ones means the
+    // figure reports the one-off restore and then settles back to zero, instead
+    // of re-reporting the same links as restored on every subsequent run.
+    let linksRestored = 0;
+    for (const link of links) {
+      const outcome = await writeLink(link);
+      counts[outcome] += 1;
+      if (outcome === 'created' && link.weakerLevelRival) linksRestored += 1;
+    }
     const { created, updated, skipped } = counts;
 
     await updateRun({ step: 'Refreshing identity aggregates', pct: 85 });
@@ -391,6 +421,7 @@ export async function runLinking(runId, configId = null) {
       orphansRemaining,
       nameOnlyMatches: stats.nameOnlyMatches,
       linksRemoved,
+      linksRestored,
       nameOnlySuggestions: JSON.stringify(stats.suggestions),
     });
     await db.query(`UPDATE "AccountLinkingRuns" SET "completedAt" = now() AT TIME ZONE 'utc' WHERE id = $1`, [runId]);

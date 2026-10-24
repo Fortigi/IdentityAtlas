@@ -47,9 +47,10 @@
 
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
-
-const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
-const API = `${BASE}/api`;
+import {
+  API, openIngestSession, closeIngestSession, runAccountLinkingFromAdmin,
+  linkedAccountNames, linkedAccountsPanel,
+} from './accountLinkingSeed';
 
 // A token that makes every seeded surname unique to this run, so the spec can
 // never match a real person and two concurrent runs can't see each other.
@@ -86,25 +87,7 @@ const IDS = {
 };
 
 /** State the seed creates and the teardown has to give back. */
-const seeded = { crawlerId: null, apiKey: null, systemId: null, ready: false };
-
-async function postJson(url, body, apiKey) {
-  return fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-}
-
-/** One ingest batch under the seeded crawler key + system. Throws on refusal. */
-async function ingest(entity, body) {
-  const res = await postJson(`${API}/ingest/${entity}`, { systemId: seeded.systemId, syncMode: 'delta', records: [], ...body }, seeded.apiKey);
-  if (!res.ok) throw new Error(`ingest ${entity} failed: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
-  return res.json();
-}
+const seeded = { session: null, ready: false };
 
 /** An identity as an HR source writes it: free-text display name, clean columns. */
 const identity = (id, displayName, given, surname) => ({
@@ -129,26 +112,16 @@ const orphanAccount = (id, displayName, extra = {}) => ({
  * ingest), which is the only reason this spec skips.
  */
 async function seed() {
-  const created = await postJson(`${API}/admin/crawlers`, {
+  seeded.session = await openIngestSession({
     displayName: `e2e-1439-${TOKEN}`,
     description: 'Throwaway key for the #1439 account-linking E2E. Removed by the spec.',
-    permissions: ['ingest'],
+    system: { systemType: 'HR', tenantId: `e2e-1439-${TOKEN}`, displayName: `E2E #1439 HR (${TOKEN})` },
   });
-  if (!created.ok) return false;
-  const crawler = await created.json();
-  seeded.crawlerId = crawler.id;
-  seeded.apiKey = crawler.apiKey;
-
-  const sys = await postJson(`${API}/ingest/systems`, {
-    syncMode: 'delta',
-    records: [{ systemType: 'HR', tenantId: `e2e-1439-${TOKEN}`, displayName: `E2E #1439 HR (${TOKEN})` }],
-  }, seeded.apiKey);
-  if (!sys.ok) return false;
-  seeded.systemId = (await sys.json()).systemIds?.[0];
-  if (!seeded.systemId) return false;
+  if (!seeded.session.ok) return false;
+  const { mustIngest } = seeded.session;
 
   const { a, b, c, d, e } = FAMILIES;
-  await ingest('identities', {
+  await mustIngest('identities', {
     records: [
       // A: the only person of her name, and HR spells her with a title.
       identity(IDS.ownerA, titled(a), a.given, a.surname),
@@ -169,7 +142,7 @@ async function seed() {
     ],
   });
 
-  await ingest('principals', {
+  await mustIngest('principals', {
     records: [
       orphanAccount(IDS.orphanA, plain(a)),
       orphanAccount(IDS.orphanB, plain(b)),
@@ -191,64 +164,28 @@ async function seed() {
 }
 
 /**
- * Give the deployment its rows back: the identities (which cascades the links
- * this run wrote), then the accounts, then the system and the key.
+ * Give the deployment its rows back: the accounts first, then (in
+ * `closeIngestSession`) the identities, the system and the key.
  *
- * Principals are a soft-delete table, so the six throwaway accounts are
- * tombstoned rather than removed and the tombstone purge finalises them after
- * the history-retention window — that is the ingest contract, not something to
- * work around here. A tombstoned account is still counted as an orphan today
- * (#1442), so they are reclassified as non-human first: that is the one class
- * no human-facing surface reports on, and it keeps six ex-fixtures off a real
- * deployment's Orphaned Accounts report while they age out.
- *
- * The system row itself can only be disabled — the API has no delete for
- * Systems — so one disabled "E2E #1439 HR" connector per replay is residue the
- * spec cannot clear.
+ * A tombstoned account is no longer counted as an orphan (#1442), but the rows
+ * do survive the retention window, so they are reclassified as non-human on the
+ * way out: that is the one class no human-facing surface reports on, and it
+ * keeps six ex-fixtures off a real deployment's reports while they age out.
  */
 async function unseed() {
-  if (seeded.apiKey && seeded.systemId) {
-    await ingest('identities', {
-      deletedIds: [IDS.ownerA, IDS.ownerB, IDS.namesakeB, IDS.ownerC, IDS.ownerD, IDS.namesakeD,
-        IDS.ownerE, IDS.otherE],
-    }).catch(() => {});
-    await ingest('principals', {
+  if (seeded.session?.systemId) {
+    await seeded.session.ingest('principals', {
       records: [IDS.orphanA, IDS.orphanB, IDS.orphanC, IDS.orphanD, IDS.orphanE, IDS.orphanEOther]
         .map(id => ({ id, principalType: 'ServicePrincipal' })),
     }).catch(() => {});
     // An empty FULL batch is how a source says "this scope is empty now".
-    await ingest('principals', { syncMode: 'full' }).catch(() => {});
-    await fetch(`${API}/systems/${seeded.systemId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: false, description: 'Disabled leftover of the #1439 account-linking E2E.' }),
-    }).catch(() => {});
+    await seeded.session.ingest('principals', { syncMode: 'full' }).catch(() => {});
   }
-  if (seeded.crawlerId != null) {
-    await fetch(`${API}/admin/crawlers/${seeded.crawlerId}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ permanent: true }),
-    }).catch(() => {});
-  }
-}
-
-/** The display names under an identity's Linked Accounts, read from the API. */
-async function linkedAccountNames(identityId) {
-  const res = await fetch(`${API}/identities/${identityId}`);
-  if (!res.ok) return [];
-  return ((await res.json())?.members || []).map(m => m.displayName);
-}
-
-/** Admin → Account Linking → Run now, waited out to completion. */
-async function runAccountLinking(page) {
-  await page.goto('/#admin?sub=account-linking');
-  const runNow = page.getByRole('button', { name: /Run now/i });
-  await expect(runNow).toBeVisible({ timeout: 15000 });
-  await runNow.click();
-  // The panel polls the run row and reports the counts when it finishes. A run
-  // scans every orphan in the deployment, so allow for a populated tenant.
-  await expect(page.getByText(/Linking complete/i)).toBeVisible({ timeout: 180000 });
+  await closeIngestSession(seeded.session, {
+    identityIds: [IDS.ownerA, IDS.ownerB, IDS.namesakeB, IDS.ownerC, IDS.ownerD, IDS.namesakeD,
+      IDS.ownerE, IDS.otherE],
+    systemNote: 'Disabled leftover of the #1439 account-linking E2E.',
+  });
 }
 
 /** Identities → search → open one, the way the reporter got there. */
@@ -258,14 +195,6 @@ async function openIdentityFromList(page, displayName) {
   await expect(search).toBeVisible({ timeout: 15000 });
   await search.fill(displayName);
   await page.getByText(displayName, { exact: true }).first().click();
-}
-
-/** The Linked Accounts panel on an identity's Relationships tab. */
-async function linkedAccountsPanel(page) {
-  await page.getByRole('tab', { name: /Relationships/i }).click();
-  const panel = page.locator('div:has(> h3:text-is("Linked Accounts"))');
-  await expect(panel).toBeVisible({ timeout: 15000 });
-  return panel;
 }
 
 test.describe('Account Linking — titled HR names and particle surnames (#1439)', () => {
@@ -289,7 +218,7 @@ test.describe('Account Linking — titled HR names and particle surnames (#1439)
     const { a, b, c, d, e } = FAMILIES;
 
     // ── The reporter's path: Admin → Account Linking → Run ──────────────
-    await runAccountLinking(page);
+    await runAccountLinkingFromAdmin(page);
 
     // ── A: the titled owner gets her own account ────────────────────────
     // Through the UI, exactly as reported: Identities → open the person → the
