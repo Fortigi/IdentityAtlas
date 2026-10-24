@@ -95,11 +95,21 @@ The active configuration lives in the `AccountLinkingConfig` SQL table:
 
 | Field | Description |
 |---|---|
-| `rules` | The editable dictionary: weighted `signals`, regex `accountTypeRules`, the `linkThreshold` (the certainty slider), and `onlyLinkTypes`. |
+| `rules` | The editable dictionary: weighted `signals`, regex `accountTypeRules`, the `linkThreshold` (the certainty slider), `onlyLinkTypes`, and `allowNameOnlyLinks`. |
 | `schedules` | Array of schedules; the server-side scheduler queues a run when one matches the current minute. |
 | `isActive` | Whether linking is active. |
 
-Runs can also be triggered on demand from the same Admin page; each run records its progress in `AccountLinkingRuns`. Editing config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md) for the engine and dictionary.
+Keys inside `rules`:
+
+| Key | Default | Description |
+|---|---|---|
+| `signals` | 5 shipped signals | Weighted match rules. An account links to the candidate identity with the highest summed weight that clears `linkThreshold`. |
+| `accountTypeRules` | 4 shipped rules | Regex patterns classifying an account as Admin / Guest / Service / Shared. |
+| `linkThreshold` | `50` | Minimum confidence to auto-link — the certainty slider in the UI. |
+| `onlyLinkTypes` | `["Admin", "Guest", "Secondary"]` | Only these account types are ever attached to a person. |
+| `allowNameOnlyLinks` | `true` | A match whose signals are all name signals links where that name identifies exactly one person; where a second person answers to the same name — or to one sharing its surname and first initial — the match is counted and held for review instead, and any such link made earlier is removed on the next run. Set to `false` — unchecking **"Link on a name match alone"** in Admin → Account Linking — to hold back *every* name-only match, which stops a display-name-only source linking at all. Only a literal `false` opts out; a config that never stored the key runs the shipped policy. |
+
+Runs can also be triggered on demand from the same Admin page; each run records its progress in `AccountLinkingRuns`, including how many name-only matches it held for review and why (`nameOnlyMatches`, `nameOnlySuggestions`) and how many name-only links it removed because the policy would no longer create them (`linksRemoved`). Editing config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md) for the engine and dictionary.
 
 ---
 

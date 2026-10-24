@@ -14,6 +14,9 @@
 //     attached and never counted as a remaining orphan.
 //   - Matching is deterministic rule application against a dictionary
 //     (defaultRules.js, editable via AccountLinkingConfig.rules). No LLM.
+//   - A match resting on name signals alone links only where the account's name
+//     points at exactly one person; a name a second person answers to is held
+//     for review on the run instead (the name-uniqueness guard below).
 //   - Analyst decisions win: a member with any analystOverride is never
 //     overwritten, and an account the analyst marked 'rejected' is never
 //     re-linked.
@@ -43,13 +46,28 @@ import {
   prefixesFrom,
   suffixesFrom,
   nameSignalNames,
+  isNameOnly,
   indexIdentities,
   collectCandidates,
-  resolveNameTie,
+  nameClaim,
   aggregateByIdentity,
 } from './engine.helpers.js';
+import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
 
 export { classifyAccount };
+
+/**
+ * How many held-back name-only matches a single run stores on its row. The
+ * count (`nameOnlyMatches`) is always the true, uncapped number — the list is
+ * capped so one run on a large tenant cannot write an unbounded document.
+ */
+export const MAX_NAME_ONLY_SUGGESTIONS = 500;
+
+/**
+ * How many rival identities one held-back match names. `rivalCount` is the true
+ * number, so a long list of namesakes stays reportable without storing it.
+ */
+export const MAX_NAME_ONLY_RIVALS = 5;
 
 /**
  * Score how strongly an orphan account belongs to an identity.
@@ -91,32 +109,46 @@ export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
 
 /**
  * Build the proposed account→identity links for a set of orphan principals.
- * Pure: no DB access. Returns one entry per orphan that links above threshold.
+ * Pure: no DB access.
+ *
+ * @returns {{ links: object[], stats: { nameOnlyMatches: number, suggestions: object[] } }}
+ *   `links` holds one entry per orphan that links; `stats` reports the name-only
+ *   matches that were held for review instead of linked — the true count, plus
+ *   the matches themselves (up to the cap) so an analyst can see which account
+ *   nearly linked to whom, on what evidence, and who else answers to the name.
  */
 export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
   const ctx = {
     rules,
-    threshold: rules.linkThreshold ?? 70,
+    threshold: rules.linkThreshold ?? DEFAULT_RULES.linkThreshold,
     onlyTypes: new Set(rules.onlyLinkTypes || []),
     compiled: { ...rules, __compiled: compileAccountTypeRules(rules) },
     prefixes: prefixesFrom(rules),
     suffixes: suffixesFrom(rules),
     nameSigs: nameSignalNames(rules),
+    allowNameOnly: rules.allowNameOnlyLinks !== false,
     indexes: indexIdentities(identities),
   };
 
   const links = [];
+  const suggestions = [];
+  let nameOnlyMatches = 0;
   for (const orphan of orphans) {
-    const link = buildLinkForOrphan(orphan, ctx);
-    if (link) links.push(link);
+    const outcome = buildLinkForOrphan(orphan, ctx);
+    if (!outcome) continue;
+    if (outcome.suggestion) {
+      nameOnlyMatches += 1;
+      if (suggestions.length < MAX_NAME_ONLY_SUGGESTIONS) suggestions.push(outcome.suggestion);
+    }
+    if (outcome.link) links.push(outcome.link);
   }
-  return links;
+  return { links, stats: { nameOnlyMatches, suggestions } };
 }
 
 /**
  * Best above-threshold candidate identity for a set, and every above-threshold
- * candidate (which the ambiguity guard needs to see the ties). Candidates are
- * scored in insertion order; the first to reach the high-water mark wins.
+ * candidate (which the name-uniqueness guard needs to see the ties). Candidates
+ * are scored in insertion order; the first to reach the high-water mark wins.
  * @returns {{ best: object|null, scored: object[] }}
  */
 function pickBest(orphan, candidates, rules, threshold) {
@@ -125,50 +157,90 @@ function pickBest(orphan, candidates, rules, threshold) {
   for (const idy of candidates.values()) {
     const { confidence, signals } = scoreMatch(orphan, idy, rules);
     if (confidence < threshold) continue;
-    const candidate = { identityId: idy.id, confidence, signals };
+    const candidate = { identityId: idy.id, identityName: idy.displayName ?? null, confidence, signals };
     scored.push(candidate);
     if (!best || confidence > best.confidence) best = candidate;
   }
   return { best, scored };
 }
 
+/** The row to write for a scored candidate. */
+function linkFrom(orphan, candidate, accountType, pattern) {
+  return {
+    principalId: orphan.id,
+    identityId: candidate.identityId,
+    confidence: candidate.confidence,
+    signals: candidate.signals,
+    accountType,
+    accountTypePattern: pattern,
+    displayName: orphan.displayName ?? null,
+    accountEnabled: orphan.accountEnabled ?? null,
+  };
+}
+
 /**
- * The proposed link for a single orphan, or null if it should stay orphan.
- * Pure: no DB access.
+ * The held-for-review record of a name-only match: who nearly linked to whom,
+ * on what evidence, why it was held, and who else answers to the name — which
+ * is what makes the match reviewable rather than merely counted.
+ */
+function suggestionFrom(orphan, candidate, accountType, reason, claimants) {
+  const rivals = claimants.filter(c => c.id !== candidate.identityId);
+  return {
+    principalId: orphan.id,
+    displayName: orphan.displayName ?? null,
+    identityId: candidate.identityId,
+    identityName: candidate.identityName,
+    confidence: candidate.confidence,
+    signals: candidate.signals,
+    accountType,
+    reason,
+    rivals: rivals.slice(0, MAX_NAME_ONLY_RIVALS)
+      .map(c => ({ identityId: c.id, identityName: c.displayName ?? null })),
+    rivalCount: rivals.length,
+  };
+}
+
+/**
+ * What to do with a single orphan. Pure: no DB access.
+ *
+ * @returns {{ link: object|null, suggestion: object|null }|null}
+ *   null when nothing cleared the threshold (or the account type is not linked
+ *   at all); otherwise exactly one of `link` (the row to write) and `suggestion`
+ *   (the match a guard held for review) is set.
  */
 function buildLinkForOrphan(orphan, ctx) {
-  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes, nameSigs, indexes } = ctx;
+  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes, nameSigs, allowNameOnly, indexes } = ctx;
   const { accountType, pattern } = classifyAccount(orphan, compiled);
   if (!onlyTypes.has(accountType)) return null;
 
   const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes });
   const { best, scored } = pickBest(orphan, candidates, rules, threshold);
   if (!best) return null;
-
-  // Ambiguity guard: a name-only match (no strong email/employeeId signal) that
-  // ties across multiple identities is too risky to auto-pick — leave it orphan
-  // for the principals-clustering / manual review path rather than guess. The
-  // tie is read per name first: an account carries several names, and a namesake
-  // on one of them does not veto the person who is the only match on another
-  // (see resolveNameTie).
-  const nameOnly = best.signals.length > 0 && best.signals.every(s => nameSigs.has(s));
-  const tied = scored.filter(s => s.confidence === best.confidence);
-  let winner = best;
-  if (nameOnly && tied.length > 1) {
-    winner = resolveNameTie(orphan, tied, indexes.byNameKey);
-    if (!winner) return null;
+  if (!isNameOnly(best.signals, nameSigs)) {
+    return { link: linkFrom(orphan, best, accountType, pattern), suggestion: null };
   }
 
-  return {
-    principalId: orphan.id,
-    identityId: winner.identityId,
-    confidence: winner.confidence,
-    signals: winner.signals,
-    accountType,
-    accountTypePattern: pattern,
-    displayName: orphan.displayName ?? null,
-    accountEnabled: orphan.accountEnabled ?? null,
-  };
+  // The name-uniqueness guard. A match resting on name signals alone links only
+  // where the account's name points at exactly one person (see nameClaim): a
+  // name shared with a second person — spelled the same, or near enough to be
+  // the same name — is no evidence of which of them the account belongs to, and
+  // the wrong one then inherits that person's access review, risk score and
+  // leaver handling. Those matches are held for review instead.
+  //
+  // The person the name points at has to be one of the top-scoring candidates
+  // to win: a name that singles out somebody the score ranks lower settles
+  // nothing. `allowNameOnlyLinks: false` holds back every name-only match, even
+  // an unambiguous one, for a tenant that wants a name to never be enough.
+  const { sole, claimants } = nameClaim(orphan, indexes);
+  const resolved = sole
+    ? scored.find(s => s.identityId === sole.id && s.confidence === best.confidence)
+    : null;
+  const winner = resolved ?? best;
+  if (resolved && allowNameOnly) {
+    return { link: linkFrom(orphan, winner, accountType, pattern), suggestion: null };
+  }
+  const reason = resolved ? 'uncorroborated' : 'ambiguousName';
+  return { link: null, suggestion: suggestionFrom(orphan, winner, accountType, reason, claimants) };
 }
 
 async function loadRules(configId) {
@@ -264,18 +336,27 @@ export async function runLinking(runId, configId = null) {
     await updateRun({ status: 'running', step: 'Loading rules', pct: 5 });
     const rules = await loadRules(configId);
 
-    await updateRun({ step: 'Loading orphan accounts + identities', pct: 15 });
-    const orphans = (await db.query(orphanPrincipalsSql(
-      `p."id", p."displayName", p."email", p."employeeId", p."givenName", p."surname",
-       p."accountEnabled", p."extendedAttributes"`,
-    ), ORPHAN_QUERY_PARAMS)).rows;
+    await updateRun({ step: 'Loading identities', pct: 10 });
     const identities = (await db.query(`
       SELECT i."id", i."displayName", i."email", i."employeeId", i."givenName", i."surname"
         FROM "Identities" i
     `)).rows;
 
+    // Detach the name-only links the engine would no longer make, before the
+    // orphan pool is read: they rejoin it below and re-score in this same run,
+    // so one that still links does so immediately and one that no longer does
+    // becomes a held-for-review match.
+    await updateRun({ step: 'Reviewing existing name-only links', pct: 15 });
+    const linksRemoved = await removeStaleNameOnlyLinks(rules, identities);
+
+    await updateRun({ step: 'Loading orphan accounts', pct: 20 });
+    const orphans = (await db.query(orphanPrincipalsSql(
+      `p."id", p."displayName", p."email", p."employeeId", p."givenName", p."surname",
+       p."accountEnabled", p."extendedAttributes"`,
+    ), ORPHAN_QUERY_PARAMS)).rows;
+
     await updateRun({ step: 'Matching accounts', pct: 45, candidatesScanned: orphans.length });
-    const links = buildLinks(orphans, identities, rules);
+    const { links, stats } = buildLinks(orphans, identities, rules);
 
     await updateRun({ step: 'Writing links', pct: 70 });
     const counts = { created: 0, updated: 0, skipped: 0 };
@@ -308,6 +389,9 @@ export async function runLinking(runId, configId = null) {
       status: 'completed', step: 'Done', pct: 100,
       linksCreated: created, linksUpdated: updated, skippedAnalystOverride: skipped,
       orphansRemaining,
+      nameOnlyMatches: stats.nameOnlyMatches,
+      linksRemoved,
+      nameOnlySuggestions: JSON.stringify(stats.suggestions),
     });
     await db.query(`UPDATE "AccountLinkingRuns" SET "completedAt" = now() AT TIME ZONE 'utc' WHERE id = $1`, [runId]);
   } catch (err) {
