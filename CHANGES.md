@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Excel export now works in the rotated matrix layout (subjects as rows, resources as columns), for example the matrix opened from a logical-application context. The workbook matches the on-screen grid: resource type and name headers, one row per subject with department and job title, membership letters per resource, governed cells highlighted, plus the usual Legend sheet with the shareable link.
+
+## Changes in this PR
+
 - Fixed Account Linking reading academic titles and surname particles as names, which could attach an account to a namesake instead of its real owner. "Jan de Vries MSc" was parsed as given name "Jan", surname "MSc", so the person never matched her own accounts.
 - Account Linking now matches a person on every name they are known by: the given-name and surname fields the source provides *and* the name parsed from their display name. HR systems commonly record a birth surname in the surname field while the display name and the accounts carry the name in use (a partner name or a double name), and either one is now enough to find a match.
 - An account matches the one person who is actually called that, even when other people share only their birth surname — a shared name no longer blocks a match that is unique. An account is given to the person who goes by the name it carries, rather than to someone who merely used to: "Anna Jansen" is linked to Anna Jansen and not left for review because an Anna de Boer-Jansen was born Jansen.
