@@ -24,17 +24,17 @@ const valueOf = (row, field) => {
   return v == null ? '' : String(v).trim();
 };
 
-// The most common non-empty value of `field` among `rows`; ties go to the value
-// seen first, so the outcome does not depend on the database's row order alone.
+// The value of `field` that MORE THAN HALF of `rows` share, else ''. A unit whose
+// people are spread over several departments (a CEO's heads of department) has no
+// shared name — it keeps the manager's own.
 export function majorityValue(rows, field) {
   const counts = new Map();
   for (const r of rows) {
     const v = valueOf(r, field);
     if (v) counts.set(v, (counts.get(v) || 0) + 1);
   }
-  let best = ''; let bestCount = 0;
-  for (const [v, n] of counts) if (n > bestCount) { best = v; bestCount = n; }
-  return best;
+  for (const [v, n] of counts) if (n * 2 > rows.length) return v;
+  return '';
 }
 
 function membersByUnit(members) {
@@ -84,9 +84,9 @@ export function nameUnitsFromMembers(result, byId, { fields, buildName, rootExt 
     if (c.externalId === rootExt || c.externalId === NOT_PLACED_EXTERNAL_ID) continue;
     const rows = (groups.get(c.externalId) || []).map(m => byId.get(m.memberId)).filter(Boolean);
     if (rows.length === 0) continue;
-    const managerId = String(c.externalId).split(SPLIT_SEP)[0];
-    const shared = Object.fromEntries(fields.map(f => [f, majorityValue(rows, f)]));
-    const name = buildName({ ...shared, displayName: byId.get(managerId)?.displayName });
+    const manager = byId.get(String(c.externalId).split(SPLIT_SEP)[0]);
+    const shared = Object.fromEntries(fields.map(f => [f, majorityValue(rows, f) || manager?.[f]]));
+    const name = buildName({ ...shared, displayName: manager?.displayName });
     if (name) c.displayName = name;
   }
   return result;

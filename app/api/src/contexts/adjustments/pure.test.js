@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../../db/connection.js');
 const { rowsToDrop } = await import('./apply.js');
 const { returnAddedBy } = await import('./applySplit.js');
-const { adjustmentMarks } = await import('./view.js');
+const { adjustmentMarks, templateLabel } = await import('./view.js');
 const { adjustmentItems, splitCandidates } = await import('./attention.js');
 const { followedFields } = await import('./service.js');
 const { reapplyAfterSync } = await import('./afterSync.js');
@@ -106,6 +106,13 @@ describe('the ingest hook', () => {
 });
 
 describe('small helpers', () => {
+  it('says a template the way people do', () => {
+    expect(templateLabel('LogicalApplication')).toBe('Logical applications');
+    expect(templateLabel('OrganizationalUnit')).toBe('Organizational units');
+    expect(templateLabel('Segments')).toBe('Segments');
+    expect(templateLabel(null)).toBe('Units');
+  });
+
   it('reads a DATE as the calendar day, from a Date or a string', () => {
     expect(dateText(new Date(2027, 0, 5))).toBe('2027-01-05');
     expect(dateText('2027-01-05T00:00:00Z')).toBe('2027-01-05');

@@ -1,5 +1,5 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { countText, memberWord, unitMarks } from './adjustTree.helpers';
+import { countText, holderSuffix, memberWord, unitMarks } from './adjustTree.helpers';
 import AdjustTreeMembers from './AdjustTreeMembers';
 
 // One unit of the Adjust tree, then (when open) its members and its sub-units.
@@ -83,7 +83,7 @@ function UnitLine({ unit, depth, open, view }) {
         className={nameClass(unit, movable)}
       >
         {unit.name}
-        {unit.accountable?.name && <>{' '}<span className="font-normal text-gray-600 dark:text-gray-400">({unit.accountable.name})</span></>}
+        {holderSuffix(unit) && <>{' '}<span className="font-normal text-gray-600 dark:text-gray-400">({holderSuffix(unit)})</span></>}
       </button>
       {unitMarks(unit).map(m => <Mark key={m.key} label={m.label} tone={m.tone} />)}
       {matches.has(unit.id) && <Mark label="match" tone="warn" />}

@@ -32,9 +32,10 @@ const unitOf = (result, memberId) => result.members.find(m => m.memberId === mem
 const ctx = (result, ext) => result.contexts.find(c => c.externalId === ext);
 
 describe('majorityValue', () => {
-  it('takes the most common non-empty value, the first seen on a tie', () => {
-    expect(majorityValue([{ d: 'A' }, { d: 'B' }, { d: 'B' }, { d: ' ' }], 'd')).toBe('B');
-    expect(majorityValue([{ d: 'A' }, { d: 'B' }], 'd')).toBe('A');
+  it('takes the value more than half share, and nothing when they are spread', () => {
+    expect(majorityValue([{ d: 'A' }, { d: 'B' }, { d: 'B' }], 'd')).toBe('B');
+    expect(majorityValue([{ d: 'A' }, { d: 'B' }, { d: 'B' }, { d: ' ' }], 'd')).toBe(''); // 2 of 4 is not more than half
+    expect(majorityValue([{ d: 'A' }, { d: 'B' }], 'd')).toBe('');
     expect(majorityValue([{ d: null }, {}], 'd')).toBe('');
   });
 });
@@ -84,6 +85,14 @@ describe('nameUnitsFromMembers', () => {
     expect(ctx(result, 'carl').displayName).toBe('Finance (Carl)');
     expect(ctx(result, 'eva').displayName).toBe('Workplace (Eva)');
     expect(ctx(result, 'root').displayName).toBe('Organization');
+  });
+
+  it('keeps the manager\'s own name when the people are spread over departments', () => {
+    const rows = [P('ceo', null, 'Board'), P('h1', 'ceo', 'Sales'), P('h2', 'ceo', 'IT'), P('h3', 'ceo', 'Finance'), P('x', 'h1', 'Sales')];
+    const { result, byId } = base(rows);
+    nameUnitsFromMembers(result, byId, { fields: ['department'], rootExt: 'root', buildName: row => buildNodeName(row, NAMING) });
+    expect(ctx(result, 'ceo').displayName).toBe('Board (Ceo)');
+    expect(ctx(result, 'h1').displayName).toBe('Sales (H1)');
   });
 });
 

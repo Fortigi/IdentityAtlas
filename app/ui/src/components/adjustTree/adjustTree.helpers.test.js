@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TOP_LEVEL_DROP_ID, buildTree, initialOpen, indexUnits, subtreeIds, ancestorIds, resolveDrop, searchUnits,
-  memberWord, memberDetail, showMembersLabel, isPeopleTree, countText, unitMarks, statusMeta, liveAdjustments,
+  memberWord, memberDetail, holderLabel, holderSuffix, showMembersLabel, isPeopleTree, countText, unitMarks, statusMeta, liveAdjustments,
   adjustmentsForUnit, byLine, sourceText, doneText, addedUnitId, commonParentId, moveTargets, withReason,
   actionAllowed,
 } from './adjustTree.helpers';
@@ -316,5 +316,19 @@ describe('the Not placed unit', () => {
     expect(resolveDrop({ type: 'member', memberId: 'p1', fromUnitId: 'fin' }, 'out', WITH_NP)).toEqual({ op: 'moveMember', memberId: 'p1', fromUnitId: 'fin', toUnitId: 'out' });
     expect(resolveDrop({ type: 'unit', unitId: 'out' }, 'fin', WITH_NP)).toBeNull();
     expect(moveTargets(WITH_NP, 'fin').map(u => u.id)).not.toContain('out');
+  });
+});
+
+describe('who answers for a unit', () => {
+  it('calls the holder of an application its owner, of anything else its manager', () => {
+    expect(holderLabel('LogicalApplication')).toBe('Owner');
+    expect(holderLabel('OrganizationalUnit')).toBe('Manager');
+    expect(holderLabel(null)).toBe('Manager');
+  });
+
+  it('shows the holder after the name only when the name does not already carry it', () => {
+    expect(holderSuffix({ name: 'Finance (Carl Jansen)', accountable: { name: 'Carl Jansen' } })).toBe('');
+    expect(holderSuffix({ name: 'SAP ERP', accountable: { name: 'Clara Dijkstra' } })).toBe('Clara Dijkstra');
+    expect(holderSuffix({ name: 'SAP ERP', accountable: null })).toBe('');
   });
 });

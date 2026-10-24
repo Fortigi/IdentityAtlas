@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { formatDateOnly } from '@ui/utils/formatters';
-import { adjustmentsForUnit, byLine, memberDetail, memberWord } from './adjustTree.helpers';
+import { adjustmentsForUnit, byLine, holderLabel, memberDetail, memberWord } from './adjustTree.helpers';
 import { AddLevelAboveForm, AddSubUnitForm, MoveForm, RenameForm, SetManagerForm } from './UnitActionForms';
 import SplitForm from './SplitForm';
 
@@ -57,7 +57,7 @@ export default function UnitPanel({ unit, units, treeKey, targetType, adjustment
     <div className="space-y-4">
       <h2 className="text-base font-semibold text-gray-900 dark:text-white">{unit.name}</h2>
       <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5">
-        <Fact label="Manager">{managerText(unit)}</Fact>
+        <Fact label={holderLabel(unit.contextCategory)}>{managerText(unit)}</Fact>
         <Fact label={word}>{unit.memberCount ?? 0} direct · {unit.totalMemberCount ?? unit.memberCount ?? 0} in total</Fact>
         <Fact label="Adjusted">
           {mine.length === 0
