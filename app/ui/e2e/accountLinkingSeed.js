@@ -132,6 +132,16 @@ export async function runAccountLinkingFromAdmin(page) {
   await expect(page.getByText(/Linking complete/i)).toBeVisible({ timeout: 180000 });
 }
 
+/**
+ * The newest completed run — the one Admin → Account Linking shows, and the one whose
+ * `linksRemoved` / `nameOnlySuggestions` a spec reads after driving a run.
+ */
+export async function latestCompletedRun() {
+  const res = await fetch(`${API}/account-linking/runs`);
+  if (!res.ok) return null;
+  return ((await res.json())?.data ?? []).find(r => r.status === 'completed') ?? null;
+}
+
 /** The IdentityMembers rows currently attached to a person, as the API serves them. */
 export async function identityMembers(identityId) {
   const res = await fetch(`${API}/identities/${identityId}`);

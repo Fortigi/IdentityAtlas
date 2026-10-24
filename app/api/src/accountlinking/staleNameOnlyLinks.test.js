@@ -188,6 +188,19 @@ describe('removeStaleNameOnlyLinks - what it never touches', () => {
     expect(deletes()).toHaveLength(0);
   });
 
+  it('scans only links to live accounts, so a removed account keeps its link (#1461)', async () => {
+    // The cleanup's whole premise is that a detached link rejoins the orphan pool and
+    // re-scores in the same run. That is only true of a live account: the orphan pool is
+    // defined as `deletedAt IS NULL`, so a link to an account a sync has tombstoned is
+    // deleted and never re-made, and the identity loses it (and every grant on it) for
+    // good -- against #1442, which keeps such a link as history. The db mock is SQL-blind,
+    // so the restriction can only be pinned on the scan's shape here; the behaviour itself
+    // is pinned in accountLinking.contract.test.js against the real schema.
+    stageMembers([]);
+    await removeStaleNameOnlyLinks(DEFAULT_RULES, IDENTITIES);
+    expect(query.mock.calls[0][0]).toMatch(/p\."deletedAt" IS NULL/);
+  });
+
   it('reads the account name from the member scan, so every row can be weighed', async () => {
     // The names come from the JOIN onto Principals. Dropped from the SELECT, every row
     // reads as a nameless account, points at nobody, and the whole table is detached.
