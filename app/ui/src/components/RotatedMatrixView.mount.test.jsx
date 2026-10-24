@@ -6,6 +6,9 @@ import {
   renderWithProviders, makeAuthFetch, jsonResponse,
   screen, within, userEvent,
 } from '@ui/test-utils/renderWithProviders';
+import { exportRotatedToExcel } from '../utils/exportRotatedToExcel';
+
+vi.mock('../utils/exportRotatedToExcel', () => ({ exportRotatedToExcel: vi.fn() }));
 
 // Subjects-as-rows data: two users, two resources of one type plus one of
 // another, with a mix of membership types and a governed cell.
@@ -62,6 +65,7 @@ function renderView(props = {}, authFetch = makeFetch()) {
       onAdjustFilter,
       onLoadSaved: props.onLoadSaved,
       hasData: props.hasData,
+      shareUrl: props.shareUrl,
     }),
     { auth: { authFetch } },
   );
@@ -123,12 +127,18 @@ describe('RotatedMatrixView (mounted)', () => {
     expect(setManagedFilter).toHaveBeenCalledWith('managed');
   });
 
-  it('shows an Excel-not-supported tip when export is clicked', async () => {
-    renderView();
+  it('exports the grid as shown (subjects as rows) when Export Excel is clicked', async () => {
+    renderView({ shareUrl: 'https://atlas.example/m' });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /^Export/ }));
     await user.click(screen.getByRole('menuitem', { name: 'Export Excel' }));
-    expect(await screen.findByText(/Excel export is not yet supported/i)).toBeInTheDocument();
+    await vi.waitFor(() => expect(exportRotatedToExcel).toHaveBeenCalledTimes(1));
+    const { users, resources, cellMap, shareUrl } = exportRotatedToExcel.mock.calls[0][0];
+    expect(users.map(u => u.id)).toEqual(['u1', 'u2']);
+    expect(resources.map(r => r.id)).toEqual(['res-3', 'res-1', 'res-2']);
+    expect([...cellMap.get('u1|res-2').types]).toEqual(['Indirect']);
+    expect(shareUrl).toBe('https://atlas.example/m');
+    expect(screen.queryByText(/not yet supported/i)).not.toBeInTheDocument();
   });
 
   // Rotated has no row/column fold, nested groups, row reorder or legend — and
