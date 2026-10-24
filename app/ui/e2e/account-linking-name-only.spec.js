@@ -35,7 +35,7 @@ import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
 import {
   BASE, API, openIngestSession, closeIngestSession, linkingRules,
-  runAccountLinkingFromAdmin, linkedAccountNames,
+  runAccountLinkingFromAdmin, linkedAccountNames, latestCompletedRun,
 } from './accountLinkingSeed';
 
 /** Signal names that are a name match and nothing else — mirrors nameSignalNames(). */
@@ -60,13 +60,6 @@ async function runLinking() {
     await new Promise(r => setTimeout(r, 2000));
   }
   return null;
-}
-
-/** The newest completed run, as the card reads it. */
-async function latestRun() {
-  const res = await fetch(`${API}/account-linking/runs`);
-  if (!res.ok) return null;
-  return ((await res.json())?.data ?? []).find(r => r.status === 'completed') ?? null;
 }
 
 // ── The #1460 fixture ────────────────────────────────────────────────────────
@@ -315,7 +308,7 @@ test.describe('Account linking — a rival counts at the level the match rests o
     expect(await linkedAccountNames(IDS.karim)).toEqual([]);
     expect(await linkedAccountNames(IDS.karimTwin)).toEqual([]);
 
-    const run = await latestRun();
+    const run = await latestCompletedRun();
     const held = (run?.nameOnlySuggestions ?? []).find(s => s.principalId === IDS.orphanKarim);
     expect(held, `the run did not report the held match for ${NAMES.karim} `
       + `(stored list is capped at 500; this run held ${run?.nameOnlyMatches})`).toBeTruthy();
