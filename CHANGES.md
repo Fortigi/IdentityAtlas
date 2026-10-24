@@ -1,5 +1,41 @@
 ## Changes in this PR
 
+- Updated third-party dependencies of the API and web UI to versions that fix newly published security advisories (zod, body-parser, multer, undici, fast-uri, ip-address)
+
+## Changes in this PR
+
+- Fixed enterprise applications that have only consent grants (such as PnP Management Shell) disappearing as resources after every full Entra ID crawl; links to them no longer end in "HTTP 404"
+- Every enterprise application now has a resource after a full crawl, not only the apps with app roles, consent grants, owners or app-only permissions
+
+## Changes in this PR
+
+- Fixed clicking an app in the Risky Applications and High-risk Application Permissions reports showing "HTTP 404": the row now opens the app's service-principal detail page
+
+## Changes in this PR
+
+- Excel export now works in the rotated matrix layout (subjects as rows, resources as columns), for example the matrix opened from a logical-application context. The workbook matches the on-screen grid: resource type and name headers, one row per subject with department and job title, membership letters per resource, governed cells highlighted, plus the usual Legend sheet with the shareable link.
+
+## Changes in this PR
+
+- Fixed Account Linking reading academic titles and surname particles as names, which could attach an account to a namesake instead of its real owner. "Jan de Vries MSc" was parsed as given name "Jan", surname "MSc", so the person never matched her own accounts.
+- Account Linking now matches a person on every name they are known by: the given-name and surname fields the source provides *and* the name parsed from their display name. HR systems commonly record a birth surname in the surname field while the display name and the accounts carry the name in use (a partner name or a double name), and either one is now enough to find a match.
+- An account matches the one person who is actually called that, even when other people share only their birth surname — a shared name no longer blocks a match that is unique. An account is given to the person who goes by the name it carries, rather than to someone who merely used to: "Anna Jansen" is linked to Anna Jansen and not left for review because an Anna de Boer-Jansen was born Jansen.
+- An account is still left for review where the people sharing a name have an equal claim to it: two people who both go by it, or two for whom it is equally a former name.
+- Pre- and post-nominal titles (drs., dr., ir., ing., prof., MSc, BSc, MBA, LLM, PhD and similar) are stripped from a display name before it is parsed, including several titles at once.
+- Multi-word surnames keep their particles, so "van den Berg" and "ter Horst" are matched in full and "van der Steen" is no longer treated as the same surname as "Schilder-van der Steen".
+- Two people who genuinely share a name are now both found as candidates, so an account that could belong to either is left for review rather than confidently attached to one of them.
+- Note: links that were already written to the wrong person are not corrected automatically — Account Linking only considers accounts that belong to nobody. Reject or move those from the identity's Linked Accounts.
+- The demo dataset's realism slice now writes academic titles in HR display names while keeping the name fields clean, so this case is covered by the sample data.
+
+## Changes in this PR
+
+- CSV import: `Users.csv` now has official `EmployeeId`, `GivenName` and `Surname` columns, matching `Identities.csv`. Previously an employee number supplied there was kept only as an extended attribute, so Account Linking — whose strongest signal is the employee number — could never use it and the accounts stayed unlinked.
+- An existing import that already carries those columns picks the values up as real fields on its next run, so they show as Employee Id / Given Name / Surname on the account's detail page and Account Linking can finally use them. The copy an earlier run filed under Extended Attributes is left in place, so until it is cleared such an account lists the value twice — once as the real field, once badged `ext`.
+- The downloadable `Users.csv` template and the upload wizard's column hint list the three new columns.
+- Clarified in the CSV import schema documentation that case-insensitive column matching applies to a file's own schema columns; an extra column keeps the spelling your header gives it and is stored as an extended attribute.
+
+## Changes in this PR
+
 - Fixed development (`:edge`) builds still reporting a 5.x version after 6.0 was released. Dev builds now take their major version from the newest release, so they show 6.x now and will move to 7.x automatically once 7.0 is released.
 
 ## Changes in this PR

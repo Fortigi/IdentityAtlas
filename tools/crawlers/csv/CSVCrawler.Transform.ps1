@@ -148,7 +148,7 @@ $script:CsvReservedColumns = @{
     'Contexts.csv'              = @('ExternalId', 'DisplayName', 'TargetType', 'ContextType', 'Description', 'ParentExternalId', 'OwnerUserId', 'SystemName')
     'Resources.csv'             = @('ExternalId', 'DisplayName', 'ResourceType', 'Description', 'SystemName', 'Enabled')
     'ResourceRelationships.csv' = @('ParentExternalId', 'ChildExternalId', 'RelationshipType', 'SystemName')
-    'Users.csv'                 = @('ExternalId', 'DisplayName', 'Email', 'PrincipalType', 'JobTitle', 'Department', 'ManagerExternalId', 'SystemName', 'Enabled')
+    'Users.csv'                 = @('ExternalId', 'DisplayName', 'Email', 'EmployeeId', 'GivenName', 'Surname', 'PrincipalType', 'JobTitle', 'Department', 'ManagerExternalId', 'SystemName', 'Enabled')
     'Identities.csv'            = @('ExternalId', 'DisplayName', 'Email', 'EmployeeId', 'Department', 'JobTitle', 'SystemName')
     'Certifications.csv'        = @('ExternalId', 'ResourceExternalId', 'UserDisplayName', 'Decision', 'ReviewerDisplayName', 'ReviewedDateTime', 'SystemName')
 }
@@ -254,6 +254,41 @@ function Get-CsvManagerRef {
     return $mgr
 }
 
+# Users.csv's optional columns that each map onto one real "Principals" column,
+# keyed by the ingest's own field name.
+#
+# The KEY's casing is the wire contract: the ingest matches a record field to a
+# real column case-SENSITIVELY (normalization.js pickCoreColumns), so a value
+# shaped under the header's own spelling would be filed into extendedAttributes
+# instead. That is where an EmployeeId column used to end up — invisible to
+# Account Linking, whose strongest signal is employeeId (#1441) — because the
+# three name/number columns were not part of the schema at all and rode the
+# extras pass-through.
+#
+# The header side is matched case-insensitively, like every other schema column.
+# A column the file does not declare is sent as $null, exactly as Email always
+# has been: re-importing a file that dropped the column clears the stored value.
+$script:CsvUserOptionalColumns = [ordered]@{
+    email      = 'Email'
+    jobTitle   = 'JobTitle'
+    department = 'Department'
+    employeeId = 'EmployeeId'
+    givenName  = 'GivenName'
+    surname    = 'Surname'
+}
+
+# Copy each mapped optional column of one slow-path row onto the record, under
+# the ingest field name the map is keyed by. One call per row rather than one
+# per column: a PowerShell function call costs more than the lookup it wraps.
+function Add-CsvMappedColumns {
+    [CmdletBinding()]
+    param($Row, [System.Collections.Generic.HashSet[string]]$Cols, $Map, $Record)
+    foreach ($field in $Map.Keys) {
+        $header = $Map[$field]
+        $Record[$field] = if ($Cols.Contains($header)) { $Row.$header } else { $null }
+    }
+}
+
 function ConvertTo-CsvUserRecord {
     [CmdletBinding()]
     param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols, [string[]]$Extra = @())
@@ -268,10 +303,8 @@ function ConvertTo-CsvUserRecord {
         displayName    = $Row.DisplayName
         principalType  = $pType
         accountEnabled = $on
-        email          = if ($Cols.Contains('Email')) { $Row.Email } else { $null }
-        jobTitle       = if ($Cols.Contains('JobTitle')) { $Row.JobTitle } else { $null }
-        department     = if ($Cols.Contains('Department')) { $Row.Department } else { $null }
     }
+    Add-CsvMappedColumns -Row $Row -Cols $Cols -Map $script:CsvUserOptionalColumns -Record $rec
     $mgr = Get-CsvManagerRef -Row $Row -Cols $Cols
     if ($mgr) { $rec['managerExternalId'] = $mgr }
     Add-CsvExtendedAttributes -Row $Row -Extra $Extra -Record $rec

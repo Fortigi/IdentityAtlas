@@ -49,6 +49,9 @@ People, service accounts, bots — anything that can hold permissions.
 | `ExternalId` | string | yes | Unique identifier (employee number, sAMAccountName, etc.) |
 | `DisplayName` | string | yes | Full name |
 | `Email` | string | no | Primary email / UPN |
+| `EmployeeId` | string | no | HR employee number. The same number as `Identities.csv → EmployeeId`: it is Account Linking's strongest signal, so supplying it here is what lets an account be correlated to its person automatically |
+| `GivenName` | string | no | First name. Used by Account Linking's name signals |
+| `Surname` | string | no | Last name. Used by Account Linking's name signals |
 | `PrincipalType` | string | no | One of: `User`, `ServicePrincipal`, `ExternalUser`, `SharedMailbox`. Default: `User` |
 | `JobTitle` | string | no | |
 | `Department` | string | no | Used to derive OrgUnit contexts when no `Contexts.csv` is provided |
@@ -159,7 +162,7 @@ A column not in a file's schema is stored as JSON in the entity's `extendedAttri
 - The UI can show them on detail pages under "Extended Attributes"
 - No schema changes needed to support new source fields
 
-Column names match case-insensitively, so `department` is the `Department` column, not an extra one. Blank values are not stored, and a column named like an ingest bookkeeping field (`id`, `systemId`, `extendedAttributes`, `createdAt`, `updatedAt`, `deletedAt`) is never forwarded.
+A **schema** column's name matches case-insensitively, so `department` is the `Department` column, not an extra one. An **extra** column, by contrast, keeps the spelling your header gives it, and the ingest matches a field to a real database column case-sensitively — so an extra column is stored as an extended attribute under its own name, and only an exact camelCase match (`employeeId`) would reach a real column. Don't rely on that: if a value belongs in a real column, the file needs an official schema column for it (which is why `Users.csv` has `EmployeeId`, `GivenName` and `Surname` — see #1441). Blank values are not stored, and a column named like an ingest bookkeeping field (`id`, `systemId`, `extendedAttributes`, `createdAt`, `updatedAt`, `deletedAt`) is never forwarded.
 
 Three files do **not** keep extra columns, and the job log names the ones it ignores: `Assignments.csv` (tens of millions of rows — an attribute per assignment costs more than it is worth), and `IdentityMembers.csv` / `ContextMembers.csv` (their tables have no attribute storage).
 
