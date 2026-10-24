@@ -65,7 +65,34 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
 
 ### Graded name matching + ambiguity guard
 
-Names are parsed from `displayName` (falling back to `givenName`/`surname`) with role/company qualifiers like `(OGD)`, `[extern]`, or `(ADM-azure)` stripped, so `Euson, Robin (OGD)` and `(ADM-azure) Euson, Robin` both reduce to `{euson, robin}`. Both `Surname, Given` and `Given Surname` orderings are handled.
+`nameVariants` reduces a person to **every name they are known by**, each a `{ given, surname, initial, key, variant }`. There are two independent sources and neither is authoritative, so both are kept:
+
+| Variant | Source |
+|---|---|
+| the columns | the structured `givenName` / `surname` fields |
+| the display name | the parsed free-text `displayName` |
+| one half from each | whichever half a column leaves empty, filled from the display name |
+
+Identical variants collapse, so the common case — every source spelling the person the same way — is a single name.
+
+`variant` records *which* of the person's names each one is, which is what the ambiguity guard below weighs:
+
+| `variant` | Meaning |
+|---|---|
+| `inUse` | the name they are known by, which is what their accounts are spelled with: the display name's halves, or a column the display name does not contradict |
+| `birth` | a surname only the `surname` column holds while the display name spells a different one — the birth surname behind a partner name or a double name |
+
+A column surname is only read as a birth name where a parsed display surname actually disagrees with it. A source that fills the columns and nothing else is stating the name in use like any other, and a key two of a person's names collapse onto keeps the stronger of the two variants (`nameKeyVariants` in `engine.helpers.js`).
+
+Why both: HR sources routinely hold the **birth surname** in the `surname` column while the display name, and the accounts provisioned from it, carry the **name in use** — a partner name or a double name. Reading only the columns unlinks everyone whose name in use differs from their birth name (the larger population by far); reading only the display name re-opens the title mis-parse below. So a person is indexed under all of their names, and `bestNameMatch` takes the strongest match across every pair — a match on either name counts.
+
+When the display name *is* parsed, three things happen before the halves are taken:
+
+1. **Role/company qualifiers are stripped** — `(OGD)`, `[extern]`, `(ADM-azure)` — so `Euson, Robin (OGD)` and `(ADM-azure) Euson, Robin` both reduce to `{euson, robin}`. Both `Surname, Given` and `Given Surname` orderings are handled.
+2. **Pre- and post-nominal titles are stripped** — `drs.`, `dr.`, `ir.`, `ing.`, `prof.`, `MSc`, `BSc`, `MBA`, `LLM`, `PhD`, … — repeatedly, from both ends, so `Prof. dr. ir. Willem van der Laan MSc` reduces to `{willem, vanderlaan}`. The strip never removes so much that fewer than two name tokens remain, which is what keeps a genuine short surname that happens to spell a degree (`Jan Ma`) intact.
+3. **The surname keeps its particles.** In the `Given Surname` ordering the surname runs from the first particle (`van`, `de`, `den`, `der`, `ter`, `ten`, …) to the end of the name, including a hyphenated compound whose tail is a particle (`Schilder-van der Steen`). With no particle present it is the last token only, so inconsistently-recorded middle names still collapse (`John Michael Doe` → `{john, doe}`). Taking only the last token instead would reduce every `van den Berg` in a tenant to `berg`, and conflate `van der Steen` with `Schilder-van der Steen`.
+
+The title and particle lists live next to `QUALIFIER_RE` in `classifier.js`; they are not per-tenant editable today.
 
 `nameMatchLevel` returns the strongest of:
 
@@ -77,11 +104,19 @@ Names are parsed from `displayName` (falling back to `givenName`/`surname`) with
 
 The two name signals are mutually exclusive — only the signal whose `level` equals the computed best level fires.
 
-**Ambiguity guard:** a *name-only* best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess.
+**Ambiguity guard:** a *name-only* best match (no strong email/employeeId signal) that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess. Two genuine namesakes therefore produce a review item, not a guess — including when one of them carries a title in their display name and the other does not, which previously hid one of the pair from the candidate set and made the guess look certain.
+
+A name tie is read **per name key** (`resolveNameTie` in `engine.helpers.js`) before it is treated as a tie at all. Since a person is indexed under several names, the question is asked once per name the account carries: if exactly one of the equally-scoring identities has the strongest claim to one of those names, it is the match. It stays a tie, and the account goes to review, when no name singles anyone out or when different names single out different people. The resolution does not depend on the order identities were indexed in.
+
+Within one key the claims are usually unequal, and **a match is only as strong as its weaker side**: it is a match on the name in use when the account *and* the identity are both spelled that way under that key, and a birth-name match when either side holds it only in a structured column. Accounts are provisioned from the name in use, so where both kinds meet under one key the name in use wins outright:
+
+- An `Anna Jansen` account, an identity called `Anna Jansen`, and a second identity called `Anna de Boer-Jansen` whose HR record still carries `Jansen` in its `surname` column — all three under `jansen|anna`. The account is the first one's; the birth surname does not make it a review item. Indexing the birth-name variant without this rule turned links the engine used to make into ties.
+- Equally strong claims still tie: two people who both *go by* the name, or two for whom it is equally a birth surname, send the account to review.
+- Where the account itself carries the key only in its own `surname` column, neither side's claim is the name in use and the claims are left unranked — that key is an old name on both sides, so ranking it would hand the account to a stranger over the name it is actually spelled with.
 
 ### Candidate scope = orphans only
 
-The only accounts the engine ever considers are **orphan Principals** — *live* Principals with no `IdentityMembers` row — excluding `ServicePrincipal`, `ManagedIdentity`, and `AIAgent` principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key, so only plausible identities are scored.
+The only accounts the engine ever considers are **orphan Principals** — *live* Principals with no `IdentityMembers` row — excluding `ServicePrincipal`, `ManagedIdentity`, and `AIAgent` principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key **per name the person is known by**, so only plausible identities are scored and neither the birth name nor the name in use is a dead end.
 
 **Accounts a sync has removed are not orphans.** A full sync does not delete a principal that vanished from its source — it stamps `deletedAt` and keeps the row ([soft delete](soft-delete.md)). A tombstoned account is therefore excluded from the candidate set, from the `orphansRemaining` statistic, and from the Orphaned Accounts report and context: it is not work the analyst still has to do. The symmetric half of that decision is that an account linked *before* it was removed **stays linked** — soft delete never detaches a person's history, and re-ingesting the account clears the stamp and makes it linkable again.
 
