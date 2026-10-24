@@ -67,12 +67,14 @@ export default function AdjustTreeView({ units, targetType, editable, selectedId
     editable, selectedId, onSelect, isOpen, toggle, visible: search.visible, matches: search.matches,
     checked, onCheck, showMembers, targetType, version, forbiddenIds, dragging: !!drag,
   };
+  // The top-level drop zone appears BELOW the tree: shown above it, it would push
+  // every row down the moment a drag starts, away from the unit being aimed at.
   const body = (
     <>
-      {drag?.type === 'unit' && <TopLevelDropZone />}
       {shownRoots.length === 0
         ? <p className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">{query ? `Nothing matches "${query}".` : 'This tree has no units.'}</p>
         : <ul aria-label="Units">{shownRoots.map(r => <AdjustTreeRow key={r.id} unit={r} depth={0} view={view} />)}</ul>}
+      {drag?.type === 'unit' && <TopLevelDropZone />}
     </>
   );
 
