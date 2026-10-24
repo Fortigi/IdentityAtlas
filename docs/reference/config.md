@@ -107,9 +107,9 @@ Keys inside `rules`:
 | `accountTypeRules` | 4 shipped rules | Regex patterns classifying an account as Admin / Guest / Service / Shared. |
 | `linkThreshold` | `50` | Minimum confidence to auto-link — the certainty slider in the UI. |
 | `onlyLinkTypes` | `["Admin", "Guest", "Secondary"]` | Only these account types are ever attached to a person. |
-| `allowNameOnlyLinks` | `false` | When `false`, a match whose signals are all name signals is counted and held for review instead of linked, and any such link made earlier is removed on the next run. Set to `true` — the **"Link on a name match alone"** checkbox in Admin → Account Linking — to restore the old behaviour. A config that never stored the key inherits the `false` default on upgrade. |
+| `allowNameOnlyLinks` | `true` | A match whose signals are all name signals links where that name identifies exactly one person; where a second person answers to the same name — or to one sharing its surname and first initial — the match is counted and held for review instead, and any such link made earlier is removed on the next run. Set to `false` — unchecking **"Link on a name match alone"** in Admin → Account Linking — to hold back *every* name-only match, which stops a display-name-only source linking at all. Only a literal `false` opts out; a config that never stored the key runs the shipped policy. |
 
-Runs can also be triggered on demand from the same Admin page; each run records its progress in `AccountLinkingRuns`, including how many name-only matches it held back (`nameOnlyMatches`, `nameOnlySuggestions`) and how many stale name-only links it removed (`linksRemoved`). Editing config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md) for the engine and dictionary.
+Runs can also be triggered on demand from the same Admin page; each run records its progress in `AccountLinkingRuns`, including how many name-only matches it held for review and why (`nameOnlyMatches`, `nameOnlySuggestions`) and how many name-only links it removed because the policy would no longer create them (`linksRemoved`). Editing config and starting runs requires the `admin.crawlers` permission. See [Account Linking](../architecture/account-linking.md) for the engine and dictionary.
 
 ---
 

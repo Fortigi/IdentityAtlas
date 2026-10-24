@@ -29,7 +29,9 @@ const SUGGESTION = {
   confidence: 60,
   signals: ['fullName'],
   accountType: 'Secondary',
-  ties: 2,
+  reason: 'ambiguousName',
+  rivals: [{ identityId: 'i-johanna', identityName: 'Johanna Doe' }],
+  rivalCount: 1,
 };
 
 /** Insert a run row with exactly the columns runLinking's completion UPDATE writes. */
@@ -72,6 +74,8 @@ describe('AccountLinkingRuns — name-only reporting columns', () => {
     expect(row.nameOnlySuggestions).toEqual([SUGGESTION]);
     // The signals list survives as a list — the UI renders it as one badge per signal.
     expect(row.nameOnlySuggestions[0].signals).toEqual(['fullName']);
+    // So does the nested rival list, which the card reads object by object.
+    expect(row.nameOnlySuggestions[0].rivals).toEqual([{ identityId: 'i-johanna', identityName: 'Johanna Doe' }]);
   });
 
   it('stores an empty suggestions list distinctly from NULL', async () => {

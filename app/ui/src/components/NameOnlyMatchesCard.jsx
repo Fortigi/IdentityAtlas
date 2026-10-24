@@ -1,10 +1,10 @@
 // Admin → Account Linking → "Name-only matches (held for review)".
 //
 // Read-only. Account linking refuses to attach an account to a person on a display-name
-// match alone, because a namesake — or an owner whose name is spelled slightly
-// differently — produces a confidently wrong link. Counting the refusals is not enough to
-// act on them, so each run also records WHICH account nearly linked to WHOM and on what
-// evidence; this card shows the newest run's list.
+// shared with somebody else, because a namesake — or an owner whose name is spelled
+// slightly differently — produces a confidently wrong link. Counting the refusals is not
+// enough to act on them, so each run also records WHICH account nearly linked to WHOM, on
+// what evidence, and who else answers to the name; this card shows the newest run's list.
 //
 // There is deliberately no confirm/reject action here: a reviewable link object is its own
 // feature (it would have to not act as linked while awaiting review). The analyst acts
@@ -17,6 +17,25 @@ import { latestNameOnlyRun } from '@ui/utils/accountLinkingRuns';
 
 const CELL = 'px-3 py-2 align-top';
 
+/**
+ * Why the match was held, which is what tells the analyst what to do with it: a name
+ * somebody else answers to needs the right person picking, while a name nobody contests
+ * is held only because this tenant asks every link for a second signal.
+ */
+function WhyHeld({ s }) {
+  if (s.reason !== 'ambiguousName') {
+    return <div className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">no second signal</div>;
+  }
+  const rivals = s.rivals || [];
+  const unlisted = (s.rivalCount ?? rivals.length) - rivals.length;
+  return (
+    <div className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+      name also answered to by {rivals.map(r => r.identityName || r.identityId).join(', ') || 'another identity'}
+      {unlisted > 0 && ` and ${unlisted} more`}
+    </div>
+  );
+}
+
 function SuggestionRow({ s }) {
   return (
     <tr className="border-t border-gray-200 dark:border-gray-700">
@@ -28,11 +47,7 @@ function SuggestionRow({ s }) {
       </td>
       <td className={`${CELL} text-gray-900 dark:text-white`}>
         {s.identityName || s.identityId}
-        {s.ties > 1 && (
-          <span className="ml-2 text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-            {s.ties} candidates tied
-          </span>
-        )}
+        <WhyHeld s={s} />
       </td>
       <td className={`${CELL} font-mono text-gray-700 dark:text-gray-300`}>{s.confidence}%</td>
       <td className={CELL}>
@@ -68,7 +83,7 @@ export default function NameOnlyMatchesCard({ refreshKey = 0 }) {
         Name-only matches (held for review)
       </h3>
       <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-        Accounts the last run would have linked on name signals alone. They are still in the
+        Accounts the last run matched on a name alone and did not link. They are still in the
         Orphaned Accounts context — link or dismiss one from the identity it was matched to.
       </p>
 
@@ -80,7 +95,7 @@ export default function NameOnlyMatchesCard({ refreshKey = 0 }) {
       {!loading && !error && suggestions.length === 0 && (
         <p className="text-xs text-gray-600 dark:text-gray-400">
           {run
-            ? 'The last run held nothing back — every link it made had a second signal.'
+            ? 'The last run held nothing back — every name it matched on identified one person.'
             : 'No completed run has reported name-only matches yet.'}
         </p>
       )}

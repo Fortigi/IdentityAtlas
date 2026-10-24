@@ -23,24 +23,41 @@ export const fullName = (o, suffixes = []) =>
 export const personNames = (o) => nameVariants(o.displayName, o.givenName, o.surname);
 
 /**
- * The name keys a person is indexed under, each once, mapped to how they are
- * known by that name (`'inUse'` or `'birth'` — see `nameVariants`).
+ * The two keys one parsed name is indexed under — one per level the engine
+ * scores a name at (see `nameMatchLevel`):
+ *   exact   — surname + given name, order-independent: who is spelled this name
+ *   initial — surname + given initial: who is spelled a near-identical name
+ * Both are empty for a name that can never match (no surname, or no given name).
+ */
+const EXACT_KEY = (v) => v.key;
+const INITIAL_KEY = (v) => (v.surname && v.initial ? `${v.surname}|${v.initial}` : '');
+
+/**
+ * The keys a person is indexed under for one keying function, each once, mapped
+ * to how they are known by that name (`'inUse'` or `'birth'` — see
+ * `nameVariants`).
  *
- * Two of their names can collapse onto one key (the key sorts its halves, so a
- * display name recorded `Surname Given` yields the same key as the columns) —
- * listed twice, the person fills a key bucket on their own and can never be its
- * sole match. Where that happens the stronger of the two variants is kept: a
- * key the person is in-use known by is not also a birth name. The keys are
- * collected first and ranked after, so that holds whichever order the person's
- * names come in.
+ * Two of their names can collapse onto one key (the exact key sorts its halves,
+ * so a display name recorded `Surname Given` yields the same key as the columns;
+ * an initial key collapses every given name sharing an initial) — listed twice,
+ * the person fills a key bucket on their own and can never be its sole match.
+ * Where that happens the stronger of the two variants is kept: a key the person
+ * is in-use known by is not also a birth name. The keys are collected first and
+ * ranked after, so that holds whichever order the person's names come in.
  *
  * @returns {Map<string, 'inUse'|'birth'>}
  */
-export function nameKeyVariants(o) {
-  const named = personNames(o).filter(v => v.key);
+function keyVariants(o, keyOf) {
+  const named = personNames(o).map(v => ({ key: keyOf(v), variant: v.variant })).filter(v => v.key);
   const inUse = new Set(named.filter(v => v.variant === 'inUse').map(v => v.key));
   return new Map(named.map(v => [v.key, inUse.has(v.key) ? 'inUse' : 'birth']));
 }
+
+/** How the person is known by each exact (surname + given name) key. */
+export const nameKeyVariants = (o) => keyVariants(o, EXACT_KEY);
+
+/** How the person is known by each near-identical (surname + given initial) key. */
+export const nameInitialVariants = (o) => keyVariants(o, INITIAL_KEY);
 
 /** The name keys a person is indexed under, each once. */
 export const nameKeys = (o) => [...nameKeyVariants(o).keys()];
@@ -84,22 +101,32 @@ export function parseLinkSignals(stored) {
 }
 
 /**
- * Index identities so buildLinks only scores plausible candidates per orphan.
- * @returns {{ byEmployeeId: Map, byEmailLocal: Map, byName: Map, byNameKey: Map }}
+ * Index identities so buildLinks only scores plausible candidates per orphan,
+ * and so the name-uniqueness guard can ask who else answers to a name.
+ *
+ * `bySurnameInitial` is not a candidate index: a surname+initial match on its
+ * own scores below the shipped threshold, so widening the candidate set with it
+ * would change nothing about who links. It exists so the guard can see the
+ * near-identical spelling a namesake hides behind — `Johannes Jansen` standing
+ * behind the `Jan Jansen` an account is named after (#1440).
+ *
+ * @returns {{ byEmployeeId: Map, byEmailLocal: Map, byName: Map, byNameKey: Map, bySurnameInitial: Map }}
  */
 export function indexIdentities(identities) {
   const byEmployeeId = new Map();
   const byEmailLocal = new Map();
   const byName = new Map();
   const byNameKey = new Map();
+  const bySurnameInitial = new Map();
   const push = (map, key, v) => { if (!key) return; (map.get(key) || map.set(key, []).get(key)).push(v); };
   for (const idy of identities) {
     push(byEmployeeId, norm(idy.employeeId), idy);
     push(byEmailLocal, emailLocalPart(idy.email), idy);
     push(byName, normalizeName(idy.displayName) || fullName(idy), idy);
     for (const key of nameKeys(idy)) push(byNameKey, key, idy);
+    for (const key of nameInitialVariants(idy).keys()) push(bySurnameInitial, key, idy);
   }
-  return { byEmployeeId, byEmailLocal, byName, byNameKey };
+  return { byEmployeeId, byEmailLocal, byName, byNameKey, bySurnameInitial };
 }
 
 /**
@@ -134,40 +161,71 @@ export function collectCandidates(orphan, indexes, { prefixes, suffixes }) {
  * @param {object[]} underKey  the candidate identities matching this key
  * @param {string} key  the name key being weighed
  * @param {'inUse'|'birth'} carried  how the account itself carries that key
+ * @param {(o: object) => Map<string, string>} variantsOf  how an identity carries its keys
  */
-function strongestClaims(underKey, key, carried) {
+function strongestClaims(underKey, key, carried, variantsOf) {
   if (carried !== 'inUse') return underKey;
-  const inUse = underKey.filter(idy => nameKeyVariants(idy).get(key) === 'inUse');
+  const inUse = underKey.filter(idy => variantsOf(idy).get(key) === 'inUse');
   return inUse.length ? inUse : underKey;
 }
 
 /**
- * Break a tie between equally-scoring candidates **per name key**, or decline.
+ * Everyone with a claim to ONE of the names an account carries.
  *
- * A person is indexed under every name they are known by — their name in use
- * and the birth surname an HR column holds — so a name tie is not one question
- * but one per name. The tie resolves when exactly one of the tied identities has
- * the strongest claim to some name the account carries: two people who share
- * only a birth surname then do not block the match that is unique on the name in
- * use. It stays unresolved (and the account goes to review) when no name singles
- * anyone out, or when different names single out different people.
+ * The name is read at both levels the engine scores a name at, and a claim at
+ * either level counts: the people spelled exactly that name, and the people who
+ * share its surname and given initial. The second half is what the tie between
+ * top-scoring candidates cannot see — `Johannes Jansen` never scores high enough
+ * to tie with the `Jan Jansen` an account is named after, yet he is exactly who
+ * that account may belong to (#1440).
  *
- * @param {object} orphan  the account being placed
- * @param {Array<{identityId: string}>} tied  the equally-scoring top candidates
- * @param {Map<string, object[]>} byNameKey  the name-key index
- * @returns {object|null} the winning candidate, or null if still ambiguous
+ * @returns {Map<string, object>} identity id → identity
  */
-export function resolveNameTie(orphan, tied, byNameKey) {
-  const tiedIds = new Set(tied.map(c => c.identityId));
-  const soleMatches = new Set();
-  for (const [key, carried] of nameKeyVariants(orphan)) {
-    const underKey = (byNameKey.get(key) || []).filter(idy => tiedIds.has(idy.id));
-    const claimants = strongestClaims(underKey, key, carried);
-    if (claimants.length === 1) soleMatches.add(claimants[0].id);
+function claimantsOfName(v, indexes, exactCarried, initialCarried) {
+  const ek = EXACT_KEY(v);
+  const ik = INITIAL_KEY(v);
+  const under = new Map();
+  const add = (list) => { for (const idy of list) under.set(idy.id, idy); };
+  add(strongestClaims(indexes.byNameKey.get(ek) || [], ek, exactCarried.get(ek), nameKeyVariants));
+  add(strongestClaims(indexes.bySurnameInitial.get(ik) || [], ik, initialCarried.get(ik), nameInitialVariants));
+  return under;
+}
+
+/**
+ * Who an account's name points at — the question the name-uniqueness guard asks.
+ *
+ * A person is indexed under every name they are known by (their name in use and
+ * the birth surname an HR column holds), so this is not one question but one per
+ * name the account carries. A name singles someone out when they are its only
+ * claimant at either level. The account's name points at exactly one person when
+ * some name singles them out and no other name singles out anybody else: two
+ * people sharing only a birth surname then do not block the match that is unique
+ * on the name in use, while a second person spelled the same — or near enough to
+ * be the same name — leaves nothing to choose between them.
+ *
+ * Names that can never fire a name signal (no surname, or no given name) are
+ * skipped: indexed under a bare surname they would collect claimants the engine
+ * would never have scored.
+ *
+ * @param {object} person  the account being placed
+ * @param {object} indexes  the identity indexes from `indexIdentities`
+ * @returns {{ sole: object|null, claimants: object[] }}
+ *   `sole` is the identity the name points at, or null when it points at nobody
+ *   or at more than one; `claimants` is everyone it could be, for review.
+ */
+export function nameClaim(person, indexes) {
+  const exactCarried = nameKeyVariants(person);
+  const initialCarried = nameInitialVariants(person);
+  const claimants = new Map();
+  const singledOut = new Set();
+  for (const v of personNames(person)) {
+    if (!INITIAL_KEY(v)) continue;
+    const under = claimantsOfName(v, indexes, exactCarried, initialCarried);
+    for (const [id, idy] of under) claimants.set(id, idy);
+    if (under.size === 1) singledOut.add([...under.keys()][0]);
   }
-  if (soleMatches.size !== 1) return null;
-  const [winner] = soleMatches;
-  return tied.find(c => c.identityId === winner);
+  const sole = singledOut.size === 1 ? claimants.get([...singledOut][0]) : null;
+  return { sole, claimants: [...claimants.values()] };
 }
 
 /**

@@ -17,7 +17,7 @@ export default function AccountLinkingSettings() {
   const [rulesText, setRulesText] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [threshold, setThreshold] = useState(50);
-  const [allowNameOnly, setAllowNameOnly] = useState(false);
+  const [allowNameOnly, setAllowNameOnly] = useState(true);
   // Bumped when a run finishes, so the suggestions card re-reads the newest run.
   const [runsKey, bumpRunsKey] = useReducer((n) => n + 1, 0);
   // `loadConfig()` runs in a mount effect and flips loading synchronously.
@@ -39,7 +39,7 @@ export default function AccountLinkingSettings() {
         setRulesText(JSON.stringify(d.rules ?? {}, null, 2));
         setIsActive(d.isActive !== false);
         setThreshold(Number(d.rules?.linkThreshold ?? 50));
-        setAllowNameOnly(d.rules?.allowNameOnlyLinks === true);
+        setAllowNameOnly(d.rules?.allowNameOnlyLinks !== false);
       })
       .catch(() => setError('Failed to load configuration.'))
       .finally(() => setLoading(false));
@@ -183,8 +183,10 @@ export default function AccountLinkingSettings() {
             Link on a name match alone
           </label>
           <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">
-            When off, a match resting only on name signals is held for review instead of linked, and any such
-            link made earlier is removed on the next run. Turn it on to link namesakes automatically again.
+            On by default: a match resting only on names links when the name identifies exactly one person.
+            A name shared with somebody else — spelled the same, or sharing its surname and first initial —
+            is always held for review instead. Turn this off to hold back every name-only match; a source
+            that carries nothing but display names then stops linking.
           </p>
         </div>
         <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-2">Saved with the rules below.</p>

@@ -1,21 +1,22 @@
 -- Migration 092: record what account linking refused to link on a name alone.
 --
 -- With the shipped rules a single "fullName" match (weight 60) cleared the link
--- threshold (50), so an orphan account could be attached to a person on its
--- display name alone. The engine now holds such a match for review instead of
--- auto-linking it (rules key "allowNameOnlyLinks" restores the old behaviour),
+-- threshold (50), so an orphan account could be attached to a person on a
+-- display name shared with somebody else. The engine now links such a match only
+-- where the name points at exactly one person and holds the rest for review,
 -- and a run reports what it held back:
 --
---   "nameOnlyMatches"      how many orphans had an above-threshold best match
---                          resting only on name signals, including the ones the
---                          existing ambiguity (tie) guard already dropped.
+--   "nameOnlyMatches"      how many above-threshold matches resting only on name
+--                          signals the run held for review instead of linking.
+--                          The true, uncapped count.
 --   "linksRemoved"         how many previously-scored, analyst-untouched
 --                          name-only links the run removed so they re-score
---                          under the new policy.
+--                          under the current policy.
 --   "nameOnlySuggestions"  the held-back matches themselves (account, candidate
---                          identity, confidence, signals, tie count), capped in
---                          the engine so one run cannot store an unbounded
---                          document. "nameOnlyMatches" keeps the true count.
+--                          identity, confidence, signals, why it was held, which
+--                          other identities answer to the name), capped in the
+--                          engine so one run cannot store an unbounded document.
+--                          "nameOnlyMatches" keeps the true count.
 --
 -- All three are nullable with no default on purpose: NULL means "this run
 -- predates the feature", which must stay distinguishable from a run that looked

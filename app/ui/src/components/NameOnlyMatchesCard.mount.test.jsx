@@ -16,7 +16,16 @@ import {
 
 const suggestion = (over = {}) => ({
   principalId: 'p1', displayName: 'Doe, John (OGD)', identityId: 'i1', identityName: 'John Doe',
-  confidence: 60, signals: ['fullName'], accountType: 'Secondary', ties: 1, ...over,
+  confidence: 60, signals: ['fullName'], accountType: 'Secondary',
+  reason: 'uncorroborated', rivals: [], rivalCount: 0, ...over,
+});
+
+/** A match held because a second person answers to the same name. */
+const ambiguous = (over = {}) => suggestion({
+  reason: 'ambiguousName',
+  rivals: [{ identityId: 'i2', identityName: 'Johanna Doe' }],
+  rivalCount: 1,
+  ...over,
 });
 
 const runsFetch = (runs) => makeAuthFetch({ '/api/account-linking/runs': { data: runs } });
@@ -37,25 +46,54 @@ describe('NameOnlyMatchesCard (mounted)', () => {
     expect(within(row).getByText('Secondary')).toBeInTheDocument();
   });
 
-  it('marks a match that tied across identities, and only that one', async () => {
+  it('names who else answers to the name, and only for the match that was shared', async () => {
+    // The two reasons need telling apart: one needs an analyst to pick the right person,
+    // the other only exists because this tenant asks every link for a second signal.
     mount([{ status: 'completed', nameOnlyMatches: 2, nameOnlySuggestions: [
-      suggestion({ principalId: 'p-tied', displayName: 'Jansen, Jan', ties: 2 }),
-      suggestion({ principalId: 'p-single', displayName: 'Doe, John (OGD)', ties: 1 }),
+      ambiguous({ principalId: 'p-shared', displayName: 'Jansen, Jan' }),
+      suggestion({ principalId: 'p-single', displayName: 'Doe, John (OGD)' }),
     ] }]);
 
-    const tied = (await screen.findByText('Jansen, Jan')).closest('tr');
-    expect(within(tied).getByText('2 candidates tied')).toBeInTheDocument();
+    const shared = (await screen.findByText('Jansen, Jan')).closest('tr');
+    expect(within(shared).getByText(/name also answered to by Johanna Doe/i)).toBeInTheDocument();
     const single = screen.getByText('Doe, John (OGD)').closest('tr');
-    expect(within(single).queryByText(/candidates tied/i)).not.toBeInTheDocument();
+    expect(within(single).queryByText(/also answered to by/i)).not.toBeInTheDocument();
+    expect(within(single).getByText('no second signal')).toBeInTheDocument();
+  });
+
+  it('counts the rivals it did not name', async () => {
+    // The stored rival list is capped. Showing only the two it holds would report a
+    // four-way namesake as a straight choice between two people.
+    mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [ambiguous({
+      rivals: [{ identityId: 'i2', identityName: 'Johanna Doe' }, { identityId: 'i3', identityName: 'Jo Doe' }],
+      rivalCount: 4,
+    })] }]);
+
+    expect(await screen.findByText(/Johanna Doe, Jo Doe and 2 more/i)).toBeInTheDocument();
   });
 
   it('falls back to the raw ids when a name was not recorded', async () => {
     mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [
-      suggestion({ displayName: null, identityName: null, accountType: null, signals: null }),
+      ambiguous({
+        displayName: null, identityName: null, accountType: null, signals: null,
+        rivals: [{ identityId: 'i2' }],
+      }),
     ] }]);
 
     expect(await screen.findByText('p1')).toBeInTheDocument();
     expect(screen.getByText('i1')).toBeInTheDocument();
+    expect(screen.getByText(/name also answered to by i2/i)).toBeInTheDocument();
+  });
+
+  it('still says the name was shared when the rivals were not recorded at all', async () => {
+    // A run from an older build, or a cap of zero: the reason is the finding, so the row
+    // must not fall back to reading as "no second signal".
+    mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [
+      ambiguous({ rivals: null, rivalCount: null }),
+    ] }]);
+
+    expect(await screen.findByText(/name also answered to by another identity/i)).toBeInTheDocument();
+    expect(screen.queryByText(/and \d+ more/i)).not.toBeInTheDocument();
   });
 
   it('says the list is capped rather than presenting it as complete', async () => {

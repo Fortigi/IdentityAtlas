@@ -13,7 +13,7 @@ describe('completionNotice', () => {
     expect(completionNotice({
       linksCreated: 1, linksUpdated: 0, orphansRemaining: 4, nameOnlyMatches: 3, linksRemoved: 2,
     })).toBe('Linking complete — 1 linked, 0 updated, 4 orphans remaining, '
-      + '3 name-only matches held for review, 2 stale name-only links removed.');
+      + '3 name-only matches held for review, 2 name-only links removed.');
   });
 
   it('omits them entirely for a run that predates the feature', () => {
@@ -26,7 +26,7 @@ describe('completionNotice', () => {
     // and held nothing back — and a truthy test would drop exactly that case.
     expect(completionNotice({ nameOnlyMatches: 0, linksRemoved: 0 }))
       .toBe('Linking complete — 0 linked, 0 updated, — orphans remaining, '
-        + '0 name-only matches held for review, 0 stale name-only links removed.');
+        + '0 name-only matches held for review, 0 name-only links removed.');
   });
 
   it('shows an em dash for an unknown orphan count but zero for unknown link counts', () => {

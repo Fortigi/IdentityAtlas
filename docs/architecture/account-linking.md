@@ -30,8 +30,8 @@ The engine lives in [`app/api/src/accountlinking/`](https://github.com/Fortigi/I
 | `defaultRules.js` | The shipped default dictionary (`DEFAULT_RULES`). |
 | `classifier.js` | Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching. Regex rules are compiled with **RE2** (linear-time, ReDoS-safe). |
 | `engine.js` | `scoreMatch`, `buildLinks` (pure scoring), and `runLinking(runId, configId)` (the DB-writing run). |
-| `engine.helpers.js` | Pure building blocks: identity indexing, candidate collection, the name-signal set, the `isNameOnly` predicate, reading stored `linkSignals`. |
-| `staleNameOnlyLinks.js` | The retroactive cleanup: removes engine-scored, analyst-untouched links that rest on name signals alone. |
+| `engine.helpers.js` | Pure building blocks: identity indexing, candidate collection, the name-signal set, the `isNameOnly` predicate, the `nameClaim` name-uniqueness reading, reading stored `linkSignals`. |
+| `staleNameOnlyLinks.js` | The retroactive cleanup: removes the engine-scored, analyst-untouched name-only links the active policy would no longer create. |
 
 A run is top-down: for each existing Identity, find orphan accounts that belong to that person and attach them.
 
@@ -57,17 +57,17 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
   ],
   "linkThreshold": 50,
   "onlyLinkTypes": ["Admin", "Guest", "Secondary"],
-  "allowNameOnlyLinks": false
+  "allowNameOnlyLinks": true
 }
 ```
 
 - **`signals`** — weighted match rules. An orphan links to the candidate identity with the highest *summed* weight that clears `linkThreshold`. Strong signals (`employeeId`, `email` exact, `emailPrefix` after stripping a known prefix) are near-certain; name signals are softer (see below).
 - **`accountTypeRules`** — regex patterns that classify an account's type. Lowest `priority` wins; the matched pattern is recorded on the link (`accountTypePattern`). Anything that matches nothing is `Secondary` (a plain extra human account). Directory metadata is the strongest guest signal: `userType=Guest` or an `#ext#` UPN short-circuits to `Guest` before the regexes run.
-- **`linkThreshold`** — the minimum confidence to auto-link, surfaced as the **certainty slider** in the admin UI. The shipped default is `50`. Name signals land at 45–60, so the threshold alone does not decide whether a name-only match links — the corroboration guard below does. Raise the threshold to require stronger evidence from *every* match.
+- **`linkThreshold`** — the minimum confidence to auto-link, surfaced as the **certainty slider** in the admin UI. The shipped default is `50`. Name signals land at 45–60, so the threshold alone does not decide whether a name-only match links — the name-uniqueness guard below does. Raise the threshold to require stronger evidence from *every* match.
 - **`onlyLinkTypes`** — only these account types are attached to a person. `Service` and `Shared` accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.
-- **`allowNameOnlyLinks`** — default `false`: a match whose signals are *all* name signals is held for review instead of linked (see the corroboration guard below). Set to `true` — the **"Link on a name match alone"** checkbox in the admin UI — to restore the pre-6.2 behaviour of linking namesakes automatically. Configs are merged over `DEFAULT_RULES`, so an existing install that never stored the key gets the safe default on upgrade.
+- **`allowNameOnlyLinks`** — default `true`: a match whose signals are *all* name signals links where the name points at exactly one person, and is held for review where it does not (see the name-uniqueness guard below). Set to `false` — unchecking **"Link on a name match alone"** in the admin UI — to hold back *every* name-only match, which costs a source that carries nothing but display names (a badge system, many ERPs) all of its links. Only a literal `false` opts out; configs are merged over `DEFAULT_RULES`, so an install that never stored the key runs the shipped policy.
 
-### Graded name matching + the two guards
+### Graded name matching + the name-uniqueness guard
 
 `nameVariants` reduces a person to **every name they are known by**, each a `{ given, surname, initial, key, variant }`. There are two independent sources and neither is authoritative, so both are kept:
 
@@ -79,7 +79,7 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
 
 Identical variants collapse, so the common case — every source spelling the person the same way — is a single name.
 
-`variant` records *which* of the person's names each one is, which is what the ambiguity guard below weighs:
+`variant` records *which* of the person's names each one is, which is what the guard below weighs:
 
 | `variant` | Meaning |
 |---|---|
@@ -108,21 +108,35 @@ The title and particle lists live next to `QUALIFIER_RE` in `classifier.js`; the
 
 The two name signals are mutually exclusive — only the signal whose `level` equals the computed best level fires.
 
-A match is **name-only** when every signal that fired is a name signal — the graded `name` signals, plus the legacy single-signal `fuzzy` type, which is a name comparison by definition. Two guards apply to those:
+A match is **name-only** when every signal that fired is a name signal — the graded `name` signals, plus the legacy single-signal `fuzzy` type, which is a name comparison by definition. The name-uniqueness guard applies to those.
 
-**Corroboration guard** (default on): a name-only match is **not auto-linked**. A name on its own is not evidence enough — the real owner's parsed name may differ slightly (a title, an accent, a married name) while a namesake matches cleanly, and the account then inherits the wrong person's access review, risk score and leaver handling. Measured on a synthetic 7,000-identity dataset, *every* wrong link was a name-only link and no link combining a name with an email or `employeeId` was wrong. Such matches are counted and recorded on the run instead (see below). Set `allowNameOnlyLinks: true` to opt back in.
+**Name-uniqueness guard** (always on): a name-only match links **only where the account's name points at exactly one person**. A name shared with a second person is no evidence of which of them the account belongs to, and the wrong one then inherits that person's access review, risk score and leaver handling. Such matches are held for review, counted and recorded on the run instead (see below).
 
-**Ambiguity guard:** a name-only best match that ties in confidence across multiple identities is too risky to auto-pick, so the engine leaves the account orphaned for manual review rather than guess. This one fires even when `allowNameOnlyLinks` is `true` — a tie has no evidence to prefer one candidate. Two genuine namesakes therefore produce a review item, not a guess — including when one of them carries a title in their display name and the other does not, which previously hid one of the pair from the candidate set and made the guess look certain.
+Why a uniqueness reading rather than a blanket refusal to link on a name: measured on a synthetic 7,000-identity, 11,500-account dataset across four systems, refusing *every* name-only match held back ≈4,100 links that were correct and removed none that were wrong — a system that carries only display names (a badge reader, many ERPs, the admin accounts) stopped linking altogether. The wrong links the issue was filed for turned out to come from the name *parsing* — titles and surname particles read as names — which [#1443](https://github.com/Fortigi/IdentityAtlas/issues/1443) fixed. What is left to guard against is the namesake, and that is what uniqueness tests for.
 
-A name tie is read **per name key** (`resolveNameTie` in `engine.helpers.js`) before it is treated as a tie at all. Since a person is indexed under several names, the question is asked once per name the account carries: if exactly one of the equally-scoring identities has the strongest claim to one of those names, it is the match — still subject to the corroboration guard, so under the default it is the suggested identity rather than a link. It stays a tie, and the account goes to review, when no name singles anyone out or when different names single out different people. The resolution does not depend on the order identities were indexed in.
+Who the name points at is read by `nameClaim` in `engine.helpers.js`, and three things make the reading non-obvious:
 
-Within one key the claims are usually unequal, and **a match is only as strong as its weaker side**: it is a match on the name in use when the account *and* the identity are both spelled that way under that key, and a birth-name match when either side holds it only in a structured column. Accounts are provisioned from the name in use, so where both kinds meet under one key the name in use wins outright:
+1. **A name is read at both levels the engine scores names at.** The people spelled exactly that name, *and* the people who share its surname and given initial, are all claimants. The second half is what the old tie between top-scoring candidates could not see: the real owner spelled `Johannes Jansen` scores 45 against an account named `Jan Jansen`, never ties with the namesake who scores 60, and so never blocked him. Identities are indexed for this in `bySurnameInitial`, which is deliberately **not** a candidate index — a surname+initial match alone scores below the shipped threshold, so widening the candidate set with it would change nothing about who links.
+2. **The question is asked once per name the account carries**, not once overall. A person is indexed under every name they are known by, so a name that is ambiguous does not veto a *different* name that is unique: an account spelled `Anna Bakker-de Wit` in the directory and `de Wit` in its HR column belongs to the one person called Bakker-de Wit, even though two people answer to `de Wit`. The account's name points at one person when some name singles them out and no other name singles out anybody else — it points at nobody when no name singles anyone out, or when two names disagree. The reading does not depend on the order identities were indexed in.
+3. **Within one name the claims are usually unequal, and a match is only as strong as its weaker side**: it is a match on the name in use when the account *and* the identity are both spelled that way, and a birth-name match when either side holds it only in a structured column. Accounts are provisioned from the name in use, so where both kinds meet the name in use wins outright:
+    - An `Anna Jansen` account, an identity called `Anna Jansen`, and a second identity called `Anna de Boer-Jansen` whose HR record still carries `Jansen` in its `surname` column. The account is the first one's; the birth surname is not a rival. Indexing the birth-name variant without this rule turned links the engine used to make into review items.
+    - Equally strong claims make the name ambiguous: two people who both *go by* the name, or two for whom it is equally a birth surname, send the account to review.
+    - Where the account itself carries the name only in its own `surname` column, neither side's claim is the name in use and the claims are left unranked — that name is an old one on both sides, so ranking it would hand the account to a stranger over the name it is actually spelled with.
 
-- An `Anna Jansen` account, an identity called `Anna Jansen`, and a second identity called `Anna de Boer-Jansen` whose HR record still carries `Jansen` in its `surname` column — all three under `jansen|anna`. The account is the first one's; the birth surname does not make it a review item. Indexing the birth-name variant without this rule turned links the engine used to make into ties.
-- Equally strong claims still tie: two people who both *go by* the name, or two for whom it is equally a birth surname, send the account to review.
-- Where the account itself carries the key only in its own `surname` column, neither side's claim is the name in use and the claims are left unranked — that key is an old name on both sides, so ranking it would hand the account to a stranger over the name it is actually spelled with.
+The identity the name points at also has to be one of the **top-scoring** candidates for the match to link: a name that singles out somebody the score ranks lower settles nothing, and linking them would attach the account to a weaker match than the engine's own best candidate.
 
-**Retroactive cleanup.** The guard would otherwise only apply to *new* links, leaving every name-only link made before it existed attached forever. So a run under the guard first detaches the links it would no longer create — engine-scored (`linkConfidence IS NOT NULL`), analyst-untouched (`analystOverride IS NULL`) member rows whose stored `linkSignals` are all name signals — and recomputes `accountCount` for the identities that lost an account. Those accounts rejoin the orphan pool and re-score in the *same* run, so a corroborated one re-links immediately and an uncorroborated one becomes a suggestion. Crawler-sourced links (no confidence) and analyst decisions are never touched — the same exclusions the crawler's reconcile honours.
+Setting `allowNameOnlyLinks: false` holds back every name-only match on top of this — including one whose name is unique in the whole tenant. It is the stricter policy for a tenant that wants a name to never be evidence enough; it is not the default because it costs every link from a source that carries nothing but display names.
+
+**Retroactive cleanup.** The guard would otherwise only apply to *new* links, leaving every wrong name-only link made before it existed attached forever. So each run first detaches the name-only links it would no longer create and recomputes `accountCount` for the identities that lost an account. Those accounts rejoin the orphan pool and re-score in the *same* run, so one that still links does so immediately and one that no longer does becomes a held-for-review match.
+
+Which links those are follows the active policy, and the scoping matters in both directions: too narrow and the data that motivated the guard stays wrong, too wide and every run detaches and re-creates the same links forever.
+
+| Policy | What a run detaches |
+|---|---|
+| shipped (`allowNameOnlyLinks` not `false`) | only the links whose account name no longer points at the identity it hangs off — a namesake, or a near-identical name shared with a second person. A link on a name unique to one person stays exactly where it is, so an upgrade churns nothing it needn't and a second run detaches nothing. |
+| `allowNameOnlyLinks: false` | every name-only link, because under that policy the engine would create none of them. |
+
+The scan is over engine-scored (`linkConfidence IS NOT NULL`), analyst-untouched (`analystOverride IS NULL`) member rows, joined to `Principals` for the account's own name. Crawler-sourced links (no confidence) and analyst decisions are never touched — the same exclusions the crawler's reconcile honours.
 
 ### Candidate scope = orphans only
 
@@ -153,9 +167,9 @@ Added by [`092_account_linking_name_only.sql`](https://github.com/Fortigi/Identi
 
 | Column | Meaning |
 |---|---|
-| `nameOnlyMatches` | How many orphans had an above-threshold best match resting on name signals alone — including the ones the ambiguity guard already dropped, and including matches that *did* link when `allowNameOnlyLinks` is on. The true, uncapped count. |
-| `linksRemoved` | How many pre-existing name-only links the retroactive cleanup detached. `0` when the tenant allows name-only links (the cleanup does not run). |
-| `nameOnlySuggestions` | The held-back matches themselves — `{ principalId, displayName, identityId, identityName, confidence, signals, accountType, ties }` — capped at 500 entries so one run cannot store an unbounded document. |
+| `nameOnlyMatches` | How many above-threshold matches resting on name signals alone the run **held for review** instead of linking. The true, uncapped count — the stored list below is capped, so this is what the card counts against. A name-only match that linked is not counted here; it is an ordinary link. |
+| `linksRemoved` | How many pre-existing name-only links the retroactive cleanup detached. Expected to be `0` on every run after the first one that saw a given dataset. |
+| `nameOnlySuggestions` | The held-back matches themselves — `{ principalId, displayName, identityId, identityName, confidence, signals, accountType, reason, rivals, rivalCount }` — capped at 500 entries so one run cannot store an unbounded document. `reason` is `ambiguousName` (somebody else answers to the name) or `uncorroborated` (the name is unique, but this tenant set `allowNameOnlyLinks: false`); `rivals` names up to 5 of the other claimants and `rivalCount` is how many there really are. |
 
 They surface in the run-completion notice and in the read-only **"Name-only matches (held for review)"** card in Admin → Account Linking. The routes `SELECT *`, so no API change was needed. There is deliberately **no confirm/reject action** on a suggestion: a durable reviewable link object would have to not act as linked while awaiting review (any `IdentityMembers` row removes the account from the orphan set and feeds the matrix and risk rollups), which is a separate feature. The analyst acts through the existing per-account override controls on the identity page.
 

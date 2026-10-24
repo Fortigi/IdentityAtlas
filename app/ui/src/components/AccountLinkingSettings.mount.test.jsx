@@ -169,27 +169,30 @@ describe('AccountLinkingSettings (mounted)', () => {
     }
   });
 
-  // ── The name-only corroboration guard's controls ──────────────────────────
+  // ── The name-only policy control ──────────────────────────────────────────
   //
-  // The checkbox is the documented opt-out for a safe default that now reaches every
-  // install on upgrade, so what it PUTs matters: a control that renders but never makes
-  // it into the saved rules leaves the tenant with no way back.
+  // The checkbox is the documented way to the stricter policy, and it is ON by default, so
+  // what it PUTs matters in both directions: a control that renders but never makes it into
+  // the saved rules leaves the tenant with no way to tighten linking, and a box that
+  // defaults to off would silently tighten it for everybody.
 
-  it('shows the name-only checkbox unchecked for a config that never stored the key', async () => {
+  it('shows the name-only checkbox checked for a config that never stored the key', async () => {
+    // The API merges DEFAULT_RULES, where the key is true — and an absent key must read
+    // the same way, or an upgrade would present the strict policy as the current one.
     renderWithProviders(h(AccountLinkingSettings), { auth: { authFetch: routes() } });
     await screen.findByText('Account Linking');
 
-    expect(screen.getByRole('checkbox', { name: /Link on a name match alone/i })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Link on a name match alone/i })).toBeChecked();
   });
 
-  it('reflects an existing opt-in from the loaded config', async () => {
+  it('reflects an existing opt-out from the loaded config', async () => {
     const authFetch = routes({
-      '/api/account-linking/config': { ...config, rules: { ...config.rules, allowNameOnlyLinks: true } },
+      '/api/account-linking/config': { ...config, rules: { ...config.rules, allowNameOnlyLinks: false } },
     });
     renderWithProviders(h(AccountLinkingSettings), { auth: { authFetch } });
     await screen.findByText('Account Linking');
 
-    expect(screen.getByRole('checkbox', { name: /Link on a name match alone/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Link on a name match alone/i })).not.toBeChecked();
   });
 
   it('PUTs allowNameOnlyLinks from the checkbox, not from the rules textarea', async () => {
@@ -200,7 +203,7 @@ describe('AccountLinkingSettings (mounted)', () => {
     const authFetch = makeAuthFetch((url, opts = {}) => {
       if (!String(url).includes('/api/account-linking/config')) return { data: [] };
       if ((opts.method || 'GET') !== 'GET') { puts.push(JSON.parse(opts.body)); return jsonResponse({ ok: true }); }
-      return { ...config, rules: { ...config.rules, allowNameOnlyLinks: false } };
+      return { ...config, rules: { ...config.rules, allowNameOnlyLinks: true } };
     });
     renderWithProviders(h(AccountLinkingSettings), { auth: { authFetch } });
     const user = userEvent.setup();
@@ -211,11 +214,11 @@ describe('AccountLinkingSettings (mounted)', () => {
     await screen.findByText('Saved.');
 
     expect(puts).toHaveLength(1);
-    expect(puts[0].rules.allowNameOnlyLinks).toBe(true);
+    expect(puts[0].rules.allowNameOnlyLinks).toBe(false);
   });
 
-  it('keeps the opt-out off in the PUT when the box is left unchecked', async () => {
-    // The paired case — the default must be saved as an explicit false, not dropped.
+  it('keeps the shipped policy in the PUT when the box is left alone', async () => {
+    // The paired case — the default must be saved as an explicit true, not dropped.
     const puts = [];
     const authFetch = makeAuthFetch((url, opts = {}) => {
       if (!String(url).includes('/api/account-linking/config')) return { data: [] };
@@ -229,7 +232,7 @@ describe('AccountLinkingSettings (mounted)', () => {
     await user.click(screen.getByText('Save'));
     await screen.findByText('Saved.');
 
-    expect(puts[0].rules.allowNameOnlyLinks).toBe(false);
+    expect(puts[0].rules.allowNameOnlyLinks).toBe(true);
   });
 
   it('reports what the completed run held back and removed', async () => {
@@ -248,7 +251,7 @@ describe('AccountLinkingSettings (mounted)', () => {
       await vi.advanceTimersByTimeAsync(1600);
 
       await vi.waitFor(() => expect(
-        screen.getByText(/3 name-only matches held for review, 2 stale name-only links removed/i),
+        screen.getByText(/3 name-only matches held for review, 2 name-only links removed/i),
       ).toBeInTheDocument());
     } finally {
       vi.useRealTimers();
@@ -283,7 +286,8 @@ describe('AccountLinkingSettings (mounted)', () => {
           status: 'completed', nameOnlyMatches: 1,
           nameOnlySuggestions: [{
             principalId: 'p1', displayName: 'Doe, John (OGD)', identityId: 'i1', identityName: 'John Doe',
-            confidence: 60, signals: ['fullName'], accountType: 'Secondary', ties: 1,
+            confidence: 60, signals: ['fullName'], accountType: 'Secondary',
+            reason: 'ambiguousName', rivals: [{ identityId: 'i2', identityName: 'Johanna Doe' }], rivalCount: 1,
           }],
         }],
       },

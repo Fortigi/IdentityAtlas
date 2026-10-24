@@ -1,9 +1,9 @@
 // Reading an account-linking run row.
 //
-// The three columns the name-only corroboration guard added are NULLABLE, and the null
-// means "this run predates the feature" — which is a different statement from "the run
-// looked and found none". Both readers below turn on that distinction, so they live here
-// together rather than being re-derived at each call site.
+// The three columns the name-only guard added are NULLABLE, and the null means "this run
+// predates the feature" — which is a different statement from "the run looked and found
+// none". Both readers below turn on that distinction, so they live here together rather
+// than being re-derived at each call site.
 
 /**
  * The run-completion line shown after a run finishes. Clauses for figures the run did not
@@ -16,7 +16,7 @@ export function completionNotice(run) {
     `${run.orphansRemaining ?? '—'} orphans remaining`,
   ];
   if (run.nameOnlyMatches != null) parts.push(`${run.nameOnlyMatches} name-only matches held for review`);
-  if (run.linksRemoved != null) parts.push(`${run.linksRemoved} stale name-only links removed`);
+  if (run.linksRemoved != null) parts.push(`${run.linksRemoved} name-only links removed`);
   return `Linking complete — ${parts.join(', ')}.`;
 }
 

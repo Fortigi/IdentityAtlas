@@ -1,18 +1,20 @@
 // @ts-check
 //
-// Account linking must not attach an account to a person on a display-name match alone
-// (#1440). Against the live, demo-data-loaded deployment this spec checks the three things
-// the acceptance criteria ask for, end to end:
+// Account linking must not attach an account to a person on a display name somebody else
+// answers to (#1440). Against the live, demo-data-loaded deployment this spec checks, end
+// to end:
 //
-//   1. the shipped policy is "a name needs a second signal" — and a real run honours it,
-//   2. the run reports what it held back and what it removed, with the signals,
-//   3. nothing in the resulting data is linked on name signals alone.
+//   1. the shipped policy is readable from the active rules, and a real run honours it,
+//   2. the run reports what it held back and what it removed, with the evidence and the
+//      reason,
+//   3. an account the run held back is NOT linked in the resulting data,
+//   4. a second run over the same data detaches nothing — the policy converges instead of
+//      churning every name-only link on every run.
 //
-// (3) is the assertion that actually matters and the one a unit test cannot make: it reads
-// the stored links back through the identities API and checks every engine-scored one
-// carries a signal that is not a name. A run that silently kept creating name-only links,
-// or a retroactive cleanup that never fired, both fail here while every mocked test stays
-// green.
+// (3) and (4) are the assertions a unit test cannot make: they read the stored links back
+// through the identities API, and they run the engine twice against one database. A run
+// that both reports a match as held and writes it, or a cleanup that keeps detaching links
+// it immediately re-creates, fails here while every mocked test stays green.
 //
 // The run is a real POST, so this spec changes deployment state — it links accounts the
 // same way the post-crawl auto-run does. That is deliberate: a dry-run would not prove the
@@ -63,15 +65,16 @@ test.beforeAll(async () => {
   completedRun = await runLinking();
 });
 
-test.describe('Account linking — no auto-link on a single name signal', () => {
+test.describe('Account linking — no auto-link on a name somebody else answers to', () => {
   test.describe.configure({ mode: 'serial', timeout: 240000 });
 
-  test('the shipped policy requires a second signal beside the name', async () => {
+  test('the shipped policy links a name-only match only where the name is unique', async () => {
     // The key may be absent on an install that saved its rules before the feature; the
-    // API merges DEFAULT_RULES, so an absent key must still read as "not allowed".
-    expect(rules.allowNameOnlyLinks === true).toBe(false);
-    // The guard, not the threshold, is what holds a name-only match back — so the
-    // threshold is deliberately still below a single name signal's weight.
+    // API merges DEFAULT_RULES, so an absent key must read as the shipped policy and not
+    // as the stricter opt-out.
+    expect(rules.allowNameOnlyLinks === false).toBe(false);
+    // The guard, not the threshold, is what holds an ambiguous name-only match back — so
+    // the threshold is deliberately still below a single name signal's weight.
     const nameWeights = (rules.signals || [])
       .filter(s => s.type === 'name' || s.type === 'fuzzy')
       .map(s => s.weight || 0);
@@ -91,7 +94,7 @@ test.describe('Account linking — no auto-link on a single name signal', () => 
     expect(completedRun.nameOnlyMatches).toBeGreaterThanOrEqual(completedRun.nameOnlySuggestions.length);
   });
 
-  test('each held-back match names the account, the identity and the evidence', async () => {
+  test('each held-back match names the account, the identity, the evidence and the reason', async () => {
     test.skip(!completedRun, 'no completed run');
     test.skip(!completedRun.nameOnlySuggestions?.length,
       'this dataset produced no name-only matches — nothing to inspect');
@@ -104,37 +107,50 @@ test.describe('Account linking — no auto-link on a single name signal', () => 
       // The whole point of the record: every signal it rested on is a name signal.
       expect(s.signals.length).toBeGreaterThan(0);
       for (const sig of s.signals) expect(names.has(sig), `${sig} is not a name signal`).toBe(true);
-      expect(s.ties).toBeGreaterThanOrEqual(1);
-    }
-  });
-
-  test('no engine-scored link in the data rests on name signals alone', async () => {
-    test.skip(!completedRun, 'no completed run');
-    const names = nameSignalNames(rules);
-
-    const listRes = await fetch(`${API}/identities?minAccounts=2&limit=200`);
-    expect(listRes.ok).toBe(true);
-    const identities = (await listRes.json())?.data ?? [];
-    test.skip(identities.length === 0, 'no multi-account identities in this dataset');
-
-    const offenders = [];
-    for (const identity of identities) {
-      const res = await fetch(`${API}/identities/${identity.id}`);
-      if (!res.ok) continue;
-      for (const m of (await res.json())?.members ?? []) {
-        // Only the engine's own guesses are in scope: a crawler-sourced link carries no
-        // confidence, and an analyst decision outranks the rule.
-        if (m.linkConfidence == null || m.analystOverride) continue;
-        const signals = String(m.linkSignals ?? '').split(',').map(s => s.trim()).filter(Boolean);
-        if (signals.length > 0 && signals.every(s => names.has(s))) {
-          offenders.push(`${identity.id}/${m.principalId} (${signals.join(',')})`);
-        }
+      expect(['ambiguousName', 'uncorroborated']).toContain(s.reason);
+      if (s.reason === 'ambiguousName') {
+        // Held because somebody else answers to the name — so it has to say who, or an
+        // analyst has nothing to act on.
+        expect(s.rivalCount, 'an ambiguous match with no rival is a contradiction').toBeGreaterThan(0);
+        expect(s.rivals.length).toBeGreaterThan(0);
+        for (const rival of s.rivals) expect(rival.identityId).toBeTruthy();
+      } else {
+        expect(s.rivalCount).toBe(0);
       }
     }
-    expect(offenders, 'accounts linked on name signals alone').toEqual([]);
   });
 
-  test('Admin → Account Linking exposes the opt-out and the held-for-review card', async ({ page }) => {
+  test('no account the run held back is linked in the data', async () => {
+    test.skip(!completedRun, 'no completed run');
+    const held = (completedRun.nameOnlySuggestions ?? []).slice(0, 25);
+    test.skip(held.length === 0, 'this dataset produced no name-only matches — nothing to check');
+
+    const offenders = [];
+    for (const s of held) {
+      const res = await fetch(`${API}/identities/${s.identityId}`);
+      if (!res.ok) continue;
+      const members = (await res.json())?.members ?? [];
+      if (members.some(m => m.principalId === s.principalId)) {
+        offenders.push(`${s.identityId}/${s.principalId}`);
+      }
+    }
+    expect(offenders, 'accounts reported as held for review but linked anyway').toEqual([]);
+  });
+
+  test('a second run detaches nothing and holds back the same matches', async () => {
+    // Convergence. The run removes the name-only links the policy would no longer make;
+    // a cleanup scoped too widely detaches and re-creates the same links on every run,
+    // which looks harmless in the UI and churns an account's history forever.
+    test.skip(!completedRun, 'no completed run');
+    const second = await runLinking();
+    test.skip(!second, 'could not start the second account-linking run');
+
+    expect(second.status).toBe('completed');
+    expect(second.linksRemoved, 'the second run re-detached links the first one settled').toBe(0);
+    expect(second.nameOnlyMatches).toBe(completedRun.nameOnlyMatches);
+  });
+
+  test('Admin → Account Linking exposes the policy control and the held-for-review card', async ({ page }) => {
     await page.goto(`${BASE}/#admin?sub=account-linking`);
     await page.waitForLoadState('networkidle');
 
@@ -142,8 +158,8 @@ test.describe('Account linking — no auto-link on a single name signal', () => 
     if (!(await checkbox.isVisible({ timeout: 15000 }).catch(() => false))) {
       test.skip(true, 'Account Linking admin tab not available to this user (needs admin.crawlers)');
     }
-    // Unchecked is the policy; it is the documented way back to the old behaviour.
-    await expect(checkbox).not.toBeChecked();
+    // Checked is the shipped policy; unchecking it is the documented way to the stricter one.
+    await expect(checkbox).toBeChecked();
 
     await expect(page.getByRole('heading', { name: /Name-only matches \(held for review\)/i })).toBeVisible();
     // Either the list or an explicit empty state — never a silently blank card.
