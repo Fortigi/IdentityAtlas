@@ -11,8 +11,10 @@
     test/unit/EntraIDCrawlerTransform.Tests.ps1.
 #>
 
-# Maps one enterprise-app service principal → an Application resource record (the
-# app-role catalog parent). Verbatim from the inline `if (-not $appResourceMap...)`.
+# Maps one service principal → an Application resource record. Every phase that
+# writes Application rows shapes them here, and a full sync replaces
+# extendedAttributes wholesale, so this carries everything the OAuth2 client
+# record does (publisherName) or a later phase would wipe it.
 function ConvertTo-EntraAppRoleApplicationResource {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $ServicePrincipal)
@@ -26,7 +28,8 @@ function ConvertTo-EntraAppRoleApplicationResource {
     if ($ServicePrincipal.appId)                     { $ext['appId']                     = $ServicePrincipal.appId }
     if ($ServicePrincipal.appRoleAssignmentRequired) { $ext['appRoleAssignmentRequired'] = $true }
     if ($ServicePrincipal.servicePrincipalType)      { $ext['servicePrincipalType']      = $ServicePrincipal.servicePrincipalType }
-    if ($ext.Count -gt 0)                            { $rec['extendedAttributes']        = $ext }
+    if ($ServicePrincipal.publisherName)             { $ext['publisherName']             = $ServicePrincipal.publisherName }
+    if ($ext.Count -gt 0)                           { $rec['extendedAttributes']        = $ext }
     return $rec
 }
 
