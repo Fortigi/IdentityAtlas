@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Account Linking now links an account whose full name exactly one person is spelled, even when other people share that surname and first initial — "Youssef El Mahdi" no longer waits for review because a Yasmina or a Yassin exists. A rival is weighed at the level the match itself rests on, so real namesakes (including one whose record carries a title) are still held.
+- The first run after this update re-links the accounts the previous behaviour held or detached. The run summary says how many, alongside the links it removed, so the change is visible rather than silent.
+- The "Name-only matches (held for review)" card now says *which* name the rivals share — the full name, or just the surname and first initial — instead of describing every hold the same way.
+
+## Changes in this PR
+
 - Fixed: Account Linking no longer treats accounts a sync has removed as orphans. A removed account (one a full sync no longer finds in its source system) is no longer scored, is never newly linked to an identity, and no longer counts towards "orphans remaining" on a run.
 - Fixed: a removed account can no longer be attached to the wrong person. Where linking first ran after a sync that had removed accounts, a leaver's account could be matched on the name alone to a *different*, still-employed colleague who shares that name — a namesake, or someone whose record still holds the leaver's surname — handing that colleague the leaver's account and every permission on it. Removed accounts are no longer linking candidates, so those links are not made.
 - Fixed: the Orphaned Accounts report and the Orphaned Accounts context no longer list accounts that have been removed from their source system, so a review is no longer spent on accounts that no longer exist.
