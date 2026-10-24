@@ -17,11 +17,18 @@ async function namesById(runner, table, ids) {
   return new Map(rows.map(r => [r.id, r.name]));
 }
 
+// The template as people say it: "LogicalApplication" → "Logical applications".
+export function templateLabel(category) {
+  const words = String(category || 'Units').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  const plural = words.endsWith('s') ? words : `${words}s`;
+  return plural.charAt(0).toUpperCase() + plural.slice(1);
+}
+
 async function treeTitle(runner, tree) {
   const top = tree.units.filter(u => !u.parentId);
   if (tree.kind === 'synced') {
     const sys = await runner.query(`SELECT "displayName" FROM "Systems" WHERE id = $1`, [tree.systemId]);
-    return `${sys.rows[0]?.displayName || `System ${tree.systemId}`} · ${tree.contextCategory}`;
+    return `${templateLabel(tree.contextCategory)} · ${sys.rows[0]?.displayName || `System ${tree.systemId}`}`;
   }
   if (top.length === 1) return top[0].name;
   if (tree.kind === 'generated') {

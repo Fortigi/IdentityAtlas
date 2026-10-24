@@ -128,6 +128,20 @@ export function memberWord(targetType, count = 2) {
   return memberKindNoun(targetType, count);
 }
 
+// Who answers for a unit, in the template's words: an application has an owner,
+// an organisational unit a manager.
+export function holderLabel(contextCategory) {
+  return contextCategory === 'LogicalApplication' ? 'Owner' : 'Manager';
+}
+
+// The holder's name to show after a unit's name — nothing when the name already
+// carries it ("Finance (Carl Jansen)" from the manager hierarchy).
+export function holderSuffix(unit) {
+  const name = unit?.accountable?.name;
+  if (!name || String(unit.name || '').includes(name)) return '';
+  return name;
+}
+
 // The second line of a member: where they work, or what kind of resource it is.
 export function memberDetail(m) {
   return m?.department || m?.jobTitle || m?.resourceType || m?.email || '';
