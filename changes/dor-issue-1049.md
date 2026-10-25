@@ -1,0 +1,4 @@
+- Matrix grouping headers now render as a compact cross table — one thin row per attribute value with a ✕ in each column that carries it — instead of tall rotated labels, freeing vertical space for the grid on laptop-sized screens.
+- The compact header is used only when it is shorter than the previous one; a sort attribute with many values keeps the original rotated rows, and the whole header always renders in one style (never a mix).
+- The header style is fixed by the matrix definition, so folding, unfolding or exploding a column no longer changes how the header is drawn.
+- All header interactions are unchanged: click a value row to fold that group, click the folded column (▤) to unfold it, and explode an aggregate back into its members — now as real keyboard-reachable buttons with descriptive labels, in both light and dark mode.
