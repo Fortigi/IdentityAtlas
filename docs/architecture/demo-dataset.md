@@ -337,12 +337,14 @@ on, and each is absent from the standard slice:
   person. The login is then the only route from the account to its owner, which is what makes
   Account Linking's login signal observable on stock demo data instead of needing a hand-seeded
   fixture. One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so
-  `adm-svisser@…` fits several of them and must be **held for review** rather than linked. Where two
-  people in the seeded range share a login, the second gets the numbered spelling a real directory
-  hands out (`adm-svisser2@…`). The two conventions are told apart by the dot: the older logins carry
-  the one in their owner's address, the newer ones have none. Asserted in
-  `test/unit/DemoRealism.Tests.ps1` (the seed) and `app/ui/e2e/account-linking-admin-logins.spec.js`
-  (what a real run decides about them).
+  `adm-svisser@…` fits several of them and must be **held for review** rather than linked. Every
+  login is the plain spelling of a name — where two people in the seeded range would share one, the
+  second is skipped rather than given the numbered spelling (`adm-svisser2@…`) a real directory hands
+  out, because a login with a trailing digit run is a shape the engine cannot yet read back to a name
+  ([#1468](https://github.com/Fortigi/IdentityAtlas/issues/1468)) and the account could only sit
+  orphaned. The two conventions are told apart by the dot: the older logins carry the one in their
+  owner's address, the newer ones have none. Asserted in `test/unit/DemoRealism.Tests.ps1` (the seed)
+  and `app/ui/e2e/account-linking-admin-logins.spec.js` (what a real run decides about them).
 
 **What it deliberately does NOT do.** It never touches anything above it: the same ids, the same
 ordering, the same 26-person company. Generating without the switch produces the standard dataset

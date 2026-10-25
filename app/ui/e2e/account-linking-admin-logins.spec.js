@@ -130,13 +130,11 @@ test.beforeAll(async () => {
 });
 
 /**
- * The people one `adm-<initial><surname>` account could belong to. A login the
- * seed had to number (`adm-svisser2`, where a namesake took the plain spelling)
- * keys on nothing and comes back empty — which is why the numbered ones are
- * excluded wherever an owner is required.
+ * The people one `adm-<initial><surname>` account could belong to. Every seeded
+ * login is the plain spelling of somebody's name, so this is only empty when the
+ * login names nobody in the directory — which the third test below forbids.
  */
 const ownersOf = (account) => owners.get(loginOf(account).replace(/^adm-/, '')) ?? [];
-const plainLogins = () => byLogin.filter(a => /^adm-[a-z]+$/.test(loginOf(a)));
 
 test.describe('Demo admin accounts under the adm-initial-surname convention (#1465)', () => {
   test.describe.configure({ mode: 'serial', timeout: 300000 });
@@ -152,7 +150,10 @@ test.describe('Demo admin accounts under the adm-initial-surname convention (#14
 
     for (const account of byLogin) {
       const login = loginOf(account);
-      expect(login).toMatch(/^adm-[a-z]+[0-9]*$/);
+      // Plain, never numbered: a trailing digit run is a login shape the engine
+      // cannot yet spell back to a name (#1468), so the seed skips the namesake
+      // who would have got one rather than adding an account nothing can link.
+      expect(login).toMatch(/^adm-[a-z]+$/);
       // Nothing on the account says whose it is...
       for (const column of ['employeeId', 'givenName', 'surname', 'department']) {
         expect(account[column] ?? '', `${login} kept its ${column}, so its login is not the only evidence`).toBe('');
@@ -173,15 +174,12 @@ test.describe('Demo admin accounts under the adm-initial-surname convention (#14
   });
 
   test('every login is spelled after somebody really in the directory', async () => {
-    const plain = plainLogins();
-    expect(plain.length).toBeGreaterThanOrEqual(10);
-
-    const unknown = plain.filter(a => ownersOf(a).length === 0).map(loginOf);
+    const unknown = byLogin.filter(a => ownersOf(a).length === 0).map(loginOf);
     expect(unknown, 'a login nobody in the directory answers to can never be attributed').toEqual([]);
     // Both outcomes the demo has to be able to show.
-    expect(plain.filter(a => ownersOf(a).length === 1).length,
+    expect(byLogin.filter(a => ownersOf(a).length === 1).length,
       'no login points at exactly one person, so nothing can auto-link').toBeGreaterThanOrEqual(1);
-    expect(plain.filter(a => ownersOf(a).length > 1).length,
+    expect(byLogin.filter(a => ownersOf(a).length > 1).length,
       'no login fits two people, so nothing can be held for review').toBeGreaterThanOrEqual(1);
   });
 
@@ -200,7 +198,7 @@ test.describe('Demo admin accounts under the adm-initial-surname convention (#14
 
     // Particle surnames are excluded deliberately: whether a concatenated
     // "jvandenberg" matches "van den Berg" is #1454's contract, not this seed's.
-    const unambiguous = plainLogins()
+    const unambiguous = byLogin
       .filter(a => ownersOf(a).length === 1 && !String(ownersOf(a)[0].surname).includes(' '));
     expect(unambiguous.length, 'no particle-free unambiguous login to check').toBeGreaterThanOrEqual(1);
 
@@ -218,7 +216,7 @@ test.describe('Demo admin accounts under the adm-initial-surname convention (#14
     test.skip(!hasLoginNameSignal(rules),
       'the active rules carry no login-local-part name signal yet (#1454) — nothing is held on a login');
 
-    const ambiguous = plainLogins().filter(a => ownersOf(a).length > 1);
+    const ambiguous = byLogin.filter(a => ownersOf(a).length > 1);
     expect(ambiguous.length).toBeGreaterThanOrEqual(1);
 
     // None of the rival owners may have inherited the account — the run has to

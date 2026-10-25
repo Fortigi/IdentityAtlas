@@ -320,22 +320,6 @@ function New-DemoRealismRoster {
 $script:RealismEmployeeTypes = @('Employee', 'Employee', 'Employee', 'Employee', 'Employee',
                                 'Employee', 'Employee', 'Employee', 'Contractor', 'Intern')
 
-# The first unused spelling of a login: the name itself, then name2, name3… —
-# what a directory does when two people would otherwise share one. Shared by
-# both login conventions in this slice, each with a used-set of its own.
-function Get-DemoRealismUniqueLocalPart {
-    param(
-        [Parameter(Mandatory)][string]$Local,
-        # Not Mandatory: the set is empty on the first call, and PowerShell
-        # refuses to bind an empty collection to a mandatory parameter.
-        [AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$Used
-    )
-    $candidate = $Local
-    $n = 1
-    while (-not $Used.Add($candidate)) { $n++; $candidate = "$Local$n" }
-    return $candidate
-}
-
 # "Jeroen van den Berg" -> jeroen.vandenberg@fortigidemo.com, with a number
 # appended when two people would otherwise share an address (they do: the roster
 # has two people with the same full name).
@@ -343,10 +327,15 @@ function Get-DemoRealismEmail {
     param(
         [Parameter(Mandatory)][string]$Given,
         [Parameter(Mandatory)][string]$Surname,
+        # Not Mandatory: the set is empty on the first call, and PowerShell
+        # refuses to bind an empty collection to a mandatory parameter.
         [AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$Used
     )
     $local = "$($Given.ToLower()).$(($Surname -replace '[^\p{L}]', '').ToLower())"
-    return "$(Get-DemoRealismUniqueLocalPart -Local $local -Used $Used)@fortigidemo.com"
+    $candidate = $local
+    $n = 1
+    while (-not $Used.Add($candidate)) { $n++; $candidate = "$local$n" }
+    return "$candidate@fortigidemo.com"
 }
 
 # "Femke Hogenbirk" -> fhogenbirk: the first initial glued to the surname, which
@@ -383,8 +372,8 @@ function Add-DemoRealismPeople {
         Systems    = @{ ad = $sysAd; crm = $sysCrm }
         MeasuredAt = $measuredAt
         # Logins already handed out under the `adm-<initial><surname>` convention,
-        # so an in-bucket namesake gets a suffix instead of a second account on
-        # the same address.
+        # so an in-bucket namesake is skipped rather than given a second account
+        # on the same address.
         AdminLogins = [System.Collections.Generic.HashSet[string]]::new()
     }
     foreach ($person in $roster) {
@@ -548,11 +537,18 @@ function Add-DemoRealismLinkedAccounts {
     # employee id, no name columns, no department, no pre-made link — so the only
     # route from the account to its owner is the login itself. That is the signal
     # Account Linking has to read, and these accounts are what exercises it.
+    #
+    # A login a person earlier in the roster already took is SKIPPED rather than
+    # numbered: a login the engine cannot spell back to a name (`adm-svisser2`)
+    # is a shape of its own, and until the engine reads it the account could
+    # only ever sit orphaned. `adm-svisser` is the ambiguous case the slice
+    # wants, and the namesake behind it simply gets no second account.
     if (($bucket -ge 92 -and $bucket -lt 96) -or $Person.id -eq $script:RealismAmbiguousAdminId) {
-        $login = Get-DemoRealismUniqueLocalPart -Used $State.Realism.AdminLogins `
-            -Local "adm-$(Get-DemoRealismInitialSurname -Given $Person.given -Surname $Person.surname)"
-        Add-DemoRealismAdminAccount $State -Person $Person -IdSeed "principal-$($Person.id)-adm2" `
-            -DisplayName $login -Email "$login@fortigidemo.com" -Orphan
+        $login = "adm-$(Get-DemoRealismInitialSurname -Given $Person.given -Surname $Person.surname)"
+        if ($State.Realism.AdminLogins.Add($login)) {
+            Add-DemoRealismAdminAccount $State -Person $Person -IdSeed "principal-$($Person.id)-adm2" `
+                -DisplayName $login -Email "$login@fortigidemo.com" -Orphan
+        }
     }
 }
 
