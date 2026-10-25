@@ -126,7 +126,8 @@ function Send-EntraOAuth2GrantRecords {
     foreach ($g in @($UserGrants) + @($AdminGrants)) { if ($g.clientId) { [void]$clientIds.Add($g.clientId) } }
     $clientRecords = @($clientIds | ForEach-Object { ConvertTo-EntraOAuth2ClientResource -ClientId $_ -SpInfo $SpInfo[$_] })
     Update-CrawlerProgress -Detail "Uploading $($clientRecords.Count) client apps..."
-    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' -Scope @{ resourceType = 'Application' } -Records $clientRecords
+    # Delta (upsert only): the app-roles phase alone reconciles Application rows, over every SP.
+    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'delta' -Scope @{ resourceType = 'Application' } -Records $clientRecords
 
     $scopeGraph = ConvertTo-EntraOAuth2ScopeGraph -UserGrants $UserGrants -AdminGrants $AdminGrants -SpInfo $SpInfo
     $scopeRecords = @($scopeGraph.resources)
@@ -281,7 +282,7 @@ function Get-EntraAppRoleAssignmentData {
     # either define appRoles[] or require role assignment to use. Graph's
     # /servicePrincipals can return tens of thousands of rows on a large
     # tenant; the $select keeps payload size small.
-    $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,tags&`$top=999"
+    $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,publisherName,tags&`$top=999"
     $allSps = @($sps)
     Write-Host "  Fetched $($allSps.Count) service principals" -ForegroundColor Gray
 
@@ -291,7 +292,6 @@ function Get-EntraAppRoleAssignmentData {
     Write-Host "  $($candidateSps.Count) enterprise apps with role catalogs / required assignment" -ForegroundColor Gray
 
     # Buckets accumulated across all SPs, then uploaded in one batch each.
-    $appResourceMap   = @{}   # spId        -> Application Resource record
     $appRoleMap       = @{}   # roleResId   -> AppRole Resource record
     $relMap           = @{}   # "spId|roleResId" -> relationship record
     $directAssns      = [System.Collections.Generic.List[object]]::new()
@@ -304,7 +304,7 @@ function Get-EntraAppRoleAssignmentData {
             Update-CrawlerProgress -Detail "Inspecting app $spProcessed of $($candidateSps.Count)..."
         }
         Add-EntraSpAppRoleData -Sp $sp -DefaultRoleId $DefaultRoleId `
-            -AppResourceMap $appResourceMap -AppRoleMap $appRoleMap -RelMap $relMap `
+            -AppRoleMap $appRoleMap -RelMap $relMap `
             -DirectAssns $directAssns -GroupAssns $groupAssns
     }
 
@@ -315,8 +315,10 @@ function Get-EntraAppRoleAssignmentData {
     $directRecords   = Select-FGDistinct -Items $directAssns   -Key { "$($_.resourceId)|$($_.principalId)" }
     $indirectRecords = Select-FGDistinct -Items $indirectAssns -Key { "$($_.resourceId)|$($_.principalId)" }
 
+    # One Application row per SP, not only the role-bearing ones: this batch is the
+    # only full sync of Application rows, so an app it left out would be soft-deleted.
     return @{
-        appRecords      = @($appResourceMap.Values)
+        appRecords      = @($allSps | ForEach-Object { ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $_ })
         roleRecords     = @($appRoleMap.Values)
         relRecords      = @($relMap.Values)
         directRecords   = $directRecords
@@ -325,11 +327,11 @@ function Get-EntraAppRoleAssignmentData {
 }
 
 # Fold one enterprise app's role catalog + assignments into the cross-SP accumulators
-# (all mutated in place). SPs with no assignments are skipped entirely (no empty
-# Application/AppRole rows); a failed /appRoleAssignedTo fetch is logged and skipped.
+# (all mutated in place). SPs with no assignments add no AppRole rows; a failed
+# /appRoleAssignedTo fetch is logged and skipped.
 function Add-EntraSpAppRoleData {
     [CmdletBinding()]
-    param($Sp, [string]$DefaultRoleId, [hashtable]$AppResourceMap, [hashtable]$AppRoleMap, [hashtable]$RelMap, $DirectAssns, [hashtable]$GroupAssns)
+    param($Sp, [string]$DefaultRoleId, [hashtable]$AppRoleMap, [hashtable]$RelMap, $DirectAssns, [hashtable]$GroupAssns)
     # Always include the "default access" role — SPs with appRoleAssignmentRequired=true
     # but no custom roles fall back to the zero-GUID role id.
     $rolesByGuid = Get-EntraAppRoleCatalog -ServicePrincipal $Sp -DefaultRoleId $DefaultRoleId
@@ -341,10 +343,6 @@ function Add-EntraSpAppRoleData {
         return
     }
     if ($assignments.Count -eq 0) { return }
-    # Emit the Application Resource (idempotent — the OAuth2 phase may have written it; the endpoint upserts).
-    if (-not $AppResourceMap.ContainsKey($Sp.id)) {
-        $AppResourceMap[$Sp.id] = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal $Sp
-    }
     foreach ($a in $assignments) {
         Add-EntraAppRoleAssignment -Assignment $a -ServicePrincipal $Sp -RolesByGuid $rolesByGuid -DefaultRoleId $DefaultRoleId `
             -AppRoleMap $AppRoleMap -RelMap $RelMap -DirectAssns $DirectAssns -GroupAssns $GroupAssns

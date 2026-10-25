@@ -1,5 +1,71 @@
 ## Changes in this PR
 
+- Fixed Account Linking removing a linked account from an identity after a sync had deleted that account. A link made on a name match alone is now kept as history once the account is gone, instead of being detached by the name-only cleanup and lost — the identity keeps the account and its access history.
+- A run's "links removed" figure now counts only links to accounts that still exist, so it no longer reports removals an analyst cannot act on or undo.
+- Links to live accounts are unaffected: a name-only link to an account somebody else answers to is still detached and held for review.
+
+## Changes in this PR
+
+- Account Linking now links an account whose full name exactly one person is spelled, even when other people share that surname and first initial — "Youssef El Mahdi" no longer waits for review because a Yasmina or a Yassin exists. A rival is weighed at the level the match itself rests on, so real namesakes (including one whose record carries a title) are still held.
+- The first run after this update re-links the accounts the previous behaviour held or detached. The run summary says how many, alongside the links it removed, so the change is visible rather than silent.
+- The "Name-only matches (held for review)" card now says *which* name the rivals share — the full name, or just the surname and first initial — instead of describing every hold the same way.
+
+## Changes in this PR
+
+- Fixed: Account Linking no longer treats accounts a sync has removed as orphans. A removed account (one a full sync no longer finds in its source system) is no longer scored, is never newly linked to an identity, and no longer counts towards "orphans remaining" on a run.
+- Fixed: a removed account can no longer be attached to the wrong person. Where linking first ran after a sync that had removed accounts, a leaver's account could be matched on the name alone to a *different*, still-employed colleague who shares that name — a namesake, or someone whose record still holds the leaver's surname — handing that colleague the leaver's account and every permission on it. Removed accounts are no longer linking candidates, so those links are not made.
+- Fixed: the Orphaned Accounts report and the Orphaned Accounts context no longer list accounts that have been removed from their source system, so a review is no longer spent on accounts that no longer exist.
+- Accounts that were already linked to a person before they were removed stay linked — removal never detaches history — and an account that reappears in a later sync becomes linkable again.
+- Security: updated bundled dependencies to clear four high-severity and two moderate advisories, covering denial-of-service and request-handling issues in file upload, HTTP client, schema validation and URI parsing libraries.
+
+## Changes in this PR
+
+- Account linking no longer links an account to a person on a display name that somebody else answers to. A name that identifies exactly one person still links on its own, so a source carrying nothing but display names (a badge system, many ERPs) keeps linking; a name shared with a second person — spelled the same, or sharing its surname and first initial — is held for review instead.
+- A near-identical namesake now counts: an account named "Jan Jansen" is no longer attached to the Jan Jansen in the directory while a Johannes Jansen, whose name is spelled a little differently, may be its real owner.
+- Each linking run reports how many name-only matches it held for review and lists them — the account, the identity it nearly linked to, the confidence, the signals, why it was held and who else answers to the name — in a new "Name-only matches (held for review)" card in Admin → Account Linking.
+- Name-only links made by earlier runs are re-examined on the next run: the ones the policy would no longer make are detached and re-evaluated, and the rest are left exactly where they are. Analyst-confirmed links and links supplied by a crawler are never touched.
+- The run-completion notice now also reports the name-only matches held for review and the name-only links removed.
+- A new "Link on a name match alone" setting next to the certainty slider holds back every name-only match, including unambiguous ones, for installations that want a name to never be evidence enough on its own. It is on by default, including on existing installations after upgrade.
+- Updated bundled dependencies to clear newly published advisories flagged by the dependency audit: high-severity fixes for `multer` (file-upload denial of service), `body-parser`, `undici` and `zod`, plus moderate fixes in `fast-uri`, `ip-address`, `iconv-lite` and `qs`.
+
+## Changes in this PR
+
+- Updated third-party dependencies of the API and web UI to versions that fix newly published security advisories (zod, body-parser, multer, undici, fast-uri, ip-address)
+
+## Changes in this PR
+
+- Fixed enterprise applications that have only consent grants (such as PnP Management Shell) disappearing as resources after every full Entra ID crawl; links to them no longer end in "HTTP 404"
+- Every enterprise application now has a resource after a full crawl, not only the apps with app roles, consent grants, owners or app-only permissions
+
+## Changes in this PR
+
+- Fixed clicking an app in the Risky Applications and High-risk Application Permissions reports showing "HTTP 404": the row now opens the app's service-principal detail page
+
+## Changes in this PR
+
+- Excel export now works in the rotated matrix layout (subjects as rows, resources as columns), for example the matrix opened from a logical-application context. The workbook matches the on-screen grid: resource type and name headers, one row per subject with department and job title, membership letters per resource, governed cells highlighted, plus the usual Legend sheet with the shareable link.
+
+## Changes in this PR
+
+- Fixed Account Linking reading academic titles and surname particles as names, which could attach an account to a namesake instead of its real owner. "Jan de Vries MSc" was parsed as given name "Jan", surname "MSc", so the person never matched her own accounts.
+- Account Linking now matches a person on every name they are known by: the given-name and surname fields the source provides *and* the name parsed from their display name. HR systems commonly record a birth surname in the surname field while the display name and the accounts carry the name in use (a partner name or a double name), and either one is now enough to find a match.
+- An account matches the one person who is actually called that, even when other people share only their birth surname — a shared name no longer blocks a match that is unique. An account is given to the person who goes by the name it carries, rather than to someone who merely used to: "Anna Jansen" is linked to Anna Jansen and not left for review because an Anna de Boer-Jansen was born Jansen.
+- An account is still left for review where the people sharing a name have an equal claim to it: two people who both go by it, or two for whom it is equally a former name.
+- Pre- and post-nominal titles (drs., dr., ir., ing., prof., MSc, BSc, MBA, LLM, PhD and similar) are stripped from a display name before it is parsed, including several titles at once.
+- Multi-word surnames keep their particles, so "van den Berg" and "ter Horst" are matched in full and "van der Steen" is no longer treated as the same surname as "Schilder-van der Steen".
+- Two people who genuinely share a name are now both found as candidates, so an account that could belong to either is left for review rather than confidently attached to one of them.
+- Note: links that were already written to the wrong person are not corrected automatically — Account Linking only considers accounts that belong to nobody. Reject or move those from the identity's Linked Accounts.
+- The demo dataset's realism slice now writes academic titles in HR display names while keeping the name fields clean, so this case is covered by the sample data.
+
+## Changes in this PR
+
+- CSV import: `Users.csv` now has official `EmployeeId`, `GivenName` and `Surname` columns, matching `Identities.csv`. Previously an employee number supplied there was kept only as an extended attribute, so Account Linking — whose strongest signal is the employee number — could never use it and the accounts stayed unlinked.
+- An existing import that already carries those columns picks the values up as real fields on its next run, so they show as Employee Id / Given Name / Surname on the account's detail page and Account Linking can finally use them. The copy an earlier run filed under Extended Attributes is left in place, so until it is cleared such an account lists the value twice — once as the real field, once badged `ext`.
+- The downloadable `Users.csv` template and the upload wizard's column hint list the three new columns.
+- Clarified in the CSV import schema documentation that case-insensitive column matching applies to a file's own schema columns; an extra column keeps the spelling your header gives it and is stored as an extended attribute.
+
+## Changes in this PR
+
 - Fixed development (`:edge`) builds still reporting a 5.x version after 6.0 was released. Dev builds now take their major version from the newest release, so they show 6.x now and will move to 7.x automatically once 7.0 is released.
 
 ## Changes in this PR

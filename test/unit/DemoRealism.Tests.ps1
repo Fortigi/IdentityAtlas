@@ -114,6 +114,29 @@ Describe 'people — the questions about who somebody is' {
             Should -BeGreaterThan 20
     }
 
+    It 'writes academic titles in the HR display name while keeping the name columns clean' {
+        # The other half of what a name lookup trips over: the HR record spells the
+        # person "Jan de Vries MSc" and their account spells them "Jan de Vries".
+        # Linking the two is exactly what reading the title as a name breaks.
+        $titled = @($script:data.identities | Where-Object {
+            $_.displayName -match '\b(MSc|BSc|MBA|LLM|PhD)$' -or $_.displayName -match '^(drs|ir|dr|mr|ing)\.' })
+        $titled.Count | Should -BeGreaterThan 20 -Because 'a titled HR name must be present often enough to be exercised'
+
+        # The title lives ONLY in the display name. Both halves of the name are
+        # available clean, so no consumer has to parse the title out to match a person.
+        foreach ($idy in $titled) {
+            $idy.givenName | Should -Not -BeNullOrEmpty
+            $idy.surname | Should -Not -BeNullOrEmpty
+            $idy.displayName | Should -BeLike "*$($idy.givenName) $($idy.surname)*"
+        }
+
+        # And the person's own account carries the plain name, so the HR record and
+        # the account genuinely spell the same person differently.
+        $one = $titled[0]
+        @($script:data.principals | Where-Object { $_.employeeId -eq $one.employeeId -and $_.systemId -eq 1 -and $_.displayName -eq "$($one.givenName) $($one.surname)" }).Count |
+            Should -BeGreaterThan 0
+    }
+
     It 'gives most people a manager and a few none at all' {
         # The person's PRIMARY account only: their AD, CRM and admin accounts carry
         # the same employeeId and no manager of their own.
