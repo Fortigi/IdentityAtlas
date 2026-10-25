@@ -1,4 +1,4 @@
-// Static checks on migration 101. What the feature writes into it is verified
+// Static checks on migration 103. What the feature writes into it is verified
 // against PostgreSQL in contract-tests/changeRequests.contract.test.js.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
