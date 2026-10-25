@@ -1,3 +1,0 @@
-- Fixed Account Linking removing a linked account from an identity after a sync had deleted that account. A link made on a name match alone is now kept as history once the account is gone, instead of being detached by the name-only cleanup and lost — the identity keeps the account and its access history.
-- A run's "links removed" figure now counts only links to accounts that still exist, so it no longer reports removals an analyst cannot act on or undo.
-- Links to live accounts are unaffected: a name-only link to an account somebody else answers to is still detached and held for review.

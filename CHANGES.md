@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed Account Linking removing a linked account from an identity after a sync had deleted that account. A link made on a name match alone is now kept as history once the account is gone, instead of being detached by the name-only cleanup and lost — the identity keeps the account and its access history.
+- A run's "links removed" figure now counts only links to accounts that still exist, so it no longer reports removals an analyst cannot act on or undo.
+- Links to live accounts are unaffected: a name-only link to an account somebody else answers to is still detached and held for review.
+
+## Changes in this PR
+
 - Account Linking now links an account whose full name exactly one person is spelled, even when other people share that surname and first initial — "Youssef El Mahdi" no longer waits for review because a Yasmina or a Yassin exists. A rival is weighed at the level the match itself rests on, so real namesakes (including one whose record carries a title) are still held.
 - The first run after this update re-links the accounts the previous behaviour held or detached. The run summary says how many, alongside the links it removed, so the change is visible rather than silent.
 - The "Name-only matches (held for review)" card now says *which* name the rivals share — the full name, or just the surname and first initial — instead of describing every hold the same way.
