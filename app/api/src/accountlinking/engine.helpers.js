@@ -9,6 +9,10 @@ import {
   emailLocalPart,
   stripKnownPrefixes,
   nameVariants,
+  loginToken,
+  loginNameForms,
+  loginFormMatch,
+  bestNameMatch,
 } from './classifier.js';
 import { parseJsonbColumn } from '../lib/jsonb.js';
 
@@ -70,16 +74,67 @@ export function suffixesFrom(rules) {
 }
 /**
  * The level each signal that is a name match and nothing else fires at, by
- * signal name. `fuzzy` is included: it is the legacy single-signal name
- * comparison, so a match resting only on it is just as uncorroborated as one
- * resting on `fullName` — and it compares whole names, so it reports `full`.
+ * signal name. Two types besides the graded `name` ones belong here, because
+ * what they compare is a person's name:
+ *   `fuzzy`     — the legacy single-signal name comparison, so a match resting
+ *                 only on it is just as uncorroborated as one resting on
+ *                 `fullName`, and it compares whole names → `full`.
+ *   `loginName` — a login that spells a name form rather than an address
+ *                 (#1454). It reports its own level: the rivals of such a match
+ *                 share neither a spelled-out full name nor a display name, they
+ *                 answer to the same login form.
  *
- * @returns {Map<string, 'full'|'surnameInitial'>}
+ * @returns {Map<string, 'full'|'surnameInitial'|'loginName'>}
  */
 export function nameSignalLevels(rules) {
+  const levelOf = (s) => {
+    if (s.type === 'fuzzy') return 'full';
+    if (s.type === 'loginName') return 'loginName';
+    return s.level;
+  };
   return new Map((rules.signals || [])
-    .filter(s => s.type === 'name' || s.type === 'fuzzy')
-    .map(s => [s.name, s.type === 'fuzzy' ? 'full' : s.level]));
+    .filter(s => s.type === 'name' || s.type === 'fuzzy' || s.type === 'loginName')
+    .map(s => [s.name, levelOf(s)]));
+}
+
+/** The prefixes the login-reading signals strip before comparing (`adm-`, …). */
+export function loginPrefixesFrom(rules) {
+  return (rules.signals || [])
+    .filter(s => s.type === 'loginName')
+    .flatMap(s => s.stripPrefixes || []);
+}
+
+/**
+ * Which rung of the name-class ladder fires for one candidate pair, by level
+ * token — or null when the account's name says nothing about this person.
+ *
+ * The account's parsed name and its login carry the same kind of evidence, read
+ * off different fields: *this account is named after this person*. So they are
+ * rungs of one graded ladder and the strongest of them fires alone, exactly as
+ * the two parsed-name levels always have. Stacking them instead would let one
+ * name counted twice reach the confidence of an exact employeeId match — an
+ * account whose display name and login both spell its owner is no more certainly
+ * hers than the name is, since a namesake's account spells her name just as
+ * well, and a derived name form must never be near-certain evidence (#1454).
+ *
+ * The strongest rung is the heaviest one the rules configure, so a tenant that
+ * reweights the dictionary reorders the ladder with it.
+ *
+ * @returns {'full'|'surnameInitial'|'loginName'|string|null}
+ */
+export function strongestNameRung(orphan, identity, rules) {
+  const nameLevel = bestNameMatch(personNames(orphan), personNames(identity));
+  let best = null;
+  let bestWeight = -1; // so a signal configured at weight 0 still wins over nothing
+  for (const sig of (rules.signals || [])) {
+    const fires = sig.type === 'name'
+      ? sig.level === nameLevel
+      : sig.type === 'loginName'
+        && loginFormMatch(loginToken(orphan[sig.field], sig.stripPrefixes || []), identity) !== 'none';
+    if (fires && (sig.weight || 0) > bestWeight) { best = sig; bestWeight = sig.weight || 0; }
+  }
+  if (!best) return null;
+  return best.type === 'loginName' ? 'loginName' : best.level;
 }
 
 /** The names of every signal that is a name match and nothing else. */
@@ -127,7 +182,14 @@ export function parseLinkSignals(stored) {
  * near-identical spelling a namesake hides behind — `Johannes Jansen` standing
  * behind the `Jan Jansen` an account is named after (#1440).
  *
- * @returns {{ byEmployeeId: Map, byEmailLocal: Map, byName: Map, byNameKey: Map, bySurnameInitial: Map }}
+ * `byLoginFull` / `byLoginInitial` are the two levels a login that spells a name
+ * is read at (see `loginNameForms`). Unlike `bySurnameInitial` these *are*
+ * candidate indexes: a login form match scores above the shipped threshold on
+ * its own, so an account the login is the only evidence for has to reach scoring
+ * through them — which is exactly what it could not do before (#1454).
+ *
+ * @returns {{ byEmployeeId: Map, byEmailLocal: Map, byName: Map, byNameKey: Map,
+ *   bySurnameInitial: Map, byLoginFull: Map, byLoginInitial: Map }}
  */
 export function indexIdentities(identities) {
   const byEmployeeId = new Map();
@@ -135,6 +197,8 @@ export function indexIdentities(identities) {
   const byName = new Map();
   const byNameKey = new Map();
   const bySurnameInitial = new Map();
+  const byLoginFull = new Map();
+  const byLoginInitial = new Map();
   const push = (map, key, v) => { if (!key) return; (map.get(key) || map.set(key, []).get(key)).push(v); };
   for (const idy of identities) {
     push(byEmployeeId, norm(idy.employeeId), idy);
@@ -142,16 +206,19 @@ export function indexIdentities(identities) {
     push(byName, normalizeName(idy.displayName) || fullName(idy), idy);
     for (const key of nameKeys(idy)) push(byNameKey, key, idy);
     for (const key of nameInitialVariants(idy).keys()) push(bySurnameInitial, key, idy);
+    const forms = loginNameForms(idy);
+    for (const form of forms.full.keys()) push(byLoginFull, form, idy);
+    for (const form of forms.initial.keys()) push(byLoginInitial, form, idy);
   }
-  return { byEmployeeId, byEmailLocal, byName, byNameKey, bySurnameInitial };
+  return { byEmployeeId, byEmailLocal, byName, byNameKey, bySurnameInitial, byLoginFull, byLoginInitial };
 }
 
 /**
  * All identities plausibly matching an orphan, deduped by identity id.
  * @returns {Map<string, object>}
  */
-export function collectCandidates(orphan, indexes, { prefixes, suffixes }) {
-  const { byEmployeeId, byEmailLocal, byName, byNameKey } = indexes;
+export function collectCandidates(orphan, indexes, { prefixes, suffixes, loginPrefixes = [] }) {
+  const { byEmployeeId, byEmailLocal, byName, byNameKey, byLoginFull, byLoginInitial } = indexes;
   const candidates = new Map();
   const addAll = (arr) => { for (const idy of (arr || [])) candidates.set(idy.id, idy); };
   addAll(byEmployeeId.get(norm(orphan.employeeId)));
@@ -159,6 +226,9 @@ export function collectCandidates(orphan, indexes, { prefixes, suffixes }) {
   addAll(byEmailLocal.get(stripKnownPrefixes(emailLocalPart(orphan.email), prefixes)));
   addAll(byName.get(normalizeName(orphan.displayName, suffixes) || fullName(orphan, suffixes)));
   for (const key of nameKeys(orphan)) addAll(byNameKey.get(key));
+  const login = loginToken(orphan.email, loginPrefixes);
+  addAll(byLoginFull?.get(login));
+  addAll(byLoginInitial?.get(login));
   return candidates;
 }
 
@@ -236,6 +306,30 @@ export function sharedAtWeakerLevel(person, indexes) {
 }
 
 /**
+ * Everyone with a claim to the name an account's LOGIN spells, weighed the same
+ * way a display name is.
+ *
+ * The two levels of `loginNameForms` are read one at a time for the same reason
+ * the exact and initial name keys are: whoever's whole name the login writes out
+ * answers to it, and only when nobody does can the people it writes an initial
+ * of become claimants — `jhogenbirk` is Jan Hogenbirk's login even where a
+ * J. Hogenbirk-de Wit exists. And since a login is provisioned from the name in
+ * use, where both kinds of claim meet under one form the name in use wins
+ * outright, exactly as `strongestClaims` has it for a display name.
+ *
+ * @returns {Map<string, object>} identity id → identity
+ */
+function claimantsOfLogin(person, indexes, prefixes) {
+  const token = loginToken(person.email, prefixes);
+  if (!token) return new Map();
+  const spelled = indexes.byLoginFull?.get(token) || [];
+  const level = spelled.length ? 'full' : 'initial';
+  const under = spelled.length ? spelled : (indexes.byLoginInitial?.get(token) || []);
+  const claims = strongestClaims(under, token, 'inUse', idy => loginNameForms(idy)[level]);
+  return new Map(claims.map(idy => [idy.id, idy]));
+}
+
+/**
  * Who an account's name points at — the question the name-uniqueness guard asks.
  *
  * A person is indexed under every name they are known by (their name in use and
@@ -252,23 +346,35 @@ export function sharedAtWeakerLevel(person, indexes) {
  * skipped: indexed under a bare surname they would collect claimants the engine
  * would never have scored.
  *
+ * The account's **login** is one of those names (#1454): `adm-fhogenbirk` is a
+ * person's name written the way a provisioning convention writes one, and the
+ * signal that reads it is name-class, so the login is asked the same question on
+ * the same terms — it can single somebody out where the display name carries no
+ * person's name at all, and it can tie where the form fits two people.
+ *
  * @param {object} person  the account being placed
  * @param {object} indexes  the identity indexes from `indexIdentities`
+ * @param {{ loginPrefixes?: string[] }} [opts]  the prefixes the login-reading
+ *   signals strip (`loginPrefixesFrom`). Omitted, the login is not read — the
+ *   rules decide whether a login is evidence at all, not this helper.
  * @returns {{ sole: object|null, claimants: object[] }}
  *   `sole` is the identity the name points at, or null when it points at nobody
  *   or at more than one; `claimants` is everyone it could be, for review.
  */
-export function nameClaim(person, indexes) {
+export function nameClaim(person, indexes, { loginPrefixes = [] } = {}) {
   const exactCarried = nameKeyVariants(person);
   const initialCarried = nameInitialVariants(person);
   const claimants = new Map();
   const singledOut = new Set();
-  for (const v of personNames(person)) {
-    if (!INITIAL_KEY(v)) continue;
-    const under = claimantsOfName(v, indexes, exactCarried, initialCarried);
+  const consider = (under) => {
     for (const [id, idy] of under) claimants.set(id, idy);
     if (under.size === 1) singledOut.add([...under.keys()][0]);
+  };
+  for (const v of personNames(person)) {
+    if (!INITIAL_KEY(v)) continue;
+    consider(claimantsOfName(v, indexes, exactCarried, initialCarried));
   }
+  consider(claimantsOfLogin(person, indexes, loginPrefixes));
   const sole = singledOut.size === 1 ? claimants.get([...singledOut][0]) : null;
   return { sole, claimants: [...claimants.values()] };
 }

@@ -1123,3 +1123,103 @@ describe('buildLinks - an admin login carrying initial + surname (#1454)', () =>
     expect(stats.nameOnlyMatches).toBe(1); // held for review with rivals, not silently dropped
   });
 });
+
+// The rest of the ladder the login signal joined, and what the run reports about a
+// login it could not place. The weight is deliberately checked as an exact figure:
+// the whole point of grading this evidence is that it is NOT near-certain, and a
+// signal that quietly reached 80 or stacked onto `fullName` would be indistinguishable
+// from an exact address match in the UI, in the certainty slider and to a reviewer.
+
+describe('scoreMatch - the login rung of the name ladder (#1454)', () => {
+  const fay = {
+    id: 'idy-fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com', employeeId: 'E100',
+  };
+
+  it('scores an admin login that spells her name, and nothing else, at 55', () => {
+    const orphan = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    expect(scoreMatch(orphan, fay, DEFAULT_RULES)).toEqual({ confidence: 55, signals: ['loginNameForm'] });
+  });
+
+  it('does not add the login to a display name that already spells her', () => {
+    // One name read off two fields is one piece of evidence. Summed it reports 100 —
+    // what an exact employeeId match reports — for a name any namesake's account
+    // carries just as well.
+    const orphan = { id: 'p-adm', displayName: 'Hogenbirk, Fay', email: 'adm-fayhogenbirk@fortigidemo.com' };
+    expect(scoreMatch(orphan, fay, DEFAULT_RULES)).toEqual({ confidence: 60, signals: ['fullName'] });
+  });
+
+  it('keeps the address signals above the login one when the login is corroborated', () => {
+    // adm- + her exact local part: the convention the shipped prefix rule was written
+    // for still reports its own near-certain weight, with the name read once beside it.
+    const orphan = { id: 'p-adm', displayName: 'Hogenbirk, Fay', email: 'adm-f.h.hogenbirk@fortigidemo.com' };
+    const { confidence, signals } = scoreMatch(orphan, fay, DEFAULT_RULES);
+    expect(signals).toEqual(['emailPrefix', 'fullName']);
+    expect(confidence).toBe(100);
+  });
+
+  it('ignores a login that spells somebody else', () => {
+    const orphan = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-pmunck@fortigidemo.com' };
+    expect(scoreMatch(orphan, fay, DEFAULT_RULES).signals).toEqual([]);
+  });
+});
+
+describe('buildLinks - what a run reports about an admin login (#1454)', () => {
+  const fay = {
+    id: 'idy-fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com', employeeId: 'E100',
+  };
+  const petra = { id: 'idy-petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@fortigidemo.com' };
+  const pieter = { id: 'idy-pieter', displayName: 'Pieter Munck', givenName: 'Pieter', surname: 'Munck', email: 'pieter.munck@fortigidemo.com' };
+
+  it('records the link as Admin, name-only, on the login signal', () => {
+    const orphan = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com', accountEnabled: true };
+    const { links } = buildLinks([orphan], [fay], DEFAULT_RULES);
+    expect(links[0]).toMatchObject({
+      principalId: 'p-adm', identityId: 'idy-fay', accountType: 'Admin',
+      signals: ['loginNameForm'], confidence: 55, accountEnabled: true,
+    });
+  });
+
+  it('names the rival and the level on the ambiguous login it held back', () => {
+    // A hold is only reviewable if it says who else answers to the form. 'loginName'
+    // is its own level because the rivals here share neither a spelled-out full name
+    // nor a display name — the card's wording for those two would be wrong.
+    const orphan = { id: 'p-adm2', displayName: 'Admin account 043', email: 'adm-pmunck@fortigidemo.com' };
+    const { stats } = buildLinks([orphan], [petra, pieter], DEFAULT_RULES);
+    expect(stats.suggestions).toHaveLength(1);
+    expect(stats.suggestions[0]).toMatchObject({
+      principalId: 'p-adm2', accountType: 'Admin', reason: 'ambiguousName',
+      matchLevel: 'loginName', signals: ['loginNameForm'], confidence: 55, rivalCount: 1,
+    });
+    expect(stats.suggestions[0].rivals.map(r => r.identityId)).toEqual(['idy-pieter']);
+  });
+
+  it('holds a login-only match back entirely when the tenant wants a second signal', () => {
+    // The name-class proof: under allowNameOnlyLinks: false a login match is held like
+    // any other name match, with the reason that says the name was never contested.
+    const orphan = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    const { links, stats } = buildLinks([orphan], [fay], { ...DEFAULT_RULES, allowNameOnlyLinks: false });
+    expect(links).toHaveLength(0);
+    expect(stats.suggestions[0]).toMatchObject({ reason: 'uncorroborated', matchLevel: 'loginName', rivalCount: 0 });
+  });
+
+  it('links an admin login corroborated by an employee id without reading it as name-only', () => {
+    // The demo-seed shape: the same account also carries her employee id, so it links
+    // on near-certain evidence and the uniqueness guard never has to weigh the login.
+    const orphan = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com', employeeId: 'E100' };
+    const { links, stats } = buildLinks([orphan], [fay], DEFAULT_RULES);
+    expect(links[0].signals).toEqual(['employeeId', 'loginNameForm']);
+    expect(links[0].confidence).toBe(100);
+    expect(stats.nameOnlyMatches).toBe(0);
+  });
+
+  it('still leaves a service account out, however well its login reads', () => {
+    // svc- classifies as Service, which onlyLinkTypes excludes: a shared job account
+    // named after the engineer who created it is not that engineer's account.
+    const orphan = { id: 'p-svc', displayName: 'svc-reporting', email: 'svc-fhogenbirk@fortigidemo.com' };
+    const { links, stats } = buildLinks([orphan], [fay], DEFAULT_RULES);
+    expect(links).toHaveLength(0);
+    expect(stats.nameOnlyMatches).toBe(0);
+  });
+});
