@@ -10,8 +10,10 @@ import {
   stripKnownPrefixes,
   nameVariants,
   loginToken,
+  unnumberedLoginToken,
   loginNameForms,
   loginFormMatch,
+  LOGIN_FORM_GRADES,
   bestNameMatch,
 } from './classifier.js';
 import { parseJsonbColumn } from '../lib/jsonb.js';
@@ -182,14 +184,15 @@ export function parseLinkSignals(stored) {
  * near-identical spelling a namesake hides behind — `Johannes Jansen` standing
  * behind the `Jan Jansen` an account is named after (#1440).
  *
- * `byLoginFull` / `byLoginInitial` are the two levels a login that spells a name
- * is read at (see `loginNameForms`). Unlike `bySurnameInitial` these *are*
- * candidate indexes: a login form match scores above the shipped threshold on
- * its own, so an account the login is the only evidence for has to reach scoring
- * through them — which is exactly what it could not do before (#1454).
+ * `byLoginFull` / `byLoginInitial` / `byLoginLoose` are the three grades a login
+ * that spells a name is read at (see `loginNameForms`). Unlike `bySurnameInitial`
+ * these *are* candidate indexes: a login form match scores above the shipped
+ * threshold on its own, so an account the login is the only evidence for has to
+ * reach scoring through them — which is exactly what it could not do before
+ * (#1454), nor for a login a convention had shortened (#1468).
  *
  * @returns {{ byEmployeeId: Map, byEmailLocal: Map, byName: Map, byNameKey: Map,
- *   bySurnameInitial: Map, byLoginFull: Map, byLoginInitial: Map }}
+ *   bySurnameInitial: Map, byLoginFull: Map, byLoginInitial: Map, byLoginLoose: Map }}
  */
 export function indexIdentities(identities) {
   const byEmployeeId = new Map();
@@ -199,6 +202,7 @@ export function indexIdentities(identities) {
   const bySurnameInitial = new Map();
   const byLoginFull = new Map();
   const byLoginInitial = new Map();
+  const byLoginLoose = new Map();
   const push = (map, key, v) => { if (!key) return; (map.get(key) || map.set(key, []).get(key)).push(v); };
   for (const idy of identities) {
     push(byEmployeeId, norm(idy.employeeId), idy);
@@ -209,16 +213,34 @@ export function indexIdentities(identities) {
     const forms = loginNameForms(idy);
     for (const form of forms.full.keys()) push(byLoginFull, form, idy);
     for (const form of forms.initial.keys()) push(byLoginInitial, form, idy);
+    for (const form of forms.loose.keys()) push(byLoginLoose, form, idy);
   }
-  return { byEmployeeId, byEmailLocal, byName, byNameKey, bySurnameInitial, byLoginFull, byLoginInitial };
+  return {
+    byEmployeeId, byEmailLocal, byName, byNameKey, bySurnameInitial,
+    byLoginFull, byLoginInitial, byLoginLoose,
+  };
 }
+
+/** The identity index each login-form grade is read from, strongest grade first. */
+const LOGIN_INDEX_OF = { full: 'byLoginFull', initial: 'byLoginInitial', loose: 'byLoginLoose' };
+
+/**
+ * The spellings an account's login is looked up under, strongest first: the
+ * login itself, then — only as a fallback — the name a numbered login numbers
+ * (see `unnumberedLoginToken`).
+ * @returns {string[]}
+ */
+const loginSpellings = (person, prefixes) => {
+  const token = loginToken(person.email, prefixes);
+  return [token, unnumberedLoginToken(token)].filter(Boolean);
+};
 
 /**
  * All identities plausibly matching an orphan, deduped by identity id.
  * @returns {Map<string, object>}
  */
 export function collectCandidates(orphan, indexes, { prefixes, suffixes, loginPrefixes = [] }) {
-  const { byEmployeeId, byEmailLocal, byName, byNameKey, byLoginFull, byLoginInitial } = indexes;
+  const { byEmployeeId, byEmailLocal, byName, byNameKey } = indexes;
   const candidates = new Map();
   const addAll = (arr) => { for (const idy of (arr || [])) candidates.set(idy.id, idy); };
   addAll(byEmployeeId.get(norm(orphan.employeeId)));
@@ -226,9 +248,11 @@ export function collectCandidates(orphan, indexes, { prefixes, suffixes, loginPr
   addAll(byEmailLocal.get(stripKnownPrefixes(emailLocalPart(orphan.email), prefixes)));
   addAll(byName.get(normalizeName(orphan.displayName, suffixes) || fullName(orphan, suffixes)));
   for (const key of nameKeys(orphan)) addAll(byNameKey.get(key));
-  const login = loginToken(orphan.email, loginPrefixes);
-  addAll(byLoginFull?.get(login));
-  addAll(byLoginInitial?.get(login));
+  // Every grade, under every spelling of the login: narrowing is this function's
+  // only job, and whose claim is the stronger one is `nameClaim`'s.
+  for (const spelling of loginSpellings(orphan, loginPrefixes)) {
+    for (const grade of LOGIN_FORM_GRADES) addAll(indexes[LOGIN_INDEX_OF[grade]]?.get(spelling));
+  }
   return candidates;
 }
 
@@ -309,24 +333,33 @@ export function sharedAtWeakerLevel(person, indexes) {
  * Everyone with a claim to the name an account's LOGIN spells, weighed the same
  * way a display name is.
  *
- * The two levels of `loginNameForms` are read one at a time for the same reason
+ * The three grades of `loginNameForms` are read one at a time for the same reason
  * the exact and initial name keys are: whoever's whole name the login writes out
  * answers to it, and only when nobody does can the people it writes an initial
  * of become claimants — `jhogenbirk` is Jan Hogenbirk's login even where a
- * J. Hogenbirk-de Wit exists. And since a login is provisioned from the name in
- * use, where both kinds of claim meet under one form the name in use wins
- * outright, exactly as `strongestClaims` has it for a display name.
+ * J. Hogenbirk-de Wit exists. One grade down again sit the people whose surname a
+ * convention shortened to the login (#1468), so the D. Dongen of the tenant keeps
+ * `ddongen` and Daniëlle van Dongen claims it only where no D. Dongen exists.
+ * And since a login is provisioned from the name in use, where both kinds of
+ * claim meet under one form the name in use wins outright, exactly as
+ * `strongestClaims` has it for a display name.
+ *
+ * A numbered login is read as the name it numbers only where the number spells
+ * nobody's form, so the whole cascade runs on the login as written before any of
+ * it runs on the unnumbered spelling.
  *
  * @returns {Map<string, object>} identity id → identity
  */
 function claimantsOfLogin(person, indexes, prefixes) {
-  const token = loginToken(person.email, prefixes);
-  if (!token) return new Map();
-  const spelled = indexes.byLoginFull?.get(token) || [];
-  const level = spelled.length ? 'full' : 'initial';
-  const under = spelled.length ? spelled : (indexes.byLoginInitial?.get(token) || []);
-  const claims = strongestClaims(under, token, 'inUse', idy => loginNameForms(idy)[level]);
-  return new Map(claims.map(idy => [idy.id, idy]));
+  for (const spelling of loginSpellings(person, prefixes)) {
+    for (const grade of LOGIN_FORM_GRADES) {
+      const under = indexes[LOGIN_INDEX_OF[grade]]?.get(spelling) || [];
+      if (!under.length) continue;
+      const claims = strongestClaims(under, spelling, 'inUse', idy => loginNameForms(idy)[grade]);
+      return new Map(claims.map(idy => [idy.id, idy]));
+    }
+  }
+  return new Map();
 }
 
 /**

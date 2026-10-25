@@ -1062,3 +1062,103 @@ describe('nameClaim / collectCandidates - logins the conventions reduce (#1468)'
     expect(collectCandidates(admin('adm-dstraaten'), indexes, candidateOpts).size).toBe(0);
   });
 });
+
+describe('indexIdentities / nameClaim - the grade a shortened login claims at (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  const candidateOpts = {
+    prefixes: prefixesFrom(DEFAULT_RULES),
+    suffixes: suffixesFrom(DEFAULT_RULES),
+    loginPrefixes: loginPrefixesFrom(DEFAULT_RULES),
+  };
+  const admin = (login) => ({ id: 'o', displayName: login, email: `${login}@fortigidemo.com` });
+  const danielle = {
+    id: 'danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    email: 'danielle.vandongen@fortigidemo.com',
+  };
+  /** Genuinely called 'D. Dongen' — the particle-kept spelling of the same login. */
+  const dirkje = { id: 'dirkje', displayName: 'Dirkje Dongen', givenName: 'Dirkje', surname: 'Dongen' };
+
+  it('indexes a person under the shortened forms of her surname too', () => {
+    const { byLoginInitial, byLoginLoose } = indexIdentities([danielle]);
+    expect(byLoginInitial.get('dvandongen')).toEqual([danielle]);
+    expect(byLoginLoose.get('ddongen')).toEqual([danielle]);
+    // Not at both grades: the whole-surname spelling is hers alone to claim.
+    expect(byLoginLoose.get('dvandongen')).toBeUndefined();
+  });
+
+  it('gives a login to the person genuinely spelled it over the one it was shortened to', () => {
+    // Level-scoped rivalry (#1460) carried into the new grade: 'ddongen' is Dirkje's
+    // own spelling and only a reduction of Daniëlle's, so the reduced claimant is no
+    // rival at all and the account is placed rather than held between the two.
+    const claim = nameClaim(admin('adm-ddongen'), indexIdentities([danielle, dirkje]), opts);
+    expect(claim.sole).toBe(dirkje);
+    expect(claim.claimants).toEqual([dirkje]);
+  });
+
+  it('holds a shortened login that two people’s surnames shorten to', () => {
+    // Different particles, one reduction: nothing in the login says which of them it
+    // belongs to, so it is contested at the loose grade like any other tie.
+    const dirk = { id: 'dirk', displayName: 'Dirk ter Dongen', givenName: 'Dirk', surname: 'ter Dongen' };
+    const claim = nameClaim(admin('adm-ddongen'), indexIdentities([danielle, dirk]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['danielle', 'dirk']);
+  });
+
+  it('reads a numbered login as its own spelling before the name it numbers', () => {
+    // 'svisser2' IS this Sanne's mailbox, so it is her login outright; the digit strip
+    // is only reached where the login as written spells nobody. Read the other way
+    // round, her own address would put her in a tie with her namesake.
+    const owner = {
+      id: 'owner', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser',
+      email: 'svisser2@fortigidemo.com',
+    };
+    const namesake = { id: 'namesake', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' };
+    const claim = nameClaim(admin('adm-svisser2'), indexIdentities([owner, namesake]), opts);
+    expect(claim.sole).toBe(owner);
+    expect(claim.claimants).toEqual([owner]);
+  });
+
+  it('gathers the owner of a numbered login as a candidate', () => {
+    // Both Vissers, because narrowing is all collectCandidates does — which of them
+    // the login points at is nameClaim's question, asked after they are scored.
+    const vissers = [
+      { id: 'i1', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+      { id: 'i2', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+    ];
+    const keys = [...collectCandidates(admin('adm-svisser2'), indexIdentities(vissers), candidateOpts).keys()];
+    expect(keys.sort()).toEqual(['i1', 'i2']);
+  });
+
+  it('reads no shortened or numbered login when the rules strip no login prefixes', () => {
+    // `loginPrefixes` is the rules' decision that a login is evidence at all. Without
+    // it the token keeps its prefix ('admddongen') and shortens to nobody's name.
+    const indexes = indexIdentities([danielle, dirkje]);
+    const bare = { prefixes: [], suffixes: [], loginPrefixes: [] };
+    expect(collectCandidates(admin('adm-ddongen'), indexes, bare).size).toBe(0);
+    expect(nameClaim(admin('adm-ddongen'), indexes, {}).claimants).toEqual([]);
+  });
+});
+
+describe('strongestNameRung - a shortened login is still the login rung (#1468)', () => {
+  const danielle = {
+    id: 'danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    email: 'danielle.vandongen@fortigidemo.com',
+  };
+
+  it('fires the login rung for a login the convention shortened or numbered', () => {
+    // The grade decides who out-claims whom, never whether the signal fires: an
+    // account that reaches no rung scores nothing and stays orphaned.
+    expect(strongestNameRung(
+      { displayName: 'Admin account 128', email: 'adm-ddongen@fortigidemo.com' }, danielle, DEFAULT_RULES,
+    )).toBe('loginName');
+    expect(strongestNameRung(
+      { displayName: 'Admin account 128', email: 'adm-ddongen2@fortigidemo.com' }, danielle, DEFAULT_RULES,
+    )).toBe('loginName');
+  });
+
+  it('fires nothing for a login that shortens to somebody else', () => {
+    expect(strongestNameRung(
+      { displayName: 'Admin account 128', email: 'adm-dstraaten@fortigidemo.com' }, danielle, DEFAULT_RULES,
+    )).toBeNull();
+  });
+});

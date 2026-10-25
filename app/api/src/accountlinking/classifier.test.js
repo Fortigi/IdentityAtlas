@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules, loginToken, loginNameForms, loginFormMatch } from './classifier.js';
+import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules, loginToken, unnumberedLoginToken, loginNameForms, loginFormMatch } from './classifier.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('classifyAccount', () => {
@@ -666,5 +666,114 @@ describe('login forms the conventions actually write (#1468)', () => {
     const jan = { displayName: 'Jan Jansen', givenName: 'Jan', surname: 'Jansen', email: 'jan2@x.com' };
     expect(loginToken('adm-jan2@fortigidemo.com', PREFIXES)).toBe('jan2');
     expect(loginFormMatch('jan2', jan)).toBe('full');
+  });
+});
+
+describe('unnumberedLoginToken', () => {
+  it('drops the digit run a convention numbers a namesake with', () => {
+    expect(unnumberedLoginToken('svisser2')).toBe('svisser');
+    expect(unnumberedLoginToken('svisser12')).toBe('svisser');
+  });
+
+  it('is empty for a login that carries no number to drop', () => {
+    // Empty rather than the token itself: handed back unchanged, a caller would look
+    // the same spelling up twice and read one claimant as two.
+    expect(unnumberedLoginToken('svisser')).toBe('');
+    expect(unnumberedLoginToken('')).toBe('');
+    expect(unnumberedLoginToken(null)).toBe('');
+  });
+
+  it('drops only the trailing run, and leaves nothing of an all-digit login', () => {
+    // 'a1b2' is not 'a1b2' numbered — only its last run is a number, and a login
+    // that is nothing but digits names nobody once they are gone.
+    expect(unnumberedLoginToken('a1b2')).toBe('a1b');
+    expect(unnumberedLoginToken('042')).toBe('');
+  });
+});
+
+describe('loginNameForms - the surname a convention shortened (#1468)', () => {
+  it('spells the particle-dropped surname at the loose grade and nowhere else', () => {
+    const { full, initial, loose } = loginNameForms({
+      displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    });
+    expect([...full.keys()]).toEqual(['danillevandongen']);
+    expect([...initial.keys()]).toEqual(['dvandongen']);
+    expect([...loose.keys()]).toEqual(['ddongen']);
+  });
+
+  it('spells each half of a hyphenated double surname, with and without its particles', () => {
+    const { loose } = loginNameForms({
+      displayName: 'W. van der Velde-Bierma', surname: 'van der Velde-Bierma',
+    });
+    expect([...loose.keys()].sort()).toEqual(['wbierma', 'wvandervelde', 'wvelde', 'wveldebierma']);
+  });
+
+  it('shortens nothing for a surname that is one plain word', () => {
+    // The control that makes the assertions above mean something: a reduction firing
+    // here would re-spell the whole surname at the weakest grade, so every S. Visser
+    // would answer 'svisser' twice — as herself, and as her own weaker rival.
+    const sanne = loginNameForms({ displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' });
+    expect(sanne.loose.size).toBe(0);
+    expect([...sanne.initial.keys()]).toEqual(['svisser']);
+  });
+
+  it('never lists a shortened form at a grade that already spells it', () => {
+    // 'de Wit' is both the birth surname her columns hold and the second half of the
+    // name she goes by, so 'adewit' is genuinely spelled at `initial` and merely
+    // reduced to at `loose`. Listed at both she is her own rival one grade down.
+    const { initial, loose } = loginNameForms({
+      displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit',
+    });
+    expect(initial.get('adewit')).toBe('birth');
+    expect(loose.has('adewit')).toBe(false);
+    expect([...loose.keys()].sort()).toEqual(['abakker', 'abakkerwit', 'awit']);
+  });
+
+  it('keeps the person’s own address off the full grade when it is only a shortened form', () => {
+    // Her mailbox IS 'w.vandervelde', but that spelling carries one initial and half
+    // a surname. Graded 'full' because it came off her address it would outrank the
+    // W. van der Velde who is genuinely spelled that way — the same reason a short
+    // address is graded 'initial' rather than 'full'.
+    const { full, loose } = loginNameForms({
+      displayName: 'Wilma van der Velde-Bierma', givenName: 'Wilma',
+      surname: 'van der Velde-Bierma', email: 'w.vandervelde@x.com',
+    });
+    expect(full.has('wvandervelde')).toBe(false);
+    expect(loose.get('wvandervelde')).toBe('inUse');
+  });
+
+  it('carries the shortened surnames on the parsed name itself', () => {
+    expect(one('Daniëlle van Dongen', 'Daniëlle', 'van Dongen').reducedSurnames).toEqual(['dongen']);
+    expect(one('Sanne Visser', 'Sanne', 'Visser').reducedSurnames).toEqual([]);
+    expect(one('Fay').reducedSurnames).toEqual([]);
+  });
+});
+
+describe('loginFormMatch - the grade a shortened or numbered login reads at (#1468)', () => {
+  const sanne = { displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' };
+  const danielle = { displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen' };
+
+  it('reads a numbered login at the grade the name it numbers reads at', () => {
+    // The number is not evidence and is not noise either: it must not promote or
+    // demote the form it is attached to.
+    expect(loginFormMatch('svisser2', sanne)).toBe('initial');
+    expect(loginFormMatch('sannevisser2', sanne)).toBe('full');
+    expect(loginFormMatch('ddongen2', danielle)).toBe('loose');
+  });
+
+  it('reads the login as written before reading it as a numbered name', () => {
+    // 'pmunck2' is this Munck's own mailbox, so it is her whole login rather than the
+    // tenant's second P. Munck. Falling through to the digit strip first would grade
+    // her own address as a weaker, initial-level form of her name.
+    const petra = { displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'pmunck2@x.com' };
+    expect(loginFormMatch('pmunck2', petra)).toBe('full');
+  });
+
+  it('still matches nothing for a shortened surname that is not hers', () => {
+    expect(loginFormMatch('dstraaten', danielle)).toBe('none');
+    // Her surname shortened, but under somebody else's initial.
+    expect(loginFormMatch('rdongen', danielle)).toBe('none');
+    // A bare shortened surname is no form, exactly as a bare whole one is not.
+    expect(loginFormMatch('dongen', danielle)).toBe('none');
   });
 });

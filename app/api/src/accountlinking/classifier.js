@@ -126,6 +126,40 @@ function startsSurname(tok) {
 }
 
 /**
+ * The shorter surnames a login convention writes in place of the whole one,
+ * normalised and excluding the whole surname itself.
+ *
+ * A surname is kept whole for *matching* names — dropped particles collapse every
+ * "van den Berg" in the tenant onto "berg" (see `PARTICLES`) — but a provisioning
+ * convention does reduce it when it spells a login, in two ways that account for
+ * every shape measured on the reporting tenant (#1468):
+ *
+ *   - the particles are dropped: `van Dongen` → `dongen`, so `adm-ddongen`;
+ *   - a hyphenated double surname keeps one half: `van der Velde-Bierma` →
+ *     `vandervelde` / `velde` / `bierma`, so `adm-wvelde`, and both halves
+ *     reduced together → `veldebierma`.
+ *
+ * These are deliberately NOT name keys: they are only ever spelled as the weakest
+ * grade of login form, where a person actually called the reduced name outranks
+ * the person whose name a convention reduced to it.
+ *
+ * @returns {string[]}
+ */
+function surnameReductions(raw) {
+  const halves = String(raw || '').split('-').map(h => tokenize(h)).filter(words => words.length);
+  const bare = (words) => words.filter(w => !isParticle(w));
+  const out = new Set();
+  for (const words of halves) {
+    out.add(normToken(words.join(' ')));       // the half, particles kept
+    out.add(normToken(bare(words).join(' '))); // the half, particles dropped
+  }
+  out.add(normToken(halves.flatMap(bare).join(' '))); // every half, particles dropped
+  out.delete('');
+  out.delete(normToken(raw));
+  return [...out];
+}
+
+/**
  * Drop leading and trailing title tokens, never trimming below `keep` tokens.
  * The floor is what keeps a genuine short surname that happens to spell a
  * degree ("Jan Ma") from being stripped down to nothing.
@@ -137,8 +171,11 @@ function stripTitles(tokens, keep) {
   return t;
 }
 
+/** A structured givenName/surname column with its titles dropped, words intact. */
+const rawField = (value) => stripTitles(tokenize(value), 1).join(' ');
+
 /** A structured givenName/surname column: clean already, bar the odd title. */
-const parseField = (value) => normToken(stripTitles(tokenize(value), 1).join(' '));
+const parseField = (value) => normToken(rawField(value));
 
 /**
  * Parse the free-text display name into its given/surname halves.
@@ -163,8 +200,10 @@ function parseDisplayName(dn) {
 }
 
 /**
- * One parsed name: { given, surname, initial, key, variant }. `key` is the
- * order-independent surname+given token used for candidate indexing.
+ * One parsed name: { given, surname, initial, key, variant, reducedSurnames }.
+ * `key` is the order-independent surname+given token used for candidate indexing.
+ * `reducedSurnames` are the shorter spellings of the surname a login convention
+ * writes (see `surnameReductions`) — read only by `loginNameForms`, never keyed.
  *
  * `variant` says which of the person's names this is:
  *   'inUse' — the name they are known by, which is what their accounts are
@@ -174,12 +213,13 @@ function parseDisplayName(dn) {
  *             spells a different one: the birth surname behind a partner name
  *             or a double name
  */
-const parsedName = (given, sur, variant) => ({
+const parsedName = (given, sur, variant, surWords) => ({
   given,
   surname: sur,
   initial: given.slice(0, 1),
   key: sur ? [sur, given].filter(Boolean).sort().join('|') : '',
   variant,
+  reducedSurnames: surnameReductions(surWords),
 });
 
 /**
@@ -202,7 +242,8 @@ const parsedName = (given, sur, variant) => ({
  * so a tie between two people can be read as the unequal thing it usually is:
  * one of them is actually called that, the other only was.
  *
- * @returns {Array<{given: string, surname: string, initial: string, key: string, variant: string}>}
+ * @returns {Array<{given: string, surname: string, initial: string, key: string,
+ *   variant: string, reducedSurnames: string[]}>}
  */
 export function nameVariants(displayName, givenName, surname) {
   const dn = String(displayName || '').replace(QUALIFIER_RE, ' ').trim();
@@ -210,7 +251,10 @@ export function nameVariants(displayName, givenName, surname) {
   const dGiven = normToken(parsed.given);
   const dSur = normToken(parsed.sur);
   const fGiven = parseField(givenName);
-  const fSur = parseField(surname);
+  // The surname is kept both normalised (for comparison) and as its own words,
+  // which is what the particles and the hyphen of a double name survive in.
+  const fSurWords = rawField(surname);
+  const fSur = normToken(fSurWords);
 
   // The column surname is a *birth* surname only where the display name spells
   // a different one. With no display surname to contradict it (a source that
@@ -219,14 +263,15 @@ export function nameVariants(displayName, givenName, surname) {
   const variantOf = (sur) => (sur && sur === fSur && columnIsBirthName ? 'birth' : 'inUse');
 
   const out = [];
-  const add = (given, sur) => {
+  const add = (given, sur, surWords) => {
     if (!given && !sur) return;
     if (out.some(v => v.given === given && v.surname === sur)) return;
-    out.push(parsedName(given, sur, variantOf(sur)));
+    out.push(parsedName(given, sur, variantOf(sur), surWords));
   };
-  add(fGiven, fSur);                       // the structured columns on their own
-  add(fGiven || dGiven, fSur || dSur);     // a column for one half, the display name for the other
-  add(dGiven, dSur);                       // the display name on its own
+  add(fGiven, fSur, fSurWords);            // the structured columns on their own
+  // A column for one half, the display name for the other.
+  add(fGiven || dGiven, fSur || dSur, fSur ? fSurWords : parsed.sur);
+  add(dGiven, dSur, parsed.sur);           // the display name on its own
   return out;
 }
 
@@ -252,6 +297,24 @@ export function loginToken(email, stripPrefixes = []) {
 }
 
 /**
+ * The same login with a trailing digit run dropped, or `''` when it carries
+ * none.
+ *
+ * Numbering is how a convention tells two namesakes' logins apart — `svisser2`
+ * is the second S. Visser's, and the `2` is no part of anybody's name — so a
+ * numbered login has to be read as the name it numbers (#1468). It is a
+ * *fallback* the lookup falls through to, never a rewrite inside `loginToken`:
+ * digits can equally be part of an address a person's own mailbox uses (`jan2`),
+ * and stripping them there would hand that account to every Jan Jansen in the
+ * tenant instead of to its owner.
+ */
+export function unnumberedLoginToken(token) {
+  const t = String(token || '');
+  const bare = t.replace(/[0-9]+$/, '');
+  return bare === t ? '' : bare;
+}
+
+/**
  * The login forms a person's name can be written as, graded by how much of the
  * name each form carries:
  *
@@ -261,10 +324,20 @@ export function loginToken(email, stripPrefixes = []) {
  *   initial — given initial + surname, which keeps one letter of the given name
  *             and so can answer for more than one person: `pmunck` fits every
  *             P. Munck in the tenant
+ *   loose   — given initial + a surname a convention has shortened: the particles
+ *             dropped (`ddongen` for Daniëlle van Dongen) or one half of a double
+ *             surname (`wvelde` for W. van der Velde-Bierma). See
+ *             `surnameReductions`
  *
- * Both are read from every name the person is known by (see `nameVariants`), and
- * each form records which of those names it came from, so a login two people
+ * The three are read from every name the person is known by (see `nameVariants`),
+ * and each form records which of those names it came from, so a login two people
  * match can still be placed when only one of them actually goes by that name.
+ *
+ * `loose` is a grade of its own rather than more entries in `initial`, because a
+ * person genuinely called the shortened name must outrank one whose name a
+ * convention shortened to it: the D. Dongen of the tenant answers `ddongen` at
+ * `initial`, Daniëlle van Dongen only at `loose`. Merged into one grade the two
+ * would tie and neither could be placed (#1460, #1468).
  *
  * The grade says what the form *carries*, never where it was read from, so a
  * person whose own address is already the short form (`j.jansen` for Jan Jansen)
@@ -274,11 +347,13 @@ export function loginToken(email, stripPrefixes = []) {
  * reason a form carrying the whole name is never also an initial form, which a
  * one-token given name makes coincide.
  *
- * @returns {{ full: Map<string, 'inUse'|'birth'>, initial: Map<string, 'inUse'|'birth'> }}
+ * @returns {{ full: Map<string, 'inUse'|'birth'>, initial: Map<string, 'inUse'|'birth'>,
+ *   loose: Map<string, 'inUse'|'birth'> }}
  */
 export function loginNameForms(person) {
   const full = new Map();
   const initial = new Map();
+  const loose = new Map();
   // The stronger variant of a form wins: a name the person is in-use known by is
   // not also recorded as a birth name, whichever order their names come in.
   const keep = (map, form, variant) => {
@@ -289,24 +364,42 @@ export function loginNameForms(person) {
     if (!v.surname) continue; // a bare given name is no form at all
     keep(full, v.given && v.given + v.surname, v.variant);
     keep(initial, v.initial && v.initial + v.surname, v.variant);
+    for (const sur of v.reducedSurnames) keep(loose, v.initial && v.initial + sur, v.variant);
   }
   const address = normToken(emailLocalPart(person.email));
-  if (!initial.has(address)) keep(full, address, 'inUse');
-  for (const form of full.keys()) initial.delete(form);
-  return { full, initial };
+  if (!initial.has(address) && !loose.has(address)) keep(full, address, 'inUse');
+  // One form is never listed at two grades, which a one-token given name or a
+  // reduction that spells another of the person's names makes coincide: listed
+  // twice, the person is their own rival at the weaker grade.
+  for (const form of full.keys()) { initial.delete(form); loose.delete(form); }
+  for (const form of initial.keys()) loose.delete(form);
+  return { full, initial, loose };
 }
+
+/** The login-form grades, strongest first. */
+export const LOGIN_FORM_GRADES = ['full', 'initial', 'loose'];
 
 /**
  * Which of a person's login forms an account's login token spells — the
  * strongest first, since a form that carries the whole name is better evidence
- * than one that carries an initial.
- * @returns {'full'|'initial'|'none'}
+ * than one that carries an initial, and one that carries a shortened surname is
+ * weaker still.
+ *
+ * The exact login is read first and the number a namesake's login carries is
+ * dropped only when it spells nobody's form, so `jan2` stays the `jan2` mailbox
+ * while `svisser2` reads as the S. Visser it numbers.
+ *
+ * @returns {'full'|'initial'|'loose'|'none'}
  */
 export function loginFormMatch(token, person) {
   if (!token) return 'none';
-  const { full, initial } = loginNameForms(person);
-  if (full.has(token)) return 'full';
-  if (initial.has(token)) return 'initial';
+  const forms = loginNameForms(person);
+  for (const spelling of [token, unnumberedLoginToken(token)]) {
+    if (!spelling) continue;
+    for (const grade of LOGIN_FORM_GRADES) {
+      if (forms[grade].has(spelling)) return grade;
+    }
+  }
   return 'none';
 }
 
