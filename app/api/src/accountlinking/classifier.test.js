@@ -615,3 +615,56 @@ describe('loginFormMatch', () => {
     expect(loginFormMatch('', fay)).toBe('none');
   });
 });
+
+// ── Login conventions beyond initial + particle-kept surname (#1468) ─────────
+//
+// Three conventions a tenant writes an admin login in, none of which
+// `loginNameForms` spells: the particle dropped (`adm-ddongen`), one half of a
+// double surname (`adm-wvelde`), and a trailing digit run numbering a namesake
+// (`adm-svisser2`). On the reporting tenant that was 0 of 8 particle-dropped and
+// 0 of 2 half-double-surname accounts linked — and none even held for review,
+// since a login that matches no form makes its owner invisible rather than
+// contested. Each form must read strictly weaker than the particle-kept one, so
+// a person genuinely named the reduced form still outranks the
+// convention-reduced claimant (#1460).
+describe('login forms the conventions actually write (#1468)', () => {
+  const PREFIXES = DEFAULT_RULES.signals.find(s => s.type === 'loginName').stripPrefixes;
+  const danielle = { displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen' };
+  const wilma = { displayName: 'W. van der Velde-Bierma', surname: 'van der Velde-Bierma' };
+  const sanne = { displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' };
+
+  it('reads a login that drops the surname particle', () => {
+    // 'ddongen' equals none of her forms ('dvandongen', 'danillevandongen').
+    expect(loginFormMatch(loginToken('adm-ddongen@fortigidemo.com', PREFIXES), danielle)).not.toBe('none');
+  });
+
+  it('reads a login that keeps one half of a double surname', () => {
+    // Her only form writes the surname whole: 'wvanderveldebierma'.
+    expect(loginFormMatch(loginToken('adm-wvelde@fortigidemo.com', PREFIXES), wilma)).not.toBe('none');
+  });
+
+  it('reads a numbered login the way it reads the unnumbered one', () => {
+    // The 2 numbers a namesake; it is not part of the name. 'adm-svisser' is read
+    // today, so the only thing keeping 'adm-svisser2' out is the digit run.
+    expect(loginFormMatch(loginToken('adm-svisser2@fortigidemo.com', PREFIXES), sanne)).not.toBe('none');
+  });
+
+  it('grades a particle-dropped form below the particle-kept one', () => {
+    // The woman actually called 'D. Dongen' answers 'ddongen' at the stronger,
+    // particle-kept level; Daniëlle van Dongen answers it only reduced. Merged
+    // into one level they would tie, and neither could be placed (#1460).
+    const dirkje = { displayName: 'Dirkje Dongen', givenName: 'Dirkje', surname: 'Dongen' };
+    expect(loginFormMatch('ddongen', dirkje)).toBe('initial');
+    expect(loginFormMatch('ddongen', danielle)).not.toBe('none');
+    expect(['full', 'initial']).not.toContain(loginFormMatch('ddongen', danielle));
+  });
+
+  it('keeps the digits of a login that is somebody’s own address', () => {
+    // The digit strip is a lookup fallback, never a rewrite of the token: this
+    // mailbox *is* 'jan2', and stripping the run in `loginToken` would hand the
+    // account to every Jan Jansen in the tenant instead of to its owner.
+    const jan = { displayName: 'Jan Jansen', givenName: 'Jan', surname: 'Jansen', email: 'jan2@x.com' };
+    expect(loginToken('adm-jan2@fortigidemo.com', PREFIXES)).toBe('jan2');
+    expect(loginFormMatch('jan2', jan)).toBe('full');
+  });
+});

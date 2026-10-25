@@ -1006,3 +1006,59 @@ describe('nameClaim - the login is one of the account’s names', () => {
     expect(nameClaim(orphan, indexIdentities([fay, petra]), opts).sole).toBe(fay);
   });
 });
+
+describe('nameClaim / collectCandidates - logins the conventions reduce (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  const candidateOpts = {
+    prefixes: prefixesFrom(DEFAULT_RULES),
+    suffixes: suffixesFrom(DEFAULT_RULES),
+    loginPrefixes: loginPrefixesFrom(DEFAULT_RULES),
+  };
+  // These accounts carry no evidence but the login: the display name is the login
+  // string itself, which parses to no person's name, and there is no employeeId,
+  // no name column and no department. So the login reads, or nothing does.
+  const admin = (login) => ({ id: 'o', displayName: login, email: `${login}@fortigidemo.com` });
+  const danielle = {
+    id: 'danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    email: 'danielle.vandongen@fortigidemo.com',
+  };
+  const wilma = {
+    id: 'wilma', displayName: 'W. van der Velde-Bierma', surname: 'van der Velde-Bierma',
+    email: 'w.vandervelde@fortigidemo.com',
+  };
+  const petra = { id: 'petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@x.com' };
+
+  it('singles out the sole owner of a particle-dropped login', () => {
+    expect(nameClaim(admin('adm-ddongen'), indexIdentities([danielle, petra]), opts).sole).toBe(danielle);
+  });
+
+  it('singles out the sole owner of a login reduced to one half of her double surname', () => {
+    expect(nameClaim(admin('adm-wvelde'), indexIdentities([wilma, petra]), opts).sole).toBe(wilma);
+  });
+
+  it('holds a numbered login for review between the namesakes it numbers', () => {
+    // Two people answer to 'svisser', so the numbered login is contested, not placed —
+    // and being contested is what puts it in the Name-only matches review list. Today
+    // the claimant list is empty, so the account is invisible rather than held.
+    const vissers = [
+      { id: 'i1', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+      { id: 'i2', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+    ];
+    const claim = nameClaim(admin('adm-svisser2'), indexIdentities(vissers), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['i1', 'i2']);
+  });
+
+  it('gathers the owner of a reduced login as a candidate at all', () => {
+    // Scoring cannot rescue an orphan that reaches no candidate: it is never compared
+    // to anybody, so it stays unlinked with no tie to review and no error anywhere.
+    const indexes = indexIdentities([danielle, wilma, petra]);
+    expect([...collectCandidates(admin('adm-ddongen'), indexes, candidateOpts).keys()]).toEqual(['danielle']);
+    expect([...collectCandidates(admin('adm-wvelde'), indexes, candidateOpts).keys()]).toEqual(['wilma']);
+  });
+
+  it('still gathers nobody for a reduced login that names no identity', () => {
+    const indexes = indexIdentities([danielle, wilma, petra]);
+    expect(collectCandidates(admin('adm-dstraaten'), indexes, candidateOpts).size).toBe(0);
+  });
+});
