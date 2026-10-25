@@ -14,8 +14,9 @@ export default {
   description:
     'Accounts that are not linked to any identity, with the account type detected for each. ' +
     'Service principals, managed identities and AI agents are excluded — they are not expected ' +
-    'to belong to a person. Note that until account linking has run, no account is linked yet, ' +
-    'so every account is listed here.',
+    'to belong to a person — and so are accounts a sync has removed from their source system. ' +
+    'Note that until account linking has run, no account is linked yet, so every account is ' +
+    'listed here.',
   form: 'list',
   parametersSchema: { type: 'object', required: [], properties: {} },
   columns: [

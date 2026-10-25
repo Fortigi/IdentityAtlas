@@ -111,8 +111,13 @@ describe('GET /reports/risky-applications/rows', () => {
     expect(app).toMatchObject({
       score: 100, level: 'Critical', registeredIn: 'This tenant', appOnlyReach: 'Critical',
       applicationPermissions: 1, adminConsentedScopes: 1, publicClientFlows: true, owners: 1, secrets: 1,
-      _entity: { kind: 'resource', id: ids.app },
+      _entity: { kind: 'user', id: ids.app },
     });
+    // The row opens the service principal's own detail page, which exists for
+    // every app (an Application resource does not).
+    const detail = await agent.get(`/api/user/${app._entity.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.attributes.displayName).toBe(`${PREFIX} Mailbox Archiver`);
     // One finding per query: app-only grant, delegated scope, app registration,
     // secret on the SP, owner (disabled + guest).
     expect(app.findings).toMatch(/critical-risk application permissions with nobody signed in: Mail\.ReadWrite/);

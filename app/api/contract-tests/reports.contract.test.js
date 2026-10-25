@@ -18,7 +18,10 @@ let agent;
 let pool;
 let systemId;
 
-const ids = { linked: randomUUID(), orphan: randomUUID(), servicePrincipal: randomUUID(), identity: randomUUID() };
+const ids = {
+  linked: randomUUID(), orphan: randomUUID(), servicePrincipal: randomUUID(),
+  softDeleted: randomUUID(), identity: randomUUID(),
+};
 
 beforeAll(async () => {
   ({ agent, pool } = await bootContractApp());
@@ -102,6 +105,18 @@ describe('GET /reports/orphaned-accounts/rows', () => {
     }
 
     expect((await ownRows()).rows).toEqual([]);
+  });
+
+  it('excludes an account a full sync has soft-deleted, keeping the live one', async () => {
+    await insertPrincipal(ids.orphan, 'Live Orphan', 'User', 'live@example.com');
+    await insertPrincipal(ids.softDeleted, 'Departed User', 'User', 'departed@example.com');
+    // What the ingest reconcile does to a principal missing from a full sync:
+    // reconcileStale stamps deletedAt rather than removing the row.
+    await pool.query(`UPDATE "Principals" SET "deletedAt" = now() WHERE "id" = $1`, [ids.softDeleted]);
+
+    const { rows } = await ownRows();
+
+    expect(rows.map(r => r.displayName)).toEqual(['Live Orphan']);
   });
 
   it('returns an empty result set, not an error, when every account is linked', async () => {
