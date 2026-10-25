@@ -211,3 +211,53 @@ describe('removeStaleNameOnlyLinks - what it never touches', () => {
     expect(scan).toMatch(/p\."displayName", p\."givenName", p\."surname"/);
   });
 });
+
+describe('removeStaleNameOnlyLinks - links made on an account’s login (#1454)', () => {
+  // The login is name-class evidence, so the cleanup judges links made on it — and it
+  // has to judge them on the same terms the engine made them. Asked about the display
+  // name only, every one of these accounts looks like a link resting on a name that
+  // points at nobody: the run would detach it, re-create it from the orphan pool in
+  // the same run, and report a removal on every run forever.
+  const MUNCK = [
+    { id: 'fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk', email: 'f.h.hogenbirk@x.com' },
+    { id: 'petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@x.com' },
+    { id: 'pieter', displayName: 'Pieter Munck', givenName: 'Pieter', surname: 'Munck', email: 'pieter.munck@x.com' },
+  ];
+
+  it('leaves a link whose login still points at exactly its own identity', async () => {
+    stageMembers([{
+      identityId: 'fay', principalId: 'p-adm', linkSignals: 'loginNameForm',
+      displayName: 'Admin account 042', email: 'adm-fhogenbirk@x.com',
+    }]);
+    expect(await removeStaleNameOnlyLinks(DEFAULT_RULES, MUNCK)).toBe(0);
+    expect(deletes()).toHaveLength(0);
+  });
+
+  it('detaches one made on a login a second person now answers to', async () => {
+    // The paired case, and the reason the cleanup judges these at all: Pieter joined
+    // after the link was made, so 'adm-pmunck' no longer says which Munck it is.
+    stageMembers([{
+      identityId: 'petra', principalId: 'p-adm2', linkSignals: 'loginNameForm',
+      displayName: 'Admin account 043', email: 'adm-pmunck@x.com',
+    }]);
+    expect(await removeStaleNameOnlyLinks(DEFAULT_RULES, MUNCK)).toBe(1);
+    expect(deletes().map(c => c[1])).toEqual([['petra', 'p-adm2']]);
+  });
+
+  it('reads the account’s login from the member scan, not just its display name', async () => {
+    // The db mock is SQL-blind, so the only place this can be pinned is the scan's
+    // shape. Without p."email" every row reads as an account with no login and the
+    // two cases above collapse into "detach, re-create, report a removal, forever".
+    stageMembers([]);
+    await removeStaleNameOnlyLinks(DEFAULT_RULES, MUNCK);
+    expect(query.mock.calls[0][0]).toMatch(/p\."email"/);
+  });
+
+  it('removes it under the stricter policy, like any other name-only link', async () => {
+    stageMembers([{
+      identityId: 'fay', principalId: 'p-adm', linkSignals: 'loginNameForm',
+      displayName: 'Admin account 042', email: 'adm-fhogenbirk@x.com',
+    }]);
+    expect(await removeStaleNameOnlyLinks(STRICT, MUNCK)).toBe(1);
+  });
+});

@@ -11,6 +11,9 @@
 //                    signals are softer (graded) so a person's accounts under
 //                    different email conventions (r.euson vs robin.euson) still
 //                    link — at a lower, honest confidence the analyst can review.
+//                    Name signals never sum with each other: whether the name is
+//                    read off the display name or off the login, it is one piece
+//                    of evidence and only the strongest reading of it fires.
 // accountTypeRules  — regex patterns (lowest `priority` wins) that classify an
 //                    account as Admin / Guest / Service / Shared. Anything that
 //                    matches nothing is "Secondary" (a plain extra human account).
@@ -23,13 +26,28 @@
 //                    back every name-only match; see the name-uniqueness guard
 //                    in engine.js.
 
+// The prefixes a provisioning convention puts in front of a login to say what
+// kind of account it is — stripped before either login-reading signal compares
+// what is left. Both signals ship with the same list because it describes the
+// conventions, not the comparison; a tenant can still give them different lists.
+const LOGIN_PREFIXES = ['adm-', 'adm_', 'a-', 'a_', 'admin-', 'admin_', 'ext-', 'ext_', 'svc-', 's-'];
+
 export const DEFAULT_RULES = {
   signals: [
     { name: 'employeeId', type: 'exact',  field: 'employeeId', weight: 95 },
     { name: 'email',      type: 'exact',  field: 'email',      weight: 90 },
     {
       name: 'emailPrefix', type: 'prefix', field: 'email', weight: 80,
-      stripPrefixes: ['adm-', 'adm_', 'a-', 'a_', 'admin-', 'admin_', 'ext-', 'ext_', 'svc-', 's-'],
+      stripPrefixes: [...LOGIN_PREFIXES],
+    },
+    // A login that spells the person's name rather than their address:
+    // `adm-fhogenbirk` for the `f.h.hogenbirk` mailbox. Name-class evidence, so
+    // it is graded below `fullName` and goes through the name-uniqueness guard —
+    // `adm-pmunck` fits every P. Munck in the tenant. Clears the threshold on
+    // its own where the login points at exactly one person.
+    {
+      name: 'loginNameForm', type: 'loginName', field: 'email', weight: 55,
+      stripPrefixes: [...LOGIN_PREFIXES],
     },
     // Graded name signals (mutually exclusive — the best level wins). Names are
     // parsed from displayName with role/company qualifiers like "(OGD)" or

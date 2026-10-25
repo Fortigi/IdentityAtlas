@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Account Linking now reads an admin account's login as a person's name, not just as an address: an account logging in as `adm-fhogenbirk` is attached to the Fay Hogenbirk it names, even where her own mailbox follows a different convention (`f.h.hogenbirk`). Previously such an account was only ever linked if its display name happened to spell the person's name, so admin accounts stayed invisible on their owners and remained in Orphaned Accounts.
+- A login is treated as name evidence, not near-certain evidence: it links at a lower confidence than an exact address or employee-id match, and an admin login that fits more than one person (`adm-pmunck` for both a Petra and a Pieter Munck) is held for review on the run with the other candidate named, instead of being attached to whichever one it happened to score first.
+- Account Linking no longer adds up the same name twice. An account whose display name *and* login both spell its owner used to report near-certain confidence for what is one piece of evidence; the strongest name reading now stands on its own, so the confidence an account shows reflects how certain the match really is.
+- The new signal is visible and editable in Admin → Account Linking like every other, so a tenant can reweight it or remove it.
+- Accounts that supply no address at all (several ERP exports) are unchanged by this and still rely on their display name.
+
+## Changes in this PR
+
 - Fixed Account Linking removing a linked account from an identity after a sync had deleted that account. A link made on a name match alone is now kept as history once the account is gone, instead of being detached by the name-only cleanup and lost — the identity keeps the account and its access history.
 - A run's "links removed" figure now counts only links to accounts that still exist, so it no longer reports removals an analyst cannot act on or undo.
 - Links to live accounts are unaffected: a name-only link to an account somebody else answers to is still detached and held for review.
