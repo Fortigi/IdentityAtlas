@@ -65,6 +65,14 @@ $script:RealismSurnames = @(
     'Willems', 'Maas', 'Verhoeven', 'Koning', 'Prins', 'Blom', 'van der Meer', 'Groen'
 )
 
+# Academic titles, the other half of what a name lookup trips over. A real HR
+# source writes "Jan de Vries MSc" or "drs. Anna Bakker" in the display name
+# while keeping the given name and surname clean in their own columns — so the
+# HR record and the account of one person no longer spell the same name. Handed
+# to roughly one person in nine, pre- and post-nominal alternating.
+$script:RealismPreNominals = @('drs.', 'ir.', 'dr.', 'mr.', 'ing.')
+$script:RealismPostNominals = @('MSc', 'BSc', 'MBA', 'LLM', 'PhD')
+
 # HOW NAMES ARE HANDED OUT, and why it is not random. A pool of 24 given names
 # and 28 surnames has 672 combinations; drawing 600 of them at random collides so
 # often that nearly every full name occurs twice, which would make every question
@@ -199,6 +207,7 @@ function New-DemoRealismPerson {
     return [ordered]@{
         id           = $id
         name         = "$($drawn.Given) $($drawn.Surname)"
+        hrName       = (Get-DemoRealismHrName -Id $id -Given $drawn.Given -Surname $drawn.Surname)
         given        = $drawn.Given
         surname      = $drawn.Surname
         email        = (Get-DemoRealismEmail -Given $drawn.Given -Surname $drawn.Surname -Used $UsedEmails)
@@ -216,6 +225,24 @@ function New-DemoRealismPerson {
         signInBucket = (Get-DemoIndex -Seed "signin-$id" -Modulo 100)
         extraAccount = (Get-DemoIndex -Seed "accounts-$id" -Modulo 100)
     }
+}
+
+# The name as the HR source writes it: the plain name for most people, and for
+# roughly one in nine the same name carrying an academic title. The given name
+# and surname columns stay clean either way, which is the whole point — a titled
+# display name must not change who an account belongs to.
+function Get-DemoRealismHrName {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        [Parameter(Mandatory)][string]$Given,
+        [Parameter(Mandatory)][string]$Surname
+    )
+    $bucket = Get-DemoIndex -Seed "title-nominal-$Id" -Modulo 18
+    if ($bucket -lt 16) { return "$Given $Surname" }
+    if ($bucket -eq 16) {
+        return "$($script:RealismPreNominals[(Get-DemoIndex -Seed "prenominal-$Id" -Modulo $script:RealismPreNominals.Count)]) $Given $Surname"
+    }
+    return "$Given $Surname $($script:RealismPostNominals[(Get-DemoIndex -Seed "postnominal-$Id" -Modulo $script:RealismPostNominals.Count)])"
 }
 
 # The department somebody left, or $null. Tenure drives the career: roughly two in
@@ -397,9 +424,12 @@ function Add-DemoRealismStaff {
             systemId           = $sysEntra
             extendedAttributes = $ext
         }
+        # The identity is the HR record, so it carries the HR spelling of the name —
+        # title and all — while the account keeps the plain one. The given/surname
+        # columns are clean on both, which is what account linking must match on.
         $null = Add-DemoIdentity $State -Record @{
             id          = $idGuid
-            displayName = $person.name
+            displayName = $person.hrName
             email       = $person.email
             department  = $person.dept
             jobTitle    = $person.title

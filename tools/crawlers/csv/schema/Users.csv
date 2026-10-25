@@ -1,1 +1,1 @@
-ExternalId;DisplayName;Email;PrincipalType;JobTitle;Department;ManagerExternalId;SystemName;Enabled
+ExternalId;DisplayName;Email;EmployeeId;GivenName;Surname;PrincipalType;JobTitle;Department;ManagerExternalId;SystemName;Enabled
