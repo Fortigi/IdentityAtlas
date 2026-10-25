@@ -1,4 +1,4 @@
-// Static checks on migration 095. What the upload writes into it is verified
+// Static checks on migration 097. What the upload writes into it is verified
 // against PostgreSQL in contract-tests/contextUpload.contract.test.js.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
