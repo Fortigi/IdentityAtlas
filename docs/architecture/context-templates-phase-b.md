@@ -27,7 +27,7 @@ answer for them. It is one pull request, with no behaviour change to `assignment
 
 ## 2. Data
 
-Migration `096_context_templates.sql`:
+Migration `094_context_templates.sql`:
 
 - `Contexts.contextCategory TEXT NULL CHECK IN ('OrganizationalUnit','LogicalApplication','Tag','Segment')`,
   backfilled from `contextType` for every known value; unknown values stay NULL (the UI shows them under "Other").

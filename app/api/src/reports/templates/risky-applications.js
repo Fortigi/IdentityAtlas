@@ -56,7 +56,10 @@ export function toRow(app, result) {
     owners: app.owners ? app.owners.length : null,
     lastSignIn: app.lastSignIn ? new Date(app.lastSignIn).toISOString() : null,
     enabled: app.accountEnabled !== false,
-    _entity: { kind: 'resource', id: app.id },
+    // app.id is the service principal's Principals row, so it opens the
+    // principal detail page; an Application resource with that id exists only
+    // for apps that hold app roles, grants or owners.
+    _entity: { kind: 'user', id: app.id },
   };
 }
 
