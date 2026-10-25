@@ -15,10 +15,15 @@
 //   - allowNameOnlyLinks: false — every name-only link, because under that
 //     policy the engine would create none of them.
 //
-// Only the engine's own guesses are touched. Two kinds of row are never:
+// Only the engine's own guesses are touched. Three kinds of row are never:
 //   - analyst-touched rows (`analystOverride` set) — a decision outranks a rule,
 //   - crawler-sourced rows (`linkConfidence IS NULL`) — the source system knows
-//     the account belongs to the person; it is not a score.
+//     the account belongs to the person; it is not a score,
+//   - rows on an account a sync has removed (`deletedAt` set) — the orphan pool
+//     is live rows only, so a detached link there can never re-score. Deleting
+//     it costs the identity its trail to the account and every grant on it, with
+//     nothing to correct it to and no held-for-review record to act on; #1442
+//     keeps such a link as history (#1461).
 // These are the same exclusions the crawler's reconcile already honours.
 
 import * as db from '../db/connection.js';
@@ -59,6 +64,7 @@ export async function removeStaleNameOnlyLinks(rules, identities) {
       JOIN "Principals" p ON p."id" = m."principalId"
      WHERE m."linkConfidence" IS NOT NULL
        AND m."analystOverride" IS NULL
+       AND p."deletedAt" IS NULL
   `);
   const nameOnly = rows.filter(r => isNameOnly(parseLinkSignals(r.linkSignals), nameSigs));
   if (nameOnly.length === 0) return 0;
