@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed: Account Linking now applies newly shipped match signals to a tenant that has saved its settings. Saving the settings stores the whole dictionary shown in the editor, and that stored list used to replace the shipped one — so a tenant that had ever pressed Save (even only to move the certainty slider) never received a signal added in a later version, and admin accounts like `adm-fhogenbirk` whose owner is only findable through the login stayed orphaned with nothing on screen to explain why.
+- Your saved values are never overwritten by the merge: every weight, threshold, account type and account-type pattern you stored stays exactly as you saved it, and a signal you added yourself is kept. A signal your dictionary doesn't have is added with the weight this version ships it at.
+- To switch a signal off, set its `weight` to `0` — deleting it from the JSON no longer disables it, because an upgrade merges it back in. The Account Linking settings editor now says this, and shows the effective dictionary (your rules plus the shipped signals) rather than only the stored one, so what you read is what the next run uses.
+- The Orphaned Accounts report and context read the same effective dictionary as a run, so an account the engine can now place is no longer listed as outstanding analyst work.
+- The run that first applies a merged signal leaves existing links alone: a link already attached to a person is not detached and not re-scored just because the dictionary gained a signal.
+
+## Changes in this PR
+
 - The demo data's realism slice now seeds about 20 admin accounts under a second login convention, `adm-<first initial><surname>` (for example `adm-fhogenbirk@…`), beside the `adm-<email local part>` accounts it always had.
 - Those new accounts deliberately carry nothing that identifies their owner — no employee number, no name fields, no department and no ready-made link — so their login is the only route back to the person. That makes Account Linking's login signal visible on the stock demo data instead of needing a hand-built test fixture.
 - One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so `adm-svisser@…` fits several of them and shows up under "Name-only matches (held for review)" rather than being linked to the wrong one.
