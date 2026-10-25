@@ -1,6 +1,6 @@
 // The tag-root marker and its two SQL predicates are shared by bootstrap, the
 // tags routes and the curated import; pin that they agree with each other and
-// with migration 092's own exclusion.
+// with migration 094's own exclusion.
 
 import { describe, it, expect } from 'vitest';
 import { TAG_ROOT_MARKER, IS_TAG_ROOT_SQL, NOT_TAG_ROOT_SQL } from './tagRoot.js';

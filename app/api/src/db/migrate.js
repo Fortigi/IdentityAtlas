@@ -18,7 +18,7 @@
 // To add a new migration: create the next-numbered file, restart the web
 // container. The migration runs once and is recorded.
 
-import { readdirSync, readFileSync } from 'fs';
+import { readdirSync, readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import * as db from './connection.js';
@@ -44,6 +44,57 @@ function listMigrationFiles() {
   return readdirSync(MIGRATIONS_DIR)
     .filter(f => f.endsWith('.sql'))
     .sort();
+}
+
+// ─── Renamed migrations ───────────────────────────────────────────────────
+// A migration renumbered after it shipped (two branches picked the same number)
+// would otherwise run again on every database that applied it under its old
+// name. migrations/renames.json maps { "<new filename>": "<old filename>" }.
+// At boot, a new name that is not recorded but whose old name is, gets recorded
+// (in one transaction) instead of run. The old row stays, for traceability; the
+// status check reads it as the new name so it is not "ahead" of the code.
+export function loadRenames(dir = MIGRATIONS_DIR) {
+  const path = join(dir, 'renames.json');
+  if (!existsSync(path)) return {};
+  return JSON.parse(readFileSync(path, 'utf8')).renames || {};
+}
+
+// The new names to record: their old name (or, through a chain of renames,
+// an older one) is applied and they are not. Pure.
+export function renamedToRecord(applied, renames) {
+  const known = new Set(applied);
+  const out = [];
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [newName, oldName] of Object.entries(renames)) {
+      if (!known.has(newName) && known.has(oldName)) {
+        known.add(newName);
+        out.push(newName);
+        grew = true;
+      }
+    }
+  }
+  return out;
+}
+
+// The applied list with every renamed-away name read as its newest name. Pure.
+export function canonicalApplied(applied, renames) {
+  const newer = new Map(Object.entries(renames).map(([n, o]) => [o, n]));
+  const latest = (f, seen = new Set()) => (newer.has(f) && !seen.has(f) ? latest(newer.get(f), seen.add(f)) : f);
+  return [...new Set(applied.map(f => latest(f)))];
+}
+
+async function recordRenamedMigrations(applied, renames) {
+  const toRecord = renamedToRecord(applied, renames);
+  if (toRecord.length === 0) return;
+  await db.tx(async (client) => {
+    for (const filename of toRecord) {
+      await client.query(`INSERT INTO _migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`, [filename]);
+    }
+  });
+  for (const filename of toRecord) applied.add(filename);
+  console.log(`Migrations: recorded ${toRecord.length} renamed migration(s) as applied: ${toRecord.join(', ')}`);
 }
 
 // Extensions that PGlite pre-loads natively at init time.
@@ -113,7 +164,7 @@ export function computeMigrationStatus(applied, shipped) {
 export async function getMigrationStatus(client = db) {
   const r = await client.query(`SELECT filename FROM _migrations`);
   return computeMigrationStatus(
-    r.rows.map((row) => row.filename),
+    canonicalApplied(r.rows.map((row) => row.filename), loadRenames()),
     listMigrationFiles()
   );
 }
@@ -121,6 +172,7 @@ export async function getMigrationStatus(client = db) {
 export async function runMigrations(_pool) {
   await ensureMigrationsTable();
   const applied   = await listAppliedMigrations();
+  await recordRenamedMigrations(applied, loadRenames());
   const available = listMigrationFiles();
   const pending   = available.filter(f => !applied.has(f));
 

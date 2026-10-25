@@ -167,7 +167,8 @@ function writeIntersectionCells(ws, group, rowNum, ctx) {
 }
 
 // Cell content: a single type letter, or rich text with one colored letter per type.
-function writeMembershipContent(excelCell, memberTypes) {
+// Shared with the rotated (subjects-as-rows) export.
+export function writeMembershipContent(excelCell, memberTypes) {
   if (!memberTypes || memberTypes.size === 0) return;
 
   const types = [...memberTypes];
