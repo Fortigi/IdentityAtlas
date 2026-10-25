@@ -303,7 +303,7 @@ report generator and the Ask assistant are measured in — see
 | | |
 |---|---|
 | People | ~600 staff over ten departments and ~55 teams, plus 40 guests from three partner companies, 30 leavers and a dozen non-human accounts |
-| Accounts per person | one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity |
+| Accounts per person | one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity. Plus ~20 admin accounts under a second login convention that are deliberately **not** linked (see below) |
 | Systems | two more that keep their own accounts (on-premises AD, a CRM), beside Azure which keeps none and grants access to Entra principals |
 | Groups | ~180 in naming families (`License-*`, `SG-<dept>-*`, `SG-<team>-*`, `APP-*`, `PRJ-*`, `DL-*`, Teams groups), with security / mail-enabled flags, owners on about a quarter, six empty ones and one holding the whole company |
 | Nesting | all three kinds: a group inside a group (indirect memberships), Azure scope inheritance (a role on a resource group reaching everything inside it), and a business role synchronising groups and application roles to its holders |
@@ -329,6 +329,22 @@ on, and each is absent from the standard slice:
 - **Sign-ins spread** from today to over a year ago, including accounts that never signed in (a row
   with no timestamp) and accounts with no row at all. Those are different facts and the reports tell
   them apart.
+- **Admin accounts under two login conventions, one of which gives nothing away.** About 30 people
+  have the `adm-<email local part>` account the slice always had (`adm-femke.hogenbirk@…`), stamped
+  with their employee id and linked to them by the seed. Another ~20 have an
+  `adm-<first initial><surname>` one (`adm-fhogenbirk@…`) that carries **no** employee id, no
+  `givenName`/`surname`, no department and no link — its display name spells the login, not the
+  person. The login is then the only route from the account to its owner, which is what makes
+  Account Linking's login signal observable on stock demo data instead of needing a hand-seeded
+  fixture. One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so
+  `adm-svisser@…` fits several of them and must be **held for review** rather than linked. Every
+  login is the plain spelling of a name — where two people in the seeded range would share one, the
+  second is skipped rather than given the numbered spelling (`adm-svisser2@…`) a real directory hands
+  out, because a login with a trailing digit run is a shape the engine cannot yet read back to a name
+  ([#1468](https://github.com/Fortigi/IdentityAtlas/issues/1468)) and the account could only sit
+  orphaned. The two conventions are told apart by the dot: the older logins carry the one in their
+  owner's address, the newer ones have none. Asserted in `test/unit/DemoRealism.Tests.ps1` (the seed)
+  and `app/ui/e2e/account-linking-admin-logins.spec.js` (what a real run decides about them).
 
 **What it deliberately does NOT do.** It never touches anything above it: the same ids, the same
 ordering, the same 26-person company. Generating without the switch produces the standard dataset
