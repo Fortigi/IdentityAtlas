@@ -63,6 +63,37 @@ describe('requests', () => {
     expect(await store.isRecipient(db([]), 'r', 'p', null)).toBe(false);
   });
 
+  it('a survey done in place is opened as it is made, listed as such, and never counts as one sent to the person', async () => {
+    const d = db([{ id: 'r1', contextId: 'c' }]);
+    await store.insertRequests(d, [{ contextId: 'c', inPlace: true }]);
+    expect(d.query.mock.calls[0][0]).toMatch(/"sentBy", CASE WHEN x."inPlace" THEN now\(\) END/);
+    expect(d.query.mock.calls[0][0]).toMatch(/"inPlace" boolean\)/);
+    expect(JSON.parse(d.query.mock.calls[0][1][0])).toEqual([{ contextId: 'c', inPlace: true }]);
+    expect(store.IN_PLACE).toBe('COALESCE(q."openedAt" = q."sentAt", false)');
+    await store.listContextRequests(d, 'c');
+    expect(d.query.mock.calls[1][0]).toContain(`${store.IN_PLACE} AS "inPlace"`);
+    await store.requestsFor(d, 'p', null);
+    expect(d.query.mock.calls[2][0]).toContain(`AND NOT ${store.IN_PLACE}`);
+    await store.hasSurvey(d, 'p', null);
+    expect(d.queryOne.mock.calls[0][0]).toContain(`AND NOT ${store.IN_PLACE} LIMIT 1`);
+  });
+
+  it('openInPlaceRequest asks for an unanswered in-place one of this context, template and account', async () => {
+    const d = db([{ id: 'r1' }]);
+    expect(await store.openInPlaceRequest(d, { contextId: 'c', templateId: 't', principalId: 'p' })).toEqual({ id: 'r1' });
+    expect(d.queryOne.mock.calls[0][0]).toContain(`status = 'sent' AND ${store.IN_PLACE}`);
+    expect(d.queryOne.mock.calls[0][1]).toEqual(['c', 't', 'p']);
+  });
+
+  it('holdsRole: a role on this context through the account, the person, or another account of the person', async () => {
+    const d = db([{ x: 1 }]);
+    expect(await store.holdsRole(d, 'c', 'p', 'i')).toBe(true);
+    expect(d.queryOne.mock.calls[0][1]).toEqual(['p', 'i', 'c']);
+    expect(d.queryOne.mock.calls[0][0]).toMatch(/r."contextId" = \$3/);
+    expect(d.queryOne.mock.calls[0][0]).toMatch(/"IdentityMembers" m WHERE m."identityId" = \$2::uuid/);
+    expect(await store.holdsRole(db([]), 'c', 'p', null)).toBe(false);
+  });
+
   it('getRequest locks only when asked', async () => {
     const d = db([{ id: 'r' }]);
     await store.getRequest(d, 'r');

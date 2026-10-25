@@ -116,6 +116,39 @@ A claim about a resource (`subjectKind = 'Resource'`, `resourceId`) is **knowled
 confirming it never changes the crawled resource; the source system is where that fix
 belongs.
 
+## Doing a survey in place
+
+*Do survey* (on the same action card, next to *Send survey*) answers a survey about this
+unit or application **here and now**, without sending anything — the analyst during the
+meeting, or the owner on their own page. A dialog picks a template that applies here (the
+first by default) and **who is answering**:
+
+- an analyst (data.write.contexts) picks any account the crawler brought in (name and
+  e-mail shown); signed in, their own account is the default. With authentication off
+  there is no signed-in account, so one must be picked;
+- someone who is no analyst but holds a role on the context (Accountable or Responsible,
+  through any of their accounts) answers **for themselves only** — no picker. This is the
+  only way a context owner starts a survey (`auth/contextOwnerScope.js` lets the two
+  `…/surveys/start` calls through for a context in their scope);
+- anyone else gets no button.
+
+`POST /api/contexts/:id/surveys/start` makes an ordinary `SurveyRequests` row for the
+respondent — status `sent`, `sentBy` the caller — that is **opened at once**: its `openedAt`
+is set in the same INSERT, so it equals `sentAt`. That equality is the in-place marker
+(`store.IN_PLACE`, read back as `inPlace`); no column of its own, no migration. A sent
+request is opened later by its recipient, in another statement, so it never matches. An
+in-place request is **not sent**: it is left out of the respondent's *My surveys* and does
+not count for the survey-respondent sign-in. One started and left unanswered for the same
+context, template and account is returned again (`resumed`) rather than doubled.
+
+The form then opens on it (`#surveys?request=<id>`) and is answered through the ordinary
+draft and submit, so the interview, its claims (`proposedBy = 'respondent'`), the review,
+the contradictions and the transcript are exactly a sent survey's. The answers are the
+respondent's; `onBehalf` is set by the submit's own rule — the person submitting is not
+the respondent — so with authentication off it is always on behalf, and an owner answering
+for themselves is not. On the card such a request shows as *in progress*, then *answered
+in place*; it can be withdrawn like a sent one.
+
 ## Data (migration 102)
 
 `SurveyTemplates` (key, name, description, contextCategory, scopeRootContextId,
@@ -134,3 +167,4 @@ identityId + recipientName, language, message, dueAt, status `sent` | `submitted
 | `GET/POST /api/surveys/templates`, `GET/PUT /api/surveys/templates/:id`, `POST …/validate` | templates (data.write.contexts) |
 | `POST/GET /api/contexts/:id/surveys`, `DELETE /api/surveys/requests/:id` | send, list, withdraw (data.write.contexts) |
 | `GET /api/surveys/mine`, `GET /api/surveys/requests/:id`, `PUT …/answers`, `POST …/submit` | the recipient, or an analyst on their behalf |
+| `GET/POST /api/contexts/:id/surveys/start` | Do survey: the options, and start one in place `{ templateId, principalId? }` → `{ id, resumed, recipientName, onBehalf }` (an analyst, or a role holder for themselves; in the OpenAPI spec) |

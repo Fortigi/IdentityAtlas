@@ -30,6 +30,8 @@
     "src/components/SurveyRespondentPage.jsx": "Bare shell for a respondent: header, sign out, and the list or the form by the survey route (mutated in surveyRoute.js); both views and sign-out are asserted by surveyPages.mount.test.jsx.",
     "src/components/contexts/surveys/SendSurveyCard.jsx": "Presentational card listing the surveys sent, with a withdraw confirmation calling one fixed API path; the summary wording is sentSummary (mutated here), and listing, withdrawing and the reader gate are asserted by surveyCards.mount.test.jsx.",
     "src/components/contexts/surveys/SendSurveyModal.jsx": "A form over sendBody (mutated here) that posts once; the body sent, the Send gate and the refusal path are asserted by surveyCards.mount.test.jsx.",
+    "src/components/contexts/surveys/DoSurveyModal.jsx": "A form over startBody / respondentOf / emailOf (mutated here in send.helpers.js) that posts once and opens the survey by its link; the default template, the picker required without a signed-in account, the fixed respondent for a role holder, the body posted and the refusal path are asserted by doSurvey.mount.test.jsx.",
+    "src/components/contexts/surveys/DoSurveyCard.jsx": "A card shown when GET .../surveys/start allows it and the reader is no analyst; both gates are asserted by doSurvey.mount.test.jsx and WorkflowsArea.mount.test.jsx.",
     "src/components/contexts/surveys/RosterCard.jsx": "Draws buildRoster / rosterCounts (mutated here in roster.helpers.js) as a coloured table in a modal; the colour per state, the italic for unreviewed rows and the legend counts are asserted by surveyCards.mount.test.jsx."
   },
   "mutator": {

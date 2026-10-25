@@ -117,10 +117,14 @@ describe('ContextOwnerPage — one context', () => {
     expect(screen.queryByTestId('action-review-members')).not.toBeInTheDocument();
   });
 
-  it('shows no Actions on a unit of resources: no matrix (out of reach) and no report for it', async () => {
+  it('shows no matrix (out of reach) and no report on a unit of resources; only Do survey, here not offered, so no card', async () => {
     mount([ctx(UNIT, 'Finance', 'Responsible')], undefined, { targetType: 'Resource' });
     await screen.findByText('Alice Member');
-    expect(screen.queryByRole('region', { name: 'Actions' })).not.toBeInTheDocument();
+    const area = screen.getByRole('region', { name: 'Actions' });
+    expect(area).toHaveClass('has-[>div:empty]:hidden');
+    expect(within(area).queryByRole('link', { name: /View in matrix/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-download-report')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-do-survey')).not.toBeInTheDocument();
   });
 
   it('offers the report on an application they own, still without the matrix', async () => {

@@ -31,7 +31,7 @@ describe('SendSurveyCard', () => {
       if (opts.method === 'DELETE') { rows = [sentRow({ status: 'cancelled' })]; return jsonResponse({}, { status: 204 }); }
       return undefined;
     });
-    const list = await screen.findByRole('list', { name: 'Surveys sent' });
+    const list = await screen.findByRole('list', { name: 'Surveys' });
     expect(within(list).getByRole('link', { name: 'Teije' })).toHaveAttribute('href', `#surveys?request=${REQ}`);
     expect(within(list).getByText('answered')).toBeInTheDocument();
     expect(within(list).queryByRole('button', { name: 'Withdraw the survey sent to Nina' })).not.toBeInTheDocument();

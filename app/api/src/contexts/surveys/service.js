@@ -10,6 +10,7 @@
 //   sendSurvey(contextId, body, user)                 to one person, or down the tree to each unit's Accountable
 //   contextRequests(contextId)                        the requests about a context
 //   cancelSurvey(id)                                  an unanswered one
+//   (doing one in place — start.js — begins at surveyTarget())
 //   mySurveys(me)                                     the requests sent to the signed-in person
 //   openSurvey(id, caller)                            the questions, the rows, the answers so far
 //   saveDraft(id, answers, caller)                    keep what is filled in
@@ -53,7 +54,7 @@ const defaults = (deps = {}) => ({ db: defaultDb, ...deps });
 const txDb = (client) => ({ query: (t, p) => client.query(t, p), queryOne: async (t, p) => (await client.query(t, p)).rows[0] ?? null });
 const today = () => new Date().toISOString().slice(0, 10);
 
-function uuid(value, what) {
+export function uuid(value, what) {
   const s = String(value ?? '');
   if (!UUID_RE.test(s)) throw new SurveyError(400, `${what} must be a uuid`);
   return s.toLowerCase();
@@ -214,17 +215,27 @@ async function sendTargets(db, ctx, send) {
   return tree;
 }
 
-export async function sendSurvey(contextId, body, user, deps) {
-  const { db } = defaults(deps);
+/**
+ * The context a survey is about and the template asked for — a unit or an
+ * application, and a template that applies there — or a SurveyError. Sending
+ * and doing a survey in place (start.js) both start here.
+ */
+export async function surveyTarget(db, contextId, templateId) {
   const ctx = await store.getContext(db, uuid(contextId, 'id'));
   if (!ctx) throw new SurveyError(404, 'Context not found');
   if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
     throw new SurveyError(400, 'Surveys can be sent about an organizational unit or a logical application only.');
   }
-  const send = parseSend(body);
-  const template = (await store.applicableTemplates(db, ctx.id)).find(t => t.id === send.templateId);
+  const template = (await store.applicableTemplates(db, ctx.id)).find(t => t.id === templateId);
   if (!template) throw new SurveyError(400, 'That survey template cannot be sent about this context.');
   const { definition } = await store.getTemplate(db, template.id);
+  return { ctx, template, definition };
+}
+
+export async function sendSurvey(contextId, body, user, deps) {
+  const { db } = defaults(deps);
+  const send = parseSend(body);
+  const { ctx, template, definition } = await surveyTarget(db, contextId, send.templateId);
   if (send.language && !definition.languages.includes(send.language)) {
     throw new SurveyError(400, `The survey is in ${definition.languages.join(', ')}.`);
   }

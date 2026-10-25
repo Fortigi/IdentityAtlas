@@ -21,8 +21,10 @@
     "src/contexts/surveys/seed.js",
     "src/contexts/surveys/seedTemplates.js",
     "src/contexts/surveys/service.js",
+    "src/contexts/surveys/start.js",
     "src/contexts/surveys/store.js",
-    "src/routes/surveys.js"
+    "src/routes/surveys.js",
+    "src/routes/surveyStart.js"
   ],
   "thresholds": {
     "high": 90,

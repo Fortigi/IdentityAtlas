@@ -15,6 +15,7 @@ import { poolDb } from './poolDb.js';
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const svc = await import('../src/contexts/surveys/service.js');
 const store = await import('../src/contexts/surveys/store.js');
+const start = await import('../src/contexts/surveys/start.js');
 const interviewStore = await import('../src/contexts/interviews/store.js');
 const { decideClaim } = await import('../src/contexts/interviews/decide.js');
 const { SEED_TEMPLATES } = await import('../src/contexts/surveys/seedTemplates.js');
@@ -184,5 +185,33 @@ describe('sending and answering', () => {
     await svc.cancelSurvey(sent.sent[0].id, deps);
     expect(await store.hasSurvey(db, P.tom, null)).toBe(false);
     await expect(svc.cancelSurvey(sent.sent[0].id, deps)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('doing a survey in place', () => {
+  const me = (key) => ({ principal: { id: P[key] }, identity: null });
+
+  it('an analyst starts one for an account: not sent, listed as in place, picked up again rather than doubled', async () => {
+    const r = await start.startSurvey(C.elsewhere, { templateId: template.roster, principalId: P.kim }, analyst, deps);
+    expect(r).toMatchObject({ resumed: false, recipientName: 'Kim Enquête', onBehalf: true });
+    const [row] = await store.listContextRequests(db, C.elsewhere);
+    expect(row).toMatchObject({ id: r.id, status: 'sent', inPlace: true, sentBy: 'analyst@example.test' });
+    expect(row.openedAt).toEqual(row.sentAt);
+    expect(await store.hasSurvey(db, P.kim, null)).toBe(false);
+    expect(await store.requestsFor(db, P.kim, null)).toEqual([]);
+    expect(await start.startSurvey(C.elsewhere, { templateId: template.roster, principalId: P.kim }, analyst, deps)).toMatchObject({ id: r.id, resumed: true });
+    await svc.cancelSurvey(r.id, deps);
+    expect((await start.startSurvey(C.elsewhere, { templateId: template.roster, principalId: P.kim }, analyst, deps)).id).not.toBe(r.id);
+  });
+
+  it('a role holder does it for themselves only; the answers are theirs, not on anyone\'s behalf', async () => {
+    const anna = { me: me('anna'), canWrite: false, user: 'anna@example.test' };
+    expect(await start.startOptions(C.acme, anna, deps)).toMatchObject({ allowed: true, pickRespondent: false, respondent: { principalId: P.anna } });
+    expect((await start.startOptions(C.acme, { me: me('kim'), canWrite: false }, deps)).allowed).toBe(false);
+    await expect(start.startSurvey(C.acme, { templateId: template.customer, principalId: P.kim }, anna, deps)).rejects.toMatchObject({ status: 403 });
+    const r = await start.startSurvey(C.acme, { templateId: template.customer }, anna, deps);
+    expect(r.onBehalf).toBe(false);
+    await svc.submitSurvey(r.id, { answers: { active: 'yes', isOwner: 'yes', belongs: { [P.kim]: 'yes', [P.tom]: 'yes' } } }, anna, deps);
+    expect(await store.getRequest(db, r.id)).toMatchObject({ status: 'submitted', onBehalf: false, submittedBy: 'anna@example.test', inPlace: true });
   });
 });
