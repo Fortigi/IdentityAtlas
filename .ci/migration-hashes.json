@@ -89,6 +89,8 @@
     "083_context_assignment_counts.sql": "8de6fd61424a9433a99f6b94be7a02cdb823c35ee40379cad23a4a35382383e4",
     "090_report_views.sql": "6c0e2844af88a0c3c8762dbdf9b3f82073afddf3c6feb3933aabb63e379a8407",
     "091_search_all_attributes.sql": "9d54d2e0142c5fc9459c2e7b0c48b9eea3c77ce752734e5f227b96821ab01a7b",
+    "092_account_linking_name_only.sql": "a827ff0eb6bbf0a331edb33614fa4d2316c0bab51f7f82fa8068d1573b9e8f91",
+    "093_account_linking_links_restored.sql": "0cdc535786387b9bf0d297dbfdbaeff6f246b1e1f5644599b3c051fbdca7c412",
     "094_context_templates.sql": "143d6b3310ca4111b67620efcd02aa2257936651a22f9ce837a304fd0a1e4ab0",
     "095_context_role_suggestion_rejections.sql": "df9d0b86b6f20ec51918c586d3e40b061885d1be308a0e3a6514b00ead1cfe83",
     "096_synced_context_accountables.sql": "dc09ac06a3df826bf439bc42632a218e5edf430441f806e830b0e041381ca25f",

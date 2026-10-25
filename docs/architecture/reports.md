@@ -85,7 +85,7 @@ know renders an explanatory panel rather than breaking the page.
 
 | Name | Form | What it lists |
 |------|------|---------------|
-| `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
+| `orphaned-accounts` | `list` | Live accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
 | `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type) — or of the resources the direct members of one or more units of accounts hold, counted among those members only (business roles left out; units of the two kinds cannot be mixed in one run), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
 | `unit-members` | `list` | *Unit report* — one row per member of one or more organisational units of accounts (`targetType` Principal) or of people (Identity; units of the two kinds cannot be mixed), direct members unless `includeSubUnits=true` (the subtree, each row naming its unit). Core columns, an **Entitlements** count — distinct non-role resources held through live assignments; for a person, across every account linked through `IdentityMembers` plus assignments on the person — and every member attribute as a column (the same union-and-cap helper as the pivot, `reports/attributeColumns.js` with `MEMBER_ATTRIBUTES`). Its first tab is the same per-context block as the pivot's (`reports/contextDetails.js`). Reads in `reports/unitMembers.js`: one member statement, one grouped count over the member id array. Picked through the `unit-contexts` lookup (organisational units of accounts or people), a slice of the same `contextLookup.js` factory as `resource-contexts`. |
 | `access-review-adoption` | `list` | *Access Review Adoption* — one row per business role with when a **person** last reviewed it and a status (never reviewed, never by a person, latest not by a person, partly, too long ago, reviewed, in progress, new), worst first. Two pies and two pivots in the workbook. See [Access review adoption](../ui/access-review-adoption.md). |
@@ -172,11 +172,14 @@ tenants) are left out unless `includeMicrosoft` is on.
 | `useThreatFeed` | on | Look up each appId in the OAuthSentry list (needs internet access; a failure becomes a notice, not an error) |
 | `inactiveDays` | 90 | When a high-reach app counts as unused |
 
-Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
-`app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
-the same question, so they must not be able to drift apart. Note that before account linking has run
-there are no `IdentityMembers` at all, so every account is legitimately listed — the report's
-description says so.
+Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** and the
+account-linking engine via `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: all three
+answer the same question, so they must not be able to drift apart — and they did, which is how the
+live-rows filter came to be missing from every one of them ([#1442](https://github.com/Fortigi/IdentityAtlas/issues/1442)).
+An account a sync has **removed** from its source is therefore not listed: a full sync tombstones it
+(`deletedAt`) rather than deleting the row, and a removed account is not an orphan waiting to be
+linked. Note that before account linking has run there are no `IdentityMembers` at all, so every live
+account is legitimately listed — the report's description says so.
 
 ## Parameters that mean an entity — `x-lookup`
 
