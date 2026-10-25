@@ -7062,7 +7062,7 @@ report generator and the Ask assistant are measured in — see
 </tr>
 <tr>
 <td>Accounts per person</td>
-<td>one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity</td>
+<td>one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity. Plus ~20 admin accounts under a second login convention that are deliberately <strong>not</strong> linked (see below)</td>
 </tr>
 <tr>
 <td>Systems</td>
@@ -7108,6 +7108,22 @@ on, and each is absent from the standard slice:</p>
 <li><strong>Sign-ins spread</strong> from today to over a year ago, including accounts that never signed in (a row
   with no timestamp) and accounts with no row at all. Those are different facts and the reports tell
   them apart.</li>
+<li><strong>Admin accounts under two login conventions, one of which gives nothing away.</strong> About 30 people
+  have the <code>adm-&lt;email local part&gt;</code> account the slice always had (<code>adm-femke.hogenbirk@…</code>), stamped
+  with their employee id and linked to them by the seed. Another ~20 have an
+  <code>adm-&lt;first initial&gt;&lt;surname&gt;</code> one (<code>adm-fhogenbirk@…</code>) that carries <strong>no</strong> employee id, no
+  <code>givenName</code>/<code>surname</code>, no department and no link — its display name spells the login, not the
+  person. The login is then the only route from the account to its owner, which is what makes
+  Account Linking's login signal observable on stock demo data instead of needing a hand-seeded
+  fixture. One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so
+  <code>adm-svisser@…</code> fits several of them and must be <strong>held for review</strong> rather than linked. Every
+  login is the plain spelling of a name — where two people in the seeded range would share one, the
+  second is skipped rather than given the numbered spelling (<code>adm-svisser2@…</code>) a real directory hands
+  out, because a login with a trailing digit run is a shape the engine cannot yet read back to a name
+  (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1468">#1468</a>) and the account could only sit
+  orphaned. The two conventions are told apart by the dot: the older logins carry the one in their
+  owner's address, the newer ones have none. Asserted in <code>test/unit/DemoRealism.Tests.ps1</code> (the seed)
+  and <code>app/ui/e2e/account-linking-admin-logins.spec.js</code> (what a real run decides about them).</li>
 </ul>
 <p><strong>What it deliberately does NOT do.</strong> It never touches anything above it: the same ids, the same
 ordering, the same 26-person company. Generating without the switch produces the standard dataset
