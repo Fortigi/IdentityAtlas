@@ -3667,7 +3667,7 @@ paths:
     get:
       tags: [Contexts]
       summary: An adjustable tree with its marks
-      operationId: getContextTree
+      operationId: getAdjustableContextTree
       description: >
         Every unit of the tree (parentId null = top level), with whether an adjustment touches or
         created it, its Accountable and an interim manager.
@@ -3694,6 +3694,7 @@ paths:
       tags: [Contexts]
       summary: The tree's adjustments, newest first
       operationId: listContextTreeAdjustments
+      description: The adjustments made to this tree, newest first, each with who made it, when, why and a readable sentence.
       security:
         - EntraIdBearer: []
       responses:
@@ -3785,6 +3786,7 @@ paths:
       tags: [Contexts]
       summary: Redo an undone adjustment
       operationId: redoContextTreeAdjustment
+      description: Makes an undone adjustment active again and reapplies the tree; only an undone adjustment can be redone.
       security:
         - EntraIdBearer: []
       responses:
