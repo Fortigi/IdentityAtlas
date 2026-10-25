@@ -1,4 +1,4 @@
-// Contract test — Adjust tree (migration 102), end to end over the real app and
+// Contract test — Adjust tree (migration 104), end to end over the real app and
 // PostgreSQL. An imported tree (a synced org-unit list) is adjusted through the
 // API, the source then writes its own shape back (as a re-sync does), and the
 // adjustments are applied again on top. A unit the source re-keys is proposed,
