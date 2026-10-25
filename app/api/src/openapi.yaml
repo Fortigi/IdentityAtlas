@@ -3339,6 +3339,91 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such context
+  /contexts/{id}/surveys/start:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: What "Do survey" offers the caller on this context
+      operationId: getSurveyStartOptions
+      description: >
+        Whether the caller may do a survey about this unit or application in place, the templates
+        that apply here, and who answers. An analyst (`data.write.contexts`) may pick any account and
+        defaults to their own when signed in; someone who holds a role (Accountable or Responsible) on
+        the context answers for themselves only. Anyone else gets `allowed: false` and no templates.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The options
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [allowed, pickRespondent, respondent, templates]
+                properties:
+                  allowed: { type: boolean }
+                  pickRespondent: { type: boolean, description: Whether another account may be chosen }
+                  respondent:
+                    nullable: true
+                    description: The signed-in caller's account, the default respondent; null when auth is off or nothing matches
+                    type: object
+                    properties:
+                      principalId: { type: string, format: uuid }
+                      displayName: { type: string, nullable: true }
+                      email: { type: string, nullable: true }
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+        '404':
+          description: No such context
+    post:
+      tags: [Contexts]
+      summary: Do a survey in place, without sending it
+      operationId: startSurveyInPlace
+      description: >
+        Makes a survey request for the respondent that is not sent: nobody is notified, it is not in
+        the respondent's own survey list, and it is opened at once. The form is then answered through
+        the ordinary survey routes; the answers become claims proposed by the respondent, recorded on
+        their behalf (`onBehalf`) when someone else filled them in. An unanswered one started earlier
+        for the same context, template and account is returned again (`resumed`) rather than doubled.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId]
+              properties:
+                templateId: { type: string, format: uuid, description: A template that applies to this context }
+                principalId: { type: string, format: uuid, description: 'The account answering; default: the signed-in caller''s. Required when there is none (auth off).' }
+      responses:
+        '201':
+          description: The request to answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  resumed: { type: boolean }
+                  recipientName: { type: string }
+                  onBehalf: { type: boolean, description: Whether the caller answers on the respondent's behalf }
+        '400':
+          description: No respondent, an invalid id, a template that does not apply here, or a context that takes no survey
+        '403':
+          description: The caller is no analyst and holds no role here, or named someone other than themselves
+        '404':
+          description: No such context or account
   /contexts/{id}/previous-members:
     parameters:
       - name: id

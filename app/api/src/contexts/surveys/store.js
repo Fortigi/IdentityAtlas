@@ -138,25 +138,33 @@ export async function personName(db, col, id) {
 }
 
 // ─── Requests ────────────────────────────────────────────────────────────
+// A survey done in place ("Do survey", start.js) is never sent: it is opened
+// the moment it is made, so its openedAt is its sentAt — the one now() of one
+// INSERT. A sent request is opened later, by its recipient, in another
+// statement. That equality is the marker; it needs no column of its own.
+export const IN_PLACE = 'COALESCE(q."openedAt" = q."sentAt", false)';
+
 const REQUEST_COLUMNS = `q.id, q."templateId", q."templateVersion", q."contextId", q."principalId", q."identityId",
        q."recipientName", q.language, q.message, q."dueAt"::text AS "dueAt", q.status, q."sentBy", q."sentAt",
        q."openedAt", q."submittedAt", q."submittedBy", q."onBehalf", q."interviewId",
-       t.name AS "templateName", ctx."displayName" AS "contextName", ctx."contextCategory"`;
+       t.name AS "templateName", ctx."displayName" AS "contextName", ctx."contextCategory",
+       ${IN_PLACE} AS "inPlace"`;
 const REQUEST_FROM = `
       FROM "SurveyRequests" q
       JOIN "SurveyTemplates" t ON t.id = q."templateId"
       JOIN "Contexts" ctx ON ctx.id = q."contextId"`;
 
+/** Insert requests; a row with inPlace: true is one done in place (opened as it is made). */
 export async function insertRequests(db, rows) {
   if (rows.length === 0) return [];
   const r = await db.query(`
     INSERT INTO "SurveyRequests"
-      ("templateId", "templateVersion", "contextId", "principalId", "identityId", "recipientName", language, message, "dueAt", "sentBy")
+      ("templateId", "templateVersion", "contextId", "principalId", "identityId", "recipientName", language, message, "dueAt", "sentBy", "openedAt")
     SELECT x."templateId", x."templateVersion", x."contextId", x."principalId", x."identityId", x."recipientName",
-           x.language, x.message, x."dueAt", x."sentBy"
+           x.language, x.message, x."dueAt", x."sentBy", CASE WHEN x."inPlace" THEN now() END
       FROM jsonb_to_recordset($1::jsonb) AS x(
            "templateId" uuid, "templateVersion" integer, "contextId" uuid, "principalId" uuid, "identityId" uuid,
-           "recipientName" text, language text, message text, "dueAt" date, "sentBy" text)
+           "recipientName" text, language text, message text, "dueAt" date, "sentBy" text, "inPlace" boolean)
     RETURNING id, "contextId"`, [JSON.stringify(rows)]);
   return r.rows;
 }
@@ -174,23 +182,42 @@ const MINE = `(q."principalId" = $1::uuid
             OR ($2::uuid IS NOT NULL AND (q."identityId" = $2::uuid
                 OR q."principalId" IN (SELECT m."principalId" FROM "IdentityMembers" m WHERE m."identityId" = $2::uuid))))`;
 
-/** The requests sent to a person (any of their accounts), open ones first. */
+/** The requests sent to a person (any of their accounts), open ones first. One done in place was not sent. */
 export async function requestsFor(db, principalId, identityId) {
   const r = await db.query(`SELECT ${REQUEST_COLUMNS} ${REQUEST_FROM}
-     WHERE ${MINE} AND q.status <> 'cancelled'
+     WHERE ${MINE} AND q.status <> 'cancelled' AND NOT ${IN_PLACE}
      ORDER BY (q.status = 'sent') DESC, q."dueAt" NULLS LAST, q."sentAt" DESC`, [principalId, identityId]);
   return r.rows;
 }
 
-/** Whether a survey was sent to a person and not withdrawn (the survey-respondent sign-in check). */
+/** Whether a survey was sent to a person and not withdrawn (the survey-respondent sign-in check). One done in place was not sent. */
 export async function hasSurvey(db, principalId, identityId) {
-  return !!(await db.queryOne(`SELECT 1 AS x FROM "SurveyRequests" q WHERE ${MINE} AND q.status <> 'cancelled' LIMIT 1`,
+  return !!(await db.queryOne(`SELECT 1 AS x FROM "SurveyRequests" q WHERE ${MINE} AND q.status <> 'cancelled' AND NOT ${IN_PLACE} LIMIT 1`,
     [principalId, identityId]));
 }
 
 /** Whether this request is the person's. */
 export async function isRecipient(db, requestId, principalId, identityId) {
   return !!(await db.queryOne(`SELECT 1 AS x FROM "SurveyRequests" q WHERE q.id = $3 AND ${MINE}`, [principalId, identityId, requestId]));
+}
+
+/** The unanswered in-place request for this context, template and account — one started and left — or null. */
+export async function openInPlaceRequest(db, { contextId, templateId, principalId }) {
+  return db.queryOne(`
+    SELECT q.id FROM "SurveyRequests" q
+     WHERE q."contextId" = $1 AND q."templateId" = $2 AND q."principalId" = $3 AND q.status = 'sent' AND ${IN_PLACE}
+     ORDER BY q."sentAt" DESC LIMIT 1`, [contextId, templateId, principalId]);
+}
+
+/** Whether a person (any of their accounts) holds a role — Accountable or Responsible — on this context. */
+export async function holdsRole(db, contextId, principalId, identityId) {
+  return !!(await db.queryOne(`
+    SELECT 1 AS x FROM "ContextRoles" r
+     WHERE r."contextId" = $3
+       AND (r."principalId" = $1::uuid
+            OR ($2::uuid IS NOT NULL AND (r."identityId" = $2::uuid
+                OR r."principalId" IN (SELECT m."principalId" FROM "IdentityMembers" m WHERE m."identityId" = $2::uuid))))
+     LIMIT 1`, [principalId, identityId, contextId]));
 }
 
 /** One request with the definition it was sent with and the context it is about; null when there is none. */

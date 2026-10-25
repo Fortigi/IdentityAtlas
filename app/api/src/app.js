@@ -57,6 +57,7 @@ import resourcesRouter from './routes/resources.js';
 import attributeLabelsRouter from './routes/attributeLabels.js';
 import contextsRouter from './routes/contexts.js';
 import surveysRouter from './routes/surveys.js';
+import surveyStartRouter from './routes/surveyStart.js';
 import contextPluginsRouter from './routes/contextPlugins.js';
 import lookupsRouter from './routes/lookups.js';
 import reportsRouter from './routes/reports.js';
@@ -400,6 +401,7 @@ export function createApp() {
   app.use('/api', authMiddleware, attributeLabelsRouter);
   // Before contextsRouter: /contexts/:id/surveys is the surveys router's.
   app.use('/api', authMiddleware, surveysRouter);
+  app.use('/api', authMiddleware, surveyStartRouter);
   app.use('/api', authMiddleware, contextsRouter);
   // Reports — an analyst read surface (it exposes nothing the Contexts page
   // doesn't already show), so plain auth, no admin permission gate.

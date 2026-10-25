@@ -21,6 +21,7 @@ export default defineConfig({
       'src/components/contexts/surveys/roster.helpers.test.js',
       'src/components/contexts/surveys/send.helpers.test.js',
       'src/components/contexts/surveys/surveyCards.mount.test.jsx',
+      'src/components/contexts/surveys/doSurvey.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

@@ -21,6 +21,7 @@ import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
 import UploadInterviewCard from '@ui/components/contexts/interviews/UploadInterviewCard';
 import SendSurveyCard from '@ui/components/contexts/surveys/SendSurveyCard';
+import DoSurveyCard from '@ui/components/contexts/surveys/DoSurveyCard';
 import RosterCard from '@ui/components/contexts/surveys/RosterCard';
 
 // inApp: the card opens a page of the app, which a read-only shell cannot reach.
@@ -44,6 +45,10 @@ const UPLOAD_INTERVIEW = { key: 'upload-interview', Card: UploadInterviewCard, a
 // Sending a survey is the analyst's too; the recipient answers it from Surveys
 // (docs/architecture/survey-templates.md).
 const SEND_SURVEY = { key: 'send-survey', Card: SendSurveyCard, analystOnly: true };
+// Doing one in place, for someone who holds a role here but is no analyst (an
+// analyst does it from the card above): kept for the shared view, where the
+// Accountable answers for themselves. The card asks the API whether to show.
+const DO_SURVEY = { key: 'do-survey', Card: DoSurveyCard };
 // The roster of a unit of people or accounts: what the claims say about each.
 // Kept for the shared view — a manager sees their own team's roster.
 const ROSTER = {
@@ -53,8 +58,8 @@ const ROSTER = {
 };
 
 const ACTIONS = {
-  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, ROSTER, UPLOAD_INTERVIEW, SEND_SURVEY],
-  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW, SEND_SURVEY],
+  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, ROSTER, UPLOAD_INTERVIEW, SEND_SURVEY, DO_SURVEY],
+  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW, SEND_SURVEY, DO_SURVEY],
 };
 
 /** The action cards this context shows, in order; `sharedView` drops the analyst-only and in-app ones. */

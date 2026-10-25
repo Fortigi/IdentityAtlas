@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import WorkflowsArea from './WorkflowsArea';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
-import { renderWithProviders, makeAuthFetch, screen } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, screen, waitFor } from '@ui/test-utils/renderWithProviders';
 
 const APP = { id: 'c-app', displayName: 'SAP', contextCategory: 'LogicalApplication', targetType: 'Resource' };
 const RES_UNIT = { id: 'c-res', displayName: 'Finance shares', contextCategory: 'OrganizationalUnit', targetType: 'Resource' };
@@ -107,8 +107,17 @@ describe('WorkflowsArea (Actions)', () => {
     expect(reportCard()).toBeInTheDocument();
   });
 
-  it('a read-only unit of resources shows no Actions area at all', () => {
+  it('a read-only unit of resources offers only Do survey; when the API does not allow it the area hides itself', async () => {
     mount(RES_UNIT, { sharedView: true });
-    expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
+    const area = screen.getByRole('region', { name: 'Actions' });
+    expect(area).toHaveClass('has-[>div:empty]:hidden');
+    await waitFor(() => expect(area.querySelector('div')).toBeEmptyDOMElement());
+  });
+
+  it('a read-only page whose reader holds a role here gets Do survey', async () => {
+    const area = h(WorkflowsArea, { attrs: RES_UNIT, variants: [], variantsLoading: false, onOpenDetail: vi.fn() });
+    const authFetch = makeAuthFetch({ [`/api/contexts/${RES_UNIT.id}/surveys/start`]: { allowed: true, pickRespondent: false, respondent: { principalId: 'p' }, templates: [] } });
+    renderWithProviders(h(SharedViewContext.Provider, { value: true }, area), { auth: { authFetch } });
+    expect(await screen.findByTestId('action-do-survey')).toBeInTheDocument();
   });
 });

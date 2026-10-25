@@ -63,6 +63,18 @@ describe('answering a survey', () => {
     expect(surveyRespondentAllows(method, path)).toBe(false);
   });
 
+  it('an owner may see and start "Do survey" on a context in scope only, and only by GET or POST', () => {
+    const path = (id) => `/api/contexts/${id}/surveys/start`;
+    expect(contextOwnerVerdict({ method: 'GET', path: path(MINE) }, scope)).toBe(ALLOW);
+    expect(contextOwnerVerdict({ method: 'POST', path: path(VARIANT) }, scope)).toBe(ALLOW);
+    expect(contextOwnerVerdict({ method: 'POST', path: path(OTHER) }, scope)).toBe(DENY);
+    expect(contextOwnerVerdict({ method: 'GET', path: path(OTHER) }, scope)).toBe(DENY);
+    expect(contextOwnerVerdict({ method: 'DELETE', path: path(MINE) }, scope)).toBe(DENY);
+    expect(contextOwnerVerdict({ method: 'POST', path: `${path(MINE)}/` }, scope)).toBe(DENY);
+    // Not a survey-respondent path: someone with only a survey to answer cannot start one.
+    expect(surveyRespondentAllows('POST', path(MINE))).toBe(false);
+  });
+
   it('a respondent also gets the shell reads, but not a write to them or a context', () => {
     expect(surveyRespondentAllows('GET', '/api/auth-me')).toBe(true);
     expect(surveyRespondentAllows('PUT', '/api/preferences')).toBe(false);

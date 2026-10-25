@@ -14,6 +14,7 @@ export default defineConfig({
     include: [
       'src/contexts/surveys/*.test.js',
       'src/routes/surveys.test.js',
+      'src/routes/surveyStart.test.js',
       'src/auth/surveyRespondent.test.js',
     ],
     exclude: ['**/node_modules/**'],

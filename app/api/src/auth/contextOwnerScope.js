@@ -74,6 +74,12 @@ export const SURVEY_RESPONDENT_PATHS = [
   { method: 'POST', shape: new RegExp(`^/api/surveys/requests/${UUID}/submit$`) },
 ];
 
+// Doing a survey in place about one's own context (routes/surveyStart.js): the
+// options and the start, GET and POST. The captured id must be in scope; the
+// route itself checks the owner holds a role there and answers for themselves.
+export const SURVEY_START_PATH = new RegExp(`^/api/contexts/${UUID}/surveys/start$`);
+const SURVEY_START_METHODS = new Set(['GET', 'POST']);
+
 /** Whether a request is one of a survey respondent's. */
 export function isSurveyRespondentPath(method, path) {
   return SURVEY_RESPONDENT_PATHS.some(p => p.method === method && p.shape.test(path));
@@ -114,6 +120,8 @@ export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.
 // contexts resolve to.
 export function contextOwnerVerdict({ method, path, query }, contextIds) {
   if (isSurveyRespondentPath(method, path)) return ALLOW;
+  const start = SURVEY_START_METHODS.has(method) && SURVEY_START_PATH.exec(path);
+  if (start) return contextIds.has(start[1]) ? ALLOW : DENY;
   if (method !== 'GET') return DENY;
   if (SHELL_PATHS.has(path)) return ALLOW;
   for (const shape of CONTEXT_PATHS) {
