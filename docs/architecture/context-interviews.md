@@ -42,7 +42,7 @@ The roles API returns the interviewee, the date and the quote with it, and the P
 block says *"from the interview with …"*. No new `addedBy` value was added: who decided
 is the analyst; *where it came from* is the claim.
 
-## Data (migrations 097, 098, 099)
+## Data (migrations 099, 100, 101)
 
 `ContextInterviews` — `contextId` (cascade), the interviewee as `principalId` or
 `identityId` (at most one; set NULL when that row goes) and `intervieweeName` (kept),
@@ -59,17 +59,17 @@ role claim's relation: `owner`, `notOwner`, `dayToDay`, `delegate`, `member`, `o
 membership claim's status: `current`, `former`, `joined`, `left`, `rejoined` — a closed list in
 code (`claims.js` `MEMBERSHIP_STATUSES`) and the ontology, not a CHECK, so `rejoined` needed no migration),
 `value`, `periodFrom` / `periodTo` (dates) and `periodText` (as said), `quote`,
-`confidence` (0–1, not a decision), `relevance` (`high` | `low`; NULL, from before 098, reads
+`confidence` (0–1, not a decision), `relevance` (`high` | `low`; NULL, from before 100, reads
 as high), `quoteStart` / `quoteEnd` (the quote's span in the stored transcript, string offsets,
 end exclusive), `roleSuggestion`, `claimStatus` (`proposed`,
 `confirmed`, `edited`, `rejected`), `proposedBy` (`model` | `analyst`), `decidedBy`,
 `decidedAt`. Every change is recorded in `_history`.
 
-Migration 098 widened the kinds and added `relevance`, `quoteStart` and `quoteEnd`. It is a
-separate migration rather than an edit of 097 because the demo database had already run 097
+Migration 100 widened the kinds and added `relevance`, `quoteStart` and `quoteEnd`. It is a
+separate migration rather than an edit of 099 because the demo database had already run 099
 (and a changed migration fails the hash ratchet).
 
-`ContextMemberOverrides` (099) — a member marked former by a decision, on top of
+`ContextMemberOverrides` (101) — a member marked former by a decision, on top of
 `ContextMembers`: `contextId` (cascade), `memberId`, `claimId` (cascade), `overrides` (the
 source's name when decided), `decidedBy`, `decidedAt`; one per (context, member). See
 *Marked former by a decision* under Contradictions.
@@ -353,7 +353,7 @@ Two interviews that disagree about a person are a contradiction while either cla
 confirmed both (an earlier *left*, a later *current*), they are a return — `rejoinOf` counts them,
 so *"Both true, at different times"* on that pair makes the person *rejoined*.
 
-### Marked former by a decision (migration 099)
+### Marked former by a decision (migration 101)
 
 *"Interview: Led is a former member"* against *"Klanten (upload) still lists Led as a member"*,
 decided *the interview is right*: Led is no longer a current member, but a former one. The
@@ -431,7 +431,7 @@ proposed). *In transcript* next to a claim in the review list — and the *left*
 members list — opens the panel scrolled to the quote, which pulses. Escape closes it.
 
 The spans come from the API: stored at extraction (and for an analyst's claim), found from
-the verbatim quote when the transcript is opened for a claim from before 098. A quote may
+the verbatim quote when the transcript is opened for a claim from before 100. A quote may
 run over a line break into the next turn (highlighted in both, never in the speaker column)
 and quotes may overlap (the piece lists every claim, takes the shorter quote's style and an
 outline). The view cuts each turn only at highlight boundaries, in one pass over the turns,

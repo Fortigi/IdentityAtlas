@@ -18,7 +18,7 @@ export async function isSurveyRespondent(user, deps = {}) {
   try {
     return await hasSurvey(deps.db ?? db, me.principal.id, me.identity?.id ?? null);
   } catch (err) {
-    // Before migration 100 nobody has been sent a survey.
+    // Before migration 102 nobody has been sent a survey.
     if (isMissingSchema(err)) return false;
     throw err;
   }

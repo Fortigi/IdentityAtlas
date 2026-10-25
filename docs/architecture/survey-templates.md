@@ -116,7 +116,7 @@ A claim about a resource (`subjectKind = 'Resource'`, `resourceId`) is **knowled
 confirming it never changes the crawled resource; the source system is where that fix
 belongs.
 
-## Data (migration 100)
+## Data (migration 102)
 
 `SurveyTemplates` (key, name, description, contextCategory, scopeRootContextId,
 currentVersion, builtIn, archivedAt), `SurveyTemplateVersions` (templateId, version,

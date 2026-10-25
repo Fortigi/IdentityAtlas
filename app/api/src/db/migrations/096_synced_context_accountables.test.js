@@ -1,7 +1,7 @@
-// Static checks on migration 094. What it selects is verified against PostgreSQL
+// Static checks on migration 096. What it selects is verified against PostgreSQL
 // in contract-tests/contextOwnerRoles.contract.test.js; these pin the shape that
 // keeps it safe to run on a live database: insert-only, synced only, the same
-// resolution as the ingest, and nothing that writes Contexts (migration 092's
+// resolution as the ingest, and nothing that writes Contexts (migration 094's
 // deferred-trigger trap).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -11,11 +11,11 @@ import { OWNER_PRINCIPAL_ORDER, ownerResolutionCtes } from '../../ingest/context
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '094_synced_context_accountables.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '096_synced_context_accountables.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const squash = (s) => s.replace(/\s+/g, ' ').trim();
 
-describe('migration 094 — synced owners become Accountables', () => {
+describe('migration 096 — synced owners become Accountables', () => {
   it('only inserts: no UPDATE, DELETE or DDL anywhere', () => {
     expect(statements).not.toMatch(/\b(UPDATE|DELETE|ALTER|DROP|CREATE|TRUNCATE)\b/i);
     expect(statements.match(/INSERT INTO "(\w+)"/g)).toEqual(['INSERT INTO "ContextRoles"']);

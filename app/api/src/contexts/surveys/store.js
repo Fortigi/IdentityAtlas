@@ -1,6 +1,6 @@
 // Survey templates — the SQL. Every statement the feature runs is here, so the
 // contract test (contract-tests/surveyTemplates.contract.test.js) can hold them
-// all against a migrated PostgreSQL. Tables: migration 100.
+// all against a migrated PostgreSQL. Tables: migration 102.
 //
 // Dates leave PostgreSQL as text ('YYYY-MM-DD'), as in interviews/store.js.
 
