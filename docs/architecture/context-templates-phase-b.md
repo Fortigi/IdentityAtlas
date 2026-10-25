@@ -27,7 +27,7 @@ answer for them. It is one pull request, with no behaviour change to `assignment
 
 ## 2. Data
 
-Migration `092_context_templates.sql`:
+Migration `096_context_templates.sql`:
 
 - `Contexts.contextCategory TEXT NULL CHECK IN ('OrganizationalUnit','LogicalApplication','Tag','Segment')`,
   backfilled from `contextType` for every known value; unknown values stay NULL (the UI shows them under "Other").
@@ -64,7 +64,7 @@ contexts of that load:
   An `analyst` or `algorithm` Accountable is never touched — it wins over the source until
   someone removes it. Responsibles are never touched.
 - **Response**: `accountable: { set, replaced, removed, unresolved }` on the ingest result.
-- **Existing databases**: migration `094_synced_context_accountables.sql` ran the
+- **Existing databases**: migration `096_synced_context_accountables.sql` ran the
   insert-only half once (contexts with an owner and no Accountable yet).
 - **Order**: an owner whose account arrives later than the context resolves on the next
   contexts load, not when the account lands.
