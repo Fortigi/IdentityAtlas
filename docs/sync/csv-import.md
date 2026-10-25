@@ -68,6 +68,9 @@ The crawler looks for these files in the CSV folder (filename must match the ent
 | `ExternalId` | Yes | Stable principal ID in the source system |
 | `DisplayName` | Yes | Full name |
 | `Email` | No | Primary email address |
+| `EmployeeId` | No | HR employee number — Account Linking's strongest signal for correlating this account to a person |
+| `GivenName` | No | First name |
+| `Surname` | No | Last name |
 | `PrincipalType` | No | `User`, `ExternalUser`, `SharedMailbox`, etc. Defaults to `User` |
 | `Department` | No | Department name |
 | `JobTitle` | No | Job title |

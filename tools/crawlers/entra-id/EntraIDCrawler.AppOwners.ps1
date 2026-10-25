@@ -22,7 +22,7 @@
 
     The Application resource is keyed by SP id. For an owned app that isn't already
     an Application resource (no app-roles / OAuth2 grants), a minimal Application
-    record is upserted with SyncMode 'delta' — the app-roles + OAuth2 phases own the
+    record is upserted with SyncMode 'delta' — the app-roles phase owns the
     resourceType='Application' full-sync, so a reconcile here would clobber theirs.
     Sync-EntraAppOwners runs after those so its upsert is the final word. A distinct
     'HasAppOwnership' relationshipType keeps the group-owners full-sync (HasOwnership)
@@ -160,7 +160,7 @@ function Sync-EntraAppOwners {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing app owners..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing app owners' -Pct 75 -Detail 'Fetching service principals from Microsoft Graph...'
     try {
-        $sps = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,appId,displayName,servicePrincipalType,appRoleAssignmentRequired,accountEnabled&`$top=999")
+        $sps = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,appId,displayName,servicePrincipalType,appRoleAssignmentRequired,accountEnabled,publisherName&`$top=999")
         Write-Host "  Service principals: $($sps.Count)" -ForegroundColor Gray
         $index        = Get-EntraAppOwnerIndex -Sps $sps
         $spOwnerPairs = Get-EntraSpOwnerPairs -Sps $sps
@@ -178,7 +178,7 @@ function Sync-EntraAppOwners {
             -ResourceType 'ApplicationOwnership' -SeedPrefix 'entraid-app-ownership'
 
         # Ensure the parent Application resource exists for every owned app (delta
-        # upsert — the app-roles/OAuth2 phases own the Application full-sync). Reuse
+        # upsert — the app-roles phase owns the Application full-sync). Reuse
         # the app-roles shaper so the record matches what SyncAppRoles would produce.
         $ownedSpIds = [System.Collections.Generic.HashSet[string]]::new()
         foreach ($p in @($spOwnerPairs) + @($appReg.pairs)) { [void]$ownedSpIds.Add($p.appResourceId) }
@@ -199,7 +199,7 @@ function Sync-EntraAppOwners {
 }
 
 # Upload the app-ownership graph. The parent Application resources are upserted
-# with SyncMode 'delta' (non-reconciling — the app-roles/OAuth2 phases own the
+# with SyncMode 'delta' (non-reconciling — the app-roles phase owns the
 # resourceType='Application' full-sync). The two ownership resource types, the
 # HasAppOwnership relationships, and the Direct owner assignments are each
 # full-synced on their own phase-exclusive scope, sent unconditionally so a
