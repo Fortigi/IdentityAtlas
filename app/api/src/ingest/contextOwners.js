@@ -3,7 +3,7 @@
  *
  * "Contexts"."ownerUserId" is free text: whatever the source calls the owner of
  * a grouping — an account key, an employee number. The context page shows who
- * answers for a context from "ContextRoles" (migration 092), so an owner that
+ * answers for a context from "ContextRoles" (migration 094), so an owner that
  * stays a string there reads as "Nobody is accountable yet" on every logical
  * application a source delivered with an owner. This turns the string into the
  * role, at the end of every contexts ingest.
@@ -34,7 +34,7 @@
  *
  * Runs after the batch's own upsert, in the same place and the same way
  * managerLinks.js runs: after a single-batch load and inside a sync session's
- * transaction at its end. Migration 094 did the insert-only half once for
+ * transaction at its end. Migration 096 did the insert-only half once for
  * databases that held synced owners before this existed.
  */
 

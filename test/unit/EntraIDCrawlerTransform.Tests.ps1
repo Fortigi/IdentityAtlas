@@ -917,6 +917,13 @@ Describe 'ConvertTo-EntraAppRoleApplicationResource' {
         $rec['extendedAttributes']['appId']                     | Should -Be 'app-1'
         $rec['extendedAttributes']['appRoleAssignmentRequired'] | Should -BeTrue
     }
+
+    It 'keeps the publisher, so the reconciling batch does not wipe what the OAuth2 record set' {
+        $with    = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal ([pscustomobject]@{ id = 'sp1'; publisherName = 'Contoso' })
+        $without = ConvertTo-EntraAppRoleApplicationResource -ServicePrincipal ([pscustomobject]@{ id = 'sp2'; appId = 'app-2' })
+        $with['extendedAttributes']['publisherName'] | Should -Be 'Contoso'
+        $without['extendedAttributes'].ContainsKey('publisherName') | Should -BeFalse
+    }
 }
 
 Describe 'Get-EntraAppRoleCatalog' {

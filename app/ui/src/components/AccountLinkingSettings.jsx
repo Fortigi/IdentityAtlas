@@ -8,6 +8,8 @@
 
 import { useState, useEffect, useReducer, useCallback, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import NameOnlyMatchesCard from '@ui/components/NameOnlyMatchesCard';
+import { completionNotice } from '@ui/utils/accountLinkingRuns';
 
 export default function AccountLinkingSettings() {
   const { authFetch } = useAuth();
@@ -15,6 +17,9 @@ export default function AccountLinkingSettings() {
   const [rulesText, setRulesText] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [threshold, setThreshold] = useState(50);
+  const [allowNameOnly, setAllowNameOnly] = useState(true);
+  // Bumped when a run finishes, so the suggestions card re-reads the newest run.
+  const [runsKey, bumpRunsKey] = useReducer((n) => n + 1, 0);
   // `loadConfig()` runs in a mount effect and flips loading synchronously.
   // Backing it with a reducer (dispatch, not a useState setter) keeps that out
   // of react-hooks/set-state-in-effect — the same mechanism useFetch relies on.
@@ -34,6 +39,7 @@ export default function AccountLinkingSettings() {
         setRulesText(JSON.stringify(d.rules ?? {}, null, 2));
         setIsActive(d.isActive !== false);
         setThreshold(Number(d.rules?.linkThreshold ?? 50));
+        setAllowNameOnly(d.rules?.allowNameOnlyLinks !== false);
       })
       .catch(() => setError('Failed to load configuration.'))
       .finally(() => setLoading(false));
@@ -51,7 +57,8 @@ export default function AccountLinkingSettings() {
       setError(`Rules is not valid JSON: ${e.message}`);
       return;
     }
-    rules.linkThreshold = threshold; // the slider is authoritative for the threshold
+    rules.linkThreshold = threshold;                 // the slider is authoritative for the threshold
+    rules.allowNameOnlyLinks = allowNameOnly;        // …as is the checkbox for its own key
     setSaving(true);
     try {
       const r = await authFetch('/api/account-linking/config', {
@@ -78,8 +85,9 @@ export default function AccountLinkingSettings() {
         if (run.status === 'completed' || run.status === 'failed') {
           clearInterval(pollRef.current);
           setRunning(false);
+          bumpRunsKey();
           if (run.status === 'completed') {
-            setNotice(`Linking complete — ${run.linksCreated ?? 0} linked, ${run.linksUpdated ?? 0} updated, ${run.orphansRemaining ?? '—'} orphans remaining.`);
+            setNotice(completionNotice(run));
           } else {
             setError(`Linking failed: ${run.errorMessage || run.step || 'unknown error'}`);
           }
@@ -153,8 +161,8 @@ export default function AccountLinkingSettings() {
           <span className="text-sm font-mono text-gray-700 dark:text-gray-300">&ge; {threshold}%</span>
         </div>
         <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-          Minimum confidence to link an account to an identity. Lower links more (incl. fuzzy name-only matches at ~60%);
-          higher requires stronger evidence. Weaker links still show their score on the identity for analyst review.
+          Minimum confidence to link an account to an identity. Lower links more; higher requires stronger
+          evidence. Weaker links still show their score on the identity for analyst review.
         </p>
         <input
           aria-label="Auto-link certainty threshold (percent)"
@@ -165,7 +173,23 @@ export default function AccountLinkingSettings() {
         <div className="flex justify-between text-[10px] text-gray-600 dark:text-gray-400 mt-1">
           <span>0 · link freely</span><span>~60 · name match</span><span>90 · near-certain</span>
         </div>
-        <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">Saved with the rules below.</p>
+
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <label htmlFor="allow-name-only" className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+            <input
+              id="allow-name-only" type="checkbox" checked={allowNameOnly}
+              onChange={e => setAllowNameOnly(e.target.checked)}
+            />
+            Link on a name match alone
+          </label>
+          <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-1">
+            On by default: a match resting only on names links when the name identifies exactly one person.
+            A name shared with somebody else — spelled the same, or sharing its surname and first initial —
+            is always held for review instead. Turn this off to hold back every name-only match; a source
+            that carries nothing but display names then stops linking.
+          </p>
+        </div>
+        <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-2">Saved with the rules below.</p>
       </div>
 
       {/* Active */}
@@ -207,6 +231,8 @@ export default function AccountLinkingSettings() {
           </button>
         </div>
       </div>
+
+      <NameOnlyMatchesCard refreshKey={runsKey} />
     </div>
   );
 }

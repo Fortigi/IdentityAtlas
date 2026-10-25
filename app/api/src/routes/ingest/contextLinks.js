@@ -5,7 +5,7 @@
 // same tables, but a crawler key (fgc_) is only valid on /api/ingest and
 // /api/crawlers, so a source that knows who answers for an application — an
 // IGA application catalogue, the demo dataset — needs this door. Rows written
-// here are addedBy = 'sync' (migration 092 reserved the value for them).
+// here are addedBy = 'sync' (migration 094 reserved the value for them).
 //
 // Envelope: { systemId, records: [...] }. A crawler may only set roles and
 // links on the contexts its system owns (Contexts.scopeSystemId = systemId),
