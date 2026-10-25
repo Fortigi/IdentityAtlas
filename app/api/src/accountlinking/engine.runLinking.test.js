@@ -233,6 +233,38 @@ describe('loadRules — a saved dictionary vs newly shipped signals (#1469)', ()
 
     expect(insertedLinks(db)).toEqual([FAY_LOGIN_LINK]);
   });
+
+  it('leaves the account orphaned for a tenant that switched the signal off at weight 0', async () => {
+    // The off-switch that makes merging shipped signals back in safe: a signal
+    // the tenant deleted returns, a signal the tenant set to 0 stays off. Same
+    // input as the first case bar that one weight, so this is the case that
+    // tells "the tenant's definition won" apart from "the shipped one did".
+    const db = await linkTheAdminAccount({
+      ...PRE_LOGIN_NAME_FORM_RULES,
+      signals: [
+        ...PRE_LOGIN_NAME_FORM_RULES.signals,
+        { name: 'loginNameForm', type: 'loginName', field: 'email', weight: 0, stripPrefixes: ['adm-'] },
+      ],
+    });
+
+    expect(insertedLinks(db)).toEqual([]);
+    expect(completionFields(db).linksCreated).toBe(0);
+  });
+
+  it("scores the link at the tenant's own weight where they set one", async () => {
+    // A tenant who upgraded and then raised the signal to 70 — their number is
+    // what the link is recorded at, not the shipped 55, so an analyst reading
+    // the confidence is reading this tenant's policy.
+    const db = await linkTheAdminAccount({
+      ...PRE_LOGIN_NAME_FORM_RULES,
+      signals: [
+        ...PRE_LOGIN_NAME_FORM_RULES.signals,
+        { name: 'loginNameForm', type: 'loginName', field: 'email', weight: 70, stripPrefixes: ['adm-'] },
+      ],
+    });
+
+    expect(insertedLinks(db)).toEqual([{ ...FAY_LOGIN_LINK, confidence: 70 }]);
+  });
 });
 
 // ── live-rows filter ─────────────────────────────────────────────────────────

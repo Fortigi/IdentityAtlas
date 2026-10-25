@@ -185,6 +185,20 @@ describe('AccountLinkingSettings (mounted)', () => {
     expect(screen.getByRole('checkbox', { name: /Link on a name match alone/i })).toBeChecked();
   });
 
+  it('says that deleting a signal does not disable it — weight 0 does (#1469)', async () => {
+    // The editor shows the EFFECTIVE dictionary: an upgrade merges newly shipped
+    // signals back into the saved one by name, so a signal an administrator
+    // deleted reappears. Without this said plainly, the only reading of that is
+    // "my edit was discarded", and the real off-switch is undiscoverable —
+    // nothing else on the page mentions weight 0.
+    renderWithProviders(h(AccountLinkingSettings), { auth: { authFetch: routes() } });
+    await screen.findByText('Account Linking');
+
+    const editor = screen.getByText(/Deleting a signal here does not disable it/i).closest('p');
+    expect(editor).toHaveTextContent(/effective/i);
+    expect(editor).toHaveTextContent(/set its weight to 0/i);
+  });
+
   it('reflects an existing opt-out from the loaded config', async () => {
     const authFetch = routes({
       '/api/account-linking/config': { ...config, rules: { ...config.rules, allowNameOnlyLinks: false } },

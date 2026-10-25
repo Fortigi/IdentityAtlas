@@ -213,6 +213,13 @@ export default function AccountLinkingSettings() {
           Signals (weighted match rules), account-type patterns, <code>linkThreshold</code>, and
           <code> onlyLinkTypes</code>. Edit and Save to apply to the next run.
         </p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+          This is the <span className="font-medium">effective</span> dictionary — your saved rules with
+          the signals this version ships merged in by name, which is exactly what a run uses. Your own
+          values always win. <span className="font-medium">Deleting a signal here does not disable it</span>:
+          an upgrade adds it back, because that is how a new signal reaches a tenant that has saved its
+          settings. To switch a signal off, set its <code>weight</code> to <code>0</code> and Save.
+        </p>
         <textarea
           aria-label="Linking rules (JSON)"
           value={rulesText}
