@@ -97,6 +97,13 @@ $script:RealismNameCast = @(
     @{ Given = 'Iris';   Surname = 'van der Meer' }, @{ Given = 'Bas';   Surname = 'van Leeuwen' }
 )
 
+# The one admin login that is ambiguous on purpose. The cast above seeds two
+# people called Sanne Visser (positions 7 and 8), so `adm-svisser` fits both of
+# them at every level a name match can rest on — the account must be held for
+# review rather than linked. Pinned to a position rather than left to the bucket
+# draw, so the case is always in the data.
+$script:RealismAmbiguousAdminId = 'R0007'
+
 # "The person at position N has the same full name as the person at position M."
 # Seven more exact duplicates, spread over departments — about what a 600-person
 # company really has, and enough that a name lookup has to ask more than once.
@@ -313,6 +320,22 @@ function New-DemoRealismRoster {
 $script:RealismEmployeeTypes = @('Employee', 'Employee', 'Employee', 'Employee', 'Employee',
                                 'Employee', 'Employee', 'Employee', 'Contractor', 'Intern')
 
+# The first unused spelling of a login: the name itself, then name2, name3… —
+# what a directory does when two people would otherwise share one. Shared by
+# both login conventions in this slice, each with a used-set of its own.
+function Get-DemoRealismUniqueLocalPart {
+    param(
+        [Parameter(Mandatory)][string]$Local,
+        # Not Mandatory: the set is empty on the first call, and PowerShell
+        # refuses to bind an empty collection to a mandatory parameter.
+        [AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$Used
+    )
+    $candidate = $Local
+    $n = 1
+    while (-not $Used.Add($candidate)) { $n++; $candidate = "$Local$n" }
+    return $candidate
+}
+
 # "Jeroen van den Berg" -> jeroen.vandenberg@fortigidemo.com, with a number
 # appended when two people would otherwise share an address (they do: the roster
 # has two people with the same full name).
@@ -320,15 +343,22 @@ function Get-DemoRealismEmail {
     param(
         [Parameter(Mandatory)][string]$Given,
         [Parameter(Mandatory)][string]$Surname,
-        # Not Mandatory: the set is empty on the first call, and PowerShell
-        # refuses to bind an empty collection to a mandatory parameter.
         [AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$Used
     )
     $local = "$($Given.ToLower()).$(($Surname -replace '[^\p{L}]', '').ToLower())"
-    $candidate = $local
-    $n = 1
-    while (-not $Used.Add($candidate)) { $n++; $candidate = "$local$n" }
-    return "$candidate@fortigidemo.com"
+    return "$(Get-DemoRealismUniqueLocalPart -Local $local -Used $Used)@fortigidemo.com"
+}
+
+# "Femke Hogenbirk" -> fhogenbirk: the first initial glued to the surname, which
+# is both the on-premises samAccountName convention and the one an admin account
+# is handed out under. Particles stay in ("jvandenberg"), because that is what
+# the convention really produces.
+function Get-DemoRealismInitialSurname {
+    param(
+        [Parameter(Mandatory)][string]$Given,
+        [Parameter(Mandatory)][string]$Surname
+    )
+    return "$($Given.Substring(0, 1))$(($Surname -replace '[^\p{L}]', ''))".ToLower()
 }
 
 function Add-DemoRealismPeople {
@@ -352,6 +382,10 @@ function Add-DemoRealismPeople {
         NonHuman   = [ordered]@{}
         Systems    = @{ ad = $sysAd; crm = $sysCrm }
         MeasuredAt = $measuredAt
+        # Logins already handed out under the `adm-<initial><surname>` convention,
+        # so an in-bucket namesake gets a suffix instead of a second account on
+        # the same address.
+        AdminLogins = [System.Collections.Generic.HashSet[string]]::new()
     }
     foreach ($person in $roster) {
         if (-not $State.Realism.ByDept.ContainsKey($person.dept)) { $State.Realism.ByDept[$person.dept] = [System.Collections.Generic.List[object]]::new() }
@@ -469,7 +503,7 @@ function Add-DemoRealismLinkedAccounts {
     $bucket = $Person.extraAccount
 
     if ($bucket -lt 55) {
-        $sam = "$($Person.given.Substring(0,1))$(($Person.surname -replace '[^\p{L}]', ''))".ToLower()
+        $sam = Get-DemoRealismInitialSurname -Given $Person.given -Surname $Person.surname
         $adId = New-DemoGuid "principal-$($Person.id)-ad"
         $null = Add-DemoPrincipal $State -Record @{
             id                 = $adId
@@ -502,23 +536,64 @@ function Add-DemoRealismLinkedAccounts {
             -DisplayName "$($Person.name) (CRM)" -AccountType 'CRM'
     }
     # The shadow admin account: same person, second Entra account, privileged
-    # access on it rather than on the account they read their mail with.
+    # access on it rather than on the account they read their mail with. Spelled
+    # `adm-<email local part>`, stamped with the employee id, and linked — the
+    # easy case, which every other signal would also solve.
     if ($bucket -ge 96) {
-        $admId = New-DemoGuid "principal-$($Person.id)-adm"
-        $null = Add-DemoPrincipal $State -Record @{
-            id                 = $admId
-            displayName        = "$($Person.name) (admin)"
-            email              = "adm-$($Person.email)"
-            principalType      = 'User'
-            accountEnabled     = $true
-            employeeId         = $Person.id
-            department         = $Person.dept
-            jobTitle           = 'Administrative account'
-            companyName        = 'Fortigi Demo Corp'
-            systemId           = $State.SystemIds['entra']
-            extendedAttributes = @{ userType = 'Member'; passwordNeverExpires = $true }
-        }
-        Add-DemoIdentityMember $State -IdentityId $idGuid -PrincipalId $admId `
-            -DisplayName "$($Person.name) (admin)" -AccountType 'EntraID'
+        Add-DemoRealismAdminAccount $State -Person $Person -IdSeed "principal-$($Person.id)-adm" `
+            -DisplayName "$($Person.name) (admin)" -Email "adm-$($Person.email)"
+    }
+    # The same kind of account under the OTHER convention a real tenant hands
+    # out: `adm-<first initial><surname>`, and deliberately nothing else. No
+    # employee id, no name columns, no department, no pre-made link — so the only
+    # route from the account to its owner is the login itself. That is the signal
+    # Account Linking has to read, and these accounts are what exercises it.
+    if (($bucket -ge 92 -and $bucket -lt 96) -or $Person.id -eq $script:RealismAmbiguousAdminId) {
+        $login = Get-DemoRealismUniqueLocalPart -Used $State.Realism.AdminLogins `
+            -Local "adm-$(Get-DemoRealismInitialSurname -Given $Person.given -Surname $Person.surname)"
+        Add-DemoRealismAdminAccount $State -Person $Person -IdSeed "principal-$($Person.id)-adm2" `
+            -DisplayName $login -Email "$login@fortigidemo.com" -Orphan
+    }
+}
+
+<#
+.SYNOPSIS
+    One separate admin account in Entra, under either login convention.
+.DESCRIPTION
+    The conventions differ in their login and in how much they give away, and in
+    nothing else: both are a second Entra account for somebody who already has
+    one, titled 'Administrative account' with a password that never expires. An
+    `-Orphan` carries no attribute pointing at a person and gets no
+    IdentityMembers row, which is what leaves its login the only evidence.
+#>
+function Add-DemoRealismAdminAccount {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Person,
+        [Parameter(Mandatory)][string]$IdSeed,
+        [Parameter(Mandatory)][string]$DisplayName,
+        [Parameter(Mandatory)][string]$Email,
+        [switch]$Orphan
+    )
+    $admId = New-DemoGuid $IdSeed
+    $record = @{
+        id                 = $admId
+        displayName        = $DisplayName
+        email              = $Email
+        principalType      = 'User'
+        accountEnabled     = $true
+        jobTitle           = 'Administrative account'
+        companyName        = 'Fortigi Demo Corp'
+        systemId           = $State.SystemIds['entra']
+        extendedAttributes = @{ userType = 'Member'; passwordNeverExpires = $true }
+    }
+    if (-not $Orphan) {
+        $record['employeeId'] = $Person.id
+        $record['department'] = $Person.dept
+    }
+    $null = Add-DemoPrincipal $State -Record $record
+    if (-not $Orphan) {
+        Add-DemoIdentityMember $State -IdentityId (Get-DemoIdentityId $Person.id) -PrincipalId $admId `
+            -DisplayName $DisplayName -AccountType 'EntraID'
     }
 }
