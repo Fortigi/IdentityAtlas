@@ -192,7 +192,7 @@ function Sync-EntraAppPermissions {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing application permissions..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing application permissions' -Pct 84 -Detail 'Fetching service principals from Microsoft Graph...'
     try {
-        $sps = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,accountEnabled,tags&`$top=999")
+        $sps = @(Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=id,displayName,appId,appRoles,appRoleAssignmentRequired,servicePrincipalType,accountEnabled,publisherName,tags&`$top=999")
         Write-Host "  Service principals: $($sps.Count)" -ForegroundColor Gray
         $index = Get-EntraAppPermissionIndex -Sps $sps -AINamePatterns $AINamePatterns
 
@@ -211,7 +211,7 @@ function Sync-EntraAppPermissions {
         $graph = ConvertTo-EntraAppPermissionGraph -Assignments $records -AppRoleNameById $index.appRoleNameById -SpInfo $index.spInfo
 
         # Ensure the parent Application resource exists for every SP that holds a
-        # permission (delta upsert — the app-roles/OAuth2 phases own the Application
+        # permission (delta upsert — the app-roles phase owns the Application
         # full-sync). Reuse the app-roles shaper so the record matches theirs.
         $holderSpIds = [System.Collections.Generic.HashSet[string]]::new()
         foreach ($a in $graph.assignments) { [void]$holderSpIds.Add($a.principalId) }

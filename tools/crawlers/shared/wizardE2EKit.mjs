@@ -85,7 +85,11 @@ export async function deleteCrawlerConfigs(matches) {
  * @param {any} args.test      the `test` object, for test.skip()
  * @param {any} args.expect    the `expect` function
  * @param {string} args.typeLabel  the tile's visible name, e.g. 'SCIM 2.0'
- * @param {string} args.heading    the wizard heading, e.g. 'Add SCIM 2.0 Crawler'
+ * @param {string} [args.heading]  the wizard heading, e.g. 'Add SCIM 2.0 Crawler'.
+ *   Optional: a caller that discovered its crawler from the manifest rather than
+ *   naming it cannot know the heading that wizard hardcodes, so omitting this
+ *   accepts any wizard heading — which is still enough to prove the tile opened
+ *   a wizard and not the picker again.
  */
 export async function openCrawlerWizard({ page, test, expect, typeLabel, heading }) {
   await page.goto(`${E2E_BASE}/#admin`);
@@ -101,6 +105,6 @@ export async function openCrawlerWizard({ page, test, expect, typeLabel, heading
   const tile = page.locator(`button:has-text("${typeLabel}")`).first();
   await expect(tile).toBeVisible({ timeout: 5000 });
   await tile.click();
-  await expect(page.locator(`h3:has-text("${heading}")`)).toBeVisible({ timeout: 10000 });
+  await expect(page.locator(`h3:has-text("${heading || 'Crawler'}")`).first()).toBeVisible({ timeout: 10000 });
   return true;
 }

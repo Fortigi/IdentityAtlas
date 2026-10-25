@@ -10,10 +10,10 @@
 //  - The IST/SOLL/Gaps toggle in the toolbar collapses to All/IST/SOLL —
 //    "Gaps" requires AP data and is hidden.
 //
-// Everything else (filter chip, Excel export hook, basic
+// Everything else (filter chip, Excel export, basic
 // per-cell membership-type badges) works the same as the default view.
 
-import { useMemo, useCallback, useState, useRef } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import GridResizeHandle from './matrix/GridResizeHandle';
 import MatrixToolbar from './matrix/MatrixToolbar';
@@ -33,6 +33,7 @@ export default function RotatedMatrixView({
   onLoadSaved,
   hasData,
   onShareView,
+  shareUrl,
 }) {
   const filterIsApplied = filter !== null && filter !== undefined;
 
@@ -61,12 +62,11 @@ export default function RotatedMatrixView({
   // Group consecutive resources by resourceType for merged top header.
   const typeSpans = useMemo(() => buildTypeSpans(resources), [resources]);
 
-  // Export is not yet supported in rotated mode — say so instead.
-  const [exportTip, setExportTip] = useState(false);
-  const handleExportExcel = useCallback(() => {
-    setExportTip(true);
-    setTimeout(() => setExportTip(false), 2500);
-  }, []);
+  // Excel export handler (lazy-loads ExcelJS only when export is clicked).
+  const handleExportExcel = useCallback(async () => {
+    const { exportRotatedToExcel } = await import('../utils/exportRotatedToExcel');
+    await exportRotatedToExcel({ users, resources, cellMap, shareUrl });
+  }, [users, resources, cellMap, shareUrl]);
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
@@ -87,12 +87,6 @@ export default function RotatedMatrixView({
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
       />}
-
-      {exportTip && (
-        <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded px-3 py-1">
-          Excel export is not yet supported in rotated layout. Switch to "Resources as rows" in the wizard to export.
-        </div>
-      )}
 
       {!filterIsApplied ? (
         <OpenMatrixList hasData={hasData} onLoad={onLoadSaved} onNew={() => onAdjustFilter?.({ fresh: true })} />
