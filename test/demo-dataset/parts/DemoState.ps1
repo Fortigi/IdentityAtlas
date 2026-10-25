@@ -135,7 +135,7 @@ function Add-DemoContext {
 }
 
 # Who answers for an organizational unit or a logical application (ContextRoles,
-# migration 092): one Accountable at most, any number of Responsible. The demo
+# migration 094): one Accountable at most, any number of Responsible. The demo
 # names the holder by account (principalId); the ingest stores it as addedBy='sync'.
 function Add-DemoContextRole {
     param(

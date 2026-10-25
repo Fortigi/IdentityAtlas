@@ -6,13 +6,13 @@ import { CONTEXT_CATEGORIES, CONTEXT_ROLE_TYPES, CONTEXT_RELATIONSHIP_TYPES, CON
 import { REGISTERED_PLUGINS } from '../../contexts/plugins/registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '092_context_templates.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '094_context_templates.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const inList = (re) => statements.match(re)[1].split(',').map(s => s.trim().replace(/^'|'$/g, ''));
 // The backfill CASE only, so the GraphTags view's own CASE does not count.
 const backfill = statements.slice(statements.indexOf('SET "contextCategory" = CASE'), statements.indexOf('ix_Contexts_contextCategory'));
 
-describe('migration 092 — context templates', () => {
+describe('migration 094 — context templates', () => {
   it('adds the nullable template column with exactly the four templates the ingest knows', () => {
     expect(statements).toMatch(/ADD COLUMN "contextCategory" TEXT\s+CHECK/);
     expect(statements).not.toMatch(/"contextCategory" TEXT NOT NULL/);
@@ -71,7 +71,7 @@ describe('migration 092 — context templates', () => {
   });
 });
 
-describe('migration 092 — the backfill is the one mapping the ingest derives from', () => {
+describe('migration 094 — the backfill is the one mapping the ingest derives from', () => {
   it('maps every known contextType to the same template as lib/contextCategories.js', async () => {
     const { CONTEXT_TYPE_CATEGORY } = await import('../../lib/contextCategories.js');
     const sqlMap = Object.fromEntries([...backfill.matchAll(/WHEN '(\w+)'\s+THEN '(\w+)'/g)].map(m => [m[1], m[2]]));
@@ -79,7 +79,7 @@ describe('migration 092 — the backfill is the one mapping the ingest derives f
   });
 });
 
-describe('migration 092 — history on the new tables', () => {
+describe('migration 094 — history on the new tables', () => {
   it('records every change to context roles and relationships in _history', () => {
     for (const table of ['ContextRoles', 'ContextRelationships']) {
       expect(statements).toMatch(new RegExp(`AFTER INSERT OR DELETE ON "${table}"\\s+FOR EACH ROW EXECUTE FUNCTION fg_record_history\\(\\)`));
@@ -88,7 +88,7 @@ describe('migration 092 — history on the new tables', () => {
   });
 });
 
-describe('migration 092 — SameUnitAs is symmetric', () => {
+describe('migration 094 — SameUnitAs is symmetric', () => {
   it('stores a pair once whichever way round it was posted', () => {
     expect(statements).toMatch(/CREATE UNIQUE INDEX "ux_ContextRelationships_pair" ON "ContextRelationships"\s+\(LEAST\("contextId", "relatedContextId"\), GREATEST\("contextId", "relatedContextId"\), "relationshipType"\)/);
     // The ordered-triple constraint is gone: (a,b) and (b,a) must collide.
