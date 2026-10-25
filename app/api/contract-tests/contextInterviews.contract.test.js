@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { poolDb } from './poolDb.js';
 
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const store = await import('../src/contexts/interviews/store.js');
@@ -23,24 +24,7 @@ let ctxId;
 const P = {};
 
 // The connection.js surface the feature uses, over this file's pool.
-const db = {
-  query: (sql, params) => pool.query(sql, params),
-  queryOne: async (sql, params) => (await pool.query(sql, params)).rows[0] ?? null,
-  tx: async (fn) => {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const out = await fn(client);
-      await client.query('COMMIT');
-      return out;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
-};
+const db = poolDb(() => pool);
 
 async function principal(key, displayName) {
   const r = await pool.query(
