@@ -1,5 +1,5 @@
 // The template a known contextType falls under — one place for the mapping the
-// migration (092) backfilled with, the ingest derives a missing contextCategory
+// migration (094) backfilled with, the ingest derives a missing contextCategory
 // from, and the ontology describes (ontology/core.ttl: each type's template
 // ancestor). A value not listed here gets no template: it stays readable and
 // shows under "Other" until a source, a plugin or an analyst places it.
@@ -43,7 +43,7 @@ export function categoryForContextType(contextType) {
 }
 
 // The templates whose contexts have people who answer for them (ContextRoles,
-// migration 092): an organizational unit and a logical application. A Segment
+// migration 094): an organizational unit and a logical application. A Segment
 // or a Tag carries no roles. Shared by the roles API and the ingest, which
 // states a synced owner as the Accountable (ingest/contextOwners.js).
 export const ROLE_BEARING_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);

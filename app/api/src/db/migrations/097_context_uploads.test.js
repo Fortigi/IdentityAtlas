@@ -7,10 +7,10 @@ import { fileURLToPath } from 'url';
 import { TEMPLATES } from '../../contexts/upload/guess.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '095_context_uploads.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '097_context_uploads.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 
-describe('migration 095 — context uploads', () => {
+describe('migration 097 — context uploads', () => {
   it('creates exactly one table and writes no rows', () => {
     expect(statements.match(/CREATE TABLE "(\w+)"/g)).toEqual(['CREATE TABLE "ContextUploads"']);
     expect(statements).not.toMatch(/ALTER TABLE|DROP |DELETE FROM|UPDATE "|INSERT INTO/);

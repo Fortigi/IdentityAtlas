@@ -1,7 +1,7 @@
 // Context interviews — the SQL. Every statement the feature runs is here, so the
 // contract test (contract-tests/contextInterviews.contract.test.js) can hold
 // them all against a migrated PostgreSQL; the rest of the feature is pure or
-// calls these. Tables: migration 097 (and 098: relevance, quote offsets, two more kinds).
+// calls these. Tables: migration 099 (and 100: relevance, quote offsets, two more kinds).
 //
 // Dates leave PostgreSQL as text ('YYYY-MM-DD'): node-postgres turns a DATE into
 // a local-midnight Date, which shifts a day in any timezone west of UTC.
@@ -244,7 +244,7 @@ export async function memberClaims(db, contextId, targetType, ids, statuses) {
 
 // Every person claim of the context, with the person matched (if any), whether
 // that account or person is a direct member now, and whether the account is gone.
-// A person a decision marked former (ContextMemberOverrides, migration 099) is
+// A person a decision marked former (ContextMemberOverrides, migration 101) is
 // listed by the source (isListed) but not a member now (isMember), and carries
 // the decision.
 export const PEOPLE_CLAIMS_SQL = `

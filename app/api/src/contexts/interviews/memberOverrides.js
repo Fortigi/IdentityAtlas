@@ -1,4 +1,4 @@
-// Context interviews — a member marked former by a decision (migration 099).
+// Context interviews — a member marked former by a decision (migration 101).
 //
 //   overrideAction(claim, status, merged)              → 'mark' | 'clear' | null   (pure)
 //   applyMemberOverride(client, claim, decided, user)  → { overrides } | null

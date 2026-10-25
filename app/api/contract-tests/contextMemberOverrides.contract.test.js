@@ -1,4 +1,4 @@
-// Contract test — a member marked former by a decision (migration 099), end to end
+// Contract test — a member marked former by a decision (migration 101), end to end
 // over the real app and PostgreSQL: deciding a "left, but still listed"
 // contradiction "the interview is right" leaves ContextMembers as the source has
 // it and marks the person former on top of it — the members list leaves them out

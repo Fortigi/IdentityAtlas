@@ -1439,7 +1439,7 @@ ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
 
 # Columns of the knowledge tables (ContextInterviews, ContextClaims,
 # ContextMemberOverrides) and the provenance column they add to ContextRoles
-# (migrations 097, 098, 099).
+# (migrations 099, 100, 101).
 ia:sourceClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain ia:ContextRole ;
     rdfs:range ia:Claim ;
