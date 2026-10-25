@@ -1067,3 +1067,59 @@ describe('buildLinks - rivals only at the initial level (#1460)', () => {
     expect(stats.suggestions[0]).toMatchObject({ reason: 'uncorroborated', matchLevel: 'full' });
   });
 });
+
+// ── An admin login carrying initial + surname (#1454) ────────────────────────
+//
+// An admin account's login is a name, not just an address: `adm-fhogenbirk` says
+// "the F. Hogenbirk of this tenant". The shipped `emailPrefix` signal reads it as
+// an address only — it strips `adm-` and then demands the remainder equal the
+// identity's email local part exactly — so it recognises a single provisioning
+// convention and nothing else. Where the personal mailbox is `f.h.hogenbirk`
+// (two initials) and the admin login carries `fhogenbirk` (one), the weight-80
+// signal never fires and the account reaches scoring only if its display name
+// happens to spell the person's name. Measured on the reporter's dataset: 30 of
+// 64 admin accounts linked, every one of them via `fullName`, none via the login.
+//
+// Separator-insensitive comparison alone cannot bridge it — `f.h.hogenbirk`
+// reduces to `fhhogenbirk`, not to `fhogenbirk` — so the login has to be read
+// against name-derived forms of the identity. That makes the evidence a person's
+// *name*, which is why it is graded below an exact address match and why it goes
+// through the name-uniqueness guard: `adm-pmunck` fits every P. Munck in the
+// tenant, and the wrong one would inherit that person's access review, risk
+// score and leaver handling.
+
+describe('buildLinks - an admin login carrying initial + surname (#1454)', () => {
+  const fay = {
+    id: 'idy-fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com', employeeId: 'E100',
+  };
+
+  it('links adm-<initial><surname> to the person the login singles out', () => {
+    // The display name deliberately carries no usable person name — the login is
+    // the only evidence, like the 9 unlinked directory accounts in the report.
+    // Today: stripKnownPrefixes yields "fhogenbirk", the prefix signal demands it
+    // equal "f.h.hogenbirk" exactly, nothing fires, the account stays orphaned.
+    const orphan = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    const { links } = buildLinks([orphan], [fay], DEFAULT_RULES);
+
+    expect(links).toHaveLength(1);
+    expect(links[0].identityId).toBe('idy-fay');
+    // A name form derived from a login is never near-certain evidence, so it must
+    // not reach the confidence an exact employeeId or address match reports.
+    expect(links[0].confidence).toBeLessThan(80);
+  });
+
+  it('holds an ambiguous admin login (adm-pmunck fits two people) for review instead of linking', () => {
+    // Initial + surname drops the particle and every given name but its first
+    // letter, so one login can answer for two people. That is a tie, not a link:
+    // it is held on the run with its rivals named, the same way a namesake
+    // display name is.
+    const petra = { id: 'idy-petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@fortigidemo.com' };
+    const pieter = { id: 'idy-pieter', displayName: 'Pieter Munck', givenName: 'Pieter', surname: 'Munck', email: 'pieter.munck@fortigidemo.com' };
+    const orphan = { id: 'p-adm2', displayName: 'Admin account 043', email: 'adm-pmunck@fortigidemo.com' };
+    const { links, stats } = buildLinks([orphan], [petra, pieter], DEFAULT_RULES);
+
+    expect(links).toHaveLength(0);         // never auto-link a name two people answer to
+    expect(stats.nameOnlyMatches).toBe(1); // held for review with rivals, not silently dropped
+  });
+});
