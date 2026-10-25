@@ -594,6 +594,9 @@ ia:ClaimSubjectKind_Context a owl:NamedIndividual, ia:ClaimSubjectKind ; ia:type
 ia:ClaimSubjectKind_Person a owl:NamedIndividual, ia:ClaimSubjectKind ; ia:typeValue "Person" ;
     rdfs:label "Person" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A person named in the interview." .
+ia:ClaimSubjectKind_Resource a owl:NamedIndividual, ia:ClaimSubjectKind ; ia:typeValue "Resource" ;
+    rdfs:label "Resource" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One of the context's resources (an entitlement), asked about per row in a survey. Knowledge only: the resource is never changed." .
 
 ia:SubjectMatch a owl:Class ;
     rdfs:label "Subject match" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -649,6 +652,9 @@ ia:ClaimProposer_model a owl:NamedIndividual, ia:ClaimProposer ; ia:typeValue "m
 ia:ClaimProposer_analyst a owl:NamedIndividual, ia:ClaimProposer ; ia:typeValue "analyst" ;
     rdfs:label "analyst" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "An analyst, by hand." .
+ia:ClaimProposer_respondent a owl:NamedIndividual, ia:ClaimProposer ; ia:typeValue "respondent" ;
+    rdfs:label "respondent" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person who answered a survey; the survey template says what each answer claims." .
 
 ia:EntityKind a owl:Class ;
     rdfs:label "Entity kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1308,11 +1314,11 @@ ia:resourceCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
     rdfs:label "resourceCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Stored count of resources in this context." .
 ia:resourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain ia:ResourceAssignment ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:Claim ) ] ;
     rdfs:range ia:Resource ;
     ia:ingestAlias "resourceExternalId" ;
     rdfs:label "resourceId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The resource that is held." .
+    rdfs:comment "The resource that is held. On ContextClaims the resource of the context a claim is about (a survey asked per entitlement)." .
 ia:resourceType a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Resource ia:ResourceAssignment ) ] ;
     rdfs:range xsd:string ;
@@ -1731,3 +1737,17 @@ ia:closedReason a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:range xsd:string ;
     rdfs:label "closedReason" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Why it was closed, in one sentence." .
+
+# Survey answers as sources (migration 100). The survey tables themselves
+# (SurveyTemplates, SurveyTemplateVersions, SurveyRequests) are configuration
+# and workflow, outside the core model.
+ia:surveyRequestId a owl:DatatypeProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "surveyRequestId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The survey (SurveyRequests.id) this interview is the answer to; its transcript is the questions and answers. NULL for an uploaded transcript. SurveyRequests is outside the core model." .
+ia:surveyQuestionId a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    rdfs:label "surveyQuestionId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The survey question the claim answers (its id in the survey template). NULL for a claim from a transcript." .

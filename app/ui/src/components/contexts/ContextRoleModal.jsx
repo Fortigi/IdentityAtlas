@@ -92,14 +92,17 @@ function ResponsibleBody({ holders, onAdd, onRemove, onClose }) {
   );
 }
 
-// Search accounts (/api/users, debounced) and hand the chosen row to onPick;
-// the list closes and the box clears once one is picked.
-export function PersonSearch({ inputId, label = 'Find a person', onPick, autoFocus = true }) {
+const USERS_SEARCH = (term) => `/api/users?search=${encodeURIComponent(term)}&limit=10`;
+
+// Search accounts (/api/users, debounced — or `searchUrl(term)`, for a reader
+// without /api/users such as a survey respondent) and hand the chosen row to
+// onPick; the list closes and the box clears once one is picked.
+export function PersonSearch({ inputId, label = 'Find a person', onPick, searchUrl = USERS_SEARCH, autoFocus = true }) {
   const { authFetch } = useAuth();
   const [query, setQuery] = useState('');
   const term = useDebouncedValue(query.trim(), 250);
   const { data: hits } = useFetch(
-    `/api/users?search=${encodeURIComponent(term)}&limit=10`,
+    searchUrl(term),
     { authFetch, enabled: term !== '', initialData: [], transform: b => b.data || [] },
   );
   const results = term === '' ? [] : hits;

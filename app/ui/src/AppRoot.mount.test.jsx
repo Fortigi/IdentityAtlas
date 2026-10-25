@@ -11,6 +11,7 @@ vi.mock('@ui/components/SharedMatrixPage', () => ({
   default: ({ token }) => <div data-testid="shared-shell">{token}</div>,
 }));
 vi.mock('@ui/components/ContextOwnerPage', () => ({ default: () => <div data-testid="owner-shell">owner</div> }));
+vi.mock('@ui/components/SurveyRespondentPage', () => ({ default: () => <div data-testid="respondent-shell">surveys</div> }));
 
 const { default: AppRoot } = await import('./AppRoot');
 
@@ -89,6 +90,26 @@ describe('AppRoot — context owners', () => {
 
   it('does not wait in open mode', () => {
     renderWithProviders(<AppRoot />, { auth: { authEnabled: false, permissionsLoaded: false } });
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
+  });
+});
+
+describe('AppRoot — survey respondents', () => {
+  const respondent = { authEnabled: true, permissionsLoaded: true, hasWildcard: false, permissions: new Set(), contextOwner: null, surveyRespondent: true };
+
+  it('routes a permissionless person with a survey to their surveys, whatever the hash', async () => {
+    window.location.hash = '#shared:fgs_abc';
+    renderWithProviders(<AppRoot />, { auth: respondent });
+    expect(await screen.findByTestId('respondent-shell')).toBeInTheDocument();
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('shared-shell')).not.toBeInTheDocument();
+  });
+
+  it('a context owner with a survey gets the owner page (it has their surveys too); a user with a permission the app', async () => {
+    const { unmount } = renderWithProviders(<AppRoot />, { auth: { ...respondent, contextOwner: { contexts: [{ id: 'c1' }] } } });
+    expect(await screen.findByTestId('owner-shell')).toBeInTheDocument();
+    unmount();
+    renderWithProviders(<AppRoot />, { auth: { ...respondent, permissions: new Set(['data.read']) } });
     expect(screen.getByTestId('app-shell')).toBeInTheDocument();
   });
 });

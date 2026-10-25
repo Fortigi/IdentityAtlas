@@ -13,6 +13,7 @@ export default function AuthGate({ children }) {
     loaded: false,
     me: null,                 // signed-in user mapped onto crawled data
     contextOwner: null,       // { contexts } when let in as a context owner
+    surveyRespondent: false,  // true when let in only to answer a survey
   });
   const msalRef = useRef(null);
   const configRef = useRef(null);
@@ -188,6 +189,7 @@ export default function AuthGate({ children }) {
       permissionsLoaded: permState.loaded,
       me: permState.me,
       contextOwner: permState.contextOwner,
+      surveyRespondent: permState.surveyRespondent === true,
       refreshPermissions,
     }}>
       {/* Banner + app live in one min-h-screen flex column so the 100vh

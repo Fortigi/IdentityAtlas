@@ -208,7 +208,10 @@ function propertyRules(claims, context) {
   const ext = context.extendedAttributes && typeof context.extendedAttributes === 'object' ? context.extendedAttributes : {};
   const props = claims.filter(c => c.claimKind === 'property' && c.attribute);
   const source = context.systemName || 'the context';
-  for (const c of props) {
+  // A property of one of the context's resources (a survey asked per
+  // entitlement) is not the context's own attribute: it is compared only with
+  // other claims about the same resource.
+  for (const c of props.filter(x => x.subjectKind !== 'Resource')) {
     const current = ext[c.attribute];
     if (current == null || typeof current === 'object' || sameValue(current, c.value)) continue;
     out.push(single(c, {
@@ -217,7 +220,7 @@ function propertyRules(claims, context) {
       other: factSide(`${c.attribute} is ${current}`, source),
     }));
   }
-  for (const list of groupBy(props, c => c.attribute.toLowerCase()).values()) {
+  for (const list of groupBy(props, c => `${c.resourceId ?? ''}|${c.attribute.toLowerCase()}`).values()) {
     const distinct = [];
     for (const c of [...list].sort(newerFirst)) if (!distinct.some(d => sameValue(d.value, c.value))) distinct.push(c);
     if (distinct.length < 2) continue;

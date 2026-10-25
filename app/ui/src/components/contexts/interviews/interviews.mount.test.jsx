@@ -205,6 +205,16 @@ describe('What we know', () => {
     expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews/iv-1/extract', { method: 'POST' });
   });
 
+  it('a survey answer is listed as a survey, linked to it, with its answers to view and nothing to read again', async () => {
+    const SURVEY = { id: 'iv-2', intervieweeName: 'Teije', interviewedAt: '2026-10-22', fileName: 'Unit roster (survey)', extractionStatus: 'done', surveyRequestId: 'ffffffff-0000-4000-8000-000000000001', proposed: 3, confirmed: 0 };
+    mount({ interviews: [SURVEY] });
+    const interviews = await screen.findByRole('list', { name: 'Interviews' });
+    expect(within(interviews).getByRole('link', { name: 'survey' })).toHaveAttribute('href', '#surveys?request=ffffffff-0000-4000-8000-000000000001');
+    expect(within(interviews).getByRole('button', { name: /View the transcript/ })).toHaveTextContent('View answers');
+    expect(within(interviews).queryByRole('button', { name: 'Read again' })).not.toBeInTheDocument();
+    expect(within(interviews).queryByTestId('extraction-status')).not.toBeInTheDocument();
+  });
+
   it('Delete asks first, then deletes the interview', async () => {
     const { authFetch, user } = mount();
     const interviews = await screen.findByRole('list', { name: 'Interviews' });

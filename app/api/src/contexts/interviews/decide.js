@@ -9,7 +9,9 @@
 //   description  appended to the context's description under a heading
 //                "From interview with <name>, <date>:" (once per interview: a
 //                second description from it goes under the same heading)
-//   property     extendedAttributes[attribute] = value
+//   property     extendedAttributes[attribute] = value — but a property of one of
+//                the context's resources (subjectKind 'Resource', from a survey
+//                asked per entitlement) is knowledge only
 //   role         with a roleSuggestion: the ContextRole, addedBy 'analyst' (a person
 //                decided) and sourceClaimId = this claim. Accountable: only when the
 //                context has none, or the same person already holds it; another
@@ -95,7 +97,9 @@ export function parseDecision(body = {}) {
   return { status: body.status, value, period: p.period, holder: h.holder, replace: body.replace === true };
 }
 
-export const descriptionHeading = (name, date) => `From interview with ${name}, ${date}:`;
+export const descriptionHeading = (name, date, survey = false) => (survey
+  ? `From survey answered by ${name}, ${date}:`
+  : `From interview with ${name}, ${date}:`);
 
 /** The description with `value` added under `heading` — the existing heading when it is the last section. Pure. */
 export function appendDescription(current, heading, value) {
@@ -107,9 +111,9 @@ export function appendDescription(current, heading, value) {
 }
 
 const LOCK_SQL = `
-  SELECT c.id, c."contextId", c."claimKind", c."principalId", c."identityId", c.attribute, c.value,
+  SELECT c.id, c."contextId", c."claimKind", c."subjectKind", c."principalId", c."identityId", c.attribute, c.value,
          c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c."roleSuggestion", c."claimStatus" AS status,
-         iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt",
+         iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", (iv."surveyRequestId" IS NOT NULL) AS "fromSurvey",
          ctx."contextCategory", ctx.description, ctx."extendedAttributes"->'aliases' AS "currentAliases"
     FROM "ContextClaims" c
     JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
@@ -149,10 +153,13 @@ async function applyRole(client, claim, holder, replace) {
 
 async function applyEffect(client, claim, merged, holder, replace) {
   if (claim.claimKind === 'description') {
-    const description = appendDescription(claim.description, descriptionHeading(claim.intervieweeName, claim.interviewedAt), merged.value);
+    const description = appendDescription(claim.description, descriptionHeading(claim.intervieweeName, claim.interviewedAt, claim.fromSurvey), merged.value);
     await client.query(`UPDATE "Contexts" SET description = $2 WHERE id = $1`, [claim.contextId, description]);
     return { kind: 'description' };
   }
+  // A property of one of the context's resources (a survey asked per
+  // entitlement) is knowledge only: the crawled resource is not changed.
+  if (claim.claimKind === 'property' && claim.subjectKind === 'Resource') return { kind: 'none' };
   if (claim.claimKind === 'property') {
     await client.query(`
       UPDATE "Contexts" SET "extendedAttributes" = COALESCE("extendedAttributes", '{}'::jsonb) || jsonb_build_object($2::text, $3::text)

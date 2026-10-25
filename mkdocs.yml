@@ -187,6 +187,7 @@ nav:
           - Context Upload: architecture/context-upload.md
           - Context Interviews: architecture/context-interviews.md
           - Change Requests: architecture/change-requests.md
+          - Survey Templates: architecture/survey-templates.md
           - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
           - Adjust Tree (design): architecture/adjust-tree.md
           - Crawler Architecture: architecture/crawler-architecture.md

@@ -10,17 +10,17 @@ import { normalizedNameSql } from '../../lib/nameMatch.js';
 
 const INTERVIEW_COLUMNS = `iv.id, iv."contextId", iv."principalId", iv."identityId", iv."intervieweeName",
        iv."interviewedAt"::text AS "interviewedAt", iv."fileName", iv.language, iv."extractionStatus",
-       iv."extractionMessage", iv."extractionStartedAt", iv.model, iv."createdBy", iv."createdAt"`;
+       iv."extractionMessage", iv."extractionStartedAt", iv.model, iv."createdBy", iv."createdAt", iv."surveyRequestId"`;
 
 export async function insertInterview(db, row) {
   const r = await db.query(`
     INSERT INTO "ContextInterviews" AS iv
       ("contextId", "principalId", "identityId", "intervieweeName", "interviewedAt", "fileName", transcript, language,
-       "extractionStatus", "createdBy")
-    VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8, $9, $10)
+       "extractionStatus", "createdBy", "surveyRequestId")
+    VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8, $9, $10, $11)
     RETURNING ${INTERVIEW_COLUMNS}`,
   [row.contextId, row.principalId ?? null, row.identityId ?? null, row.intervieweeName, row.interviewedAt, row.fileName,
-    row.transcript, row.language ?? null, row.extractionStatus, row.createdBy ?? null]);
+    row.transcript, row.language ?? null, row.extractionStatus, row.createdBy ?? null, row.surveyRequestId ?? null]);
   return r.rows[0];
 }
 
@@ -74,7 +74,8 @@ export async function deleteInterview(db, contextId, interviewId) {
 // ─── Claims ──────────────────────────────────────────────────────────────
 const CLAIM_SELECT = `
     SELECT c.id, c."interviewId", c."contextId", c."claimKind", c."subjectKind", c."principalId", c."identityId",
-           c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName", c."subjectMatch",
+           c."subjectName", COALESCE(p."displayName", i."displayName", res."displayName") AS "subjectDisplayName", c."subjectMatch",
+           c."resourceId", c."surveyQuestionId", iv."surveyRequestId",
            c.attribute, c.value, c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText",
            c.quote, c."quoteStart", c."quoteEnd", c.confidence::float8 AS confidence, c.relevance,
            c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
@@ -84,7 +85,8 @@ const CLAIM_SELECT = `
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
-      LEFT JOIN "Identities" i ON i.id = c."identityId"`;
+      LEFT JOIN "Identities" i ON i.id = c."identityId"
+      LEFT JOIN "Resources" res ON res.id = c."resourceId"`;
 
 /** The claims of a context in the given statuses, newest interview first. */
 export async function listClaims(db, contextId, statuses) {
@@ -99,7 +101,8 @@ export async function getClaimRow(db, claimId) {
 }
 
 const CLAIM_INSERT_COLUMNS = ['claimKind', 'subjectKind', 'principalId', 'identityId', 'subjectName', 'subjectMatch', 'attribute',
-  'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd'];
+  'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd',
+  'resourceId', 'surveyQuestionId'];
 
 /** Insert claims of one interview in one statement (jsonb_to_recordset). Returns their ids. */
 export async function insertClaims(db, { interviewId, contextId, proposedBy }, claims) {
@@ -110,11 +113,12 @@ export async function insertClaims(db, { interviewId, contextId, proposedBy }, c
       ("interviewId", "contextId", "proposedBy", ${CLAIM_INSERT_COLUMNS.map(k => `"${k}"`).join(', ')})
     SELECT $1, $2, $3, x."claimKind", x."subjectKind", x."principalId", x."identityId", x."subjectName", x."subjectMatch",
            x.attribute, x.value, x."periodFrom", x."periodTo", x."periodText", x.quote, x.confidence, x."roleSuggestion",
-           x.relevance, x."quoteStart", x."quoteEnd"
+           x.relevance, x."quoteStart", x."quoteEnd", x."resourceId", x."surveyQuestionId"
       FROM jsonb_to_recordset($4::jsonb) AS x(
            "claimKind" text, "subjectKind" text, "principalId" uuid, "identityId" uuid, "subjectName" text, "subjectMatch" text,
            attribute text, value text, "periodFrom" date, "periodTo" date, "periodText" text, quote text,
-           confidence numeric, "roleSuggestion" text, relevance text, "quoteStart" integer, "quoteEnd" integer)
+           confidence numeric, "roleSuggestion" text, relevance text, "quoteStart" integer, "quoteEnd" integer,
+           "resourceId" uuid, "surveyQuestionId" text)
     RETURNING id`, [interviewId, contextId, proposedBy, JSON.stringify(records)]);
   return r.rows.map(x => x.id);
 }

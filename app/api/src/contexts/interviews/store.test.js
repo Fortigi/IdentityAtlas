@@ -5,6 +5,18 @@ import * as store from './store.js';
 
 const db = (rows = []) => ({ query: vi.fn(async () => ({ rows, rowCount: rows.length })), queryOne: vi.fn(async () => rows[0] ?? null) });
 
+describe('insertInterview', () => {
+  it('stores the survey an interview was made from, and none for an uploaded transcript', async () => {
+    const d = db([{ id: 'iv' }]);
+    const row = { contextId: 'ctx', intervieweeName: 'Anna', interviewedAt: '2026-10-23', fileName: 'f', transcript: 't', extractionStatus: 'done' };
+    await store.insertInterview(d, { ...row, surveyRequestId: 'req-1' });
+    await store.insertInterview(d, row);
+    expect(d.query.mock.calls[0][0]).toMatch(/"createdBy", "surveyRequestId"\)\s+VALUES \(\$1, \$2, \$3, \$4, \$5::date, \$6, \$7, \$8, \$9, \$10, \$11\)/);
+    expect(d.query.mock.calls[0][1][10]).toBe('req-1');
+    expect(d.query.mock.calls[1][1][10]).toBeNull();
+  });
+});
+
 describe('insertClaims', () => {
   it('sends one statement with every column of every claim, nulls filled in, and returns the ids', async () => {
     const d = db([{ id: 'c1' }, { id: 'c2' }]);
@@ -18,8 +30,10 @@ describe('insertClaims', () => {
     expect(params.slice(0, 3)).toEqual(['iv', 'ctx', 'model']);
     const records = JSON.parse(params[3]);
     expect(Object.keys(records[0])).toEqual(['claimKind', 'subjectKind', 'principalId', 'identityId', 'subjectName', 'subjectMatch', 'attribute',
-      'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd']);
+      'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd',
+      'resourceId', 'surveyQuestionId']);
     expect(records[0].principalId).toBeNull();
+    expect(records[0].surveyQuestionId).toBeNull();
     expect(records[1]).toMatchObject({ subjectName: 'Piet', principalId: 'p', roleSuggestion: 'Responsible' });
     expect(records[1].extra).toBeUndefined();
   });

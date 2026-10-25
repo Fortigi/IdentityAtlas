@@ -160,6 +160,28 @@ describe('ContextOwnerPage — one context', () => {
   });
 });
 
+describe('ContextOwnerPage — surveys', () => {
+  afterEach(() => { window.location.hash = ''; });
+
+  it('shows the roster but not Send survey; "Your surveys" swaps the context for their surveys and back', async () => {
+    const authFetch = api();
+    const base = authFetch.getMockImplementation();
+    authFetch.mockImplementation(async (url, opts) => (String(url) === '/api/surveys/mine'
+      ? jsonResponse({ me: { principalId: 'p' }, data: [{ id: 'ffffffff-0000-4000-8000-000000000001', templateName: 'Unit roster', contextName: 'Finance', status: 'sent', sentAt: '2026-10-20T10:00:00Z' }] })
+      : base(url, opts)));
+    renderWithProviders(<ContextOwnerPage />, {
+      auth: { authFetch, authEnabled: true, hasWildcard: false, permissions: new Set(), contextOwner: { contexts: [ctx(UNIT, 'Finance', 'Accountable')], contextIds: [UNIT] } },
+    });
+    expect(await screen.findByTestId('action-roster')).toBeInTheDocument();
+    expect(screen.queryByTestId('action-send-survey')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Your surveys' }));
+    expect(await screen.findByRole('button', { name: /Unit roster: Finance/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Finance', level: 2 })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Your contexts' }));
+    expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
+  });
+});
+
 describe('ContextOwnerPage — several contexts', () => {
   it('lists them with their role, shows the first, and switches on click', async () => {
     const { authFetch } = mount([ctx(UNIT, 'Finance', 'Accountable'), ctx(SECOND, 'Payroll', 'Responsible')]);

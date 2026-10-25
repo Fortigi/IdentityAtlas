@@ -20,6 +20,8 @@
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
 import UploadInterviewCard from '@ui/components/contexts/interviews/UploadInterviewCard';
+import SendSurveyCard from '@ui/components/contexts/surveys/SendSurveyCard';
+import RosterCard from '@ui/components/contexts/surveys/RosterCard';
 
 // inApp: the card opens a page of the app, which a read-only shell cannot reach.
 const VIEW_IN_MATRIX = { key: 'view-in-matrix', Card: MatrixCard, inApp: true };
@@ -39,10 +41,20 @@ const DOWNLOAD_UNIT_REPORT = {
 // Uploading an interview is an analyst's move: a reader never sees transcripts
 // or unreviewed claims (docs/architecture/context-interviews.md).
 const UPLOAD_INTERVIEW = { key: 'upload-interview', Card: UploadInterviewCard, analystOnly: true };
+// Sending a survey is the analyst's too; the recipient answers it from Surveys
+// (docs/architecture/survey-templates.md).
+const SEND_SURVEY = { key: 'send-survey', Card: SendSurveyCard, analystOnly: true };
+// The roster of a unit of people or accounts: what the claims say about each.
+// Kept for the shared view — a manager sees their own team's roster.
+const ROSTER = {
+  key: 'roster',
+  Card: RosterCard,
+  when: attrs => attrs.targetType === 'Principal' || attrs.targetType === 'Identity',
+};
 
 const ACTIONS = {
-  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, UPLOAD_INTERVIEW],
-  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW],
+  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, ROSTER, UPLOAD_INTERVIEW, SEND_SURVEY],
+  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW, SEND_SURVEY],
 };
 
 /** The action cards this context shows, in order; `sharedView` drops the analyst-only and in-app ones. */

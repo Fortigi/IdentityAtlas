@@ -13,7 +13,7 @@
  * what an empty-but-wildcard state would do.
  */
 export function degradedPermState() {
-  return { permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null, contextOwner: null };
+  return { permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null, contextOwner: null, surveyRespondent: false };
 }
 
 /**
@@ -25,6 +25,8 @@ export function degradedPermState() {
  * nothing matched, which consumers must treat as ordinary rather than an error.
  * `contextOwner` is set only for a caller let in as a context owner (no
  * Identity Atlas role, Accountable/Responsible for a context): { contexts }.
+ * `surveyRespondent` is true for a caller let in only to answer a survey sent to
+ * them (no role, owns no context).
  */
 export function permStateFromAuthMe(body) {
   return {
@@ -34,7 +36,19 @@ export function permStateFromAuthMe(body) {
     loaded: true,
     me: body?.me || null,
     contextOwner: body?.contextOwner || null,
+    surveyRespondent: body?.surveyRespondent === true,
   };
+}
+
+/**
+ * True when the signed-in user is here only to answer surveys: no permission of
+ * their own, no context they answer for, and a survey sent to them. They get
+ * their surveys instead of the app.
+ */
+export function isSurveyRespondentSession(auth = {}) {
+  if (!auth.permissionsLoaded || auth.hasWildcard) return false;
+  if (auth.permissions && auth.permissions.size > 0) return false;
+  return auth.surveyRespondent === true && !isContextOwnerSession(auth);
 }
 
 /**

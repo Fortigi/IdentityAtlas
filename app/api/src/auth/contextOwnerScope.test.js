@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ALLOW, DENY, CONTEXT_OWNER_DENIED, REPORT_EXPORT_PATH, UNIT_REPORT_EXPORT_PATH, SHELL_PATHS,
-  contextOwnerVerdict, reportExportVerdict, requestedContexts,
+  contextOwnerVerdict, reportExportVerdict, requestedContexts, isSurveyRespondentPath, surveyRespondentAllows,
 } from './contextOwnerScope.js';
 
 const MINE = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -31,6 +31,42 @@ describe('contextOwnerVerdict — the shell', () => {
 
   it('refuses a write to a shell path (PUT /api/preferences)', () => {
     expect(contextOwnerVerdict({ method: 'PUT', path: '/api/preferences' }, scope)).toBe(DENY);
+  });
+});
+
+describe('answering a survey', () => {
+  const REQ = 'ffffffff-0000-4000-8000-000000000001';
+  it.each([
+    ['GET', '/api/surveys/mine'],
+    ['GET', `/api/surveys/requests/${REQ}`],
+    ['GET', `/api/surveys/requests/${REQ}/people`],
+    ['PUT', `/api/surveys/requests/${REQ}/answers`],
+    ['POST', `/api/surveys/requests/${REQ}/submit`],
+  ])('allows %s %s, for an owner and for a respondent', (method, path) => {
+    expect(isSurveyRespondentPath(method, path)).toBe(true);
+    expect(contextOwnerVerdict({ method, path }, scope)).toBe(ALLOW);
+    expect(surveyRespondentAllows(method, path)).toBe(true);
+  });
+
+  it.each([
+    ['POST', '/api/surveys/mine'],
+    ['PUT', `/api/surveys/requests/${REQ}`],
+    ['GET', `/api/surveys/requests/${REQ}/submit`],
+    ['DELETE', `/api/surveys/requests/${REQ}`],
+    ['GET', `/api/surveys/requests/${REQ}/`],
+    ['GET', '/api/surveys/requests/not-a-uuid'],
+    ['GET', '/api/surveys/templates'],
+    ['POST', `/api/contexts/${MINE}/surveys`],
+  ])('refuses %s %s — not answering, or not that shape', (method, path) => {
+    expect(isSurveyRespondentPath(method, path)).toBe(false);
+    expect(contextOwnerVerdict({ method, path }, scope)).toBe(DENY);
+    expect(surveyRespondentAllows(method, path)).toBe(false);
+  });
+
+  it('a respondent also gets the shell reads, but not a write to them or a context', () => {
+    expect(surveyRespondentAllows('GET', '/api/auth-me')).toBe(true);
+    expect(surveyRespondentAllows('PUT', '/api/preferences')).toBe(false);
+    expect(surveyRespondentAllows('GET', `/api/contexts/${MINE}`)).toBe(false);
   });
 });
 
