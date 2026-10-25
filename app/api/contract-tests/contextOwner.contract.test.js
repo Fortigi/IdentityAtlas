@@ -1,5 +1,5 @@
 // Contract test — the context-owner reads (src/auth/contextOwner.js) against
-// the real schema (migration 092's ContextRoles + ContextRelationships).
+// the real schema (migration 094's ContextRoles + ContextRelationships).
 //
 // The unit tests mock the database, so they cannot tell whether these
 // statements pick the right rows. Here the cases that matter for access:
