@@ -39,6 +39,7 @@ export const ABOUT = Object.freeze(['context', 'respondent', 'answer', 'row']);
 
 export const LIMITS = Object.freeze({ questions: 150, sections: 30, options: 30, text: 2000, id: 64 });
 const ID_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+// eslint-disable-next-line security/detect-unsafe-regex -- anchored, fixed-length repeats, one optional group; no backtracking ambiguity
 const LANG_RE = /^[a-z]{2}(-[A-Z]{2})?$/;
 const PERSON_ANSWERS = new Set(['person', 'people']);
 const MAPPABLE = new Set(['yesNo', 'confirm', 'choice']);

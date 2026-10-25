@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { poolDb } from './poolDb.js';
 
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const svc = await import('../src/contexts/surveys/service.js');
@@ -24,24 +25,7 @@ const P = {};
 const C = {};
 let resId;
 
-const db = {
-  query: (sql, params) => pool.query(sql, params),
-  queryOne: async (sql, params) => (await pool.query(sql, params)).rows[0] ?? null,
-  tx: async (fn) => {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const out = await fn(client);
-      await client.query('COMMIT');
-      return out;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
-};
+const db = poolDb(() => pool);
 const deps = { db };
 
 async function principal(key, displayName, extra = {}) {

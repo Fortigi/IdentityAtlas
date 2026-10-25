@@ -4,6 +4,8 @@
 //
 // Dates leave PostgreSQL as text ('YYYY-MM-DD'), as in interviews/store.js.
 
+import { likeContains } from '../../db/sqlParams.js';
+
 const TEMPLATE_COLUMNS = `t.id, t.key, t.name, t.description, t."contextCategory", t."scopeRootContextId",
        sr."displayName" AS "scopeRootName", t."currentVersion", t."builtIn", t."createdBy", t."createdAt",
        t."updatedAt", t."archivedAt"`;
@@ -231,9 +233,9 @@ export async function searchPeople(db, term, limit = 10) {
     SELECT id, "displayName", email, "jobTitle", department
       FROM "Principals"
      WHERE "deletedAt" IS NULL AND "principalType" = 'User'
-       AND ("displayName" ILIKE $1 OR email ILIKE $1)
+       AND ("displayName" ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\')
      ORDER BY "displayName", id
-     LIMIT $2`, [`%${term.replace(/[\\%_]/g, c => `\\${c}`)}%`, limit]);
+     LIMIT $2`, [likeContains(term), limit]);
   return r.rows;
 }
 

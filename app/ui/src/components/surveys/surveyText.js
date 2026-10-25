@@ -22,15 +22,21 @@ export function questionsOf(def) {
   return (def?.sections || []).flatMap(s => (s?.questions || []).map(q => ({ ...q, sectionId: s.id })));
 }
 
-/** The questions shown for these answers. A question whose showWhen points at a hidden one is hidden. */
+/**
+ * The questions shown for these answers. A question whose showWhen points at a hidden one is hidden.
+ * Mirrors visibleQuestions in app/api/src/contexts/surveys/answers.js (the server's check of a
+ * submission); the form needs it client-side to show and hide questions as the respondent types.
+ */
 export function visibleQuestions(def, answers = {}) {
-  const shown = new Set();
-  return questionsOf(def).filter((q) => {
-    const w = q.showWhen;
-    const visible = !w || (shown.has(w.question) && answers[w.question] === w.equals);
-    if (visible) shown.add(q.id);
-    return visible;
-  });
+  const visible = [];
+  const shownIds = new Set();
+  for (const question of questionsOf(def)) {
+    const cond = question.showWhen;
+    if (cond && !(shownIds.has(cond.question) && answers[cond.question] === cond.equals)) continue;
+    shownIds.add(question.id);
+    visible.push(question);
+  }
+  return visible;
 }
 
 const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
