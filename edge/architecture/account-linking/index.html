@@ -1004,6 +1004,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-effective-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The effective dictionary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#graded-name-matching-the-name-uniqueness-guard" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5444,6 +5455,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-effective-dictionary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The effective dictionary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#graded-name-matching-the-name-uniqueness-guard" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5687,6 +5709,10 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <td>The shipped default dictionary (<code>DEFAULT_RULES</code>).</td>
 </tr>
 <tr>
+<td><code>rulesMerge.js</code></td>
+<td><code>effectiveLinkingRules(savedRules)</code> — the one merge of a tenant's saved rules over the shipped ones (see <a href="#the-effective-dictionary">The effective dictionary</a>).</td>
+</tr>
+<tr>
 <td><code>classifier.js</code></td>
 <td>Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching, and the login name forms (<code>loginToken</code> / <code>loginNameForms</code> / <code>loginFormMatch</code>). Regex rules are compiled with <strong>RE2</strong> (linear-time, ReDoS-safe).</td>
 </tr>
@@ -5736,6 +5762,33 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <li><strong><code>onlyLinkTypes</code></strong> — only these account types are attached to a person. <code>Service</code> and <code>Shared</code> accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.</li>
 <li><strong><code>allowNameOnlyLinks</code></strong> — default <code>true</code>: a match whose signals are <em>all</em> name signals links where the name points at exactly one person, and is held for review where it does not (see the name-uniqueness guard below). Set to <code>false</code> — unchecking <strong>"Link on a name match alone"</strong> in the admin UI — to hold back <em>every</em> name-only match, which costs a source that carries nothing but display names (a badge system, many ERPs) all of its links. Only a literal <code>false</code> opts out; configs are merged over <code>DEFAULT_RULES</code>, so an install that never stored the key runs the shipped policy.</li>
 </ul>
+<h3 id="the-effective-dictionary">The effective dictionary<a class="headerlink" href="#the-effective-dictionary" title="Permanent link">&para;</a></h3>
+<p>A tenant's stored <code>rules</code> is an <strong>override</strong> of <code>DEFAULT_RULES</code>, never a replacement of it. <code>effectiveLinkingRules(savedRules)</code> in <code>rulesMerge.js</code> produces what actually runs, and it is the only correct way to read a stored config — a run (<code>loadRules</code> in <code>engine.js</code>), the orphaned-accounts classification (<code>loadActiveLinkingRules</code> in <code>orphanQuery.js</code>) and <code>GET /account-linking/config</code> all go through it, so the engine, the report and the settings editor can never disagree about the dictionary.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Merge</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>signals</code></td>
+<td><strong>By <code>name</code>.</strong> A signal the saved dictionary lacks is added with its shipped definition; a signal it has keeps the tenant's values verbatim, field for field; a signal only the tenant has is kept.</td>
+</tr>
+<tr>
+<td>everything else</td>
+<td><strong>Shallow</strong> — a stored <code>linkThreshold</code> / <code>onlyLinkTypes</code> / <code>allowNameOnlyLinks</code> / <code>accountTypeRules</code> replaces the shipped one, and a key the tenant never stored keeps the shipped value.</td>
+</tr>
+</tbody>
+</table>
+<p>Three consequences worth knowing before editing the JSON:</p>
+<ul>
+<li><strong>Deleting a signal does not disable it.</strong> The next version that ships it merges it back in by name. <strong>Weight <code>0</code> is the off-switch</strong> — a per-signal opt-out the tenant keeps across every upgrade, and the reason merging shipped signals back in never takes a choice away. The rules editor says this on the page.</li>
+<li><strong>Precedence does not depend on when a signal shipped.</strong> The merged array follows the shipped <code>DEFAULT_RULES</code> ladder with the tenant's values substituted in place, and tenant-only signals after it, in their saved order. That matters because <code>strongestNameRung</code> breaks <em>equal</em> weights by position in the list (<code>engine.helpers.js</code>): appending the missing signals would make a tie between two equally-weighted name rungs depend on release history, so the shipped ladder is the fixed, documented precedence instead.</li>
+<li><strong><code>accountTypeRules</code> is deliberately not merged by name.</strong> Its entries have no per-entry off-switch, so re-adding a pattern a tenant removed would silently reclassify their accounts with no way to refuse it. Giving it the same upgrade safety needs its own mechanism (an <code>enabled</code> flag or per-pattern tombstones) and is a separate change.</li>
+</ul>
+<p>Why it works this way: saving the settings persists the <strong>whole</strong> dictionary the editor was showing — moving the certainty slider is enough — so a top-level merge of the stored row over the defaults let a saved <code>signals</code> array shadow the shipped one wholesale. Every tenant that had ever pressed Save was frozen on the signals of the build they saved on: <code>loginNameForm</code> never fired for them, their <code>adm-&lt;initial&gt;&lt;surname&gt;</code> accounts stayed orphaned, and the editor showed and re-saved the same stale list with nothing on screen to say a signal was missing (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1469">#1469</a>). The merge is idempotent, which is what makes it safe for the config endpoint to serve the effective dictionary: the editor can save back exactly what it was shown.</p>
 <h3 id="graded-name-matching-the-name-uniqueness-guard">Graded name matching + the name-uniqueness guard<a class="headerlink" href="#graded-name-matching-the-name-uniqueness-guard" title="Permanent link">&para;</a></h3>
 <p><code>nameVariants</code> reduces a person to <strong>every name they are known by</strong>, each a <code>{ given, surname, initial, key, variant }</code>. There are two independent sources and neither is authoritative, so both are kept:</p>
 <table>
@@ -5985,7 +6038,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <td><code>GET</code></td>
 <td><code>/account-linking/config</code></td>
 <td>—</td>
-<td>Active config, or the shipped defaults (<code>defaults: true</code>) when none exists.</td>
+<td>Active config, or the shipped defaults (<code>defaults: true</code>) when none exists. <code>rules</code> is the <strong>effective dictionary</strong> — the stored rules merged over the shipped ones (see <a href="#the-effective-dictionary">The effective dictionary</a>) — so the editor shows what a run uses.</td>
 </tr>
 <tr>
 <td><code>PUT</code></td>
