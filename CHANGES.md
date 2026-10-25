@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- The demo data's realism slice now seeds about 20 admin accounts under a second login convention, `adm-<first initial><surname>` (for example `adm-fhogenbirk@…`), beside the `adm-<email local part>` accounts it always had.
+- Those new accounts deliberately carry nothing that identifies their owner — no employee number, no name fields, no department and no ready-made link — so their login is the only route back to the person. That makes Account Linking's login signal visible on the stock demo data instead of needing a hand-built test fixture.
+- One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so `adm-svisser@…` fits several of them and shows up under "Name-only matches (held for review)" rather than being linked to the wrong one.
+- Where two people in the seeded range would share a login, only the first gets an account — the demo seeds no numbered logins such as `adm-svisser2@…`, which nothing can yet link back to a person.
+- The existing demo admin accounts, their employee numbers and their links are unchanged, as is every other person, group, role and assignment in the dataset — and generating the demo data without the realism slice still produces exactly the standard 26-person company.
+
+## Changes in this PR
+
 - Account Linking now reads an admin account's login as a person's name, not just as an address: an account logging in as `adm-fhogenbirk` is attached to the Fay Hogenbirk it names, even where her own mailbox follows a different convention (`f.h.hogenbirk`). Previously such an account was only ever linked if its display name happened to spell the person's name, so admin accounts stayed invisible on their owners and remained in Orphaned Accounts.
 - A login is treated as name evidence, not near-certain evidence: it links at a lower confidence than an exact address or employee-id match, and an admin login that fits more than one person (`adm-pmunck` for both a Petra and a Pieter Munck) is held for review on the run with the other candidate named, instead of being attached to whichever one it happened to score first.
 - Account Linking no longer adds up the same name twice. An account whose display name *and* login both spell its owner used to report near-certain confidence for what is one piece of evidence; the strongest name reading now stands on its own, so the confidence an account shows reflects how certain the match really is.
