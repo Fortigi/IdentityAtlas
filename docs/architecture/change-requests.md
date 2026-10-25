@@ -68,7 +68,7 @@ Nobody ticks "done": the next re-import proves it. The statuses a person sets, s
 
 ## Data
 
-`ChangeRequests` (migration 101), recorded in `_history` like the claims and overrides
+`ChangeRequests` (migration 103), recorded in `_history` like the claims and overrides
 it rests on:
 
 | Column | |

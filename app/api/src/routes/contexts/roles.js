@@ -31,7 +31,7 @@ const HOLDER_NOT_FOUND = { principalId: 'Principal not found', identityId: 'Iden
 
 // Every role of one context, the Accountable first, with the holder's name
 // resolved — and, for a role confirmed from an interview, where it came from
-// (sourceClaimId, the interviewee, the date and the quote; migration 097). Shared with GET /contexts/:id (read.js) so the detail page paints
+// (sourceClaimId, the interviewee, the date and the quote; migration 099). Shared with GET /contexts/:id (read.js) so the detail page paints
 // the People block without a second round trip.
 export async function loadContextRoles(contextId) {
   const r = await db.query(`
@@ -66,7 +66,7 @@ export function parseRoleBody(body) {
 // Upsert the role as an analyst's. An Accountable replaces whichever
 // Accountable the context had (the partial unique index allows only one); a
 // Responsible is added next to the others. The conflict target names the
-// partial unique index for the holder column (migration 092).
+// partial unique index for the holder column (migration 094).
 async function upsertRole(contextId, { role, holderCol, holderId }) {
   if (role === 'Accountable') {
     await db.query(`

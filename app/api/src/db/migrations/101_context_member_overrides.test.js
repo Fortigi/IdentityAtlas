@@ -6,10 +6,10 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '099_context_member_overrides.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '101_context_member_overrides.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 
-describe('migration 099 — a member marked former by a decision', () => {
+describe('migration 101 — a member marked former by a decision', () => {
   it('one mark per context and member, gone with its context or its claim', () => {
     expect(statements).toMatch(/CREATE TABLE "ContextMemberOverrides"/);
     expect(statements).toMatch(/UNIQUE \("contextId", "memberId"\)/);

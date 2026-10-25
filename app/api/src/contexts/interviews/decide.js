@@ -31,7 +31,7 @@
 //                lists, confirmed as said ("the interview is right"): the person
 //                is marked former by the decision (memberOverrides.js), on top of
 //                ContextMembers — effect { kind: 'formerMember', overrides }
-// All in one transaction. Decisions are recorded in _history (migration 097).
+// All in one transaction. Decisions are recorded in _history (migration 099).
 //
 //   undoClaim(db, claimId)                  → { claim, unmarked }   (throws ClaimError)
 //

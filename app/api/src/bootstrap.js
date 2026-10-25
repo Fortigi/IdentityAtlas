@@ -365,7 +365,7 @@ export async function bootstrapWorker() {
     try {
       await seedSurveyTemplates();
     } catch (err) {
-      // Non-critical: before migration 100 there is no table yet; the built-in
+      // Non-critical: before migration 102 there is no table yet; the built-in
       // survey templates are added on the next boot.
       console.warn('Survey-template seeding skipped:', err.message);
     }

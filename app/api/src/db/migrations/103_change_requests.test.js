@@ -7,11 +7,11 @@ import { fileURLToPath } from 'url';
 import { CHANGE_KINDS, CHANGE_STATUSES } from '../../contexts/changeRequests.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '101_change_requests.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '103_change_requests.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const inList = (column) => statements.match(new RegExp(`"${column}" IN \\(([^)]+)\\)`))[1].split(',').map(s => s.trim().replace(/'/g, ''));
 
-describe('migration 101 — change requests', () => {
+describe('migration 103 — change requests', () => {
   it('creates one table and writes no rows', () => {
     expect(statements.match(/CREATE TABLE "(\w+)"/g)).toEqual(['CREATE TABLE "ChangeRequests"']);
     expect(statements).not.toMatch(/ALTER TABLE|DELETE FROM|UPDATE "|INSERT INTO|DROP TABLE|DROP COLUMN/);

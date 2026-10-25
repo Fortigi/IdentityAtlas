@@ -7,11 +7,11 @@ import { fileURLToPath } from 'url';
 import { CATEGORIES } from '../../contexts/surveys/service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '100_survey_templates.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '102_survey_templates.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const inList = (column, from = statements) => from.match(new RegExp(`"${column}" IN \\(([^)]+)\\)`))[1].split(',').map(s => s.trim().replace(/'/g, ''));
 
-describe('migration 100 — survey templates', () => {
+describe('migration 102 — survey templates', () => {
   it('creates three tables, extends the interview tables, and writes no rows', () => {
     expect(statements.match(/CREATE TABLE "(\w+)"/g)).toEqual(['CREATE TABLE "SurveyTemplates"', 'CREATE TABLE "SurveyTemplateVersions"', 'CREATE TABLE "SurveyRequests"']);
     expect([...new Set(statements.match(/ALTER TABLE "(\w+)"/g))]).toEqual(['ALTER TABLE "ContextInterviews"', 'ALTER TABLE "ContextClaims"']);

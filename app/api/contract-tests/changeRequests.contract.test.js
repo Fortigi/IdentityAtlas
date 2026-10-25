@@ -1,4 +1,4 @@
-// Contract test — change requests (migration 101), end to end over the real app
+// Contract test — change requests (migration 103), end to end over the real app
 // and PostgreSQL: deciding "the interview is right" for a person the uploaded
 // list still has raises one open RelationshipRemove for that list, resting on the
 // claim and the override; undo withdraws it; deciding again raises a fresh one;

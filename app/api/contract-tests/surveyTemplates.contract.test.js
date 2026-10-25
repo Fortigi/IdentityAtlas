@@ -1,4 +1,4 @@
-// Contract test — survey templates against real PostgreSQL (migration 100).
+// Contract test — survey templates against real PostgreSQL (migration 102).
 // The unit tests are SQL-blind; this file runs the survey flow end to end on a
 // migrated schema: a template and its versions, a scoped template, sending to a
 // unit's Accountable down a tree, the rows a per-row question reads, a draft, a

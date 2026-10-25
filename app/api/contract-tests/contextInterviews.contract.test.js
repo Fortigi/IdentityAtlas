@@ -1,4 +1,4 @@
-// Contract test — context interviews against real PostgreSQL (migrations 097, 098).
+// Contract test — context interviews against real PostgreSQL (migrations 099, 100).
 // The unit tests are SQL-blind; this file runs every statement of
 // contexts/interviews/store.js, the first-name lookup of subjects.js and the
 // confirm flow of decide.js on a migrated schema, and asserts what landed:
@@ -142,7 +142,7 @@ describe('context interviews against PostgreSQL', () => {
     expect(await store.mentionsOf(db, 'principalId', P.piet, ['rejected'])).toEqual([]);
   });
 
-  // Migration 098: membership and alias claims, the relevance tier, quote offsets.
+  // Migration 100: membership and alias claims, the relevance tier, quote offsets.
   it('stores membership and alias claims with their tier and offsets; rejects the low tier in one statement', async () => {
     const [left, alias, low] = await store.insertClaims(db, { interviewId: interview.id, contextId: ctxId, proposedBy: 'model' }, [
       { claimKind: 'membership', subjectKind: 'Person', principalId: P.yara, subjectName: 'Yara', attribute: 'left', value: 'left the team', periodText: 'last month', relevance: 'high', quote: 'I am the owner', quoteStart: 18, quoteEnd: 32 },
