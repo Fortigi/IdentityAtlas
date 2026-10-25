@@ -1,4 +1,4 @@
-// Static checks on migration 099. The SQL the feature runs against it is held
+// Static checks on migration 101. The SQL the feature runs against it is held
 // against PostgreSQL in contract-tests/contextMemberOverrides.contract.test.js.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
