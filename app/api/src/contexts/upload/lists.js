@@ -1,5 +1,5 @@
 // Context upload — the uploaded lists (Systems of type 'Upload') and their runs
-// (ContextUploads, migration 095). Every SQL statement of the feature that is not
+// (ContextUploads, migration 097). Every SQL statement of the feature that is not
 // an ingest write lives here.
 
 export const UPLOAD_SYSTEM_TYPE = 'Upload';

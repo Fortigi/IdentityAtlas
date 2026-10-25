@@ -53,9 +53,9 @@ export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst'];
 // the database: a synced value nobody has placed yet shows as "Other".
 export const CONTEXT_CATEGORIES = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment'];
 // Who answers for a context: at most one Accountable, any number Responsible.
-// A context→person link, never access (migration 092 CHECK).
+// A context→person link, never access (migration 094 CHECK).
 export const CONTEXT_ROLE_TYPES = ['Accountable', 'Responsible'];
-// Context→context links (migration 092 CHECK). SameUnitAs: two contexts are one unit
+// Context→context links (migration 094 CHECK). SameUnitAs: two contexts are one unit
 // seen through a different kind of member (its people, its accounts, its resources).
 export const CONTEXT_RELATIONSHIP_TYPES = ['SameUnitAs'];
 
