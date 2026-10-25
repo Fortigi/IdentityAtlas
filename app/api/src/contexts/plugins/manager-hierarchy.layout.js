@@ -46,6 +46,17 @@ function membersByUnit(members) {
   return map;
 }
 
+// A manager's members grouped by their (non-empty) value of `field`, largest group first.
+function rankedByValue(mine, byId, field) {
+  const byValue = new Map();
+  for (const m of mine) {
+    const v = valueOf(byId.get(m.memberId), field);
+    if (!byValue.has(v)) byValue.set(v, []);
+    byValue.get(v).push(m);
+  }
+  return [...byValue.entries()].filter(([v]) => v).sort((a, b) => b[1].length - a[1].length);
+}
+
 // Split a manager unit's members by `field`. Returns the new contexts and
 // reassigns members (and the units of managers among them) in place.
 export function splitUnits(result, byId, { field, minMembers = 2, managerIds, naming }) {
@@ -54,14 +65,7 @@ export function splitUnits(result, byId, { field, minMembers = 2, managerIds, na
   const added = [];
   const moved = new Map(); // memberId -> split unit externalId
   for (const managerId of managerIds) {
-    const mine = groups.get(managerId) || [];
-    const byValue = new Map();
-    for (const m of mine) {
-      const v = valueOf(byId.get(m.memberId), field);
-      if (!byValue.has(v)) byValue.set(v, []);
-      byValue.get(v).push(m);
-    }
-    const ranked = [...byValue.entries()].filter(([v]) => v).sort((a, b) => b[1].length - a[1].length);
+    const ranked = rankedByValue(groups.get(managerId) || [], byId, field);
     for (const [value, ms] of ranked.slice(1)) {
       if (ms.length < minMembers) continue;
       const ext = splitExternalId(managerId, value);
