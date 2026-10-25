@@ -113,6 +113,17 @@ export function dateText(value) {
   return String(value).slice(0, 10);
 }
 
+function describeSplit(p, subject) {
+  return p.attribute
+    ? `Split ${p.attribute} "${p.value}" off ${subject}`
+    : `Split ${p.memberIds?.length ?? 0} member(s) off ${subject} into "${p.name}"`;
+}
+
+function describeSetManager(adj, p, subject, managerName) {
+  const until = adj.validUntil ? ` until ${dateText(adj.validUntil)}` : '';
+  return `${managerName || 'Someone'} ${p.interim ? 'is interim manager of' : 'manages'} ${subject}${until}`;
+}
+
 // The sentence the log shows. `nameOf(id)` returns a unit's current name (or
 // null when it is gone); `memberName` and `managerName` are looked up by the caller.
 export function describeAdjustment(adj, { nameOf, memberName, managerName } = {}) {
@@ -124,10 +135,8 @@ export function describeAdjustment(adj, { nameOf, memberName, managerName } = {}
     case 'renameUnit': return `Rename ${adj.snapshot?.name || subject} to "${p.name}"`;
     case 'moveMember': return `Move ${memberName || 'a member'} from ${unit(p.fromUnitId)} to ${unit(p.toUnitId)}`;
     case 'addUnit': return `Add unit "${p.name}" ${p.parentId ? `under ${unit(p.parentId)}` : 'at the top level'}`;
-    case 'splitUnit': return p.attribute
-      ? `Split ${p.attribute} "${p.value}" off ${subject}`
-      : `Split ${p.memberIds?.length ?? 0} member(s) off ${subject} into "${p.name}"`;
-    case 'setManager': return `${managerName || 'Someone'} ${p.interim ? 'is interim manager of' : 'manages'} ${subject}${adj.validUntil ? ` until ${dateText(adj.validUntil)}` : ''}`;
+    case 'splitUnit': return describeSplit(p, subject);
+    case 'setManager': return describeSetManager(adj, p, subject, managerName);
     default: return adj.op;
   }
 }
