@@ -533,8 +533,11 @@ Describe 'Sync-EntraOAuth2Grants' {
 
         Sync-EntraOAuth2Grants -SystemId 3 -Timings ([ordered]@{})
 
-        $apps = (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records
-        ($apps.id | Sort-Object) -join ',' | Should -Be 'adm,cli'
+        $appBatch = Get-Sent { $_.Scope.resourceType -eq 'Application' }
+        ($appBatch[0].Records.id | Sort-Object) -join ',' | Should -Be 'adm,cli'
+        # Upsert only. As a full sync it reconciled Application against just the
+        # consented apps, and the app-roles phase's full sync then deleted these again.
+        $appBatch[0].SyncMode | Should -Be 'delta'
         # Two user scopes + one admin scope -> three DelegatedPermission resources; two assignments.
         $scopes = (Get-Sent { $_.Scope.resourceType -eq 'DelegatedPermission' -and $_.Endpoint -eq 'ingest/resources' })[0].Records
         $scopes.Count | Should -Be 3
@@ -759,9 +762,8 @@ Describe 'Sync-EntraAppRoles' {
         # Being a candidate means the phase goes and fetches that app's role
         # assignments. Two of the three qualify; as AND neither does, and with the
         # "at least one role" boundary read as "more than one" only sp-required is
-        # left. Asserting on the resources uploaded would not work here: an app
-        # that merely REQUIRES assignment publishes no roles, so it contributes no
-        # Application record even though it was correctly inspected.
+        # left. Asserting on the resources uploaded would not work here: every SP
+        # gets an Application record whether or not it was inspected.
         Should -Invoke Invoke-FGGetRequest -Exactly 2 -ParameterFilter { $URI -match 'appRoleAssignedTo' }
         Should -Invoke Invoke-FGGetRequest -Exactly 1 -ParameterFilter { $URI -match 'sp-roles/appRoleAssignedTo' }
         Should -Invoke Invoke-FGGetRequest -Exactly 1 -ParameterFilter { $URI -match 'sp-required/appRoleAssignedTo' }
@@ -814,9 +816,49 @@ Describe 'Sync-EntraAppRoles' {
 
         Sync-EntraAppRoles -SystemId 5 -Timings ([ordered]@{})
 
-        # Only the good app emitted an Application resource; the bad one was skipped, not fatal.
-        (Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.Count | Should -Be 1
+        # The bad app's roles were skipped, not fatal: only the good app's role went up.
+        # Both apps still keep their Application row.
+        (Get-Sent { $_.Scope.resourceType -eq 'AppRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+        ((Get-Sent { $_.Scope.resourceType -eq 'Application' })[0].Records.id | Sort-Object) -join ',' | Should -Be 'spBad,spGood'
         $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'full-syncs one Application row for EVERY service principal, also those without roles or assignments' {
+        # This batch is the only full sync of Application rows. An app with consent
+        # grants but no app roles (the OAuth2 phase upserts it) must be in it, or the
+        # reconcile soft-deletes the row on every full crawl.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith {
+            @(
+                [pscustomobject]@{ id = 'sp-roles'; displayName = 'Has Roles'; appId = 'a1'
+                                   appRoles = @([pscustomobject]@{ id = 'role-a'; displayName = 'Admin'; value = 'admin' }) }
+                [pscustomobject]@{ id = 'sp-consent'; displayName = 'Consent Only'; appId = 'a2'; publisherName = 'PnP'; appRoles = @() }
+                [pscustomobject]@{ id = 'sp-unused'; displayName = 'Unassigned'; appId = 'a3'
+                                   appRoles = @([pscustomobject]@{ id = 'role-b'; displayName = 'Reader'; value = 'read' }) }
+            )
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'sp-roles/appRoleAssignedTo' } -MockWith {
+            @([pscustomobject]@{ id = 'aa1'; appRoleId = 'role-a'; principalId = 'u1'; principalType = 'User'; createdDateTime = '2026-01-01T00:00:00Z' })
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'sp-unused/appRoleAssignedTo' } -MockWith { @() }
+
+        Sync-EntraAppRoles -SystemId 5 -Timings ([ordered]@{})
+
+        $appBatch = Get-Sent { $_.Scope.resourceType -eq 'Application' }
+        $appBatch.Count       | Should -Be 1
+        $appBatch[0].SyncMode | Should -Be 'full'
+        ($appBatch[0].Records.id | Sort-Object) -join ',' | Should -Be 'sp-consent,sp-roles,sp-unused'
+        ($appBatch[0].Records | Where-Object { $_.id -eq 'sp-consent' }).extendedAttributes.publisherName | Should -Be 'PnP'
+        # Only the assigned app produced an AppRole row.
+        (Get-Sent { $_.Scope.resourceType -eq 'AppRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
+    }
+
+    It 'sends no Application batch when the tenant returns no service principals' {
+        # An empty full sync would soft-delete every Application row.
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'servicePrincipals\?' } -MockWith { @() }
+
+        Sync-EntraAppRoles -SystemId 5 -Timings ([ordered]@{})
+
+        (Get-Sent { $_.Scope.resourceType -eq 'Application' }).Count | Should -Be 0
     }
 }
 

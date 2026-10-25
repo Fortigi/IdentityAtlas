@@ -71,7 +71,9 @@ describe('risky-applications — run', () => {
       ['Mailbox Archiver', 95, 'Critical'],
       ['Scan to Mail', 30, 'Medium'],
     ]);
-    expect(rows[0]._entity).toEqual({ kind: 'resource', id: 'crit' });
+    // The service principal's own Principals row, not an Application resource
+    // (most apps have none, so a resource link was a 404).
+    expect(rows[0]._entity).toEqual({ kind: 'user', id: 'crit' });
   });
 
   it('adds Microsoft\'s apps on request and lower levels when asked', async () => {

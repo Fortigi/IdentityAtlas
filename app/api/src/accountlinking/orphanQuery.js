@@ -1,19 +1,54 @@
-// The orphan-account definition — one place, two consumers.
+// The orphan-account definition — one place, every consumer.
 //
-// "Orphan" means: a Principal with no IdentityMembers row, excluding the
+// "Orphan" means: a *live* Principal with no IdentityMembers row, excluding the
 // non-human principal classes (a service principal is not a person's account
-// that linking failed to attach, so it is never an orphan).
+// that linking failed to attach, so it is never an orphan). Live matters
+// because a full sync tombstones principals that vanished from the source
+// (`deletedAt`, see ingest/reconcileStale.js) instead of deleting the row — a
+// removed account is not work left undone for the analyst, and must never be
+// newly linked to a person.
 //
-// Both the orphaned-accounts context plugin and the orphaned-accounts report
-// template answer that question. Re-inlining the anti-join in the second
-// consumer would be two mechanisms for one concept, kept in sync by hand — so
-// the query and the rule-loading it needs live here instead.
+// The orphaned-accounts context plugin, the orphaned-accounts report template
+// and the linking engine itself all answer that question. Re-inlining the
+// anti-join in any of them would be several mechanisms for one concept, kept in
+// sync by hand — which is exactly how the `deletedAt` filter came to be missing
+// from all three. So the query text, the query builder for callers that need a
+// different projection, and the rule-loading they need live here instead.
 
 import * as db from '../db/connection.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 /** Principal classes that are never treated as orphaned accounts. */
 export const NON_HUMAN_PRINCIPAL_TYPES = ['ServicePrincipal', 'ManagedIdentity', 'AIAgent'];
+
+/**
+ * The parameters every orphan query takes — bound to `$1` of the SQL built by
+ * {@link orphanPrincipalsSql}. Pass this, never a hand-written array.
+ */
+export const ORPHAN_QUERY_PARAMS = [NON_HUMAN_PRINCIPAL_TYPES];
+
+/**
+ * Build a query over the orphan set: the `Principals` anti-join against
+ * `IdentityMembers`, restricted to live rows and human principal classes. This
+ * is the single place the definition is expressed — callers choose only their
+ * projection, not which rows are orphans.
+ *
+ * @param {string} selectList what to project (`Principals` is aliased `p`)
+ * @param {{ joins?: string, tail?: string }} [opts] extra joins / trailing clauses
+ * @returns {string} SQL whose only parameter is {@link ORPHAN_QUERY_PARAMS}
+ */
+export function orphanPrincipalsSql(selectList, { joins = '', tail = '' } = {}) {
+  return `
+    SELECT ${selectList}
+      FROM "Principals" p
+      LEFT JOIN "IdentityMembers" m ON m."principalId" = p."id"
+      ${joins}
+     WHERE m."principalId" IS NULL
+       AND p."deletedAt" IS NULL
+       AND COALESCE(p."principalType", '') <> ALL($1::text[])
+     ${tail}
+  `;
+}
 
 /**
  * The active account-linking rule set, merged over the defaults. Falls back to
@@ -32,23 +67,21 @@ export async function loadActiveLinkingRules() {
 }
 
 /**
- * Every orphaned principal, with the columns both consumers need (the context
- * plugin ignores the ones it doesn't file into contexts).
+ * Every orphaned principal, with the columns the report and the context plugin
+ * need (the context plugin ignores the ones it doesn't file into contexts).
  *
  * @returns {Promise<Array<{id: string, displayName: string|null, email: string|null,
  *   principalType: string|null, extendedAttributes: Object|null, systemId: number|null,
  *   systemName: string|null}>>}
  */
 export async function fetchOrphanPrincipals() {
-  const { rows } = await db.query(`
-    SELECT p."id", p."displayName", p."email", p."principalType",
-           p."extendedAttributes", p."systemId", s."displayName" AS "systemName"
-      FROM "Principals" p
-      LEFT JOIN "IdentityMembers" m ON m."principalId" = p."id"
-      LEFT JOIN "Systems" s ON s."id" = p."systemId"
-     WHERE m."principalId" IS NULL
-       AND COALESCE(p."principalType", '') <> ALL($1::text[])
-     ORDER BY p."displayName" NULLS LAST, p."id"
-  `, [NON_HUMAN_PRINCIPAL_TYPES]);
+  const { rows } = await db.query(orphanPrincipalsSql(
+    `p."id", p."displayName", p."email", p."principalType",
+     p."extendedAttributes", p."systemId", s."displayName" AS "systemName"`,
+    {
+      joins: `LEFT JOIN "Systems" s ON s."id" = p."systemId"`,
+      tail: `ORDER BY p."displayName" NULLS LAST, p."id"`,
+    },
+  ), ORPHAN_QUERY_PARAMS);
   return rows;
 }

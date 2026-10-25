@@ -160,7 +160,8 @@ function toRow(g, risk) {
     publisher: g.publisher,
     systemName: g.systemName,
     lastSync: g.lastSync ? new Date(g.lastSync).toISOString() : null,
-    _entity: { kind: 'resource', id: g.clientSpId },
+    // The holder is a Principals row (the client service principal), not a resource.
+    _entity: { kind: 'user', id: g.clientSpId },
   };
 }
 
