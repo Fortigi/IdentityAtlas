@@ -1015,6 +1015,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-login-read-as-a-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The login read as a name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#candidate-scope-orphans-only" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5444,6 +5455,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-login-read-as-a-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The login read as a name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#candidate-scope-orphans-only" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5666,7 +5688,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 <tr>
 <td><code>classifier.js</code></td>
-<td>Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching. Regex rules are compiled with <strong>RE2</strong> (linear-time, ReDoS-safe).</td>
+<td>Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching, and the login name forms (<code>loginToken</code> / <code>loginNameForms</code> / <code>loginFormMatch</code>). Regex rules are compiled with <strong>RE2</strong> (linear-time, ReDoS-safe).</td>
 </tr>
 <tr>
 <td><code>engine.js</code></td>
@@ -5674,7 +5696,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 <tr>
 <td><code>engine.helpers.js</code></td>
-<td>Pure building blocks: identity indexing, candidate collection, the name-signal set, the <code>isNameOnly</code> predicate, the <code>nameClaim</code> name-uniqueness reading, reading stored <code>linkSignals</code>.</td>
+<td>Pure building blocks: identity indexing, candidate collection, the name-signal set and the graded name ladder (<code>strongestNameRung</code>), the <code>isNameOnly</code> predicate, the <code>nameClaim</code> name-uniqueness reading, reading stored <code>linkSignals</code>.</td>
 </tr>
 <tr>
 <td><code>staleNameOnlyLinks.js</code></td>
@@ -5691,22 +5713,24 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    { "name": "email",       "type": "exact",  "field": "email",      "weight": 90 },
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    { "name": "emailPrefix", "type": "prefix", "field": "email",      "weight": 80,
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>      "stripPrefixes": ["adm-", "adm_", "a-", "a_", "admin-", "admin_", "ext-", "ext_", "svc-", "s-"] },
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    { "name": "fullName",       "type": "name", "level": "full",           "weight": 60 },
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    { "name": "surnameInitial", "type": "name", "level": "surnameInitial", "weight": 45 }
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  ],
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  "accountTypeRules": [
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    { "accountType": "Admin",   "priority": 1, "patterns": ["^adm[-_]", "^a[-_]", "[-_]admin@", "\\badmin\\b", "\\(adm"] },
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    { "accountType": "Guest",   "priority": 1, "patterns": ["#ext#"] },
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    { "accountType": "Service", "priority": 2, "patterns": ["^svc[-_]", "^s[-_]", "\\bservice account\\b"] },
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    { "accountType": "Shared",  "priority": 3, "patterns": ["\\broom\\b", "\\bequipment\\b", "\\bshared\\b", "\\bmailbox\\b"] }
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>  ],
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>  "linkThreshold": 50,
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>  "onlyLinkTypes": ["Admin", "Guest", "Secondary"],
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>  "allowNameOnlyLinks": true
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>}
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    { "name": "loginNameForm", "type": "loginName", "field": "email", "weight": 55,
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>      "stripPrefixes": ["adm-", "adm_", "a-", "a_", "admin-", "admin_", "ext-", "ext_", "svc-", "s-"] },
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    { "name": "fullName",       "type": "name", "level": "full",           "weight": 60 },
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    { "name": "surnameInitial", "type": "name", "level": "surnameInitial", "weight": 45 }
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>  ],
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>  "accountTypeRules": [
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    { "accountType": "Admin",   "priority": 1, "patterns": ["^adm[-_]", "^a[-_]", "[-_]admin@", "\\badmin\\b", "\\(adm"] },
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    { "accountType": "Guest",   "priority": 1, "patterns": ["#ext#"] },
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    { "accountType": "Service", "priority": 2, "patterns": ["^svc[-_]", "^s[-_]", "\\bservice account\\b"] },
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    { "accountType": "Shared",  "priority": 3, "patterns": ["\\broom\\b", "\\bequipment\\b", "\\bshared\\b", "\\bmailbox\\b"] }
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>  ],
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>  "linkThreshold": 50,
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>  "onlyLinkTypes": ["Admin", "Guest", "Secondary"],
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>  "allowNameOnlyLinks": true
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>}
 </code></pre></div>
 <ul>
-<li><strong><code>signals</code></strong> — weighted match rules. An orphan links to the candidate identity with the highest <em>summed</em> weight that clears <code>linkThreshold</code>. Strong signals (<code>employeeId</code>, <code>email</code> exact, <code>emailPrefix</code> after stripping a known prefix) are near-certain; name signals are softer (see below).</li>
+<li><strong><code>signals</code></strong> — weighted match rules. An orphan links to the candidate identity with the highest <em>summed</em> weight that clears <code>linkThreshold</code>. Strong signals (<code>employeeId</code>, <code>email</code> exact, <code>emailPrefix</code> after stripping a known prefix) are near-certain; name signals are softer (see below) and do not sum with each other.</li>
 <li><strong><code>accountTypeRules</code></strong> — regex patterns that classify an account's type. Lowest <code>priority</code> wins; the matched pattern is recorded on the link (<code>accountTypePattern</code>). Anything that matches nothing is <code>Secondary</code> (a plain extra human account). Directory metadata is the strongest guest signal: <code>userType=Guest</code> or an <code>#ext#</code> UPN short-circuits to <code>Guest</code> before the regexes run.</li>
 <li><strong><code>linkThreshold</code></strong> — the minimum confidence to auto-link, surfaced as the <strong>certainty slider</strong> in the admin UI. The shipped default is <code>50</code>. Name signals land at 45–60, so the threshold alone does not decide whether a name-only match links — the name-uniqueness guard below does. Raise the threshold to require stronger evidence from <em>every</em> match.</li>
 <li><strong><code>onlyLinkTypes</code></strong> — only these account types are attached to a person. <code>Service</code> and <code>Shared</code> accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.</li>
@@ -5792,18 +5816,49 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 </tbody>
 </table>
-<p>The two name signals are mutually exclusive — only the signal whose <code>level</code> equals the computed best level fires.</p>
-<p>A match is <strong>name-only</strong> when every signal that fired is a name signal — the graded <code>name</code> signals, plus the legacy single-signal <code>fuzzy</code> type, which is a name comparison by definition. The name-uniqueness guard applies to those.</p>
+<h3 id="the-login-read-as-a-name">The login read as a name<a class="headerlink" href="#the-login-read-as-a-name" title="Permanent link">&para;</a></h3>
+<p>A login is a name too: <code>adm-fhogenbirk</code> says <em>the F. Hogenbirk of this tenant</em>. Until <a href="https://github.com/Fortigi/IdentityAtlas/issues/1454">#1454</a> the only rule that read one was <code>emailPrefix</code>, which reads it as an <strong>address</strong> — strip a known prefix, then require the remainder to equal the person's email local part exactly. That recognises a single provisioning convention: where the personal mailbox is <code>f.h.hogenbirk</code> (two initials) and the admin login carries <code>fhogenbirk</code> (one), the weight-80 signal never fires and the account links only if its display name happens to spell the person's name. The reporting tenant measured 30 of 64 admin accounts linked, every one of them on <code>fullName</code>, none on a login. Separator-insensitive comparison does not bridge it either — <code>f.h.hogenbirk</code> reduces to <code>fhhogenbirk</code>, not to <code>fhogenbirk</code>.</p>
+<p>So the <code>loginName</code> signal compares the stripped login against the forms a convention writes a <em>name</em> in (<code>loginNameForms</code> in <code>classifier.js</code>), graded by how much of the name each form carries:</p>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Built from</th>
+<th>Example for <code>Fay Hogenbirk</code> / <code>f.h.hogenbirk@…</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>full</code></td>
+<td>given name + surname, or the separator-stripped local part of the person's own address</td>
+<td><code>fayhogenbirk</code>, <code>fhhogenbirk</code></td>
+</tr>
+<tr>
+<td><code>initial</code></td>
+<td>given initial + surname</td>
+<td><code>fhogenbirk</code></td>
+</tr>
+</tbody>
+</table>
+<p>Read off <strong>every</strong> name the person is known by, and each form records which name it came from (<code>inUse</code> / <code>birth</code>) like a parsed name does. The grade says what the form <em>carries</em>, never where it was read from: a person whose own address is already the short form (<code>j.jansen</code> for Jan Jansen) is listed at <code>initial</code> like everybody else spelled that way — read as a <code>full</code> form it would outrank the real initial-level claimants and silently break the tie between two people genuinely called the same thing.</p>
+<p>Two consequences, both deliberate:</p>
+<ul>
+<li><strong>It is name-class evidence, not address evidence.</strong> Its weight is <strong>55</strong> — it clears the shipped threshold of 50 on its own where the login points at exactly one person, sits below <code>fullName</code>, and never inherits <code>emailPrefix</code>'s near-certain 80. <code>adm-pmunck</code> fits every P. Munck in the tenant, and this engine decides whose access review, risk score and leaver handling an admin account inherits, so a derived name form must never be near-certain. It therefore goes through the name-uniqueness guard below and is counted in <code>nameOnlyMatches</code> / suggestions.</li>
+<li><strong>Scope.</strong> This reads the email/UPN login. <code>Principals</code> has no separate login column — crawlers store mail-or-UPN in <code>email</code> — so a source that supplies no address at all (the "Surname, Initials" ERP accounts) gains nothing here; those stay with <a href="https://github.com/Fortigi/IdentityAtlas/issues/1455">#1455</a>, along with account-to-account evidence and a first-class login column.</li>
+</ul>
+<p><strong>Name-class signals are one graded ladder, not a stack</strong> (<code>strongestNameRung</code> in <code>engine.helpers.js</code>). The two parsed-name levels were already mutually exclusive; the login rung joins them, and the heaviest rung the dictionary configures is the one that fires. Summing them instead would let one name counted twice reach the confidence of an exact <code>employeeId</code> match — an account whose display name <em>and</em> login spell its owner is no more certainly hers than the name is, because a namesake's account spells that name just as well. Ranking by configured weight is also what keeps a reweighted dictionary coherent: a login read (55) outranks a surname+initial read (45) of the same person, and <code>fullName</code> (60) outranks both.</p>
+<p>A match is <strong>name-only</strong> when every signal that fired is a name signal — the graded <code>name</code> signals, the <code>loginName</code> signal, plus the legacy single-signal <code>fuzzy</code> type, which is a name comparison by definition. The name-uniqueness guard applies to those.</p>
 <p><strong>Name-uniqueness guard</strong> (always on): a name-only match links <strong>only where the account's name points at exactly one person</strong>. A name a second person answers to <em>at the level the match rests on</em> is no evidence of which of them the account belongs to, and the wrong one then inherits that person's access review, risk score and leaver handling. Such matches are held for review, counted and recorded on the run instead (see below).</p>
 <p>Why a uniqueness reading rather than a blanket refusal to link on a name: measured on a synthetic 7,000-identity, 11,500-account dataset across four systems, refusing <em>every</em> name-only match held back ≈4,100 links that were correct and removed none that were wrong — a system that carries only display names (a badge reader, many ERPs, the admin accounts) stopped linking altogether. The wrong links the issue was filed for turned out to come from the name <em>parsing</em> — titles and surname particles read as names — which <a href="https://github.com/Fortigi/IdentityAtlas/issues/1443">#1443</a> fixed. What is left to guard against is the namesake, and that is what uniqueness tests for.</p>
-<p>Who the name points at is read by <code>nameClaim</code> in <code>engine.helpers.js</code>, and three things make the reading non-obvious:</p>
+<p>Who the name points at is read by <code>nameClaim</code> in <code>engine.helpers.js</code>, and four things make the reading non-obvious:</p>
 <ol>
 <li>
 <p><strong>A name is read at the level its own evidence rests on.</strong> The people spelled exactly that name are its claimants; only when <em>nobody</em> is spelled it do the people who share its surname and given initial become the claimants instead. That fallback is what the old tie between top-scoring candidates could not see: an account spelled <code>Johan Jansen</code> is an exact match for nobody, and both the <code>Jan</code> and the <code>Johannes</code> it may belong to stand one initial away. Identities are indexed for it in <code>bySurnameInitial</code>, which is deliberately <strong>not</strong> a candidate index — a surname+initial match alone scores below the shipped threshold, so widening the candidate set with it would change nothing about who links.</p>
 <p>Reading <em>both</em> levels at once instead — the shipped behaviour until <a href="https://github.com/Fortigi/IdentityAtlas/issues/1460">#1460</a> — made every near spelling a rival of a name only one person answers to: <code>Youssef El Mahdi</code> could not be placed while a <code>Yasmina</code> or a <code>Yassin</code> existed, which cost ≈1,700 correct links per run on the reporting tenant's dataset and detached the same class on upgrade. A rival one level down is not a competing answer to the name the account actually carries. The protection the guard was built for is untouched where it applies: a second person spelled the same name still ties, <strong>including a titled spelling</strong> — <code>stripTitles</code> runs before a name is keyed, so <code>drs. Sandro Blanker</code> and <code>Sandro Blanker</code> share the exact key. That titled/particle class is what the 44 wrong links measured behind #1440 actually were, and <a href="https://github.com/Fortigi/IdentityAtlas/issues/1443">#1443</a> plus this tie are what hold it.</p>
 <p>The residual exposure, consciously accepted: an account that exactly spells a <em>different</em> identity's full name while its real owner's record carries the short form nowhere. This dataset does not exercise it and it is not measured; a given-name-variant lexicon is the follow-up that would address it.
-2. <strong>The question is asked once per name the account carries</strong>, not once overall. A person is indexed under every name they are known by, so a name that is ambiguous does not veto a <em>different</em> name that is unique: an account spelled <code>Anna Bakker-de Wit</code> in the directory and <code>de Wit</code> in its HR column belongs to the one person called Bakker-de Wit, even though two people answer to <code>de Wit</code>. The account's name points at one person when some name singles them out and no other name singles out anybody else — it points at nobody when no name singles anyone out, or when two names disagree. The reading does not depend on the order identities were indexed in.
-3. <strong>Within one name the claims are usually unequal, and a match is only as strong as its weaker side</strong>: it is a match on the name in use when the account <em>and</em> the identity are both spelled that way, and a birth-name match when either side holds it only in a structured column. Accounts are provisioned from the name in use, so where both kinds meet the name in use wins outright:
+2. <strong>The account's login is one of the names the question is asked of</strong> (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1454">#1454</a>). It is read at its own two levels on exactly the terms above — whoever's whole name the login writes out answers to it, and only when nobody does can the people it writes an initial of become claimants, with the name in use beating a birth-name form under the same login. So a login can single somebody out where the display name carries no person's name at all (<code>Admin account 042</code>), and it can tie where the form fits two people (<code>adm-pmunck</code>). A login derived from a name that is itself contested resolves nothing: compressing a name loses information, it never adds any, which is why <code>j.jansen</code>'s owner gets no privileged claim to a <code>jjansen</code> login over the other Jan Jansen.
+3. <strong>The question is asked once per name the account carries</strong>, not once overall. A person is indexed under every name they are known by, so a name that is ambiguous does not veto a <em>different</em> name that is unique: an account spelled <code>Anna Bakker-de Wit</code> in the directory and <code>de Wit</code> in its HR column belongs to the one person called Bakker-de Wit, even though two people answer to <code>de Wit</code>. The account's name points at one person when some name singles them out and no other name singles out anybody else — it points at nobody when no name singles anyone out, or when two names disagree. The reading does not depend on the order identities were indexed in.
+4. <strong>Within one name the claims are usually unequal, and a match is only as strong as its weaker side</strong>: it is a match on the name in use when the account <em>and</em> the identity are both spelled that way, and a birth-name match when either side holds it only in a structured column. Accounts are provisioned from the name in use, so where both kinds meet the name in use wins outright:
 - An <code>Anna Jansen</code> account, an identity called <code>Anna Jansen</code>, and a second identity called <code>Anna de Boer-Jansen</code> whose HR record still carries <code>Jansen</code> in its <code>surname</code> column. The account is the first one's; the birth surname is not a rival. Indexing the birth-name variant without this rule turned links the engine used to make into review items.
 - Equally strong claims make the name ambiguous: two people who both <em>go by</em> the name, or two for whom it is equally a birth surname, send the account to review.
 - Where the account itself carries the name only in its own <code>surname</code> column, neither side's claim is the name in use and the claims are left unranked — that name is an old one on both sides, so ranking it would hand the account to a stranger over the name it is actually spelled with.</p>
@@ -5831,11 +5886,11 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 </tbody>
 </table>
-<p>The scan is over engine-scored (<code>linkConfidence IS NOT NULL</code>), analyst-untouched (<code>analystOverride IS NULL</code>) member rows on <strong>live</strong> accounts (<code>p."deletedAt" IS NULL</code>), joined to <code>Principals</code> for the account's own name. Crawler-sourced links (no confidence) and analyst decisions are never touched — the same exclusions the crawler's reconcile honours.</p>
+<p>The scan is over engine-scored (<code>linkConfidence IS NOT NULL</code>), analyst-untouched (<code>analystOverride IS NULL</code>) member rows on <strong>live</strong> accounts (<code>p."deletedAt" IS NULL</code>), joined to <code>Principals</code> for the account's own names — its display name, its columns <strong>and its login</strong>, since the uniqueness question has to be put on exactly the terms the engine put it. Asked without the login, every link the engine made on one reads as resting on a name that points at nobody: the run detaches it, re-creates it from the orphan pool in the same run, and reports a removal on every run forever. Crawler-sourced links (no confidence) and analyst decisions are never touched — the same exclusions the crawler's reconcile honours.</p>
 <p>The live-account restriction is what makes "rejoins the orphan pool and re-scores in the same run" true. A link to an account a sync has removed cannot re-score — the orphan pool is live rows only — so detaching it deletes the identity's trail to that account and every grant on it, with nothing to correct it to and no held-for-review record to act on (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1461">#1461</a>). That is the same decision as the paragraph below: a link made before the account was removed is kept as history. For a <em>live</em> account the cleanup behaves exactly as the table above says. Note the asymmetry this preserves — a removed account is never <strong>newly</strong> attached to a namesake, and never <strong>detached</strong> from the person it was already linked to.</p>
 <p><strong>The one-off restore after #1460.</strong> Scoping rivalry to the matched level releases a whole class the previous reading held — and, on an existing install, had already detached. Those accounts are orphans, so the first run after the upgrade re-links them automatically; analyst overrides and rejections are still never overridden. Because that is a silent mass change, the run counts it: <code>linksRestored</code> is how many links it <strong>created</strong> on a name shared only at the weaker surname + initial level. Counting creations only means the figure reports the restore once and then settles back to <code>0</code>.</p>
 <h3 id="candidate-scope-orphans-only">Candidate scope = orphans only<a class="headerlink" href="#candidate-scope-orphans-only" title="Permanent link">&para;</a></h3>
-<p>The only accounts the engine ever considers are <strong>orphan Principals</strong> — <em>live</em> Principals with no <code>IdentityMembers</code> row — excluding <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, and <code>AIAgent</code> principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, and an order-independent surname+given key <strong>per name the person is known by</strong>, so only plausible identities are scored and neither the birth name nor the name in use is a dead end.</p>
+<p>The only accounts the engine ever considers are <strong>orphan Principals</strong> — <em>live</em> Principals with no <code>IdentityMembers</code> row — excluding <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, and <code>AIAgent</code> principal types. Accounts already attached to an Identity (e.g. by the crawler's IdentityFilter) are never disturbed. Candidates per orphan are narrowed by indexing identities on employeeId, email-local-part (raw and prefix-stripped), normalized display name, an order-independent surname+given key <strong>per name the person is known by</strong>, and the two login forms above, so only plausible identities are scored and neither the birth name nor the name in use is a dead end. The login indexes are genuinely candidate indexes (unlike <code>bySurnameInitial</code>): a login-form match scores above the shipped threshold on its own, so an account whose login is the only evidence has to reach scoring through them — which is precisely what it could not do before #1454.</p>
 <p><strong>Accounts a sync has removed are not orphans.</strong> A full sync does not delete a principal that vanished from its source — it stamps <code>deletedAt</code> and keeps the row (<a href="../soft-delete/">soft delete</a>). A tombstoned account is therefore excluded from the candidate set, from the <code>orphansRemaining</code> statistic, and from the Orphaned Accounts report and context: it is not work the analyst still has to do. The symmetric half of that decision is that an account linked <em>before</em> it was removed <strong>stays linked</strong> — soft delete never detaches a person's history, and re-ingesting the account clears the stamp and makes it linkable again.</p>
 <p>Excluding them is a correctness rule, not a tidier count. A leaver is usually gone from the HR source too, so their account's own identity no longer exists — and what is left matching it is <em>someone else</em>: a live namesake, or a colleague whose record still carries the leaver's surname (the <code>Anna de Boer-Jansen</code> shape above). With no rival claimant nothing ties, so the ambiguity guard has nothing to refuse, and a name-only match at weight 60 clears the default threshold of 50 on its own. The measurement on #1442 found exactly that: every removed account a first run attached went to a different, live person, who then inherited a leaver's account and every grant on it. The live-rows filter is what prevents it — the engine itself cannot tell the two people apart, because nothing in the names says they are two people.</p>
 <p>That one definition — the <code>Principals</code> anti-join against <code>IdentityMembers</code>, restricted to live rows and human principal types — lives only in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/accountlinking/orphanQuery.js"><code>accountlinking/orphanQuery.js</code></a>. Callers that need a different projection build their query with its <code>orphanPrincipalsSql()</code> rather than re-inlining the anti-join; the engine's two hand-written copies are what let the live-rows filter go missing from all three selections (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1442">#1442</a>).</p>
@@ -5891,7 +5946,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 <tr>
 <td><code>nameOnlySuggestions</code></td>
-<td>The held-back matches themselves — <code>{ principalId, displayName, identityId, identityName, confidence, signals, accountType, reason, matchLevel, rivals, rivalCount }</code> — capped at 500 entries so one run cannot store an unbounded document. <code>reason</code> is <code>ambiguousName</code> (somebody else answers to the name) or <code>uncorroborated</code> (the name is unique, but this tenant set <code>allowNameOnlyLinks: false</code>); <code>matchLevel</code> is the level the match rested on (<code>full</code> or <code>surnameInitial</code>, absent on a run stored before #1460) and is what lets the card say <em>which</em> name the rivals share; <code>rivals</code> names up to 5 of the other claimants at that level and <code>rivalCount</code> is how many there really are.</td>
+<td>The held-back matches themselves — <code>{ principalId, displayName, identityId, identityName, confidence, signals, accountType, reason, matchLevel, rivals, rivalCount }</code> — capped at 500 entries so one run cannot store an unbounded document. <code>reason</code> is <code>ambiguousName</code> (somebody else answers to the name) or <code>uncorroborated</code> (the name is unique, but this tenant set <code>allowNameOnlyLinks: false</code>); <code>matchLevel</code> is the level the match rested on (<code>full</code>, <code>surnameInitial</code>, or <code>loginName</code> where the evidence was the account's login — absent on a run stored before #1460) and is what lets the card say <em>which</em> name the rivals share; <code>rivals</code> names up to 5 of the other claimants at that level and <code>rivalCount</code> is how many there really are.</td>
 </tr>
 </tbody>
 </table>
