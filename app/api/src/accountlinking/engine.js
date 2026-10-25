@@ -30,6 +30,7 @@
 import * as db from '../db/connection.js';
 import { enqueueRun } from '../contexts/plugins/runner.js';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { effectiveLinkingRules } from './rulesMerge.js';
 import {
   classifyAccount,
   compileAccountTypeRules,
@@ -280,7 +281,10 @@ async function loadRules(configId) {
       ? await db.queryOne(`SELECT "rules" FROM "AccountLinkingConfig" WHERE id = $1`, [configId])
       : await db.queryOne(`SELECT "rules" FROM "AccountLinkingConfig" WHERE "isActive" = true ORDER BY "updatedAt" DESC LIMIT 1`);
   } catch { /* table may not exist yet on a partially-migrated DB */ }
-  return (row && row.rules) ? { ...DEFAULT_RULES, ...row.rules } : DEFAULT_RULES;
+  // A saved row is an override of the shipped dictionary, not a replacement:
+  // signals are merged by name so a signal shipped after the tenant last saved
+  // still fires for them (#1469).
+  return effectiveLinkingRules(row?.rules);
 }
 
 async function countOrphans() {

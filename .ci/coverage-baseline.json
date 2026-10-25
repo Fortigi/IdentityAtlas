@@ -5,6 +5,7 @@
     "app/api/src/accountlinking/defaultRules.js": 99,
     "app/api/src/accountlinking/engine.helpers.js": 100,
     "app/api/src/accountlinking/engine.js": 93,
+    "app/api/src/accountlinking/rulesMerge.js": 99,
     "app/api/src/accountlinking/staleNameOnlyLinks.js": 100,
     "app/api/src/app.js": 72,
     "app/api/src/auth/permissionManifest.js": 99,

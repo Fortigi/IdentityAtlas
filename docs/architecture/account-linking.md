@@ -28,6 +28,7 @@ The engine lives in [`app/api/src/accountlinking/`](https://github.com/Fortigi/I
 | Module | Responsibility |
 |---|---|
 | `defaultRules.js` | The shipped default dictionary (`DEFAULT_RULES`). |
+| `rulesMerge.js` | `effectiveLinkingRules(savedRules)` — the one merge of a tenant's saved rules over the shipped ones (see [The effective dictionary](#the-effective-dictionary)). |
 | `classifier.js` | Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching, and the login name forms (`loginToken` / `loginNameForms` / `loginFormMatch`). Regex rules are compiled with **RE2** (linear-time, ReDoS-safe). |
 | `engine.js` | `scoreMatch`, `buildLinks` (pure scoring), and `runLinking(runId, configId)` (the DB-writing run). |
 | `engine.helpers.js` | Pure building blocks: identity indexing, candidate collection, the name-signal set and the graded name ladder (`strongestNameRung`), the `isNameOnly` predicate, the `nameClaim` name-uniqueness reading, reading stored `linkSignals`. |
@@ -68,6 +69,23 @@ The dictionary is shipped with sensible defaults (`DEFAULT_RULES`) and is editab
 - **`linkThreshold`** — the minimum confidence to auto-link, surfaced as the **certainty slider** in the admin UI. The shipped default is `50`. Name signals land at 45–60, so the threshold alone does not decide whether a name-only match links — the name-uniqueness guard below does. Raise the threshold to require stronger evidence from *every* match.
 - **`onlyLinkTypes`** — only these account types are attached to a person. `Service` and `Shared` accounts are deliberately left out so they fall through to the Orphaned Accounts context rather than being glued onto a person.
 - **`allowNameOnlyLinks`** — default `true`: a match whose signals are *all* name signals links where the name points at exactly one person, and is held for review where it does not (see the name-uniqueness guard below). Set to `false` — unchecking **"Link on a name match alone"** in the admin UI — to hold back *every* name-only match, which costs a source that carries nothing but display names (a badge system, many ERPs) all of its links. Only a literal `false` opts out; configs are merged over `DEFAULT_RULES`, so an install that never stored the key runs the shipped policy.
+
+### The effective dictionary
+
+A tenant's stored `rules` is an **override** of `DEFAULT_RULES`, never a replacement of it. `effectiveLinkingRules(savedRules)` in `rulesMerge.js` produces what actually runs, and it is the only correct way to read a stored config — a run (`loadRules` in `engine.js`), the orphaned-accounts classification (`loadActiveLinkingRules` in `orphanQuery.js`) and `GET /account-linking/config` all go through it, so the engine, the report and the settings editor can never disagree about the dictionary.
+
+| Key | Merge |
+|---|---|
+| `signals` | **By `name`.** A signal the saved dictionary lacks is added with its shipped definition; a signal it has keeps the tenant's values verbatim, field for field; a signal only the tenant has is kept. |
+| everything else | **Shallow** — a stored `linkThreshold` / `onlyLinkTypes` / `allowNameOnlyLinks` / `accountTypeRules` replaces the shipped one, and a key the tenant never stored keeps the shipped value. |
+
+Three consequences worth knowing before editing the JSON:
+
+- **Deleting a signal does not disable it.** The next version that ships it merges it back in by name. **Weight `0` is the off-switch** — a per-signal opt-out the tenant keeps across every upgrade, and the reason merging shipped signals back in never takes a choice away. The rules editor says this on the page.
+- **Precedence does not depend on when a signal shipped.** The merged array follows the shipped `DEFAULT_RULES` ladder with the tenant's values substituted in place, and tenant-only signals after it, in their saved order. That matters because `strongestNameRung` breaks *equal* weights by position in the list (`engine.helpers.js`): appending the missing signals would make a tie between two equally-weighted name rungs depend on release history, so the shipped ladder is the fixed, documented precedence instead.
+- **`accountTypeRules` is deliberately not merged by name.** Its entries have no per-entry off-switch, so re-adding a pattern a tenant removed would silently reclassify their accounts with no way to refuse it. Giving it the same upgrade safety needs its own mechanism (an `enabled` flag or per-pattern tombstones) and is a separate change.
+
+Why it works this way: saving the settings persists the **whole** dictionary the editor was showing — moving the certainty slider is enough — so a top-level merge of the stored row over the defaults let a saved `signals` array shadow the shipped one wholesale. Every tenant that had ever pressed Save was frozen on the signals of the build they saved on: `loginNameForm` never fired for them, their `adm-<initial><surname>` accounts stayed orphaned, and the editor showed and re-saved the same stale list with nothing on screen to say a signal was missing ([#1469](https://github.com/Fortigi/IdentityAtlas/issues/1469)). The merge is idempotent, which is what makes it safe for the config endpoint to serve the effective dictionary: the editor can save back exactly what it was shown.
 
 ### Graded name matching + the name-uniqueness guard
 
@@ -235,7 +253,7 @@ All endpoints are mounted under `/api`. Config writes and run starts are gated b
 
 | Method | Path | Gate | Purpose |
 |---|---|---|---|
-| `GET`  | `/account-linking/config` | — | Active config, or the shipped defaults (`defaults: true`) when none exists. |
+| `GET`  | `/account-linking/config` | — | Active config, or the shipped defaults (`defaults: true`) when none exists. `rules` is the **effective dictionary** — the stored rules merged over the shipped ones (see [The effective dictionary](#the-effective-dictionary)) — so the editor shows what a run uses. |
 | `PUT`  | `/account-linking/config` | `admin.crawlers` | Upsert the single config row (`rules`, `schedules`, `isActive`). |
 | `POST` | `/account-linking/runs` | `admin.crawlers` | Start a run. Returns `202` + the new run row; runs in the background. |
 | `GET`  | `/account-linking/runs` | — | The 50 most recent runs, newest first. |
