@@ -1,4 +1,4 @@
-// Static checks on migration 094. What it selects is verified against PostgreSQL
+// Static checks on migration 096. What it selects is verified against PostgreSQL
 // in contract-tests/contextOwnerRoles.contract.test.js; these pin the shape that
 // keeps it safe to run on a live database: insert-only, synced only, the same
 // resolution as the ingest, and nothing that writes Contexts (migration 094's
