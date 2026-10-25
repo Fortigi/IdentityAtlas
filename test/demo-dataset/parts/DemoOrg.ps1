@@ -126,54 +126,70 @@ function Add-DemoOrg {
     }
 
     # ─── Principals, Identities, IdentityMembers ──────────────────────────────
-    foreach ($emp in $employees) {
-        $pGuid   = Get-DemoPrincipalId $emp.id
-        $idGuid  = Get-DemoIdentityId  $emp.id
-        $parts   = $emp.name -split ' ', 2
-        $email   = "$($parts[0].ToLower()).$($parts[1].ToLower())@fortigidemo.com"
-        $mgrGuid = if ($emp.manager) { Get-DemoPrincipalId $emp.manager } else { $null }
+    foreach ($emp in $employees) { Add-DemoOrgPerson $State -Employee $emp }
 
-        $null = Add-DemoPrincipal $State -Record @{
-            id                 = $pGuid
-            displayName        = $emp.name
-            email              = $email
-            accountEnabled     = $true
-            principalType      = 'User'
-            employeeId         = $emp.id
-            givenName          = $parts[0]
-            surname            = $parts[1]
-            department         = $emp.dept
-            jobTitle           = $emp.title
-            companyName        = 'Fortigi Demo Corp'
-            managerId          = $mgrGuid
-            systemId           = $State.SystemIds['entra']
-            extendedAttributes = @{
-                passwordNeverExpires        = (Test-DemoNeverExpires $emp.id)
-                $script:DemoSamAccountKey   = (Get-DemoSamAccountName $emp.name)
-            }
-        }
+    Add-DemoOrgEdgeCases $State
+}
 
-        $null = Add-DemoIdentity $State -Record @{
-            id          = $idGuid
-            displayName = $emp.name
-            email       = $email
-            department  = $emp.dept
-            jobTitle    = $emp.title
-            employeeId  = $emp.id
-            givenName   = $parts[0]
-            surname     = $parts[1]
-            companyName = 'Fortigi Demo Corp'
-        }
-        Add-DemoIdentityMember $State -IdentityId $idGuid -PrincipalId $pGuid `
-            -DisplayName $emp.name -AccountType 'EntraID' -IsPrimary $true
+# One employee, at both levels the data model has for them: the Entra account,
+# the person behind it, the link between the two, and the contexts the account
+# belongs to.
+function Add-DemoOrgPerson {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)]$Employee
+    )
 
-        # Department context, plus the team context for those who have one.
-        foreach ($cid in @($State.DeptCtx[$emp.dept], $emp.ctx)) {
-            if ($cid) { Add-DemoContextMember $State -ContextId $cid -MemberId $pGuid }
+    $pGuid  = Get-DemoPrincipalId $Employee.id
+    $idGuid = Get-DemoIdentityId  $Employee.id
+    $parts  = $Employee.name -split ' ', 2
+    $email  = "$($parts[0].ToLower()).$($parts[1].ToLower())@fortigidemo.com"
+
+    # The same org chart at two levels, each resolving in its own namespace: an
+    # account's manager is another ACCOUNT, a person's manager is another
+    # IDENTITY. Both are $null at the top of the chart.
+    $mgrGuid   = if ($Employee.manager) { Get-DemoPrincipalId $Employee.manager } else { $null }
+    $mgrIdGuid = if ($Employee.manager) { Get-DemoIdentityId  $Employee.manager } else { $null }
+
+    $null = Add-DemoPrincipal $State -Record @{
+        id                 = $pGuid
+        displayName        = $Employee.name
+        email              = $email
+        accountEnabled     = $true
+        principalType      = 'User'
+        employeeId         = $Employee.id
+        givenName          = $parts[0]
+        surname            = $parts[1]
+        department         = $Employee.dept
+        jobTitle           = $Employee.title
+        companyName        = 'Fortigi Demo Corp'
+        managerId          = $mgrGuid
+        systemId           = $State.SystemIds['entra']
+        extendedAttributes = @{
+            passwordNeverExpires        = (Test-DemoNeverExpires $Employee.id)
+            $script:DemoSamAccountKey   = (Get-DemoSamAccountName $Employee.name)
         }
     }
 
-    Add-DemoOrgEdgeCases $State
+    $null = Add-DemoIdentity $State -Record @{
+        id                = $idGuid
+        displayName       = $Employee.name
+        email             = $email
+        department        = $Employee.dept
+        jobTitle          = $Employee.title
+        employeeId        = $Employee.id
+        givenName         = $parts[0]
+        surname           = $parts[1]
+        companyName       = 'Fortigi Demo Corp'
+        managerIdentityId = $mgrIdGuid
+    }
+    Add-DemoIdentityMember $State -IdentityId $idGuid -PrincipalId $pGuid `
+        -DisplayName $Employee.name -AccountType 'EntraID' -IsPrimary $true
+
+    # Department context, plus the team context for those who have one.
+    foreach ($cid in @($State.DeptCtx[$Employee.dept], $Employee.ctx)) {
+        if ($cid) { Add-DemoContextMember $State -ContextId $cid -MemberId $pGuid }
+    }
 }
 
 # ─── The Entra directory-extension attribute ──────────────────────────────────
