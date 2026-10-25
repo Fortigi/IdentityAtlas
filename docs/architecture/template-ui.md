@@ -28,7 +28,7 @@ for the workflows that start from a context, with one of them built now.
   - **Resource unit or logical application:** the account that owns the most of its resources (holders of the ControlPermission resources linked by `HasOwnership` / `HasAppOwnership`), at least 40 %. Reason: "owns 4 of the 6 resources".
   - A unit of one says "the only member"; a full sweep says "all 5 members".
   - A candidate rejected for this context is skipped.
-- `POST /api/contexts/:id/roles/suggestion/reject` body `{ principalId | identityId }` → 204. Stored in `ContextRoleSuggestionRejections` (migration 093: `id`, `contextId` → Contexts cascade, `principalId` | `identityId` (exactly one), `role`, `rejectedBy`, `rejectedAt`; unique per context + holder + role). Interim: moves into claims (POC step 2) when that lands.
+- `POST /api/contexts/:id/roles/suggestion/reject` body `{ principalId | identityId }` → 204. Stored in `ContextRoleSuggestionRejections` (migration 095: `id`, `contextId` → Contexts cascade, `principalId` | `identityId` (exactly one), `role`, `rejectedBy`, `rejectedAt`; unique per context + holder + role). Interim: moves into claims (POC step 2) when that lands.
 - Confirm is the existing `PUT /api/contexts/:id/roles` (Accountable).
 - OpenAPI entries for both routes. Permissions: read `data.read`, reject `data.write.contexts`.
 

@@ -5,11 +5,11 @@ import { fileURLToPath } from 'url';
 import { CONTEXT_ROLE_TYPES } from '../../ingest/validation.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '093_context_role_suggestion_rejections.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '095_context_role_suggestion_rejections.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const header = sql.split('\n').filter(line => line.trimStart().startsWith('--')).join('\n');
 
-describe('migration 093 — rejected role suggestions', () => {
+describe('migration 095 — rejected role suggestions', () => {
   it('creates exactly one table and touches nothing else', () => {
     expect(statements.match(/CREATE TABLE "(\w+)"/g)).toEqual(['CREATE TABLE "ContextRoleSuggestionRejections"']);
     expect(statements).not.toMatch(/ALTER TABLE|DROP |DELETE FROM|UPDATE "|INSERT INTO/);

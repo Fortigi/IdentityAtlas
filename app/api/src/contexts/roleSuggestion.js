@@ -10,7 +10,7 @@
 //     Entitlement Pivot report makes for its owner column.
 // A candidate is suggested only when they cover at least SUGGESTION_THRESHOLD
 // of the members, and never when an analyst rejected them for this context
-// (ContextRoleSuggestionRejections, migration 093).
+// (ContextRoleSuggestionRejections, migration 095).
 
 import * as db from '../db/connection.js';
 import { OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
