@@ -1,4 +1,4 @@
-// Context interviews — a member marked former by a decision (migration 099).
+// Context interviews — a member marked former by a decision (migration 101).
 //
 //   overrideAction(claim, status, merged)              → 'mark' | 'clear' | null   (pure)
 //   applyMemberOverride(client, claim, decided, user)  → { overrides, changeRequest } | null
@@ -30,7 +30,7 @@
 // a decision) and clearClaimOverride (removes the mark a claim made, on undo).
 //
 // Each mark also asks its source for the correction it owes: a change request
-// (changeRequests.js, migration 101) raised with the mark, in the same
+// (changeRequests.js, migration 103) raised with the mark, in the same
 // transaction, when the source is a system or an uploaded list. Clearing the mark
 // withdraws it; undoing the decision withdraws what that claim raised.
 

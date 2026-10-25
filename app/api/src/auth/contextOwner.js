@@ -101,7 +101,7 @@ export async function resolveContextOwner(user) {
     const variants = await findSameUnitVariants(pool, heldIds);
     return { contexts, contextIds: new Set([...heldIds, ...variants]) };
   } catch (err) {
-    // Before migration 092 there are no roles, so nobody is an owner yet.
+    // Before migration 094 there are no roles, so nobody is an owner yet.
     if (isMissingSchema(err)) return null;
     throw err;
   }

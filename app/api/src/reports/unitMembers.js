@@ -11,7 +11,7 @@
 // Business roles are not counted: a role is intent, and the entitlements it
 // grants are counted themselves (lib/resourceVisibility.js, the matrix's rule).
 //
-// A member a decision marked former (ContextMemberOverrides, migration 099:
+// A member a decision marked former (ContextMemberOverrides, migration 101:
 // an interview says they left, an analyst decided it is right, the source still
 // lists them) stays a row, with markedFormer — the report shows what the source
 // lists and what was decided about it, side by side.

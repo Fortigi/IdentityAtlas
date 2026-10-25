@@ -8,11 +8,11 @@ import { CLAIM_KINDS, CLAIM_STATUSES, ROLE_SUGGESTIONS } from '../../contexts/in
 import { CONTEXT_ROLE_TYPES } from '../../ingest/validation.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sql = readFileSync(join(__dirname, '097_context_interviews.sql'), 'utf8');
+const sql = readFileSync(join(__dirname, '099_context_interviews.sql'), 'utf8');
 const statements = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const inList = (column) => statements.match(new RegExp(`"${column}" IN \\(([^)]+)\\)`))[1].split(',').map(s => s.trim().replace(/'/g, ''));
 
-describe('migration 097 — context interviews', () => {
+describe('migration 099 — context interviews', () => {
   it('creates the two tables, adds one column to ContextRoles, and writes no rows', () => {
     expect(statements.match(/CREATE TABLE "(\w+)"/g)).toEqual(['CREATE TABLE "ContextInterviews"', 'CREATE TABLE "ContextClaims"']);
     expect(statements.match(/ALTER TABLE "(\w+)"/g)).toEqual(['ALTER TABLE "ContextRoles"']);
@@ -28,7 +28,7 @@ describe('migration 097 — context interviews', () => {
   });
 
   it('admits exactly the claim kinds, statuses and suggestions the code uses', () => {
-    // 098 widens the kinds (membership, alias); 097 shipped the first four.
+    // 100 widens the kinds (membership, alias); 099 shipped the first four.
     expect(inList('claimKind')).toEqual(CLAIM_KINDS.slice(0, 4));
     expect(CLAIM_KINDS.slice(0, 4)).toEqual(['description', 'property', 'role', 'roleHistory']);
     expect(inList('claimStatus')).toEqual(CLAIM_STATUSES);

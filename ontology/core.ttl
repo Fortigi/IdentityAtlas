@@ -1439,7 +1439,7 @@ ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
 
 # Columns of the knowledge tables (ContextInterviews, ContextClaims,
 # ContextMemberOverrides) and the provenance column they add to ContextRoles
-# (migrations 097, 098, 099).
+# (migrations 099, 100, 101).
 ia:sourceClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain ia:ContextRole ;
     rdfs:range ia:Claim ;
@@ -1614,7 +1614,7 @@ ia:overrides a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "overrides" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand)." .
 
-# ─── Change requests (migration 101; docs/architecture/change-requests.md) ───
+# ─── Change requests (migration 103; docs/architecture/change-requests.md) ───
 # What should change in a source an analyst's decision overrides. Knowledge, like
 # the claim and the override it rests on: never a node, never a way of holding access.
 ia:ChangeRequest a owl:Class ; rdfs:subClassOf ia:Knowledge ;

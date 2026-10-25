@@ -39,7 +39,7 @@ synced mechanism, kept in step by hand (decision principle A4: reuse the
 variant + reconciliation pattern). The only thing an upload adds that a crawler
 does not have is *the upload run itself*, which gets its own small table.
 
-## `ContextUploads` (migration 095)
+## `ContextUploads` (migration 097)
 
 One row per upload run of a list — the history of a list's uploads.
 
@@ -59,7 +59,7 @@ The context page reads the first and the latest row of its system and shows
 *"Uploaded from klanten.xlsx on 3 Oct 2026 by …; last updated by upload on …"*,
 and the same facts in *More details*.
 
-Migration 095 also adds an expression index on `lower(email)` of `Principals`:
+Migration 097 also adds an expression index on `lower(email)` of `Principals`:
 member matching and the owner reconcile compare e-mail addresses
 case-insensitively, and without it each would be a sequential scan.
 
