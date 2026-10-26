@@ -27,16 +27,24 @@
 // These are the same exclusions the crawler's reconcile already honours.
 
 import * as db from '../db/connection.js';
-import { nameSignalNames, isNameOnly, parseLinkSignals, indexIdentities, nameClaim } from './engine.helpers.js';
+import {
+  nameSignalNames, isNameOnly, parseLinkSignals, indexIdentities, nameClaim, loginPrefixesFrom,
+} from './engine.helpers.js';
 
 /**
  * Which of the name-only links the active policy would no longer create.
  * The indexes are built once for the whole set, not once per row.
+ *
+ * The question is put to `nameClaim` on the same terms the engine put it, login
+ * included (#1454) — a link the engine made because the account's login spells
+ * exactly one person's name would otherwise be read as resting on a name that
+ * points at nobody, detached, and re-created by the same run, forever.
  */
 function staleUnder(rules, nameOnly, identities) {
   if (rules.allowNameOnlyLinks === false) return nameOnly;
   const indexes = indexIdentities(identities);
-  return nameOnly.filter(r => nameClaim(r, indexes).sole?.id !== r.identityId);
+  const opts = { loginPrefixes: loginPrefixesFrom(rules) };
+  return nameOnly.filter(r => nameClaim(r, indexes, opts).sole?.id !== r.identityId);
 }
 
 /**
@@ -56,10 +64,11 @@ export async function removeStaleNameOnlyLinks(rules, identities) {
 
   // Selection is done in JS: linkSignals is a JSONB string of CSV, so "is every
   // recorded signal a name signal" is not expressible as a sargable predicate.
-  // The account's own name comes along for the uniqueness question below.
+  // The account's own name comes along for the uniqueness question below — its
+  // login included, which is one of the names that question is asked of.
   const { rows } = await db.query(`
     SELECT m."identityId", m."principalId", m."linkSignals",
-           p."displayName", p."givenName", p."surname"
+           p."displayName", p."givenName", p."surname", p."email"
       FROM "IdentityMembers" m
       JOIN "Principals" p ON p."id" = m."principalId"
      WHERE m."linkConfidence" IS NOT NULL
