@@ -1,7 +1,9 @@
-// Context interviews — a transcript about a unit or an application, and the claims it makes.
+// Context interviews — a source about a unit or an application (an interview
+// transcript, a file, a list, pasted text: "Add information"), and the claims it
+// makes. The table and the paths keep the word "interview" for any such source.
 // Design: docs/architecture/context-interviews.md.
 //
-//   POST   /api/contexts/:id/interviews                         multipart transcript + interviewee + date
+//   POST   /api/contexts/:id/interviews                         multipart file or text, who it is from (optional) + date
 //   GET    /api/contexts/:id/interviews                         the context's interviews (no transcript)
 //   GET    /api/contexts/:id/interviews/:interviewId            one, with its transcript and its quotes' offsets
 //   POST   /api/contexts/:id/interviews/:interviewId/extract    read it again with the model
@@ -9,13 +11,12 @@
 //   DELETE /api/contexts/:id/interviews/:interviewId            the interview and its claims
 //   GET    /api/contexts/:id/claims?status=…                    the claims (a reader: confirmed only)
 //   POST   /api/contexts/:id/claims/reject                      reject the proposed claims of a kind / relevance tier
-//   GET    /api/contexts/:id/previous-members                   who the interviews say left (a reader: confirmed only)
 //   PATCH  /api/contexts/claims/:claimId                        confirm / edit / reject
 //   POST   /api/contexts/claims/:claimId/undo                   back to proposed (a decision that changed only the claim)
 //   GET    /api/contexts/claims/mentions?principalId=|identityId=  where a person is mentioned
 //
 // Writes, and everything that shows a transcript or an undecided claim, need
-// data.write.contexts. The GETs of claims and of previous members serve every reader, answering one
+// data.write.contexts. The GET of claims (and the People overview, read.js) serve every reader, answering one
 // without that permission with decided-and-confirmed claims only.
 // Mounted BEFORE the read and crud routers: "/contexts/claims" would otherwise
 // be taken for "/contexts/:id".
@@ -29,25 +30,26 @@ import { userOf } from '../../lib/userOf.js';
 import { TranscriptError } from '../../contexts/interviews/transcript.js';
 import { CLAIM_STATUSES } from '../../contexts/interviews/claims.js';
 import {
-  createInterview, retryExtraction, addManualClaim, claimsOf, rejectMany, interviewWithTranscript, previousMembers, InterviewError,
+  createInterview, retryExtraction, addManualClaim, claimsOf, rejectMany, interviewWithTranscript, InterviewError,
 } from '../../contexts/interviews/service.js';
 import { decideClaim, undoClaim, ClaimError } from '../../contexts/interviews/decide.js';
 import * as store from '../../contexts/interviews/store.js';
 
 const router = Router();
 
-// A transcript is text; a .docx with a few pictures is the large case.
+// A transcript is text; a .docx with a few pictures, or a long list, is the large case.
 export const MAX_TRANSCRIPT_BYTES = 25 * 1024 * 1024;
-const ALLOWED = /\.(txt|text|md|docx|vtt|srt)$/i;
+const ALLOWED = /\.(txt|text|md|docx|vtt|srt|csv|xlsx)$/i;
 // What a reader without write access sees.
 export const READER_STATUSES = Object.freeze(['confirmed', 'edited']);
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_TRANSCRIPT_BYTES, files: 1 },
+  // fieldSize: pasted text arrives as a form field (multer's default caps it at 1 MB).
+  limits: { fileSize: MAX_TRANSCRIPT_BYTES, fieldSize: MAX_TRANSCRIPT_BYTES, files: 1 },
   fileFilter: (req, file, cb) => (ALLOWED.test(file.originalname)
     ? cb(null, true)
-    : cb(new TranscriptError('Upload a transcript as .txt, .docx, .vtt or .srt.'))),
+    : cb(new TranscriptError('Add a file as .txt, .md, .docx, .vtt, .srt, .csv or .xlsx.'))),
 });
 
 // The writeContexts question asked inside a handler that serves every reader.
@@ -80,7 +82,8 @@ function receiveFile(req, res, next) {
   upload.single('file')(req, res, (err) => {
     if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: `The file is larger than ${MAX_TRANSCRIPT_BYTES / (1024 * 1024)} MB.` });
     if (err) return res.status(400).json({ error: err instanceof TranscriptError ? err.message : 'The file could not be received.' });
-    if (!req.file) return res.status(400).json({ error: 'Choose a transcript to upload (field "file").' });
+    const pasted = typeof req.body?.text === 'string' && req.body.text.trim() !== '';
+    if (!req.file && !pasted) return res.status(400).json({ error: 'Add a file (field "file") or paste the text (field "text").' });
     return next();
   });
 }
@@ -189,15 +192,6 @@ router.post('/contexts/:id/claims/reject', writeContexts, requireSql, validIds('
     res.json(await rejectMany(req.params.id, req.body || {}, userOf(req), { db }));
   } catch (err) {
     sendFailure(res, err, 'Rejecting the claims');
-  }
-});
-
-router.get('/contexts/:id/previous-members', requireSql, validIds('id'), async (req, res) => {
-  try {
-    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
-    res.json(await previousMembers(req.params.id, { statuses }, { db }));
-  } catch (err) {
-    sendFailure(res, err, 'Listing previous members');
   }
 });
 

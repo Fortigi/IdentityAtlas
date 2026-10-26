@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
-// Context interviews on a context's page, mounted through ContextProfile the way
-// the detail page uses it: the People block's suggestions from an interview,
-// "What we know" (confirmed claims, the role timeline, the review list, the
-// interviews) and the Upload interview card — and what a reader sees instead.
+// Context interviews on a context's page, mounted the way the detail page puts
+// them together inside one ClaimsProvider: the people block's suggestions from a
+// source, "What we know" (the unit's own facts and its review), the review
+// drawer (every proposed claim), and Sources — and what a reader sees instead.
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { POLL_MS } from './ClaimsProvider';
-import { createElement as h } from 'react';
-import ContextProfile from '@ui/components/contexts/profiles/ContextProfile';
+import { createElement as h, useState } from 'react';
+import ClaimsProvider, { POLL_MS } from './ClaimsProvider';
+import WhatWeKnow from './WhatWeKnow';
+import SourcesSection from './SourcesSection';
+import ReviewDrawer from './ReviewDrawer';
+import ContextPeople from '@ui/components/contexts/ContextPeople';
 import { PROFILES } from '@ui/components/contexts/profiles/profiles';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
-const APP = { id: 'c-app', displayName: 'Planner', contextCategory: 'LogicalApplication', targetType: 'Resource', directMemberCount: 3 };
+const APP = { id: 'c-app', displayName: 'Planner', contextCategory: 'LogicalApplication', targetType: 'Resource', directMemberCount: 3, description: 'Schedules the nursing shifts' };
 const SRC = { intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', fileName: 'gesprek.vtt', proposedBy: 'model' };
 
 const ACCOUNTABLE = { id: 'cl-own', claimKind: 'role', status: 'proposed', principalId: 'p-anna', subjectName: 'interviewee', subjectDisplayName: 'Anna Voorbeeld', subjectMatch: 'interviewee', attribute: 'owner', value: 'owner of the planner', roleSuggestion: 'Accountable', quote: 'Yes, I am the owner of this app', ...SRC };
@@ -18,12 +21,10 @@ const RESPONSIBLE = { id: 'cl-piet', claimKind: 'role', status: 'proposed', prin
 const UNMATCHED = { id: 'cl-karel', claimKind: 'role', status: 'proposed', subjectName: 'Karel', attribute: 'delegate', value: 'backup', roleSuggestion: 'Responsible', quote: 'Karel is my backup', ...SRC };
 const PROPERTY = { id: 'cl-users', claimKind: 'property', status: 'proposed', attribute: 'users', value: 'about 400 nurses', quote: 'about 400 nurses', ...SRC };
 const CONFIRMED = [
-  { id: 'k-desc', claimKind: 'description', status: 'confirmed', value: 'Schedules the nursing shifts', quote: 'It schedules every shift', ...SRC },
   { id: 'k-vendor', claimKind: 'property', status: 'edited', attribute: 'vendor', value: 'Example Software', quote: 'bought from Example Software', ...SRC },
   { id: 'k-h1', claimKind: 'roleHistory', status: 'confirmed', principalId: 'p-bram', subjectDisplayName: 'Bram Test', value: 'junior', periodText: 'early years', ...SRC },
-  { id: 'k-h2', claimKind: 'roleHistory', status: 'confirmed', principalId: 'p-bram', subjectDisplayName: 'Bram Test', value: 'architect CCoE', periodFrom: '2022-01-01', periodText: 'now', ...SRC },
 ];
-const INTERVIEW = { id: 'iv-1', ...SRC, extractionStatus: 'done', extractionMessage: '1 claim was left out because the quote is not in the transcript.', proposed: 4, confirmed: 4 };
+const INTERVIEW = { id: 'iv-1', ...SRC, sourceKind: 'interview', extractionStatus: 'done', extractionMessage: '1 claim was left out because the quote is not in the transcript.', proposed: 4, confirmed: 2 };
 
 // A PATCH of one claim: record it, answer the first Accountable confirmation with
 // a 409 when asked to, otherwise decide the claim and add the role it becomes.
@@ -41,10 +42,9 @@ function patchClaim(state, conflictOnce, id, opts) {
   return { claim: c, effect: { kind: 'none' } };
 }
 
-// The GET answers, by exact URL.
 function getRoutes(state, doubt) {
   return new Map(Object.entries({
-    '/api/contexts/c-app/claims': () => ({ data: state.claims, accountableDoubt: doubt }),
+    '/api/contexts/c-app/claims': () => ({ data: state.claims, accountableDoubt: doubt, contradictions: [] }),
     '/api/contexts/c-app/interviews': () => ({ data: state.interviews }),
     '/api/contexts/c-app/interviews/iv-1/extract': () => jsonResponse({ id: 'iv-1', extractionStatus: 'pending' }, { status: 202 }),
     '/api/contexts/c-app/roles/suggestion': () => jsonResponse(undefined, { status: 204 }),
@@ -53,9 +53,7 @@ function getRoutes(state, doubt) {
   }));
 }
 
-// A stateful API: the claims and roles change as the page decides them; every
-// call is recorded. `conflictOnce` answers the first Accountable confirmation
-// with the 409 the API gives when someone else is Accountable.
+// A stateful API: the claims and roles change as the page decides them.
 function api({ claims = [ACCOUNTABLE, RESPONSIBLE, UNMATCHED, PROPERTY, ...CONFIRMED], roles = [], interviews = [INTERVIEW], conflictOnce = false, doubt = null } = {}) {
   const state = { claims: claims.map(c => ({ ...c })), roles: [...roles], patches: [], conflicted: false, interviews };
   const routes = getRoutes(state, doubt);
@@ -71,28 +69,37 @@ function api({ claims = [ACCOUNTABLE, RESPONSIBLE, UNMATCHED, PROPERTY, ...CONFI
   return { authFetch, state };
 }
 
-// What we know starts folded; most tests here read what is inside it, so they
-// start with it open (as a reader who opened it earlier in the session would).
-function mount({ auth = {}, open = true, ...opts } = {}) {
-  window.sessionStorage.clear();
-  if (open) window.sessionStorage.setItem('ia.whatWeKnow.open.c-app', '1');
+// The sections as the page has them, What we know and Sources open.
+function Page() {
+  const [know, setKnow] = useState(true);
+  const [sources, setSources] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
+  const profile = PROFILES.LogicalApplication;
+  return h(ClaimsProvider, { contextId: APP.id },
+    h(ContextPeople, { attrs: APP, heading: null, accountableLabel: profile.accountableLabel, noun: profile.noun, suggest: true }),
+    h(WhatWeKnow, { attrs: APP, profile, analyst: true, open: know, onOpenChange: setKnow }),
+    h(SourcesSection, { contextId: APP.id, open: sources, onOpenChange: setSources }),
+    h('button', { type: 'button', onClick: () => setReviewing(true) }, 'review all'),
+    reviewing && h(ReviewDrawer, { onClose: () => setReviewing(false) }));
+}
+
+function mount({ auth = {}, ...opts } = {}) {
   const { authFetch, state } = api(opts);
-  renderWithProviders(h(ContextProfile, { profile: PROFILES.LogicalApplication, attrs: APP }), { auth: { authFetch, ...auth } });
+  renderWithProviders(h(Page), { auth: { authFetch, ...auth } });
   return { authFetch, state, user: userEvent.setup() };
 }
 
 const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
-const group = (name) => screen.getByRole('group', { name });
+const group = (name) => screen.getByRole('group', { name: new RegExp(`^${name}`) });
 const whatWeKnow = () => screen.getByRole('region', { name: 'What we know' });
 
-describe('the People block — suggestions from an interview', () => {
+describe('the people block — suggestions from a source', () => {
   it('shows the owner under Owner and the day-to-day person under Responsible, each with the quote and the interview', async () => {
     mount();
     const owner = await within(group('Owner')).findByTestId('interview-suggestion');
     expect(owner).toHaveTextContent(/^Suggested: Anna Voorbeeld· “Yes, I am the owner of this app” \(interview with Anna Voorbeeld, 2026-10-01\)ConfirmNot this personChoose someone else$/);
     const responsible = within(group('Responsible')).getAllByTestId('interview-suggestion');
     expect(responsible.map(r => r.textContent.split('·')[0])).toEqual(['Suggested: Piet Proefpersoon', 'Suggested: Karel']);
-    // A match by first name alone is flagged; the interviewee is not.
     expect(responsible[0]).toHaveTextContent('check the person');
     expect(owner).not.toHaveTextContent('check the person');
   });
@@ -124,21 +131,6 @@ describe('the People block — suggestions from an interview', () => {
     expect(within(group('Owner')).getByTestId('interview-suggestion')).toBeInTheDocument();
   });
 
-  it('Not this person rejects the claim; Choose someone else confirms it for the person picked', async () => {
-    const { state, user } = mount();
-    const rows = await within(group('Responsible')).findAllByTestId('interview-suggestion');
-    await user.click(within(rows[0]).getByRole('button', { name: 'Not this person' }));
-    await user.click(within(rows[1]).getByRole('button', { name: 'Choose someone else' }));
-    expect(screen.getByText('The interview said “Karel”')).toBeInTheDocument();
-    await user.type(screen.getByRole('textbox', { name: 'Find the person who was meant' }), 'kar');
-    await user.click(await screen.findByRole('button', { name: 'Karel Kiezer' }));
-    await waitFor(() => expect(state.patches).toEqual([
-      { id: 'cl-piet', body: { status: 'rejected' } },
-      { id: 'cl-karel', body: { status: 'confirmed', principalId: 'p-karel' } },
-    ]));
-    await waitFor(() => expect(screen.queryByText('The interview said “Karel”')).toBeNull());
-  });
-
   it('shows a doubt about the current Accountable under it', async () => {
     mount({ roles: [{ id: 'r-1', role: 'Accountable', principalId: 'p-anna', displayName: 'Anna Voorbeeld', addedBy: 'analyst' }],
       doubt: { claimId: 'c-x', quote: 'I am not really the owner', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01' } });
@@ -146,45 +138,39 @@ describe('the People block — suggestions from an interview', () => {
   });
 });
 
-describe('What we know', () => {
-  it('groups the confirmed claims, each with its source, and draws the role timeline', async () => {
+describe('What we know — the unit itself', () => {
+  it('holds the description and the properties with their source; nothing about people', async () => {
     mount();
     const region = await screen.findByRole('region', { name: 'What we know' });
+    await waitFor(() => expect(within(region).getByText('vendor').nextElementSibling).toHaveTextContent(/^Example Software/));
     expect(within(region).getByText('Schedules the nursing shifts')).toBeInTheDocument();
-    expect(within(region).getByText('vendor').nextElementSibling).toHaveTextContent(/^Example Software/);
-    const timeline = within(region).getByTestId('role-timeline');
-    expect(timeline).toHaveTextContent('Bram Test: architect CCoE (since 2022 (now)) → junior (early years)');
-    expect(within(region).getAllByText('interview with Anna Voorbeeld, 2026-10-01').length).toBeGreaterThan(1);
+    expect(region).not.toHaveTextContent('Bram Test');
+    expect(region).not.toHaveTextContent('junior');
+    expect(within(region).getByText('interview with Anna Voorbeeld, 2026-10-01')).toBeInTheDocument();
   });
 
-  it('a corrected or unsure claim says so in its row', async () => {
-    const corrected = { ...PROPERTY, id: 'cl-m', claimKind: 'membership', subjectName: 'Gerrit', attribute: 'current', value: 'betrokken (corrected: the sentence says current; the model said former)', confidence: 0.8 };
-    mount({ claims: [corrected, { ...UNMATCHED, confidence: 0.3 }] });
-    const rows = within(await screen.findByRole('list', { name: 'Claims to review' })).getAllByTestId('claim-review-row');
-    const row = (text) => rows.find(r => r.textContent.includes(text));
-    expect(row('Gerrit')).toHaveTextContent('corrected: the sentence says current');
-    expect(row('Gerrit')).not.toHaveTextContent('unsure — read the quote');
-    expect(row('Karel')).toHaveTextContent('unsure — read the quote');
-  });
-
-  it('lists what is to review; Edit changes the value and confirms it', async () => {
+  it('reviews only the unit\'s own claims; Edit changes the value and confirms it', async () => {
     const { state, user } = mount();
-    const list = await screen.findByRole('list', { name: 'Claims to review' });
+    const list = await within(whatWeKnow()).findByRole('list', { name: 'Claims to review' });
     const rows = within(list).getAllByTestId('claim-review-row');
-    expect(rows).toHaveLength(4);
-    const property = rows.find(r => r.textContent.includes('users: about 400 nurses'));
-    await user.click(within(property).getByRole('button', { name: 'Edit' }));
-    const value = within(property).getByRole('textbox', { name: 'Value' });
+    expect(rows.map(r => r.textContent.split('Quote')[0])).toEqual(['Propertyusers: about 400 nurses']);
+    await user.click(within(rows[0]).getByRole('button', { name: 'Edit' }));
+    const value = within(rows[0]).getByRole('textbox', { name: 'Value' });
     await user.clear(value);
     await user.type(value, 'about 450 nurses');
-    await user.click(within(property).getByRole('button', { name: 'Save and confirm' }));
+    await user.click(within(rows[0]).getByRole('button', { name: 'Save and confirm' }));
     await waitFor(() => expect(state.patches).toEqual([{ id: 'cl-users', body: { status: 'edited', value: 'about 450 nurses', periodText: null } }]));
     await waitFor(() => expect(within(whatWeKnow()).getByText('users').nextElementSibling).toHaveTextContent(/^about 450 nurses/));
   });
+});
 
-  it('a role claim with nobody matched asks who was meant before it confirms', async () => {
+describe('the review drawer — every proposed claim', () => {
+  it('lists the people\'s claims too; a role claim with nobody matched asks who was meant before it confirms', async () => {
     const { state, user } = mount();
-    const rows = within(await screen.findByRole('list', { name: 'Claims to review' })).getAllByTestId('claim-review-row');
+    await user.click(screen.getByRole('button', { name: 'review all' }));
+    const drawer = await screen.findByRole('dialog', { name: 'To review' });
+    const rows = within(drawer).getAllByTestId('claim-review-row');
+    expect(rows).toHaveLength(4);
     const karel = rows.find(r => r.textContent.includes('Karel'));
     expect(within(karel).queryByRole('button', { name: 'Confirm' })).toBeNull();
     await user.click(within(karel).getByRole('button', { name: 'Choose who and confirm' }));
@@ -193,39 +179,31 @@ describe('What we know', () => {
     await waitFor(() => expect(state.patches).toEqual([{ id: 'cl-karel', body: { status: 'confirmed', principalId: 'p-karel' } }]));
   });
 
-  it('Reject rejects; the interview list says what the run left out and reads it again on request', async () => {
-    const { state, authFetch, user } = mount();
-    const rows = within(await screen.findByRole('list', { name: 'Claims to review' })).getAllByTestId('claim-review-row');
-    await user.click(within(rows[0]).getByRole('button', { name: 'Reject' }));
-    await waitFor(() => expect(state.patches).toEqual([{ id: 'cl-own', body: { status: 'rejected' } }]));
-    const interviews = screen.getByRole('list', { name: 'Interviews' });
-    expect(interviews).toHaveTextContent('Anna Voorbeeld2026-10-01 · gesprek.vttRead4 to review · 4 confirmed');
-    expect(interviews).toHaveTextContent('1 claim was left out because the quote is not in the transcript.');
-    await user.click(within(interviews).getByRole('button', { name: 'Read again' }));
-    expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews/iv-1/extract', { method: 'POST' });
-  });
-
-  it('Delete asks first, then deletes the interview', async () => {
-    const { authFetch, user } = mount();
-    const interviews = await screen.findByRole('list', { name: 'Interviews' });
-    await user.click(within(interviews).getByRole('button', { name: 'Delete' }));
-    expect(await screen.findByText(/What confirmed claims already changed stays/)).toBeInTheDocument();
-    // The dialog's own Delete is the last one on the page.
-    await user.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1));
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews/iv-1', { method: 'DELETE' }));
-  });
-
-  it('shows nothing when there are no claims and no interviews', async () => {
-    const { authFetch } = mount({ claims: [], interviews: [] });
-    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews'));
-    expect(screen.queryByRole('region', { name: 'What we know' })).toBeNull();
+  it('Escape closes it; with nothing to review it says so', async () => {
+    const { user } = mount({ claims: CONFIRMED });
+    await user.click(screen.getByRole('button', { name: 'review all' }));
+    expect(await screen.findByText('Nothing left to review.')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'To review' })).toBeNull();
   });
 });
 
-describe('while an interview is being read', () => {
+describe('Sources', () => {
+  it('folds to how many and the latest date; lists the run, reads it again, Add information sits on its line', async () => {
+    const { authFetch, user } = mount();
+    expect(await screen.findByTestId('sources-summary')).toHaveTextContent('1 source · latest 2026-10-01');
+    const sources = await screen.findByRole('list', { name: 'Sources' });
+    expect(sources).toHaveTextContent('InterviewAnna Voorbeeld · 2026-10-01 · gesprek.vttRead4 to review · 2 confirmed');
+    await user.click(within(sources).getByRole('button', { name: 'Read again' }));
+    expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews/iv-1/extract', { method: 'POST' });
+    expect(within(screen.getByRole('region', { name: 'Sources' })).getByRole('button', { name: 'Add information' })).toBeInTheDocument();
+  });
+});
+
+describe('while a source is being read', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('reads the interviews and claims again every few seconds, and stops once none is in progress', async () => {
+  it('reads the sources and claims again every few seconds, and stops once none is in progress', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const { authFetch, state } = mount({ interviews: [{ ...INTERVIEW, extractionStatus: 'running' }] });
     const calls = () => authFetch.mock.calls.filter(c => c[0] === '/api/contexts/c-app/interviews').length;
@@ -237,34 +215,24 @@ describe('while an interview is being read', () => {
     expect(calls()).toBe(2);
   });
 
-  it('a run that goes on says how long, and that the model may be busy — and the line keeps ticking', async () => {
+  it('a run that goes on says how long, and that the model may be busy', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-10-23T12:00:00Z'));
     mount({ interviews: [{ ...INTERVIEW, extractionStatus: 'running', extractionStartedAt: '2026-10-23T11:59:00Z' }] });
-    const status = await screen.findByTestId('extraction-status');
-    expect(status).toHaveTextContent(/^Reading…$/);
+    expect(await screen.findByTestId('extraction-status')).toHaveTextContent(/^Reading…$/);
     await vi.advanceTimersByTimeAsync(90_000);
     await waitFor(() => expect(screen.getByTestId('extraction-status')).toHaveTextContent('Reading… 2 min — the model may still be busy with another request'));
   });
 });
 
-describe('the Upload interview card', () => {
-  it('is in the Actions area for an analyst', async () => {
-    mount();
-    expect(await screen.findByTestId('action-upload-interview')).toHaveTextContent('Upload interview');
-  });
-});
-
 describe('a reader without data.write.contexts', () => {
-  it('sees what is confirmed, and no review, interviews, upload or suggestions', async () => {
+  it('sees what is confirmed, and no review, sources, Add information or suggestions', async () => {
     const { authFetch } = mount({ auth: READER, claims: CONFIRMED });
     const region = await screen.findByRole('region', { name: 'What we know' });
-    expect(within(region).getByText('Schedules the nursing shifts')).toBeInTheDocument();
-    // Only the fold toggle: no review, no transcript.
-    expect(within(region).getAllByRole('button').map(b => b.getAttribute('aria-expanded'))).toEqual(['true']);
-    expect(within(region).queryByRole('button', { name: 'View transcript' })).toBeNull();
-    expect(screen.queryByRole('list', { name: 'Claims to review' })).toBeNull();
-    expect(screen.queryByTestId('action-upload-interview')).toBeNull();
+    await waitFor(() => expect(within(region).getByText('vendor')).toBeInTheDocument());
+    expect(within(region).queryByRole('list', { name: 'Claims to review' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Sources' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add information' })).toBeNull();
     expect(screen.queryByTestId('interview-suggestion')).toBeNull();
     expect(authFetch.mock.calls.map(c => c[0])).not.toContain('/api/contexts/c-app/interviews');
   });

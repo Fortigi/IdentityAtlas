@@ -1,4 +1,4 @@
-﻿// Shared modal + form helpers used by every Contexts tab modal (create manual
+// Shared modal + form helpers used by every Contexts tab modal (create manual
 // tree, run plugin, edit, etc.). Keeping them here so the visual language
 // stays consistent and we don't duplicate the overlay / close-on-backdrop-click
 // logic five times.
@@ -20,7 +20,7 @@ export function Modal({ title, subtitle, onClose, children, width = 480, dismiss
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{title}</h3>
-            {subtitle && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}
+            {subtitle && <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{subtitle}</p>}
           </div>
           <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 ml-4" aria-label="Close">✕</button>
         </div>
@@ -35,7 +35,7 @@ export function Field({ label, help, children }) {
     <div>
       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">{label}</label>
       {children}
-      {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{help}</p>}
+      {help && <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{help}</p>}
     </div>
   );
 }

@@ -69,15 +69,15 @@ describe('ContextsPage — a nested node of a derived tree', () => {
     expect(within(detailPane()).getByText('HTTP 500')).toBeInTheDocument();
   });
 
-  it('a failed members read says so instead of passing for an empty unit', async () => {
+  it('a failed people read says so instead of passing for an empty unit', async () => {
     sessionStorage.setItem('iatlas.contexts.selected', JSON.stringify({ 'OrganizationalUnit:Principal': 'eng' }));
     const base = api();
-    const authFetch = vi.fn((url, opts) => (String(url).startsWith('/api/contexts/eng/members')
+    const authFetch = vi.fn((url, opts) => (String(url).startsWith('/api/contexts/eng/people')
       ? Promise.resolve(jsonResponse({ error: 'boom' }, { ok: false, status: 503 }))
       : base(url, opts)));
     renderWithProviders(h(ContextsPage, { onOpenDetail: vi.fn() }), { auth: { authFetch } });
-    expect(await screen.findByRole('alert')).toHaveTextContent('Members could not be loaded (HTTP 503).');
-    expect(within(detailPane()).queryByText('No members found.')).toBeNull();
+    expect(await screen.findByText('People could not be loaded (HTTP 503).')).toHaveAttribute('role', 'alert');
+    expect(within(detailPane()).queryByText('Nobody here.')).toBeNull();
   });
 
   it('says it is loading, rather than showing nothing, while the trees are read', async () => {

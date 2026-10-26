@@ -15,7 +15,7 @@ import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
-import { withInterviewMemberFacts } from '../../contexts/interviews/memberFacts.js';
+import { loadPeople } from '../../contexts/interviews/peopleLoad.js';
 import { canWriteContexts, READER_STATUSES } from './interviews.js';
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
@@ -275,14 +275,12 @@ router.get('/contexts/:id', async (req, res) => {
 });
 
 // ─── GET /api/contexts/:id/members ───────────────────────────────────
-// Paginated members. Optional ?search filters on the member's display name.
-// A member a decision marked former (contexts/interviews/memberOverrides.js) is
-// left out of the current members — `overriddenCount` says how many — unless
-// ?includeOverridden=true, which lists them too, each with `overridden`.
-// On an organisational unit or a logical application each account or person
-// also carries what its interviews say about them (`interview: { role, left }`,
-// contexts/interviews/memberFacts.js) — one more statement for the whole page;
-// a reader without data.write.contexts gets it from confirmed claims only.
+// Paginated members, as their source lists them. Optional ?search filters on the
+// member's display name. A member a decision marked former (contexts/interviews/
+// memberOverrides.js) is left out of the current members — `overriddenCount` says
+// how many — unless ?includeOverridden=true, which lists them too, each with
+// `overridden`. What the added sources say about the people of a unit is the
+// People overview's (GET /contexts/:id/people, below).
 router.get('/contexts/:id/members', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json({ data: [], total: 0 });
@@ -300,14 +298,39 @@ router.get('/contexts/:id/members', async (req, res) => {
     const { rows, total, overriddenCount } = await loadMembers(req.params.id, ctx.targetType, {
       limit, offset, search, withTotal: true, includeDescendants, includeOverridden,
     });
-    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
-    const data = ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)
-      ? await withInterviewMemberFacts(db, req.params.id, ctx.targetType, rows, statuses)
-      : rows;
-    res.json({ data, total, overriddenCount });
+    res.json({ data: rows, total, overriddenCount });
   } catch (err) {
     console.error('GET /contexts/:id/members failed:', err.message);
     res.status(500).json({ error: 'Failed to load context members' });
+  }
+});
+
+// ─── GET /api/contexts/:id/people ────────────────────────────────────
+// The People overview of an organisational unit or a logical application: one
+// row per person — the members its source lists, merged with what the added
+// sources say about people (role, history, membership claims), with one status
+// (current, cameBack, notConfirmed, leftDecided, left), their roles here, the
+// claims about them, the open contradictions they are in and what they still
+// hold. ?filter=current|former|all|decide, ?search, ?limit (100, max 500),
+// ?offset; `counts` holds every filter's count. A reader without
+// data.write.contexts (a context owner too) is answered from confirmed claims
+// only. Rules: contexts/interviews/people.js; reads: peopleLoad.js.
+export const PEOPLE_DEPS = { db, loadMembers, loadRoles: loadContextRoles };
+
+router.get('/contexts/:id/people', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json({ data: [], total: 0, counts: { current: 0, former: 0, all: 0, decide: 0 } });
+  try {
+    const ctx = await db.queryOne(`SELECT id, "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
+    if (!ctx) return res.status(404).json({ error: 'Context not found' });
+    if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
+      return res.status(400).json({ error: 'The people overview is for an organizational unit or a logical application.' });
+    }
+    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
+    res.json(await loadPeople(PEOPLE_DEPS, ctx, req.query, statuses));
+  } catch (err) {
+    console.error('GET /contexts/:id/people failed:', err.message);
+    res.status(500).json({ error: 'Failed to load the people' });
   }
 });
 

@@ -4,6 +4,8 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { useContextClaims } from './claimsContext';
 import { KIND_LABELS, claimLine, periodLabel } from './claims.helpers';
 import { buildTranscriptView, primaryClaimId, markClass, KIND_STYLES, STATUS_WORDS } from './transcript.helpers';
+import ClaimDecision from './ClaimDecision';
+import { sourceLabel } from './claims.helpers';
 
 // ─── The transcript, with what was taken from it ─────────────────────────
 // A side panel over the page: the interview as a dialogue (speaker column,
@@ -23,9 +25,16 @@ import { buildTranscriptView, primaryClaimId, markClass, KIND_STYLES, STATUS_WOR
 export const TURN_PAGE = 2000;
 export const PULSE_MS = 1600;
 
+// "Interview with Ann, 2026-10-01 · talk.vtt" — or, for a file or pasted text, where it came from.
+function sourceTitle(source) {
+  const label = sourceLabel(source);
+  const said = label.charAt(0).toUpperCase() + label.slice(1);
+  return source.fileName && (source.sourceKind ?? 'interview') === 'interview' ? `${said} · ${source.fileName}` : said;
+}
+
 function Legend() {
   return (
-    <div aria-label="Legend" role="group" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-700 dark:text-gray-300">
+    <div aria-label="Legend" role="group" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-700 dark:text-gray-300">
       {Object.keys(KIND_STYLES).map(kind => (
         <span key={kind} className="inline-flex items-center gap-1">
           <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-sm ${KIND_STYLES[kind].swatch}`} />{KIND_LABELS[kind]}
@@ -41,15 +50,6 @@ function Legend() {
 }
 
 function ClaimCard({ claim, decide }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  async function run(status) {
-    setBusy(true); setError(null);
-    const out = await decide(claim, { status });
-    setBusy(false);
-    if (!out.ok && !out.cancelled) setError(out.error);
-  }
-  const needsPerson = claim.claimKind === 'role' && claim.roleSuggestion && !claim.principalId && !claim.identityId;
   const period = periodLabel(claim);
   return (
     <li className="space-y-1 py-1.5" data-testid="transcript-claim-card">
@@ -59,15 +59,7 @@ function ClaimCard({ claim, decide }) {
         {period && <span className="text-xs text-gray-600 dark:text-gray-400">{period}</span>}
         <span className="text-xs text-gray-600 dark:text-gray-400">{STATUS_WORDS[claim.status] || claim.status}</span>
       </div>
-      {claim.status === 'proposed' && (needsPerson
-        ? <p className="text-xs text-gray-600 dark:text-gray-400">Choose who this is about in the review list.</p>
-        : (
-          <div className="flex gap-1.5">
-            <button type="button" disabled={busy} onClick={() => run('confirmed')} className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600">Confirm</button>
-            <button type="button" disabled={busy} onClick={() => run('rejected')} className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Reject</button>
-          </div>
-        ))}
-      {error && <p role="alert" className="text-xs text-red-700 dark:text-red-400">{error}</p>}
+      <ClaimDecision claim={claim} decide={decide} />
     </li>
   );
 }
@@ -136,21 +128,21 @@ export default function TranscriptPanel({ interviewId, focus, onClose }) {
   const cards = selected.map(id => claimsById.get(id)).filter(Boolean);
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30 dark:bg-black/60" onClick={onClose}>
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Transcript" onClick={e => e.stopPropagation()}
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Source" onClick={e => e.stopPropagation()}
         className="flex h-full w-full max-w-3xl flex-col outline-none border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
         <div className="space-y-2 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Transcript</h3>
-              {interview && <p className="text-xs text-gray-600 dark:text-gray-400">Interview with {interview.intervieweeName}, {interview.interviewedAt}{interview.fileName ? ` · ${interview.fileName}` : ''}</p>}
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Source</h3>
+              {interview && <p className="text-xs text-gray-600 dark:text-gray-400">{sourceTitle(interview)}</p>}
             </div>
-            <button type="button" onClick={onClose} aria-label="Close transcript" className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">✕</button>
+            <button type="button" onClick={onClose} aria-label="Close the source" className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">✕</button>
           </div>
           <Legend />
         </div>
         <div ref={bodyRef} className="flex-1 overflow-auto px-5 py-3" data-testid="transcript-body">
-          {loading && <p className="text-sm text-gray-600 dark:text-gray-400">Loading the transcript…</p>}
-          {error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">The transcript could not be loaded ({String(error.message || error)}).</p>}
+          {loading && <p className="text-sm text-gray-600 dark:text-gray-400">Loading the text…</p>}
+          {error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">The text could not be loaded ({String(error.message || error)}).</p>}
           {data && (
             <div className="grid grid-cols-[minmax(0,8rem)_1fr] gap-x-3 gap-y-1.5 text-sm leading-relaxed">
               {turns.slice(0, shown).map(turn => (

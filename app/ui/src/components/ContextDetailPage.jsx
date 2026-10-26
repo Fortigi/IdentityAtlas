@@ -1,45 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import RiskScoreSection from './RiskScoreSection';
 import ContextDetailHeader from './ContextDetailHeader';
-import ContextProfile from './contexts/profiles/ContextProfile';
 import { profileFor } from './contexts/profiles/profiles';
 import ContextDetails from './contexts/ContextDetails';
+import ContextPeople from './contexts/ContextPeople';
 import UploadProvenance from './contexts/UploadProvenance';
 import ContextEditModal from './contexts/ContextEditModal';
 import ContextRelationshipsTab from './ContextRelationshipsTab';
-import TabBar from './TabBar';
-import EntityTimeline from './EntityTimeline';
-import useTimeline from '@ui/hooks/useTimeline';
+import ProfileBody from './contexts/page/ProfileBody';
+import { TimelineSection, RiskSection } from './contexts/page/PageSections';
 import useFeatures from '@ui/hooks/useFeatures';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
-import { useContextDetail, contextPageView } from './contexts/useContextDetail';
+import { useContextDetail, contextPageView, listsMembers } from './contexts/useContextDetail';
 import ClaimsProvider from './contexts/interviews/ClaimsProvider';
-import { ContradictionsBadge } from './contexts/interviews/Contradictions';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
 // One page, two readers (decided 2026-10-20, permission-driven):
 //   business view  no data.write.contexts (or a shared read-only view): the
-//                  name and one sentence on what it is, the people who answer
-//                  for it, the facts, the actions, the sub-units and members.
-//                  No Edit, no Timeline, no raw classification, no member
-//                  edits. Standalone, the app shell hides its navigation too
-//                  (AppHeader) — the breadcrumb is the way around.
-//   analyst view   with it (auth off counts): the same page plus Edit, Add
-//                  sub-unit, the raw values under More details, the Timeline
-//                  and Risk tabs, and an "Edit members" mode on a context
-//                  created here (the only kind whose member edits last).
-// Loaded via /api/contexts/:id. Standalone, document.title is the unit name.
-// A unit or an application (a template profile) has interviews: the page sits
-// in one ClaimsProvider, so What we know, the People block and the members
-// lists (role, left, previous members) share its claims and its transcript view.
+//                  name and one sentence on what it is, who answers for it,
+//                  Download report, the people (current and former), what we
+//                  know about it and its sub-units. No Edit, no review, no
+//                  sources, no Timeline. Standalone, the app shell hides its
+//                  navigation too (AppHeader) — the breadcrumb is the way around.
+//   analyst view   with it (auth off counts): the same page plus Add information,
+//                  the attention line ("2 to decide · 13 to review · 1 to correct
+//                  in the source"), the review buttons, Sources, Change requests,
+//                  the Timeline and Risk at the foot, the raw values under More
+//                  details, and Edit / Add sub-unit / Edit members on a context
+//                  created here (the only kind whose edits last).
+// A unit or an application (a template profile) reads as one column of sections:
+// People → What we know → Sources → Change requests → Sub-units → Timeline
+// (contexts/page/ProfileBody.jsx). Anything else keeps the generic page: its
+// details, sub-units and members, then the Timeline. Loaded via /api/contexts/:id.
+// Standalone, document.title is the unit name. A unit or an application sits in
+// one ClaimsProvider, shared by its header, People, What we know and Sources.
 //
 // `embedded`: rendered inside the Contexts page's right pane — no close
-// button (onClose then only runs after a delete), an "Open as page" button
+// button (onClose then only runs after a delete), an "Open as page" item
 // (onOpenAsPage(attrs)) instead. `refreshKey` re-reads the context when the
 // tree beside it changed it; `onEdited` tells the page an edit here did.
 
@@ -53,20 +54,13 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   // (a context owner may open no member, person or sub-unit page).
   const openEntity = linkTarget(sharedView, onOpenDetail);
   const [editing, setEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState('members');
-  const [timelineDays, setTimelineDays] = useState(90);
+  // Goes up whenever something on the page may have changed who is in it or what is said about them.
+  const [peopleVersion, bumpPeople] = useReducer(n => n + 1, 0);
   const { detail, loading, error, fetchDetail, refreshDetail, riskData } = useContextDetail(authFetch, contextId, refreshKey, onCacheData);
-  const m = useContextMembers(authFetch, contextId, refreshKey);
-
-  const timeline = useTimeline('context', contextId, authFetch, {
-    sinceDays: timelineDays,
-    enabled: analyst && activeTab === 'timeline',
-  });
+  const m = useContextMembers(authFetch, contextId, refreshKey, { enabled: listsMembers(detail?.attributes) });
 
   // The standalone page carries the unit's name in the browser tab.
   usePageTitle(pageTitleOf(embedded, detail));
-
-  // ─── Render ────────────────────────────────────────────────────────
 
   // Embedded, the page has no Close of its own: the pane beside it selects.
   const close = embedded ? undefined : onClose;
@@ -76,82 +70,32 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
 
   const attrs = detail.attributes;
   const subContexts = detail.subContexts || [];
-  const { editable, membersEditable, tabs, shownTab } = contextPageView({
-    analyst, attrs, activeTab, memberTotal: m.memberTotal, hasRisk: riskShown(features, riskData),
-  });
-  const sectionIds = { members: `context-members-${contextId}`, subUnits: `context-sub-units-${contextId}` };
-  const refreshAll = () => { m.fetchMembers(); fetchDetail(); onEdited?.(); };
+  const profile = profileFor(attrs.contextCategory);
+  const { editable, membersEditable } = contextPageView({ analyst, attrs });
+  const refreshAll = () => { m.fetchMembers(); fetchDetail(); bumpPeople(); onEdited?.(); };
   // A claim decision may change the members' facts and the context itself (an
   // alias, a property, the description): both re-read, the page stays put.
-  const afterDecision = () => { m.fetchMembers(); refreshDetail(); };
-
-  // A count in the facts card goes to the list it counts.
-  function showSection(sectionId) {
-    setActiveTab('members');
-    requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
-  }
+  const afterDecision = () => { m.fetchMembers(); refreshDetail(); bumpPeople(); };
 
   async function onAddSubUnit() {
     if (await promptAndAddSubUnit(dialog, authFetch, attrs)) { fetchDetail(); onEdited?.(); }
   }
 
-  // One render function per tab; only the active one runs.
-  const panels = {
-    members: () => (
-      <ContextRelationshipsTab
-        subContexts={subContexts}
-        sectionIds={sectionIds}
-        contextId={contextId}
-        attrs={attrs}
-        canEditMembers={membersEditable}
-        includeDescendants={m.includeDescendants}
-        onIncludeDescendantsChange={m.setIncludeDescendants}
-        memberSearch={m.memberSearch}
-        onMemberSearchChange={m.setMemberSearch}
-        members={m.members}
-        memberTotal={m.memberTotal}
-        overriddenCount={m.overriddenCount}
-        includeOverridden={m.includeOverridden}
-        onIncludeOverriddenChange={m.setIncludeOverridden}
-        membersLoading={m.membersLoading}
-        membersError={m.membersError}
-        memberPage={m.memberPage}
-        onMemberPageChange={m.setMemberPage}
-        pageSize={MEMBER_PAGE_SIZE}
-        authFetch={authFetch}
-        onMembersChanged={refreshAll}
-        onOpenDetail={openEntity}
-      />
-    ),
-
-    timeline: () => (
-      <EntityTimeline
-        events={timeline.events}
-        loading={timeline.loading}
-        sinceDays={timelineDays}
-        onSinceDaysChange={setTimelineDays}
-        onOpenDetail={openEntity}
-        hideFields={TIMELINE_HIDDEN_FIELDS}
-      />
-    ),
-
-    risk: () => riskData && <RiskScoreSection attributes={riskData} entityType="contexts" entityId={contextId} authFetch={authFetch} />,
+  const members = {
+    contextId, attrs, authFetch, canEditMembers: membersEditable, pageSize: MEMBER_PAGE_SIZE, onMembersChanged: refreshAll, onOpenDetail: openEntity,
+    includeDescendants: m.includeDescendants, onIncludeDescendantsChange: m.setIncludeDescendants,
+    memberSearch: m.memberSearch, onMemberSearchChange: m.setMemberSearch, members: m.members, memberTotal: m.memberTotal,
+    membersLoading: m.membersLoading, membersError: m.membersError, memberPage: m.memberPage, onMemberPageChange: m.setMemberPage,
   };
 
   return (
-    <WithClaims contextId={contextId} attrs={attrs} onDecided={afterDecision}>
+    <WithClaims contextId={contextId} profile={profile} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
-        <DetailTop
-          contextId={contextId}
-          attrs={attrs}
-          subContexts={subContexts}
-          analyst={analyst}
-          {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
-          onOpenDetail={onOpenDetail}
-          openEntity={openEntity}
-          onShowMembers={() => showSection(sectionIds.members)}
-          onShowSubUnits={() => showSection(sectionIds.subUnits)}
-        />
+        <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} addInformation={!!profile && analyst}
+          {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}>
+          <WhoAnswers profile={profile} attrs={attrs} onOpenDetail={openEntity} onRolesChanged={bumpPeople} />
+        </ContextDetailHeader>
+        <UploadProvenance attrs={attrs} />
 
         {editing && (
           <ContextEditModal
@@ -163,19 +107,59 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
           />
         )}
 
-        {tabs && <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />}
-
-        <div className="mt-4 space-y-4">
-          {panels[shownTab]?.()}
-        </div>
+        <PageBody profile={profile} contextId={contextId} attrs={attrs} subContexts={subContexts} analyst={analyst}
+          membersEditable={membersEditable} openEntity={openEntity} onOpenDetail={onOpenDetail} peopleVersion={peopleVersion}
+          onMembersChanged={refreshAll} members={members} />
+        <AnalystFoot analyst={analyst} contextId={contextId} authFetch={authFetch} onOpenDetail={openEntity}
+          riskData={riskShown(features, riskData) ? riskData : null} />
       </div>
     </WithClaims>
   );
 }
 
+// Who answers for a unit or an application, under the name (ContextPeople, in
+// the profile's words); nothing for any other context.
+function WhoAnswers({ profile, attrs, onOpenDetail, onRolesChanged }) {
+  if (!profile) return null;
+  return (
+    <ContextPeople attrs={attrs} onOpenDetail={onOpenDetail} heading={null} accountableLabel={profile.accountableLabel}
+      noun={profile.noun} suggest onRolesChanged={onRolesChanged} />
+  );
+}
+
+// A unit's or an application's sections, or the generic page's.
+function PageBody({ profile, ...props }) {
+  if (profile) return <ProfileBody profile={profile} {...props} />;
+  return <GenericBody attrs={props.attrs} analyst={props.analyst} subContexts={props.subContexts} members={props.members} />;
+}
+
+// The analyst's foot of the page: the Timeline, and the Risk score when there is one.
+function AnalystFoot({ analyst, contextId, authFetch, onOpenDetail, riskData }) {
+  if (!analyst) return null;
+  return (
+    <>
+      <TimelineSection contextId={contextId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+      <RiskSection contextId={contextId} riskData={riskData} authFetch={authFetch} />
+    </>
+  );
+}
+
+// A context without a template: its description, its details, its sub-units and members.
+function GenericBody({ attrs, analyst, subContexts, members }) {
+  return (
+    <>
+      {attrs.description && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>
+      )}
+      <ContextDetails key={attrs.id} attrs={attrs} framed analyst={analyst} />
+      <ContextRelationshipsTab subContexts={subContexts} {...members} />
+    </>
+  );
+}
+
 // The claims of a unit or an application, for the whole page; anything else has none.
-function WithClaims({ contextId, attrs, onDecided, children }) {
-  if (!profileFor(attrs.contextCategory)) return children;
+function WithClaims({ contextId, profile, onDecided, children }) {
+  if (!profile) return children;
   return <ClaimsProvider contextId={contextId} onDecided={onDecided}>{children}</ClaimsProvider>;
 }
 
@@ -197,7 +181,7 @@ function pageTitleOf(embedded, detail) {
   return embedded ? null : detail?.attributes?.displayName;
 }
 
-// The Risk tab shows when the feature is on and the context has a score.
+// The Risk section shows when the feature is on and the context has a score.
 function riskShown(features, riskData) {
   return !!features.riskScoring && riskData?.riskScore != null;
 }
@@ -215,9 +199,6 @@ function headerActions({ analyst, editable, embedded, attrs, onClose, onOpenAsPa
     onAddSubUnit: editable ? onAddSubUnit : undefined,
   };
 }
-
-// Attributes whose changes mean nothing to a reader of the timeline.
-const TIMELINE_HIDDEN_FIELDS = ['lastCalculatedAt', 'SysStartTime', 'SysEndTime'];
 
 // Sets document.title while the page shows `title`, restoring the previous
 // one when it goes away. Nothing happens for a null title (embedded).
@@ -257,29 +238,5 @@ function DetailStatus({ loading, error, onRetry, onClose }) {
       Context not found.
       {onClose && <button onClick={onClose} className="ml-2 text-blue-500 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300">Close</button>}
     </div>
-  );
-}
-
-// Header, description and — for organisational units and applications — the
-// template's profile (facts, variants, workflows), with the remaining
-// attributes (More details) at the foot of its facts. Tags, segments and the
-// rest keep the generic page, with More details as a card of its own.
-// The header links only through `openEntity` (none when read-only); the profile
-// keeps the shell's handler, which a context owner's page limits to its scope.
-function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, onOpenDetail, openEntity, ...headerProps }) {
-  const profile = profileFor(attrs.contextCategory);
-  return (
-    <>
-      <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} {...headerProps} />
-      {profile && <div className="flex"><ContradictionsBadge /></div>}
-      <UploadProvenance attrs={attrs} />
-      {attrs.description && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>
-      )}
-      {profile
-        ? <ContextProfile key={contextId} profile={profile} attrs={attrs} subContexts={subContexts} onOpenDetail={onOpenDetail}
-            analyst={analyst} onShowMembers={onShowMembers} onShowSubUnits={onShowSubUnits} />
-        : <ContextDetails key={contextId} attrs={attrs} framed analyst={analyst} />}
-    </>
   );
 }

@@ -253,7 +253,7 @@ ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     ia:table "ContextClaims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 ia:MemberOverride a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Member override" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access." ;
+    rdfs:comment "An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, the People overview shows them as left (decided) with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access." ;
     ia:table "ContextMemberOverrides" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 # ─── Principal types (closed: ingest enum on principalType) ──────────────────

@@ -11,20 +11,6 @@ export function memberCount(attrs) {
   return typeof n === 'number' ? n : null;
 }
 
-// The member fact, matching the members list below it: "12 in this unit ·
-// 37 including sub-units" when sub-units add members, else the one count —
-// with "(1 marked former)" when a decision marked members former that their
-// source still lists (they are in the counts, as the source has them).
-export function memberCountText(attrs, noun = 'this unit') {
-  const direct = attrs?.directMemberCount;
-  const total = memberCount(attrs);
-  const former = attrs?.overriddenMemberCount > 0 ? ` (${attrs.overriddenMemberCount} marked former)` : '';
-  if (typeof direct === 'number' && typeof total === 'number' && total > direct) {
-    return `${direct} in ${noun}${former} · ${total} including sub-units`;
-  }
-  return `${total ?? 0}${former}`;
-}
-
 // The SameUnitAs links out of a GET /relationships response (anything else —
 // another relationship type, a non-array body — is not a variant).
 export function sameUnitLinks(rows) {

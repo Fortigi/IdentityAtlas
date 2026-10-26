@@ -41,6 +41,7 @@ describe('contextOwnerVerdict — one context', () => {
     (id) => `/api/contexts/${id}/roles`,
     (id) => `/api/contexts/${id}/relationships`,
     (id) => `/api/contexts/${id}/claims`,
+    (id) => `/api/contexts/${id}/people`,
     (id) => `/api/contexts/${id}/timeline`,
     (id) => `/api/risk-scores/contexts/${id}`,
   ];
@@ -63,6 +64,8 @@ describe('contextOwnerVerdict — one context', () => {
     [`/api/contexts/${MINE}/interviews`, 'the interviews, whose transcripts are the analyst\'s'],
     ['/api/contexts/claims/mentions', 'mentions across contexts'],
     [`/api/contexts/${MINE}/members/${OTHER}`, 'a member sub-resource'],
+    [`/api/contexts/${MINE}/people/`, 'the people overview with a trailing slash'],
+    [`/api/contexts/${MINE}/previous-members`, 'the retired previous-members read'],
     [`/api/contexts/${MINE}x`, 'an id with a suffix'],
     [`/x/api/contexts/${MINE}`, 'a prefix'],
     [`/api/risk-scores/identities/${MINE}`, 'another entity type'],

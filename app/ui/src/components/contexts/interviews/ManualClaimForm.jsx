@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { Modal, Field, ErrorBox, PrimaryButton, SecondaryButton } from '@ui/components/contexts/ModalPrimitives';
-import { KIND_LABELS, RELATION_LABELS, MEMBERSHIP_LABELS, PERSON_KINDS, manualClaimBody, manualClaimReady } from './claims.helpers';
+import { KIND_LABELS, RELATION_LABELS, MEMBERSHIP_LABELS, PERSON_KINDS, manualClaimBody, manualClaimReady, sourceLabel } from './claims.helpers';
 
 // ─── Add a claim by hand ─────────────────────────────────────────────────
 // The way to record what an interview says without a model (and next to one).
@@ -48,7 +48,7 @@ export default function ManualClaimForm({ contextId, interview, onAdded, onClose
   }
 
   return (
-    <Modal title="Add a claim" subtitle={`From the interview with ${interview.intervieweeName}, ${interview.interviewedAt}`} onClose={onClose} width={620} dismissOnBackdrop={false}>
+    <Modal title="Add a claim" subtitle={`From the ${sourceLabel(interview)}`} onClose={onClose} width={620} dismissOnBackdrop={false}>
       <div className="space-y-2">
         <label htmlFor="manual-claim-transcript" className="block text-xs font-medium text-gray-700 dark:text-gray-300">Transcript</label>
         <textarea id="manual-claim-transcript" ref={transcriptRef} readOnly rows={8} value={data?.transcript ?? 'Loading…'}

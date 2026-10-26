@@ -420,22 +420,13 @@ describe('GET /contexts/:id/members', () => {
     expect(query.mock.calls[0][0]).not.toContain('o.id IS NULL');
   });
 
-  it('on a unit of accounts: what the interviews say about the page, in ONE more statement', async () => {
-    const { MEMBER_CLAIMS_SQL } = await import('../contexts/interviews/store.js');
+  it('on a unit of accounts the members are as the source lists them: no claims are read (that is GET …/people)', async () => {
     queryOne.mockResolvedValueOnce({ targetType: 'Principal', contextCategory: 'OrganizationalUnit' });
     query.mockResolvedValueOnce({ rows: [{ id: ID2, displayName: 'Jan Smit' }, { id: ID3, displayName: 'Piet de Vries' }] });
     queryOne.mockResolvedValueOnce({ current: 2, overridden: 0 });
-    query.mockResolvedValueOnce({ rows: [
-      { id: 'c-1', memberId: ID2, claimKind: 'membership', attribute: 'left', value: 'left the account', status: 'proposed', periodText: 'last month', interviewedAt: '2026-10-01', intervieweeName: 'Piet de Vries', interviewId: 'iv-1' },
-      { id: 'c-2', memberId: ID3, claimKind: 'role', attribute: 'member', value: 'Lead architect', status: 'confirmed', interviewedAt: '2026-10-01', intervieweeName: 'Piet de Vries', interviewId: 'iv-1' },
-    ] });
     const res = await request(app).get(`/api/contexts/${ID}/members`);
-    expect(query).toHaveBeenCalledTimes(2);
-    // Auth is off in this suite, which counts as a writer: proposed claims too.
-    expect(query.mock.calls[1]).toEqual([MEMBER_CLAIMS_SQL.Principal, [ID, [ID2, ID3], ['role', 'roleHistory', 'membership'], ['proposed', 'confirmed', 'edited']]]);
-    expect(res.body.data.map(m => [m.displayName, m.interview.left?.periodText ?? null, m.interview.role?.value ?? null])).toEqual([
-      ['Jan Smit', 'last month', null], ['Piet de Vries', null, 'Lead architect'],
-    ]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(res.body.data.map(m => [m.displayName, m.interview])).toEqual([['Jan Smit', undefined], ['Piet de Vries', undefined]]);
   });
 
   it('keeps the text comparison for System members (integer ids)', async () => {

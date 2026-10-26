@@ -9,6 +9,7 @@ vi.mock('./store.js', () => ({
 const store = await import('./store.js');
 const {
   splitTranscript, checkReply, askPart, dedupeClaims, dropOwnNameAliases, dropDecided, runMessage, extractInterview, startExtraction, chatTimeoutMs, MAX_PARTS, PART_CHARS, DEFAULT_TIMEOUT_MS,
+  speakerName,
 } = await import('./extract.js');
 const { foldForQuote } = await import('./claims.js');
 const { LOCAL_SQL, SURNAME_SQL } = await import('./subjects.js');
@@ -420,5 +421,14 @@ describe('extractInterview — the sentence, what is decided, and other names', 
     store.decidedClaims.mockResolvedValue([{ claimKind: 'alias', subjectName: null, principalId: null, identityId: null, value: 'Havenkantoor' }]);
     await extractInterview('iv-1', { db: noMatches, ask: answer({ claims: [] }), enabled: () => true });
     expect(store.insertClaims.mock.calls[1][2]).toEqual([]);
+  });
+});
+
+describe('speakerName', () => {
+  it('the interviewee speaks in an interview (also one from before source kinds); nobody in a file or pasted text', () => {
+    expect(speakerName({ intervieweeName: 'Anna Voorbeeld', sourceKind: 'interview' })).toBe('Anna Voorbeeld');
+    expect(speakerName({ intervieweeName: 'Anna Voorbeeld' })).toBe('Anna Voorbeeld');
+    expect(speakerName({ intervieweeName: 'analyst@example.test', sourceKind: 'file' })).toBeNull();
+    expect(speakerName({ intervieweeName: 'analyst@example.test', sourceKind: 'text' })).toBeNull();
   });
 });

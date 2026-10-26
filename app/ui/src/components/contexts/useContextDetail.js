@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
+import { profileFor } from './profiles/profiles';
 
 // A context's detail (GET /api/contexts/:id) and its risk score
 // (GET /api/risk-scores/contexts/:id, optional), for its detail page. The
@@ -57,19 +58,22 @@ export function useContextDetail(authFetch, contextId, refreshKey, onCacheData) 
 //             only: there adding AND removing both last. A derived or imported
 //             context's members come back on its next refresh, so editing
 //             them would only ever half work.
-//   tabs      the analyst's tabs (Members, Timeline, Risk when scored);
-//             null for a business reader, who gets the members only
-//   shownTab  the tab whose panel renders
-export function contextPageView({ analyst, attrs, hasRisk, memberTotal, activeTab }) {
-  if (!analyst) return { editable: false, membersEditable: false, tabs: null, shownTab: 'members' };
+export function contextPageView({ analyst, attrs }) {
+  if (!analyst) return { editable: false, membersEditable: false };
   return {
     editable: attrs.variant === 'manual' || attrs.variant === 'generated',
     membersEditable: attrs.variant === 'manual',
-    tabs: [
-      { key: 'members', label: 'Members', count: memberTotal },
-      { key: 'timeline', label: 'Timeline' },
-      hasRisk && { key: 'risk', label: 'Risk' },
-    ],
-    shownTab: activeTab,
   };
+}
+
+const PEOPLE_TARGETS = new Set(['Principal', 'Identity']);
+
+/**
+ * Whether the page lists the members as their source does (GET …/members): every
+ * context but a unit or an application of people, whose People overview shows
+ * them (GET …/people). False until the context is loaded.
+ */
+export function listsMembers(attrs) {
+  if (!attrs) return false;
+  return !(profileFor(attrs.contextCategory) && PEOPLE_TARGETS.has(attrs.targetType));
 }

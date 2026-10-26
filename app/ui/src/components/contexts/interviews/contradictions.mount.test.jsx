@@ -3,12 +3,10 @@
 // their sources, and an explicit choice that decides the claim(s). Invented names.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
-import ContextProfile from '@ui/components/contexts/profiles/ContextProfile';
-import { PROFILES } from '@ui/components/contexts/profiles/profiles';
-import { decisionsFor, withPeriod, openContradictions, contradictionCount, panelId } from './contradiction.helpers';
-import { ContradictionsBadge } from './Contradictions';
+import Contradictions from './Contradictions';
+import { decisionsFor, withPeriod, openContradictions, isPersonContradiction, panelId } from './contradiction.helpers';
 import ClaimsProvider from './ClaimsProvider';
-import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
 const UNIT = { id: 'c-unit', displayName: 'Harbour Office', contextCategory: 'OrganizationalUnit', targetType: 'Principal', directMemberCount: 3 };
@@ -17,12 +15,12 @@ const SRC = { interviewId: 'iv-1', intervieweeName: 'Anna Voorbeeld', interviewe
 const sideClaim = (id, statement, over = {}) => ({ kind: 'claim', statement, claim: { id, status: 'proposed', subjectName: 'Lotte Lindeboom', quote: `quote of ${id}`, ...SRC, ...over } });
 const LEFT = {
   id: 'leftButMember:m-lotte', rule: 'leftButMember', status: 'open', claimIds: ['m-lotte'],
-  claim: sideClaim('m-lotte', 'Interview: Lotte Lindeboom is a former member', { quote: 'Lotte deed dat ook, maar is recent uitgestroomd.' }),
+  claim: sideClaim('m-lotte', 'Interview: Lotte Lindeboom is a former member', { claimKind: 'membership', quote: 'Lotte deed dat ook, maar is recent uitgestroomd.' }),
   other: { kind: 'fact', statement: 'HR export (upload) still lists Lotte Lindeboom as a member', source: 'HR export (upload), last synced 2026-10-20' },
 };
 const OWNER = {
   id: 'accountable:r-piet', rule: 'accountable', status: 'open', claimIds: ['r-piet'],
-  claim: sideClaim('r-piet', 'Interview: Piet Proef is the owner', { subjectName: 'Piet Proef' }),
+  claim: sideClaim('r-piet', 'Interview: Piet Proef is the owner', { claimKind: 'role', subjectName: 'Piet Proef' }),
   other: { kind: 'fact', statement: 'Yara Ypma is the Accountable', source: 'Yara Ypma, from the source' },
 };
 const PAIR = {
@@ -30,6 +28,11 @@ const PAIR = {
   claim: sideClaim('m-a', 'Interview: Jan Smit left'), other: sideClaim('m-b', 'Interview: Jan Smit is a member', { intervieweeName: 'Bram Bakker', interviewedAt: '2026-10-05', interviewId: 'iv-2' }),
 };
 const DECIDED = { ...LEFT, id: 'leftButMember:old', status: 'decided', resolution: 'source' };
+const SECTOR = {
+  id: 'property:p-sector', rule: 'property', status: 'open', claimIds: ['p-sector'],
+  claim: sideClaim('p-sector', 'Interview: sector is Shipping', { claimKind: 'property' }),
+  other: { kind: 'fact', statement: 'sector is Logistics', source: 'HR export (upload)' },
+};
 
 describe('contradiction.helpers', () => {
   it('the choices of each rule, as claim decisions', () => {
@@ -38,7 +41,7 @@ describe('contradiction.helpers', () => {
       ['source', 'The list is right', [['m-lotte', { status: 'rejected' }]]],
       ['both', 'Both true, at different times', [['m-lotte', { status: 'edited' }]]],
     ]);
-    expect(decisionsFor(LEFT)[0].hint).toBe('Marks them former here and lists them under Previous members; HR export (upload) still lists them — remove them there, or re-import without them. Undo is possible.');
+    expect(decisionsFor(LEFT)[0].hint).toBe('Shows them as Left (decided) under People; HR export (upload) still lists them — remove them there, or re-import without them. Undo is possible.');
     expect(decisionsFor(OWNER).map(c => [c.label, c.steps[0].body])).toEqual([
       ['The interview is right — make Piet Proef the Accountable', { status: 'confirmed', replace: true }],
       ['Keep Yara Ypma', { status: 'rejected' }],
@@ -70,8 +73,14 @@ describe('contradiction.helpers', () => {
     expect(withPeriod(decisionsFor(LEFT)[0], 'x')[0].body).toEqual({ status: 'confirmed' });
     expect(openContradictions([LEFT, DECIDED])).toEqual([LEFT]);
     expect(openContradictions(undefined)).toEqual([]);
-    expect([contradictionCount(1), contradictionCount(2)]).toEqual(['1 contradiction', '2 contradictions']);
     expect(panelId('c-unit')).toBe('contradictions-c-unit');
+  });
+
+  it('a contradiction is about a person when its claim is a role, history or membership claim', () => {
+    const kind = (claimKind) => ({ claim: { kind: 'claim', claim: { claimKind } } });
+    expect(['role', 'roleHistory', 'membership', 'property', 'alias', 'description'].map(k => isPersonContradiction(kind(k)))).toEqual([true, true, true, false, false, false]);
+    expect(isPersonContradiction({ claim: { kind: 'fact' } })).toBe(false);
+    expect(isPersonContradiction(null)).toBe(false);
   });
 });
 
@@ -88,18 +97,14 @@ function api(contradictions = [LEFT, OWNER, PAIR, DECIDED]) {
     }
     if (u === '/api/contexts/c-unit/claims') return { data: [], accountableDoubt: null, contradictions: state.contradictions };
     if (u === '/api/contexts/c-unit/interviews') return { data: [] };
-    if (u === '/api/contexts/c-unit/roles/suggestion') return jsonResponse(undefined, { status: 204 });
-    if (u === '/api/contexts/c-unit/roles') return [];
-    if (u === '/api/contexts/c-unit/relationships') return [];
     return undefined;
   });
   return { authFetch, state };
 }
 
-function mount({ auth = {}, contradictions } = {}) {
-  window.sessionStorage.clear();
+function mount({ auth = {}, contradictions, unitOnly = false } = {}) {
   const { authFetch, state } = api(contradictions);
-  renderWithProviders(h(ContextProfile, { profile: PROFILES.OrganizationalUnit, attrs: UNIT }), { auth: { authFetch, ...auth } });
+  renderWithProviders(h(ClaimsProvider, { contextId: UNIT.id }, h(Contradictions, { unitOnly })), { auth: { authFetch, ...auth } });
   return { state, user: userEvent.setup() };
 }
 
@@ -109,7 +114,7 @@ const panel = () => screen.findByRole('region', { name: 'Contradictions' });
 const item = async (statement) => (await screen.findAllByTestId('contradiction')).find(li => li.textContent.includes(statement));
 
 describe('the Contradictions panel', () => {
-  it('at the top of What we know, even folded: the open ones only, each as two statements with their sources', async () => {
+  it('the open ones only, each as two statements with their sources', async () => {
     mount();
     const p = await panel();
     expect(within(p).getByRole('heading')).toHaveTextContent('Contradictions (3)');
@@ -127,7 +132,7 @@ describe('the Contradictions panel', () => {
   it('"View in transcript" opens the claim\'s interview', async () => {
     const { user } = mount();
     await user.click(within(await item('Lotte')).getAllByRole('button', { name: 'View in transcript' })[0]);
-    expect(await screen.findByRole('dialog', { name: 'Transcript' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Source' })).toBeInTheDocument();
   });
 
   it('"The interview is right" confirms the claim, and the decided one leaves the panel', async () => {
@@ -182,14 +187,15 @@ describe('the Contradictions panel', () => {
   });
 });
 
-describe('the badge', () => {
-  it('"3 contradictions to decide" jumps to the panel; nothing without open ones', async () => {
-    const { authFetch } = api();
-    renderWithProviders(h(ClaimsProvider, { contextId: 'c-unit' },
-      h('div', null, h(ContradictionsBadge), h('section', { id: panelId('c-unit') }))), { auth: { authFetch } });
-    const badge = await screen.findByTestId('contradictions-badge');
-    expect(badge).toHaveTextContent('3 contradictions to decide');
-    await userEvent.setup().click(badge);
-    expect(document.getElementById('contradictions-c-unit').scrollIntoView).toHaveBeenCalled();
+describe('on a unit page: the contradictions about the unit itself', () => {
+  it('unitOnly keeps the property one; the people’s are decided on their rows in People', async () => {
+    const { state, user } = mount({ unitOnly: true, contradictions: [LEFT, OWNER, SECTOR, DECIDED] });
+    const p = await panel();
+    expect(within(p).getByRole('heading')).toHaveTextContent('Contradictions (1)');
+    const [only] = within(p).getAllByTestId('contradiction');
+    expect(only).toHaveTextContent('Another value');
+    await user.click(within(only).getByRole('button', { name: 'The interview is right — set it' }));
+    expect(state.patches).toEqual([['p-sector', { status: 'confirmed' }]]);
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Contradictions' })).toBeNull());
   });
 });

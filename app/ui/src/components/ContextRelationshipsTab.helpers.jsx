@@ -1,5 +1,3 @@
-import { InterviewRejoinedFlag, InterviewRole } from './contexts/interviews/MemberInterviewFacts';
-
 // Pure helpers for the members table in ContextRelationshipsTab.jsx: which
 // columns a kind of member has, which of them this page of members fills,
 // and what the action cell says in edit mode.
@@ -33,27 +31,20 @@ export function accountTypeWord(principalType) {
 
 // The columns after Name, per kind of member — what the API returns for it
 // (MEMBER_COLUMNS in routes/contexts/read.js; a resource also gets holderCount
-// and its owner from contexts/resourceMemberFacts.js; an account or a person of
-// a unit or an application its Role from the interviews, contexts/interviews/
-// memberFacts.js). `value` decides whether a
+// and its owner from contexts/resourceMemberFacts.js). `value` decides whether a
 // row has something to show; `render` draws it; `align: 'right'` for numbers.
-// The member's latest role at the context, as the interviews say (proposed: dashed),
-// and "rejoined · earlier: …" when they left once and came back.
-const INTERVIEW_ROLE = { label: 'Role', value: m => m.interview?.role?.value || m.interview?.rejoined, render: m => <><InterviewRole role={m.interview?.role} /><InterviewRejoinedFlag rejoined={m.interview?.rejoined} /></> };
-
+// What the added sources say about a unit's people is the People overview's.
 export const MEMBER_TABLE_COLUMNS = {
   Principal: [
     { label: 'Email', value: m => m.email, render: m => muted(m.email) },
     { label: 'Job title', value: m => m.jobTitle, render: m => muted(m.jobTitle) },
     { label: 'Type', value: m => m.principalType, render: m => pill(accountTypeWord(m.principalType)) },
     { label: 'Status', value: m => m.accountEnabled, render: m => status(m.accountEnabled) },
-    INTERVIEW_ROLE,
   ],
   Identity: [
     { label: 'Email', value: m => m.email, render: m => muted(m.email) },
     { label: 'Job title', value: m => m.jobTitle, render: m => muted(m.jobTitle) },
     { label: 'Department', value: m => m.department, render: m => muted(m.department) },
-    INTERVIEW_ROLE,
   ],
   Resource: [
     { label: 'Type', value: m => m.resourceType, render: m => pill(m.resourceType) },

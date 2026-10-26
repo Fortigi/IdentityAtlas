@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useDialog } from '@ui/components/dialogContext';
 import ManualClaimForm from './ManualClaimForm';
-import { extractionLabel } from './claims.helpers';
+import { extractionLabel, sourceLabel, SOURCE_KIND_LABELS } from './claims.helpers';
 
-// ─── The interviews of this context (analysts only) ──────────────────────
-// Each with who and when, how far the model got (the message says what it left
-// out or why it failed), its claim counts, and: View transcript (with what was
-// taken from it highlighted — TranscriptPanel), Read again (retry the model),
-// Add claim (by hand — always there, with or without a model), Delete (its
-// claims go; what confirmed claims changed stays).
+// ─── The sources added to this context (analysts only) ───────────────────
+// Everything added through "Add information": an interview, a file, a list,
+// pasted text (the API's sourceKind; the records are ContextInterviews). Each
+// row: what kind, who it is from (or who added it), when, the file, how far the
+// model got (the message says what it left out or why it failed), its claim
+// counts, and: View (the text with what was taken from it highlighted —
+// TranscriptPanel), Read again (retry the model), Add claim (by hand — always
+// there, with or without a model), Delete (its claims go; what confirmed claims
+// changed stays).
 
 const BTN = 'rounded px-2 py-0.5 text-xs text-blue-700 underline hover:text-blue-800 disabled:opacity-50 dark:text-blue-300 dark:hover:text-blue-200';
 const CAN_RETRY = new Set(['done', 'failed', 'pending']);
@@ -26,7 +29,14 @@ function ExtractionStatus({ interview }) {
   return <span className="text-xs text-gray-700 dark:text-gray-300" data-testid="extraction-status">{extractionLabel(interview, now)}</span>;
 }
 
-export default function InterviewList({ contextId, interviews, onChanged, onViewTranscript }) {
+// "Ann Example · 2026-10-01 · talk.vtt" — who and when; the file when there is one.
+function whoAndWhen(iv) {
+  const kind = iv.sourceKind ?? 'interview';
+  const who = kind === 'interview' ? iv.intervieweeName : `added by ${iv.intervieweeName}`;
+  return [who, iv.interviewedAt, kind === 'text' ? null : iv.fileName].filter(Boolean).join(' · ');
+}
+
+export default function SourcesList({ contextId, interviews, onChanged, onViewTranscript }) {
   const { authFetch } = useAuth();
   const dialog = useDialog();
   const [adding, setAdding] = useState(null);
@@ -47,28 +57,26 @@ export default function InterviewList({ contextId, interviews, onChanged, onView
 
   async function remove(iv) {
     const ok = await dialog.confirm({
-      title: 'Delete interview',
-      message: `Delete the interview with ${iv.intervieweeName} and the claims it made? What confirmed claims already changed stays.`,
+      title: 'Delete source',
+      message: `Delete the ${sourceLabel(iv)} and the claims it made? What confirmed claims already changed stays.`,
       confirmLabel: 'Delete',
       danger: true,
     });
     if (ok) await call(`/api/contexts/${contextId}/interviews/${iv.id}`, { method: 'DELETE' }, [204]);
   }
 
-  if (interviews.length === 0) return null;
+  if (interviews.length === 0) return <p className="text-sm text-gray-600 dark:text-gray-400">Nothing added yet.</p>;
   return (
     <div>
-      <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300">Interviews</h4>
-      <ul aria-label="Interviews" className="divide-y divide-gray-100 dark:divide-gray-700">
+      <ul aria-label="Sources" className="divide-y divide-gray-100 dark:divide-gray-700">
         {interviews.map(iv => (
-          <li key={iv.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 text-sm text-gray-900 dark:text-gray-200">
-            <span className="font-medium">{iv.intervieweeName}</span>
-            <span className="text-xs text-gray-600 dark:text-gray-400">{iv.interviewedAt} · {iv.fileName}</span>
+          <li key={iv.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 text-sm text-gray-900 dark:text-gray-200" data-testid="source-row">
+            <span className="rounded bg-gray-100 px-1.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">{SOURCE_KIND_LABELS[iv.sourceKind ?? 'interview']}</span>
+            <span className="text-sm">{whoAndWhen(iv)}</span>
             <ExtractionStatus interview={iv} />
             <span className="text-xs text-gray-600 dark:text-gray-400">{iv.proposed ?? 0} to review · {iv.confirmed ?? 0} confirmed</span>
             {onViewTranscript && (
-              <button type="button" className={BTN} onClick={() => onViewTranscript(iv.id)}
-                aria-label={`View the transcript of the interview with ${iv.intervieweeName}, ${iv.interviewedAt}`}>View transcript</button>
+              <button type="button" className={BTN} onClick={() => onViewTranscript(iv.id)} aria-label={`View the ${sourceLabel(iv)}`}>View</button>
             )}
             {CAN_RETRY.has(iv.extractionStatus) && <button type="button" className={BTN} onClick={() => retry(iv)}>Read again</button>}
             <button type="button" className={BTN} onClick={() => setAdding(iv)}>Add claim</button>

@@ -8,9 +8,19 @@
 
 import { normalizedNameSql } from '../../lib/nameMatch.js';
 
+// An "interview" record is any source added to the page (Add information): an
+// interview (someone said it — the interviewee is set), a file nobody in
+// particular said (a list, notes, a document: no interviewee), or pasted text
+// (stored under this file name). The kind is read from those columns, no column
+// of its own: 'interview' | 'file' | 'text'.
+export const PASTED_TEXT_NAME = 'Pasted text';
+export const SOURCE_KIND_SQL = `CASE WHEN iv."fileName" = '${PASTED_TEXT_NAME}' THEN 'text'
+       WHEN iv."principalId" IS NULL AND iv."identityId" IS NULL THEN 'file' ELSE 'interview' END`;
+
 const INTERVIEW_COLUMNS = `iv.id, iv."contextId", iv."principalId", iv."identityId", iv."intervieweeName",
        iv."interviewedAt"::text AS "interviewedAt", iv."fileName", iv.language, iv."extractionStatus",
-       iv."extractionMessage", iv."extractionStartedAt", iv.model, iv."createdBy", iv."createdAt"`;
+       iv."extractionMessage", iv."extractionStartedAt", iv.model, iv."createdBy", iv."createdAt",
+       ${SOURCE_KIND_SQL} AS "sourceKind"`;
 
 export async function insertInterview(db, row) {
   const r = await db.query(`
@@ -80,7 +90,8 @@ const CLAIM_SELECT = `
            c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
            c."decidedBy", c."decidedAt", c."createdAt",
            (SELECT r.id FROM "ContextRoles" r WHERE r."sourceClaimId" = c.id LIMIT 1) AS "appliedRoleId",
-           iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName"
+           iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName",
+           ${SOURCE_KIND_SQL} AS "sourceKind"
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
@@ -208,62 +219,70 @@ export async function interviewQuotes(db, interviewId) {
   return r.rows;
 }
 
-// ─── What the interviews say about people, for the members lists ─────────
-// The person claims (role, roleHistory, membership) of a context, set-based:
-// one statement for a whole page of members, one for the previous members.
+// ─── What the sources say about people, for the People overview ──────────
+// The person claims (role, roleHistory, membership) of a context, set-based: one
+// statement for every claim, one for the people they are about (people.js,
+// peopleLoad.js).
 const PERSON_CLAIM_COLUMNS = `c.id, c."interviewId", c."claimKind", c.attribute, c.value,
            c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c.quote,
-           c."claimStatus" AS status, c."createdAt", c."subjectName", iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt"`;
+           c."claimStatus" AS status, c."createdAt", c."subjectName", c."principalId", c."identityId", c."roleSuggestion",
+           iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName", ${SOURCE_KIND_SQL} AS "sourceKind"`;
 export const PERSON_CLAIM_KINDS = Object.freeze(['role', 'roleHistory', 'membership']);
 
-// memberId: the member the claim is about. A context of accounts reads the
-// claims about those accounts; a context of persons the claims about the
-// person or about one of their accounts (IdentityMembers).
-export const MEMBER_CLAIMS_SQL = Object.freeze({
-  Principal: `
-    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId" AS "memberId"
-      FROM "ContextClaims" c
-      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
-     WHERE c."contextId" = $1 AND c."principalId" = ANY($2::uuid[])
-       AND c."claimKind" = ANY($3::text[]) AND c."claimStatus" = ANY($4::text[])`,
-  Identity: `
-    SELECT ${PERSON_CLAIM_COLUMNS}, COALESCE(c."identityId", im."identityId") AS "memberId"
-      FROM "ContextClaims" c
-      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
-      LEFT JOIN "IdentityMembers" im ON im."principalId" = c."principalId" AND im."identityId" = ANY($2::uuid[])
-     WHERE c."contextId" = $1 AND (c."identityId" = ANY($2::uuid[]) OR im."identityId" IS NOT NULL)
-       AND c."claimKind" = ANY($3::text[]) AND c."claimStatus" = ANY($4::text[])`,
+// The holder a claim is about, in the context's own kind of member: the account
+// (a unit of accounts) or the person (a unit of people). A claim that names the
+// other kind is mapped through IdentityMembers — for a unit of accounts, to the
+// person's account that the unit lists. A context of other members has none.
+const HOLDER_SQL = Object.freeze({
+  Principal: `COALESCE(c."principalId", (SELECT im."principalId" FROM "IdentityMembers" im
+                 JOIN "ContextMembers" cm ON cm."contextId" = c."contextId" AND cm."memberId" = im."principalId"
+                WHERE im."identityId" = c."identityId" ORDER BY im."principalId" LIMIT 1))`,
+  Identity: `COALESCE(c."identityId", (SELECT im."identityId" FROM "IdentityMembers" im
+                WHERE im."principalId" = c."principalId" ORDER BY im."identityId" LIMIT 1))`,
+  other: 'NULL::uuid',
 });
 
-/** The person claims about a page of members (ids of the context's targetType); [] for other kinds. */
-export async function memberClaims(db, contextId, targetType, ids, statuses) {
-  const sql = MEMBER_CLAIMS_SQL[targetType];
-  if (!sql || ids.length === 0) return [];
-  return (await db.query(sql, [contextId, ids, PERSON_CLAIM_KINDS, statuses])).rows;
-}
-
-// Every person claim of the context, with the person matched (if any), whether
-// that account or person is a direct member now, and whether the account is gone.
-// A person a decision marked former (ContextMemberOverrides, migration 101) is
-// listed by the source (isListed) but not a member now (isMember), and carries
-// the decision.
-export const PEOPLE_CLAIMS_SQL = `
-    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId", c."identityId",
-           COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
-           (p."deletedAt" IS NOT NULL) AS "accountDeleted",
-           l.listed AS "isListed", (l.listed AND o.id IS NULL) AS "isMember",
-           o."claimId" AS "overrideClaimId", o.overrides AS "overrideSource", o."decidedBy" AS "overrideBy", o."decidedAt" AS "overrideAt"
+/** Every person claim of a context, with its holder (holderId) in the context's kind of member. */
+export function personClaimsSql(targetType) {
+  return `
+    SELECT ${PERSON_CLAIM_COLUMNS}, COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
+           (p."deletedAt" IS NOT NULL) AS "accountDeleted", ${HOLDER_SQL[targetType] ?? HOLDER_SQL.other} AS "holderId"
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
       LEFT JOIN "Identities" i ON i.id = c."identityId"
-      CROSS JOIN LATERAL (SELECT EXISTS (SELECT 1 FROM "ContextMembers" cm
-                    WHERE cm."contextId" = c."contextId" AND cm."memberId" = COALESCE(c."principalId", c."identityId")) AS listed) l
-      LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = c."contextId" AND o."memberId" = COALESCE(c."principalId", c."identityId")
      WHERE c."contextId" = $1 AND c."claimKind" = ANY($2::text[]) AND c."claimStatus" = ANY($3::text[])`;
+}
 
-export async function peopleClaims(db, contextId, statuses) {
-  return (await db.query(PEOPLE_CLAIMS_SQL, [contextId, PERSON_CLAIM_KINDS, statuses])).rows;
+export async function personClaims(db, contextId, targetType, statuses) {
+  return (await db.query(personClaimsSql(targetType), [contextId, PERSON_CLAIM_KINDS, statuses])).rows;
+}
+
+// The holders the claims name, and everyone a decision marked former: their row,
+// whether the context lists them, and the decision (ContextMemberOverrides,
+// migration 101). One statement for all of them.
+const HOLDER_ROW = Object.freeze({
+  Principal: { table: 'Principals', columns: 'm.id AS "principalId", m.email, m."jobTitle", m."principalType", m."accountEnabled", (m."deletedAt" IS NOT NULL) AS "accountDeleted"' },
+  Identity: { table: 'Identities', columns: 'm.id AS "identityId", m.email, m."jobTitle", m.department' },
+});
+
+export function holderRowsSql(targetType) {
+  const h = HOLDER_ROW[targetType];
+  if (!h) return null;
+  return `
+    SELECT m.id, m."displayName", ${h.columns},
+           EXISTS (SELECT 1 FROM "ContextMembers" cm WHERE cm."contextId" = $1 AND cm."memberId" = m.id) AS listed,
+           o."claimId" AS "overrideClaimId", o.overrides AS "overrideSource", o."decidedBy" AS "overrideBy", o."decidedAt" AS "overrideAt"
+      FROM "${h.table}" m
+      LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = $1 AND o."memberId" = m.id
+     WHERE m.id = ANY($2::uuid[])
+        OR m.id IN (SELECT x."memberId" FROM "ContextMemberOverrides" x WHERE x."contextId" = $1)`;
+}
+
+/** The rows of the given holders and of the context's former-marked members; [] for a context of other members. */
+export async function holderRows(db, contextId, targetType, ids) {
+  const sql = holderRowsSql(targetType);
+  return sql ? (await db.query(sql, [contextId, ids])).rows : [];
 }
 
 // The resources "this application" means: the members of this context when it

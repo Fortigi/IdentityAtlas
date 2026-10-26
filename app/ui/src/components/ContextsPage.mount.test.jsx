@@ -204,20 +204,23 @@ describe('ContextsPage — the tree on the left', () => {
     await screen.findByText('Backend Squad');
     await user.click(node('Backend Squad'));
     await shownContext('Backend Squad');
-    await user.click(within(detailPane()).getByRole('button', { name: 'Open as page' }));
+    await user.click(within(detailPane()).getByRole('button', { name: 'More actions' }));
+    await user.click(within(detailPane()).getByRole('menuitem', { name: 'Open as page' }));
     expect(onOpenDetail).toHaveBeenCalledWith('context', 'child-backend', 'Backend Squad');
     expect(within(detailPane()).queryByTitle('Close')).toBeNull();
   });
 
-  it('shows the selected tree owner as a person and opens that account in a tab', async () => {
-    const { onOpenDetail, user } = mount();
+  it('shows no owner chip for the selected tree: who answers for it is its Accountable', async () => {
+    const { user } = mount();
     await screen.findByText('Backend Squad');
     await user.click(node('Sales OUs'));
-    const owner = await within(detailPane()).findByTitle('Owner id: IIQ-4711');
-    expect(owner.textContent).toContain('Leo M. Cohen');
-    expect(owner.textContent).not.toContain('IIQ-4711');
-    await user.click(owner);
-    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p-owner', 'Leo M. Cohen');
+    await shownContext('Sales OUs');
+    const people = await within(detailPane()).findByTestId('context-people');
+    await within(people).findByText('Nobody is accountable yet.');
+    expect(within(detailPane()).queryByTitle('Owner id: IIQ-4711')).toBeNull();
+    expect(within(detailPane()).queryByText(/Owner:/)).toBeNull();
+    // The owner resolved to an account, so nothing says it matched nobody.
+    expect(within(detailPane()).queryByTestId('unmatched-owner')).toBeNull();
   });
 
   it('the Show switch sits in the panel header and remembers the selection per kind', async () => {
@@ -248,6 +251,8 @@ describe('ContextsPage — links inside the detail', () => {
   it('a variant link selects that context in place and switches the kind of tree', async () => {
     const { onOpenDetail, user } = mount();
     await shownContext('Engineering Org');
+    // The same unit as other kinds of member is a fact about it: in What we know, folded.
+    await user.click(await within(detailPane()).findByRole('button', { name: /What we know/ }));
     const variants = await screen.findByTestId('unit-variants');
     await user.click(await within(variants).findByRole('button', { name: /^Accounts/ }));
     await waitFor(() => expect(within(within(pane()).getByRole('group', { name: 'Show' })).getByRole('button', { name: 'Accounts' })).toHaveAttribute('aria-pressed', 'true'));
@@ -376,7 +381,10 @@ describe('ContextsPage — editing the tree', () => {
     await user.click(item);
     expect(onOpenDetail).toHaveBeenLastCalledWith('adjust-tree', 'tree:root-gen', 'Adjust: Engineering Org');
     expect(screen.queryByRole('menu', { name: 'Actions for Engineering Org' })).toBeNull();
-    await user.click(await within(detailPane()).findByRole('button', { name: 'Adjust tree' }));
+    await user.click(await within(detailPane()).findByRole('button', { name: 'More actions' }));
+    const header = within(detailPane()).getByRole('menuitem', { name: /^Adjust tree/ });
+    await waitFor(() => expect(header).not.toHaveAttribute('aria-disabled'));
+    await user.click(header);
     expect(onOpenDetail).toHaveBeenCalledTimes(2);
     expect(onOpenDetail).toHaveBeenLastCalledWith('adjust-tree', 'tree:root-gen', 'Adjust: Engineering Org');
   });
@@ -385,7 +393,9 @@ describe('ContextsPage — editing the tree', () => {
     mount({ auth: READER });
     await screen.findByText('Backend Squad');
     await shownContext('Engineering Org');
-    expect(within(detailPane()).queryByRole('button', { name: 'Adjust tree' })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(within(detailPane()).getByRole('button', { name: 'More actions' }));
+    expect(within(detailPane()).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['View in matrix ↗', 'Copy link', 'Open as page']);
   });
 
   it('surfaces a delete error when the API rejects', async () => {
