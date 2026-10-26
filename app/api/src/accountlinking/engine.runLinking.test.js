@@ -60,6 +60,13 @@ function memberWrites(db) {
     .filter(sql => /UPDATE\s+"IdentityMembers"/.test(sql) || /INSERT\s+INTO\s+"IdentityMembers"/.test(sql));
 }
 
+/** The IdentityMembers rows the run inserted, as the link each one records. */
+function insertedLinks(db) {
+  return db.query.mock.calls
+    .filter(c => /INSERT\s+INTO\s+"IdentityMembers"/.test(c[0]))
+    .map(([, p]) => ({ identityId: p[0], principalId: p[1], signals: JSON.parse(p[6]), confidence: p[7] }));
+}
+
 // True once the run reached its 'completed' status update.
 function reachedCompleted(db) {
   return db.query.mock.calls.some(c => Array.isArray(c[1]) && c[1].includes('completed'));
@@ -208,13 +215,6 @@ describe('loadRules — a saved dictionary vs newly shipped signals (#1469)', ()
     return db;
   }
 
-  /** The IdentityMembers rows the run inserted, as the link each one records. */
-  function insertedLinks(db) {
-    return db.query.mock.calls
-      .filter(c => /INSERT\s+INTO\s+"IdentityMembers"/.test(c[0]))
-      .map(([, p]) => ({ identityId: p[0], principalId: p[1], signals: JSON.parse(p[6]), confidence: p[7] }));
-  }
-
   it('still applies a shipped signal the saved dictionary predates (loginNameForm)', async () => {
     // An upgraded tenant: its config row holds the dictionary the administrator
     // saved before loginNameForm shipped.
@@ -323,6 +323,18 @@ function completionFields(db) {
   return Object.fromEntries(cols.map((c, i) => [c, call[1][i + 1]]));
 }
 
+/**
+ * The run linked nothing and held exactly one name-only match for review, shaped as `suggestion`
+ * (an expect.objectContaining subset).
+ */
+function expectHeldForReview(db, suggestion) {
+  expect(memberWrites(db)).toHaveLength(0);
+  const fields = completionFields(db);
+  expect(fields.linksCreated).toBe(0);
+  expect(fields.nameOnlyMatches).toBe(1);
+  expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining(suggestion)]);
+}
+
 function memberDeletes(db) {
   return db.query.mock.calls.filter(c => /DELETE FROM "IdentityMembers"/.test(c[0]));
 }
@@ -334,15 +346,11 @@ describe('runLinking — the name-uniqueness guard', () => {
 
     await runLinking(RUN_ID);
 
-    expect(memberWrites(db)).toHaveLength(0);
-    const fields = completionFields(db);
-    expect(fields.linksCreated).toBe(0);
-    expect(fields.nameOnlyMatches).toBe(1);
-    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining({
+    expectHeldForReview(db, {
       principalId: 'p-namesake', identityId: 'idy-1', confidence: 60, signals: ['fullName'],
       reason: 'ambiguousName', matchLevel: 'full',
       rivals: [{ identityId: 'idy-2', identityName: 'Doe, John' }],
-    })]);
+    });
   });
 
   it('links that same orphan when nobody else answers to its name', async () => {
@@ -552,5 +560,264 @@ describe('countOrphans', () => {
     const { runLinking } = await loadEngine(db);
     await expect(runLinking(RUN_ID)).resolves.not.toThrow();
     expect(reachedCompleted(db)).toBe(true);
+  });
+});
+
+// ── Logins a provisioning convention shortened or numbered (#1468) ───────────
+//
+// Three conventions write an admin login in a form the shipped dictionary could
+// not spell back to a name: the surname particle dropped (`adm-ddongen`), one
+// half of a double surname (`adm-wvelde`), and a trailing digit numbering a
+// namesake (`adm-svisser2`). The account reached no candidate, so it was neither
+// linked nor held — invisible rather than contested, which is the half of the
+// report that only a whole run shows: a run over it completes, reports zero
+// name-only matches, and leaves the account orphaned with nothing to review.
+//
+// Each fixture rests on its login alone: the display name carries no person's
+// name and there is no employee id, so any other signal firing would prove
+// nothing about the login.
+
+describe('runLinking — a login a convention shortened (#1468)', () => {
+  const DANIELLE = {
+    id: 'idy-danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle',
+    surname: 'van Dongen', email: 'danielle.vandongen@fortigidemo.com', employeeId: 'E200',
+  };
+  const WILMA = {
+    id: 'idy-wilma', displayName: 'Wilma van der Velde-Bierma', givenName: 'Wilma',
+    surname: 'van der Velde-Bierma', email: 'wilma.vandervelde@fortigidemo.com', employeeId: 'E201',
+  };
+  const ADM_DANIELLE = { id: 'p-adm-dd', displayName: 'Admin account 128', email: 'adm-ddongen@fortigidemo.com' };
+  const ADM_WILMA = { id: 'p-adm-wv', displayName: 'Admin account 129', email: 'adm-wvelde@fortigidemo.com' };
+
+  /** One orphan against one identity, through a whole run. */
+  async function linkOne(orphan, identity) {
+    const db = makeDb({ orphans: [orphan], identities: [identity] });
+    const { runLinking } = await loadEngine(db);
+    await runLinking(RUN_ID);
+    return db;
+  }
+
+  it('links an admin account whose login drops the surname particle', async () => {
+    const db = await linkOne(ADM_DANIELLE, DANIELLE);
+
+    expect(insertedLinks(db)).toEqual([{
+      identityId: 'idy-danielle', principalId: 'p-adm-dd', signals: 'loginNameForm', confidence: 55,
+    }]);
+    expect(completionFields(db).linksCreated).toBe(1);
+  });
+
+  it('links an admin account whose login keeps one half of a double surname', async () => {
+    const db = await linkOne(ADM_WILMA, WILMA);
+
+    expect(insertedLinks(db)).toEqual([{
+      identityId: 'idy-wilma', principalId: 'p-adm-wv', signals: 'loginNameForm', confidence: 55,
+    }]);
+  });
+
+  it('links neither account to a person whose surname shortens to something else', async () => {
+    // The control: the shortened forms are not a wildcard. Swap the two owners and
+    // every link above disappears, which is what says the match was on the name.
+    const db = makeDb({ orphans: [ADM_DANIELLE, ADM_WILMA], identities: [] });
+    const { runLinking } = await loadEngine(db);
+    await runLinking(RUN_ID);
+
+    expect(insertedLinks(db)).toEqual([]);
+    const fields = completionFields(db);
+    expect(fields.linksCreated).toBe(0);
+    expect(fields.nameOnlyMatches).toBe(0);
+  });
+
+  it('holds a numbered login between the namesakes it numbers, and names the rival', async () => {
+    // Two people answer to 'svisser', so the login the convention numbered is
+    // contested — and being contested is what puts the account in the Name-only
+    // matches review list instead of leaving it invisible.
+    //
+    // Neither mailbox IS 'svisser': a Sanne whose own address were the un-numbered
+    // form is the one person the number rules out, and the account would then be
+    // placed on her namesake rather than held (see the numbered-login cases below).
+    const vissers = [
+      {
+        id: 'idy-s1', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser',
+        email: 'sanne.a.visser@fortigidemo.com', employeeId: 'E202',
+      },
+      {
+        id: 'idy-s2', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser',
+        email: 'sanne.b.visser@fortigidemo.com', employeeId: 'E203',
+      },
+    ];
+    const orphan = { id: 'p-adm-sv', displayName: 'Admin account 130', email: 'adm-svisser2@fortigidemo.com' };
+    const db = makeDb({ orphans: [orphan], identities: vissers });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expectHeldForReview(db, {
+      principalId: 'p-adm-sv', confidence: 55, signals: ['loginNameForm'],
+      reason: 'ambiguousName', matchLevel: 'loginName', rivalCount: 1,
+    });
+  });
+});
+
+// ── What the shortened forms must NOT do (#1468, acceptance round 2) ─────────
+//
+// Reading shorter spellings of a login made three things go wrong on the
+// 7,000-identity dataset, and all three are only visible as a whole run: the
+// run's own output is what says whether an account was linked, held with its
+// candidates named, or left with nothing to act on.
+describe('runLinking — a shortened login beside a full name (#1468)', () => {
+  const MELANIE = {
+    id: 'idy-melanie', displayName: 'Melanie Schipper-Siemons', givenName: 'Melanie',
+    surname: 'Schipper-Siemons', email: 'melanie.schippersiemons@corp.example', employeeId: 'E300',
+  };
+  const MICHELLE = {
+    id: 'idy-michelle', displayName: 'Michelle Schipper', givenName: 'Michelle',
+    surname: 'Schipper', email: 'michelle.schipper@corp.example', employeeId: 'E301',
+  };
+  /** Melanie's own directory account: her full name, logging in as half her surname. */
+  const ACCOUNT = { id: 'p-melanie', displayName: 'Melanie Schipper-Siemons', email: 'm.schipper@corp.example' };
+
+  it('links the account its display name spells in full, and holds nothing back', async () => {
+    const db = makeDb({ orphans: [ACCOUNT], identities: [MELANIE, MICHELLE] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    // On `fullName` alone, at 60: the shortened login Michelle answers to is not a
+    // second signal and not a rival either.
+    expect(insertedLinks(db)).toEqual([{
+      identityId: 'idy-melanie', principalId: 'p-melanie', signals: 'fullName', confidence: 60,
+    }]);
+    const fields = completionFields(db);
+    expect(fields.linksCreated).toBe(1);
+    expect(fields.nameOnlyMatches).toBe(0);
+  });
+
+  it('still holds it where a second person is spelled the same full name', async () => {
+    // The guard that must survive: the level scoping releases the weaker claims, not
+    // the namesake tie the whole guard exists for.
+    const namesake = {
+      id: 'idy-namesake', displayName: 'Melanie Schipper-Siemons', givenName: 'Melanie',
+      surname: 'Schipper-Siemons', email: 'm.schippersiemons@corp.example', employeeId: 'E302',
+    };
+    const db = makeDb({ orphans: [ACCOUNT], identities: [MELANIE, namesake, MICHELLE] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expectHeldForReview(db, {
+      principalId: 'p-melanie', confidence: 60, signals: ['fullName'],
+      reason: 'ambiguousName', matchLevel: 'full', rivalCount: 2,
+    });
+  });
+});
+
+describe('runLinking — a numbered login against the un-numbered form’s owner (#1468)', () => {
+  /** Three people called Priya Nanhoe; only the first holds the `p.h.nanhoe` mailbox. */
+  const priya = (id, local, employeeId) => ({
+    id, displayName: 'Priya Nanhoe', givenName: 'Priya', surname: 'Nanhoe',
+    email: `${local}@corp.example`, employeeId,
+  });
+  const OWNER = priya('idy-owner', 'p.h.nanhoe', 'E310');
+  const SECOND = priya('idy-second', 'p.nanhoe', 'E311');
+  const THIRD = priya('idy-third', 'priya.nanhoe', 'E312');
+  const ACCOUNT = { id: 'p-nanhoe2', displayName: 'Priya Nanhoe', email: 'p.h.nanhoe2@corp.example' };
+
+  it('holds the account instead of linking it to the person the number rules out', async () => {
+    // The measured regression: the login singled the `p.h.nanhoe` owner out on her
+    // own address, overriding a display name that ties three ways, and the account
+    // was attributed to the one Priya it demonstrably is not.
+    const db = makeDb({ orphans: [ACCOUNT], identities: [OWNER, SECOND, THIRD] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expectHeldForReview(db, {
+      principalId: 'p-nanhoe2', confidence: 60, signals: ['fullName'],
+      reason: 'ambiguousName', matchLevel: 'full', rivalCount: 2,
+    });
+  });
+
+  it('holds an admin login the number rules everybody out of, with the number as the reason', async () => {
+    // `adm-skleef2` beside the `skleef` mailbox: the login spells Sophie's name, so
+    // the account is scored and reported — but the number says it is not hers and
+    // nobody else answers to the form. Reported as an ambiguity it would send the
+    // reviewer after a namesake who does not exist, so it has its own reason.
+    const sophie = {
+      id: 'idy-sophie', displayName: 'Sophie van Kleef', givenName: 'Sophie',
+      surname: 'van Kleef', email: 'skleef@corp.example', employeeId: 'E313',
+    };
+    const admin = { id: 'p-adm-sk', displayName: 'Admin account 134', email: 'adm-skleef2@corp.example' };
+    const db = makeDb({ orphans: [admin], identities: [sophie] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expectHeldForReview(db, {
+      principalId: 'p-adm-sk', identityId: 'idy-sophie', confidence: 55, signals: ['loginNameForm'],
+      reason: 'numberedLogin', matchLevel: 'loginName', rivals: [], rivalCount: 0,
+    });
+  });
+
+  it('links a numbered admin login whose un-numbered form belongs to nobody', async () => {
+    // Rule 4 pinned on a whole run: numbering holds nothing back by itself. Sophie's
+    // mailbox spells her name out, so `skleef` is nobody's address and her single
+    // claim on the login stands.
+    const sophie = {
+      id: 'idy-sophie', displayName: 'Sophie van Kleef', givenName: 'Sophie',
+      surname: 'van Kleef', email: 'sophie.vankleef@corp.example', employeeId: 'E314',
+    };
+    const admin = { id: 'p-adm-sk', displayName: 'Admin account 135', email: 'adm-skleef2@corp.example' };
+    const db = makeDb({ orphans: [admin], identities: [sophie] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(insertedLinks(db)).toEqual([{
+      identityId: 'idy-sophie', principalId: 'p-adm-sk', signals: 'loginNameForm', confidence: 55,
+    }]);
+    expect(completionFields(db).nameOnlyMatches).toBe(0);
+  });
+});
+
+describe('runLinking — a half-of-a-double-surname login (#1468)', () => {
+  const OWNER = {
+    id: 'idy-neumann-becker', displayName: 'Andrea Neumann-Becker', givenName: 'Andrea',
+    surname: 'Neumann-Becker', email: 'andrea.neumannbecker@corp.example', employeeId: 'E320',
+  };
+  const ANDREA = {
+    id: 'idy-andrea', displayName: 'Andrea Becker', givenName: 'Andrea',
+    surname: 'Becker', email: 'andrea.becker@corp.example', employeeId: 'E321',
+  };
+  const ANDREAS = {
+    id: 'idy-andreas', displayName: 'Andreas Becker', givenName: 'Andreas',
+    surname: 'Becker', email: 'andreas.becker@corp.example', employeeId: 'E322',
+  };
+  const ADMIN = { id: 'p-adm-ab', displayName: 'Admin account 136', email: 'adm-abecker@corp.example' };
+
+  it('offers the owner of the double surname among the held match’s rivals', async () => {
+    // The measured complaint: the hold named the two plain Beckers who answer to
+    // 'abecker' outright and left the Andrea Neumann-Becker whose surname it is half
+    // of out of the list entirely, so a reviewer was offered everybody but the owner.
+    const db = makeDb({ orphans: [ADMIN], identities: [OWNER, ANDREA, ANDREAS] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(memberWrites(db)).toHaveLength(0);
+    const [held] = JSON.parse(completionFields(db).nameOnlySuggestions);
+    expect(held.reason).toBe('ambiguousName');
+    expect([held.identityId, ...held.rivals.map(r => r.identityId)].sort())
+      .toEqual(['idy-andrea', 'idy-andreas', 'idy-neumann-becker']);
+  });
+
+  it('links it to her where nobody is spelled the half outright', async () => {
+    const db = makeDb({ orphans: [ADMIN], identities: [OWNER] });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    expect(insertedLinks(db)).toEqual([{
+      identityId: 'idy-neumann-becker', principalId: 'p-adm-ab', signals: 'loginNameForm', confidence: 55,
+    }]);
   });
 });

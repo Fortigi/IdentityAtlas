@@ -92,6 +92,24 @@ describe('NameOnlyMatchesCard (mounted)', () => {
     expect(await screen.findByText(/^name also answered to by Johanna Doe$/i)).toBeInTheDocument();
   });
 
+  it('says the number is why, for a login held with no rival at all', async () => {
+    // `adm-skleef2` beside the `skleef` mailbox: the login spells her name, so she is
+    // the matched identity, but the number says the account is not hers and nobody
+    // else answers to the form. Rendered as an ambiguity — the fallback every unknown
+    // reason lands on — it would read as "no second signal", which is the one thing
+    // this hold is not: there IS no second person to pick, and the row would give the
+    // reviewer nothing to go on.
+    mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [suggestion({
+      displayName: 'Admin account 134', identityName: 'Sophie van Kleef',
+      signals: ['loginNameForm'], confidence: 55, reason: 'numberedLogin', matchLevel: 'loginName',
+    })] }]);
+
+    const row = (await screen.findByText('Admin account 134')).closest('tr');
+    expect(within(row).getByText(/un-numbered form is this person’s own address/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/no second signal/i)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/answered to by/i)).not.toBeInTheDocument();
+  });
+
   it('counts the rivals it did not name', async () => {
     // The stored rival list is capped. Showing only the two it holds would report a
     // four-way namesake as a straight choice between two people.

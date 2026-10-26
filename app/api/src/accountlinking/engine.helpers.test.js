@@ -549,7 +549,7 @@ describe('nameClaim', () => {
     // person in the tenant would be a rival for this account.
     const surnameOnly = { id: 'o5', displayName: 'Jansen' };
     expect(nameClaim(surnameOnly, indexIdentities([owner, stranger, { id: 'bare', displayName: 'Jansen' }])))
-      .toEqual({ sole: null, claimants: [] });
+      .toEqual({ sole: null, claimants: [], numberedAway: [] });
   });
 });
 
@@ -987,11 +987,23 @@ describe('nameClaim - the login is one of the account’s names', () => {
     expect(nameClaim(orphan, indexIdentities([inUse, birth]), opts).sole).toBe(inUse);
   });
 
-  it('points at nobody when the display name and the login disagree', () => {
+  it('points at nobody when the display name and the login disagree at the same level', () => {
     // Two names singling out two different people say nothing about which of them the
-    // account belongs to — the same reading the parsed names get.
-    const orphan = { id: 'o', displayName: 'Petra Munck', email: 'adm-fhogenbirk@fortigidemo.com' };
+    // account belongs to — the same reading the parsed names get. 'fayhogenbirk' writes
+    // Fay's whole name, so it weighs against a display name spelled out in full.
+    const orphan = { id: 'o', displayName: 'Petra Munck', email: 'adm-fayhogenbirk@fortigidemo.com' };
     expect(nameClaim(orphan, indexIdentities([fay, petra]), opts).sole).toBeNull();
+  });
+
+  it('keeps a full-name claim when the login only disagrees one level down', () => {
+    // 'fhogenbirk' carries one letter of Fay's given name; the display name spells
+    // Petra's out. A claim at the weaker level is not a competing answer to the
+    // stronger one (#1460) — so the account is Petra's, and Fay stays listed for
+    // review rather than vetoing the only name the account is spelled with (#1468).
+    const orphan = { id: 'o', displayName: 'Petra Munck', email: 'adm-fhogenbirk@fortigidemo.com' };
+    const claim = nameClaim(orphan, indexIdentities([fay, petra]), opts);
+    expect(claim.sole).toBe(petra);
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['fay', 'petra']);
   });
 
   it('does not read the login when the caller does not pass the login prefixes', () => {
@@ -1004,5 +1016,380 @@ describe('nameClaim - the login is one of the account’s names', () => {
   it('leaves a parsed-name claim intact when there is no login to read', () => {
     const orphan = { id: 'o', displayName: 'Fay Hogenbirk' };
     expect(nameClaim(orphan, indexIdentities([fay, petra]), opts).sole).toBe(fay);
+  });
+});
+
+describe('nameClaim / collectCandidates - logins the conventions reduce (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  const candidateOpts = {
+    prefixes: prefixesFrom(DEFAULT_RULES),
+    suffixes: suffixesFrom(DEFAULT_RULES),
+    loginPrefixes: loginPrefixesFrom(DEFAULT_RULES),
+  };
+  // These accounts carry no evidence but the login: the display name is the login
+  // string itself, which parses to no person's name, and there is no employeeId,
+  // no name column and no department. So the login reads, or nothing does.
+  const admin = (login) => ({ id: 'o', displayName: login, email: `${login}@fortigidemo.com` });
+  const danielle = {
+    id: 'danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    email: 'danielle.vandongen@fortigidemo.com',
+  };
+  const wilma = {
+    id: 'wilma', displayName: 'W. van der Velde-Bierma', surname: 'van der Velde-Bierma',
+    email: 'w.vandervelde@fortigidemo.com',
+  };
+  const petra = { id: 'petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@x.com' };
+
+  it('singles out the sole owner of a particle-dropped login', () => {
+    expect(nameClaim(admin('adm-ddongen'), indexIdentities([danielle, petra]), opts).sole).toBe(danielle);
+  });
+
+  it('singles out the sole owner of a login reduced to one half of her double surname', () => {
+    expect(nameClaim(admin('adm-wvelde'), indexIdentities([wilma, petra]), opts).sole).toBe(wilma);
+  });
+
+  it('holds a numbered login for review between the namesakes it numbers', () => {
+    // Two people answer to 'svisser', so the numbered login is contested, not placed —
+    // and being contested is what puts it in the Name-only matches review list. Today
+    // the claimant list is empty, so the account is invisible rather than held.
+    const vissers = [
+      { id: 'i1', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+      { id: 'i2', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+    ];
+    const claim = nameClaim(admin('adm-svisser2'), indexIdentities(vissers), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['i1', 'i2']);
+  });
+
+  it('gathers the owner of a reduced login as a candidate at all', () => {
+    // Scoring cannot rescue an orphan that reaches no candidate: it is never compared
+    // to anybody, so it stays unlinked with no tie to review and no error anywhere.
+    const indexes = indexIdentities([danielle, wilma, petra]);
+    expect([...collectCandidates(admin('adm-ddongen'), indexes, candidateOpts).keys()]).toEqual(['danielle']);
+    expect([...collectCandidates(admin('adm-wvelde'), indexes, candidateOpts).keys()]).toEqual(['wilma']);
+  });
+
+  it('still gathers nobody for a reduced login that names no identity', () => {
+    const indexes = indexIdentities([danielle, wilma, petra]);
+    expect(collectCandidates(admin('adm-dstraaten'), indexes, candidateOpts).size).toBe(0);
+  });
+});
+
+describe('indexIdentities / nameClaim - the grade a shortened login claims at (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  const candidateOpts = {
+    prefixes: prefixesFrom(DEFAULT_RULES),
+    suffixes: suffixesFrom(DEFAULT_RULES),
+    loginPrefixes: loginPrefixesFrom(DEFAULT_RULES),
+  };
+  const admin = (login) => ({ id: 'o', displayName: login, email: `${login}@fortigidemo.com` });
+  const danielle = {
+    id: 'danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    email: 'danielle.vandongen@fortigidemo.com',
+  };
+  /** Genuinely called 'D. Dongen' — the particle-kept spelling of the same login. */
+  const dirkje = { id: 'dirkje', displayName: 'Dirkje Dongen', givenName: 'Dirkje', surname: 'Dongen' };
+
+  it('indexes a person under the shortened forms of her surname too', () => {
+    const { byLoginInitial, byLoginLoose } = indexIdentities([danielle]);
+    expect(byLoginInitial.get('dvandongen')).toEqual([danielle]);
+    expect(byLoginLoose.get('ddongen')).toEqual([danielle]);
+    // Not at both grades: the whole-surname spelling is hers alone to claim.
+    expect(byLoginLoose.get('dvandongen')).toBeUndefined();
+  });
+
+  it('gives a login to the person genuinely spelled it over the one it was shortened to', () => {
+    // Level-scoped rivalry (#1460) carried into the new grade: 'ddongen' is Dirkje's
+    // own spelling and only a reduction of Daniëlle's, so the reduced claimant is no
+    // rival at all and the account is placed rather than held between the two.
+    const claim = nameClaim(admin('adm-ddongen'), indexIdentities([danielle, dirkje]), opts);
+    expect(claim.sole).toBe(dirkje);
+    // Daniëlle is still listed: she is who the login could otherwise name, and a hold
+    // that hid the weaker grades would not offer her at all (#1468).
+    expect(claim.claimants.map(c => c.id)).toEqual(['dirkje', 'danielle']);
+  });
+
+  it('holds a shortened login that two people’s surnames shorten to', () => {
+    // Different particles, one reduction: nothing in the login says which of them it
+    // belongs to, so it is contested at the loose grade like any other tie.
+    const dirk = { id: 'dirk', displayName: 'Dirk ter Dongen', givenName: 'Dirk', surname: 'ter Dongen' };
+    const claim = nameClaim(admin('adm-ddongen'), indexIdentities([danielle, dirk]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['danielle', 'dirk']);
+  });
+
+  it('reads a numbered login as its own spelling before the name it numbers', () => {
+    // 'svisser2' IS this Sanne's mailbox, so it is her login outright; the digit strip
+    // is only reached where the login as written spells nobody. Read the other way
+    // round, her own address would put her in a tie with her namesake.
+    const owner = {
+      id: 'owner', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser',
+      email: 'svisser2@fortigidemo.com',
+    };
+    const namesake = { id: 'namesake', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' };
+    const claim = nameClaim(admin('adm-svisser2'), indexIdentities([owner, namesake]), opts);
+    expect(claim.sole).toBe(owner);
+    expect(claim.claimants).toEqual([owner]);
+  });
+
+  it('gathers the owner of a numbered login as a candidate', () => {
+    // Both Vissers, because narrowing is all collectCandidates does — which of them
+    // the login points at is nameClaim's question, asked after they are scored.
+    const vissers = [
+      { id: 'i1', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+      { id: 'i2', displayName: 'Sanne Visser', givenName: 'Sanne', surname: 'Visser' },
+    ];
+    const keys = [...collectCandidates(admin('adm-svisser2'), indexIdentities(vissers), candidateOpts).keys()];
+    expect(keys.sort()).toEqual(['i1', 'i2']);
+  });
+
+  it('reads no shortened or numbered login when the rules strip no login prefixes', () => {
+    // `loginPrefixes` is the rules' decision that a login is evidence at all. Without
+    // it the token keeps its prefix ('admddongen') and shortens to nobody's name.
+    const indexes = indexIdentities([danielle, dirkje]);
+    const bare = { prefixes: [], suffixes: [], loginPrefixes: [] };
+    expect(collectCandidates(admin('adm-ddongen'), indexes, bare).size).toBe(0);
+    expect(nameClaim(admin('adm-ddongen'), indexes, {}).claimants).toEqual([]);
+  });
+});
+
+describe('strongestNameRung - a shortened login is still the login rung (#1468)', () => {
+  const danielle = {
+    id: 'danielle', displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
+    email: 'danielle.vandongen@fortigidemo.com',
+  };
+
+  it('fires the login rung for a login the convention shortened or numbered', () => {
+    // The grade decides who out-claims whom, never whether the signal fires: an
+    // account that reaches no rung scores nothing and stays orphaned.
+    expect(strongestNameRung(
+      { displayName: 'Admin account 128', email: 'adm-ddongen@fortigidemo.com' }, danielle, DEFAULT_RULES,
+    )).toBe('loginName');
+    expect(strongestNameRung(
+      { displayName: 'Admin account 128', email: 'adm-ddongen2@fortigidemo.com' }, danielle, DEFAULT_RULES,
+    )).toBe('loginName');
+  });
+
+  it('fires nothing for a login that shortens to somebody else', () => {
+    expect(strongestNameRung(
+      { displayName: 'Admin account 128', email: 'adm-dstraaten@fortigidemo.com' }, danielle, DEFAULT_RULES,
+    )).toBeNull();
+  });
+});
+
+// ── The four rules a shortened login has to obey (#1468, acceptance round 2) ──
+//
+// Reading shorter spellings of a login widened who it can name, and the first
+// measurement of that on the 7,000-identity dataset found the widening doing
+// three things nobody asked for: shortened forms rivalling full-name matches that
+// were already right, a numbered login landing on the very person its number
+// rules out, and a half-of-a-double-surname login offering a reviewer everybody
+// except its owner. Each describe below is one of those shapes, with the
+// measured names kept so the fixture is recognisable in the report.
+describe('nameClaim - a shortened login never rivals a full-name match (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  /** Her directory account: spelled her full name, logging in as half her surname. */
+  const account = { id: 'p-melanie', displayName: 'Melanie Schipper-Siemons', email: 'm.schipper@corp.example' };
+  const melanie = {
+    id: 'melanie', displayName: 'Melanie Schipper-Siemons', givenName: 'Melanie',
+    surname: 'Schipper-Siemons', email: 'melanie.schippersiemons@corp.example',
+  };
+  /** Genuinely called M. Schipper — the whole-surname spelling of the same login. */
+  const michelle = {
+    id: 'michelle', displayName: 'Michelle Schipper', givenName: 'Michelle',
+    surname: 'Schipper', email: 'michelle.schipper@corp.example',
+  };
+
+  it('places an account whose display name spells one person in full', () => {
+    // The regression this is about: 'mschipper' is half of Melanie's surname and the
+    // whole of Michelle's, so reading the login as a rival of the full name beside it
+    // held five correct links on the measured dataset. A claim carrying one letter of
+    // a given name is not a competing answer to one spelling it out (#1460).
+    const claim = nameClaim(account, indexIdentities([melanie, michelle]), opts);
+    expect(claim.sole).toBe(melanie);
+  });
+
+  it('still lists the other claimant, so a hold on the same login is reviewable', () => {
+    // Not a rival is not "not worth showing": the moment the full name stops
+    // settling the account, Michelle is who the login could otherwise name.
+    const claim = nameClaim(account, indexIdentities([melanie, michelle]), opts);
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['melanie', 'michelle']);
+  });
+
+  it('holds the account when a second person is spelled its full name too', () => {
+    // The guard the level scoping must not weaken: a rival at the SAME level still
+    // ties. Otherwise this change would read as "a full name always wins".
+    const namesake = {
+      id: 'namesake', displayName: 'Melanie Schipper-Siemons', givenName: 'Melanie',
+      surname: 'Schipper-Siemons', email: 'm.schippersiemons@corp.example',
+    };
+    const claim = nameClaim(account, indexIdentities([melanie, namesake, michelle]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['melanie', 'michelle', 'namesake']);
+  });
+
+  it('falls back to the login where the display name carries no person’s name', () => {
+    // The paired case, and what keeps the levels from collapsing into "names first":
+    // with nothing to read off the display name, the login is the only claim there is
+    // and it still places the account (#1454).
+    const admin = { id: 'p-adm', displayName: 'Admin account 128', email: 'adm-mschipper@corp.example' };
+    expect(nameClaim(admin, indexIdentities([melanie, michelle]), opts).sole).toBe(michelle);
+  });
+
+  it('reads a particle-dropped form at the weaker level too', () => {
+    // The other half of the measured table: Aron van Herwijnen's own account, beside
+    // an Angelique van Herwijnen-Kroon who answers to the same reduced form. Both
+    // claim it only as a reduction, so neither can rival his full name.
+    const aron = {
+      id: 'aron', displayName: 'Aron van Herwijnen', givenName: 'Aron',
+      surname: 'van Herwijnen', email: 'aron.vanherwijnen@corp.example',
+    };
+    const angelique = {
+      id: 'angelique', displayName: 'Angelique van Herwijnen-Kroon', givenName: 'Angelique',
+      surname: 'van Herwijnen-Kroon', email: 'angelique.vanherwijnenkroon@corp.example',
+    };
+    const his = { id: 'p-aron', displayName: 'Aron van Herwijnen', email: 'a.herwijnen@corp.example' };
+    expect(nameClaim(his, indexIdentities([aron, angelique]), opts).sole).toBe(aron);
+  });
+});
+
+describe('nameClaim - a numbered login is never the un-numbered form’s owner (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  /** Three people called Priya Nanhoe; only the first holds `p.h.nanhoe`. */
+  const priya = (id, local) => ({
+    id, displayName: 'Priya Nanhoe', givenName: 'Priya', surname: 'Nanhoe',
+    email: `${local}@corp.example`,
+  });
+  const owner = priya('owner', 'p.h.nanhoe');
+  const second = priya('second', 'p.nanhoe');
+  const third = priya('third', 'priya.nanhoe');
+  /** The numbered directory account, spelled the same name as all three. */
+  const account = { id: 'p-numbered', displayName: 'Priya Nanhoe', email: 'p.h.nanhoe2@corp.example' };
+
+  it('rules the un-numbered address’s owner out of the login’s claim', () => {
+    // Before this, the login singled her out on her own address while the display
+    // name tied three ways, so the account was attributed to the one person the
+    // number says it is not.
+    const claim = nameClaim(account, indexIdentities([owner, second, third]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.numberedAway.map(c => c.id)).toEqual(['owner']);
+  });
+
+  it('still offers all three for review, since the display name names them all', () => {
+    // Ruled out as the *login's* claimant, not struck from the account: she is one of
+    // the three people its display name spells, and a reviewer has to see her.
+    const claim = nameClaim(account, indexIdentities([owner, second, third]), opts);
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['owner', 'second', 'third']);
+  });
+
+  it('rules her out for an admin login the same way', () => {
+    // `adm-x2` against the person whose own address is `x` — the admin spelling of
+    // the same shape, where the login is the only evidence there is.
+    const sophie = {
+      id: 'sophie', displayName: 'Sophie van Kleef', givenName: 'Sophie',
+      surname: 'van Kleef', email: 'skleef@corp.example',
+    };
+    const admin = { id: 'p-adm', displayName: 'Admin account 129', email: 'adm-skleef2@corp.example' };
+    const claim = nameClaim(admin, indexIdentities([sophie]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants).toEqual([]);
+    expect(claim.numberedAway).toEqual([sophie]);
+  });
+
+  it('gives a numbered login to the namesake who does not hold the address', () => {
+    // The number says "not that one", which is evidence, not noise: with a second
+    // S. Kleef in the directory the account is hers.
+    const sophie = {
+      id: 'sophie', displayName: 'Sophie van Kleef', givenName: 'Sophie',
+      surname: 'van Kleef', email: 'skleef@corp.example',
+    };
+    const stijn = {
+      id: 'stijn', displayName: 'Stijn Kleef', givenName: 'Stijn',
+      surname: 'Kleef', email: 'stijn.kleef@corp.example',
+    };
+    const admin = { id: 'p-adm', displayName: 'Admin account 130', email: 'adm-skleef2@corp.example' };
+    expect(nameClaim(admin, indexIdentities([sophie, stijn]), opts).sole).toBe(stijn);
+  });
+
+  it('places a numbered login whose un-numbered form belongs to nobody', () => {
+    // Rule 4's pinned case: numbering on its own holds nothing back. Sophie's mailbox
+    // spells her name out, so the form the number strips to is nobody's address and
+    // her single claim stands.
+    const sophie = {
+      id: 'sophie', displayName: 'Sophie van Kleef', givenName: 'Sophie',
+      surname: 'van Kleef', email: 'sophie.vankleef@corp.example',
+    };
+    const admin = { id: 'p-adm', displayName: 'Admin account 131', email: 'adm-skleef2@corp.example' };
+    const claim = nameClaim(admin, indexIdentities([sophie]), opts);
+    expect(claim.sole).toBe(sophie);
+    expect(claim.numberedAway).toEqual([]);
+  });
+
+  it('leaves an un-numbered login untouched', () => {
+    // The control: the exclusion must fire on the number and nothing else, or every
+    // account whose login equals its owner's address stops linking to her.
+    const sophie = {
+      id: 'sophie', displayName: 'Sophie van Kleef', givenName: 'Sophie',
+      surname: 'van Kleef', email: 'skleef@corp.example',
+    };
+    const admin = { id: 'p-adm', displayName: 'Admin account 132', email: 'adm-skleef@corp.example' };
+    const claim = nameClaim(admin, indexIdentities([sophie]), opts);
+    expect(claim.sole).toBe(sophie);
+    expect(claim.numberedAway).toEqual([]);
+  });
+});
+
+describe('nameClaim - a half-of-a-double-surname login offers its owner (#1468)', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  /** The owner: the login keeps the second half of her double surname. */
+  const neumannBecker = {
+    id: 'neumann-becker', displayName: 'Andrea Neumann-Becker', givenName: 'Andrea',
+    surname: 'Neumann-Becker', email: 'andrea.neumannbecker@corp.example',
+  };
+  const andrea = {
+    id: 'andrea', displayName: 'Andrea Becker', givenName: 'Andrea',
+    surname: 'Becker', email: 'andrea.becker@corp.example',
+  };
+  const andreas = {
+    id: 'andreas', displayName: 'Andreas Becker', givenName: 'Andreas',
+    surname: 'Becker', email: 'andreas.becker@corp.example',
+  };
+  const admin = { id: 'p-adm', displayName: 'Admin account 133', email: 'adm-abecker@corp.example' };
+
+  it('holds the contested login and names the double-surnamed owner among the claimants', () => {
+    // The measured complaint: two plain Beckers answer to 'abecker' at the stronger
+    // grade, so the account is rightly contested — but the hold listed only them, and
+    // the Andrea Neumann-Becker it actually belongs to was offered nowhere.
+    const claim = nameClaim(admin, indexIdentities([neumannBecker, andrea, andreas]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['andrea', 'andreas', 'neumann-becker']);
+  });
+
+  it('places it on the owner where nobody is spelled the half outright', () => {
+    // The half form is a claim, just the weakest one: with the plain Beckers gone
+    // there is nothing stronger and the account is placed.
+    expect(nameClaim(admin, indexIdentities([neumannBecker]), opts).sole).toBe(neumannBecker);
+  });
+
+  it('builds the half form from the double surname, so a plain surname offers none', () => {
+    // What keeps 'abecker' from meaning "any Becker-ish name": a plain 'Becker' is not
+    // a half of anything, so Andrea Becker claims the login at her own whole-surname
+    // grade and never as a reduction. Read the other way round, a reviewer would be
+    // offered every A. Becker in the tenant for a half-form login.
+    const { byLoginInitial, byLoginLoose } = indexIdentities([neumannBecker, andrea]);
+    expect(byLoginInitial.get('abecker')).toEqual([andrea]);
+    expect(byLoginLoose.get('abecker')).toEqual([neumannBecker]);
+    expect(byLoginLoose.get('aneumann')).toEqual([neumannBecker]);
+  });
+
+  it('offers only people whose surname contains the half', () => {
+    // A near-miss surname is no claimant at any grade, which is what says the match
+    // was on the half and not on its first letters.
+    const bekker = {
+      id: 'bekker', displayName: 'Anke Bekker', givenName: 'Anke',
+      surname: 'Bekker', email: 'anke.bekker@corp.example',
+    };
+    const claim = nameClaim(admin, indexIdentities([neumannBecker, bekker]), opts);
+    expect(claim.claimants.map(c => c.id)).toEqual(['neumann-becker']);
   });
 });
