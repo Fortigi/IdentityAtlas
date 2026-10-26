@@ -6,7 +6,17 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { blobResponse, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
-import { downloadReport, reportExportUrl } from './reportExport';
+import { downloadReport, primaryFormat, reportExportUrl } from './reportExport';
+
+describe('primaryFormat', () => {
+  it('picks the workbook wherever it is listed', () => {
+    expect(primaryFormat(['csv', 'json', 'xlsx'])).toBe('xlsx');
+  });
+
+  it('falls back to the first format advertised when there is no workbook', () => {
+    expect(primaryFormat(['json', 'csv'])).toBe('json');
+  });
+});
 
 // The bytes are the server's; this module only moves them. The formats named
 // below are likewise just strings passed through to the URL — the transport
