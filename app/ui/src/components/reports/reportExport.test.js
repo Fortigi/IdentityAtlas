@@ -10,11 +10,11 @@ import { downloadReport, primaryFormat, reportExportUrl } from './reportExport';
 
 describe('primaryFormat', () => {
   it('picks the workbook wherever it is listed', () => {
-    expect(primaryFormat(['csv', 'json', 'xlsx'])).toBe('xlsx');
+    expect(primaryFormat(['tsv', 'json', 'xlsx'])).toBe('xlsx');
   });
 
   it('falls back to the first format advertised when there is no workbook', () => {
-    expect(primaryFormat(['json', 'csv'])).toBe('json');
+    expect(primaryFormat(['json', 'tsv'])).toBe('json');
   });
 });
 

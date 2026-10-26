@@ -148,11 +148,11 @@ describe('ReportViewPage', () => {
   });
 
   it('makes the workbook the main download whenever it is offered, wherever it is listed', async () => {
-    renderReport({ rows: rowsBody([ROW], { exportFormats: ['csv', 'xlsx', 'json'] }) });
+    renderReport({ rows: rowsBody([ROW], { exportFormats: ['tsv', 'xlsx', 'json'] }) });
 
     expect(await screen.findByRole('button', { name: 'Download XLSX' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Other download formats' }));
-    expect(screen.getAllByRole('menuitem').map(b => b.textContent)).toEqual(['Download CSV', 'Download JSON']);
+    expect(screen.getAllByRole('menuitem').map(b => b.textContent)).toEqual(['Download TSV', 'Download JSON']);
   });
 
   it('downloads a format picked from the menu, and closes the menu', async () => {
@@ -167,9 +167,9 @@ describe('ReportViewPage', () => {
   });
 
   it('offers no menu when the API advertises a single format', async () => {
-    renderReport({ rows: rowsBody([ROW], { exportFormats: ['csv'] }) });
+    renderReport({ rows: rowsBody([ROW], { exportFormats: ['tsv'] }) });
 
-    expect(await screen.findByRole('button', { name: 'Download CSV' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Download TSV' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Other download formats' })).not.toBeInTheDocument();
   });
 

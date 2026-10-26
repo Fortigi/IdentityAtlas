@@ -30,7 +30,7 @@ const report = (over = {}) => ({
   generatedAt: 't1',
   columns: COLUMNS,
   rows: ROWS,
-  exportFormats: ['csv', 'xlsx', 'json'],
+  exportFormats: ['tsv', 'xlsx', 'json'],
   charts: [
     { name: 'Roles by status', category: 'status', title: 'Business roles by review status', valueLabel: 'Roles',
       colors: { 'Never reviewed': 'DC2626', Reviewed: '16A34A' } },
@@ -153,7 +153,7 @@ describe('ReportSummary', () => {
     expect(within(summary()).getByText(/XLSX download has these as Excel pivot tables and charts/)).toBeInTheDocument();
     unmount();
 
-    renderWithProviders(<ListReportRenderer report={report({ exportFormats: ['csv'] })} />);
+    renderWithProviders(<ListReportRenderer report={report({ exportFormats: ['tsv'] })} />);
     expect(within(summary()).queryByText(/XLSX/)).not.toBeInTheDocument();
   });
 
