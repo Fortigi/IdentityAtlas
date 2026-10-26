@@ -1,3 +1,0 @@
-- Reports that come with charts or pivot tables in their Excel download (Access Review Adoption, Access Reviewer Response, Entitlement Pivot) now show that breakdown on screen too, above the table: a bar per chart with its counts and percentages, and the pivots as grouped tables you can open one level deeper.
-- Clicking a status, verdict or pivot group in that summary narrows the table to those rows. **Show all rows** brings everything back.
-- The report download is now one main **Download XLSX** button, because only the workbook carries the summary, pivots and charts. CSV and JSON are in a menu next to it.

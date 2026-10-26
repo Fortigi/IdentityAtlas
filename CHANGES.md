@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Reports that come with charts or pivot tables in their Excel download (Access Review Adoption, Access Reviewer Response, Entitlement Pivot) now show that breakdown on screen too, above the table: a bar per chart with its counts and percentages, and the pivots as grouped tables you can open one level deeper.
+- Clicking a status, verdict or pivot group in that summary narrows the table to those rows. **Show all rows** brings everything back.
+- The report download is now one main **Download XLSX** button, because only the workbook carries the summary, pivots and charts. CSV and JSON are in a menu next to it.
+
+## Changes in this PR
+
 - Account Linking now recognises admin logins that a provisioning convention writes shorter than the person's name. An account logging in as `adm-ddongen` is attached to the Daniëlle van Dongen it names even though her name carries the particle, and `adm-wvelde` reaches the W. van der Velde-Bierma whose double surname it keeps one half of. Previously such an account matched no spelling of anybody's name, so it was never even compared to its owner: it stayed off the owner's Linked Accounts and sat in Orphaned Accounts indefinitely.
 - A login numbered to tell two namesakes apart is read as the name it numbers: `adm-svisser2` is now understood as the S. Visser's login it is, instead of being discarded because of the trailing digits. The digits are only dropped as a fallback, so an account whose address genuinely ends in a number (`jan2`) still belongs to the owner of that mailbox.
 - A shortened login never outranks the person actually called the shorter name. Where the tenant has both a D. Dongen and a Daniëlle van Dongen, `adm-ddongen` goes to the D. Dongen; the person whose name the convention shortened only claims it when nobody is really called that.
