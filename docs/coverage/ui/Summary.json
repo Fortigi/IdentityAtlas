@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedon": "2026-10-25T07:08:13Z",
+    "generatedon": "2026-10-26T09:32:27Z",
     "parser": "LCov",
     "assemblies": 1,
     "classes": 339,
@@ -8,7 +8,7 @@
     "coveredlines": 8414,
     "uncoveredlines": 1264,
     "coverablelines": 9678,
-    "totallines": 35125,
+    "totallines": 35132,
     "linecoverage": 86.9,
     "coveredbranches": 8178,
     "totalbranches": 10542,
@@ -21,7 +21,7 @@
  },
   "coverage": {
     "assemblies": [
-      { "name": "Default", "classes": 339, "coverage": 86.9, "coveredlines": 8414, "coverablelines": 9678, "totallines": 35125, "branchcoverage": 77.5, "coveredbranches": 8178, "totalbranches": 10542, "methodcoverage": 77.2, "fullmethodcoverage": 83.4, "coveredmethods": 2816, "fullcoveredmethods": 3042, "totalmethods": 3644, "classesinassembly": [
+      { "name": "Default", "classes": 339, "coverage": 86.9, "coveredlines": 8414, "coverablelines": 9678, "totallines": 35132, "branchcoverage": 77.5, "coveredbranches": 8178, "totalbranches": 10542, "methodcoverage": 77.2, "fullmethodcoverage": 83.4, "coveredmethods": 2816, "fullcoveredmethods": 3042, "totalmethods": 3644, "classesinassembly": [
         { "name": "src/App.helpers.js", "coverage": 100, "coveredlines": 17, "coverablelines": 17, "totallines": 99, "branchcoverage": 100, "coveredbranches": 20, "totalbranches": 20, "methodcoverage": 88.8, "fullmethodcoverage": 100, "coveredmethods": 8, "fullcoveredmethods": 9, "totalmethods": 9 },
         { "name": "src/App.jsx", "coverage": 68.3, "coveredlines": 97, "coverablelines": 142, "totallines": 356, "branchcoverage": 50, "coveredbranches": 47, "totalbranches": 94, "methodcoverage": 44, "fullmethodcoverage": 57.6, "coveredmethods": 26, "fullcoveredmethods": 34, "totalmethods": 59 },
         { "name": "src/AppRoot.jsx", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 24, "branchcoverage": 100, "coveredbranches": 2, "totalbranches": 2, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 2, "fullcoveredmethods": 2, "totalmethods": 2 },
@@ -44,7 +44,7 @@
         { "name": "src/components/accessPackages/RowCategorySelect.jsx", "coverage": 100, "coveredlines": 3, "coverablelines": 3, "totallines": 17, "branchcoverage": 66.6, "coveredbranches": 6, "totalbranches": 9, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 3 },
         { "name": "src/components/accessPackages/SelectionActionBar.jsx", "coverage": 100, "coveredlines": 4, "coverablelines": 4, "totallines": 20, "branchcoverage": 100, "coveredbranches": 4, "totalbranches": 4, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 3, "totalmethods": 3 },
         { "name": "src/components/AccessPackagesPage.jsx", "coverage": 87.9, "coveredlines": 117, "coverablelines": 133, "totallines": 300, "branchcoverage": 71.4, "coveredbranches": 45, "totalbranches": 63, "methodcoverage": 75, "fullmethodcoverage": 68.7, "coveredmethods": 24, "fullcoveredmethods": 22, "totalmethods": 32 },
-        { "name": "src/components/AccountLinkingSettings.jsx", "coverage": 97.3, "coveredlines": 74, "coverablelines": 76, "totallines": 220, "branchcoverage": 73.3, "coveredbranches": 33, "totalbranches": 45, "methodcoverage": 85, "fullmethodcoverage": 90, "coveredmethods": 17, "fullcoveredmethods": 18, "totalmethods": 20 },
+        { "name": "src/components/AccountLinkingSettings.jsx", "coverage": 97.3, "coveredlines": 74, "coverablelines": 76, "totallines": 227, "branchcoverage": 73.3, "coveredbranches": 33, "totalbranches": 45, "methodcoverage": 85, "fullmethodcoverage": 90, "coveredmethods": 17, "fullcoveredmethods": 18, "totalmethods": 20 },
         { "name": "src/components/admin/adminFormat.js", "coverage": 75, "coveredlines": 3, "coverablelines": 4, "totallines": 15, "branchcoverage": 50, "coveredbranches": 1, "totalbranches": 2, "methodcoverage": 100, "fullmethodcoverage": 0, "coveredmethods": 1, "fullcoveredmethods": 0, "totalmethods": 1 },
         { "name": "src/components/admin/adminIcons.jsx", "coverage": 100, "coveredlines": 6, "coverablelines": 6, "totallines": 70, "branchcoverage": 57.1, "coveredbranches": 4, "totalbranches": 7, "methodcoverage": 100, "fullmethodcoverage": 100, "coveredmethods": 6, "fullcoveredmethods": 6, "totalmethods": 6 },
         { "name": "src/components/admin/adminTabs.js", "coverage": 100, "coveredlines": 5, "coverablelines": 5, "totallines": 52, "branchcoverage": 93.3, "coveredbranches": 14, "totalbranches": 15, "methodcoverage": 60, "fullmethodcoverage": 100, "coveredmethods": 3, "fullcoveredmethods": 5, "totalmethods": 5 },

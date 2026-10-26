@@ -38,10 +38,17 @@ import {
   runAccountLinkingFromAdmin, linkedAccountNames, latestCompletedRun,
 } from './accountLinkingSeed';
 
+/**
+ * Signal types that are a name match and nothing else — mirrors nameSignalLevels().
+ * `loginName` is one of them: it reads the account's login as a name form (#1454),
+ * so a match resting on it is held by the same guard and reported the same way.
+ */
+const NAME_SIGNAL_TYPES = ['name', 'fuzzy', 'loginName'];
+
 /** Signal names that are a name match and nothing else — mirrors nameSignalNames(). */
 function nameSignalNames(rules) {
   return new Set((rules?.signals || [])
-    .filter(s => s.type === 'name' || s.type === 'fuzzy')
+    .filter(s => NAME_SIGNAL_TYPES.includes(s.type))
     .map(s => s.name));
 }
 
@@ -169,7 +176,7 @@ test.describe('Account linking — no auto-link on a name somebody else answers 
     // The guard, not the threshold, is what holds an ambiguous name-only match back — so
     // the threshold is deliberately still below a single name signal's weight.
     const nameWeights = (rules.signals || [])
-      .filter(s => s.type === 'name' || s.type === 'fuzzy')
+      .filter(s => NAME_SIGNAL_TYPES.includes(s.type))
       .map(s => s.weight || 0);
     expect(Math.max(0, ...nameWeights)).toBeGreaterThanOrEqual(rules.linkThreshold ?? 50);
   });

@@ -108,11 +108,44 @@ export async function closeIngestSession(session, { identityIds = [], principalI
   }
 }
 
-/** The deployment's active linking rules, with the shipped defaults merged in. */
-export async function linkingRules() {
+/**
+ * The deployment's account-linking config as the settings page reads it — the
+ * stored row plus `rules`, which the endpoint serves as the *effective*
+ * dictionary (the saved rules with the shipped signals merged in by name, #1469).
+ *
+ * @returns {Promise<object|null>} null when the endpoint is not available to us
+ */
+export async function linkingConfig() {
   const res = await fetch(`${API}/account-linking/config`);
   if (!res.ok) return null;
-  return (await res.json())?.rules ?? null;
+  return await res.json();
+}
+
+/** The deployment's active linking rules, with the shipped defaults merged in. */
+export async function linkingRules() {
+  return (await linkingConfig())?.rules ?? null;
+}
+
+/**
+ * Save a dictionary as the deployment's active rules — the same PUT the Save
+ * button makes, which is how a tenant's stored rules come to exist at all.
+ *
+ * There is one config row per deployment, so a spec that calls this changes
+ * state every other account-linking surface reads: save the config you found
+ * first and put it back on the way out.
+ *
+ * @param {object} rules the dictionary to store
+ * @param {{ schedules?: any[], isActive?: boolean }} [opts]
+ * @returns {Promise<boolean>} false when the deployment refused it (mock mode,
+ *   or a user without `admin.crawlers`) — the condition a spec skips on
+ */
+export async function saveLinkingRules(rules, { schedules = [], isActive = true } = {}) {
+  const res = await fetch(`${API}/account-linking/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rules, schedules, isActive }),
+  });
+  return res.ok;
 }
 
 /**
