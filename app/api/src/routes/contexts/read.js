@@ -16,7 +16,7 @@ import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
 import { loadPeople } from '../../contexts/interviews/peopleLoad.js';
-import { canWriteContexts, READER_STATUSES } from './interviews.js';
+import { claimStatusesFor } from './interviews.js';
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
 import { OVERRIDE_COLUMNS, OVERRIDE_JOIN, withOverride } from '../../contexts/interviews/overrideRows.js';
@@ -326,8 +326,7 @@ router.get('/contexts/:id/people', async (req, res) => {
     if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
       return res.status(400).json({ error: 'The people overview is for an organizational unit or a logical application.' });
     }
-    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
-    res.json(await loadPeople(PEOPLE_DEPS, ctx, req.query, statuses));
+    res.json(await loadPeople(PEOPLE_DEPS, ctx, req.query, claimStatusesFor(req)));
   } catch (err) {
     console.error('GET /contexts/:id/people failed:', err.message);
     res.status(500).json({ error: 'Failed to load the people' });

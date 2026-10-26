@@ -28,7 +28,7 @@ import { useSql, UUID_RE, writeContexts, WRITE_CONTEXT_PERMISSIONS } from './sha
 import { isAuthEnabled } from '../../config/authConfig.js';
 import { userOf } from '../../lib/userOf.js';
 import { TranscriptError } from '../../contexts/interviews/transcript.js';
-import { CLAIM_STATUSES } from '../../contexts/interviews/claims.js';
+import { CLAIM_STATUSES, READER_STATUSES, visibleClaimStatuses } from '../../contexts/interviews/claims.js';
 import {
   createInterview, retryExtraction, addManualClaim, claimsOf, rejectMany, interviewWithTranscript, InterviewError,
 } from '../../contexts/interviews/service.js';
@@ -40,8 +40,8 @@ const router = Router();
 // A transcript is text; a .docx with a few pictures, or a long list, is the large case.
 export const MAX_TRANSCRIPT_BYTES = 25 * 1024 * 1024;
 const ALLOWED = /\.(txt|text|md|docx|vtt|srt|csv|xlsx)$/i;
-// What a reader without write access sees.
-export const READER_STATUSES = Object.freeze(['confirmed', 'edited']);
+// What a reader without write access sees (contexts/interviews/claims.js).
+export { READER_STATUSES };
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -62,6 +62,9 @@ export function canWriteContexts(req) {
   const has = (p) => (perms instanceof Set ? perms.has(p) : Array.isArray(perms) && perms.includes(p));
   return has('*') || WRITE_CONTEXT_PERMISSIONS.some(has);
 }
+
+/** The claim statuses this request may see: proposed ones only for a writer. */
+export const claimStatusesFor = (req) => visibleClaimStatuses(canWriteContexts(req));
 
 /** The statuses a caller asked for (?status=a,b), narrowed to what they may see. Pure. */
 export function statusesFor(query, canWrite) {
@@ -100,7 +103,7 @@ router.get('/contexts/claims/mentions', requireSql, async (req, res) => {
   const id = col ? String(req.query[col]) : '';
   if (!col || !UUID_RE.test(id)) return res.status(400).json({ error: 'Give principalId or identityId (a uuid)' });
   try {
-    const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
+    const statuses = claimStatusesFor(req);
     res.json({ data: await store.mentionsOf(db, col, id.toLowerCase(), statuses) });
   } catch (err) {
     sendFailure(res, err, 'Listing interview mentions');

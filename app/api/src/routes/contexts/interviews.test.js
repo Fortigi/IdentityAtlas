@@ -22,7 +22,7 @@ vi.mock('../../contexts/interviews/store.js', async (orig) => ({
 }));
 process.env.USE_SQL = 'true';
 
-const { default: router, canWriteContexts, statusesFor, MAX_TRANSCRIPT_BYTES } = await import('./interviews.js');
+const { default: router, canWriteContexts, claimStatusesFor, statusesFor, MAX_TRANSCRIPT_BYTES } = await import('./interviews.js');
 const service = await import('../../contexts/interviews/service.js');
 const { decideClaim, undoClaim, ClaimError } = await import('../../contexts/interviews/decide.js');
 const store = await import('../../contexts/interviews/store.js');
@@ -57,6 +57,15 @@ describe('canWriteContexts', () => {
     expect(canWriteContexts({ readToken: true, user: { permissions: new Set(['*']) } })).toBe(false);
     expect(canWriteContexts({ user: { contextOwner: { contextIds: new Set() }, permissions: new Set(['*']) } })).toBe(false);
     expect(canWriteContexts({ user: {} })).toBe(false);
+  });
+});
+
+describe('claimStatusesFor', () => {
+  it('a writer sees proposed claims too; a context owner and a reader confirmed and edited ones only', () => {
+    authOn = true;
+    expect(claimStatusesFor({ user: { permissions: ['data.write.contexts'] } })).toEqual(['proposed', 'confirmed', 'edited']);
+    expect(claimStatusesFor({ user: { contextOwner: { contextIds: new Set() }, permissions: ['*'] } })).toEqual(['confirmed', 'edited']);
+    expect(claimStatusesFor({ user: { permissions: ['data.read'] } })).toEqual(['confirmed', 'edited']);
   });
 });
 

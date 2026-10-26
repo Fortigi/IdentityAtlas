@@ -242,20 +242,31 @@ const HOLDER_SQL = Object.freeze({
   other: 'NULL::uuid',
 });
 
-/** Every person claim of a context, with its holder (holderId) in the context's kind of member. */
-export function personClaimsSql(targetType) {
+/**
+ * Every person claim of a context, with its holder (holderId) in the context's
+ * kind of member. `many`: $1 is a uuid[] of contexts — the unit report reads
+ * every unit it lists in one statement — instead of one context.
+ */
+export function personClaimsSql(targetType, { many = false } = {}) {
+  const scope = many ? 'c."contextId" = ANY($1::uuid[])' : 'c."contextId" = $1';
   return `
-    SELECT ${PERSON_CLAIM_COLUMNS}, COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
+    SELECT ${PERSON_CLAIM_COLUMNS}, c."contextId", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
            (p."deletedAt" IS NOT NULL) AS "accountDeleted", ${HOLDER_SQL[targetType] ?? HOLDER_SQL.other} AS "holderId"
       FROM "ContextClaims" c
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
       LEFT JOIN "Identities" i ON i.id = c."identityId"
-     WHERE c."contextId" = $1 AND c."claimKind" = ANY($2::text[]) AND c."claimStatus" = ANY($3::text[])`;
+     WHERE ${scope} AND c."claimKind" = ANY($2::text[]) AND c."claimStatus" = ANY($3::text[])`;
 }
 
 export async function personClaims(db, contextId, targetType, statuses) {
   return (await db.query(personClaimsSql(targetType), [contextId, PERSON_CLAIM_KINDS, statuses])).rows;
+}
+
+/** The person claims of several contexts of one kind in one statement, each with its contextId. */
+export async function personClaimsIn(db, contextIds, targetType, statuses) {
+  if (!contextIds.length) return [];
+  return (await db.query(personClaimsSql(targetType, { many: true }), [contextIds, PERSON_CLAIM_KINDS, statuses])).rows;
 }
 
 // The holders the claims name, and everyone a decision marked former: their row,

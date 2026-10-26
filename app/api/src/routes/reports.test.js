@@ -34,7 +34,11 @@ describe('GET /api/reports', () => {
     for (const entry of res.body.data) {
       expect(entry.form).toBe('list');
       expect(entry.columns.length).toBeGreaterThan(0);
-      for (const col of entry.columns) expect(col).toEqual({ key: expect.any(String), label: expect.any(String) });
+      for (const { headerFill, ...col } of entry.columns) {
+        expect(col).toEqual({ key: expect.any(String), label: expect.any(String) });
+        // A column's own header colour, when it has one, is an ARGB string the workbook can use.
+        if (headerFill !== undefined) expect(headerFill).toMatch(/^[0-9A-F]{8}$/);
+      }
       expect(entry.parametersSchema).toBeTruthy();
       // The client offers the formats the server actually serves, rather than
       // assuming them.
@@ -95,6 +99,28 @@ describe('GET /api/reports/:name/rows', () => {
   it('404s rather than dispatching on an inherited Object.prototype key', async () => {
     await request(app).get('/api/reports/constructor/rows').expect(404);
     await request(app).get('/api/reports/toString/rows').expect(404);
+  });
+});
+
+describe('what a run is told about its reader', () => {
+  it('passes the claim statuses the reader may see — in open mode every non-rejected one — to rows and downloads alike', async () => {
+    const seen = [];
+    const unregister = registerReport({
+      name: 'reader-aware-report', displayName: 'Reader Aware', description: 'Records its context.', form: 'list',
+      parametersSchema: { type: 'object', required: [], properties: {} },
+      columns: [{ key: 'a', label: 'A' }],
+      run: async (params, ctx) => { seen.push(ctx); return { rows: [] }; },
+    });
+    try {
+      await request(app).get('/api/reports/reader-aware-report/rows').expect(200);
+      await request(app).get('/api/reports/reader-aware-report/export?format=csv').expect(200);
+    } finally {
+      unregister();
+    }
+    expect(seen).toEqual([
+      { claimStatuses: ['proposed', 'confirmed', 'edited'] },
+      { claimStatuses: ['proposed', 'confirmed', 'edited'] },
+    ]);
   });
 });
 

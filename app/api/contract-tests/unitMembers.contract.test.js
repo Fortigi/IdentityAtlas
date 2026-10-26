@@ -22,7 +22,7 @@ let systemId;
 const id = {
   accounts: randomUUID(), sub: randomUUID(), people: randomUUID(),
   alice: randomUUID(), bob: randomUUID(), gone: randomUUID(), carol: randomUUID(), boss: randomUUID(),
-  grace: randomUUID(),
+  grace: randomUUID(), dave: randomUUID(), interview: randomUUID(),
   g1: randomUUID(), g2: randomUUID(), g3: randomUUID(), role: randomUUID(),
 };
 
@@ -75,6 +75,19 @@ async function seed() {
   for (const p of [id.alice, id.carol]) await q(`INSERT INTO "IdentityMembers" ("identityId","principalId") VALUES ($1,$2)`, [id.grace, p]);
   await context(id.people, PEOPLE, 'Identity');
   await member(id.people, id.grace, 'Identity');
+
+  // What an interview with Boss says: Alice is the controller (confirmed), and
+  // Dave — not a member any more — left (confirmed) and still holds G2.
+  await principal(id.dave, 'Dave');
+  await assign(id.g2, id.dave);
+  await q(`INSERT INTO "ContextInterviews" ("id","contextId","principalId","intervieweeName","interviewedAt","fileName","transcript")
+           VALUES ($1,$2,$3,'Boss','2026-10-01','gesprek.vtt','…')`, [id.interview, id.accounts, id.boss]);
+  const claim = (pid, kind, attribute, value, status = 'confirmed') => q(
+    `INSERT INTO "ContextClaims" ("interviewId","contextId","claimKind","subjectKind","principalId","attribute","value","claimStatus","proposedBy")
+     VALUES ($1,$2,$3,'Person',$4,$5,$6,$7,'analyst')`, [id.interview, id.accounts, kind, pid, attribute, value, status]);
+  await claim(id.alice, 'role', null, 'Controller');
+  await claim(id.bob, 'role', null, 'Auditor', 'proposed');
+  await claim(id.dave, 'membership', 'left', 'left the team');
 }
 
 async function rows(contexts, extra = {}) {
@@ -107,7 +120,8 @@ describe('GET /reports/unit-members on a unit of accounts', () => {
   it('lists the live direct members with their manager and their distinct entitlements', async () => {
     const body = await rows(ACCOUNTS);
     const members = byName(body);
-    expect(Object.keys(members)).toEqual(['Alice', 'Bob']);
+    // Dave is not a member; he follows the members because an interview says he left (below).
+    expect(Object.keys(members)).toEqual(['Alice', 'Bob', 'Dave']);
     // G1 twice counts once, the deleted G3 and the business role not at all.
     expect(members.Alice).toMatchObject({ entitlements: 2, manager: 'Boss', employeeId: 'E-Alice', 'member.ext.badge': 7 });
     expect(members.Bob).toMatchObject({ entitlements: 1, 'member.ext.badge': null });
@@ -118,7 +132,7 @@ describe('GET /reports/unit-members on a unit of accounts', () => {
   it('adds the sub-units\' members when asked, each under its own unit', async () => {
     const body = await rows(ACCOUNTS, { includeSubUnits: 'true' });
     expect(body.rows.map(r => [r.unit, r.displayName])).toEqual([
-      [ACCOUNTS, 'Alice'], [ACCOUNTS, 'Bob'], ['Contract Unit Sub', 'Carol'],
+      [ACCOUNTS, 'Alice'], [ACCOUNTS, 'Bob'], ['Contract Unit Sub', 'Carol'], [ACCOUNTS, 'Dave'],
     ]);
   });
 
@@ -129,6 +143,30 @@ describe('GET /reports/unit-members on a unit of accounts', () => {
     const labels = [];
     summary.eachRow(row => labels.push(row.getCell(1).value));
     expect(labels).toEqual(expect.arrayContaining([`Context: ${ACCOUNTS}`, 'Accountable', 'costCenter']));
+  });
+});
+
+describe('GET /reports/unit-members — organisational claims', () => {
+  it('adds the People overview status, role and source, and the people who left after the members', async () => {
+    const body = await rows(ACCOUNTS);
+    expect(body.rows.map(r => [r.displayName, r.status, r.claimStatus, r.claimRole, r.entitlements])).toEqual([
+      ['Alice', 'current', 'Current', 'Controller', 2],
+      // Open mode is a writer: the proposed role shows, marked.
+      ['Bob', 'current', 'Current', 'Auditor (proposed)', 1],
+      ['Dave', 'not listed by the source', 'Left', null, 1],
+    ]);
+    expect(byName(body).Alice.claimSource).toBe('interview with Boss, 2026-10-01');
+    const entries = Object.fromEntries(body.details[0].entries.map(e => [e.label, e.value]));
+    expect(entries).toMatchObject({ 'Current members': 2, 'Former people': 1, 'Claims proposed (not reviewed)': 1 });
+  });
+
+  it('names the claim columns, set apart in the workbook', async () => {
+    const res = await asBinary(agent.get('/api/reports/unit-members/export').query({ contexts: id.accounts, format: 'xlsx' }));
+    const data = await sheetNamed(res.body, 'Data');
+    const header = data.getRow(1).values.slice(1);
+    const at = header.indexOf('Org claim — Status');
+    expect(header.slice(at, at + 3)).toEqual(['Org claim — Status', 'Org claim — Role', 'Org claim — Source']);
+    expect(data.getRow(1).getCell(at + 1).fill.fgColor.argb).toBe('FFFEF3C7');
   });
 });
 

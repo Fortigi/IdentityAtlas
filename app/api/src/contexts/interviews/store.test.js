@@ -82,6 +82,18 @@ describe('the People overview reads', () => {
     expect(store.personClaimsSql('Resource')).toMatch(/NULL::uuid AS "holderId"/);
   });
 
+  it('reads the claims of several contexts in one statement, each with its context; nothing for none', async () => {
+    expect(store.personClaimsSql('Principal', { many: true })).toMatch(/WHERE c\."contextId" = ANY\(\$1::uuid\[\]\)\s+AND c\."claimKind"/);
+    expect(store.personClaimsSql('Principal')).toMatch(/WHERE c\."contextId" = \$1\s+AND c\."claimKind"/);
+    expect(store.personClaimsSql('Identity')).toContain('c."contextId", COALESCE(p."displayName"');
+    const d = db([{ id: 'c1' }]);
+    expect(await store.personClaimsIn(d, ['u1', 'u2'], 'Identity', ['confirmed'])).toEqual([{ id: 'c1' }]);
+    expect(d.query.mock.calls[0]).toEqual([store.personClaimsSql('Identity', { many: true }), [['u1', 'u2'], store.PERSON_CLAIM_KINDS, ['confirmed']]]);
+    const none = db([{ id: 'c1' }]);
+    expect(await store.personClaimsIn(none, [], 'Identity', ['confirmed'])).toEqual([]);
+    expect(none.query).not.toHaveBeenCalled();
+  });
+
   it('reads the claims with the person kinds and the statuses given', async () => {
     const d = db([{ id: 'c1' }]);
     expect(await store.personClaims(d, 'ctx', 'Principal', ['confirmed'])).toEqual([{ id: 'c1' }]);

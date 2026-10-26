@@ -101,12 +101,25 @@ export function peopleEntries(roles, suggestion) {
   return entries;
 }
 
+const PEOPLE_LABELS = new Set(['Accountable', 'Suggested Accountable', 'Responsible']);
+
+/**
+ * The block with `entries` added right under its people block (the Accountable,
+ * the suggestion, the Responsibles — always first). Pure.
+ */
+export function withAfterPeople(block, entries) {
+  const firstOther = block.entries.findIndex(e => !PEOPLE_LABELS.has(e.label));
+  const at = firstOther === -1 ? block.entries.length : firstOther;
+  return { ...block, entries: [...block.entries.slice(0, at), ...entries, ...block.entries.slice(at)] };
+}
+
 /** One context's block. */
 export function detailBlock(row, roles = [], suggestion = null) {
   return {
     title: `Context: ${row.displayName}`,
     // The file is named after it when a run covers this one context (export.js).
     contextName: row.displayName,
+    contextId: row.id,
     entries: [...peopleEntries(roles, suggestion), ...attributeEntries(row)],
   };
 }

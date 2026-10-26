@@ -4622,6 +4622,12 @@ components:
           description: >
             Only in the builder catalog: the column reads an `extendedAttributes` key found in this
             deployment's own data rather than a field of the shared catalog.
+        headerFill:
+          type: string
+          pattern: '^[0-9A-Fa-f]{8}$'
+          description: >
+            Optional ARGB colour for the column's header in the Excel download, to set a group of
+            columns apart (the unit report's organisational-claim columns).
 
 
     ReportDefinition:

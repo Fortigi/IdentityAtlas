@@ -11,7 +11,7 @@ vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
 import {
   MAX_CELL_TEXT, MAX_SUGGESTIONS, attributeEntries, cellValue, detailBlock, detailLabel,
-  fetchContextDetails, peopleEntries, personText, wantsSuggestion,
+  fetchContextDetails, peopleEntries, personText, wantsSuggestion, withAfterPeople,
 } from './contextDetails.js';
 
 const APP = '11111111-1111-1111-1111-111111111111';
@@ -132,6 +132,19 @@ describe('the people', () => {
     const block = detailBlock(row({ extendedAttributes: {} }));
     expect(block.title).toBe('Context: Ledger');
     expect(labels(block.entries).slice(0, 3)).toEqual(['Accountable', 'Responsible', 'Id']);
+    expect(block.contextId).toBe(APP);
+  });
+
+  it('adds entries right under the people block, whatever an attribute is called', () => {
+    const add = [{ label: 'Note', value: 'n' }];
+    const block = detailBlock(row({ extendedAttributes: { Responsible: 'not a person' } }),
+      [{ role: 'Accountable', displayName: 'Ada' }, { role: 'Responsible', displayName: 'Bo' }, { role: 'Responsible', displayName: 'Cy' }]);
+    expect(labels(withAfterPeople(block, add).entries).slice(0, 5)).toEqual(['Accountable', 'Responsible', 'Responsible', 'Note', 'Id']);
+    const suggested = detailBlock(row(), [], { displayName: 'Ada', reason: 'manages 2' });
+    expect(labels(withAfterPeople(suggested, add).entries).slice(0, 4)).toEqual(['Accountable', 'Suggested Accountable', 'Responsible', 'Note']);
+    // A block of people only gets them at the end.
+    expect(withAfterPeople({ entries: [{ label: 'Accountable' }] }, add).entries).toEqual([{ label: 'Accountable' }, ...add]);
+    expect(block.entries).toHaveLength(withAfterPeople(block, add).entries.length - 1);
   });
 });
 

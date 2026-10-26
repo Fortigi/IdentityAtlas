@@ -28,8 +28,8 @@ import {
   pageAcross, FILTER_GROUPS, withEntitlements,
 } from './people.js';
 
-// Everyone the claims and decisions are about, each built once: { known, listedKeys }.
-function knownPeople({ groups, holders, roles, open, col }) {
+// Everyone the claims and decisions are about, each built once (the unit report reads it too).
+export function knownPeople({ groups, holders, roles, open, col }) {
   const keys = new Set([...groups.keys(), ...holders.keys()]);
   const known = [];
   for (const key of keys) {
