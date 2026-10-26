@@ -58,6 +58,49 @@ BeforeAll {
 
     function Script:GroupsNamed { param([string]$Like) return @($script:groups | Where-Object { $_.displayName -like $Like }) }
     function Script:LiveMembers { param([string]$ResourceId) return @($script:membersOf[$ResourceId]) }
+
+    # A column the generator only writes on some records, read without caring
+    # whether it is there — an absent one is the same answer as an empty one.
+    function Script:Prop { param($Obj, [string]$Name)
+        $prop = $Obj.PSObject.Properties[$Name]
+        if ($prop) { return $prop.Value }
+        return $null
+    }
+
+    # Accounts the seed itself already attached to a person.
+    $script:linkedPrincipals = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($m in $script:data.identityMembers) { $null = $script:linkedPrincipals.Add($m.principalId) }
+
+    # Every identity indexed under the <first initial><surname> login key, recomputed
+    # from their clean name columns rather than read back off the accounts — so a login
+    # that stops being spelled after a real person fails rather than matching itself.
+    $script:identitiesByLoginKey = @{}
+    foreach ($idy in $script:data.identities) {
+        $given = Script:Prop $idy 'givenName'
+        $surname = Script:Prop $idy 'surname'
+        if (-not $given -or -not $surname) { continue }
+        $key = "$($given.Substring(0, 1))$($surname -replace '[^\p{L}]', '')".ToLower()
+        if (-not $script:identitiesByLoginKey.ContainsKey($key)) { $script:identitiesByLoginKey[$key] = [System.Collections.Generic.List[object]]::new() }
+        $script:identitiesByLoginKey[$key].Add($idy)
+    }
+
+    function Script:AdminLocalPart { param($Account) return ($Account.email -split '@')[0] }
+
+    # The two admin-login conventions the slice seeds, told apart the way a reader can:
+    # an `adm-<email local part>` login carries the dot its owner's address has, an
+    # `adm-<initial><surname>` one cannot.
+    function Script:AdminAccounts { param([switch]$ByInitialSurname)
+        return @($script:data.principals | Where-Object {
+            (Script:Prop $_ 'jobTitle') -eq 'Administrative account' -and
+            (((Script:AdminLocalPart $_) -notlike '*.*') -eq $ByInitialSurname.IsPresent) })
+    }
+
+    # The people an `adm-<initial><surname>` login could be spelled after.
+    function Script:AdminLoginOwners { param($Account)
+        $key = (Script:AdminLocalPart $Account) -replace '^adm-', ''
+        if ($script:identitiesByLoginKey.ContainsKey($key)) { return @($script:identitiesByLoginKey[$key]) }
+        return @()
+    }
 }
 
 Describe 'the realism slice is opt-in' {
@@ -188,6 +231,77 @@ Describe 'people — the questions about who somebody is' {
         $kinds | Should -Contain 'CRM'
     }
 
+    It 'hands part of the admin accounts an adm-initial-surname login and nothing else' {
+        # The second convention a real tenant uses, and the only reason these accounts
+        # exist: with no employee id, no name columns, no department and no pre-made
+        # link, the login is the one piece of evidence of whose account it is. An
+        # account that kept any of those would link through another signal and would
+        # prove nothing about the login.
+        $byLogin = Script:AdminAccounts -ByInitialSurname
+        $byLogin.Count | Should -BeGreaterOrEqual 10 -Because 'the login signal needs a population to be read on'
+
+        foreach ($acct in $byLogin) {
+            (Script:AdminLocalPart $acct) | Should -Match '^adm-[a-z]+$'
+            foreach ($column in @('employeeId', 'givenName', 'surname', 'department', 'managerId')) {
+                Script:Prop $acct $column | Should -BeNullOrEmpty -Because "$column would attribute the account without reading its login"
+            }
+            # Not even the display name spells the person — it spells the login.
+            $acct.displayName | Should -Be (Script:AdminLocalPart $acct)
+            $script:linkedPrincipals.Contains($acct.id) | Should -BeFalse -Because 'a pre-linked account leaves the run nothing to find'
+        }
+    }
+
+    It 'leaves the adm-email admin accounts stamped and linked, as they were' {
+        # Both conventions have to stay in the data: the older one is what exercises
+        # the employee-id and email-prefix routes to the same person.
+        $byEmail = Script:AdminAccounts
+        $byEmail.Count | Should -Be 30 -Because 'the existing demo admin accounts and their links are unchanged'
+        foreach ($acct in $byEmail) {
+            (Script:Prop $acct 'employeeId') | Should -Match '^R\d{4}$'
+            $acct.displayName | Should -BeLike '* (admin)'
+            $script:linkedPrincipals.Contains($acct.id) | Should -BeTrue
+        }
+    }
+
+    It 'spells every adm-initial-surname login after somebody really in the directory' {
+        # The login being the only evidence cuts both ways: one nobody in the tenant
+        # answers to is evidence of nothing, and the account would sit orphaned for
+        # ever however good the engine is. This is also why the seed never numbers a
+        # login — `adm-svisser2` is spelled after nobody at all.
+        $byLogin = Script:AdminAccounts -ByInitialSurname
+        $byLogin.Count | Should -BeGreaterOrEqual 10
+
+        $ownerCounts = @($byLogin | ForEach-Object { (Script:AdminLoginOwners $_).Count })
+        @($ownerCounts | Where-Object { $_ -eq 0 }).Count | Should -Be 0 -Because 'a login nobody answers to can never be attributed'
+        @($ownerCounts | Where-Object { $_ -eq 1 }).Count | Should -BeGreaterOrEqual 8 -Because 'the auto-link half of the demo needs logins that point at one person'
+    }
+
+    It 'includes an admin login two people answer to, so one match has to be held back' {
+        $ambiguous = @(Script:AdminAccounts -ByInitialSurname | Where-Object { (Script:AdminLoginOwners $_).Count -gt 1 })
+        $ambiguous.Count | Should -BeGreaterOrEqual 1 -Because 'the held-for-review case is forced by the name cast, not left to the bucket draw'
+
+        # The forced one. The cast seeds more than one Sanne Visser, so `adm-svisser`
+        # fits them at full-name strength as well as surname-and-initial — there is
+        # nothing in the login that says which of them it is.
+        $svisser = @($ambiguous | Where-Object { $_.email -like 'adm-svisser@*' })
+        $svisser.Count | Should -Be 1
+        @((Script:AdminLoginOwners $svisser[0]) | Where-Object { $_.givenName -eq 'Sanne' -and $_.surname -eq 'Visser' }).Count |
+            Should -BeGreaterOrEqual 2
+
+        foreach ($acct in $ambiguous) { $script:linkedPrincipals.Contains($acct.id) | Should -BeFalse }
+    }
+
+    It 'never hands two admin accounts the same login, and never numbers one' {
+        $all = @(Script:AdminAccounts) + @(Script:AdminAccounts -ByInitialSurname)
+        @($all | Group-Object email | Where-Object { $_.Count -gt 1 }).Count | Should -Be 0
+        # A directory would hand the second namesake `adm-svisser2`. The seed does
+        # not: a trailing digit run is a login shape the engine cannot yet spell back
+        # to a name (#1468), so such an account could only sit orphaned. The namesake
+        # is skipped instead — asserted on the seeding function itself below.
+        @(Script:AdminAccounts -ByInitialSurname | Where-Object { (Script:AdminLocalPart $_) -match '[0-9]$' }) |
+            Should -BeNullOrEmpty -Because 'a numbered login is spelled after nobody in the directory'
+    }
+
     It 'records who moved department, and leaves them access from the old one' {
         $movers = @($script:data.principals | Where-Object {
             $_.extendedAttributes.PSObject.Properties.Name -contains 'previousDepartment' -and $_.extendedAttributes.previousDepartment })
@@ -198,6 +312,88 @@ Describe 'people — the questions about who somebody is' {
             $holdings = if ($script:holdingsOf.ContainsKey($_.id)) { $script:holdingsOf[$_.id] } else { @() }
             @($holdings | Where-Object { $script:resourceById[$_.resourceId].displayName -like "SG-$old-*" }).Count -gt 0 })
         $withOldAccess.Count | Should -BeGreaterThan 20 -Because 'access that does not match the current department is the point'
+    }
+}
+
+<#
+    What happens when two people in the admin bucket spell the same login, driven
+    straight through the seeding function with people of this test's own making.
+
+    The dataset tests above can only see the accounts the seed wrote; they cannot
+    show what it did with the one it chose NOT to write. Here the collision is the
+    input, so "the second namesake is skipped" is the thing under test rather than
+    a property the roster happens to produce.
+#>
+Describe 'two people whose adm-initial-surname login is the same word' {
+    BeforeAll {
+        $partsDir = Join-Path $script:repoRoot 'test' 'demo-dataset' 'parts'
+        . (Join-Path $partsDir 'DemoState.ps1')
+        . (Join-Path $partsDir 'DemoRealismPeople.ps1')
+
+        # Just enough state for Add-DemoRealismLinkedAccounts: the Entra system it
+        # writes the account into, and the set of logins already handed out.
+        function Script:NewLoginState {
+            $state = New-DemoState
+            $null = Add-DemoSystem $state -Key 'entra' -SystemType 'EntraID' -DisplayName 'Entra' -TenantId 'demo-001'
+            $state['Realism'] = [ordered]@{ AdminLogins = [System.Collections.Generic.HashSet[string]]::new() }
+            return $state
+        }
+
+        # Bucket 93 is inside the band that earns the login-only admin account and
+        # outside the AD, CRM and adm-<email> ones, so this account is all that the
+        # function writes for them.
+        function Script:AdminBucketPerson {
+            param([string]$Id, [string]$Given, [string]$Surname)
+            return [ordered]@{
+                id = $Id; name = "$Given $Surname"; given = $Given; surname = $Surname
+                email = "$($Given.ToLower()).$($Surname.ToLower())@fortigidemo.com"
+                dept = 'IT Support'; extraAccount = 93
+            }
+        }
+
+        function Script:AdminLoginsWritten {
+            param($State)
+            return @($State.Principals | Where-Object { $_.jobTitle -eq 'Administrative account' } |
+                ForEach-Object { ($_.email -split '@')[0] })
+        }
+    }
+
+    It 'gives the account to the first of them and skips the second' {
+        $state = Script:NewLoginState
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9001' 'Sanne' 'Visser')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9002' 'Sanne' 'Visser')
+
+        # One account, the plain spelling, and nothing numbered beside it.
+        Script:AdminLoginsWritten $state | Should -Be @('adm-svisser')
+        # And it is the FIRST person's, which is what keeps `adm-svisser` pinned to
+        # the roster position the ambiguous case is forced onto.
+        $state.Principals[0].id | Should -Be (New-DemoGuid 'principal-R9001-adm2')
+        # The skipped person gets no identity link either — they simply have no
+        # second account, rather than an unreachable one.
+        $state.IdentityMembers.Count | Should -Be 0
+    }
+
+    It 'still gives one to a namesake-free person in the same bucket' {
+        # The other arm: the skip must be a reaction to the collision, not to the
+        # bucket. A seed that stopped writing these accounts at all would satisfy
+        # the test above and leave the demo with nothing to link.
+        $state = Script:NewLoginState
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9001' 'Sanne' 'Visser')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9003' 'Daan' 'Mulder')
+
+        Script:AdminLoginsWritten $state | Should -Be @('adm-svisser', 'adm-dmulder')
+    }
+
+    It 'tells apart two surnames that only differ in their particles' {
+        # "van der Meer" and "Vandermeer" collapse to the same login, which is the
+        # collision really worth surviving; "Jansen" and "Janssen" do not.
+        $state = Script:NewLoginState
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9001' 'Iris' 'van der Meer')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9002' 'Iris' 'Vandermeer')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9003' 'Koen' 'Jansen')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9004' 'Koen' 'Janssen')
+
+        Script:AdminLoginsWritten $state | Should -Be @('adm-ivandermeer', 'adm-kjansen', 'adm-kjanssen')
     }
 }
 

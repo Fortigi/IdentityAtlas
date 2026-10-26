@@ -11,6 +11,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { effectiveLinkingRules } from './rulesMerge.js';
+import { PRE_LOGIN_NAME_FORM_RULES } from '../../test-utils/preShippedLinkingRules.js';
 
 vi.mock('../db/connection.js');
 import { query } from '../db/connection.js';
@@ -209,5 +211,109 @@ describe('removeStaleNameOnlyLinks - what it never touches', () => {
     const scan = query.mock.calls[0][0];
     expect(scan).toMatch(/JOIN "Principals" p ON p\."id" = m\."principalId"/);
     expect(scan).toMatch(/p\."displayName", p\."givenName", p\."surname"/);
+  });
+});
+
+describe('removeStaleNameOnlyLinks - links made on an account’s login (#1454)', () => {
+  // The login is name-class evidence, so the cleanup judges links made on it — and it
+  // has to judge them on the same terms the engine made them. Asked about the display
+  // name only, every one of these accounts looks like a link resting on a name that
+  // points at nobody: the run would detach it, re-create it from the orphan pool in
+  // the same run, and report a removal on every run forever.
+  const MUNCK = [
+    { id: 'fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk', email: 'f.h.hogenbirk@x.com' },
+    { id: 'petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@x.com' },
+    { id: 'pieter', displayName: 'Pieter Munck', givenName: 'Pieter', surname: 'Munck', email: 'pieter.munck@x.com' },
+  ];
+
+  it('leaves a link whose login still points at exactly its own identity', async () => {
+    stageMembers([{
+      identityId: 'fay', principalId: 'p-adm', linkSignals: 'loginNameForm',
+      displayName: 'Admin account 042', email: 'adm-fhogenbirk@x.com',
+    }]);
+    expect(await removeStaleNameOnlyLinks(DEFAULT_RULES, MUNCK)).toBe(0);
+    expect(deletes()).toHaveLength(0);
+  });
+
+  it('detaches one made on a login a second person now answers to', async () => {
+    // The paired case, and the reason the cleanup judges these at all: Pieter joined
+    // after the link was made, so 'adm-pmunck' no longer says which Munck it is.
+    stageMembers([{
+      identityId: 'petra', principalId: 'p-adm2', linkSignals: 'loginNameForm',
+      displayName: 'Admin account 043', email: 'adm-pmunck@x.com',
+    }]);
+    expect(await removeStaleNameOnlyLinks(DEFAULT_RULES, MUNCK)).toBe(1);
+    expect(deletes().map(c => c[1])).toEqual([['petra', 'p-adm2']]);
+  });
+
+  it('reads the account’s login from the member scan, not just its display name', async () => {
+    // The db mock is SQL-blind, so the only place this can be pinned is the scan's
+    // shape. Without p."email" every row reads as an account with no login and the
+    // two cases above collapse into "detach, re-create, report a removal, forever".
+    stageMembers([]);
+    await removeStaleNameOnlyLinks(DEFAULT_RULES, MUNCK);
+    expect(query.mock.calls[0][0]).toMatch(/p\."email"/);
+  });
+
+  it('removes it under the stricter policy, like any other name-only link', async () => {
+    stageMembers([{
+      identityId: 'fay', principalId: 'p-adm', linkSignals: 'loginNameForm',
+      displayName: 'Admin account 042', email: 'adm-fhogenbirk@x.com',
+    }]);
+    expect(await removeStaleNameOnlyLinks(STRICT, MUNCK)).toBe(1);
+  });
+});
+
+describe('removeStaleNameOnlyLinks - the first run after a saved dictionary gains a signal (#1469)', () => {
+  // The merge hands this cleanup a dictionary a tenant has never run with: their
+  // saved rules plus every signal shipped since they saved. That is the one
+  // moment the cleanup can do damage at scale — it judges stored links against
+  // the *current* rules, so a newly merged name-class signal adds a reading of
+  // every account it scans. Links the tenant has had for months must survive it;
+  // the merge is an upgrade, not a re-link.
+  const UPGRADED = effectiveLinkingRules(PRE_LOGIN_NAME_FORM_RULES);
+
+  const PEOPLE = [
+    { id: 'fay', displayName: 'Hogenbirk, Fay', givenName: 'Fay', surname: 'Hogenbirk', email: 'f.h.hogenbirk@x.com' },
+    { id: 'robin', displayName: 'Euson, Robin', givenName: 'Robin', surname: 'Euson', email: 'r.euson@x.com' },
+  ];
+
+  it('hands the cleanup the signals the tenant saved before, plus the one they predate', () => {
+    // What makes the two cases below about the merge at all: the dictionary the
+    // cleanup is judging with is the tenant's, and it now reads logins.
+    expect(PRE_LOGIN_NAME_FORM_RULES.signals.some(s => s.type === 'loginName')).toBe(false);
+    expect(UPGRADED.signals.some(s => s.type === 'loginName')).toBe(true);
+  });
+
+  it('leaves a link made under the saved dictionary attached', async () => {
+    // Linked on her display name back when that was the only name signal there
+    // was. The merged dictionary now also reads the account's login, which says
+    // the same thing — so there is nothing new to object to and the link stands.
+    // A cleanup that detached it would strip this class off every identity on
+    // the tenant's first run after the upgrade, and re-create them with a new
+    // confidence and a new signal list: the acceptance criterion is that the
+    // merge adds signals, not that it re-links the tenant.
+    stageMembers([{
+      identityId: 'fay', principalId: 'p-adm', linkSignals: 'fullName',
+      displayName: 'Hogenbirk, Fay', email: 'adm-fhogenbirk@x.com',
+    }]);
+
+    expect(await removeStaleNameOnlyLinks(UPGRADED, PEOPLE)).toBe(0);
+    expect(deletes()).toHaveLength(0);
+    expect(countRecomputes()).toHaveLength(0);
+  });
+
+  it('still detaches one the merged dictionary genuinely objects to', async () => {
+    // The paired case, so the survival above cannot be read as "the cleanup does
+    // nothing under a merged dictionary": this account is named after neither
+    // person it was attached to, and goes exactly as it would under the shipped
+    // rules.
+    stageMembers([{
+      identityId: 'fay', principalId: 'p-mis', linkSignals: 'fullName',
+      displayName: 'Euson, Robin', email: 'adm-reuson@x.com',
+    }]);
+
+    expect(await removeStaleNameOnlyLinks(UPGRADED, PEOPLE)).toBe(1);
+    expect(deletes().map(c => c[1])).toEqual([['fay', 'p-mis']]);
   });
 });

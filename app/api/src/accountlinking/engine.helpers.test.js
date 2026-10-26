@@ -15,6 +15,8 @@ import {
   nameInitialVariants,
   prefixesFrom,
   suffixesFrom,
+  loginPrefixesFrom,
+  strongestNameRung,
   nameSignalNames,
   nameSignalLevels,
   matchLevelOf,
@@ -770,5 +772,237 @@ describe('nameInitialVariants', () => {
     expect(nameInitialVariants({ displayName: 'Jansen' }).size).toBe(0);
     expect(nameInitialVariants({ givenName: 'Anna' }).size).toBe(0);
     expect(nameInitialVariants({}).size).toBe(0);
+  });
+});
+
+// ── Reading the account's LOGIN as one of its names (#1454) ──────────────────
+//
+// An admin login carries its owner's name in whatever form the provisioning
+// convention writes it, and the dictionary's only login-reading rule demanded the
+// prefix-stripped login equal the owner's address exactly. On the reporting tenant
+// that recognised one convention: 30 of 64 admin accounts linked, every one of them
+// on its display name, none on its login. The helpers below are what make the login
+// a name the engine indexes, scores and weighs rivals on, like any other.
+
+describe('loginPrefixesFrom', () => {
+  it('reads the prefixes off the login signals, not off the address rule', () => {
+    // The two rules are independent: a tenant may strip 'adm-' for one and not the
+    // other. Taken from the prefix rule, a dictionary that drops it stops stripping
+    // logins too and every admin account silently stops matching.
+    const rules = {
+      signals: [
+        { type: 'prefix', name: 'emailPrefix', stripPrefixes: ['x-'] },
+        { type: 'loginName', name: 'loginNameForm', stripPrefixes: ['adm-', 'a-'] },
+      ],
+    };
+    expect(loginPrefixesFrom(rules)).toEqual(['adm-', 'a-']);
+    expect(prefixesFrom(rules)).toEqual(['x-']);
+  });
+
+  it('is empty for a dictionary with no login rule at all', () => {
+    expect(loginPrefixesFrom({ signals: [{ type: 'prefix', stripPrefixes: ['adm-'] }] })).toEqual([]);
+    expect(loginPrefixesFrom({})).toEqual([]);
+  });
+
+  it('collects the prefixes of every login rule', () => {
+    expect(loginPrefixesFrom({
+      signals: [
+        { type: 'loginName', stripPrefixes: ['adm-'] },
+        { type: 'loginName', stripPrefixes: ['ext-'] },
+        { type: 'loginName' },
+      ],
+    })).toEqual(['adm-', 'ext-']);
+  });
+});
+
+describe('nameSignalLevels - the login rung', () => {
+  const levels = nameSignalLevels(DEFAULT_RULES);
+
+  it('counts the login signal as a name signal with a level of its own', () => {
+    // Name-class is what routes it through the uniqueness guard and the retroactive
+    // cleanup; left out, an admin login would auto-link to whoever it half fits.
+    expect(nameSignalNames(DEFAULT_RULES).has('loginNameForm')).toBe(true);
+    expect(levels.get('loginNameForm')).toBe('loginName');
+    // ...and it is NOT reported as a full-name or surname+initial hold: the rivals of
+    // such a match share a login form, not a spelled-out name, and the card's wording
+    // for those two would send the analyst after a namesake who does not exist.
+    expect(matchLevelOf(['loginNameForm'], levels)).toBe('loginName');
+  });
+
+  it('still maps the parsed-name signals to their own levels', () => {
+    expect(levels.get('fullName')).toBe('full');
+    expect(levels.get('surnameInitial')).toBe('surnameInitial');
+    expect(levels.get('email')).toBeUndefined();
+  });
+});
+
+describe('strongestNameRung', () => {
+  const fay = {
+    id: 'fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com',
+  };
+
+  it('fires the login rung when the account’s own name says nothing', () => {
+    // The reported case: the display name is an asset tag, so the login is the only
+    // evidence there is.
+    expect(strongestNameRung(
+      { displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' }, fay, DEFAULT_RULES,
+    )).toBe('loginName');
+  });
+
+  it('fires the heavier parsed-name rung instead of stacking the two', () => {
+    // Her display name AND her login spell her, which is one name read twice. Summed,
+    // 60 + 55 caps at 100 — the confidence of an exact employeeId match — for evidence
+    // a namesake's account carries just as well.
+    expect(strongestNameRung(
+      { displayName: 'Hogenbirk, Fay', email: 'adm-fayhogenbirk@fortigidemo.com' }, fay, DEFAULT_RULES,
+    )).toBe('full');
+  });
+
+  it('prefers the login rung over the lighter surname+initial one', () => {
+    // 'F. Hogenbirk' is a 45-weight read of the name and the login is a 55-weight one,
+    // so the ladder has to rank by weight rather than by which field it came from:
+    // reporting 'surnameInitial' here leaves the account under the threshold.
+    expect(strongestNameRung(
+      { displayName: 'F. Hogenbirk', email: 'adm-fayhogenbirk@fortigidemo.com' }, fay, DEFAULT_RULES,
+    )).toBe('loginName');
+  });
+
+  it('reorders with the dictionary rather than hard-coding the order', () => {
+    // A tenant that makes the login the lighter signal gets the lighter answer.
+    const reweighted = {
+      signals: DEFAULT_RULES.signals.map(s => (s.type === 'loginName' ? { ...s, weight: 20 } : s)),
+    };
+    expect(strongestNameRung(
+      { displayName: 'F. Hogenbirk', email: 'adm-fayhogenbirk@fortigidemo.com' }, fay, reweighted,
+    )).toBe('surnameInitial');
+  });
+
+  it('is null when neither the name nor the login says anything', () => {
+    expect(strongestNameRung(
+      { displayName: 'Admin account 042', email: 'adm-jjansen@fortigidemo.com' }, fay, DEFAULT_RULES,
+    )).toBeNull();
+    expect(strongestNameRung({ displayName: 'Admin account 042' }, fay, DEFAULT_RULES)).toBeNull();
+  });
+
+  it('tolerates a dictionary with no signals and an under-specified login rule', () => {
+    // A rule with no stripPrefixes and no weight is still a rule: it reads the login
+    // raw (no prefix to strip) and contributes nothing to the ladder's ranking, rather
+    // than throwing in the middle of a run over every orphan on the tenant.
+    expect(strongestNameRung({ displayName: 'Admin account 042' }, fay, {})).toBeNull();
+    expect(strongestNameRung(
+      { displayName: 'Admin account 042', email: 'fhogenbirk@fortigidemo.com' },
+      fay,
+      { signals: [{ type: 'loginName', name: 'bare', field: 'email' }] },
+    )).toBe('loginName');
+  });
+
+  it('reads no login at all for a dictionary without a login rule', () => {
+    const noLogin = { signals: DEFAULT_RULES.signals.filter(s => s.type !== 'loginName') };
+    expect(strongestNameRung(
+      { displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' }, fay, noLogin,
+    )).toBeNull();
+  });
+});
+
+describe('indexIdentities / collectCandidates - the login indexes', () => {
+  const opts = {
+    prefixes: prefixesFrom(DEFAULT_RULES),
+    suffixes: suffixesFrom(DEFAULT_RULES),
+    loginPrefixes: loginPrefixesFrom(DEFAULT_RULES),
+  };
+  const fay = {
+    id: 'fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com',
+  };
+
+  it('indexes a person under both of her login forms', () => {
+    const { byLoginFull, byLoginInitial } = indexIdentities([fay]);
+    expect(byLoginFull.get('fayhogenbirk')).toEqual([fay]);
+    expect(byLoginInitial.get('fhogenbirk')).toEqual([fay]);
+  });
+
+  it('gathers her as a candidate for an admin login nothing else would reach', () => {
+    // Scoring alone cannot fix this: an orphan that reaches no candidate is never
+    // compared to anyone, and stays unlinked with no error anywhere.
+    const orphan = { id: 'o', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    expect([...collectCandidates(orphan, indexIdentities([fay]), opts).keys()]).toEqual(['fay']);
+  });
+
+  it('gathers nobody when the login names a surname that is not hers', () => {
+    const orphan = { id: 'o', displayName: 'Admin account 042', email: 'adm-fhogenberg@fortigidemo.com' };
+    expect(collectCandidates(orphan, indexIdentities([fay]), opts).size).toBe(0);
+  });
+
+  it('does not read the login when the rules strip no login prefixes', () => {
+    // `loginPrefixes` is the rules' decision that a login is evidence at all; without
+    // it the token keeps the prefix ('admfhogenbirk') and matches no form.
+    const orphan = { id: 'o', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    expect(collectCandidates(orphan, indexIdentities([fay]), {
+      prefixes: [], suffixes: [], loginPrefixes: [],
+    }).size).toBe(0);
+  });
+});
+
+describe('nameClaim - the login is one of the account’s names', () => {
+  const opts = { loginPrefixes: loginPrefixesFrom(DEFAULT_RULES) };
+  const fay = {
+    id: 'fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com',
+  };
+  const petra = { id: 'petra', displayName: 'Petra Munck', givenName: 'Petra', surname: 'Munck', email: 'petra.munck@x.com' };
+  const pieter = { id: 'pieter', displayName: 'Pieter Munck', givenName: 'Pieter', surname: 'Munck', email: 'pieter.munck@x.com' };
+
+  it('singles out the person an admin login points at', () => {
+    const orphan = { id: 'o', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    expect(nameClaim(orphan, indexIdentities([fay, petra]), opts).sole).toBe(fay);
+  });
+
+  it('singles out nobody when the login form fits two people', () => {
+    // Initial + surname drops the particle and every given name but its first letter,
+    // so 'adm-pmunck' answers for both. The wrong one would inherit the other's access
+    // review, risk score and leaver handling.
+    const orphan = { id: 'o', displayName: 'Admin account 043', email: 'adm-pmunck@fortigidemo.com' };
+    const claim = nameClaim(orphan, indexIdentities([petra, pieter]), opts);
+    expect(claim.sole).toBeNull();
+    expect(claim.claimants.map(c => c.id).sort()).toEqual(['petra', 'pieter']);
+  });
+
+  it('reads the login at one level, so a whole-name form outranks an initial one', () => {
+    // 'jhogenbirk' writes Jan Hogenbirk's whole name and only the initial of
+    // J. Hogenbirk-de Wit's. Read at both levels at once, neither could be placed —
+    // the cross-level reading #1460 removed for parsed names.
+    const jan = { id: 'jan', displayName: 'J Hogenbirk', givenName: 'J', surname: 'Hogenbirk' };
+    const jolanda = { id: 'jolanda', displayName: 'Jolanda Hogenbirk-de Wit', givenName: 'Jolanda', surname: 'Hogenbirk-de Wit' };
+    const orphan = { id: 'o', displayName: 'Admin account 044', email: 'adm-jhogenbirk@fortigidemo.com' };
+    expect(nameClaim(orphan, indexIdentities([jan, jolanda]), opts).sole).toBe(jan);
+  });
+
+  it('gives the name in use the stronger claim to a login form', () => {
+    // Her HR record still carries 'de Wit' in its surname column, so 'adewit' is a form
+    // of a name she only had. The account belongs to the woman actually called de Wit.
+    const inUse = { id: 'anna-dewit', displayName: 'Anna de Wit', givenName: 'Anna', surname: 'de Wit' };
+    const birth = { id: 'anna-bakker', displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit' };
+    const orphan = { id: 'o', displayName: 'Admin account 045', email: 'adm-adewit@fortigidemo.com' };
+    expect(nameClaim(orphan, indexIdentities([inUse, birth]), opts).sole).toBe(inUse);
+  });
+
+  it('points at nobody when the display name and the login disagree', () => {
+    // Two names singling out two different people say nothing about which of them the
+    // account belongs to — the same reading the parsed names get.
+    const orphan = { id: 'o', displayName: 'Petra Munck', email: 'adm-fhogenbirk@fortigidemo.com' };
+    expect(nameClaim(orphan, indexIdentities([fay, petra]), opts).sole).toBeNull();
+  });
+
+  it('does not read the login when the caller does not pass the login prefixes', () => {
+    // The default: a caller that is not applying login-reading rules asks the same
+    // question it always asked.
+    const orphan = { id: 'o', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+    expect(nameClaim(orphan, indexIdentities([fay])).sole).toBeNull();
+  });
+
+  it('leaves a parsed-name claim intact when there is no login to read', () => {
+    const orphan = { id: 'o', displayName: 'Fay Hogenbirk' };
+    expect(nameClaim(orphan, indexIdentities([fay, petra]), opts).sole).toBe(fay);
   });
 });
