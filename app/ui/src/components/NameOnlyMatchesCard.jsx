@@ -33,10 +33,18 @@ const SHARED_NAME = {
 
 /**
  * Why the match was held, which is what tells the analyst what to do with it: a name
- * somebody else answers to needs the right person picking, while a name nobody contests
- * is held only because this tenant asks every link for a second signal.
+ * somebody else answers to needs the right person picking, a login numbered away from
+ * the person it names needs the *other* holder of that name finding, and a name nobody
+ * contests is held only because this tenant asks every link for a second signal.
  */
 function WhyHeld({ s }) {
+  if (s.reason === 'numberedLogin') {
+    return (
+      <div className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+        numbered login — the un-numbered form is this person’s own address
+      </div>
+    );
+  }
   if (s.reason !== 'ambiguousName') {
     return <div className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">no second signal</div>;
   }

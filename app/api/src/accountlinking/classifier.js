@@ -139,6 +139,12 @@ function startsSurname(tok) {
  *     `vandervelde` / `velde` / `bierma`, so `adm-wvelde`, and both halves
  *     reduced together → `veldebierma`.
  *
+ * Both are built from the surname's own shape, so only a surname that HAS a
+ * hyphenated half offers one: a plain `Becker` reduces to nothing and is
+ * therefore never a half-form claimant for `abecker` — only the Andrea
+ * Neumann-Becker the half was taken from is, and she keeps her whole-surname
+ * spelling too.
+ *
  * These are deliberately NOT name keys: they are only ever spelled as the weakest
  * grade of login form, where a person actually called the reduced name outranks
  * the person whose name a convention reduced to it.
@@ -315,6 +321,41 @@ export function unnumberedLoginToken(token) {
 }
 
 /**
+ * The spellings a login is looked up under, strongest first: the login as
+ * written, then — only as a fallback — the name a trailing digit run numbers
+ * (see `unnumberedLoginToken`).
+ *
+ * `numbered` marks that fallback, because it is read on narrower terms than the
+ * login itself: see `numberedAwayFrom`.
+ *
+ * @returns {Array<{ form: string, numbered: boolean }>}
+ */
+export function loginSpellings(token) {
+  const t = String(token || '');
+  return [{ form: t, numbered: false }, { form: unnumberedLoginToken(t), numbered: true }]
+    .filter(s => s.form);
+}
+
+/**
+ * Whether the number in a numbered login points *away* from this person: the
+ * un-numbered spelling is their own address, and numbering is precisely how a
+ * convention says the numbered account is somebody else's (#1468).
+ *
+ * `p.h.nanhoe2` is not the `p.h.nanhoe` mailbox owner's account — it exists to
+ * be told apart from hers — so the form it reduces to is no claim on her, and
+ * the same holds for an admin login (`adm-skleef2` against the person whose own
+ * address is `skleef`). It stays evidence that the account is *some* S. Kleef's,
+ * which is why this rules her out as a claimant rather than cancelling the
+ * match: with nobody else answering to the form, the account is held for review.
+ *
+ * @param {object} person  the identity being weighed
+ * @param {{ form: string, numbered: boolean }} spelling  one `loginSpellings` entry
+ */
+export function numberedAwayFrom(person, spelling) {
+  return !!spelling.numbered && normToken(emailLocalPart(person.email)) === spelling.form;
+}
+
+/**
  * The login forms a person's name can be written as, graded by how much of the
  * name each form carries:
  *
@@ -389,15 +430,20 @@ export const LOGIN_FORM_GRADES = ['full', 'initial', 'loose'];
  * dropped only when it spells nobody's form, so `jan2` stays the `jan2` mailbox
  * while `svisser2` reads as the S. Visser it numbers.
  *
+ * What the number says about *which* S. Visser is not asked here: this reports
+ * that the login spells the person's name, which is what makes the account worth
+ * comparing to her at all. `numberedAwayFrom` is weighed by the uniqueness guard,
+ * so an account the number points away from is still scored — and so held for
+ * review — rather than vanishing from the run with nothing to act on.
+ *
  * @returns {'full'|'initial'|'loose'|'none'}
  */
 export function loginFormMatch(token, person) {
   if (!token) return 'none';
   const forms = loginNameForms(person);
-  for (const spelling of [token, unnumberedLoginToken(token)]) {
-    if (!spelling) continue;
+  for (const { form } of loginSpellings(token)) {
     for (const grade of LOGIN_FORM_GRADES) {
-      if (forms[grade].has(spelling)) return grade;
+      if (forms[grade].has(form)) return grade;
     }
   }
   return 'none';

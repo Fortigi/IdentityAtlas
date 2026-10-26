@@ -10,7 +10,8 @@ import {
   stripKnownPrefixes,
   nameVariants,
   loginToken,
-  unnumberedLoginToken,
+  loginSpellings,
+  numberedAwayFrom,
   loginNameForms,
   loginFormMatch,
   LOGIN_FORM_GRADES,
@@ -224,16 +225,8 @@ export function indexIdentities(identities) {
 /** The identity index each login-form grade is read from, strongest grade first. */
 const LOGIN_INDEX_OF = { full: 'byLoginFull', initial: 'byLoginInitial', loose: 'byLoginLoose' };
 
-/**
- * The spellings an account's login is looked up under, strongest first: the
- * login itself, then — only as a fallback — the name a numbered login numbers
- * (see `unnumberedLoginToken`).
- * @returns {string[]}
- */
-const loginSpellings = (person, prefixes) => {
-  const token = loginToken(person.email, prefixes);
-  return [token, unnumberedLoginToken(token)].filter(Boolean);
-};
+/** The spellings an account's login is looked up under, strongest first. */
+const spellingsOf = (person, prefixes) => loginSpellings(loginToken(person.email, prefixes));
 
 /**
  * All identities plausibly matching an orphan, deduped by identity id.
@@ -250,8 +243,8 @@ export function collectCandidates(orphan, indexes, { prefixes, suffixes, loginPr
   for (const key of nameKeys(orphan)) addAll(byNameKey.get(key));
   // Every grade, under every spelling of the login: narrowing is this function's
   // only job, and whose claim is the stronger one is `nameClaim`'s.
-  for (const spelling of loginSpellings(orphan, loginPrefixes)) {
-    for (const grade of LOGIN_FORM_GRADES) addAll(indexes[LOGIN_INDEX_OF[grade]]?.get(spelling));
+  for (const { form } of spellingsOf(orphan, loginPrefixes)) {
+    for (const grade of LOGIN_FORM_GRADES) addAll(indexes[LOGIN_INDEX_OF[grade]]?.get(form));
   }
   return candidates;
 }
@@ -281,6 +274,32 @@ function strongestClaims(underKey, key, carried, variantsOf) {
 }
 
 /**
+ * The levels a claim can rest on, strongest first.
+ *
+ * Two, not three: a claim either carries the whole given name (a name spelled
+ * exactly, a login that writes it out) or just its first letter (a surname +
+ * initial spelling, a login that writes an initial — shortened or not). What the
+ * claim *carries* is what decides whether two claims are competing answers to
+ * the same question, so this is the ladder rivalry is scoped to.
+ */
+const CLAIM_LEVELS = ['full', 'initial'];
+
+/**
+ * The level each login-form grade is evidence at.
+ *
+ * `loose` sits with `initial`: a login a convention shortened still carries one
+ * letter of the given name and no more, so it is initial-level evidence and can
+ * no more rival a full-name claim than a surname+initial spelling can (#1468) —
+ * `Michelle Schipper` answering to `mschipper` says nothing about an account the
+ * directory spells `Melanie Schipper-Siemons` in full.
+ *
+ * The grades still rank against each other WITHIN the login (see `loginClaim`),
+ * which is what keeps the D. Dongen of the tenant ahead of the Daniëlle van
+ * Dongen `ddongen` was shortened from.
+ */
+const CLAIM_LEVEL_OF_GRADE = { full: 'full', initial: 'initial', loose: 'initial' };
+
+/**
  * Everyone with a claim to ONE of the names an account carries, weighed at the
  * level the name's own evidence rests on.
  *
@@ -296,7 +315,9 @@ function strongestClaims(underKey, key, carried, variantsOf) {
  * Yasmina or a Yassin existed (#1460). A rival at a weaker level is not a
  * competing answer to the name the account actually carries.
  *
- * @returns {Map<string, object>} identity id → identity
+ * @returns {{ level: 'full'|'initial', under: Map<string, object> }}
+ *   `level` is which of the two the claim rests on, so `nameClaim` can scope
+ *   rivalry between this name and the account's other names the same way.
  */
 function claimantsOfName(v, indexes, exactCarried, initialCarried) {
   const ek = EXACT_KEY(v);
@@ -305,7 +326,10 @@ function claimantsOfName(v, indexes, exactCarried, initialCarried) {
   const claims = spelled.length
     ? strongestClaims(spelled, ek, exactCarried.get(ek), nameKeyVariants)
     : strongestClaims(indexes.bySurnameInitial.get(ik) || [], ik, initialCarried.get(ik), nameInitialVariants);
-  return new Map(claims.map(idy => [idy.id, idy]));
+  return {
+    level: spelled.length ? 'full' : 'initial',
+    under: new Map(claims.map(idy => [idy.id, idy])),
+  };
 }
 
 /**
@@ -330,8 +354,28 @@ export function sharedAtWeakerLevel(person, indexes) {
 }
 
 /**
- * Everyone with a claim to the name an account's LOGIN spells, weighed the same
- * way a display name is.
+ * The identities one grade of the login index answers to under one spelling,
+ * split into the people a numbered login points away from and everybody else
+ * (see `numberedAwayFrom`).
+ * @returns {{ under: object[], numbered: object[] }}
+ */
+function gradeMatches(indexes, grade, spelling) {
+  const under = [];
+  const numbered = [];
+  for (const idy of indexes[LOGIN_INDEX_OF[grade]]?.get(spelling.form) || []) {
+    (numberedAwayFrom(idy, spelling) ? numbered : under).push(idy);
+  }
+  return { under, numbered };
+}
+
+/** One grade's claim: its claimants, ranked, under the level that grade is evidence at. */
+function gradeClaim(under, form, grade) {
+  const claims = strongestClaims(under, form, 'inUse', idy => loginNameForms(idy)[grade]);
+  return { level: CLAIM_LEVEL_OF_GRADE[grade], under: new Map(claims.map(idy => [idy.id, idy])) };
+}
+
+/**
+ * What an account's LOGIN claims, weighed the same way a display name is.
  *
  * The three grades of `loginNameForms` are read one at a time for the same reason
  * the exact and initial name keys are: whoever's whole name the login writes out
@@ -346,20 +390,38 @@ export function sharedAtWeakerLevel(person, indexes) {
  *
  * A numbered login is read as the name it numbers only where the number spells
  * nobody's form, so the whole cascade runs on the login as written before any of
- * it runs on the unnumbered spelling.
+ * it runs on the unnumbered spelling — and at that unnumbered spelling the person
+ * the number points away from drops out of it (`numberedAwayFrom`).
  *
- * @returns {Map<string, object>} identity id → identity
+ * Who the login *could* name is a wider set than who it claims for, and both are
+ * returned, because the weaker grades are what make a contested login reviewable:
+ * `abecker` is claimed at the initial grade by the two plain Beckers, and a hold
+ * that listed only them would not offer the Andrea Neumann-Becker whose double
+ * surname it is half of — the one person a reviewer most needs to see.
+ *
+ * @returns {{ level: 'full'|'initial'|null, under: Map, claimants: Map, numbered: Map }}
+ *   `under` is who the login claims for, at `level`; `claimants` is everyone it
+ *   could name at any grade; `numbered` is who the number pointed away from.
  */
-function claimantsOfLogin(person, indexes, prefixes) {
-  for (const spelling of loginSpellings(person, prefixes)) {
+function loginClaim(person, indexes, prefixes) {
+  const nothing = { level: null, under: new Map() };
+  for (const spelling of spellingsOf(person, prefixes)) {
+    const claimants = new Map();
+    const numbered = new Map();
+    let claim = null;
     for (const grade of LOGIN_FORM_GRADES) {
-      const under = indexes[LOGIN_INDEX_OF[grade]]?.get(spelling) || [];
-      if (!under.length) continue;
-      const claims = strongestClaims(under, spelling, 'inUse', idy => loginNameForms(idy)[grade]);
-      return new Map(claims.map(idy => [idy.id, idy]));
+      const matched = gradeMatches(indexes, grade, spelling);
+      for (const idy of matched.numbered) numbered.set(idy.id, idy);
+      for (const idy of matched.under) claimants.set(idy.id, idy);
+      if (claim || !matched.under.length) continue; // a weaker grade is listed, never claimed over
+      claim = gradeClaim(matched.under, spelling.form, grade);
     }
+    // The spelling cascade stops at the first spelling the directory answers to
+    // at all — a login the number ruled everybody out of is answered, and
+    // falling through would re-read it as a name nobody provisioned.
+    if (claim || numbered.size) return { ...(claim ?? nothing), claimants, numbered };
   }
-  return new Map();
+  return { ...nothing, claimants: new Map(), numbered: new Map() };
 }
 
 /**
@@ -370,10 +432,11 @@ function claimantsOfLogin(person, indexes, prefixes) {
  * name the account carries. A name singles someone out when they are its only
  * claimant at the level that name's evidence rests on (see `claimantsOfName`).
  * The account's name points at exactly one person when some name singles them
- * out and no other name singles out anybody else: two people sharing only a
- * birth surname then do not block the match that is unique on the name in use,
- * while a second person spelled the same leaves nothing to choose between them —
- * as do two people one initial away from a spelling neither of them has.
+ * out and no other name *at that same level* singles out anybody else: two
+ * people sharing only a birth surname then do not block the match that is unique
+ * on the name in use, while a second person spelled the same leaves nothing to
+ * choose between them — as do two people one initial away from a spelling
+ * neither of them has.
  *
  * Names that can never fire a name signal (no surname, or no given name) are
  * skipped: indexed under a bare surname they would collect claimants the engine
@@ -385,31 +448,51 @@ function claimantsOfLogin(person, indexes, prefixes) {
  * the same terms — it can single somebody out where the display name carries no
  * person's name at all, and it can tie where the form fits two people.
  *
+ * Rivalry between those names is scoped to the level each claim rests on, which
+ * is the same reading #1460 settled within one name, applied across them: a
+ * claim carrying only a given initial is not a competing answer to a name
+ * spelled out in full. Without that, every form a convention shortens a login to
+ * became a rival of the display name it sits beside — a directory account spelled
+ * `Melanie Schipper-Siemons` could not be placed while a Michelle Schipper
+ * answered to `mschipper` (#1468), which is the pre-#1460 cross-level reading
+ * arriving through the login instead of through the name keys.
+ *
  * @param {object} person  the account being placed
  * @param {object} indexes  the identity indexes from `indexIdentities`
  * @param {{ loginPrefixes?: string[] }} [opts]  the prefixes the login-reading
  *   signals strip (`loginPrefixesFrom`). Omitted, the login is not read — the
  *   rules decide whether a login is evidence at all, not this helper.
- * @returns {{ sole: object|null, claimants: object[] }}
+ * @returns {{ sole: object|null, claimants: object[], numberedAway: object[] }}
  *   `sole` is the identity the name points at, or null when it points at nobody
- *   or at more than one; `claimants` is everyone it could be, for review.
+ *   or at more than one; `claimants` is everyone it could be, for review;
+ *   `numberedAway` is who a numbered login ruled out (`numberedAwayFrom`), so a
+ *   hold with no claimants left can say the number is why.
  */
 export function nameClaim(person, indexes, { loginPrefixes = [] } = {}) {
   const exactCarried = nameKeyVariants(person);
   const initialCarried = nameInitialVariants(person);
+  const claims = [];
   const claimants = new Map();
-  const singledOut = new Set();
-  const consider = (under) => {
-    for (const [id, idy] of under) claimants.set(id, idy);
-    if (under.size === 1) singledOut.add([...under.keys()][0]);
-  };
+  const include = (under) => { for (const [id, idy] of under) claimants.set(id, idy); };
   for (const v of personNames(person)) {
     if (!INITIAL_KEY(v)) continue;
-    consider(claimantsOfName(v, indexes, exactCarried, initialCarried));
+    const claim = claimantsOfName(v, indexes, exactCarried, initialCarried);
+    claims.push(claim);
+    include(claim.under);
   }
-  consider(claimantsOfLogin(person, indexes, loginPrefixes));
+  const login = loginClaim(person, indexes, loginPrefixes);
+  if (login.level) claims.push(login);
+  include(login.claimants);
+
+  // Only the strongest level any of the account's names claims at can settle it;
+  // the rest are read for review but never counted as rivals.
+  const level = CLAIM_LEVELS.find(l => claims.some(c => c.level === l && c.under.size));
+  const singledOut = new Set();
+  for (const c of claims) {
+    if (c.level === level && c.under.size === 1) singledOut.add([...c.under.keys()][0]);
+  }
   const sole = singledOut.size === 1 ? claimants.get([...singledOut][0]) : null;
-  return { sole, claimants: [...claimants.values()] };
+  return { sole, claimants: [...claimants.values()], numberedAway: [...login.numbered.values()] };
 }
 
 /**

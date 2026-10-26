@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules, loginToken, unnumberedLoginToken, loginNameForms, loginFormMatch } from './classifier.js';
+import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules, loginToken, unnumberedLoginToken, loginSpellings, numberedAwayFrom, loginNameForms, loginFormMatch } from './classifier.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('classifyAccount', () => {
@@ -775,5 +775,65 @@ describe('loginFormMatch - the grade a shortened or numbered login reads at (#14
     expect(loginFormMatch('rdongen', danielle)).toBe('none');
     // A bare shortened surname is no form, exactly as a bare whole one is not.
     expect(loginFormMatch('dongen', danielle)).toBe('none');
+  });
+});
+
+// ── What the number in a numbered login says (#1468) ─────────────────────────
+//
+// Stripping the digits widens who a login can name, and on the reporting tenant
+// it widened it onto exactly the wrong person: the directory account
+// `p.h.nanhoe2` was attributed to the Priya Nanhoe whose own mailbox is
+// `p.h.nanhoe`. Numbering exists to tell those two apart, so the un-numbered
+// spelling is the one claim the number rules out — and only that spelling, since
+// the login as written may genuinely be somebody's address.
+describe('loginSpellings', () => {
+  it('reads the login as written before the name a number numbers', () => {
+    expect(loginSpellings('svisser2')).toEqual([
+      { form: 'svisser2', numbered: false },
+      { form: 'svisser', numbered: true },
+    ]);
+  });
+
+  it('offers only the login itself when it carries no number', () => {
+    // Not the token twice: looked up twice, one claimant reads as two.
+    expect(loginSpellings('svisser')).toEqual([{ form: 'svisser', numbered: false }]);
+  });
+
+  it('offers nothing for an empty login, or one that is nothing but digits', () => {
+    expect(loginSpellings('')).toEqual([]);
+    expect(loginSpellings(null)).toEqual([]);
+    expect(loginSpellings('042')).toEqual([{ form: '042', numbered: false }]);
+  });
+});
+
+describe('numberedAwayFrom', () => {
+  const priya = { displayName: 'Priya Nanhoe', givenName: 'Priya', surname: 'Nanhoe', email: 'p.h.nanhoe@x.com' };
+  const numbered = { form: 'phnanhoe', numbered: true };
+
+  it('rules out the person whose own address the un-numbered spelling is', () => {
+    // 'p.h.nanhoe2' is not the 'p.h.nanhoe' mailbox owner's account: the number is
+    // there precisely to say the two are different people.
+    expect(numberedAwayFrom(priya, numbered)).toBe(true);
+  });
+
+  it('rules out nobody on the login as written', () => {
+    // The same spelling read as the login itself is her address and so her strongest
+    // possible claim. Only the digit-stripped fallback is read on narrower terms.
+    expect(numberedAwayFrom(priya, { form: 'phnanhoe', numbered: false })).toBe(false);
+  });
+
+  it('rules out nobody whose address is merely a form of the same name', () => {
+    // Her name reduces to the spelling; her mailbox is not it. A number says nothing
+    // about a namesake who does not hold the un-numbered address.
+    const other = { displayName: 'Priya Nanhoe', givenName: 'Priya', surname: 'Nanhoe', email: 'priya.nanhoe@x.com' };
+    expect(numberedAwayFrom(other, numbered)).toBe(false);
+    expect(numberedAwayFrom({ displayName: 'Priya Nanhoe' }, numbered)).toBe(false);
+  });
+
+  it('compares the address separator-insensitively, as every login form is', () => {
+    // 'adm-x2' against the person whose own address is 'x': the mailbox writes its
+    // separators and the login does not, which is the whole reason forms are normalised.
+    const sophie = { displayName: 'Sophie van Kleef', surname: 'van Kleef', email: 's.kleef@x.com' };
+    expect(numberedAwayFrom(sophie, { form: 'skleef', numbered: true })).toBe(true);
   });
 });

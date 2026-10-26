@@ -35,12 +35,30 @@
 //   7. a second run detaches nothing, so a link made on a reduced login
 //      converges instead of churning the account's history.
 //
-// (2), (3), (5) and (7) are what a unit test cannot assert: they read the stored
-// links back through the identities API and the report, and (7) runs the engine
-// twice against one database. The retroactive cleanup judges name-only links and
-// a login is name-class evidence, so a cleanup that cannot spell a reduced login
-// back to a name detaches exactly the links this fix creates — green in every
-// mocked test, visible only here.
+// Reading shorter spellings widens who a login can name, and the first
+// measurement of it on the reporting dataset found the widening doing three
+// things nobody asked for. Those are the remaining cases, one per rule:
+//
+//   8.  a reduced form must not rival a full-name match. A personal account the
+//       directory spells `Melanie Schipper-Siemons` stayed held while a Michelle
+//       Schipper answered to the `m.schipper` it logs in as — five correct links
+//       lost to a claim carrying one letter of a given name,
+//   9.  a numbered login must never land on the owner of the un-numbered form.
+//       `p.h.nanhoe2` was attributed to the Priya Nanhoe whose own mailbox is
+//       `p.h.nanhoe`, which is the one Priya the number says it is not,
+//   10. an admin login numbered away from the only person who answers to it is
+//       held for review rather than linked — and says the number is why,
+//   11. a half-of-a-double-surname login offers its owner. `adm-a<becker>` is
+//       contested by the two plain Beckers spelled it outright, and the hold
+//       listed only them while the Andrea Neumann-Becker it belongs to was
+//       offered nowhere.
+//
+// (2), (3), (5), (7), (9), (10) and (11) are what a unit test cannot assert:
+// they read the stored links, the held-for-review list and the report back
+// through the API, and (7) runs the engine twice against one database. The
+// retroactive cleanup judges name-only links and a login is name-class evidence,
+// so a cleanup that cannot spell a reduced login back to a name detaches exactly
+// the links this fix creates — green in every mocked test, visible only here.
 //
 // Seeded through the ingest API under a system of its own with a per-run name
 // token: the demo dataset builds every admin login in a shape the engine already
@@ -84,6 +102,12 @@ const STEMS = {
   visser: `Visserz${TOKEN}`,   // numbered login over two namesakes
   timmerman: `Timmermanz${TOKEN}`, // numbered login over one owner
   akker: `Akkerz${TOKEN}`,     // the grading case: `van Akkerz…` beside `Akkerz…`
+  schipper: `Schipperz${TOKEN}`, // half a double surname, and somebody's whole one
+  siemons: `Siemonsz${TOKEN}`,
+  nanhoe: `Nanhoez${TOKEN}`,   // a numbered login over the un-numbered form's owner
+  kleef: `Kleefz${TOKEN}`,     // the same, where the login is the only evidence
+  becker: `Beckerz${TOKEN}`,   // a half form two people are spelled outright
+  neumann: `Neumannz${TOKEN}`,
 };
 
 const IDS = {
@@ -94,12 +118,25 @@ const IDS = {
   teun: randomUUID(),
   dana: randomUUID(),
   dirkje: randomUUID(),
+  melanie: randomUUID(),
+  michelle: randomUUID(),
+  priyaOwner: randomUUID(),
+  priyaSecond: randomUUID(),
+  priyaThird: randomUUID(),
+  sophie: randomUUID(),
+  neumannBecker: randomUUID(),
+  andrea: randomUUID(),
+  andreas: randomUUID(),
   admDongen: randomUUID(),
   admVelde: randomUUID(),
   admVisser: randomUUID(),
   admTimmerman: randomUUID(),
   admAkker: randomUUID(),
   admNobody: randomUUID(),
+  admKleef: randomUUID(),
+  admBecker: randomUUID(),
+  ownMelanie: randomUUID(),
+  ownPriya: randomUUID(),
 };
 
 const NAMES = {
@@ -110,9 +147,17 @@ const NAMES = {
   teun: `Teun ${STEMS.timmerman}`,
   dana: `Dana van ${STEMS.akker}`,
   dirkje: `Dirkje ${STEMS.akker}`,
+  melanie: `Melanie ${STEMS.schipper}-${STEMS.siemons}`,
+  michelle: `Michelle ${STEMS.schipper}`,
+  // Three people spelled one name; only `priyaOwner` holds the un-numbered address.
+  priya: `Priya ${STEMS.nanhoe}`,
+  sophie: `Sophie van ${STEMS.kleef}`,
+  neumannBecker: `Andrea ${STEMS.neumann}-${STEMS.becker}`,
+  andrea: `Andrea ${STEMS.becker}`,
+  andreas: `Andreas ${STEMS.becker}`,
 };
 
-/** The display name every seeded admin account carries — see `adminAccount`. */
+/** The display name every seeded admin account carries — see `account`. */
 const adminLabel = (n) => `Admin account ${TOKEN}-${n}`;
 const ADMIN_NAMES = {
   admDongen: adminLabel(1),
@@ -121,6 +166,8 @@ const ADMIN_NAMES = {
   admTimmerman: adminLabel(4),
   admAkker: adminLabel(5),
   admNobody: adminLabel(6),
+  admKleef: adminLabel(7),
+  admBecker: adminLabel(8),
 };
 
 /**
@@ -142,12 +189,17 @@ const person = (id, displayName, given, surname, local) => ({
 });
 
 /**
- * An admin account whose display name carries no person's name and which holds
- * no employee id, no name columns and no department — so its login is the only
- * evidence there is, exactly like the accounts in the report. An `employeeId`
- * here would link it at weight 95 and never exercise this path at all.
+ * A directory account holding no employee id, no name columns and no department,
+ * so the only evidence it carries is its display name and its login — exactly
+ * like the accounts in the report. An `employeeId` here would link it at weight
+ * 95 and never exercise this path at all.
+ *
+ * The admin fixtures pass a display name that is nobody's name (`Admin account
+ * …-3`), which leaves the login as the only evidence there is. The personal ones
+ * pass the owner's own name, which is the other half of the shape the full-name
+ * cases are about: a login read as a rival of it is what held them back.
  */
-const adminAccount = (id, displayName, local) => ({
+const account = (id, displayName, local) => ({
   id, displayName, email: `${local}@${DOMAIN}`.toLowerCase(),
   principalType: 'User', accountEnabled: true,
 });
@@ -163,21 +215,51 @@ const IDENTITIES = [
   // The grading pair: one woman's surname reduces to the other's whole surname.
   person(IDS.dana, NAMES.dana, 'Dana', `van ${STEMS.akker}`, `dana.van${STEMS.akker}`),
   person(IDS.dirkje, NAMES.dirkje, 'Dirkje', STEMS.akker, `dirkje.${STEMS.akker}`),
+  // The full-name pair: `m<schipper>` is half of Melanie's surname and the whole
+  // of Michelle's, so Michelle answers to it one level above Melanie.
+  person(IDS.melanie, NAMES.melanie, 'Melanie', `${STEMS.schipper}-${STEMS.siemons}`,
+    `melanie.${STEMS.schipper}${STEMS.siemons}`),
+  person(IDS.michelle, NAMES.michelle, 'Michelle', STEMS.schipper, `michelle.${STEMS.schipper}`),
+  // Three Priyas. Only the first holds `p.h.<nanhoe>` — the address the numbered
+  // account below is numbered away from.
+  person(IDS.priyaOwner, NAMES.priya, 'Priya', STEMS.nanhoe, `p.h.${STEMS.nanhoe}`),
+  person(IDS.priyaSecond, NAMES.priya, 'Priya', STEMS.nanhoe, `p.${STEMS.nanhoe}`),
+  person(IDS.priyaThird, NAMES.priya, 'Priya', STEMS.nanhoe, `priya.${STEMS.nanhoe}`),
+  // Her own mailbox IS the reduced form, so a login numbering it is not hers.
+  person(IDS.sophie, NAMES.sophie, 'Sophie', `van ${STEMS.kleef}`, `s${STEMS.kleef}`),
+  // The half-form trio: two people are spelled `a<becker>` outright, and the
+  // owner of the double surname it is half of answers to it only reduced.
+  person(IDS.neumannBecker, NAMES.neumannBecker, 'Andrea', `${STEMS.neumann}-${STEMS.becker}`,
+    `andrea.${STEMS.neumann}${STEMS.becker}`),
+  person(IDS.andrea, NAMES.andrea, 'Andrea', STEMS.becker, `andrea.${STEMS.becker}`),
+  person(IDS.andreas, NAMES.andreas, 'Andreas', STEMS.becker, `andreas.${STEMS.becker}`),
 ];
 
 const ACCOUNTS = [
   // The particles dropped. Her own forms write them: `dvan<dongen>`.
-  adminAccount(IDS.admDongen, ADMIN_NAMES.admDongen, `adm-d${STEMS.dongen}`),
+  account(IDS.admDongen, ADMIN_NAMES.admDongen, `adm-d${STEMS.dongen}`),
   // One half of the double surname. Her only form writes it whole.
-  adminAccount(IDS.admVelde, ADMIN_NAMES.admVelde, `adm-w${STEMS.velde}`),
+  account(IDS.admVelde, ADMIN_NAMES.admVelde, `adm-w${STEMS.velde}`),
   // A numbered login over two namesakes — contested, so held for review.
-  adminAccount(IDS.admVisser, ADMIN_NAMES.admVisser, `adm-s${STEMS.visser}2`),
+  account(IDS.admVisser, ADMIN_NAMES.admVisser, `adm-s${STEMS.visser}2`),
   // A numbered login over one owner — placed, on the name the number numbers.
-  adminAccount(IDS.admTimmerman, ADMIN_NAMES.admTimmerman, `adm-t${STEMS.timmerman}4`),
+  account(IDS.admTimmerman, ADMIN_NAMES.admTimmerman, `adm-t${STEMS.timmerman}4`),
   // Reduces to Dana's surname and spells Dirkje's whole one: Dirkje's.
-  adminAccount(IDS.admAkker, ADMIN_NAMES.admAkker, `adm-d${STEMS.akker}`),
+  account(IDS.admAkker, ADMIN_NAMES.admAkker, `adm-d${STEMS.akker}`),
   // The control: reduced in the same way, after nobody in the directory.
-  adminAccount(IDS.admNobody, ADMIN_NAMES.admNobody, `adm-dstraatenz${TOKEN}`),
+  account(IDS.admNobody, ADMIN_NAMES.admNobody, `adm-dstraatenz${TOKEN}`),
+  // Numbered away from the only person who answers to it: her own mailbox is
+  // `s<kleef>`, so `adm-s<kleef>2` is some other S. Kleef's — held, not linked.
+  account(IDS.admKleef, ADMIN_NAMES.admKleef, `adm-s${STEMS.kleef}2`),
+  // Half of Andrea Neumann-Becker's double surname, and the whole spelling of
+  // two other people's: contested, and the hold must still offer her.
+  account(IDS.admBecker, ADMIN_NAMES.admBecker, `adm-a${STEMS.becker}`),
+  // Melanie's own account: her full name in the directory, half her surname in
+  // the login. Michelle answers to that login; she must not rival the name.
+  account(IDS.ownMelanie, NAMES.melanie, `m.${STEMS.schipper}`),
+  // A numbered personal account over three namesakes, one of whom holds the
+  // un-numbered address — the one Priya it demonstrably is not.
+  account(IDS.ownPriya, NAMES.priya, `p.h.${STEMS.nanhoe}2`),
 ];
 
 /** The fixture, and the two things about the deployment it needs to be true. */
@@ -238,10 +320,13 @@ test.describe('Account linking — logins a convention writes shorter than the n
     expect(names).not.toContain(ADMIN_NAMES.admDongen);
     expect(names).not.toContain(ADMIN_NAMES.admVelde);
     expect(names).not.toContain(ADMIN_NAMES.admTimmerman);
-    // The controls — the contested one and the one naming nobody are genuinely
-    // still there, so a report that broke entirely cannot read as a pass.
+    // The controls — the contested ones, the numbered-away one and the one naming
+    // nobody are genuinely still there, so a report that broke entirely cannot
+    // read as a pass.
     expect(names).toContain(ADMIN_NAMES.admVisser);
     expect(names).toContain(ADMIN_NAMES.admNobody);
+    expect(names).toContain(ADMIN_NAMES.admKleef);
+    expect(names).toContain(ADMIN_NAMES.admBecker);
   });
 
   test('the person actually called the reduced name outranks the one reduced to it', async () => {
@@ -287,6 +372,77 @@ test.describe('Account linking — logins a convention writes shorter than the n
     }
   });
 
+  test('a reduced form does not rival the full name the account is spelled with', async ({ page }) => {
+    // The measured regression of reading shorter spellings: Melanie's own account
+    // carries her name in full, and `m<schipper>` — half her surname — is also the
+    // whole of Michelle Schipper's. Counted as a rival, the correct full-name link
+    // was held instead of made, five times over on the reporting dataset.
+    expect(await linkedPrincipalIds(IDS.melanie)).toContain(IDS.ownMelanie);
+    // ...and not on Michelle, who answers only to the login.
+    expect(await linkedPrincipalIds(IDS.michelle)).not.toContain(IDS.ownMelanie);
+
+    // Through the identity page, which is where the reporter looked.
+    await page.goto(`${BASE}/#identity:${IDS.melanie}`);
+    const panel = await linkedAccountsPanel(page);
+    await expect(panel.getByRole('button', { name: NAMES.melanie, exact: true }))
+      .toBeVisible({ timeout: 15000 });
+  });
+
+  test('a numbered account is never given to the owner of the un-numbered address', async () => {
+    // `p.h.<nanhoe>2` beside the `p.h.<nanhoe>` mailbox: the login singled its owner
+    // out on her own address and overrode a display name three people are spelled,
+    // so the account went to the one Priya the number says it is not. Held now, with
+    // the other two offered — the reviewer's real choice.
+    for (const id of [IDS.priyaOwner, IDS.priyaSecond, IDS.priyaThird]) {
+      expect(await linkedPrincipalIds(id), `${id} was given the numbered account`)
+        .not.toContain(IDS.ownPriya);
+    }
+
+    const run = firstRun ?? await latestCompletedRun();
+    const held = (run?.nameOnlySuggestions ?? []).find(s => s.principalId === IDS.ownPriya);
+    expect(held, `the run did not report the held match for ${NAMES.priya} `
+      + `(stored list is capped at 500; this run held ${run?.nameOnlyMatches})`).toBeTruthy();
+    expect(held.reason).toBe('ambiguousName');
+    expect(held.matchLevel).toBe('full');
+    expect(held.rivalCount).toBe(2);
+  });
+
+  test('an admin login the number rules everybody out of is held, and says so', async () => {
+    // Sophie's own mailbox IS `s<kleef>`, so `adm-s<kleef>2` is some other
+    // S. Kleef's and nobody else in this tenant answers to the form. Scored, so the
+    // account is reviewable rather than invisible — and reported with its own
+    // reason, since calling it an ambiguity would send the reviewer after a
+    // namesake who does not exist.
+    expect(await linkedAccountNames(IDS.sophie)).toEqual([]);
+
+    const run = firstRun ?? await latestCompletedRun();
+    const held = (run?.nameOnlySuggestions ?? []).find(s => s.principalId === IDS.admKleef);
+    expect(held, `the run did not report the held match for ${ADMIN_NAMES.admKleef} `
+      + `(stored list is capped at 500; this run held ${run?.nameOnlyMatches})`).toBeTruthy();
+    expect(held.reason).toBe('numberedLogin');
+    expect(held.identityId).toBe(IDS.sophie);
+    expect(held.rivalCount).toBe(0);
+  });
+
+  test('a half-of-a-double-surname login offers the owner of that surname', async () => {
+    // `adm-a<becker>` is spelled outright by two plain Beckers, so it is rightly
+    // contested — but the hold named only them, and the Andrea Neumann-Becker whose
+    // double surname it is half of was offered nowhere. A reviewer handed everybody
+    // except the owner cannot resolve the account at all.
+    for (const id of [IDS.neumannBecker, IDS.andrea, IDS.andreas]) {
+      expect(await linkedPrincipalIds(id), `${id} was given the contested half-form login`)
+        .not.toContain(IDS.admBecker);
+    }
+
+    const run = firstRun ?? await latestCompletedRun();
+    const held = (run?.nameOnlySuggestions ?? []).find(s => s.principalId === IDS.admBecker);
+    expect(held, `the run did not report the held match for ${ADMIN_NAMES.admBecker} `
+      + `(stored list is capped at 500; this run held ${run?.nameOnlyMatches})`).toBeTruthy();
+    expect(held.reason).toBe('ambiguousName');
+    expect([held.identityId, ...held.rivals.map(r => r.identityId)].sort())
+      .toEqual([IDS.neumannBecker, IDS.andrea, IDS.andreas].sort());
+  });
+
   test('a second run detaches nothing and leaves the accounts where it put them', async ({ page }) => {
     // Convergence, and the half only a live database can show. The run's
     // retroactive cleanup judges every name-only link, and a login is name-class
@@ -303,6 +459,9 @@ test.describe('Account linking — logins a convention writes shorter than the n
     expect(await linkedPrincipalIds(IDS.wilma)).toContain(IDS.admVelde);
     expect(await linkedPrincipalIds(IDS.teun)).toContain(IDS.admTimmerman);
     expect(await linkedPrincipalIds(IDS.dirkje)).toContain(IDS.admAkker);
+    // The full-name link beside a reduced login converges too: its evidence is a
+    // name, so the cleanup re-judges it on every run.
+    expect(await linkedPrincipalIds(IDS.melanie)).toContain(IDS.ownMelanie);
     expect(second.nameOnlyMatches).toBe(firstRun?.nameOnlyMatches);
   });
 });

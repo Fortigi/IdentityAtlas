@@ -229,6 +229,21 @@ function suggestionFrom(orphan, candidate, accountType, reason, claimants, match
 }
 
 /**
+ * Why a name-only match the name did not settle is being held, which is what
+ * tells the reviewer what to do with it.
+ *
+ * `ambiguousName` is the usual answer: more than one person answers to the name,
+ * or nobody does. `numberedLogin` is the one case with no rival to name — the
+ * login is a *numbered* spelling of somebody's own address (`adm-skleef2` beside
+ * the `skleef` mailbox), so the number says the account is not hers and nobody
+ * else answers to the form it reduces to (#1468). Reported as ambiguity it would
+ * send the reviewer looking for a namesake that does not exist.
+ */
+function holdReason(claimants, numberedAway) {
+  return !claimants.length && numberedAway.length ? 'numberedLogin' : 'ambiguousName';
+}
+
+/**
  * What to do with a single orphan. Pure: no DB access.
  *
  * @returns {{ link: object|null, suggestion: object|null }|null}
@@ -260,7 +275,7 @@ function buildLinkForOrphan(orphan, ctx) {
   // to win: a name that singles out somebody the score ranks lower settles
   // nothing. `allowNameOnlyLinks: false` holds back every name-only match, even
   // an unambiguous one, for a tenant that wants a name to never be enough.
-  const { sole, claimants } = nameClaim(orphan, indexes, { loginPrefixes });
+  const { sole, claimants, numberedAway } = nameClaim(orphan, indexes, { loginPrefixes });
   const resolved = sole
     ? scored.find(s => s.identityId === sole.id && s.confidence === best.confidence)
     : null;
@@ -269,7 +284,7 @@ function buildLinkForOrphan(orphan, ctx) {
     const link = linkFrom(orphan, winner, accountType, pattern, sharedAtWeakerLevel(orphan, indexes));
     return { link, suggestion: null };
   }
-  const reason = resolved ? 'uncorroborated' : 'ambiguousName';
+  const reason = resolved ? 'uncorroborated' : holdReason(claimants, numberedAway);
   const matchLevel = matchLevelOf(winner.signals, nameLevels);
   return { link: null, suggestion: suggestionFrom(orphan, winner, accountType, reason, claimants, matchLevel) };
 }
