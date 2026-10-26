@@ -10,6 +10,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { effectiveLinkingRules } from './rulesMerge.js';
+import { PRE_LOGIN_NAME_FORM_RULES } from '../../test-utils/preShippedLinkingRules.js';
 import {
   NON_HUMAN_PRINCIPAL_TYPES, ORPHAN_QUERY_PARAMS, orphanPrincipalsSql,
   fetchOrphanPrincipals, loadActiveLinkingRules,
@@ -109,6 +111,20 @@ describe('loadActiveLinkingRules', () => {
     // Untouched default keys survive the merge.
     for (const key of Object.keys(DEFAULT_RULES)) expect(rules).toHaveProperty(key);
     expect(queryOne.mock.calls[0][0]).toMatch(/"AccountLinkingConfig"[\s\S]*"isActive" = true/);
+  });
+
+  it('merges a shipped signal into a saved dictionary that predates it (#1469)', async () => {
+    // The classification surfaces — the orphaned-accounts context plugin and the
+    // report — must read the same dictionary a run uses, or the report lists an
+    // account as outstanding work under rules the engine no longer applies. One
+    // merge, two consumers: this answers with what engine.js's loadRules answers.
+    queryOne.mockResolvedValue({ rules: PRE_LOGIN_NAME_FORM_RULES });
+
+    const rules = await loadActiveLinkingRules();
+
+    expect(rules.signals).toEqual(effectiveLinkingRules(PRE_LOGIN_NAME_FORM_RULES).signals);
+    expect(rules.signals.find(s => s.name === 'loginNameForm'))
+      .toEqual(DEFAULT_RULES.signals.find(s => s.name === 'loginNameForm'));
   });
 
   it('falls back to the defaults when no active config row exists', async () => {
