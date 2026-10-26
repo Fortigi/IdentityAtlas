@@ -20,14 +20,16 @@ const CELL = 'px-3 py-2 align-top';
 
 /**
  * What the rivals of an ambiguous hold actually share with the account, which is not the
- * same finding in the two cases: at `full` they are spelled exactly its name, at
- * `surnameInitial` the account is an exact match for nobody and they merely share its
- * surname and first initial. One sentence for both would send the analyst looking for a
- * namesake who does not exist. A run stored before the level was recorded cannot say
- * which, so it keeps the wording that makes no claim either way.
+ * same finding in each case: at `full` they are spelled exactly its name, at
+ * `surnameInitials` they state the same sequence of initials, and at `surnameInitial` the
+ * account is an exact match for nobody and they merely share its surname and first
+ * initial. One sentence for all of them would send the analyst looking for a namesake who
+ * does not exist. A run stored before the level was recorded cannot say which, so it keeps
+ * the wording that makes no claim either way.
  */
 const SHARED_NAME = {
   full: 'full name also answered to by',
+  surnameInitials: 'surname and initials also shared by',
   surnameInitial: 'surname and first initial also shared by',
 };
 

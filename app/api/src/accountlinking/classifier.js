@@ -7,6 +7,7 @@
 
 import RE2 from 're2';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { isInitialsHalf, nameInitials, initialsAgree } from './initials.js';
 
 /** Local part of an email/UPN, lower-cased. Principals store mail-or-UPN in `email`. */
 export function emailLocalPart(email) {
@@ -180,34 +181,53 @@ function stripTitles(tokens, keep) {
 /** A structured givenName/surname column with its titles dropped, words intact. */
 const rawField = (value) => stripTitles(tokenize(value), 1).join(' ');
 
-/** A structured givenName/surname column: clean already, bar the odd title. */
-const parseField = (value) => normToken(rawField(value));
+/**
+ * The one token a given-name half collapses to.
+ *
+ * A half that spells **initials** keeps all of them (`L. R.` and `L.R.` both
+ * reduce to `lr`), so the same person written either way reduces to the same
+ * name; a half that spells a name keeps its first word, as it always has, so an
+ * inconsistently-recorded middle name still collapses ("John Michael Doe" is
+ * `john`, not `johnmichael`).
+ */
+const givenHalf = (words) => (isInitialsHalf(words) ? words.join('') : (words[0] || ''));
 
 /**
  * Parse the free-text display name into its given/surname halves.
  * Handles "Surname, Given" and "Given Surname".
+ *
+ * `givenWords` is the given half's own words, which is what the initials are
+ * read from — they do not survive the collapse into `given` (#1455).
  */
 function parseDisplayName(dn) {
   if (dn.includes(',')) {
     const [a, b] = dn.split(',');
     // The comma already delimits the surname, so it keeps every token it has.
-    return { given: stripTitles(tokenize(b), 1)[0] || '', sur: stripTitles(tokenize(a), 1).join(' ') };
+    const givenWords = stripTitles(tokenize(b), 1);
+    return { given: givenHalf(givenWords), givenWords, sur: stripTitles(tokenize(a), 1).join(' ') };
   }
-  const t = stripTitles(tokenize(dn), Math.min(2, tokenize(dn).length));
-  if (t.length === 1) return { given: '', sur: t[0] };
-  if (!t.length) return { given: '', sur: '' };
+  const all = tokenize(dn);
+  const t = stripTitles(all, Math.min(2, all.length));
+  if (!t.length) return { given: '', givenWords: [], sur: '' };
+  if (t.length === 1) return { given: '', givenWords: [], sur: t[0] };
   // The surname runs from the first particle to the end; with no particle it is
   // the last token only, so middle names ("John Michael Doe") still collapse.
   let start = -1;
   for (let i = 1; i < t.length - 1; i++) {
     if (startsSurname(t[i])) { start = i; break; }
   }
-  return { given: t[0], sur: start === -1 ? t[t.length - 1] : t.slice(start).join(' ') };
+  const surStart = start === -1 ? t.length - 1 : start;
+  const givenWords = t.slice(0, surStart);
+  return { given: givenHalf(givenWords), givenWords, sur: t.slice(surStart).join(' ') };
 }
 
 /**
- * One parsed name: { given, surname, initial, key, variant, reducedSurnames }.
+ * One parsed name: { given, surname, initial, initials, key, variant,
+ * reducedSurnames }.
  * `key` is the order-independent surname+given token used for candidate indexing.
+ * `initials` is every initial the name exposes, in order (see `nameInitials`):
+ * one letter for a single given name, the whole sequence for `L.R.` or for a
+ * source that records several given names. `initial` is its first letter.
  * `reducedSurnames` are the shorter spellings of the surname a login convention
  * writes (see `surnameReductions`) — read only by `loginNameForms`, never keyed.
  *
@@ -219,10 +239,11 @@ function parseDisplayName(dn) {
  *             spells a different one: the birth surname behind a partner name
  *             or a double name
  */
-const parsedName = (given, sur, variant, surWords) => ({
+const parsedName = (given, sur, variant, surWords, givenWords) => ({
   given,
   surname: sur,
   initial: given.slice(0, 1),
+  initials: nameInitials(givenWords, given),
   key: sur ? [sur, given].filter(Boolean).sort().join('|') : '',
   variant,
   reducedSurnames: surnameReductions(surWords),
@@ -248,15 +269,19 @@ const parsedName = (given, sur, variant, surWords) => ({
  * so a tie between two people can be read as the unequal thing it usually is:
  * one of them is actually called that, the other only was.
  *
- * @returns {Array<{given: string, surname: string, initial: string, key: string,
- *   variant: string, reducedSurnames: string[]}>}
+ * @returns {Array<{given: string, surname: string, initial: string, initials: string[],
+ *   key: string, variant: string, reducedSurnames: string[]}>}
  */
 export function nameVariants(displayName, givenName, surname) {
   const dn = String(displayName || '').replace(QUALIFIER_RE, ' ').trim();
   const parsed = parseDisplayName(dn);
   const dGiven = normToken(parsed.given);
   const dSur = normToken(parsed.sur);
-  const fGiven = parseField(givenName);
+  // The given name is kept both collapsed (for comparison) and as its own words,
+  // which is what every initial beyond the first survives in: a column holding
+  // "Laura Renée" is the `L.R.` an ERP shows, and only before the collapse.
+  const fGivenWords = tokenize(rawField(givenName));
+  const fGiven = normToken(fGivenWords.join(' '));
   // The surname is kept both normalised (for comparison) and as its own words,
   // which is what the particles and the hyphen of a double name survive in.
   const fSurWords = rawField(surname);
@@ -269,15 +294,16 @@ export function nameVariants(displayName, givenName, surname) {
   const variantOf = (sur) => (sur && sur === fSur && columnIsBirthName ? 'birth' : 'inUse');
 
   const out = [];
-  const add = (given, sur, surWords) => {
+  const add = (given, sur, surWords, givenWords) => {
     if (!given && !sur) return;
     if (out.some(v => v.given === given && v.surname === sur)) return;
-    out.push(parsedName(given, sur, variantOf(sur), surWords));
+    out.push(parsedName(given, sur, variantOf(sur), surWords, givenWords));
   };
-  add(fGiven, fSur, fSurWords);            // the structured columns on their own
+  add(fGiven, fSur, fSurWords, fGivenWords); // the structured columns on their own
   // A column for one half, the display name for the other.
-  add(fGiven || dGiven, fSur || dSur, fSur ? fSurWords : parsed.sur);
-  add(dGiven, dSur, parsed.sur);           // the display name on its own
+  add(fGiven || dGiven, fSur || dSur, fSur ? fSurWords : parsed.sur,
+    fGiven ? fGivenWords : parsed.givenWords);
+  add(dGiven, dSur, parsed.sur, parsed.givenWords); // the display name on its own
   return out;
 }
 
@@ -451,18 +477,31 @@ export function loginFormMatch(token, person) {
 
 /**
  * Compare two parsed names. Returns the strongest match level:
- *   'full'           — same surname AND same given name
- *   'surnameInitial' — same surname AND same given initial
- *   'none'           — otherwise (surname-only is treated as no match)
+ *   'full'            — same surname AND same given name
+ *   'surnameInitials' — same surname AND every initial, where both sides state
+ *                       at least two of them: `Buskes, L.R.` and Laura Renée
+ *                       Buskes. Two letters in agreement is much stronger
+ *                       evidence than one, and strong enough to be worth its own
+ *                       rung (#1455)
+ *   'surnameInitial'  — same surname AND same given initial
+ *   'none'            — otherwise (surname-only is treated as no match)
+ *
+ * Where both sides state two or more initials the comparison is **all of them
+ * or nothing** (P1/R1b): `L.R.` and `L.W.` are not a weaker match on the shared
+ * `L.`, they are a statement that this is somebody else. Unequal counts stay
+ * neutral in either direction and fall through to the single-initial rung (R1).
  */
 export function nameMatchLevel(a, b) {
   if (!a.surname || !b.surname || a.surname !== b.surname) return 'none';
   if (a.given && b.given && a.given === b.given) return 'full';
+  if (a.initials.length >= 2 && b.initials.length >= 2) {
+    return initialsAgree(a.initials, b.initials) ? 'surnameInitials' : 'none';
+  }
   if (a.initial && b.initial && a.initial === b.initial) return 'surnameInitial';
   return 'none';
 }
 
-const LEVEL_RANK = { none: 0, surnameInitial: 1, full: 2 };
+const LEVEL_RANK = { none: 0, surnameInitial: 1, surnameInitials: 2, full: 3 };
 
 /**
  * The strongest `nameMatchLevel` over every pair of names the two sides are

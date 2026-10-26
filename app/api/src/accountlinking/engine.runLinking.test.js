@@ -197,9 +197,10 @@ describe('loadRules — a saved dictionary vs newly shipped signals (#1469)', ()
 
   // The link the login route makes, read off the real INSERT: who to whom, on
   // what evidence, at what confidence. The weight pins that the signal arrived
-  // with its shipped definition (55) rather than some value of the merge's own.
+  // with its shipped definition (55) rather than some value of the merge's own,
+  // plus the 10 the guard adds for the login naming exactly one person (#1455).
   const FAY_LOGIN_LINK = {
-    identityId: 'idy-fay', principalId: 'p-adm', signals: 'loginNameForm', confidence: 55,
+    identityId: 'idy-fay', principalId: 'p-adm', signals: 'loginNameForm,nameUnique', confidence: 65,
   };
 
   /** Run linking over the pair; `savedRules` null = a tenant with no config row. */
@@ -254,7 +255,8 @@ describe('loadRules — a saved dictionary vs newly shipped signals (#1469)', ()
   it("scores the link at the tenant's own weight where they set one", async () => {
     // A tenant who upgraded and then raised the signal to 70 — their number is
     // what the link is recorded at, not the shipped 55, so an analyst reading
-    // the confidence is reading this tenant's policy.
+    // the confidence is reading this tenant's policy (plus the guard's own 10
+    // for the login naming exactly one person).
     const db = await linkTheAdminAccount({
       ...PRE_LOGIN_NAME_FORM_RULES,
       signals: [
@@ -263,7 +265,7 @@ describe('loadRules — a saved dictionary vs newly shipped signals (#1469)', ()
       ],
     });
 
-    expect(insertedLinks(db)).toEqual([{ ...FAY_LOGIN_LINK, confidence: 70 }]);
+    expect(insertedLinks(db)).toEqual([{ ...FAY_LOGIN_LINK, confidence: 80 }]);
   });
 });
 
@@ -601,7 +603,7 @@ describe('runLinking — a login a convention shortened (#1468)', () => {
     const db = await linkOne(ADM_DANIELLE, DANIELLE);
 
     expect(insertedLinks(db)).toEqual([{
-      identityId: 'idy-danielle', principalId: 'p-adm-dd', signals: 'loginNameForm', confidence: 55,
+      identityId: 'idy-danielle', principalId: 'p-adm-dd', signals: 'loginNameForm,nameUnique', confidence: 65,
     }]);
     expect(completionFields(db).linksCreated).toBe(1);
   });
@@ -610,7 +612,7 @@ describe('runLinking — a login a convention shortened (#1468)', () => {
     const db = await linkOne(ADM_WILMA, WILMA);
 
     expect(insertedLinks(db)).toEqual([{
-      identityId: 'idy-wilma', principalId: 'p-adm-wv', signals: 'loginNameForm', confidence: 55,
+      identityId: 'idy-wilma', principalId: 'p-adm-wv', signals: 'loginNameForm,nameUnique', confidence: 65,
     }]);
   });
 
@@ -682,10 +684,10 @@ describe('runLinking — a shortened login beside a full name (#1468)', () => {
 
     await runLinking(RUN_ID);
 
-    // On `fullName` alone, at 60: the shortened login Michelle answers to is not a
-    // second signal and not a rival either.
+    // On `fullName` plus the guard's own corroboration, at 70: the shortened login
+    // Michelle answers to is not a second signal and not a rival either.
     expect(insertedLinks(db)).toEqual([{
-      identityId: 'idy-melanie', principalId: 'p-melanie', signals: 'fullName', confidence: 60,
+      identityId: 'idy-melanie', principalId: 'p-melanie', signals: 'fullName,nameUnique', confidence: 70,
     }]);
     const fields = completionFields(db);
     expect(fields.linksCreated).toBe(1);
@@ -773,7 +775,7 @@ describe('runLinking — a numbered login against the un-numbered form’s owner
     await runLinking(RUN_ID);
 
     expect(insertedLinks(db)).toEqual([{
-      identityId: 'idy-sophie', principalId: 'p-adm-sk', signals: 'loginNameForm', confidence: 55,
+      identityId: 'idy-sophie', principalId: 'p-adm-sk', signals: 'loginNameForm,nameUnique', confidence: 65,
     }]);
     expect(completionFields(db).nameOnlyMatches).toBe(0);
   });
@@ -817,7 +819,7 @@ describe('runLinking — a half-of-a-double-surname login (#1468)', () => {
     await runLinking(RUN_ID);
 
     expect(insertedLinks(db)).toEqual([{
-      identityId: 'idy-neumann-becker', principalId: 'p-adm-ab', signals: 'loginNameForm', confidence: 55,
+      identityId: 'idy-neumann-becker', principalId: 'p-adm-ab', signals: 'loginNameForm,nameUnique', confidence: 65,
     }]);
   });
 });

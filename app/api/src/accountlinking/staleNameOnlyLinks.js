@@ -14,6 +14,15 @@
 //     is left exactly where it is, so an upgrade churns nothing it needn't.
 //   - allowNameOnlyLinks: false — every name-only link, because under that
 //     policy the engine would create none of them.
+//   - a signal switched off — the links that rested on it. Weight 0 is the
+//     dictionary's off-switch, but until #1455 it only ever switched a signal
+//     off for *new* matches: staleness was judged by uniqueness alone, and the
+//     uniqueness reading counted name keys and login forms whatever their
+//     weight, so a link on a login that still named one person was never stale.
+//     Zeroing `loginNameForm` therefore changed nothing about the 13 links it
+//     had already made. Both halves are fixed: the reading now ignores a rung
+//     the dictionary no longer scores (`activeNameRungs`), and a link resting on
+//     nothing it still scores is stale outright.
 //
 // Only the engine's own guesses are touched. Three kinds of row are never:
 //   - analyst-touched rows (`analystOverride` set) — a decision outranks a rule,
@@ -28,23 +37,53 @@
 
 import * as db from '../db/connection.js';
 import {
-  nameSignalNames, isNameOnly, parseLinkSignals, indexIdentities, nameClaim, loginPrefixesFrom,
+  nameSignalNames, nameSignalLevels, activeNameRungs, isNameOnly, parseLinkSignals,
+  indexIdentities, loginPrefixesFrom,
 } from './engine.helpers.js';
+import { nameClaim } from './nameClaim.js';
+
+/**
+ * Whether a link rests on nothing the dictionary still scores.
+ *
+ * The test is put to the signals that *carry* the match — the name rungs and the
+ * login form, plus any signal the dictionary no longer defines at all — and not
+ * to the corroborating evidence beside them (`nameUnique`, `department`,
+ * `manager`), which never stands on its own: each says the name singled somebody
+ * out, so re-weighting one alone must not detach a link whose name still points
+ * at its one person (P7). Confidence is what a weight changes; whether the
+ * account belongs to the person is what uniqueness answers, and the two are
+ * deliberately not the same question.
+ *
+ * @param {string[]} signals the link's recorded `linkSignals`
+ * @param {Map<string, string>} levels `nameSignalLevels` for the active rules
+ * @param {(name: string) => number|undefined} weightOf the active weight, or
+ *   undefined for a signal the dictionary does not define
+ */
+function restsOnNothingScored(signals, levels, weightOf) {
+  const bearing = signals.filter(s => levels.has(s) || weightOf(s) === undefined);
+  return bearing.length > 0 && bearing.every(s => !weightOf(s));
+}
 
 /**
  * Which of the name-only links the active policy would no longer create.
  * The indexes are built once for the whole set, not once per row.
  *
- * The question is put to `nameClaim` on the same terms the engine put it, login
- * included (#1454) — a link the engine made because the account's login spells
- * exactly one person's name would otherwise be read as resting on a name that
+ * The question is put to `nameClaim` on the same terms the engine put it — login
+ * included (#1454), and only at the rungs the dictionary still scores (#1455).
+ * Asked without the login, a link the engine made because the account's login
+ * spells exactly one person's name would be read as resting on a name that
  * points at nobody, detached, and re-created by the same run, forever.
  */
 function staleUnder(rules, nameOnly, identities) {
   if (rules.allowNameOnlyLinks === false) return nameOnly;
   const indexes = indexIdentities(identities);
-  const opts = { loginPrefixes: loginPrefixesFrom(rules) };
-  return nameOnly.filter(r => nameClaim(r, indexes, opts).sole?.id !== r.identityId);
+  const opts = { loginPrefixes: loginPrefixesFrom(rules), activeRungs: activeNameRungs(rules) };
+  const levels = nameSignalLevels(rules);
+  const weights = new Map((rules.signals || []).map(s => [s.name, s.weight || 0]));
+  const weightOf = (name) => weights.get(name);
+  return nameOnly.filter(r =>
+    restsOnNothingScored(parseLinkSignals(r.linkSignals), levels, weightOf)
+    || nameClaim(r, indexes, opts).sole?.id !== r.identityId);
 }
 
 /**

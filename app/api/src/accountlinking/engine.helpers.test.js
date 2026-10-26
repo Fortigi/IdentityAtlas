@@ -9,10 +9,6 @@ import { describe, it, expect } from 'vitest';
 import {
   norm,
   fullName,
-  personNames,
-  nameKeys,
-  nameKeyVariants,
-  nameInitialVariants,
   prefixesFrom,
   suffixesFrom,
   loginPrefixesFrom,
@@ -24,10 +20,10 @@ import {
   parseLinkSignals,
   indexIdentities,
   collectCandidates,
-  nameClaim,
-  sharedAtWeakerLevel,
   aggregateByIdentity,
 } from './engine.helpers.js';
+import { personNames, nameKeys, nameKeyVariants, nameInitialVariants } from './nameKeys.js';
+import { nameClaim, sharedAtWeakerLevel } from './nameClaim.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('norm', () => {

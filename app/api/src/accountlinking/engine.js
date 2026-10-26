@@ -52,10 +52,11 @@ import {
   isNameOnly,
   indexIdentities,
   collectCandidates,
-  nameClaim,
-  sharedAtWeakerLevel,
+  activeNameRungs,
   aggregateByIdentity,
 } from './engine.helpers.js';
+import { nameClaim, sharedAtWeakerLevel } from './nameClaim.js';
+import { guardEvidence, weighEvidence, corroborationCeiling } from './guardEvidence.js';
 import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
 
 export { classifyAccount };
@@ -143,6 +144,11 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
     nameLevels: nameSignalLevels(rules),
     allowNameOnly: rules.allowNameOnlyLinks !== false,
     indexes: indexIdentities(identities),
+    // The uniqueness question is put on the dictionary's own terms: a rung whose
+    // signal sits at weight 0 claims nothing, so the engine and the retroactive
+    // cleanup read the same effective signal set.
+    claimOpts: { loginPrefixes: loginPrefixesFrom(rules), activeRungs: activeNameRungs(rules) },
+    evidence: guardEvidence(rules),
   };
 
   const links = [];
@@ -161,17 +167,27 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
 }
 
 /**
- * Best above-threshold candidate identity for a set, and every above-threshold
- * candidate (which the name-uniqueness guard needs to see the ties). Candidates
- * are scored in insertion order; the first to reach the high-water mark wins.
+ * Best candidate identity for a set, and every candidate still in the running
+ * (which the name-uniqueness guard needs to see the ties). Candidates are scored
+ * in insertion order; the first to reach the high-water mark wins.
+ *
+ * A match that rests on name signals alone is kept **below** the threshold too,
+ * because the guard has corroborating evidence to add to it that is not
+ * expressible as a signal weight: a `van Mourik, R.` account scores 45 and links
+ * at 55 once the guard establishes that nobody else answers to that name, which
+ * is the one thing that makes a source carrying only "Surname, Initials"
+ * placeable (#1455). Everything else still has to clear the bar on its own
+ * evidence, and a candidate no signal fired for is no match at all.
+ *
  * @returns {{ best: object|null, scored: object[] }}
  */
-function pickBest(orphan, candidates, rules, threshold) {
+function pickBest(orphan, candidates, rules, threshold, nameSigs) {
   const scored = [];
   let best = null;
   for (const idy of candidates.values()) {
     const { confidence, signals } = scoreMatch(orphan, idy, rules);
-    if (confidence < threshold) continue;
+    if (!signals.length) continue;
+    if (confidence < threshold && !isNameOnly(signals, nameSigs)) continue;
     const candidate = { identityId: idy.id, identityName: idy.displayName ?? null, confidence, signals };
     scored.push(candidate);
     if (!best || confidence > best.confidence) best = candidate;
@@ -253,16 +269,22 @@ function holdReason(claimants, numberedAway) {
  */
 function buildLinkForOrphan(orphan, ctx) {
   const { rules, threshold, onlyTypes, compiled, prefixes, suffixes, loginPrefixes,
-    nameSigs, nameLevels, allowNameOnly, indexes } = ctx;
+    nameSigs, nameLevels, allowNameOnly, indexes, claimOpts, evidence } = ctx;
   const { accountType, pattern } = classifyAccount(orphan, compiled);
   if (!onlyTypes.has(accountType)) return null;
 
   const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes, loginPrefixes });
-  const { best, scored } = pickBest(orphan, candidates, rules, threshold);
+  const { best, scored } = pickBest(orphan, candidates, rules, threshold, nameSigs);
   if (!best) return null;
   if (!isNameOnly(best.signals, nameSigs)) {
     return { link: linkFrom(orphan, best, accountType, pattern), suggestion: null };
   }
+  // A name-only match that cannot clear the tenant's bar even once every piece
+  // of corroborating evidence has fired is below it whatever the context says,
+  // so it is neither linked nor held — which is what the certainty slider is
+  // for, and what a name-only match below the threshold did before it reached
+  // the guard at all.
+  if (best.confidence + corroborationCeiling(evidence) < threshold) return null;
 
   // The name-uniqueness guard. A match resting on name signals alone links only
   // where the account's name points at exactly one person (see nameClaim): a
@@ -271,19 +293,30 @@ function buildLinkForOrphan(orphan, ctx) {
   // inherits that person's access review, risk score and leaver handling. Those
   // matches are held for review instead.
   //
-  // The person the name points at has to be one of the top-scoring candidates
-  // to win: a name that singles out somebody the score ranks lower settles
-  // nothing. `allowNameOnlyLinks: false` holds back every name-only match, even
-  // an unambiguous one, for a tenant that wants a name to never be enough.
-  const { sole, claimants, numberedAway } = nameClaim(orphan, indexes, { loginPrefixes });
-  const resolved = sole
-    ? scored.find(s => s.identityId === sole.id && s.confidence === best.confidence)
+  // Where the name alone does not settle it, the context the account already
+  // carries can — but only by singling one of the name's own claimants out
+  // (see guardEvidence.js). The people it chooses between are the claimants that
+  // also tie for the best score: a name, or a department, that singles out
+  // somebody the score ranks lower settles nothing, and linking them would
+  // attach the account to a weaker match than the engine's own best candidate.
+  // `allowNameOnlyLinks: false` holds back every name-only match, even an
+  // unambiguous one, for a tenant that wants a name to never be enough.
+  const { sole, claimants, numberedAway } = nameClaim(orphan, indexes, claimOpts);
+  const top = new Set(scored.filter(s => s.confidence === best.confidence).map(s => s.identityId));
+  const contested = claimants.filter(c => top.has(c.id));
+  const weighed = weighEvidence(orphan, contested, top.has(sole?.id) ? sole : null, evidence);
+  const resolved = weighed.identity
+    ? scored.find(s => s.identityId === weighed.identity.id)
     : null;
-  const winner = resolved ?? best;
-  if (resolved && allowNameOnly) {
+  const winner = resolved
+    ? { ...resolved, confidence: Math.min(100, resolved.confidence + weighed.bonus),
+      signals: [...resolved.signals, ...weighed.signals] }
+    : best;
+  if (resolved && allowNameOnly && winner.confidence >= threshold) {
     const link = linkFrom(orphan, winner, accountType, pattern, sharedAtWeakerLevel(orphan, indexes));
     return { link, suggestion: null };
   }
+  if (resolved && winner.confidence < threshold) return null;
   const reason = resolved ? 'uncorroborated' : holdReason(claimants, numberedAway);
   const matchLevel = matchLevelOf(winner.signals, nameLevels);
   return { link: null, suggestion: suggestionFrom(orphan, winner, accountType, reason, claimants, matchLevel) };
@@ -386,8 +419,11 @@ export async function runLinking(runId, configId = null) {
     const rules = await loadRules(configId);
 
     await updateRun({ step: 'Loading identities', pct: 10 });
+    // `department` / `managerIdentityId` are the context the name-uniqueness
+    // guard breaks a tie on where the name alone leaves two people (#1455).
     const identities = (await db.query(`
-      SELECT i."id", i."displayName", i."email", i."employeeId", i."givenName", i."surname"
+      SELECT i."id", i."displayName", i."email", i."employeeId", i."givenName", i."surname",
+             i."department", i."managerIdentityId"
         FROM "Identities" i
     `)).rows;
 
@@ -399,9 +435,17 @@ export async function runLinking(runId, configId = null) {
     const linksRemoved = await removeStaleNameOnlyLinks(rules, identities);
 
     await updateRun({ step: 'Loading orphan accounts', pct: 20 });
+    // The account's manager is a *principal*, and what the guard compares is the
+    // person behind it, so it is resolved through `IdentityMembers` here. A
+    // scalar subquery rather than a join: a principal attached to two identities
+    // would otherwise duplicate the orphan row. It is null until the manager's
+    // own account is linked, which on the first run after an import it usually
+    // is not — the evidence then simply does not fire and a later run picks it up.
     const orphans = (await db.query(orphanPrincipalsSql(
       `p."id", p."displayName", p."email", p."employeeId", p."givenName", p."surname",
-       p."accountEnabled", p."extendedAttributes"`,
+       p."accountEnabled", p."extendedAttributes", p."department",
+       (SELECT im."identityId" FROM "IdentityMembers" im
+         WHERE im."principalId" = p."managerId" LIMIT 1) AS "managerIdentityId"`,
     ), ORPHAN_QUERY_PARAMS)).rows;
 
     await updateRun({ step: 'Matching accounts', pct: 45, candidatesScanned: orphans.length });
