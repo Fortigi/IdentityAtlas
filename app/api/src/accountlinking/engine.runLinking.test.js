@@ -323,6 +323,18 @@ function completionFields(db) {
   return Object.fromEntries(cols.map((c, i) => [c, call[1][i + 1]]));
 }
 
+/**
+ * The run linked nothing and held exactly one name-only match for review, shaped as `suggestion`
+ * (an expect.objectContaining subset).
+ */
+function expectHeldForReview(db, suggestion) {
+  expect(memberWrites(db)).toHaveLength(0);
+  const fields = completionFields(db);
+  expect(fields.linksCreated).toBe(0);
+  expect(fields.nameOnlyMatches).toBe(1);
+  expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining(suggestion)]);
+}
+
 function memberDeletes(db) {
   return db.query.mock.calls.filter(c => /DELETE FROM "IdentityMembers"/.test(c[0]));
 }
@@ -334,15 +346,11 @@ describe('runLinking — the name-uniqueness guard', () => {
 
     await runLinking(RUN_ID);
 
-    expect(memberWrites(db)).toHaveLength(0);
-    const fields = completionFields(db);
-    expect(fields.linksCreated).toBe(0);
-    expect(fields.nameOnlyMatches).toBe(1);
-    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining({
+    expectHeldForReview(db, {
       principalId: 'p-namesake', identityId: 'idy-1', confidence: 60, signals: ['fullName'],
       reason: 'ambiguousName', matchLevel: 'full',
       rivals: [{ identityId: 'idy-2', identityName: 'Doe, John' }],
-    })]);
+    });
   });
 
   it('links that same orphan when nobody else answers to its name', async () => {
@@ -639,13 +647,9 @@ describe('runLinking — a login a convention shortened (#1468)', () => {
 
     await runLinking(RUN_ID);
 
-    expect(memberWrites(db)).toHaveLength(0);
-    const fields = completionFields(db);
-    expect(fields.linksCreated).toBe(0);
-    expect(fields.nameOnlyMatches).toBe(1);
-    expect(JSON.parse(fields.nameOnlySuggestions)).toEqual([expect.objectContaining({
+    expectHeldForReview(db, {
       principalId: 'p-adm-sv', confidence: 55, signals: ['loginNameForm'],
       reason: 'ambiguousName', matchLevel: 'loginName', rivalCount: 1,
-    })]);
+    });
   });
 });
