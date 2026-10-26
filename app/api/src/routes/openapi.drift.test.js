@@ -116,8 +116,8 @@ const INTENTIONALLY_UNDOCUMENTED = {
 };
 const ALLOWLISTED_OPS = new Set(Object.keys(INTENTIONALLY_UNDOCUMENTED));
 
-// Express `:param` -> OpenAPI `{param}` so the two sides compare apples to apples.
-const toOpenApiPath = (p) => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
+// Express `:param` / `*wildcard` -> OpenAPI `{param}` so the two sides compare apples to apples.
+const toOpenApiPath = (p) => p.replace(/[:*]([A-Za-z0-9_]+)/g, '{$1}');
 const key = (method, path) => `${method.toUpperCase()} ${path}`;
 
 // An Express Router is a middleware function carrying a `.stack` of layers. This
