@@ -230,6 +230,86 @@ export function nameVariants(displayName, givenName, surname) {
   return out;
 }
 
+// ─── Login name forms (for a login that spells a name) ────────────
+//
+// A login is a name, not just an address: `adm-fhogenbirk` says "the F.
+// Hogenbirk of this tenant". Reading it as an address only — strip the prefix,
+// then demand the remainder equal the person's email local part exactly —
+// recognises one provisioning convention and nothing else, so an admin account
+// whose owner's mailbox is `f.h.hogenbirk` never finds her (#1454). Dropping the
+// separators cannot bridge it either: `f.h.hogenbirk` reduces to `fhhogenbirk`,
+// not to `fhogenbirk`. The login has to be read against the forms a convention
+// writes a *name* in.
+
+/**
+ * The comparison token an account's login reduces to: the local part with a
+ * known administrative prefix (`adm-`, `ext-`, …) removed, then lower-cased with
+ * every separator dropped. Prefixes are stripped first because they carry the
+ * separator that delimits them.
+ */
+export function loginToken(email, stripPrefixes = []) {
+  return normToken(stripKnownPrefixes(emailLocalPart(email), stripPrefixes));
+}
+
+/**
+ * The login forms a person's name can be written as, graded by how much of the
+ * name each form carries:
+ *
+ *   full    — the whole name: given name + surname, or the local part of the
+ *             person's own address (the convention their mailbox already uses,
+ *             which is normally their whole name: `f.h.hogenbirk`)
+ *   initial — given initial + surname, which keeps one letter of the given name
+ *             and so can answer for more than one person: `pmunck` fits every
+ *             P. Munck in the tenant
+ *
+ * Both are read from every name the person is known by (see `nameVariants`), and
+ * each form records which of those names it came from, so a login two people
+ * match can still be placed when only one of them actually goes by that name.
+ *
+ * The grade says what the form *carries*, never where it was read from, so a
+ * person whose own address is already the short form (`j.jansen` for Jan Jansen)
+ * is listed at `initial` like everybody else spelled that way — read as a full
+ * form it would outrank the real initial-level claimants and silently break the
+ * tie between two people who are genuinely called the same thing. For the same
+ * reason a form carrying the whole name is never also an initial form, which a
+ * one-token given name makes coincide.
+ *
+ * @returns {{ full: Map<string, 'inUse'|'birth'>, initial: Map<string, 'inUse'|'birth'> }}
+ */
+export function loginNameForms(person) {
+  const full = new Map();
+  const initial = new Map();
+  // The stronger variant of a form wins: a name the person is in-use known by is
+  // not also recorded as a birth name, whichever order their names come in.
+  const keep = (map, form, variant) => {
+    if (!form) return;
+    if (map.get(form) !== 'inUse') map.set(form, variant);
+  };
+  for (const v of nameVariants(person.displayName, person.givenName, person.surname)) {
+    if (!v.surname) continue; // a bare given name is no form at all
+    keep(full, v.given && v.given + v.surname, v.variant);
+    keep(initial, v.initial && v.initial + v.surname, v.variant);
+  }
+  const address = normToken(emailLocalPart(person.email));
+  if (!initial.has(address)) keep(full, address, 'inUse');
+  for (const form of full.keys()) initial.delete(form);
+  return { full, initial };
+}
+
+/**
+ * Which of a person's login forms an account's login token spells — the
+ * strongest first, since a form that carries the whole name is better evidence
+ * than one that carries an initial.
+ * @returns {'full'|'initial'|'none'}
+ */
+export function loginFormMatch(token, person) {
+  if (!token) return 'none';
+  const { full, initial } = loginNameForms(person);
+  if (full.has(token)) return 'full';
+  if (initial.has(token)) return 'initial';
+  return 'none';
+}
+
 /**
  * Compare two parsed names. Returns the strongest match level:
  *   'full'           — same surname AND same given name
