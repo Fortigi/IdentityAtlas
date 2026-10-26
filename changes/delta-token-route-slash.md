@@ -1,1 +1,0 @@
-- Fixed delta syncs always running as full syncs on Azure App Service deployments. Azure's front end changed the address the crawler uses to save its delta position, so the position was never stored and every scheduled delta (Entra ID and SQL Server) fell back to reading everything.

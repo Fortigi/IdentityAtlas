@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed delta syncs always running as full syncs on Azure App Service deployments. Azure's front end changed the address the crawler uses to save its delta position, so the position was never stored and every scheduled delta (Entra ID and SQL Server) fell back to reading everything.
+
+## Changes in this PR
+
 - Fixed: Account Linking now applies newly shipped match signals to a tenant that has saved its settings. Saving the settings stores the whole dictionary shown in the editor, and that stored list used to replace the shipped one — so a tenant that had ever pressed Save (even only to move the certainty slider) never received a signal added in a later version, and admin accounts like `adm-fhogenbirk` whose owner is only findable through the login stayed orphaned with nothing on screen to explain why.
 - Your saved values are never overwritten by the merge: every weight, threshold, account type and account-type pattern you stored stays exactly as you saved it, and a signal you added yourself is kept. A signal your dictionary doesn't have is added with the weight this version ships it at.
 - To switch a signal off, set its `weight` to `0` — deleting it from the JSON no longer disables it, because an upgrade merges it back in. The Account Linking settings editor now says this, and shows the effective dictionary (your rules plus the shipped signals) rather than only the stored one, so what you read is what the next run uses.
