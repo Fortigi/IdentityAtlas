@@ -38,7 +38,7 @@ import {
   emailLocalPart,
   stripKnownPrefixes,
 } from './classifier.js';
-import { ORPHAN_QUERY_PARAMS, orphanPrincipalsSql } from './orphanQuery.js';
+import { ORPHAN_QUERY_PARAMS, orphanPrincipalsSql, MANAGER_IDENTITY_ID_SQL } from './orphanQuery.js';
 import {
   norm,
   fullName,
@@ -435,17 +435,14 @@ export async function runLinking(runId, configId = null) {
     const linksRemoved = await removeStaleNameOnlyLinks(rules, identities);
 
     await updateRun({ step: 'Loading orphan accounts', pct: 20 });
-    // The account's manager is a *principal*, and what the guard compares is the
-    // person behind it, so it is resolved through `IdentityMembers` here. A
-    // scalar subquery rather than a join: a principal attached to two identities
-    // would otherwise duplicate the orphan row. It is null until the manager's
-    // own account is linked, which on the first run after an import it usually
-    // is not — the evidence then simply does not fire and a later run picks it up.
+    // `department` and the manager's identity are the context the name-uniqueness
+    // guard breaks a tie on where the name alone leaves two people (#1455). The
+    // manager is resolved by the shared subquery the retroactive cleanup reads it
+    // with too, so both halves of the run see the same evidence.
     const orphans = (await db.query(orphanPrincipalsSql(
       `p."id", p."displayName", p."email", p."employeeId", p."givenName", p."surname",
        p."accountEnabled", p."extendedAttributes", p."department",
-       (SELECT im."identityId" FROM "IdentityMembers" im
-         WHERE im."principalId" = p."managerId" LIMIT 1) AS "managerIdentityId"`,
+       ${MANAGER_IDENTITY_ID_SQL}`,
     ), ORPHAN_QUERY_PARAMS)).rows;
 
     await updateRun({ step: 'Matching accounts', pct: 45, candidatesScanned: orphans.length });
