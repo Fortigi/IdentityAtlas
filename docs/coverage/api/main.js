@@ -290,10 +290,10 @@ var assemblies = [
   {
     "name": "Default",
     "classes": [
-      { "name": "src/accountlinking/classifier.js", "rp": "src_accountlinking_classifier.js.html", "cl": 110, "ucl": 0, "cal": 110, "tl": 343, "cb": 133, "tb": 134, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/accountlinking/classifier.js", "rp": "src_accountlinking_classifier.js.html", "cl": 134, "ucl": 0, "cal": 134, "tl": 482, "cb": 147, "tb": 148, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/defaultRules.js", "rp": "src_accountlinking_defaultRules.js.html", "cl": 2, "ucl": 0, "cal": 2, "tl": 36, "cb": 0, "tb": 0, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/accountlinking/engine.helpers.js", "rp": "src_accountlinking_engine.helpers.js.html", "cl": 111, "ucl": 0, "cal": 111, "tl": 395, "cb": 112, "tb": 113, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "src/accountlinking/engine.js", "rp": "src_accountlinking_engine.js.html", "cl": 124, "ucl": 8, "cal": 132, "tl": 449, "cb": 103, "tb": 110, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/accountlinking/engine.helpers.js", "rp": "src_accountlinking_engine.helpers.js.html", "cl": 136, "ucl": 0, "cal": 136, "tl": 511, "cb": 124, "tb": 125, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "src/accountlinking/engine.js", "rp": "src_accountlinking_engine.js.html", "cl": 125, "ucl": 8, "cal": 133, "tl": 464, "cb": 107, "tb": 114, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/orphanQuery.js", "rp": "src_accountlinking_orphanQuery.js.html", "cl": 9, "ucl": 0, "cal": 9, "tl": 91, "cb": 3, "tb": 3, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/rulesMerge.js", "rp": "src_accountlinking_rulesMerge.js.html", "cl": 10, "ucl": 0, "cal": 10, "tl": 79, "cb": 8, "tb": 8, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "src/accountlinking/staleNameOnlyLinks.js", "rp": "src_accountlinking_staleNameOnlyLinks.js.html", "cl": 16, "ucl": 0, "cal": 16, "tl": 98, "cb": 8, "tb": 8, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
