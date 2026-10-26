@@ -335,6 +335,29 @@ drawing on the Charts tab, one chart part per declaration, wired in after ExcelJ
 Like `pivots`, `charts` is metadata that `reportMetadata` carries, and a saved view inherits its
 report's. A report with no rows, or with no charts declared, gets no Charts tab.
 
+### The same summary on screen
+
+The `charts` and `pivots` declarations are not only for the workbook. The rows response carries them,
+and the `list` renderer draws them above the table (`components/reports/ReportSummary.jsx`, with the
+arithmetic in `summaryData.js`), so a reader sees the breakdown without downloading anything:
+
+- **Each chart** becomes a bar split by share, with a legend of every category, its count or sum,
+  and its percentage. The slices use the declared `colors`, in the same first-appearance order as the
+  workbook.
+- **Each pivot** becomes a grouped table, with tabs when there are several. There is one row per value
+  of the first `rows` key, holding its row count and the sum of each `values` column. A row opens to the
+  next `rows` key. Pivot `filters` stay a workbook control. Each level shows at most 50 groups and
+  counts the rest.
+- **Clicking** a slice or a group narrows the table below to its rows. A bar above the table states
+  the filter and offers **Show all rows**. A refresh or a parameter change clears it.
+
+Nothing here is per report: a new template that declares charts or pivots gets them on screen with
+no UI change.
+
+The download buttons follow from this. **Download XLSX** is the main button whenever the API offers
+the workbook, because only the workbook holds the summary, the pivots and the charts. The other
+advertised formats (CSV, JSON) sit in a menu next to it, for scripts and imports.
+
 ## Columns the reader picks
 
 A template's `columns` and `pivots` are a declaration, but a run may return its own: `run()` can

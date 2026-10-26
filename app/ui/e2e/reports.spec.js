@@ -199,9 +199,11 @@ test.describe('Reports', () => {
     const body = await fetchRows('orphaned-accounts');
     await openReport(page, body);
 
+    // The workbook is the main button; CSV sits in the menu beside it.
+    await page.getByRole('button', { name: 'Other download formats' }).click();
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 30000 }),
-      page.getByRole('button', { name: 'Download CSV' }).click(),
+      page.getByRole('menuitem', { name: 'Download CSV' }).click(),
     ]);
 
     expect(download.suggestedFilename()).toMatch(/^identity-atlas-.*\.csv$/);
