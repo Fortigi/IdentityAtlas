@@ -3403,6 +3403,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-same-summary-on-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same summary on screen
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5625,6 +5636,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-same-summary-on-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same summary on screen
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6206,6 +6228,26 @@ maps a category to an <code>RRGGBB</code> slice colour; anything else keeps Exce
 drawing on the Charts tab, one chart part per declaration, wired in after ExcelJS has written the zip.
 Like <code>pivots</code>, <code>charts</code> is metadata that <code>reportMetadata</code> carries, and a saved view inherits its
 report's. A report with no rows, or with no charts declared, gets no Charts tab.</p>
+<h3 id="the-same-summary-on-screen">The same summary on screen<a class="headerlink" href="#the-same-summary-on-screen" title="Permanent link">&para;</a></h3>
+<p>The <code>charts</code> and <code>pivots</code> declarations are not only for the workbook. The rows response carries them,
+and the <code>list</code> renderer draws them above the table (<code>components/reports/ReportSummary.jsx</code>, with the
+arithmetic in <code>summaryData.js</code>), so a reader sees the breakdown without downloading anything:</p>
+<ul>
+<li><strong>Each chart</strong> becomes a bar split by share, with a legend of every category, its count or sum,
+  and its percentage. The slices use the declared <code>colors</code>, in the same first-appearance order as the
+  workbook.</li>
+<li><strong>Each pivot</strong> becomes a grouped table, with tabs when there are several. There is one row per value
+  of the first <code>rows</code> key, holding its row count and the sum of each <code>values</code> column. A row opens to the
+  next <code>rows</code> key. Pivot <code>filters</code> stay a workbook control. Each level shows at most 50 groups and
+  counts the rest.</li>
+<li><strong>Clicking</strong> a slice or a group narrows the table below to its rows. A bar above the table states
+  the filter and offers <strong>Show all rows</strong>. A refresh or a parameter change clears it.</li>
+</ul>
+<p>Nothing here is per report: a new template that declares charts or pivots gets them on screen with
+no UI change.</p>
+<p>The download buttons follow from this. <strong>Download XLSX</strong> is the main button whenever the API offers
+the workbook, because only the workbook holds the summary, the pivots and the charts. The other
+advertised formats (CSV, JSON) sit in a menu next to it, for scripts and imports.</p>
 <h2 id="columns-the-reader-picks">Columns the reader picks<a class="headerlink" href="#columns-the-reader-picks" title="Permanent link">&para;</a></h2>
 <p>A template's <code>columns</code> and <code>pivots</code> are a declaration, but a run may return its own: <code>run()</code> can
 return <code>columns</code> and <code>pivots</code> next to <code>rows</code>, and <code>routes/reports.js</code> then serves those instead (a
