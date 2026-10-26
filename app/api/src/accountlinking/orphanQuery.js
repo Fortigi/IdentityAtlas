@@ -17,6 +17,7 @@
 
 import * as db from '../db/connection.js';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { effectiveLinkingRules } from './rulesMerge.js';
 
 /** Principal classes that are never treated as orphaned accounts. */
 export const NON_HUMAN_PRINCIPAL_TYPES = ['ServicePrincipal', 'ManagedIdentity', 'AIAgent'];
@@ -51,16 +52,19 @@ export function orphanPrincipalsSql(selectList, { joins = '', tail = '' } = {}) 
 }
 
 /**
- * The active account-linking rule set, merged over the defaults. Falls back to
- * the defaults when no config row exists or the table is unreachable — callers
- * only use it to classify, so a missing config must not fail the read.
+ * The active account-linking rule set, merged over the defaults by the one
+ * merge the engine uses (`effectiveLinkingRules`) — so this answers with the
+ * same dictionary a run would use, newly shipped signals included (#1469).
+ * Falls back to the defaults when no config row exists or the table is
+ * unreachable — callers only use it to classify, so a missing config must not
+ * fail the read.
  */
 export async function loadActiveLinkingRules() {
   try {
     const row = await db.queryOne(
       `SELECT "rules" FROM "AccountLinkingConfig" WHERE "isActive" = true ORDER BY "updatedAt" DESC LIMIT 1`
     );
-    return (row && row.rules) ? { ...DEFAULT_RULES, ...row.rules } : DEFAULT_RULES;
+    return effectiveLinkingRules(row?.rules);
   } catch {
     return DEFAULT_RULES;
   }

@@ -19,6 +19,7 @@
 // touch the pure scoreMatch/buildLinks coverage in engine.test.js.
 
 import { describe, it, expect, vi } from 'vitest';
+import { PRE_LOGIN_NAME_FORM_RULES } from '../../test-utils/preShippedLinkingRules.js';
 
 const IDENTITY = { id: 'idy-1', displayName: 'Doe, John', email: 'jdoe@contoso.com', employeeId: 'E1' };
 const ORPHAN   = { id: 'p-adm', displayName: '(ADM-azure) Doe, John', email: 'adm-jdoe@contoso.com' };
@@ -161,6 +162,108 @@ describe('loadRules', () => {
     const { runLinking } = await loadEngine(db);
     await expect(runLinking(RUN_ID)).resolves.not.toThrow();
     expect(memberWrites(db).length).toBeGreaterThan(0);
+  });
+});
+
+// ── A saved dictionary vs signals shipped after the save (#1469) ─────────────
+//
+// Saving the settings persists the whole signals list of the build that was
+// running, and loadRules merges the saved row over the defaults at the top level
+// only — so the saved array shadows the shipped one wholesale and a tenant that
+// has ever pressed Save is frozen on that build's signals. Every signal shipped
+// afterwards is inert for them, with no sign that anything is missing: linking
+// still completes, the account it should have matched simply stays orphaned.
+//
+// The pair below is the discriminating case, because only `loginNameForm`
+// (shipped in #1466, weight 55) can bridge it: the mailbox carries two initials
+// and the admin login one, so emailPrefix's exact local-part comparison fails
+// ("fhogenbirk" ≠ "f.h.hogenbirk"), and the display name carries no person name
+// for the name signals to read. engine.test.js proves this same pair links under
+// the shipped DEFAULT_RULES.
+
+describe('loadRules — a saved dictionary vs newly shipped signals (#1469)', () => {
+  const FAY = {
+    id: 'idy-fay', displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com', employeeId: 'E100',
+  };
+  const ADM_FAY = { id: 'p-adm', displayName: 'Admin account 042', email: 'adm-fhogenbirk@fortigidemo.com' };
+
+  // The link the login route makes, read off the real INSERT: who to whom, on
+  // what evidence, at what confidence. The weight pins that the signal arrived
+  // with its shipped definition (55) rather than some value of the merge's own.
+  const FAY_LOGIN_LINK = {
+    identityId: 'idy-fay', principalId: 'p-adm', signals: 'loginNameForm', confidence: 55,
+  };
+
+  /** Run linking over the pair; `savedRules` null = a tenant with no config row. */
+  async function linkTheAdminAccount(savedRules) {
+    const db = makeDb({ orphans: [ADM_FAY], identities: [FAY] });
+    if (savedRules) {
+      const noConfigRow = db.queryOne.getMockImplementation();
+      db.queryOne = vi.fn(async (sql, params) =>
+        /AccountLinkingConfig/.test(sql) ? { rules: savedRules } : noConfigRow(sql, params));
+    }
+    const { runLinking } = await loadEngine(db);
+    await runLinking(RUN_ID);
+    return db;
+  }
+
+  /** The IdentityMembers rows the run inserted, as the link each one records. */
+  function insertedLinks(db) {
+    return db.query.mock.calls
+      .filter(c => /INSERT\s+INTO\s+"IdentityMembers"/.test(c[0]))
+      .map(([, p]) => ({ identityId: p[0], principalId: p[1], signals: JSON.parse(p[6]), confidence: p[7] }));
+  }
+
+  it('still applies a shipped signal the saved dictionary predates (loginNameForm)', async () => {
+    // An upgraded tenant: its config row holds the dictionary the administrator
+    // saved before loginNameForm shipped.
+    const db = await linkTheAdminAccount(PRE_LOGIN_NAME_FORM_RULES);
+
+    expect(insertedLinks(db)).toEqual([FAY_LOGIN_LINK]);
+    expect(completionFields(db).linksCreated).toBe(1);
+  });
+
+  it('links that same pair for a tenant that has never saved its settings', async () => {
+    // The paired case on identical input bar the config row, and the reason the
+    // assertion above discriminates: nothing about this pair is unlinkable — the
+    // shipped dictionary attaches it. Only a saved row shadowing the shipped
+    // signals keeps the account orphaned.
+    const db = await linkTheAdminAccount(null);
+
+    expect(insertedLinks(db)).toEqual([FAY_LOGIN_LINK]);
+  });
+
+  it('leaves the account orphaned for a tenant that switched the signal off at weight 0', async () => {
+    // The off-switch that makes merging shipped signals back in safe: a signal
+    // the tenant deleted returns, a signal the tenant set to 0 stays off. Same
+    // input as the first case bar that one weight, so this is the case that
+    // tells "the tenant's definition won" apart from "the shipped one did".
+    const db = await linkTheAdminAccount({
+      ...PRE_LOGIN_NAME_FORM_RULES,
+      signals: [
+        ...PRE_LOGIN_NAME_FORM_RULES.signals,
+        { name: 'loginNameForm', type: 'loginName', field: 'email', weight: 0, stripPrefixes: ['adm-'] },
+      ],
+    });
+
+    expect(insertedLinks(db)).toEqual([]);
+    expect(completionFields(db).linksCreated).toBe(0);
+  });
+
+  it("scores the link at the tenant's own weight where they set one", async () => {
+    // A tenant who upgraded and then raised the signal to 70 — their number is
+    // what the link is recorded at, not the shipped 55, so an analyst reading
+    // the confidence is reading this tenant's policy.
+    const db = await linkTheAdminAccount({
+      ...PRE_LOGIN_NAME_FORM_RULES,
+      signals: [
+        ...PRE_LOGIN_NAME_FORM_RULES.signals,
+        { name: 'loginNameForm', type: 'loginName', field: 'email', weight: 70, stripPrefixes: ['adm-'] },
+      ],
+    });
+
+    expect(insertedLinks(db)).toEqual([{ ...FAY_LOGIN_LINK, confidence: 70 }]);
   });
 });
 

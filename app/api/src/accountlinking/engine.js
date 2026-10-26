@@ -30,21 +30,22 @@
 import * as db from '../db/connection.js';
 import { enqueueRun } from '../contexts/plugins/runner.js';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { effectiveLinkingRules } from './rulesMerge.js';
 import {
   classifyAccount,
   compileAccountTypeRules,
   normalizeName,
   emailLocalPart,
   stripKnownPrefixes,
-  bestNameMatch,
 } from './classifier.js';
 import { ORPHAN_QUERY_PARAMS, orphanPrincipalsSql } from './orphanQuery.js';
 import {
   norm,
   fullName,
-  personNames,
+  strongestNameRung,
   prefixesFrom,
   suffixesFrom,
+  loginPrefixesFrom,
   nameSignalNames,
   nameSignalLevels,
   matchLevelOf,
@@ -80,12 +81,13 @@ export const MAX_NAME_ONLY_RIVALS = 5;
 export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
   const signals = [];
   let total = 0;
-  // Compute the name-match level once (lazily) — name signals are mutually
-  // exclusive: only the signal whose level equals the computed best level fires.
-  let level;
-  const getLevel = () => {
-    if (level === undefined) level = bestNameMatch(personNames(orphan), personNames(identity));
-    return level;
+  // Compute the name-class rung once (lazily) — every signal reading a person's
+  // name is mutually exclusive with the others, whether it reads it off the
+  // account's display name or off its login: only the strongest rung fires.
+  let rung;
+  const getRung = () => {
+    if (rung === undefined) rung = strongestNameRung(orphan, identity, rules);
+    return rung;
   };
   for (const sig of (rules.signals || [])) {
     let matched = false;
@@ -98,7 +100,15 @@ export function scoreMatch(orphan, identity, rules = DEFAULT_RULES) {
       const b = emailLocalPart(identity[sig.field]);
       matched = !!a && a === b;
     } else if (sig.type === 'name') {
-      matched = getLevel() === sig.level;
+      matched = getRung() === sig.level;
+    } else if (sig.type === 'loginName') {
+      // The login read as a name rather than an address: it carries the person's
+      // name in whatever form a provisioning convention writes it (#1454). One
+      // weight for either form — a login that writes the whole name is better
+      // evidence than one that writes an initial, but neither is near-certain,
+      // and which of the two it is only decides who its rivals are (the
+      // uniqueness guard reads that level itself).
+      matched = getRung() === 'loginName';
     } else if (sig.type === 'fuzzy') { // legacy single-signal name match
       const suf = sig.stripSuffixes || [];
       const a = normalizeName(orphan[sig.field], suf) || fullName(orphan, suf);
@@ -128,6 +138,7 @@ export function buildLinks(orphans, identities, rules = DEFAULT_RULES) {
     compiled: { ...rules, __compiled: compileAccountTypeRules(rules) },
     prefixes: prefixesFrom(rules),
     suffixes: suffixesFrom(rules),
+    loginPrefixes: loginPrefixesFrom(rules),
     nameSigs: nameSignalNames(rules),
     nameLevels: nameSignalLevels(rules),
     allowNameOnly: rules.allowNameOnlyLinks !== false,
@@ -226,12 +237,12 @@ function suggestionFrom(orphan, candidate, accountType, reason, claimants, match
  *   (the match a guard held for review) is set.
  */
 function buildLinkForOrphan(orphan, ctx) {
-  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes,
+  const { rules, threshold, onlyTypes, compiled, prefixes, suffixes, loginPrefixes,
     nameSigs, nameLevels, allowNameOnly, indexes } = ctx;
   const { accountType, pattern } = classifyAccount(orphan, compiled);
   if (!onlyTypes.has(accountType)) return null;
 
-  const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes });
+  const candidates = collectCandidates(orphan, indexes, { prefixes, suffixes, loginPrefixes });
   const { best, scored } = pickBest(orphan, candidates, rules, threshold);
   if (!best) return null;
   if (!isNameOnly(best.signals, nameSigs)) {
@@ -249,7 +260,7 @@ function buildLinkForOrphan(orphan, ctx) {
   // to win: a name that singles out somebody the score ranks lower settles
   // nothing. `allowNameOnlyLinks: false` holds back every name-only match, even
   // an unambiguous one, for a tenant that wants a name to never be enough.
-  const { sole, claimants } = nameClaim(orphan, indexes);
+  const { sole, claimants } = nameClaim(orphan, indexes, { loginPrefixes });
   const resolved = sole
     ? scored.find(s => s.identityId === sole.id && s.confidence === best.confidence)
     : null;
@@ -270,7 +281,10 @@ async function loadRules(configId) {
       ? await db.queryOne(`SELECT "rules" FROM "AccountLinkingConfig" WHERE id = $1`, [configId])
       : await db.queryOne(`SELECT "rules" FROM "AccountLinkingConfig" WHERE "isActive" = true ORDER BY "updatedAt" DESC LIMIT 1`);
   } catch { /* table may not exist yet on a partially-migrated DB */ }
-  return (row && row.rules) ? { ...DEFAULT_RULES, ...row.rules } : DEFAULT_RULES;
+  // A saved row is an override of the shipped dictionary, not a replacement:
+  // signals are merged by name so a signal shipped after the tenant last saved
+  // still fires for them (#1469).
+  return effectiveLinkingRules(row?.rules);
 }
 
 async function countOrphans() {

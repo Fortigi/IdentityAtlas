@@ -1,5 +1,33 @@
 ## Changes in this PR
 
+- Fixed delta syncs always running as full syncs on Azure App Service deployments. Azure's front end changed the address the crawler uses to save its delta position, so the position was never stored and every scheduled delta (Entra ID and SQL Server) fell back to reading everything.
+
+## Changes in this PR
+
+- Fixed: Account Linking now applies newly shipped match signals to a tenant that has saved its settings. Saving the settings stores the whole dictionary shown in the editor, and that stored list used to replace the shipped one — so a tenant that had ever pressed Save (even only to move the certainty slider) never received a signal added in a later version, and admin accounts like `adm-fhogenbirk` whose owner is only findable through the login stayed orphaned with nothing on screen to explain why.
+- Your saved values are never overwritten by the merge: every weight, threshold, account type and account-type pattern you stored stays exactly as you saved it, and a signal you added yourself is kept. A signal your dictionary doesn't have is added with the weight this version ships it at.
+- To switch a signal off, set its `weight` to `0` — deleting it from the JSON no longer disables it, because an upgrade merges it back in. The Account Linking settings editor now says this, and shows the effective dictionary (your rules plus the shipped signals) rather than only the stored one, so what you read is what the next run uses.
+- The Orphaned Accounts report and context read the same effective dictionary as a run, so an account the engine can now place is no longer listed as outstanding analyst work.
+- The run that first applies a merged signal leaves existing links alone: a link already attached to a person is not detached and not re-scored just because the dictionary gained a signal.
+
+## Changes in this PR
+
+- The demo data's realism slice now seeds about 20 admin accounts under a second login convention, `adm-<first initial><surname>` (for example `adm-fhogenbirk@…`), beside the `adm-<email local part>` accounts it always had.
+- Those new accounts deliberately carry nothing that identifies their owner — no employee number, no name fields, no department and no ready-made link — so their login is the only route back to the person. That makes Account Linking's login signal visible on the stock demo data instead of needing a hand-built test fixture.
+- One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so `adm-svisser@…` fits several of them and shows up under "Name-only matches (held for review)" rather than being linked to the wrong one.
+- Where two people in the seeded range would share a login, only the first gets an account — the demo seeds no numbered logins such as `adm-svisser2@…`, which nothing can yet link back to a person.
+- The existing demo admin accounts, their employee numbers and their links are unchanged, as is every other person, group, role and assignment in the dataset — and generating the demo data without the realism slice still produces exactly the standard 26-person company.
+
+## Changes in this PR
+
+- Account Linking now reads an admin account's login as a person's name, not just as an address: an account logging in as `adm-fhogenbirk` is attached to the Fay Hogenbirk it names, even where her own mailbox follows a different convention (`f.h.hogenbirk`). Previously such an account was only ever linked if its display name happened to spell the person's name, so admin accounts stayed invisible on their owners and remained in Orphaned Accounts.
+- A login is treated as name evidence, not near-certain evidence: it links at a lower confidence than an exact address or employee-id match, and an admin login that fits more than one person (`adm-pmunck` for both a Petra and a Pieter Munck) is held for review on the run with the other candidate named, instead of being attached to whichever one it happened to score first.
+- Account Linking no longer adds up the same name twice. An account whose display name *and* login both spell its owner used to report near-certain confidence for what is one piece of evidence; the strongest name reading now stands on its own, so the confidence an account shows reflects how certain the match really is.
+- The new signal is visible and editable in Admin → Account Linking like every other, so a tenant can reweight it or remove it.
+- Accounts that supply no address at all (several ERP exports) are unchanged by this and still rely on their display name.
+
+## Changes in this PR
+
 - Fixed Account Linking removing a linked account from an identity after a sync had deleted that account. A link made on a name match alone is now kept as history once the account is gone, instead of being detached by the name-only cleanup and lost — the identity keeps the account and its access history.
 - A run's "links removed" figure now counts only links to accounts that still exist, so it no longer reports removals an analyst cannot act on or undo.
 - Links to live accounts are unaffected: a name-only link to an account somebody else answers to is still detached and held for review.

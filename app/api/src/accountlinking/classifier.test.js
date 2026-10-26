@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules } from './classifier.js';
+import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules, loginToken, loginNameForms, loginFormMatch } from './classifier.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('classifyAccount', () => {
@@ -498,5 +498,120 @@ describe('bestNameMatch', () => {
     expect(bestNameMatch(nameVariants('Anna de Wit'), [])).toBe('none');
     expect(bestNameMatch([], nameVariants('Anna de Wit'))).toBe('none');
     expect(bestNameMatch([], [])).toBe('none');
+  });
+});
+
+// ── A login that spells a name (#1454) ───────────────────────────────────────
+//
+// An admin login is a name, not an address: `adm-fhogenbirk` says "the F. Hogenbirk
+// of this tenant". Reading it as an address — strip the prefix, then demand the rest
+// equal the owner's email local part — recognises one provisioning convention and
+// nothing else, which left 34 of 64 admin accounts on the reporting tenant attached
+// to nobody. The inputs below are the ones that discriminate: a one-initial login
+// against a two-initial mailbox (which separator-stripping alone cannot bridge), and
+// a short form that fits two people.
+
+describe('loginToken', () => {
+  const PREFIXES = DEFAULT_RULES.signals.find(s => s.type === 'loginName').stripPrefixes;
+
+  it('strips the admin prefix and then the separators, in that order', () => {
+    // Order matters: the prefix carries the separator that delimits it, so dropping
+    // separators first leaves 'admfhogenbirk' and no prefix to recognise.
+    expect(loginToken('adm-fhogenbirk@fortigidemo.com', PREFIXES)).toBe('fhogenbirk');
+    expect(loginToken('ADM_F.Hogenbirk@fortigidemo.com', PREFIXES)).toBe('fhogenbirk');
+  });
+
+  it('reduces a login that carries no prefix to its separator-free local part', () => {
+    expect(loginToken('f.h.hogenbirk@fortigidemo.com', PREFIXES)).toBe('fhhogenbirk');
+  });
+
+  it('is empty for an account with no login to read', () => {
+    // The 25 ERP accounts in the report have no address at all; they must produce no
+    // token rather than a token that matches whoever else has none (#1455 owns them).
+    expect(loginToken(null, PREFIXES)).toBe('');
+    expect(loginToken('', PREFIXES)).toBe('');
+    expect(loginToken('adm-@fortigidemo.com', PREFIXES)).toBe('');
+  });
+});
+
+describe('loginNameForms', () => {
+  const fay = {
+    displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com',
+  };
+
+  it('writes the name out in full and as initial + surname', () => {
+    const { full, initial } = loginNameForms(fay);
+    expect([...full.keys()].sort()).toEqual(['fayhogenbirk', 'fhhogenbirk']);
+    // The form the reporter's admin login actually carries — and the one no
+    // separator-stripped comparison of the two addresses can ever produce.
+    expect([...initial.keys()]).toEqual(['fhogenbirk']);
+  });
+
+  it('grades the person’s own short address as an initial form, not a full one', () => {
+    // 'j.jansen' is initial + surname however it was read. Graded 'full' because it
+    // came off the address, it would outrank the real initial-level claimants and
+    // hand a 'jjansen' login to this Jan Jansen over an equally-named one.
+    const jan = { displayName: 'Jan Jansen', givenName: 'Jan', surname: 'Jansen', email: 'j.jansen@x.com' };
+    const { full, initial } = loginNameForms(jan);
+    expect([...full.keys()]).toEqual(['janjansen']);
+    expect([...initial.keys()]).toEqual(['jjansen']);
+  });
+
+  it('never lists one form at both levels', () => {
+    // A one-letter given name makes 'given + surname' and 'initial + surname' the
+    // same string. Listed at both, the same person is their own rival.
+    const { full, initial } = loginNameForms({ displayName: 'A Li', givenName: 'A', surname: 'Li' });
+    expect([...full.keys()]).toEqual(['ali']);
+    expect(initial.has('ali')).toBe(false);
+  });
+
+  it('records which of the person’s names each form came from', () => {
+    // Her accounts are provisioned from the name she goes by; the surname column
+    // still holds the birth name. Both are forms, and the guard needs to know which
+    // is which to place an 'adewit' login on the woman actually called de Wit.
+    const { full, initial } = loginNameForms({
+      displayName: 'Anna Bakker-de Wit', givenName: 'Anna', surname: 'de Wit',
+    });
+    expect(full.get('annabakkerdewit')).toBe('inUse');
+    expect(full.get('annadewit')).toBe('birth');
+    expect(initial.get('abakkerdewit')).toBe('inUse');
+    expect(initial.get('adewit')).toBe('birth');
+  });
+
+  it('reads a form off a display name alone, and off columns alone', () => {
+    expect([...loginNameForms({ displayName: 'Hogenbirk, Fay' }).initial.keys()]).toEqual(['fhogenbirk']);
+    expect([...loginNameForms({ givenName: 'Fay', surname: 'Hogenbirk' }).initial.keys()]).toEqual(['fhogenbirk']);
+  });
+
+  it('produces no form for a name with no surname', () => {
+    // A bare given name is not a login form: 'f' would answer for every F in the
+    // tenant, and a bare surname is already treated as no name match at all.
+    expect(loginNameForms({ displayName: 'Fay' }).initial.size).toBe(0);
+    expect(loginNameForms({ givenName: 'Fay' }).full.size).toBe(0);
+    expect(loginNameForms({}).full.size).toBe(0);
+  });
+});
+
+describe('loginFormMatch', () => {
+  const fay = {
+    displayName: 'Fay Hogenbirk', givenName: 'Fay', surname: 'Hogenbirk',
+    email: 'f.h.hogenbirk@fortigidemo.com',
+  };
+
+  it('matches the whole-name form ahead of the initial one', () => {
+    expect(loginFormMatch('fayhogenbirk', fay)).toBe('full');
+    expect(loginFormMatch('fhogenbirk', fay)).toBe('initial');
+  });
+
+  it('does not match a different surname or a different initial', () => {
+    expect(loginFormMatch('jhogenbirk', fay)).toBe('none');
+    expect(loginFormMatch('fhogenberg', fay)).toBe('none');
+    // A bare surname is no form — every Hogenbirk would otherwise claim it.
+    expect(loginFormMatch('hogenbirk', fay)).toBe('none');
+  });
+
+  it('matches nothing for an account with no login', () => {
+    expect(loginFormMatch('', fay)).toBe('none');
   });
 });
