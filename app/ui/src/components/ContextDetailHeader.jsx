@@ -17,7 +17,8 @@ import AddInformation from './contexts/interviews/AddInformation';
 //
 // Actions: "Download report" (when the template has one — the reader's main
 // action, for everyone), "Authorization workbench" (an analyst, on an
-// organizational unit: onOpenWorkbench), "Add information" (an analyst, on a unit or an
+// organizational unit: onOpenWorkbench; "3 proposed" on it when its saved
+// investigations hold proposed roles: proposedCount), "Add information" (an analyst, on a unit or an
 // application), and a ⋯ menu with the rest (contexts/header/MoreMenu.jsx), each
 // only when its handler is given:
 //   onEdit        Edit (name, description, parent, template, delete)
@@ -31,7 +32,7 @@ import AddInformation from './contexts/interviews/AddInformation';
 // reading the parents the reader may not open. No owner chip: who answers for
 // the context is the Accountable, shown below the name.
 
-export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, children }) {
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, proposedCount = 0, children }) {
   const readOnly = useIsSharedView();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
@@ -52,6 +53,10 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
             <button type="button" onClick={onOpenWorkbench} title="Group the people by what they do, see their access, and compose a candidate role"
               className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
               Authorization workbench
+              {proposedCount > 0 && ' '}
+              {proposedCount > 0 && (
+                <span className="ml-1rounded-full bg-emerald-200 px-1.5 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">{proposedCount} proposed</span>
+              )}
             </button>
           )}
           {addInformation && <AddInformation contextId={attrs.id} />}

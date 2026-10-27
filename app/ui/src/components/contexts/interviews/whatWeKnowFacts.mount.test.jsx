@@ -143,3 +143,34 @@ describe('More details', () => {
     expect(within(details).queryByText('Context Type')).toBeNull();
   });
 });
+
+describe('What we know — what the unit\'s people do, know and hold', () => {
+  const KNOW = [
+    { id: 'k1', claimKind: 'activity', status: 'confirmed', principalId: 'p-1', subjectDisplayName: 'Piet Proef', value: 'Handle claims', objectName: 'Handle property claims', filedUnderName: 'Claims Handling', quote: 'Piet handles the property claims.', ...SRC },
+    { id: 'k2', claimKind: 'duty', status: 'confirmed', principalId: 'p-2', subjectDisplayName: 'Yara Test', value: 'Works council member', filedUnderName: 'Contoso', ...SRC },
+    { id: 'k3', claimKind: 'expertise', status: 'proposed', principalId: 'p-2', subjectDisplayName: 'Yara Test', value: 'Subrogation', filedUnderName: 'Claims Handling', quote: 'Yara knows subrogation.', ...SRC },
+  ];
+
+  it('counts them in the folded line and lists them by kind with person, name and where the source was added', async () => {
+    const { user } = mount({ claims: KNOW, links: [] });
+    const region = await screen.findByRole('region', { name: 'What we know' });
+    await waitFor(() => expect(region).toHaveTextContent('1 activity · 1 duty · 1 to review'));
+    await open(user);
+    const list = within(region).getByTestId('people-knowledge');
+    expect(list).toHaveTextContent('What its people do, know and hold · 1 activity · 1 duty');
+    const activity = within(list).getByLabelText('Activity: Piet Proef — Handle property claims');
+    expect(activity).toHaveTextContent('added on Claims Handling');
+    expect(activity).toHaveTextContent('interview with Anna Voorbeeld, 2026-10-01');
+    // Filed on this unit itself: no "added on".
+    expect(within(list).getByLabelText('Duty: Yara Test — Works council member')).not.toHaveTextContent('added on');
+    // The proposed one is not a fact yet: it waits in the review list.
+    expect(within(list).queryByText('Subrogation')).toBeNull();
+    expect(within(region).getByText(/Yara knows subrogation/)).toBeInTheDocument();
+  });
+
+  it('shows nothing of the kind when no such claim is confirmed', async () => {
+    const { user } = mount({ claims: [KNOW[2]], links: [], auth: READER });
+    const region = await open(user);
+    expect(within(region).queryByTestId('people-knowledge')).toBeNull();
+  });
+});

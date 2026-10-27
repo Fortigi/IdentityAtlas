@@ -201,6 +201,37 @@ investigation holding a proposed role, any unit. `POST /api/workbench/proposals/
 `{ principalIds }` (at most 2000) answers the matrix's rows for those accounts, in the shape of the
 matrix feed, plus which business roles cover each cell. Both are read-only.
 
+## Proposed roles on the unit page
+
+An analyst's unit page shows the same saved proposals. It reads them from the existing
+investigation endpoints, so no new API.
+
+- The **Authorization workbench** button carries "N proposed".
+- A **Proposed roles** fold ("3 in 2 investigations") lists each saved proposed role with:
+  - its colour (the workbench's band index: the unit's existing roles first);
+  - its name and kind;
+  - its rule as one sentence, or "chosen by hand";
+  - the people it reaches now and its entitlements;
+  - the investigation, who saved it and when.
+
+  The rows are read only when the fold is opened. Only this unit's investigations are listed, not
+  a sub-unit's.
+- A row opens the workbench on `#workbench:<unit>:<investigation>:<proposed role>`
+  (`workbench.link.js`). The workbench opens that investigation once and puts that role in the
+  panel.
+
+**What we know agrees with the workbench.** The workbench finds activity, expertise and duty claims
+by *person*. The unit page used to read only the claims filed *on the unit*. An interview held on
+the parent unit names what the people of a sub-unit do, so the sub-unit's page said "Nothing
+recorded yet". `GET /api/contexts/:id/claims` now also returns the knowledge claims about the
+unit's members, wherever filed:
+- the members' identities and accounts, each widened by the identity ↔ account links;
+- members removed by an override are left out;
+- each such claim names where it was filed (`filedUnderName`).
+
+What we know counts and lists them, and a proposed one is reviewable there. The People and
+Timeline loaders are unchanged.
+
 ## Deferred (Milestone 2 / 3)
 
 - **M2b:** review, approve and version a proposed role (`status` beyond `draft`, `version` beyond

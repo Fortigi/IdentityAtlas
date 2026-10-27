@@ -12,6 +12,8 @@ import CandidatePanel from './CandidatePanel';
 import InvestigationBar from './InvestigationBar';
 import RoleSaveActions from './RoleSaveActions';
 import { useInvestigation } from './useInvestigation';
+import { useOpenLinked } from './useOpenLinked';
+import { parseWorkbenchRouteId } from './workbench.link';
 import { Toolbar, SelectionBar, Legend, FilterStrip } from './WorkbenchControls';
 import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
 
@@ -35,19 +37,22 @@ function visibleColumns(columns, view) {
   return columns.filter(c => !c.isRole && c.holders >= view.minHolders && (!q || c.displayName.toLowerCase().includes(q) || (c.systemName || '').toLowerCase().includes(q)));
 }
 
-export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
+export default function WorkbenchPage({ contextId: routeId, onCacheData, onClose }) {
+  // The tab's id: the unit, or a link straight to one saved proposed role (workbench.link.js).
+  const { contextId, investigationId, proposalId } = parseWorkbenchRouteId(routeId);
   const [view, setView] = useState(DEFAULT_VIEW);
   const isDark = useIsDark();
   const { data, loading, error, reload, send } = useWorkbenchData(contextId, view.includeChildren);
   const [draft, dispatch] = useWorkbenchDraft();
   const inv = useInvestigation({ contextId, send, view, setView, draft, dispatch, data, defaultView: DEFAULT_VIEW });
+  useOpenLinked({ ready: !!data, investigationId, proposalId, open: inv.open, dispatch });
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
   const unitName = data?.unit?.displayName;
 
   useEffect(() => {
-    if (unitName) onCacheData?.(contextId, 'workbench', { displayName: `Workbench: ${unitName}` });
-  }, [unitName, contextId, onCacheData]);
+    if (unitName) onCacheData?.(routeId, 'workbench', { displayName: `Workbench: ${unitName}` });
+  }, [unitName, routeId, onCacheData]);
 
   // A unit whose people hold many things opens on what at least two of them share.
   const shownView = useMemo(() => (data && view.minHolders === null ? { ...view, minHolders: startsCrowded(data) ? 2 : 1 } : view), [data, view]);

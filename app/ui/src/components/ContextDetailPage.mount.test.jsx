@@ -170,9 +170,63 @@ describe('ContextDetailPage — Authorization workbench', () => {
   });
 
   it('offers no workbench on an application', async () => {
-    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: unit('LogicalApplication') } });
+    const authFetch = unit('LogicalApplication');
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
     expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Authorization workbench' })).toBeNull();
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/workbench/investigations'));
+  });
+
+  // The unit's saved investigations: the key sits before the bare detail key (substring match).
+  const withProposals = (extra = {}) => makeAuthFetch({
+    '/api/contexts/ctx-1/workbench/investigations': { data: [
+      { id: 'inv-1', name: 'First pass', proposals: [{ id: 'p1', name: 'Handler' }, { id: 'p2', name: 'Lead' }] },
+      { id: 'inv-2', name: 'Second', proposals: [{ id: 'p3', name: 'Adjuster' }] },
+    ] },
+    '/api/workbench/investigations/inv-1': { id: 'inv-1', name: 'First pass', updatedBy: 'ann', updatedAt: '2026-10-27T09:00:00', marks: [],
+      proposals: [{ id: 'p1', name: 'Handler', kind: 'requestable', members: [], entitlements: ['r1'] }, { id: 'p2', name: 'Lead', members: [], entitlements: [] }] },
+    '/api/workbench/investigations/inv-2': { id: 'inv-2', name: 'Second', updatedBy: 'bob', updatedAt: '2026-10-26T09:00:00', marks: [],
+      proposals: [{ id: 'p3', name: 'Adjuster', members: [], entitlements: [] }] },
+    '/api/contexts/ctx-1/workbench?': { unit: { displayName: 'Engineering Cluster', accountable: null }, columns: [], people: [] },
+    '/api/contexts/ctx-1/roles': [],
+    '/api/contexts/ctx-1/people': PEOPLE_EMPTY,
+    '/api/risk-scores/contexts/ctx-1': riskData,
+    '/api/contexts/ctx-1/timeline': timeline,
+    '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, contextCategory: 'OrganizationalUnit' } },
+    ...extra,
+  });
+
+  it('counts the proposed roles on the workbench button and opens the workbench on one from Proposed roles', async () => {
+    const user = userEvent.setup();
+    const onOpenDetail = vi.fn();
+    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: withProposals() } });
+    expect(await screen.findByRole('button', { name: 'Authorization workbench 3 proposed' })).toBeInTheDocument();
+    const section = screen.getByRole('region', { name: 'Proposed roles' });
+    expect(section).toHaveTextContent('3 in 2 investigations');
+    // After What we know, before the Timeline.
+    const order = ['What we know', 'Proposed roles', 'Timeline'].map(name => screen.getByRole('region', { name }));
+    expect(order[0].compareDocumentPosition(order[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1].compareDocumentPosition(order[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(within(section).getByRole('button', { name: /^Proposed roles/ }));
+    await user.click(await within(section).findByRole('button', { name: /Adjuster/ }));
+    expect(onOpenDetail).toHaveBeenCalledWith('workbench', 'ctx-1:inv-2:p3', 'Workbench: Engineering Cluster');
+  });
+
+  it('shows a reader neither the count nor the section, and does not ask', async () => {
+    const authFetch = withProposals();
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch, hasWildcard: false, permissions: new Set(['data.read']) } });
+    expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Proposed roles' })).toBeNull();
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/workbench/investigations'));
+  });
+
+  it('shows the plain button and no section when nothing is saved, or the list cannot be read', async () => {
+    for (const answer of [{ data: [] }, jsonResponse({ error: 'nope' }, { ok: false, status: 500 })]) {
+      const { unmount } = renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: withProposals({ '/api/contexts/ctx-1/workbench/investigations': answer }) } });
+      expect(await screen.findByRole('button', { name: 'Authorization workbench' })).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Proposed roles' })).toBeNull();
+      unmount();
+    }
   });
 });
 describe('ContextDetailPage (mounted)', () => {

@@ -233,3 +233,39 @@ describe('a refused save from the panel', () => {
     expect(await within(panel()).findByRole('alert')).toHaveTextContent('This unit already has an investigation with that name.');
   });
 });
+
+describe('opened on a link to one saved proposed role', () => {
+  const two = () => savedInv({ proposals: [
+    { id: S1, name: 'Claims handler', description: null, baseBusinessRoleId: null, members: ['i:p'], entitlements: ['g1'] },
+    { id: S2, name: 'Garage liaison', description: null, baseBusinessRoleId: null, members: [], entitlements: ['g1'] },
+  ] });
+
+  async function mountLinked(routeId, routes) {
+    const a = api(routes);
+    renderWithProviders(h(WorkbenchPage, { contextId: routeId, onClose: () => {} }), { auth: { authFetch: a.fetch } });
+    await screen.findByRole('heading', { name: 'Motor Claims' }, { timeout: 5000 });
+    return a.calls;
+  }
+  const active = () => within(screen.getByRole('list', { name: 'Proposed roles' })).getAllByRole('button').find(b => b.getAttribute('aria-current') === 'true');
+
+  it('reads the unit, opens the investigation once and puts that role in the panel', async () => {
+    const calls = await mountLinked(`${UNIT}:${INV}:${S2}`, { [`GET /api/workbench/investigations/${INV}`]: two });
+    await waitFor(() => expect(status()).toMatch(/^Saved as “Motor”/));
+    await waitFor(() => expect(active()).toHaveTextContent('Garage liaison'));
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Garage liaison');
+    expect(calls.filter(c => c.url === `/api/workbench/investigations/${INV}`)).toHaveLength(1);
+    expect(calls.some(c => c.url.startsWith(`/api/contexts/${UNIT}/workbench?`))).toBe(true);
+  });
+
+  it('keeps the first role open when the linked one is gone', async () => {
+    await mountLinked(`${UNIT}:${INV}:44444444-4444-4444-8444-444444444444`, { [`GET /api/workbench/investigations/${INV}`]: two });
+    await waitFor(() => expect(status()).toMatch(/^Saved as “Motor”/));
+    expect(active()).toHaveTextContent('Claims handler');
+  });
+
+  it('opens no investigation on the unit alone', async () => {
+    const calls = await mountLinked(UNIT, {});
+    expect(status()).toBe('Nothing to save yet');
+    expect(calls.some(c => c.url.startsWith('/api/workbench/investigations/'))).toBe(false);
+  });
+});

@@ -6,13 +6,15 @@ import FoldSection from '@ui/components/contexts/FoldSection';
 import ContextDetails from '@ui/components/contexts/ContextDetails';
 import UnitVariants from '@ui/components/contexts/profiles/UnitVariants';
 import { useUnitVariants } from '@ui/components/contexts/profiles/useUnitVariants';
-import { aliasFacts, groupConfirmed, isPersonClaim, proposedClaims, sourceLabel, whatWeKnowSummary } from './claims.helpers';
+import { aliasFacts, groupConfirmed, groupKnowledge, reviewableHere, sourceLabel, whatWeKnowSummary } from './claims.helpers';
+import PeopleKnowledge from './PeopleKnowledge';
 
 // ─── What we know — facts about the unit (or the application) itself ─────
 // Its description, the properties the sources established, its other names, the
 // same unit held as other kinds of member, and the remaining attributes (More
-// details). Facts about people are not here: each person's sit on their row in
-// People. Folded by default to one line — the start of the description, then
+// details), and what its people do, know and hold (activity, expertise, duty — the
+// Authorization workbench's columns, wherever the source was added). A person's
+// role or membership is not here: it sits on their row in People. Folded by default to one line — the start of the description, then
 // "3 properties · also known as HA · 2 to review". An analyst also gets the unit's
 // own claims to review and the contradictions about it (a property against the
 // value the context holds); a reader is sent confirmed claims only and sees no
@@ -44,7 +46,8 @@ export default function WhatWeKnow({ id, attrs, profile, analyst = false, onOpen
   const canWrite = !!ctx?.canWrite;
   const { properties } = groupConfirmed(claims);
   const aliases = aliasFacts(attrs, claims, false).map(a => a.name);
-  const toReview = canWrite ? proposedClaims(claims).filter(c => !isPersonClaim(c)) : [];
+  const toReview = canWrite ? reviewableHere(claims) : [];
+  const knowledge = groupKnowledge(claims);
   return (
     <FoldSection id={id} title="What we know" testId="what-we-know" open={open} onOpenChange={onOpenChange}
       summary={whatWeKnowSummary({ description: attrs.description, claims, aliases, canWrite })}>
@@ -66,6 +69,7 @@ export default function WhatWeKnow({ id, attrs, profile, analyst = false, onOpen
         </Group>
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><AlsoKnownAs attrs={attrs} /></dl>
+      <PeopleKnowledge grouped={knowledge} unitName={attrs.displayName} Quote={Quote} />
       <UnitVariants variants={variants} onOpenDetail={onOpenDetail} label={profile.variantsLabel} />
       <Contradictions unitOnly />
       {toReview.length > 0 && <ClaimReviewList claims={toReview} decide={ctx.decide} rejectMany={ctx.rejectMany} openTranscript={ctx.openTranscript} />}
