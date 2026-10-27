@@ -199,6 +199,10 @@ function initials(name) {
   return letters.toUpperCase();
 }
 
+// Roles the source stated: one a crawler named directly ('sync'), and the owner
+// the source names for a synced context ('sourceOwner', kept in step by the ingest).
+const FROM_SOURCE = new Set(['sync', 'sourceOwner']);
+
 // One holder: initials, the name opening the account (or the person), and
 // the source system when a sync stated the role.
 function Holder({ role, sourceName, onOpenDetail }) {
@@ -213,7 +217,7 @@ function Holder({ role, sourceName, onOpenDetail }) {
       {linkable
         ? <button type="button" onClick={() => onOpenDetail(kind, role.principalId || role.identityId, name)} className="font-medium hover:underline hover:text-blue-700 dark:hover:text-blue-300">{name}</button>
         : <span className="font-medium">{name}</span>}
-      {role.addedBy === 'sync' && sourceName && <span className="text-xs text-gray-600 dark:text-gray-400">from {sourceName}</span>}
+      {FROM_SOURCE.has(role.addedBy) && sourceName && <span className="text-xs text-gray-600 dark:text-gray-400">from {sourceName}</span>}
       {role.sourceClaimId && (
         <span className="text-xs text-gray-600 dark:text-gray-400" title={role.sourceQuote || undefined}>
           from the interview with {role.sourceIntervieweeName}, {role.sourceInterviewedAt}

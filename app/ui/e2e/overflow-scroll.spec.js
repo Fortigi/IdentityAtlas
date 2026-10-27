@@ -54,21 +54,7 @@ test.describe('Data tables — horizontal scroll wrapper', () => {
     expect(scrollWidth).toBeGreaterThanOrEqual(clientWidth);
   });
 
-  test('Contexts list view table scrolls, when a context tree is available', async ({ page }) => {
-    await page.goto('/#contexts');
-    await page.waitForTimeout(500);
-
-    const listToggle = page.getByRole('button', { name: 'List', exact: true });
-    if (await listToggle.count() === 0) {
-      test.skip(true, 'no context tree selected — nothing to switch to list view for');
-      return;
-    }
-    await listToggle.click();
-
-    const table = page.locator('table').first();
-    await expect(table).toBeVisible({ timeout: 5000 });
-    const wrapper = scrollWrapper(table);
-    await expect(wrapper).toHaveCount(1);
-    expect(await wrapper.getAttribute('class')).toContain('overflow-x-auto');
-  });
+  // The Contexts tab's List mode is gone (a unit's members are listed on its
+  // page, which reads as cards on narrow screens), so it has no table to sweep;
+  // the test that switched to it skipped on every run since.
 });

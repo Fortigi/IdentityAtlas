@@ -89,6 +89,13 @@ joined into one turn, *"Name: words"*). At most 25 MB per file.
 When the report generator's model server is configured (`NL_REPORTS_LLM_URL`, the one
 the list upload's refinement uses), the upload starts extraction in the background:
 
+> **Where the text goes.** Extraction sends the transcript's text — names, roles and
+> whatever else was said — to the model server at `NL_REPORTS_LLM_URL`. The shipped
+> nl-reports overlay runs that server in your own Docker stack, so nothing leaves it.
+> Point the variable at a hosted model and the transcripts go there instead; leave it
+> unset and no transcript is sent anywhere — it is stored and you add claims by hand
+> ([Without a model](#without-a-model-never-a-dead-end)).
+
 1. The transcript is read in parts of 10,000 characters, at most 40 (a longer one says
    how much was read — never silently less). Each part is asked for claims with a
    prompt that names what identity and access governance runs on — people and their

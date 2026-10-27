@@ -70,6 +70,7 @@ function fakeStore() {
     return { status: 201, body: {} };
   });
   s.insertRoleRows = vi.fn(async (rows) => ({ inserted: rows.length, skipped: 0 }));
+  s.insertOwnerRows = vi.fn(async (rows) => ({ inserted: rows.length, skipped: 0 }));
   s.insertRelationshipRows = vi.fn(async (rows) => ({ inserted: rows.length, skipped: 0 }));
   s.refreshMemberCounts = vi.fn(async () => {});
   return s;
@@ -297,7 +298,9 @@ describe('a SharePoint export: lookup members and owners named by display name',
     const r = await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, 'a', s);
     const keyOf = (id) => s.contexts.find(c => c.id === id).externalId;
     expect(s.members.map(m => `${keyOf(m.contextId)}:${m.memberId}`).sort()).toEqual(['Unit A:P-ann', 'Unit A:P-bo', 'Unit B:P-bo']);
-    const accountable = s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable');
+    // Owners go in as the owner reconcile's own rows, never through the crawler's 'sync' writer.
+    expect(s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable')).toEqual([]);
+    const accountable = s.insertOwnerRows.mock.calls.flatMap(c => c[0]);
     expect(accountable.map(row => `${keyOf(row.contextId)}:${row.holderId}`)).toEqual(['Unit A:P-ann', 'Unit B:P-cy']);
     expect(r.owners).toMatchObject({ matched: 2, fuzzy: 1, written: 2 });
   });
@@ -308,6 +311,7 @@ describe('a SharePoint export: lookup members and owners named by display name',
     const a = await sharepoint(s);
     const r = await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: a.guess }, 'a', s);
     expect(r.owners).toMatchObject({ matched: 0, unmatched: 2, written: 0 });
+    expect(s.insertOwnerRows).not.toHaveBeenCalled();
     expect(s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable')).toEqual([]);
   });
 
@@ -316,6 +320,7 @@ describe('a SharePoint export: lookup members and owners named by display name',
     const a = await sharepoint(s);
     const r = await applyUpload({ uploadDraftId: a.uploadDraftId, mapping: { ...a.guess, ownerColumn: null, attributeColumns: ['Eigenaar'] } }, 'a', s);
     expect(r.owners).toBeNull();
+    expect(s.insertOwnerRows).not.toHaveBeenCalled();
     expect(s.insertRoleRows.mock.calls.flatMap(c => c[0]).filter(row => row.role === 'Accountable')).toEqual([]);
   });
 });

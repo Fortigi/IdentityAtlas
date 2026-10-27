@@ -19,7 +19,7 @@ import { ListParseError } from '../../contexts/upload/parse.js';
 import { analyzeUpload, previewUpload, applyUpload, UploadError } from '../../contexts/upload/service.js';
 import { listLists } from '../../contexts/upload/lists.js';
 import { runIngest } from '../ingest/handlers.js';
-import { insertRoleRows, insertRelationshipRows } from '../ingest/contextLinks.js';
+import { insertRoleRows, insertOwnerRows, insertRelationshipRows } from '../ingest/contextLinks.js';
 import { refreshMemberCounts } from '../../contexts/memberCounts.js';
 
 const router = Router();
@@ -38,7 +38,7 @@ const upload = multer({
     : cb(new ListParseError('Upload a .csv or .xlsx file.'))),
 });
 
-const deps = () => ({ db, runIngest, insertRoleRows, insertRelationshipRows, refreshMemberCounts });
+const deps = () => ({ db, runIngest, insertRoleRows, insertOwnerRows, insertRelationshipRows, refreshMemberCounts });
 
 // One answer for every failure: a sentence the analyst can act on for their own
 // mistakes, a generic one (and the detail in the log) for ours.

@@ -108,6 +108,12 @@ describe('accountable / notOwner — the interview and the Accountable disagree'
     ]);
   });
 
+  it('names the owner a synced context\'s source states (sourceOwner) as from the source too', () => {
+    const doubt = claim({ claimKind: 'role', attribute: 'notOwner', value: 'not the owner', principalId: YARA, subjectDisplayName: 'Yara Ypma' });
+    const out = find({ claims: [doubt], accountable: { ...HOLDER, addedBy: 'sourceOwner' } });
+    expect(out.map(c => c.other.source)).toEqual(['Yara Ypma, from the source']);
+  });
+
   it('the Accountable says they are not the owner (the old "In doubt")', () => {
     const doubt = claim({ claimKind: 'role', attribute: 'notOwner', value: 'not the owner', principalId: YARA, subjectDisplayName: 'Yara Ypma' });
     const out = find({ claims: [doubt], accountable: { ...HOLDER, addedBy: 'analyst' } });

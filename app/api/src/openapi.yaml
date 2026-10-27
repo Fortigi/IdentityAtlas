@@ -3894,7 +3894,10 @@ components:
         principalId: { type: string, format: uuid, nullable: true }
         identityId: { type: string, format: uuid, nullable: true }
         displayName: { type: string, nullable: true }
-        addedBy: { type: string, enum: [sync, algorithm, analyst] }
+        addedBy:
+          type: string
+          enum: [sync, algorithm, analyst, sourceOwner]
+          description: "`sourceOwner` is the owner a synced context's source names (ownerUserId), kept in step on every sync; `sync` is a role a crawler stated directly."
         sourceClaimId: { type: string, format: uuid, nullable: true, description: The interview claim this role was confirmed from }
         sourceIntervieweeName: { type: string, nullable: true }
         sourceInterviewedAt: { type: string, format: date, nullable: true }

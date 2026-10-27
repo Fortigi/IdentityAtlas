@@ -106,21 +106,21 @@ erDiagram
         uuid memberId FK
     }
     ContextMembers {
-        string addedBy "sync, algorithm, analyst"
+        string addedBy "sync, algorithm, analyst, sourceOwner"
         uuid contextId FK
         uuid memberId FK
         string memberType "Identity, Resource, Principal, System"
     }
     ContextRelationships {
         uuid id PK
-        string addedBy "sync, algorithm, analyst"
+        string addedBy "sync, algorithm, analyst, sourceOwner"
         uuid contextId FK
         uuid relatedContextId FK
         string relationshipType "SameUnitAs"
     }
     ContextRoles {
         uuid id PK
-        string addedBy "sync, algorithm, analyst"
+        string addedBy "sync, algorithm, analyst, sourceOwner"
         uuid contextId FK
         uuid identityId FK
         uuid principalId FK

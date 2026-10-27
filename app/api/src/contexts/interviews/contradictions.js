@@ -174,7 +174,9 @@ function membershipPair(personClaims) {
   })];
 }
 
-const roleHolderSource = (acc) => ({ sync: 'from the source', algorithm: 'set by a rule', analyst: 'set by an analyst' }[acc.addedBy] || 'set');
+const roleHolderSource = (acc) => ({
+  sync: 'from the source', sourceOwner: 'from the source', algorithm: 'set by a rule', analyst: 'set by an analyst',
+}[acc.addedBy] || 'set');
 const samePerson = (c, h) => (c.principalId && c.principalId === h.principalId) || (c.identityId && c.identityId === h.identityId);
 
 function accountableRules(claims, accountable) {
