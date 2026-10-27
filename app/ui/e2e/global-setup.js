@@ -3,8 +3,8 @@
  * Global setup for Playwright E2E tests.
  *
  * Runs once before all specs. Puts the deployment into the state the suite
- * assumes: every optional tab visible (Systems, Reports, Logs, Identities, Org
- * Chart, Risk Scores, Performance, Admin) via the preferences API, and the
+ * assumes: every optional tab visible (Systems, Logs, Identities, Contexts,
+ * Risk Scores, Performance, Admin) via the preferences API, and the
  * opt-in feature flags the suite covers switched on, so no spec has to skip.
  *
  * Both are deliberately done HERE and not in a test: they are global server
@@ -20,7 +20,7 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
  * keeps seeing every tab.
  */
 export const ALL_OPTIONAL_TABS = [
-  'systems', 'reports', 'sync-log', 'risk-scores', 'identities', 'org-chart', 'performance', 'admin',
+  'systems', 'sync-log', 'risk-scores', 'identities', 'contexts', 'performance', 'admin',
 ];
 
 /**

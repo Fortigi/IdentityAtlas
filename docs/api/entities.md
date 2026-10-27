@@ -649,7 +649,7 @@ Returns the current user's tab visibility preferences.
 }
 ```
 
-Optional tabs that can be toggled: `risk-scores`, `identities`, `org-chart`, `performance`. All are hidden by default until the user enables them via the settings dropdown (user avatar, top right).
+Optional tabs that can be toggled: `systems`, `identities`, `contexts`, `sync-log`. All are hidden by default until the user enables them via the settings dropdown (user avatar, top right). Any other key is dropped on save.
 
 ---
 

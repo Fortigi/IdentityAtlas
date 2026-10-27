@@ -70,10 +70,8 @@ nothing the Contexts page doesn't already show, so there is no admin permission 
 
 ## UI
 
-Reports is an **optional** nav tab (`optional: true` in `utils/navTabs.js`, allowlisted in the API's
-`routes/preferences.js`): off by default, switched on per user under Settings → Visible Tabs, exactly
-like Systems and Logs. Hiding it only declutters the nav — `#reports` and `#report:<name>` stay
-reachable by URL either way.
+Reports is a **default** nav tab in `utils/navTabs.js`: every user sees it, and Settings → Visible
+Tabs offers no switch for it. `#reports` and `#report:<name>` are also reachable by URL.
 
 `components/ReportsPage.jsx` lists the reports from `GET /api/reports` and renders the selected one
 through a **form-renderer map** (`components/reports/formRenderers.js`) keyed on the report's `form`

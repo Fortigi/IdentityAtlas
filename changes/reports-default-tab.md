@@ -1,0 +1,2 @@
+- The **Reports** tab is now shown to every user by default; it no longer has to be switched on under Settings → Visible Tabs.
+- **Contexts** and **Identities** are now optional tabs, hidden by default. Switch them on per user under Settings → Visible Tabs (Identities only while account linking is enabled). The pages stay reachable by link either way.
