@@ -41,7 +41,8 @@
     "src/components/workbench/PersonCell.jsx",
     "src/components/workbench/WorkbenchControls.jsx",
     "src/components/workbench/WorkbenchGrid.jsx",
-    "src/components/workbench/WorkbenchPage.jsx"
+    "src/components/workbench/WorkbenchPage.jsx",
+    "src/components/matrix/MatrixBadges.jsx"
   ],
   "mutationExclusions": {
     "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the AddInformation (interviewForms.mount.test.jsx) and ContextPeople mount tests, which mount without one.",
