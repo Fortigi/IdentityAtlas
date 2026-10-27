@@ -28,6 +28,10 @@ export function dayOf(value) {
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
 }
 
+// A role without a rule sentence: its members are the ones chosen by hand — said so
+// plainly for a rule-based role whose rule is not set yet.
+const handPicked = (d) => (d.kind === 'rule' ? 'No rule yet — members chosen by hand' : 'Members chosen by hand');
+
 /**
  * One row per saved proposed role, newest investigation first, each role in its
  * investigation's order: its name, kind, the rule in one sentence (or "chosen by
@@ -44,7 +48,7 @@ export function proposalRows(investigations, data) {
     return drafts.map(d => ({
       id: d.id, investigationId: inv.id, investigationName: inv.name, updatedBy: inv.updatedBy, updatedAt: inv.updatedAt,
       name: d.name.trim() || 'Unnamed', kind: KIND_WORDS[d.kind] ?? 'kind not chosen',
-      rule: ruleSentence(d, data.unit.displayName, data.people, data.unit.accountable) ?? 'Members chosen by hand',
+      rule: ruleSentence(d, data.unit.displayName, data.people, data.unit.accountable) ?? handPicked(d),
       members: d.members.size, entitlements: d.entitlements.size,
       colorIdx: shown.includes(d) ? existingRoles + shown.indexOf(d) : null,
     }));

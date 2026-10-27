@@ -61,4 +61,9 @@ describe('the rows', () => {
     ], { ...data, columns: [] });
     expect(rows.map(r => [r.investigationId, r.id, r.colorIdx, r.rule])).toEqual([['a', 'x', 0, 'Members chosen by hand'], ['b', 'y', 0, 'Members chosen by hand']]);
   });
+
+  it('says a rule-based role has no rule yet', () => {
+    const [row] = proposalRows([inv({ proposals: [{ id: 'z', name: 'Z', kind: 'rule', rule: null, members: ['i:ann'], entitlements: ['r1'] }] })], data);
+    expect(row).toMatchObject({ kind: 'rule-based', rule: 'No rule yet — members chosen by hand', members: 1 });
+  });
 });
