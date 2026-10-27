@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { evidenceLine, knownNames, knowledgeGaps } from './workbench.labels';
-import { draftReducer } from './useWorkbench';
+import { draftReducer, activeDraft } from './useWorkbench';
 
 const src = { kind: 'interview', name: 'Marieke', fileName: 'i.txt', date: '2026-10-20' };
 
@@ -34,10 +34,57 @@ describe('knownNames / knowledgeGaps', () => {
   });
 });
 
-describe('draftReducer', () => {
-  it('ignores an unknown action, and edits one candidate field', () => {
-    const s = { candidate: { name: '' } };
+describe('draftReducer — the proposed roles', () => {
+  const run = (...actions) => actions.reduce(draftReducer, { selection: new Set(), anchor: null, marks: new Map(), drafts: [], activeId: null, viewRoleId: null, nextId: 1 });
+  const shape = (s) => s.drafts.map(d => ({ id: d.id, name: d.name, base: d.baseBusinessRoleId, members: [...d.members], entitlements: [...d.entitlements] }));
+
+  it('ignores an unknown action', () => {
+    const s = run();
     expect(draftReducer(s, { type: 'nope' })).toBe(s);
-    expect(draftReducer(s, { type: 'edit', field: 'name', value: 'X' }).candidate.name).toBe('X');
+  });
+
+  it('makes a proposed role the first time something is added, and edits the active one', () => {
+    const s = run({ type: 'addMembers', people: ['a'] }, { type: 'edit', field: 'name', value: 'Motor' });
+    expect(shape(s)).toEqual([{ id: 'draft:1', name: 'Motor', base: null, members: ['a'], entitlements: [] }]);
+    expect(activeDraft(s).id).toBe('draft:1');
+    expect(activeDraft(run()).id).toBeNull();
+  });
+
+  it('keeps several proposed roles, each edited when it is the active one', () => {
+    const role = { id: 'br', displayName: 'Handler', contains: ['r1'] };
+    const s = run(
+      { type: 'addMembers', people: ['a'] },
+      { type: 'newCandidate' }, { type: 'addMembers', people: ['b'] },
+      { type: 'fromRole', role, cellsByResource: new Map([['br', [{ person: 'c' }]]]) },
+      { type: 'selectDraft', id: 'draft:1' }, { type: 'removeMember', person: 'a' },
+    );
+    expect(shape(s)).toEqual([
+      { id: 'draft:1', name: 'Candidate 1', base: null, members: [], entitlements: [] },
+      { id: 'draft:2', name: 'Candidate 2', base: null, members: ['b'], entitlements: [] },
+      { id: 'draft:3', name: 'Handler', base: 'br', members: ['c'], entitlements: ['r1'] },
+    ]);
+    expect(s.activeId).toBe('draft:1');
+  });
+
+  it('removes a proposed role; the last remaining one becomes active, none when it was the only one', () => {
+    const two = run({ type: 'newCandidate' }, { type: 'newCandidate' }, { type: 'selectDraft', id: 'draft:1' });
+    expect(run().drafts).toEqual([]);
+    const afterActive = draftReducer(two, { type: 'removeDraft', id: 'draft:1' });
+    expect([afterActive.drafts.map(d => d.id), afterActive.activeId]).toEqual([['draft:2'], 'draft:2']);
+    const afterOther = draftReducer(two, { type: 'removeDraft', id: 'draft:2' });
+    expect(afterOther.activeId).toBe('draft:1');
+    expect(draftReducer(afterActive, { type: 'removeDraft', id: 'draft:2' }).activeId).toBeNull();
+  });
+
+  it('opens an existing role read-only, and editing the active role closes it', () => {
+    const s = run({ type: 'newCandidate' }, { type: 'viewRole', id: 'br' });
+    expect(s.viewRoleId).toBe('br');
+    expect(draftReducer(s, { type: 'closeRole' }).viewRoleId).toBeNull();
+    expect(draftReducer(s, { type: 'addMembers', people: ['x'] }).viewRoleId).toBeNull();
+    expect(draftReducer(s, { type: 'selectDraft', id: 'draft:1' }).viewRoleId).toBeNull();
+  });
+
+  it('resets everything', () => {
+    expect(run({ type: 'newCandidate' }, { type: 'reset' })).toMatchObject({ drafts: [], activeId: null, nextId: 1 });
   });
 });

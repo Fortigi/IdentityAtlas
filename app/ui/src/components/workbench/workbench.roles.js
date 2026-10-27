@@ -19,28 +19,27 @@
 import { describeCell } from '@ui/components/matrix/MatrixCell.helpers';
 import { cellKey, MARKS } from './workbench.model';
 
-export const DRAFT_ID = '__draft';
-
-/** The candidate's band label: "Draft: <name>", or "Draft" while it has none. Pure. */
+/** A proposed role's band label: "Draft: <name>", or "Draft" while it has none. Pure. */
 export const draftName = (candidate) => (candidate.name.trim() ? `Draft: ${candidate.name.trim()}` : 'Draft');
 
-/** Does the candidate show as a role yet? Once it has a member or an entitlement. Pure. */
+/** Does a proposed role show in the band yet? Once it has a member or an entitlement. Pure. */
 export const draftShown = (candidate) => candidate.members.size > 0 || candidate.entitlements.size > 0;
 
 /**
  * The roles of the band, in the matrix's order: the unit's existing business
- * roles (most held first, as the columns come), then the draft. Each with the
- * people holding it (`holders`), what it Contains, and its band index (`idx`) —
- * the index getAccessPackageColor colours by. Pure.
+ * roles (most held first, as the columns come), then each proposed role (the
+ * session's drafts, in the order made). Each with the people holding it
+ * (`holders`), what it Contains, its band index (`idx`, which
+ * getAccessPackageColor colours by) and, for a draft, whether it is the `active` one. Pure.
  */
-export function bandRoles(columns, cellsByResource, candidate) {
+export function bandRoles(columns, cellsByResource, drafts = [], activeId = null) {
   const roles = columns.filter(c => c.isRole).map(c => ({
     id: c.id, displayName: c.displayName, draft: false,
     holders: new Set((cellsByResource.get(c.id) || []).map(x => x.person)),
     contains: new Set(c.contains || []),
   }));
-  if (draftShown(candidate)) {
-    roles.push({ id: DRAFT_ID, displayName: draftName(candidate), draft: true, holders: candidate.members, contains: candidate.entitlements });
+  for (const d of drafts.filter(draftShown)) {
+    roles.push({ id: d.id, displayName: draftName(d), draft: true, active: d.id === activeId, holders: d.members, contains: d.entitlements });
   }
   return roles.map((r, idx) => ({ ...r, idx }));
 }

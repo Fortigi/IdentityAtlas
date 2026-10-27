@@ -172,6 +172,7 @@ describe('WorkbenchPage', () => {
     await user.selectOptions(within(candidate()).getByLabelText('Share of the members'), '1');
     await user.click(within(candidate()).getByRole('button', { name: 'Propose' }));
     expect(within(candidate()).getByText('Entitlements (1)')).toBeInTheDocument();
+    await user.clear(within(candidate()).getByPlaceholderText('e.g. Claims handler — motor'));
     await user.type(within(candidate()).getByPlaceholderText('e.g. Claims handler — motor'), 'Motor v2');
     expect(within(grid()).getByRole('columnheader', { name: 'Draft: Motor v2' })).toBeInTheDocument();
     // Covered: the matrix's "managed by" cell in the draft's colour — Anna's read is covered by both roles.
@@ -203,20 +204,57 @@ describe('WorkbenchPage', () => {
     await user.click(screen.getByRole('button', { name: 'Members only' }));
     expect(within(candidate()).getByText('Other context (marked)').nextSibling).toHaveTextContent('1');
   });
-  it('starts an update from an existing business role and shows how it differs from the role', async () => {
+  it('keeps several proposed roles, each its own Draft column, opens one from its band header, and removes one after an in-page confirm', async () => {
     const { user } = mount();
     await opened();
-    await user.selectOptions(within(candidate()).getByLabelText('Start from'), 'br');
+    await user.click(within(grid()).getByRole('button', { name: 'Anna Vos' }));
+    await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
+    await user.click(within(candidate()).getByRole('button', { name: 'New candidate role' }));
+    await user.click(within(grid()).getByRole('button', { name: 'Cleo Kok' }));
+    await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
+    const list = () => within(candidate()).getByRole('list', { name: 'Proposed roles' });
+    expect(within(list()).getAllByRole('button').map(b => b.textContent)).toEqual(['Candidate 11 · 2', 'Candidate 21 · 2']);
+    expect(within(grid()).getByRole('columnheader', { name: 'Draft: Candidate 1' })).toBeInTheDocument();
+    expect(within(grid()).getByRole('columnheader', { name: 'Draft: Candidate 2' })).toBeInTheDocument();
+    // The band header opens a proposed role in the panel.
+    await user.click(within(grid()).getByText('Draft: Candidate 1'));
+    expect(within(candidate()).getByDisplayValue('Candidate 1')).toBeInTheDocument();
+    expect(within(list()).getByRole('button', { current: true })).toHaveTextContent('Candidate 1');
+    // Remove it: the app's confirm, Cancel keeps it, Remove takes its column away.
+    await user.click(within(candidate()).getByRole('button', { name: 'Remove this proposed role' }));
+    expect(await screen.findByText('Remove proposed role')).toBeInTheDocument();
+    expect(screen.getByText(/Remove the proposed role “Candidate 1”\? Its column and colours go/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(within(grid()).getByRole('columnheader', { name: 'Draft: Candidate 1' })).toBeInTheDocument();
+    await user.click(within(candidate()).getByRole('button', { name: 'Remove this proposed role' }));
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+    expect(within(grid()).queryByRole('columnheader', { name: 'Draft: Candidate 1' })).toBeNull();
+    expect(within(list()).getAllByRole('button').map(b => b.textContent)).toEqual(['Candidate 21 · 2']);
+    expect(within(candidate()).getByDisplayValue('Candidate 2')).toBeInTheDocument();
+  });
+
+  it('opens an existing business role read-only from its band header, and proposes an update from it', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(within(grid()).getByText('Claims handler'));
+    const role = within(candidate()).getByRole('region', { name: 'Existing business role' });
+    expect(within(role).getByText('Business role from the source · read-only here')).toBeInTheDocument();
+    expect(within(role).getByText('Held here by (1)')).toBeInTheDocument();
+    expect(within(role).getByText('Contains (2)')).toBeInTheDocument();
+    expect(within(role).queryByRole('textbox')).toBeNull();
+    await user.click(within(role).getByRole('button', { name: 'Propose update' }));
     expect(within(candidate()).getByRole('heading', { name: 'Proposed update to a role' })).toBeInTheDocument();
     expect(within(candidate()).getByDisplayValue('Claims handler')).toBeInTheDocument();
     expect(within(candidate()).getByText('Members (1)')).toBeInTheDocument();
     await user.click(within(candidate()).getByRole('button', { name: 'Remove Motor handler' }));
     expect(within(candidate()).getByText('Leaves out of the role: Motor handler')).toBeInTheDocument();
     expect(within(candidate()).getByText(/impact unknown/)).toBeInTheDocument();
-    await user.click(within(candidate()).getByRole('button', { name: /Reset the draft/ }));
-    expect(within(candidate()).getByRole('heading', { name: 'Candidate role' })).toBeInTheDocument();
+    // The select starts one too.
+    await user.selectOptions(within(candidate()).getByLabelText('Update an existing role'), 'br');
+    expect(within(candidate()).getByRole('list', { name: 'Proposed roles' }).children).toHaveLength(2);
+    await user.click(within(candidate()).getByRole('button', { name: /Reset everything/ }));
+    expect(within(candidate()).getByText(/No proposed role yet/)).toBeInTheDocument();
   });
-
   it('shows a link’s evidence and confirms a proposed claim through the claims API', async () => {
     const { user, calls } = mount();
     await opened();

@@ -5,3 +5,4 @@
 - The workbench shows access with the same D / I / E badges and business-role chip as the matrix; its own marks (covered, potential gain, outside the candidate, other context, unrelated, needs investigation) sit on top as a corner sign.
 - The workbench lists one row per person with Excel-like columns (name, job title, system data, activity, expertise, duty): filter any column by its values (multi-value: any match; proposed values in or out), sort by clicking a header, and add everyone shown to the candidate in one click.
 - The candidate shows as a Draft business role in the business-role band with the matrix's colours: what it covers in its colour, what it would add as the matrix's provisioning gap.
+- Several proposed roles at once, each its own Draft column; click one (in the band or the list) to edit it, remove one that is not right, and open an existing business role read-only with "Propose update".

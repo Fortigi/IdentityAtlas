@@ -1,34 +1,129 @@
 import { useState } from 'react';
+import { useDialog } from '@ui/components/dialogContext';
 import { frequencies, impactSummary, roleDelta } from './workbench.model';
 import { IMPACT } from './workbench.cells';
+import { activeDraft } from './useWorkbench';
 import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 
-// ─── The candidate role ──────────────────────────────────────────────────
-// A new candidate role, or a proposed update to a business role the unit already
-// holds (starting from what it Contains and who holds it — the role itself is
-// never changed). Members and entitlements are chosen separately. The first
-// proposal is deterministic: every column at least half (or ¾, or all) of the
-// members hold, minus what was marked other context or unrelated; the share is
-// shown beside each entitlement. The impact counts update as the draft changes.
-// Nothing here is saved or sent anywhere.
+// ─── The proposed roles ──────────────────────────────────────────────────
+// The session's proposed roles, each a Draft column in the role band in its own
+// colour: the list at the top picks the one to edit (so does its band header);
+// "New candidate role" starts another; "Update an existing role" starts one from
+// a role the unit holds (what it Contains and who holds it — the role itself is
+// never changed). The active one is edited here — members and entitlements chosen
+// separately, a deterministic first proposal (every column at least half, ¾ or all
+// of the members hold, minus what was marked other context or unrelated), its
+// impact — and can be removed when it is not right. An existing role clicked in
+// the band shows here read-only, with "Propose update". Nothing is saved.
 
 const THRESHOLDS = [{ v: 0.5, l: '≥ 50 %' }, { v: 0.75, l: '≥ 75 %' }, { v: 1, l: 'all' }];
 
-export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, draftColor }) {
-  const { candidate, marks } = draft;
-  const roles = data.columns.filter(c => c.isRole);
-  const baseRole = candidate.baseRoleId ? columnsById.get(candidate.baseRoleId) : null;
-  const impact = impactSummary(candidate, data.people, cellIndex, marks);
-  const share = new Map(frequencies(candidate.members, data.columns, cellIndex).map(f => [f.resourceId, f]));
-  const n = candidate.members.size;
-
+export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined }) {
+  const existing = data.columns.filter(c => c.isRole);
+  const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
+  const viewed = draft.viewRoleId ? columnsById.get(draft.viewRoleId) : null;
+  const active = activeDraft(draft);
   return (
     <aside aria-label="Candidate role" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
+      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} />
+      {viewed && <ExistingRole role={viewed} dispatch={dispatch} cellsByResource={cellsByResource} peopleByKey={peopleByKey} columnsById={columnsById} color={colorOf(viewed.id)} />}
+      {!viewed && active.id && (
+        <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
+          columnsById={columnsById} draftColor={colorOf(active.id) ?? color(roles.length)} />
+      )}
+      {!viewed && !active.id && (
+        <p className="text-xs text-gray-600 dark:text-gray-400">No proposed role yet. Filter or select people and cells, then <span className="font-medium">Add to candidate</span> — or start one here.</p>
+      )}
+      <button type="button" onClick={() => dispatch({ type: 'reset' })} className="text-xs text-red-700 hover:underline dark:text-red-300">Reset everything (selection, marks and all proposed roles)</button>
+    </aside>
+  );
+}
+
+function ColorSwatch({ color }) {
+  return <span aria-hidden="true" className="inline-block h-3 w-3 shrink-0 rounded-sm border border-gray-300 dark:border-gray-600" style={{ backgroundColor: color }} />;
+}
+
+function DraftList({ draft, dispatch, existing, cellsByResource, colorOf }) {
+  const startFrom = (id) => {
+    const role = existing.find(r => r.id === id);
+    if (role) dispatch({ type: 'fromRole', role, cellsByResource });
+  };
+  return (
+    <div>
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-semibold text-gray-900 dark:text-white">{candidate.mode === 'extend' ? 'Proposed update to a role' : 'Candidate role'}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Proposed roles</h3>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Draft · not saved</span>
       </div>
-      <ModePicker candidate={candidate} roles={roles} dispatch={dispatch} cellsByResource={cellsByResource} />
+      <ul aria-label="Proposed roles" className="mt-1 space-y-0.5">
+        {draft.drafts.map(d => (
+          <li key={d.id}>
+            <button type="button" onClick={() => dispatch({ type: 'selectDraft', id: d.id })} aria-current={d.id === draft.activeId && !draft.viewRoleId ? 'true' : undefined}
+              className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-xs ${d.id === draft.activeId && !draft.viewRoleId ? 'bg-blue-50 font-medium text-blue-900 dark:bg-blue-900/40 dark:text-blue-100' : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
+              <ColorSwatch color={colorOf(d.id)} />
+              <span className="truncate">{d.name || 'Unnamed'}</span>
+              <span className="ml-auto shrink-0 text-gray-600 dark:text-gray-400">{d.members.size} · {d.entitlements.size}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => dispatch({ type: 'newCandidate' })} className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700">New candidate role</button>
+        {existing.length > 0 && (
+          <select value="" onChange={e => startFrom(e.target.value)} aria-label="Update an existing role"
+            className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
+            <option value="">Update an existing role…</option>
+            {existing.map(r => <option key={r.id} value={r.id}>{r.displayName} ({r.holders})</option>)}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// An existing business role, read-only: who holds it here and what it Contains.
+function ExistingRole({ role, dispatch, cellsByResource, peopleByKey, columnsById, color }) {
+  const holders = (cellsByResource.get(role.id) || []).map(c => peopleByKey.get(c.person)?.displayName ?? c.person);
+  return (
+    <section aria-label="Existing business role" className="space-y-2 border-t border-gray-100 pt-2 dark:border-gray-700">
+      <div className="flex items-center gap-2">
+        <ColorSwatch color={color} /><BusinessRoleBadge />
+        <h3 className="min-w-0 truncate font-semibold text-gray-900 dark:text-white">{role.displayName}</h3>
+      </div>
+      <p className="text-[11px] text-gray-600 dark:text-gray-400">Business role from the source · read-only here</p>
+      <Section title={`Held here by (${holders.length})`} empty="Nobody in this unit holds it.">
+        {holders.map(n => <span key={n} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-800 dark:bg-gray-700 dark:text-gray-100">{n}</span>)}
+      </Section>
+      <Section title={`Contains (${role.contains.length})`} empty="It contains nothing." list>
+        {role.contains.map(id => <li key={id} className="py-0.5 text-xs text-gray-800 dark:text-gray-200">{columnsById.get(id)?.displayName ?? 'Not held in this unit'}</li>)}
+      </Section>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => dispatch({ type: 'fromRole', role, cellsByResource })} className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 dark:bg-blue-500">Propose update</button>
+        <button type="button" onClick={() => dispatch({ type: 'closeRole' })} className="text-xs text-gray-700 hover:underline dark:text-gray-300">Close</button>
+      </div>
+    </section>
+  );
+}
+
+function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor }) {
+  const dialog = useDialog();
+  const baseRole = candidate.baseBusinessRoleId ? columnsById.get(candidate.baseBusinessRoleId) : null;
+  const impact = impactSummary(candidate, data.people, cellIndex, draft.marks);
+  const share = new Map(frequencies(candidate.members, data.columns, cellIndex).map(f => [f.resourceId, f]));
+  const n = candidate.members.size;
+  const remove = async () => {
+    const ok = await dialog.confirm({
+      title: 'Remove proposed role',
+      message: `Remove the proposed role “${candidate.name || 'Unnamed'}”? Its column and colours go; nothing else changes.`,
+      confirmLabel: 'Remove', danger: true,
+    });
+    if (ok) dispatch({ type: 'removeDraft', id: candidate.id });
+  };
+  return (
+    <section aria-label="Proposed role" className="space-y-3 border-t border-gray-100 pt-2 dark:border-gray-700">
+      <div className="flex items-center gap-2">
+        <ColorSwatch color={draftColor} />
+        <h3 className="font-semibold text-gray-900 dark:text-white">{baseRole ? 'Proposed update to a role' : 'Candidate role'}</h3>
+      </div>
       <label className="block">
         <span className="text-xs text-gray-600 dark:text-gray-400">Name</span>
         <input value={candidate.name} onChange={e => dispatch({ type: 'edit', field: 'name', value: e.target.value })} placeholder="e.g. Claims handler — motor"
@@ -60,36 +155,16 @@ export default function CandidatePanel({ draft, dispatch, data, cellIndex, cells
         })}
       </Section>
 
-      {candidate.mode === 'extend' && <RoleDelta delta={roleDelta(candidate, baseRole)} columnsById={columnsById} />}
+      {baseRole && <RoleDelta delta={roleDelta(candidate, baseRole)} columnsById={columnsById} />}
       <ImpactBlock impact={impact} peopleByKey={peopleByKey} dispatch={dispatch} draftColor={draftColor} />
       <p className="text-[11px] leading-snug text-gray-600 dark:text-gray-400">
         Nothing here changes access or is saved. “Outside the candidate” is not a removal: the person may keep it through
         other grants, and removing access is not modelled yet — its impact is unknown.
       </p>
-      <button type="button" onClick={() => dispatch({ type: 'reset' })} className="text-xs text-red-700 hover:underline dark:text-red-300">Reset the draft (selection, marks and candidate)</button>
-    </aside>
+      <button type="button" onClick={remove} className="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30">Remove this proposed role</button>
+    </section>
   );
 }
-
-function ModePicker({ candidate, roles, dispatch, cellsByResource }) {
-  const value = candidate.mode === 'extend' ? candidate.baseRoleId : '';
-  const choose = (id) => {
-    if (!id) { dispatch({ type: 'newCandidate' }); return; }
-    const role = roles.find(r => r.id === id);
-    if (role) dispatch({ type: 'fromRole', role, cellsByResource });
-  };
-  return (
-    <label className="block">
-      <span className="text-xs text-gray-600 dark:text-gray-400">Start from</span>
-      <select value={value} onChange={e => choose(e.target.value)} className="mt-0.5 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-        <option value="">A new candidate role</option>
-        {roles.map(r => <option key={r.id} value={r.id}>Update: {r.displayName} ({r.holders})</option>)}
-      </select>
-      {roles.length === 0 && <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">No business role is held in this unit.</span>}
-    </label>
-  );
-}
-
 function Proposer({ n, dispatch, data, cellIndex }) {
   const [threshold, setThreshold] = useState(0.5);
   return (

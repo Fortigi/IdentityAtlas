@@ -150,7 +150,7 @@ describe('composing the candidate', () => {
     const role = { id: 'br', displayName: 'Handler', contains: ['r1', 'r9'] };
     const byRes = cellsByResource([...cells, { person: 'b', resourceId: 'br' }, { person: 'd', resourceId: 'br' }]);
     const c = candidateFromRole(role, byRes);
-    expect(c).toMatchObject({ mode: 'extend', baseRoleId: 'br', name: 'Handler' });
+    expect(c).toMatchObject({ baseBusinessRoleId: 'br', name: 'Handler', description: '' });
     expect([...c.members]).toEqual(['b', 'd']);
     expect([...c.entitlements]).toEqual(['r1', 'r9']);
     expect([...candidateFromRole({ id: 'none', displayName: 'N' }, byRes).members]).toEqual([]);

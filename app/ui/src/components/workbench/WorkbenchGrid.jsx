@@ -1,7 +1,8 @@
 import MatrixCell from '@ui/components/matrix/MatrixCell';
 import MatrixApLabelCell from '@ui/components/matrix/MatrixApLabelCell';
 import { cellKey, rangeKeys } from './workbench.model';
-import { cellProps, roleCellProps, cellLabel, DRAFT_ID } from './workbench.roles';
+import { cellProps, roleCellProps, cellLabel } from './workbench.roles';
+import { activeDraft } from './useWorkbench';
 import { MARK_LEGEND } from './workbench.cells';
 import { PeopleHeader, PersonCells } from './PeopleCells';
 
@@ -29,11 +30,12 @@ function MarkSign({ mark }) {
   );
 }
 
-export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, dispatch, personProps, onOpenDetail, people }) {
+export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, dispatch, personProps, people }) {
   const { peopleColumns, offsets, allPeople, filters, sort, onSort, onFilter, grouped } = people;
   const rowKeys = groups.flatMap(g => g.rows.map(r => r.person.key));
   const colIds = columns.map(c => c.id);
-  const { candidate, marks, selection } = draft;
+  const { marks, selection } = draft;
+  const candidate = activeDraft(draft);
 
   const pick = (keys, e, anchor) => dispatch({ type: 'select', keys, add: e.ctrlKey || e.metaKey, anchor });
   const onCell = (row, col, e) => {
@@ -47,7 +49,8 @@ export default function WorkbenchGrid({ groups, columns, roles, color, isDark, c
   const onColumn = (col, e) => pick(held(rowKeys, [col.id]), e);
   const onPerson = (personKey, e) => pick(held([personKey], colIds), e);
   const onGroup = (group, e) => pick(held(group.rows.map(r => r.person.key), colIds), e);
-  const openRole = (type, id, name) => (id === DRAFT_ID ? undefined : onOpenDetail?.('resource', id, name));
+  // A role's band header opens it in the panel: a proposed role to edit, an existing one to read.
+  const openRole = (type, id) => dispatch(id.startsWith('draft:') ? { type: 'selectDraft', id } : { type: 'viewRole', id });
 
   // Where each group's rows start in the flat row order (for Shift-click ranges).
   const starts = groups.reduce((acc, g, i) => [...acc, i === 0 ? 0 : acc[i - 1] + groups[i - 1].rows.length], []);

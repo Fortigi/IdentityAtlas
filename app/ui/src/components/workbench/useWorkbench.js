@@ -37,7 +37,12 @@ export function useWorkbenchData(contextId, includeChildren) {
   return { ...state, reload: load, send };
 }
 
-const INITIAL_DRAFT = { selection: new Set(), anchor: null, marks: new Map(), candidate: EMPTY_CANDIDATE };
+// The session's draft: the selection, the analyst's marks, and the proposed roles.
+// `drafts` is a plain list — { id, name, description, baseBusinessRoleId, members,
+// entitlements } (members: person keys, entitlements: resource ids, both Sets) —
+// one per proposed role; `activeId` is the one the panel edits and the impact
+// reads; `viewRoleId` an existing business role the panel shows read-only.
+const INITIAL_DRAFT = { selection: new Set(), anchor: null, marks: new Map(), drafts: [], activeId: null, viewRoleId: null, nextId: 1 };
 
 function setMarks(marks, keys, mark) {
   const next = new Map(marks);
@@ -47,22 +52,48 @@ function setMarks(marks, keys, mark) {
 
 const without = (set, value) => { const next = new Set(set); next.delete(value); return next; };
 
+/** The proposed role the panel edits, or an empty one (id null) when there is none. Pure. */
+export function activeDraft(state) {
+  return state.drafts.find(d => d.id === state.activeId) ?? EMPTY_CANDIDATE;
+}
+
+// A new proposed role, made the active one.
+function createDraft(s, init = {}) {
+  const id = `draft:${s.nextId}`;
+  const d = { id, name: `Candidate ${s.nextId}`, description: '', baseBusinessRoleId: null, members: new Set(), entitlements: new Set(), ...init };
+  return { ...s, drafts: [...s.drafts, { ...d, id }], activeId: id, viewRoleId: null, nextId: s.nextId + 1 };
+}
+
+// Change the active proposed role (one is made when there is none yet).
+function withActive(s, fn) {
+  const st = s.drafts.some(d => d.id === s.activeId) ? s : createDraft(s);
+  return { ...st, viewRoleId: null, drafts: st.drafts.map(d => (d.id === st.activeId ? fn(d) : d)) };
+}
+
+function removeDraft(s, id) {
+  const drafts = s.drafts.filter(d => d.id !== id);
+  const activeId = s.activeId === id ? (drafts.at(-1)?.id ?? null) : s.activeId;
+  return { ...s, drafts, activeId };
+}
+
 // Each action changes one part of the draft; the grid and the panel dispatch them.
 const ACTIONS = {
   select: (s, a) => ({ ...s, selection: a.add ? toggleAll(s.selection, a.keys) : new Set(a.keys), anchor: a.anchor ?? s.anchor }),
   clearSelection: (s) => ({ ...s, selection: new Set(), anchor: null }),
   mark: (s, a) => ({ ...s, marks: setMarks(s.marks, s.selection, a.mark) }),
   // Added cells leave the selection, so the impact shows without outlines over it.
-  addSelection: (s, a) => ({ ...s, candidate: addSelection(s.candidate, s.selection, a.cellIndex), selection: new Set(), anchor: null }),
-  addMembers: (s, a) => ({ ...s, candidate: { ...s.candidate, members: new Set([...s.candidate.members, ...a.people]) } }),
-  removeMember: (s, a) => ({ ...s, candidate: { ...s.candidate, members: without(s.candidate.members, a.person) } }),
-  removeEntitlement: (s, a) => ({ ...s, candidate: { ...s.candidate, entitlements: without(s.candidate.entitlements, a.resourceId) } }),
-  propose: (s, a) => ({
-    ...s, candidate: { ...s.candidate, entitlements: proposeEntitlements(s.candidate.members, a.columns, a.cellIndex, s.marks, a.threshold) },
-  }),
-  fromRole: (s, a) => ({ ...s, candidate: candidateFromRole(a.role, a.cellsByResource) }),
-  newCandidate: (s) => ({ ...s, candidate: { ...EMPTY_CANDIDATE, members: new Set(), entitlements: new Set() } }),
-  edit: (s, a) => ({ ...s, candidate: { ...s.candidate, [a.field]: a.value } }),
+  addSelection: (s, a) => ({ ...withActive(s, d => addSelection(d, s.selection, a.cellIndex)), selection: new Set(), anchor: null }),
+  addMembers: (s, a) => withActive(s, d => ({ ...d, members: new Set([...d.members, ...a.people]) })),
+  removeMember: (s, a) => withActive(s, d => ({ ...d, members: without(d.members, a.person) })),
+  removeEntitlement: (s, a) => withActive(s, d => ({ ...d, entitlements: without(d.entitlements, a.resourceId) })),
+  propose: (s, a) => withActive(s, d => ({ ...d, entitlements: proposeEntitlements(d.members, a.columns, a.cellIndex, s.marks, a.threshold) })),
+  fromRole: (s, a) => createDraft(s, candidateFromRole(a.role, a.cellsByResource)),
+  newCandidate: (s) => createDraft(s),
+  edit: (s, a) => withActive(s, d => ({ ...d, [a.field]: a.value })),
+  selectDraft: (s, a) => ({ ...s, activeId: a.id, viewRoleId: null }),
+  viewRole: (s, a) => ({ ...s, viewRoleId: a.id }),
+  closeRole: (s) => ({ ...s, viewRoleId: null }),
+  removeDraft: (s, a) => removeDraft(s, a.id),
   reset: () => ({ ...INITIAL_DRAFT, selection: new Set(), marks: new Map() }),
 };
 
