@@ -3941,6 +3941,144 @@ paths:
         '503':
           description: The SQL backend is not configured
 
+  /contexts/{id}/workbench:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: The authorization workbench of an organizational unit
+      operationId: getContextWorkbench
+      description: >
+        The people of an organizational unit (one row per person, with every account linked to
+        them; an account nobody linked is its own row), the access they hold (the matrix's own
+        data, one cell per person and resource with the best grant type over their accounts and
+        the business roles that explain it), the business roles among the columns with what they
+        Contain, and every activity, expertise and duty claim about these people with its source,
+        quote and status. Read-only: candidate roles are composed in the browser and never saved.
+        At most 400 people and 300 columns (most held first). Needs data.write.contexts.
+        See docs/architecture/m1-discovery-and-design.md.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: includeChildren
+          in: query
+          description: Include the members of every sub-unit (default true)
+          schema: { type: boolean, default: true }
+      responses:
+        '200':
+          description: The unit, its people, columns, cells and knowledge
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: Not an organizational unit, or a malformed id
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such context
+        '503':
+          description: The SQL backend is not configured
+
+  /contexts/{id}/knowledge:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: State what a person does, knows or holds
+      operationId: addContextKnowledge
+      description: >
+        An analyst states an activity, expertise or duty of one person, for this unit. Stored as a
+        claim (proposedBy analyst) whose source is the unit's "Analyst notes"; confirmed at once
+        unless status is proposed, and then it names its object (an Activity, Expertise or Duty
+        context, found by name or created). Knowledge only: it never creates access.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, value]
+              properties:
+                kind: { type: string, enum: [activity, expertise, duty] }
+                value: { type: string, maxLength: 200 }
+                identityId: { type: string, format: uuid }
+                principalId: { type: string, format: uuid }
+                quote: { type: string, maxLength: 1000 }
+                status: { type: string, enum: [confirmed, proposed], default: confirmed }
+      responses:
+        '201':
+          description: The claim, as the claims API lists it
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: The body is not valid
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such context or person
+        '503':
+          description: The SQL backend is not configured
+
+  /org-knowledge/objects:
+    get:
+      tags: [Contexts]
+      summary: The activities, expertise and duties people are said to hold
+      operationId: listOrgKnowledgeObjects
+      description: Every object of one kind (or all three), with how many people are said to hold it (confirmed, proposed). Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: kind
+          in: query
+          schema: { type: string, enum: [activity, expertise, duty] }
+      responses:
+        '200':
+          description: The objects
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: Unknown kind
+        '403':
+          description: Missing data.write.contexts
+        '503':
+          description: The SQL backend is not configured
+
+  /org-knowledge/objects/{objectId}/people:
+    parameters:
+      - name: objectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: Who is said to hold one activity, expertise or duty
+      operationId: listOrgKnowledgeObjectPeople
+      description: Every claim naming this object, with its person, status and the unit it was stated for. Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The claims, by person
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: A malformed id
+        '403':
+          description: Missing data.write.contexts
+        '503':
+          description: The SQL backend is not configured
+
 components:
   securitySchemes:
     CrawlerApiKey:

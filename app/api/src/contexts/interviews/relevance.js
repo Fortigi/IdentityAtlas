@@ -20,7 +20,8 @@
 //
 // Pure.
 
-const ALWAYS_HIGH = new Set(['role', 'roleHistory', 'membership', 'alias']);
+// activity, expertise, duty: what a person does, knows and holds is why they need access.
+const ALWAYS_HIGH = new Set(['role', 'roleHistory', 'membership', 'alias', 'activity', 'expertise', 'duty']);
 
 // Words that make a fact matter for who should have access to what, matched
 // case-insensitively in the attribute name and the value. The first group are

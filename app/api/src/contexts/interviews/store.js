@@ -87,7 +87,7 @@ const CLAIM_SELECT = `
            c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName", c."subjectMatch",
            c.attribute, c.value, c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText",
            c.quote, c."quoteStart", c."quoteEnd", c.confidence::float8 AS confidence, c.relevance,
-           c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
+           c."roleSuggestion", c."claimStatus" AS status, c."proposedBy", c."objectContextId",
            c."decidedBy", c."decidedAt", c."createdAt",
            (SELECT r.id FROM "ContextRoles" r WHERE r."sourceClaimId" = c.id LIMIT 1) AS "appliedRoleId",
            iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName",
