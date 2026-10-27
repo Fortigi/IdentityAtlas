@@ -52,11 +52,11 @@ const ACTIONS = {
   select: (s, a) => ({ ...s, selection: a.add ? toggleAll(s.selection, a.keys) : new Set(a.keys), anchor: a.anchor ?? s.anchor }),
   clearSelection: (s) => ({ ...s, selection: new Set(), anchor: null }),
   mark: (s, a) => ({ ...s, marks: setMarks(s.marks, s.selection, a.mark) }),
-  addSelection: (s, a) => ({ ...s, candidate: addSelection(s.candidate, s.selection, a.cellIndex) }),
+  // Added cells leave the selection, so the impact shows without outlines over it.
+  addSelection: (s, a) => ({ ...s, candidate: addSelection(s.candidate, s.selection, a.cellIndex), selection: new Set(), anchor: null }),
   addMembers: (s, a) => ({ ...s, candidate: { ...s.candidate, members: new Set([...s.candidate.members, ...a.people]) } }),
   removeMember: (s, a) => ({ ...s, candidate: { ...s.candidate, members: without(s.candidate.members, a.person) } }),
   removeEntitlement: (s, a) => ({ ...s, candidate: { ...s.candidate, entitlements: without(s.candidate.entitlements, a.resourceId) } }),
-  addEntitlement: (s, a) => ({ ...s, candidate: { ...s.candidate, entitlements: new Set([...s.candidate.entitlements, a.resourceId]) } }),
   propose: (s, a) => ({
     ...s, candidate: { ...s.candidate, entitlements: proposeEntitlements(s.candidate.members, a.columns, a.cellIndex, s.marks, a.threshold) },
   }),

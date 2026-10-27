@@ -106,6 +106,7 @@ describe('WorkbenchPage', () => {
     expect(screen.getByText('5 cells · 2 people · 4 columns')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
     expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
+    expect(screen.getByText(/Click a cell, Shift-click for a rectangle/)).toBeInTheDocument();
     expect(within(candidate()).getByText('Entitlements (4)')).toBeInTheDocument();
     // Keep only what both members hold.
     await user.selectOptions(within(candidate()).getByLabelText('Share of the members'), '1');
