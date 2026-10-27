@@ -58,6 +58,14 @@ export const FEATURE_FLAGS = {
     key: 'CONTEXT_ASSISTANT',
     envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
   },
+  // Accountables from source owners: the owner a source names for a synced
+  // context (by account key or employee number) becomes its Accountable on every
+  // sync (ingest/contextOwners.js). On unless explicitly disabled; while off, a
+  // sync leaves every Accountable as it is — nothing is set, replaced or removed.
+  sourceOwnerAccountables: {
+    key: 'SOURCE_OWNER_ACCOUNTABLES',
+    envDefault: env => env.FEATURE_SOURCE_OWNER_ACCOUNTABLES !== 'false',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.
