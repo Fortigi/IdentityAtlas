@@ -9,6 +9,8 @@ import { decisionsFor, withPeriod, openContradictions, contradictionCount, panel
 import { ContradictionsBadge } from './Contradictions';
 import ClaimsProvider from './ClaimsProvider';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+// Organisation knowledge is behind a flag (off by default); these tests are about it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
 const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
 const UNIT = { id: 'c-unit', displayName: 'Harbour Office', contextCategory: 'OrganizationalUnit', targetType: 'Principal', directMemberCount: 3 };

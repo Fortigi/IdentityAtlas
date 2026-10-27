@@ -50,6 +50,9 @@ tags:
       made by hand. An organizational unit or a logical application can carry roles (who is
       Accountable, who is Responsible) and a relationship to another context (`SameUnitAs`: the same unit through a different kind of member).
       Writes need `data.write.contexts`.
+      Organisation knowledge — the `/contexts/{id}/interviews…`, `/contexts/{id}/claims…`,
+      `/contexts/{id}/previous-members` and `/contexts/claims/…` endpoints — answers `404` while the
+      experimental `orgKnowledge` feature is off (the default); member lists then show plain membership.
   - name: Context Assistant
     description: >
       Experimental context builder (feature flag `contextAssistant`). An analyst describes a
@@ -3905,7 +3908,8 @@ paths:
         former while the list still has them). Before answering, every open request whose change the
         data now shows is resolved (the source no longer lists the member, or the context is gone).
         Open requests come first, newest first; at most 500. A request rests on a confirmed decision,
-        so every reader may list them. See docs/architecture/change-requests.md.
+        so every reader may list them. See docs/architecture/change-requests.md. Answers 404 while the
+        experimental `orgKnowledge` feature is off.
       security:
         - EntraIdBearer: []
       parameters:

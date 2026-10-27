@@ -40,6 +40,7 @@ async function leftClaim(cid, interviewId, ctx, pid, name) {
 }
 
 beforeAll(async () => {
+  process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // decisions and change requests are organisation knowledge
   ({ agent, pool } = await bootContractApp());
   systemId = (await q(`INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', $1) RETURNING id`, [SOURCE])).rows[0].id;
   for (const [pid, name] of [[id.led, 'Led Ledeboer'], [id.bea, 'Bea Bakker']]) {
@@ -64,6 +65,7 @@ afterAll(async () => {
   await q(`DELETE FROM "Systems" WHERE id = $1`, [systemId]);
   await pool.end();
   delete process.env.USE_SQL;
+  delete process.env.FEATURE_ORG_KNOWLEDGE;
 });
 
 const decide = (cid, body) => agent.patch(`/api/contexts/claims/${cid}`).send(body);

@@ -13,6 +13,8 @@ import { useContextMembers } from '../useContextMembers';
 import { decisionText, overriddenNoteText, overriddenRowText, STILL_LISTED_HINT } from './memberInterview.helpers';
 import { memberCountText } from '../profiles/variants.helpers';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+// Organisation knowledge is behind a flag (off by default); these tests are about it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
 const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
 const SRC = { interviewId: 'iv-1', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', fileName: 'gesprek.txt', proposedBy: 'model' };
