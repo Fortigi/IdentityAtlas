@@ -5,7 +5,8 @@ import { EMPTY_CANDIDATE, toggleAll, addSelection, proposeEntitlements, candidat
 // The workbench's data (GET /api/contexts/:id/workbench, read again after a
 // knowledge change) and the analyst's draft: selection, marks and the candidate
 // role. The draft is keyed by person and resource, so re-reading the data or
-// changing the grouping keeps it. Session only: nothing in the draft is saved.
+// changing the grouping keeps it. It lives in the tab until the analyst saves it as
+// an investigation (useInvestigation.js).
 
 async function readJson(authFetch, url, init) {
   const r = await authFetch(url, init);
@@ -70,6 +71,17 @@ function withActive(s, fn) {
   return { ...st, viewRoleId: null, drafts: st.drafts.map(d => (d.id === st.activeId ? fn(d) : d)) };
 }
 
+// A saved investigation's marks and proposed roles (save and reopen, M2a). After a
+// save (`keep`) the proposed roles come back with their saved ids in the same
+// order, so the open one stays open and the selection stays; on opening one, the
+// first proposed role is opened and the selection cleared.
+function loadSaved(s, a) {
+  const index = s.drafts.findIndex(d => d.id === s.activeId);
+  const activeId = a.keep ? (a.drafts[index]?.id ?? null) : (a.drafts[0]?.id ?? null);
+  const base = { ...s, marks: a.marks, drafts: a.drafts, activeId, viewRoleId: null };
+  return a.keep ? base : { ...base, selection: new Set(), anchor: null, nextId: a.drafts.length + 1 };
+}
+
 function removeDraft(s, id) {
   const drafts = s.drafts.filter(d => d.id !== id);
   const activeId = s.activeId === id ? (drafts.at(-1)?.id ?? null) : s.activeId;
@@ -94,6 +106,7 @@ const ACTIONS = {
   viewRole: (s, a) => ({ ...s, viewRoleId: a.id }),
   closeRole: (s) => ({ ...s, viewRoleId: null }),
   removeDraft: (s, a) => removeDraft(s, a.id),
+  loadSaved,
   reset: () => ({ ...INITIAL_DRAFT, selection: new Set(), marks: new Map() }),
 };
 

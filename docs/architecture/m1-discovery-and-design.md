@@ -102,10 +102,55 @@ stay out of a claims role. Idempotent; it touches nothing else.
 4. Who may see the workbench: analysts only (now `data.write.contexts`), or also a unit's
    Accountable?
 
+## M2a — save and reopen
+
+The first slice of Milestone 2: an analyst saves the workbench as an **investigation** on the unit
+and opens it again later. No review, approval or versions yet (M2b), but the tables are shaped
+for them.
+
+**What is saved** (migration 107):
+
+| Table | Holds |
+|---|---|
+| `WorkbenchInvestigations` | One saved session on a unit: name, description, the view (people columns, filters, sort, sub-units in or out, column threshold), when the access data on screen was read, who saved it and when. Unique name per unit (case and spaces ignored). Org-wide, like saved matrices. |
+| `WorkbenchAccessSnapshots` | The held cells on screen at the last save (`person\|resource\|type`), kept apart so the history trigger does not copy them on every save. |
+| `WorkbenchMarks` | Person × resource × mark (`other` / `unrelated` / `investigate`), an optional note, who marked it and when. |
+| `RoleProposals` | Each proposed role: name, description, the business role it updates (if any), its place in the list, `status` (`draft` only for now) and `version` (1 for now). |
+| `RoleProposalMembers` / `RoleProposalEntitlements` / `RoleProposalEvidence` | The people it is for, what it would contain, and the claims it rests on. |
+
+**Decisions**
+
+- **A proposed role is never a `Resources` row.** As a business role it would show up in the
+  matrix, reports and counts as if it existed. Updating an existing role only points at it
+  (`baseBusinessRoleId`, set to null if that role disappears).
+- **People and resources carry no foreign key.** A full sync can delete an identity (that is how the
+  demo unit once went empty); a saved investigation must then keep its rows and say "no longer
+  found", not silently lose them. A person is the workbench's own row key: an identity, or an
+  account linked to no identity.
+- **A save holds the whole draft.** A mark or proposed role the draft no longer holds is removed;
+  one proposed role can also be deleted on its own (`DELETE …/proposals/:id`). An unchanged mark
+  keeps who made it; an unchanged proposed role keeps its `updatedAt`; a proposed role keeps its id.
+- **No silent overwrite.** A save sends the `updatedAt` it opened; when someone saved since, it is
+  refused (409) with who did. The analyst can save under another name.
+- **Reopening never blocks on changed data.** The workbench compares the saved snapshot with the
+  access data on screen and says how many cells differ ("held then and not now", "held now and not
+  then", "held another way"); marks and proposed roles stay as saved.
+
+**API** (needs `data.write.contexts`, like the workbench): `GET|POST
+/api/contexts/:id/workbench/investigations`, `GET|PUT|DELETE /api/workbench/investigations/:id`,
+`DELETE /api/workbench/investigations/:id/proposals/:proposalId`.
+
+**UI:** a strip under the workbench header shows the state ("Nothing to save yet", "Not saved",
+"Saved as …", "Unsaved changes to …") with **Save**, **Save as…** and **Open…** (the unit's saved
+investigations with who saved them, when, and when their access data was read; opening one over
+unsaved work and deleting one ask first). The proposed-roles badge says *not saved*, *saved* or
+*unsaved changes*.
+
 ## Deferred (Milestone 2 / 3)
 
-- **M2:** save, version and approve a candidate (a `RoleProposals` record holding name, members,
-  entitlements, the marks with their reasons, the evidence links and the snapshot time).
+- **M2b:** review, approve and version a proposed role (`status` beyond `draft`, `version` beyond
+  1, a compare between versions), export it, and optionally raise a change request to the IGA
+  system once approved.
 - **M3:** compare an approved proposal with a later snapshot (implemented as proposed? drift?).
 - Removal simulation with grant-path proof; keyboard range selection; virtualised grid for very
   large units.

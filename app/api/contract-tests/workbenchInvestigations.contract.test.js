@@ -136,12 +136,23 @@ describe('saving over it', () => {
   });
 });
 
+describe('the order of the proposed roles', () => {
+  it('is the order of the last save', async () => {
+    const two = await saveInvestigation(db, saved.id, { proposals: [{ name: 'Second' }, ...saved.proposals.map(p => ({ id: p.id, name: p.name, members: p.members, entitlements: p.entitlements }))] }, 'ann');
+    expect(two.proposals.map(p => p.name)).toEqual(['Second', saved.proposals[0].name]);
+    const back = await saveInvestigation(db, saved.id, { proposals: [two.proposals[1], two.proposals[0]].map(p => ({ id: p.id, name: p.name, members: p.members, entitlements: p.entitlements })) }, 'ann');
+    expect(back.proposals.map(p => p.id)).toEqual([two.proposals[1].id, two.proposals[0].id]);
+    saved = await saveInvestigation(db, saved.id, { proposals: [back.proposals[0]].map(p => ({ id: p.id, name: p.name, members: p.members, entitlements: p.entitlements })) }, 'ann');
+  });
+});
+
 describe('deleting one proposed role', () => {
   it('removes it with its parts and leaves the others', async () => {
     const two = await saveInvestigation(db, saved.id, {
       proposals: [...saved.proposals.map(p => ({ id: p.id, name: p.name, members: p.members, entitlements: p.entitlements })),
         { name: 'Extra', members: [`i:${ID.anna}`], entitlements: [R.read] }],
     }, 'ann');
+    expect(two.proposals.map(p => p.name)).toEqual([saved.proposals[0].name, 'Extra']);
     const [keep, drop] = two.proposals;
     await deleteProposal(db, saved.id, drop.id);
     const after = await getInvestigation(db, saved.id);

@@ -3970,7 +3970,8 @@ paths:
         data, one cell per person and resource with the best grant type over their accounts and
         the business roles that explain it), the business roles among the columns with what they
         Contain, and every activity, expertise and duty claim about these people with its source,
-        quote and status. Read-only: candidate roles are composed in the browser and never saved.
+        quote and status. Read-only: proposed roles are composed in the browser and saved only as an
+        investigation (/contexts/{id}/workbench/investigations).
         At most 400 people and 300 columns (most held first). Needs data.write.contexts.
         See docs/architecture/m1-discovery-and-design.md.
       security:

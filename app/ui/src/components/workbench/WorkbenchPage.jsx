@@ -7,6 +7,8 @@ import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, s
 import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';
 import CandidatePanel from './CandidatePanel';
+import InvestigationBar from './InvestigationBar';
+import { useInvestigation } from './useInvestigation';
 import { Toolbar, SelectionBar, Legend, FilterStrip } from './WorkbenchControls';
 import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
 
@@ -16,8 +18,9 @@ import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, 
 // perform, their expertise, the duties they hold beside it (claims, with their
 // source and status). The analyst groups and sorts by those, selects clusters of
 // access, marks what belongs elsewhere, and composes a candidate role while the
-// impact shows in the grid. A hypothesis workspace: nothing is saved and nothing
-// changes access. Design: docs/architecture/m1-discovery-and-design.md.
+// impact shows in the grid. A hypothesis workspace: nothing changes access. The
+// work can be saved as an investigation on the unit and opened again (M2a,
+// InvestigationBar). Design: docs/architecture/m1-discovery-and-design.md.
 
 // minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
 // One row per person by default (groupBy 'none'); people columns as in DEFAULT_COLUMNS.
@@ -34,6 +37,7 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
   const isDark = useIsDark();
   const { data, loading, error, reload, send } = useWorkbenchData(contextId, view.includeChildren);
   const [draft, dispatch] = useWorkbenchDraft();
+  const inv = useInvestigation({ contextId, send, view, setView, draft, dispatch, data, defaultView: DEFAULT_VIEW });
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
   const unitName = data?.unit?.displayName;
@@ -70,6 +74,7 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
   return (
     <div className="space-y-3">
       <Header data={data} gaps={derived.gaps} shownColumns={derived.columns.length} onClose={onClose} loading={loading} />
+      <InvestigationBar inv={inv} />
       <Toolbar view={shownView} setView={setView} />
       {actionError && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">{actionError}</p>}
       <FilterStrip shown={derived.shownPeople.length} total={data.people.length} summary={filterSummary(view.filters, data.people)}
@@ -85,12 +90,18 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
           <Legend />
         </div>
         <div className="w-full shrink-0 xl:w-96">
-          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color}
+          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color} saveLabel={saveLabel(inv)}
             peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} />
         </div>
       </div>
     </div>
   );
+}
+
+// The badge on the proposed roles: saved, changed since, or never saved.
+function saveLabel(inv) {
+  if (!inv.saved) return 'Draft · not saved';
+  return inv.dirty ? 'Draft · unsaved changes' : 'Draft · saved';
 }
 
 // The held cells of these people in the access columns shown.
@@ -148,7 +159,7 @@ function Header({ data, gaps, shownColumns, onClose, loading }) {
           )}
         </div>
         <div className="flex items-start gap-2">
-          <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" title="Candidate roles live in this browser tab only">
+          <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" title="Proposed roles are hypotheses: saving keeps them for later, it never creates a role or grants access">
             Hypotheses only — nothing here changes access
           </span>
           {onClose && <button type="button" onClick={onClose} className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">Close</button>}

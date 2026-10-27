@@ -32,6 +32,9 @@ export default defineConfig({
       'src/components/workbench/workbench.roles.test.js',
       'src/components/workbench/workbench.columns.test.js',
       'src/components/workbench/WorkbenchPage.mount.test.jsx',
+      'src/components/workbench/WorkbenchPage.save.mount.test.jsx',
+      'src/components/workbench/workbench.save.test.js',
+      'src/components/workbench/useWorkbench.loadSaved.test.js',
       // The shared matrix badges (MatrixBadges.jsx), as the matrix renders them.
       'src/components/matrix/MatrixCell.mount.test.jsx',
       'src/components/matrix/MatrixLegend.test.js',

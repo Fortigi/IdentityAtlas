@@ -63,6 +63,7 @@ CREATE TABLE "WorkbenchMarks" (
 CREATE TABLE "RoleProposals" (
     "id"                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "investigationId"    UUID NOT NULL REFERENCES "WorkbenchInvestigations"("id") ON DELETE CASCADE,
+    "position"           INTEGER NOT NULL DEFAULT 0,
     "name"               TEXT NOT NULL DEFAULT '',
     "description"        TEXT,
     "mode"               TEXT NOT NULL DEFAULT 'new' CHECK ("mode" IN ('new', 'extend')),

@@ -14,18 +14,19 @@ import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 // separately, a deterministic first proposal (every column at least half, ¾ or all
 // of the members hold, minus what was marked other context or unrelated), its
 // impact — and can be removed when it is not right. An existing role clicked in
-// the band shows here read-only, with "Propose update". Nothing is saved.
+// the band shows here read-only, with "Propose update". Saved only with the
+// investigation (Save in the strip above; saveLabel says which state it is in).
 
 const THRESHOLDS = [{ v: 0.5, l: '≥ 50 %' }, { v: 0.75, l: '≥ 75 %' }, { v: 1, l: 'all' }];
 
-export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined }) {
+export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined, saveLabel = 'Draft · not saved' }) {
   const existing = data.columns.filter(c => c.isRole);
   const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
   const viewed = draft.viewRoleId ? columnsById.get(draft.viewRoleId) : null;
   const active = activeDraft(draft);
   return (
     <aside aria-label="Candidate role" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
-      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} />
+      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} saveLabel={saveLabel} />
       {viewed && <ExistingRole role={viewed} dispatch={dispatch} cellsByResource={cellsByResource} peopleByKey={peopleByKey} columnsById={columnsById} color={colorOf(viewed.id)} />}
       {!viewed && active.id && (
         <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
@@ -43,7 +44,7 @@ function ColorSwatch({ color }) {
   return <span aria-hidden="true" className="inline-block h-3 w-3 shrink-0 rounded-sm border border-gray-300 dark:border-gray-600" style={{ backgroundColor: color }} />;
 }
 
-function DraftList({ draft, dispatch, existing, cellsByResource, colorOf }) {
+function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, saveLabel }) {
   const startFrom = (id) => {
     const role = existing.find(r => r.id === id);
     if (role) dispatch({ type: 'fromRole', role, cellsByResource });
@@ -52,7 +53,7 @@ function DraftList({ draft, dispatch, existing, cellsByResource, colorOf }) {
     <div>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Proposed roles</h3>
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Draft · not saved</span>
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">{saveLabel}</span>
       </div>
       <ul aria-label="Proposed roles" className="mt-1 space-y-0.5">
         {draft.drafts.map(d => (

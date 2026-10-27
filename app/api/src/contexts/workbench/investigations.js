@@ -17,7 +17,7 @@ const notFound = () => new InvestigationError(404, 'Investigation not found');
 const LIST_SQL = `
   SELECT w.id, w.name, w.description, w."accessReadAt", w."createdBy", w."createdAt", w."updatedBy", w."updatedAt",
          (SELECT count(*) FROM "WorkbenchMarks" m WHERE m."investigationId" = w.id)::int AS "markCount",
-         COALESCE((SELECT json_agg(json_build_object('id', p.id, 'name', p.name) ORDER BY p."createdAt", p.id)
+         COALESCE((SELECT json_agg(json_build_object('id', p.id, 'name', p.name) ORDER BY p.position, p."createdAt", p.id)
                      FROM "RoleProposals" p WHERE p."investigationId" = w.id), '[]'::json) AS proposals
     FROM "WorkbenchInvestigations" w
    WHERE w."contextId" = $1
@@ -41,7 +41,7 @@ const PROPOSALS_SQL = `
          COALESCE((SELECT array_agg(v."claimId" ORDER BY v."claimId")
                      FROM "RoleProposalEvidence" v WHERE v."proposalId" = p.id), '{}') AS "evidenceClaimIds"
     FROM "RoleProposals" p WHERE p."investigationId" = $1
-   ORDER BY p."createdAt", p.id`;
+   ORDER BY p.position, p."createdAt", p.id`;
 
 /** The saved investigations of a unit, newest first, with their proposed roles' names. */
 export async function listInvestigations(db, contextId) {
@@ -108,15 +108,18 @@ async function writeMarks(client, id, marks, actor) {
 // A base role that no longer exists is dropped rather than refused.
 const BASE_ROLE_SQL = `(SELECT r.id FROM "Resources" r WHERE r.id = $5::uuid)`;
 
+// Its place in the list moves without counting as a change to the proposal.
 export const UPDATE_PROPOSAL_SQL = `
   UPDATE "RoleProposals"
      SET name = $3, description = $4, "baseBusinessRoleId" = ${BASE_ROLE_SQL}, mode = $6, "updatedBy" = $7, "updatedAt" = now()
    WHERE id = $1 AND "investigationId" = $2
      AND (name, description, "baseBusinessRoleId", mode) IS DISTINCT FROM ($3, $4, ${BASE_ROLE_SQL}, $6)`;
 
+export const POSITION_SQL = `UPDATE "RoleProposals" SET position = $2 WHERE id = $1 AND position IS DISTINCT FROM $2`;
+
 export const INSERT_PROPOSAL_SQL = `
-  INSERT INTO "RoleProposals" (id, "investigationId", name, description, "baseBusinessRoleId", mode, "createdBy", "updatedBy")
-  VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, ${BASE_ROLE_SQL}, $6, $7, $7)
+  INSERT INTO "RoleProposals" (id, "investigationId", name, description, "baseBusinessRoleId", mode, "createdBy", "updatedBy", position)
+  VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, ${BASE_ROLE_SQL}, $6, $7, $7, $8)
   RETURNING id`;
 
 /**
@@ -125,14 +128,15 @@ export const INSERT_PROPOSAL_SQL = `
  * belongs to another investigation (an id from the browser never moves another
  * investigation's proposal).
  */
-async function saveProposalRow(client, investigationId, p, actor, existing) {
+async function saveProposalRow(client, investigationId, p, actor, existing, position) {
   const params = [p.id, investigationId, p.name, p.description, p.baseBusinessRoleId, p.mode, actor];
   if (p.id && existing.has(p.id)) {
     await client.query(UPDATE_PROPOSAL_SQL, params);
+    await client.query(POSITION_SQL, [p.id, position]);
     return p.id;
   }
   const taken = p.id ? (await client.query(`SELECT 1 FROM "RoleProposals" WHERE id = $1`, [p.id])).rowCount > 0 : false;
-  const row = (await client.query(INSERT_PROPOSAL_SQL, [taken ? null : p.id, ...params.slice(1)])).rows[0];
+  const row = (await client.query(INSERT_PROPOSAL_SQL, [taken ? null : p.id, ...params.slice(1), position])).rows[0];
   return row.id;
 }
 
@@ -158,8 +162,8 @@ async function writeProposalParts(client, proposalId, p) {
 async function writeProposals(client, investigationId, proposals, actor) {
   const existing = new Set((await client.query(`SELECT id FROM "RoleProposals" WHERE "investigationId" = $1`, [investigationId])).rows.map(r => r.id));
   const kept = [];
-  for (const p of proposals) {
-    const id = await saveProposalRow(client, investigationId, p, actor, existing);
+  for (const [position, p] of proposals.entries()) {
+    const id = await saveProposalRow(client, investigationId, p, actor, existing, position);
     await writeProposalParts(client, id, p);
     kept.push(id);
   }

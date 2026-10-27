@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   listInvestigations, getInvestigation, createInvestigation, saveInvestigation, deleteInvestigation, deleteProposal,
-  UPDATE_HEAD_SQL, UPSERT_MARKS_SQL, DELETE_CLEARED_MARKS_SQL, INSERT_PROPOSAL_SQL, UPDATE_PROPOSAL_SQL,
+  UPDATE_HEAD_SQL, UPSERT_MARKS_SQL, DELETE_CLEARED_MARKS_SQL, INSERT_PROPOSAL_SQL, UPDATE_PROPOSAL_SQL, POSITION_SQL,
 } from './investigations.js';
 import { InvestigationError } from './investigationDraft.js';
 
@@ -122,6 +122,8 @@ describe('createInvestigation', () => {
     expect(sqlOf(db, /INSERT INTO "WorkbenchMarks"/)[0].params).toEqual([INV, ['identity'], [PERSON], [RES], ['other'], [null], 'ann']);
     const inserted = sqlOf(db, /INSERT INTO "RoleProposals"/);
     expect(inserted.map(c => c.params[0])).toEqual([P1, null]);
+    // Saved in the browser's order, so the answer maps back onto its drafts.
+    expect(inserted.map(c => c.params[7])).toEqual([0, 1]);
     expect(sqlOf(db, /INSERT INTO "RoleProposalMembers"/)[0].params).toEqual([P1, ['identity'], [PERSON]]);
     expect(sqlOf(db, /INSERT INTO "RoleProposalEntitlements"/)[0].params).toEqual([P1, [RES]]);
     // Both proposals are kept: the clean-up removes only the ones not saved.
@@ -159,6 +161,7 @@ describe('saveInvestigation', () => {
     expect(sqlOf(db, /INSERT INTO "WorkbenchMarks"/)).toHaveLength(0);
     // P1 is this investigation's: updated in place, not inserted again.
     expect(sqlOf(db, /UPDATE "RoleProposals"/)[0]).toMatchObject({ sql: UPDATE_PROPOSAL_SQL, params: [P1, INV, 'Renamed', null, null, 'new', 'bob'] });
+    expect(sqlOf(db, /SET position/)[0]).toMatchObject({ sql: POSITION_SQL, params: [P1, 0] });
     expect(sqlOf(db, /INSERT INTO "RoleProposals"/)).toHaveLength(0);
   });
 

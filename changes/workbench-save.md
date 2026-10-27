@@ -1,0 +1,5 @@
+- Added saving to the Authorization workbench: save your work on a unit as a named investigation (the columns and filters, the marks on cells and every proposed role) and open it again later from **Open…**.
+- The workbench now says whether your work is saved, and warns before opening another investigation over unsaved changes.
+- When you reopen an investigation, the workbench says how many cells of access changed since you saved it; your marks and proposed roles stay as saved.
+- A save is refused when someone else saved the same investigation after you opened it, naming who did, so nobody's work is silently overwritten.
+- Proposed roles are stored apart from real business roles: saving never creates a role, an assignment or access.

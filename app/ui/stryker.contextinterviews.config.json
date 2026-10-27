@@ -45,6 +45,9 @@
     "src/components/workbench/WorkbenchControls.jsx",
     "src/components/workbench/WorkbenchGrid.jsx",
     "src/components/workbench/WorkbenchPage.jsx",
+    "src/components/workbench/workbench.save.js",
+    "src/components/workbench/useInvestigation.js",
+    "src/components/workbench/InvestigationBar.jsx",
     "src/components/matrix/MatrixBadges.jsx"
   ],
   "mutationExclusions": {
