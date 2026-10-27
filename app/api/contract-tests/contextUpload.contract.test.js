@@ -25,10 +25,10 @@ const { analyzeUpload, applyUpload } = await import('../src/contexts/upload/serv
 const { uploadProvenance } = await import('../src/contexts/upload/lists.js');
 const { contextIdFor } = await import('../src/contexts/upload/records.js');
 const { runIngest } = await import('../src/routes/ingest/handlers.js');
-const { insertRoleRows, insertRelationshipRows } = await import('../src/routes/ingest/contextLinks.js');
+const { insertRoleRows, insertOwnerRows, insertRelationshipRows } = await import('../src/routes/ingest/contextLinks.js');
 const { refreshMemberCounts } = await import('../src/contexts/memberCounts.js');
 
-const deps = { db, runIngest, insertRoleRows, insertRelationshipRows, refreshMemberCounts };
+const deps = { db, runIngest, insertRoleRows, insertOwnerRows, insertRelationshipRows, refreshMemberCounts };
 const SUFFIX = randomUUID().slice(0, 8);
 const LIST = `Contract klanten ${SUFFIX}`;
 const P = {};
@@ -123,7 +123,8 @@ describe('context upload against PostgreSQL', () => {
     expect(rows.find(r => r.id === k1).directMemberCount).toBe(2);
 
     // The owner was written in capitals; by_email resolves it case-insensitively.
-    expect(await accountable(k1)).toEqual([{ principalId: P.owner, addedBy: 'sync' }]);
+    // The owner column is the source's owner field: the reconcile's own row.
+    expect(await accountable(k1)).toEqual([{ principalId: P.owner, addedBy: 'sourceOwner' }]);
     expect(await accountable(contextIdFor(listId, 'Principal', 'K2'))).toEqual([]);
 
     const links = await pool.query(
@@ -148,7 +149,7 @@ describe('context upload against PostgreSQL', () => {
     // An emptied cell empties the attribute: the full sync replaces, it does not COALESCE.
     expect(k1.extendedAttributes).toBeNull();
     expect(await members(k1.id)).toEqual([{ memberId: P.bob, addedBy: 'sync' }]);
-    expect(await accountable(k1.id)).toEqual([{ principalId: P.bob, addedBy: 'sync' }]);
+    expect(await accountable(k1.id)).toEqual([{ principalId: P.bob, addedBy: 'sourceOwner' }]);
 
     const k2 = contextIdFor(listId, 'Resource', 'K2');
     expect(rows.find(r => r.id === k2).displayName).toBe('Beta');

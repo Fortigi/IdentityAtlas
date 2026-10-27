@@ -29,3 +29,4 @@
 - A decision on an interview claim that changed nothing but the claim can be undone ("Undo decision" in Previous members): the contradiction opens again and the person is a current member again.
 - The unit report has a Status column: "current" or "marked former (decision)".
 - The Timeline shows "Decided: <name> is a former member (overrides <source>)".
+- Upgrade note: when a model server is configured (NL_REPORTS_LLM_URL), uploaded interview transcripts are sent to it to extract claims; the shipped overlay runs it inside your own stack, and with the variable unset nothing is sent
