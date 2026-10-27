@@ -15,7 +15,8 @@ import { compactValue } from './workbench.transposed';
 
 const STATE_MARK = { confirmed: '✓', proposed: '?', disputed: '!' };
 const VERTICAL = { writingMode: 'vertical-rl', transform: 'rotate(180deg)' };
-const LABEL = 'sticky left-0 z-30 border-b border-r border-gray-200 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200';
+// A label whose filter is open rises above the labels after it (they are sticky too).
+const LABEL = 'sticky left-0 border-b border-r border-gray-200 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200';
 const HEIGHT = { name: 'h-32', knowledge: 'h-24' };
 
 function memberBg(member) {
@@ -89,7 +90,7 @@ export default function PeopleHeaderRows({ columns, people, header, labelSpan, m
     const empty = column.type !== 'name' && people.every(p => compactValue(p, column).first === null);
     return (
       <tr key={column.key} data-empty={empty || undefined}>
-        <th scope="row" colSpan={labelSpan} className={LABEL}>
+        <th scope="row" colSpan={labelSpan} className={LABEL} style={{ zIndex: open === column.key ? 50 : 30 }}>
           <HeaderControls column={column} people={header.allPeople} filter={header.filters[column.key]} sort={header.sort}
             onSort={header.onSort} onFilter={header.onFilter} open={open === column.key} onOpenChange={(v) => setOpen(v ? column.key : null)} />
         </th>
