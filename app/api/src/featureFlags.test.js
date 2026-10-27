@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./db/connection.js');
 import { queryOne } from './db/connection.js';
 
-const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature } =
+const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature, orgKnowledgeEnabled } =
   await import('./featureFlags.js');
 
 // Stage WorkerConfig rows by key, e.g. { FEATURE_RISK_SCORING: 'true' }.
@@ -21,7 +21,7 @@ function stageRows(rows) {
 const ENV_KEYS = [
   'USE_SQL', 'FEATURE_RISK_SCORING', 'FEATURE_ACCOUNT_LINKING',
   'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS', 'FEATURE_MATRIX_SHARING',
-  'FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'FEATURE_SOURCE_OWNER_NAME_MATCH',
+  'FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'FEATURE_SOURCE_OWNER_NAME_MATCH', 'FEATURE_ORG_KNOWLEDGE',
 ];
 let saved;
 
@@ -102,6 +102,16 @@ describe('env-var defaults (no stored override)', () => {
     expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(false);
     process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'true';
     expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(true);
+  });
+
+  it('orgKnowledge is OFF unless the env var says exactly "true", and a stored choice wins', async () => {
+    expect(workerConfigKey('orgKnowledge')).toBe('FEATURE_ORG_KNOWLEDGE');
+    expect(await isFeatureEnabled('orgKnowledge')).toBe(false);
+    expect(await orgKnowledgeEnabled()).toBe(false);
+    process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    expect(await orgKnowledgeEnabled()).toBe(true);
+    stageRows({ FEATURE_ORG_KNOWLEDGE: 'false' });
+    expect(await orgKnowledgeEnabled()).toBe(false);
   });
 
   it('accountLinking is ON unless explicitly disabled — including via the legacy env var', async () => {
@@ -190,7 +200,7 @@ describe('readFeatures', () => {
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
     expect(payload).toEqual({
       riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false,
-      customReports: false, contextAssistant: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false,
+      customReports: false, contextAssistant: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false, orgKnowledge: false,
     });
   });
 });

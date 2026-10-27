@@ -19,10 +19,12 @@
 // without that permission with decided-and-confirmed claims only.
 // Mounted BEFORE the read and crud routers: "/contexts/claims" would otherwise
 // be taken for "/contexts/:id".
+// Every route answers 404 while the `orgKnowledge` feature is off (featureFlags.js).
 
 import { Router } from 'express';
 import multer from 'multer';
 import * as db from '../../db/connection.js';
+import { requireFeature } from '../../featureFlags.js';
 import { useSql, UUID_RE, writeContexts, WRITE_CONTEXT_PERMISSIONS } from './shared.js';
 import { isAuthEnabled } from '../../config/authConfig.js';
 import { userOf } from '../../lib/userOf.js';
@@ -35,6 +37,12 @@ import { decideClaim, undoClaim, ClaimError } from '../../contexts/interviews/de
 import * as store from '../../contexts/interviews/store.js';
 
 const router = Router();
+
+// The paths this router serves; while organisation knowledge is off they do not exist.
+export const ORG_KNOWLEDGE_PATHS = Object.freeze([
+  '/contexts/claims', '/contexts/:id/interviews', '/contexts/:id/claims', '/contexts/:id/previous-members',
+]);
+router.use(ORG_KNOWLEDGE_PATHS, requireFeature('orgKnowledge'));
 
 // A transcript is text; a .docx with a few pictures is the large case.
 export const MAX_TRANSCRIPT_BYTES = 25 * 1024 * 1024;

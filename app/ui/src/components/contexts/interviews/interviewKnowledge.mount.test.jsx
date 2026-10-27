@@ -12,6 +12,8 @@ import ContextRelationshipsTab from '@ui/components/ContextRelationshipsTab';
 import ClaimsProvider from './ClaimsProvider';
 import { OPEN_KEY } from './WhatWeKnow';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+// Organisation knowledge is behind a flag (off by default); these tests are about it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
 const UNIT = { id: 'c-unit', displayName: 'Harbour Authority', contextCategory: 'OrganizationalUnit', targetType: 'Principal', directMemberCount: 2 };
 const SRC = { interviewId: 'iv-1', intervieweeName: 'Piet de Vries', interviewedAt: '2026-10-01', fileName: 'gesprek.vtt', proposedBy: 'model' };

@@ -10,6 +10,8 @@ import InterviewMentions from './InterviewMentions';
 import RoleTimeline from './RoleTimeline';
 import { ClaimsContext } from './claimsContext';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+// Organisation knowledge is behind a flag (off by default); these tests are about it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
 const APP = { id: 'c-app', contextCategory: 'LogicalApplication' };
 const TRANSCRIPT = 'Anna Voorbeeld: Yes, I am the owner of this app, but Piet does the day-to-day.';

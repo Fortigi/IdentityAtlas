@@ -35,6 +35,8 @@ async function leftClaim(cid, pid, name, attribute = 'former') {
 }
 
 beforeAll(async () => {
+  // Decisions on claims are organisation knowledge (featureFlags.js orgKnowledge, off by default).
+  process.env.FEATURE_ORG_KNOWLEDGE = 'true';
   ({ agent, pool } = await bootContractApp());
   systemId = (await q(`INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', $1) RETURNING id`, [SOURCE])).rows[0].id;
   await q(`INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "contextCategory", "displayName", "scopeSystemId")
@@ -61,6 +63,7 @@ afterAll(async () => {
   await q(`DELETE FROM "Systems" WHERE id = $1`, [systemId]);
   await pool.end();
   delete process.env.USE_SQL;
+  delete process.env.FEATURE_ORG_KNOWLEDGE;
 });
 
 const members = async (query = '') => (await agent.get(`/api/contexts/${id.unit}/members${query}`)).body;

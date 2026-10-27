@@ -38,6 +38,7 @@
     "src/components/contexts/interviews/WhatWeKnow.jsx": "Layout over groupConfirmed / proposedClaims / timelines / whatWeKnowSummary in claims.helpers.js (mutated here); the fold (closed by default, opened on click, remembered per context in sessionStorage, and a refusing sessionStorage) and which groups show for a writer and for a reader are asserted by interviews.mount.test.jsx and interviewKnowledge.mount.test.jsx.",
     "src/components/contexts/interviews/RoleTimeline.jsx": "Draws segmentBars() from claims.helpers.js (mutated here, with discriminating dates); the bar placement and the no-axis case are asserted by interviewForms.mount.test.jsx.",
     "src/components/contexts/interviews/InterviewMentions.jsx": "Presentational list of what GET /api/contexts/claims/mentions returns; the link target and the empty case are asserted by interviewForms.mount.test.jsx. The narrowing for readers is the API route, mutated in app/api.",
+    "src/hooks/useOrgKnowledge.js": "One strict-equality read of the orgKnowledge flag; its truth table (true only for boolean true, a string or a missing flag is off, other flags do not count) is asserted by useOrgKnowledge.test.js, and the off path through ClaimsProvider by orgKnowledgeOff.mount.test.jsx.",
     "src/components/contexts/SuggestionRow.jsx": "Presentational row shared by the best guess and the interview suggestions: markup and three buttons forwarding to callbacks. Its exact text is asserted by ContextBestGuess.mount.test.jsx and interviews.mount.test.jsx."
   },
   "mutator": {

@@ -75,7 +75,21 @@ export const FEATURE_FLAGS = {
     key: 'SOURCE_OWNER_NAME_MATCH',
     envDefault: env => env.FEATURE_SOURCE_OWNER_NAME_MATCH === 'true',
   },
+  // Organisation knowledge: what people say about a unit or an application —
+  // interviews and other sources, the claims read from them, contradictions and
+  // the decisions on them (docs/architecture/context-interviews.md). New, and it
+  // sends text to a model when one is configured, so OFF by default. While off,
+  // every claims / interviews endpoint answers 404, member lists carry no claim
+  // facts and ignore "marked former" decisions, and the unit page is a plain unit
+  // page. Nothing is deleted: switching it back on restores all of it.
+  orgKnowledge: {
+    key: 'ORG_KNOWLEDGE',
+    envDefault: env => env.FEATURE_ORG_KNOWLEDGE === 'true',
+  },
 };
+
+// Is organisation knowledge on? One name for the many places that ask.
+export const orgKnowledgeEnabled = () => isFeatureEnabled('orgKnowledge');
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.
 export function workerConfigKey(name) {
