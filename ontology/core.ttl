@@ -687,6 +687,9 @@ ia:MembershipSource_algorithm a owl:NamedIndividual, ia:MembershipSource ; ia:ty
 ia:MembershipSource_analyst a owl:NamedIndividual, ia:MembershipSource ; ia:typeValue "analyst" ;
     rdfs:label "analyst" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "An analyst, by hand." .
+ia:MembershipSource_sourceOwner a owl:NamedIndividual, ia:MembershipSource ; ia:typeValue "sourceOwner" ;
+    rdfs:label "sourceOwner" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The owner a synced context's source names (ownerUserId), stated as its Accountable by the contexts ingest and kept in step on every sync. Only the ingest writes it, and it replaces or removes only these rows." .
 
 # ─── Context types (open vocabulary; the ones the application itself knows) ───
 # Templates: OrganizationalUnit, LogicalApplication, Tag, Segment, stored per row

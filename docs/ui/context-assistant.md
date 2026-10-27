@@ -81,7 +81,8 @@ whose name matches a kept term joins it; a group you excluded stays out; a group
 stays in. The model is not involved in that, so the context keeps working whether or not the
 generator container is running.
 
-To change it later, open the context and press **Edit search terms**: the builder opens with the
+To change it later, open the context, open the **⋯** menu in its header and choose
+**Edit search terms**: the builder opens with the
 same terms and choices, and saving refreshes that tree in place — your renames and any sub-context
 you grafted under it are kept.
 
