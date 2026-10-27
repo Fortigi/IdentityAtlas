@@ -4,6 +4,7 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { useDialog } from '@ui/components/dialogContext';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import { ClaimsContext, useContextClaims } from './claimsContext';
 import { anyInProgress, subjectLabel } from './claims.helpers';
 import TranscriptPanel from './TranscriptPanel';
@@ -38,8 +39,12 @@ async function readError(r) {
   return { status: r.status, error: body.error || `HTTP ${r.status}`, details: body.details };
 }
 
+// While organisation knowledge is off (useOrgKnowledge) there is no provider at all:
+// every consumer reads null and shows nothing, and nothing asks the API.
 export default function ClaimsProvider({ contextId, children, onDecided }) {
   const outer = useContextClaims();
+  const knowledge = useOrgKnowledge();
+  if (!knowledge) return children;
   if (outer && outer.contextId === contextId) return children;
   return <OwnClaimsProvider contextId={contextId} onDecided={onDecided}>{children}</OwnClaimsProvider>;
 }

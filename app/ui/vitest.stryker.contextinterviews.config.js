@@ -23,6 +23,7 @@ export default defineConfig({
       'src/components/contexts/interviews/contradictions.mount.test.jsx',
       'src/components/contexts/changeRequests/changeRequests.mount.test.jsx',
       'src/components/contexts/interviews/memberOverrides.mount.test.jsx',
+      'src/components/contexts/interviews/orgKnowledgeOff.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

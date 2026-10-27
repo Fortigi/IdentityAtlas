@@ -11,6 +11,7 @@ import * as db from '../../db/connection.js';
 import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounterpartyKind } from './shared.js';
 import { loadInterviewTimeline } from '../../contexts/interviews/timelineEvents.js';
 import { canWriteContexts } from '../contexts/interviews.js';
+import { orgKnowledgeEnabled } from '../../featureFlags.js';
 
 const router = Router();
 
@@ -300,8 +301,10 @@ export const CONTEXT_NOISE_FIELDS = Object.freeze(['lastCalculatedAt', 'updatedA
 const CONTEXT_NOISE_SQL = `ARRAY[${CONTEXT_NOISE_FIELDS.map(f => `'${f}'`).join(', ')}]::text[]`;
 
 // The interview events of a context for this reader; a failure leaves the rest of the timeline.
+// None while organisation knowledge is off (featureFlags.js).
 async function contextInterviewEvents(req, id, sinceDays, limit) {
   try {
+    if (!(await orgKnowledgeEnabled())) return [];
     return await loadInterviewTimeline(db, id, { sinceDays, limit, canWrite: canWriteContexts(req) });
   } catch (err) {
     console.error('context interview timeline failed:', err.message);

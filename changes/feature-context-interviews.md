@@ -30,3 +30,4 @@
 - The unit report has a Status column: "current" or "marked former (decision)".
 - The Timeline shows "Decided: <name> is a former member (overrides <source>)".
 - Upgrade note: when a model server is configured (NL_REPORTS_LLM_URL), uploaded interview transcripts are sent to it to extract claims; the shipped overlay runs it inside your own stack, and with the variable unset nothing is sent
+- Interviews, claims, contradictions and the decisions on them are now an experimental feature, "Organisation knowledge" (Admin → Experimental), off by default: while it is off a unit's page is a plain unit page with plain membership, and nothing is deleted when it is switched off

@@ -20,6 +20,7 @@ import { canWriteContexts, READER_STATUSES } from './interviews.js';
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
 import { OVERRIDE_COLUMNS, OVERRIDE_JOIN, withOverride } from '../../contexts/interviews/overrideRows.js';
+import { orgKnowledgeEnabled } from '../../featureFlags.js';
 
 const router = Router();
 
@@ -253,9 +254,12 @@ router.get('/contexts/:id', async (req, res) => {
     // A context of an uploaded list says where it came from: its first and latest upload.
     if (attr.scopeSystemType === UPLOAD_SYSTEM_TYPE) Object.assign(attr, await uploadProvenance(db, attr.scopeSystemId));
     // Members a decision marked former (still counted in directMemberCount: their source lists them).
-    attr.overriddenMemberCount = await overriddenMemberCount(db, req.params.id);
+    const knowledge = await orgKnowledgeEnabled();
+    attr.overriddenMemberCount = knowledge ? await overriddenMemberCount(db, req.params.id) : 0;
 
-    const members = await loadMembers(req.params.id, attr.targetType, { limit: 50 });
+    const members = knowledge
+      ? await loadMembers(req.params.id, attr.targetType, { limit: 50 })
+      : plainMembers(await loadMembers(req.params.id, attr.targetType, { limit: 50, includeOverridden: true }));
 
     const subs = (await db.query(`
       SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName",
@@ -295,11 +299,13 @@ router.get('/contexts/:id/members', async (req, res) => {
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const search = (req.query.search || '').toString().trim().slice(0, 200);
     const includeDescendants = req.query.include === 'descendants';
-    const includeOverridden = req.query.includeOverridden === 'true';
+    const knowledge = await orgKnowledgeEnabled();
+    const includeOverridden = req.query.includeOverridden === 'true' || !knowledge;
 
     const { rows, total, overriddenCount } = await loadMembers(req.params.id, ctx.targetType, {
       limit, offset, search, withTotal: true, includeDescendants, includeOverridden,
     });
+    if (!knowledge) return res.json({ data: plainMembers(rows), total, overriddenCount: 0 });
     const statuses = canWriteContexts(req) ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES];
     const data = ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)
       ? await withInterviewMemberFacts(db, req.params.id, ctx.targetType, rows, statuses)
@@ -337,6 +343,12 @@ function memberScopeSql(includeDescendants) {
     orderPrefix: 'm.id, ',
     countExpr: 'DISTINCT m.id',
   };
+}
+
+// While organisation knowledge is off (featureFlags.js) a member list is plain
+// membership: every member, none marked former by a decision, no claim facts.
+export function plainMembers(rows) {
+  return rows.map(r => ({ ...r, overridden: null }));
 }
 
 // The search on the member's name, as a clause and its bind (appended to params).
