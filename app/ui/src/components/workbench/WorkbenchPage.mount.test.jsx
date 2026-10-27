@@ -132,7 +132,7 @@ describe('WorkbenchPage', () => {
     const cellsInRow = within(bramRow).getAllByRole('button', { name: 'Direct' });
     await user.click(cellsInRow.at(-1));
     await user.click(screen.getByRole('button', { name: 'Mark: Other context' }));
-    expect(within(bramRow).getByRole('button', { name: /marked: Other context/ })).toHaveTextContent('O');
+    expect(within(bramRow).getByRole('button', { name: 'Other context (marked) — Direct' })).toHaveTextContent('DO');
     await user.click(within(bramRow).getByRole('button', { name: 'Bram Smit' }));
     await user.click(screen.getByRole('button', { name: 'Members only' }));
     await user.click(screen.getByLabelText('Show candidate impact'));

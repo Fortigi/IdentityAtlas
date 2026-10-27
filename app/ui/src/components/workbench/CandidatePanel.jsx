@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { frequencies, impactSummary, roleDelta } from './workbench.model';
 import { IMPACT } from './workbench.cells';
+import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 
 // ─── The candidate role ──────────────────────────────────────────────────
 // A new candidate role, or a proposed update to a business role the unit already
@@ -49,7 +50,7 @@ export default function CandidatePanel({ draft, dispatch, data, cellIndex, cells
           return (
             <li key={id} className="flex items-center justify-between gap-2 py-0.5">
               <span className="min-w-0 truncate text-gray-800 dark:text-gray-200" title={col ? [col.displayName, col.systemName].filter(Boolean).join(' · ') : id}>
-                {col?.isRole && <span className="mr-1 rounded bg-teal-600 px-0.5 text-[10px] font-semibold text-white dark:bg-teal-400 dark:text-gray-900">R</span>}
+                {col?.isRole && <span className="mr-1"><BusinessRoleBadge /></span>}
                 {col?.displayName ?? 'Not held in this unit'}
               </span>
               <span className="shrink-0 text-xs text-gray-600 dark:text-gray-400">{n ? `${f?.held ?? 0}/${n}` : ''}</span>
@@ -149,7 +150,7 @@ function ImpactBlock({ impact, peopleByKey, dispatch }) {
       <ul className="mt-1 space-y-0.5 text-xs">
         {IMPACT_ROWS.map(k => (
           <li key={k} className="flex items-center gap-2">
-            <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center text-[10px] ${IMPACT[k].cls}`}>{IMPACT[k].glyph}</span>
+            <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-sm text-[10px] font-bold ${IMPACT[k].mark}`}>{IMPACT[k].glyph}</span>
             <span className="flex-1 text-gray-700 dark:text-gray-300">{IMPACT[k].label}</span>
             <span className="font-semibold text-gray-900 dark:text-gray-100">{counts[k]}</span>
           </li>

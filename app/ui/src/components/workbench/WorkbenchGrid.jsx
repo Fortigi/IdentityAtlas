@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { cellKey, rangeKeys, cellImpact } from './workbench.model';
 import { cellLook } from './workbench.cells';
+import { MembershipBadge, BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 import PersonCell from './PersonCell';
 
 // ─── The workbench matrix ────────────────────────────────────────────────
@@ -77,7 +78,7 @@ function ColumnHeader({ col, inCandidate, onClick }) {
       <button type="button" onClick={onClick} title={title} aria-label={`Select the column ${title}`}
         className="flex h-48 w-7 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
         <span className="max-h-44 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-gray-700 dark:text-gray-200" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-          {col.isRole && <span className="mb-1 inline-block rounded bg-teal-600 px-0.5 font-semibold text-white dark:bg-teal-400 dark:text-gray-900">R</span>} {col.displayName}
+          {col.isRole && <span className="mb-1 inline-block"><BusinessRoleBadge /></span>} {col.displayName}
         </span>
       </button>
     </th>
@@ -103,11 +104,17 @@ const GridCell = memo(function GridCell({ cell, mark, selected, overlay, member,
   const impact = overlay ? cellImpact({ observed: !!cell, member, inCandidate, mark }) : null;
   const look = cellLook({ cell, mark, impact, overlay });
   const ring = selected ? 'outline outline-2 -outline-offset-2 outline-blue-600 dark:outline-blue-300' : '';
+  const title = look?.title ?? 'Not held';
   return (
     <td className="h-7 w-7 border-b border-r border-gray-100 p-0 text-center dark:border-gray-700">
-      <button type="button" onClick={onClick} title={look?.title ?? 'Not held'} aria-label={look?.title ?? 'Not held'} aria-pressed={selected}
-        className={`h-7 w-7 select-none text-[11px] leading-7 ${look ? look.cls : 'hover:bg-gray-100 dark:hover:bg-gray-700'} ${ring}`}>
-        {look?.glyph ?? ''}
+      <button type="button" onClick={onClick} title={title} aria-label={title} aria-pressed={selected}
+        className={`relative flex h-7 w-7 select-none items-center justify-center ${look?.sign?.ring ?? ''} ${look ? '' : 'hover:bg-gray-100 dark:hover:bg-gray-700'} ${ring}`}>
+        {look?.badge && <span className={look.dim ? 'opacity-40' : ''}><MembershipBadge type={look.badge} decorative /></span>}
+        {look?.sign && (
+          <span aria-hidden="true" className={`absolute right-0 top-0 flex h-3 min-w-[0.75rem] items-center justify-center rounded-bl px-0.5 text-[8px] font-bold leading-3 ${look.sign.mark}`}>
+            {look.sign.glyph}
+          </span>
+        )}
       </button>
     </td>
   );

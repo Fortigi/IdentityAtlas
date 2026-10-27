@@ -2,3 +2,4 @@
 - "Add information" now also proposes what people do, know and hold (activities, expertise, duties); confirming one links it to a shared, named object you can find again under Contexts.
 - Analysts can state a person's activity, expertise or duty by hand from the workbench, and confirm or reject proposed ones with their source and quote.
 - Added a synthetic demo dataset for the workbench (a fictional insurer's claims department).
+- The workbench shows access with the same D / I / E badges and business-role chip as the matrix; its own marks (covered, potential gain, outside the candidate, other context, unrelated, needs investigation) sit on top as a corner sign.

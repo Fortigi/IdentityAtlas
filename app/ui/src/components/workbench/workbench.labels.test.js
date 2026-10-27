@@ -36,21 +36,30 @@ describe('knownNames / knowledgeGaps', () => {
 });
 
 describe('cellLook', () => {
-  it('shows the grant with a glyph and words, and names the business roles behind it', () => {
-    expect(cellLook({ cell: { type: 'Direct', viaRoles: ['br'] } })).toMatchObject({ glyph: '■', title: 'Direct · through 1 business role' });
+  it('shows the grant as the matrix badge, in words, with the business roles behind it', () => {
+    expect(cellLook({ cell: { type: 'Direct', viaRoles: ['br'] } })).toEqual({ badge: 'Direct', sign: null, dim: false, title: 'Direct · through 1 business role' });
     expect(cellLook({ cell: { type: 'Indirect', viaRoles: ['a', 'b'] } }).title).toBe('Indirect (through a group) · through 2 business roles');
-    expect(cellLook({ cell: { type: 'Owner' } })).toMatchObject({ glyph: '•', title: 'Held' });
+    expect(cellLook({ cell: { type: 'Owner' } })).toMatchObject({ badge: 'Owner', title: 'Held' });
     expect(cellLook({ cell: null })).toBeNull();
   });
 
-  it('shows a mark by its letter, and the impact when the overlay is on', () => {
-    expect(cellLook({ cell: { type: 'Direct' }, mark: 'other' })).toMatchObject({ glyph: 'O', title: 'Direct — marked: Other context' });
-    expect(cellLook({ cell: { type: 'Eligible' }, impact: 'covered', overlay: true }).title).toBe('Covered — observed, and the candidate would explain it (Eligible)');
-    expect(cellLook({ cell: null, impact: 'gain', overlay: true })).toMatchObject({ glyph: '+' });
-    expect(cellLook({ cell: { type: 'Direct' }, impact: null, overlay: true })).toMatchObject({ glyph: '■' });
+  it('puts the analyst’s mark on top of the badge, and the impact instead when the overlay is on', () => {
+    const marked = cellLook({ cell: { type: 'Direct' }, mark: 'other' });
+    expect(marked).toMatchObject({ badge: 'Direct', title: 'Other context (marked) — Direct' });
+    expect(marked.sign.glyph).toBe('O');
+    const covered = cellLook({ cell: { type: 'Eligible' }, mark: 'other', impact: 'covered', overlay: true });
+    expect(covered).toMatchObject({ badge: 'Eligible', title: 'Covered — observed, and the candidate would explain it — Eligible' });
+    expect(covered.sign.glyph).toBe('✓');
+    const gain = cellLook({ cell: null, impact: 'gain', overlay: true });
+    expect(gain).toMatchObject({ badge: null, title: 'Potential gain — not observed, the candidate would add it — Not held' });
+    expect(gain.sign.glyph).toBe('+');
+  });
+
+  it('fades the badge of someone outside the candidate, with no sign, and shows no impact without one', () => {
+    expect(cellLook({ cell: { type: 'Direct' }, impact: 'held', overlay: true })).toMatchObject({ badge: 'Direct', sign: null, dim: true });
+    expect(cellLook({ cell: { type: 'Direct' }, impact: null, overlay: true })).toMatchObject({ sign: null, dim: false, title: 'Direct' });
   });
 });
-
 describe('draftReducer', () => {
   it('ignores an unknown action, and edits one candidate field', () => {
     const s = { candidate: { name: '' } };

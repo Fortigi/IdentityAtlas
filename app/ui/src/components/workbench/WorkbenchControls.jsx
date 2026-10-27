@@ -1,5 +1,6 @@
 import { DIMENSIONS, MARKS, selectionParts } from './workbench.model';
-import { GRANT_LEGEND, IMPACT_LEGEND } from './workbench.cells';
+import { GRANT_LABEL, IMPACT_LEGEND, MARK_LEGEND } from './workbench.cells';
+import { MembershipBadge, BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 
 // ─── The workbench's controls ────────────────────────────────────────────
 // Toolbar: group by (Activity / Expertise / Duty / Job title / none), sort, the
@@ -69,16 +70,26 @@ export function SelectionBar({ selection, dispatch, cellIndex }) {
   );
 }
 
+// Legend: the matrix's own badges first (how access is held, a business role), then
+// the workbench's signs on top of them — the analyst's marks, or the impact.
 export function Legend({ overlay }) {
-  const items = overlay ? IMPACT_LEGEND : [...GRANT_LEGEND, ...Object.values(MARKS).map(m => ({ glyph: m.short, label: `${m.label} (marked)`, cls: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100' }))];
+  const signs = overlay ? IMPACT_LEGEND : MARK_LEGEND;
   return (
-    <ul aria-label="Legend" className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-700 dark:text-gray-300">
-      {items.map(i => (
-        <li key={i.label} className="flex items-center gap-1">
-          <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center text-[10px] ${i.cls}`}>{i.glyph}</span>{i.label}
-        </li>
-      ))}
-      {!overlay && <li className="flex items-center gap-1"><span className="rounded bg-teal-600 px-0.5 text-[10px] font-semibold text-white dark:bg-teal-400 dark:text-gray-900">R</span>business role</li>}
-    </ul>
+    <div aria-label="Legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-700 dark:text-gray-300">
+      <ul aria-label="Access, as in the matrix" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {Object.entries(GRANT_LABEL).map(([type, label]) => (
+          <li key={type} className="flex items-center gap-1"><MembershipBadge type={type} decorative />{label}</li>
+        ))}
+        <li className="flex items-center gap-1"><BusinessRoleBadge />business role</li>
+      </ul>
+      <span aria-hidden="true" className="h-4 border-l border-gray-300 dark:border-gray-600" />
+      <ul aria-label={overlay ? 'Candidate impact' : 'Marks'} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {signs.map(s => (
+          <li key={s.key} className="flex items-center gap-1">
+            <span aria-hidden="true" className={`inline-flex h-3 min-w-[0.75rem] items-center justify-center rounded-sm px-0.5 text-[8px] font-bold ${s.mark}`}>{s.glyph}</span>{s.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

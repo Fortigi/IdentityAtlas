@@ -1,32 +1,8 @@
 import { memo } from 'react';
-import { TYPE_COLORS } from '@ui/utils/colors';
+import { MembershipBadge } from './MatrixBadges';
 import CellMarkerStrip from './CellMarkerStrip';
 import { CELL_BOX_STYLE } from './cellMarkers';
 import { describeCell } from './MatrixCell.helpers';
-
-// One membership-type swatch (D / I / E). Indirect badges become clickable when
-// an explainer handler is supplied, so the analyst can trace inherited access.
-function MembershipBadge({ type, single, cellKey, onExplainInherited }) {
-  const ind = TYPE_COLORS[type];
-  if (!ind) return <span className="text-[7px] font-bold text-green-800">?</span>;
-
-  const clickable = type === 'Indirect' && !!onExplainInherited;
-  const sizeClass = single ? 'w-4 h-4 text-[9px] leading-4' : 'w-[9px] h-[14px] text-[7px] leading-[14px]';
-  const clickClass = clickable ? 'cursor-pointer ring-1 ring-white/50 hover:ring-2 hover:ring-white' : '';
-
-  return (
-    <span
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? (e) => { e.stopPropagation(); onExplainInherited(cellKey); } : undefined}
-      title={clickable ? 'Show how this inherited access was derived' : undefined}
-      className={`inline-block rounded-sm text-center font-bold ${sizeClass} ${clickClass}`}
-      style={{ backgroundColor: ind.bg, color: ind.text }}
-    >
-      {ind.letter}
-    </span>
-  );
-}
 
 function MatrixCell({
   cellKey, membershipTypes, managed, apColor, apCount, apNames,

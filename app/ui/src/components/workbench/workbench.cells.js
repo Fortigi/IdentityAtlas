@@ -1,46 +1,48 @@
-// Authorization workbench — how a cell looks. Every state has a glyph as well as
-// a colour (never colour alone), and a title that says it in words. Pure.
+// Authorization workbench — how a cell looks. Pure.
+//
+// Two layers, never mixed:
+//   1. the ACCESS, exactly as the matrix shows it: the D / I / E badge
+//      (components/matrix/MatrixBadges.jsx, TYPE_COLORS) — what the person holds;
+//   2. the WORKBENCH's own sign on top: a small corner mark and a ring — a mark the
+//      analyst set (other context, unrelated, needs investigation) or, with the
+//      overlay on, what the candidate does to the cell (covered, gain, outside).
+// Every sign has a glyph and a title in words, never colour alone.
 
 import { MARKS } from './workbench.model';
 
-const GRANT = {
-  Direct: { glyph: '■', label: 'Direct', cls: 'bg-indigo-600 text-white dark:bg-indigo-400 dark:text-gray-900' },
-  Indirect: { glyph: '▪', label: 'Indirect (through a group)', cls: 'bg-indigo-200 text-indigo-900 dark:bg-indigo-800 dark:text-indigo-100' },
-  Eligible: { glyph: '□', label: 'Eligible', cls: 'bg-white text-indigo-700 ring-1 ring-inset ring-indigo-400 dark:bg-gray-900 dark:text-indigo-300' },
-};
-const OTHER_GRANT = { glyph: '•', label: 'Held', cls: 'bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100' };
+export const GRANT_LABEL = { Direct: 'Direct', Indirect: 'Indirect (through a group)', Eligible: 'Eligible' };
 
 export const IMPACT = {
-  covered: { glyph: '✓', label: 'Covered — observed, and the candidate would explain it', cls: 'bg-emerald-500 text-white dark:bg-emerald-400 dark:text-gray-900' },
-  gain: { glyph: '+', label: 'Potential gain — not observed, the candidate would add it', cls: 'bg-amber-50 text-amber-800 border border-dashed border-amber-500 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-400' },
-  outside: { glyph: '○', label: 'Outside the candidate — observed, not covered; not a removal', cls: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
-  other: { glyph: 'O', label: 'Other context (marked)', cls: 'bg-purple-200 text-purple-900 dark:bg-purple-800 dark:text-purple-100' },
-  unrelated: { glyph: 'U', label: 'Unrelated to this investigation (marked)', cls: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
-  investigate: { glyph: '?', label: 'Needs investigation (marked)', cls: 'bg-orange-200 text-orange-900 dark:bg-orange-800 dark:text-orange-100' },
-  held: { glyph: '·', label: 'Held by someone who is not a member of the candidate', cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200' },
+  covered: { glyph: '✓', label: 'Covered — observed, and the candidate would explain it', mark: 'bg-emerald-600 text-white dark:bg-emerald-400 dark:text-gray-900', ring: 'ring-2 ring-inset ring-emerald-500 dark:ring-emerald-400' },
+  gain: { glyph: '+', label: 'Potential gain — not observed, the candidate would add it', mark: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-gray-900', ring: 'border border-dashed border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-900/30' },
+  outside: { glyph: '○', label: 'Outside the candidate — observed, not covered; not a removal', mark: 'bg-slate-500 text-white dark:bg-slate-300 dark:text-gray-900', ring: 'ring-1 ring-inset ring-slate-400 dark:ring-slate-500' },
+  other: { glyph: 'O', label: 'Other context (marked)', mark: 'bg-purple-600 text-white dark:bg-purple-400 dark:text-gray-900', ring: 'ring-1 ring-inset ring-purple-500 dark:ring-purple-400' },
+  unrelated: { glyph: 'U', label: 'Unrelated to this investigation (marked)', mark: 'bg-gray-500 text-white dark:bg-gray-300 dark:text-gray-900', ring: 'ring-1 ring-inset ring-gray-400 dark:ring-gray-500' },
+  investigate: { glyph: '?', label: 'Needs investigation (marked)', mark: 'bg-orange-600 text-white dark:bg-orange-400 dark:text-gray-900', ring: 'ring-1 ring-inset ring-orange-500 dark:ring-orange-400' },
+  held: { glyph: null, label: 'Held by someone who is not a member of the candidate', mark: null, ring: '' },
 };
 
-export const GRANT_LEGEND = Object.values(GRANT);
 export const IMPACT_LEGEND = ['covered', 'gain', 'outside', 'other', 'unrelated', 'investigate'].map(k => ({ key: k, ...IMPACT[k] }));
+export const MARK_LEGEND = Object.keys(MARKS).map(k => ({ key: k, ...IMPACT[k] }));
 
 /**
- * What one cell shows: { glyph, cls, title } or null for an empty cell.
- * Without the overlay: the grant (and a mark, by its letter). With it: the impact.
+ * What one cell shows: { badge, sign, dim, title } or null for an empty cell.
+ *   badge  the grant type for the matrix's D / I / E badge (null: not held)
+ *   sign   the workbench layer on top: { glyph, mark, ring } or null
+ *   dim    held by someone outside the candidate (overlay on): the badge fades
+ * Without the overlay the sign is the analyst's mark; with it, the impact.
  */
 export function cellLook({ cell, mark, impact, overlay }) {
-  if (overlay && impact) {
-    const look = IMPACT[impact];
-    return { glyph: look.glyph, cls: look.cls, title: `${look.label}${grantSuffix(cell)}` };
-  }
-  if (!cell) return null;
-  const grant = GRANT[cell.type] ?? OTHER_GRANT;
-  const markLook = mark ? MARKS[mark] : null;
+  const kind = overlay ? impact : mark;
+  if (!cell && !kind) return null;
+  const sign = kind && IMPACT[kind].glyph ? IMPACT[kind] : null;
+  const access = cell ? `${GRANT_LABEL[cell.type] ?? 'Held'}${viaSuffix(cell)}` : 'Not held';
   return {
-    glyph: markLook ? markLook.short : grant.glyph,
-    cls: grant.cls,
-    title: `${grant.label}${viaSuffix(cell)}${markLook ? ` — marked: ${markLook.label}` : ''}`,
+    badge: cell ? cell.type : null,
+    sign,
+    dim: !!overlay && impact === 'held',
+    title: kind ? `${IMPACT[kind].label} — ${access}` : access,
   };
 }
 
-const grantSuffix = (cell) => (cell ? ` (${(GRANT[cell.type] ?? OTHER_GRANT).label}${viaSuffix(cell)})` : '');
 const viaSuffix = (cell) => (cell?.viaRoles?.length ? ` · through ${cell.viaRoles.length} business role${cell.viaRoles.length > 1 ? 's' : ''}` : '');
