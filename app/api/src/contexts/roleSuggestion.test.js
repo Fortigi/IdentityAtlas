@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
-import { pickCandidate, share, suggestAccountable, SIGNALS, SUGGESTION_THRESHOLD } from './roleSuggestion.js';
+import { pickCandidate, share, suggestAccountable, suggestOwnerOf, SIGNALS, SUGGESTION_THRESHOLD } from './roleSuggestion.js';
 import { OWNERSHIP_RESOURCE_TYPES, OWNERSHIP_RELATIONSHIP_TYPES } from '../lib/ownershipTypes.js';
 
 const CTX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -169,5 +169,39 @@ describe('share', () => {
     expect(await suggestAccountable({ id: CTX, targetType: 'System' })).toBeNull();
     expect(queryOne).not.toHaveBeenCalled();
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('suggestOwnerOf — resources that are not a context yet', () => {
+  const R = ['r1', 'r2', 'r3', 'r4', 'r5'];
+
+  it('names the owner of the most of the given resources, with the same reason as on a context', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: P1, displayName: 'Owner', count: 3 }] });
+    expect(await suggestOwnerOf(R)).toEqual({ principalId: P1, displayName: 'Owner', reason: 'owns 3 of the 5 resources', count: 3, total: 5 });
+    const [sql, params] = query.mock.calls[0];
+    expect(params).toEqual([R]);
+    // The resources themselves are the members, and the same ownership walk applies.
+    expect(sql).toContain('unnest($1::uuid[]) AS cm("memberId")');
+    expect(sql).toContain('rr."parentResourceId" = cm."memberId"');
+    expect(sql).toContain('COUNT(DISTINCT cm."memberId")');
+    // No context, so no rejections and no ContextMembers.
+    expect(sql).not.toContain('ContextRoleSuggestionRejections');
+    expect(sql).not.toContain('"ContextMembers"');
+  });
+
+  it('null below the threshold: owning 1 of 5 is not enough', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: P1, displayName: 'Owner', count: 1 }] });
+    expect(await suggestOwnerOf(R)).toBeNull();
+  });
+
+  it.each([[[]], [null], [undefined]])('nothing found (%o) → null without asking the database', async (ids) => {
+    expect(await suggestOwnerOf(ids)).toBeNull();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('the context signal still reads the context\'s members and respects rejections', () => {
+    expect(SIGNALS.Resource.sql).toContain('FROM "ContextMembers" cm');
+    expect(SIGNALS.Resource.sql).toContain('cm."contextId" = $1 AND cm."memberType" = \'Resource\'');
+    expect(SIGNALS.Resource.sql).not.toContain('unnest(');
   });
 });
