@@ -102,10 +102,11 @@ const READER = { hasWildcard: false, permissions: new Set(['data.read.contexts']
 
 // `select` = the people tree the session remembers as selected (null = none,
 // so the page opens on the first tree it lists).
-function mount({ onOpenDetail = vi.fn(), select = 'root-gen', auth = {}, ...opts } = {}) {
+// Adjust tree is organisation knowledge (Admin → Experimental, off by default): on here.
+function mount({ onOpenDetail = vi.fn(), select = 'root-gen', auth = {}, features = { orgKnowledge: true }, ...opts } = {}) {
   if (select) sessionStorage.setItem('iatlas.contexts.selected', JSON.stringify({ 'OrganizationalUnit:Identity': select }));
   const authFetch = api(opts);
-  renderWithProviders(h(ContextsPage, { onOpenDetail }), { auth: { authFetch, ...auth } });
+  renderWithProviders(h(ContextsPage, { onOpenDetail }), { auth: { authFetch, ...auth }, features });
   return { authFetch, onOpenDetail, user: userEvent.setup() };
 }
 
@@ -258,6 +259,13 @@ describe('ContextsPage — links inside the detail', () => {
 });
 
 describe('ContextsPage — who may change a tree', () => {
+  it('while organisation knowledge is off an imported tree has no ⋯ at all (no Adjust tree)', async () => {
+    mount({ features: {} });
+    await screen.findByText('Backend Squad');
+    expect(menuFor('Engineering Org')).toBeInTheDocument(); // a tree made here keeps its ⋯ (Delete)
+    expect(screen.queryByRole('button', { name: 'Actions for Sales OUs' })).toBeNull();
+  });
+
   it('an imported tree offers only Adjust tree (disabled, with why) in its ⋯, no add-sub-unit and no rename', async () => {
     const { authFetch, user } = mount();
     await screen.findByText('Backend Squad');
