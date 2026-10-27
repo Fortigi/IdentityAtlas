@@ -14,12 +14,13 @@
 //   investigate   the analyst marked it as needing investigation
 // The workbench never says "loss": removing access is not modelled in M1.
 
+// Grouping is optional (the table shows one row per person); 'none' first, the default.
 export const DIMENSIONS = Object.freeze([
+  { key: 'none', label: 'No grouping' },
   { key: 'activity', label: 'Activity' },
   { key: 'expertise', label: 'Expertise' },
   { key: 'duty', label: 'Duty' },
   { key: 'jobTitle', label: 'Job title' },
-  { key: 'none', label: 'No grouping' },
 ]);
 
 export const MARKS = Object.freeze({

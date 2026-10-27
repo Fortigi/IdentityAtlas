@@ -7,7 +7,8 @@ import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, s
 import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';
 import CandidatePanel from './CandidatePanel';
-import { Toolbar, SelectionBar, Legend } from './WorkbenchControls';
+import { Toolbar, SelectionBar, Legend, FilterStrip } from './WorkbenchControls';
+import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
 
 // ─── Authorization workbench ─────────────────────────────────────────────
 // Opens from an organizational unit (#workbench:<unit id>): its people and what
@@ -19,8 +20,8 @@ import { Toolbar, SelectionBar, Legend } from './WorkbenchControls';
 // changes access. Design: docs/architecture/m1-discovery-and-design.md.
 
 // minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
-// multi: a person with several values of the dimension shows in each of their groups, or once (strongest).
-const DEFAULT_VIEW = { groupBy: 'activity', multi: 'each', sortBy: 'name', includeChildren: true, minHolders: null, columnSearch: '' };
+// One row per person by default (groupBy 'none'); people columns as in DEFAULT_COLUMNS.
+const DEFAULT_VIEW = { groupBy: 'none', columns: DEFAULT_COLUMNS, filters: {}, sort: null, includeChildren: true, minHolders: null, columnSearch: '' };
 
 function visibleColumns(columns, view) {
   const q = view.columnSearch.trim().toLowerCase();
@@ -49,6 +50,11 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenD
 
   if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
   const color = (idx) => getAccessPackageColor(idx, isDark);
+  const setFilter = (key, filter) => setView(v => ({ ...v, filters: { ...v.filters, [key]: filter } }));
+  // Click a header: sort by it; again: the other way.
+  const onSort = (key) => setView(v => ({ ...v, sort: v.sort?.key === key && v.sort.dir === 'asc' ? { key, dir: 'desc' } : { key, dir: 'asc' } }));
+  const shownColumns = view.columns.map(k => columnByKey.get(k));
+  const peopleColumns = { peopleColumns: shownColumns, offsets: stickyOffsets(shownColumns).offsets };
 
   const act = async (fn) => {
     setBusy(true); setActionError(null);
@@ -66,11 +72,16 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenD
       <Header data={data} gaps={derived.gaps} shownColumns={derived.columns.length} onClose={onClose} loading={loading} />
       <Toolbar view={shownView} setView={setView} />
       {actionError && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">{actionError}</p>}
+      <FilterStrip shown={derived.shownPeople.length} total={data.people.length} summary={filterSummary(view.filters, data.people)}
+        onClear={(key) => setFilter(key, null)} onClearAll={() => setView(v => ({ ...v, filters: {} }))}
+        onSelectShown={() => dispatch({ type: 'select', keys: heldKeys(derived.shownPeople, derived), add: false })}
+        onAddShown={() => dispatch({ type: 'addMembers', people: derived.shownPeople.map(p => p.key) })} />
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
           <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
-            cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch} personProps={personProps} onOpenDetail={onOpenDetail} />
+            cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch} personProps={personProps} onOpenDetail={onOpenDetail}
+            people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
           <Legend />
         </div>
         <div className="w-full shrink-0 xl:w-96">
@@ -82,14 +93,23 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenD
   );
 }
 
+// The held cells of these people in the access columns shown.
+function heldKeys(people, derived) {
+  return people.flatMap(p => derived.columns.map(c => `${p.key}|${c.id}`)).filter(k => derived.cellIndex.has(k));
+}
+
 function derive(data, view) {
   if (!data) return null;
   const cellIndex = indexCells(data.cells);
   const counts = accessCounts(data.cells);
+  const shownPeople = sortPeople(applyFilters(data.people, view.filters), view.sort);
   return {
     cellIndex,
     cellsByResource: byResource(data.cells),
-    groups: groupPeople(data.people, view.groupBy, view.sortBy, (k) => counts.get(k) ?? 0, view.multi),
+    shownPeople,
+    groups: view.groupBy === 'none'
+      ? [{ key: 'all', label: 'Everyone', count: shownPeople.length, rows: shownPeople.map(person => ({ person, repeat: false })) }]
+      : groupPeople(shownPeople, view.groupBy, 'name', (k) => counts.get(k) ?? 0),
     columns: visibleColumns(data.columns, view),
     peopleByKey: new Map(data.people.map(p => [p.key, p])),
     columnsById: new Map(data.columns.map(c => [c.id, c])),

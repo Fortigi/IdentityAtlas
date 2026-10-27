@@ -212,3 +212,17 @@ describe('unresolvedMembers', () => {
     expect(unresolvedMembers(f)).toBe(3);
   });
 });
+
+describe('buildPeople — attributes', () => {
+  it('takes system data from the person, else from the first account that has it, and lists the systems', () => {
+    const f = fixture();
+    f.identities[0] = { ...f.identities[0], department: null, manager: 'Marieke' };
+    f.accounts[0] = { ...f.accounts[0], department: 'Claims' };
+    f.accounts[1] = { ...f.accounts[1], department: 'IT', employeeId: 'E1' };
+    const anna = buildPeople(f)[0];
+    expect(anna.attributes).toEqual({
+      department: 'Claims', employeeId: 'E1', companyName: null, officeLocation: null, city: null, country: null,
+      manager: 'Marieke', systems: ['AD', 'Entra'],
+    });
+  });
+});

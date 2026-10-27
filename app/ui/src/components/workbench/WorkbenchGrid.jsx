@@ -3,7 +3,7 @@ import MatrixApLabelCell from '@ui/components/matrix/MatrixApLabelCell';
 import { cellKey, rangeKeys } from './workbench.model';
 import { cellProps, roleCellProps, cellLabel, DRAFT_ID } from './workbench.roles';
 import { MARK_LEGEND } from './workbench.cells';
-import PersonCell from './PersonCell';
+import { PeopleHeader, PersonCells } from './PeopleCells';
 
 // ─── The workbench matrix ────────────────────────────────────────────────
 // Rows: the unit's people, in the groups of the chosen dimension (a person with
@@ -29,7 +29,8 @@ function MarkSign({ mark }) {
   );
 }
 
-export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, dispatch, personProps, onOpenDetail }) {
+export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, dispatch, personProps, onOpenDetail, people }) {
+  const { peopleColumns, offsets, allPeople, filters, sort, onSort, onFilter, grouped } = people;
   const rowKeys = groups.flatMap(g => g.rows.map(r => r.person.key));
   const colIds = columns.map(c => c.id);
   const { candidate, marks, selection } = draft;
@@ -55,21 +56,19 @@ export default function WorkbenchGrid({ groups, columns, roles, color, isDark, c
       <table className="border-separate border-spacing-0 text-xs" aria-label="Access of the unit's people">
         <thead>
           <tr>
-            <th scope="col" className="sticky left-0 top-0 z-30 min-w-[16rem] border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left align-bottom font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-              Person <span className="font-normal text-gray-500 dark:text-gray-400">· what they do, know and hold</span>
-            </th>
+            <PeopleHeader columns={peopleColumns} offsets={offsets} people={allPeople} filters={filters} sort={sort} onSort={onSort} onFilter={onFilter} />
             {columns.map(col => <ColumnHeader key={col.id} col={col} inCandidate={candidate.entitlements.has(col.id)} onClick={(e) => onColumn(col, e)} />)}
             {roles.map((r, i) => <MatrixApLabelCell key={r.id} accessPackages={roles} idx={i} isDark={isDark} onOpenDetail={openRole} />)}
           </tr>
         </thead>
         <tbody>
           {groups.map((group, gi) => [
-            <GroupRow key={`g:${group.key}`} group={group} span={columns.length + roles.length} onSelect={(e) => onGroup(group, e)} />,
-            ...group.rows.map(({ person, alsoUnder, repeat, state }, ri) => {
+            grouped && <GroupRow key={`g:${group.key}`} group={group} span={peopleColumns.length + columns.length + roles.length - 1} onSelect={(e) => onGroup(group, e)} />,
+            ...group.rows.map(({ person, repeat }, ri) => {
               const row = starts[gi] + ri;
               return (
                 <tr key={`${group.key}::${person.key}`} className={repeat ? 'opacity-50' : undefined} data-repeat={repeat || undefined}>
-                  <PersonCell person={person} alsoUnder={alsoUnder} repeat={repeat} groupState={state} member={candidate.members.has(person.key)}
+                  <PersonCells person={person} columns={peopleColumns} offsets={offsets} member={candidate.members.has(person.key)}
                     onSelectRow={(e) => onPerson(person.key, e)} {...personProps} />
                   {columns.map((col, c) => {
                     const k = cellKey(person.key, col.id);

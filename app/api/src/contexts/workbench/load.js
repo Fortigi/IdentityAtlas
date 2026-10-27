@@ -49,9 +49,13 @@ export const MEMBERS_SQL = `
 export const LINKS_SQL = `SELECT "principalId", "identityId" FROM "IdentityMembers" WHERE "principalId" = ANY($1::uuid[])`;
 
 export const IDENTITIES_SQL = `
-  SELECT id, "displayName", email, "jobTitle", department FROM "Identities" WHERE id = ANY($1::uuid[])`;
+  SELECT i.id, i."displayName", i.email, i."jobTitle", i.department, i."employeeId", i."companyName", i."officeLocation",
+         i.city, i.country, m."displayName" AS manager
+    FROM "Identities" i LEFT JOIN "Identities" m ON m.id = i."managerIdentityId"
+   WHERE i.id = ANY($1::uuid[])`;
 
-const PRINCIPAL_COLUMNS = `p.id, p."displayName", p.email, p."principalType", p."jobTitle", s."displayName" AS "systemName"`;
+const PRINCIPAL_COLUMNS = `p.id, p."displayName", p.email, p."principalType", p."jobTitle", p.department, p."employeeId", p."companyName",
+       s."displayName" AS "systemName", (SELECT mp."displayName" FROM "Principals" mp WHERE mp.id = p."managerId") AS manager`;
 
 export const ACCOUNTS_SQL = `
   SELECT im."identityId", ${PRINCIPAL_COLUMNS}

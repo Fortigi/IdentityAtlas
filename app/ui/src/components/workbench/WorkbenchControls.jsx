@@ -1,39 +1,27 @@
+import { useState } from 'react';
 import { DIMENSIONS, MARKS, selectionParts } from './workbench.model';
+import { PEOPLE_COLUMNS } from './workbench.columns';
 import { MARK_LEGEND } from './workbench.cells';
 import { MatrixLegendButton } from '@ui/components/matrix/GridCornerControls';
 
 // ─── The workbench's controls ────────────────────────────────────────────
-// Toolbar: group by (Activity / Expertise / Duty / Job title / none), sort, the
-// unit's sub-units in or out, and a column filter. Selection
-// bar: what is selected and what to do with it. Legend: every glyph in words.
+// Toolbar: which people columns show, an optional grouping (off by default — one
+// row per person), the unit's sub-units in or out, and which access columns show.
+// Filter strip: "N of M people shown", the active filters, and what to do with the
+// people shown. Selection bar: what is selected and what to do with it.
 
-const SORTS = [{ key: 'name', label: 'Name' }, { key: 'access', label: 'Most access' }, { key: 'jobTitle', label: 'Job title' }];
+const BTN = 'rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700';
+const FIELD = 'rounded border border-gray-300 bg-white px-1 py-0.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100';
 
 export function Toolbar({ view, setView }) {
   const set = (field) => (value) => setView(v => ({ ...v, [field]: value }));
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
-      <div role="radiogroup" aria-label="Group people by" className="flex items-center gap-1">
-        <span className="mr-1 text-xs text-gray-600 dark:text-gray-400">Group by</span>
-        {DIMENSIONS.map(d => (
-          <button key={d.key} type="button" role="radio" aria-checked={view.groupBy === d.key} onClick={() => set('groupBy')(d.key)}
-            className={`rounded px-2 py-0.5 text-xs ${view.groupBy === d.key ? 'bg-blue-600 text-white dark:bg-blue-500' : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
-            {d.label}
-          </button>
-        ))}
-      </div>
+      <ColumnsChooser shown={view.columns} onChange={set('columns')} />
       <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Show people with several values
-        <select value={view.multi} onChange={e => set('multi')(e.target.value)} disabled={view.groupBy === 'none'}
-          className="rounded border border-gray-300 bg-white px-1 py-0.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-          <option value="each">in each group</option>
-          <option value="once">once (strongest)</option>
-        </select>
-      </label>
-      <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Sort
-        <select value={view.sortBy} onChange={e => set('sortBy')(e.target.value)} className="rounded border border-gray-300 bg-white px-1 py-0.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100">
-          {SORTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        Group by
+        <select value={view.groupBy} onChange={e => set('groupBy')(e.target.value)} className={FIELD}>
+          {DIMENSIONS.map(d => <option key={d.key} value={d.key}>{d.key === 'none' ? 'No grouping' : d.label}</option>)}
         </select>
       </label>
       <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
@@ -41,18 +29,57 @@ export function Toolbar({ view, setView }) {
         Include sub-units
       </label>
       <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Columns held by at least
-        <input type="number" min={1} value={view.minHolders} onChange={e => set('minHolders')(Math.max(1, Number(e.target.value) || 1))}
-          className="w-12 rounded border border-gray-300 bg-white px-1 py-0.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
+        Access held by at least
+        <input type="number" min={1} value={view.minHolders} onChange={e => set('minHolders')(Math.max(1, Number(e.target.value) || 1))} className={`w-12 ${FIELD}`} />
         people
       </label>
-      <input type="search" value={view.columnSearch} onChange={e => set('columnSearch')(e.target.value)} placeholder="Find a column…" aria-label="Find a column"
-        className="w-40 rounded border border-gray-300 bg-white px-2 py-0.5 text-xs dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-
+      <input type="search" value={view.columnSearch} onChange={e => set('columnSearch')(e.target.value)} placeholder="Find access…" aria-label="Find a column"
+        className={`w-40 px-2 text-xs ${FIELD}`} />
     </div>
   );
 }
 
+// The people columns to show: name always, then any of system data and knowledge.
+function ColumnsChooser({ shown, onChange }) {
+  const [open, setOpen] = useState(false);
+  const toggle = (key) => onChange(PEOPLE_COLUMNS.filter(c => c.fixed || (c.key === key ? !shown.includes(key) : shown.includes(c.key))).map(c => c.key));
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className={BTN}>Columns ▾</button>
+      {open && (
+        <div role="dialog" aria-label="Columns" className="absolute left-0 top-full z-50 mt-1 w-56 rounded-md border border-gray-200 bg-white p-2 text-xs shadow-lg dark:border-gray-600 dark:bg-gray-800">
+          {PEOPLE_COLUMNS.filter(c => !c.fixed).map(c => (
+            <label key={c.key} className="flex items-center gap-1.5 py-0.5 text-gray-800 dark:text-gray-100">
+              <input type="checkbox" checked={shown.includes(c.key)} onChange={() => toggle(c.key)} className="h-3 w-3" />{c.label}
+            </label>
+          ))}
+          <button type="button" onClick={() => setOpen(false)} className="mt-1 text-blue-700 hover:underline dark:text-blue-300">Done</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "8 of 26 people shown", the filters in words (each removable), and the Excel move:
+// take the people the filters leave.
+export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs" role="region" aria-label="Filters">
+      <span className="font-medium text-gray-900 dark:text-gray-100">{shown} of {total} people shown</span>
+      {summary.map(s => (
+        <span key={s.key} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-900 dark:bg-blue-900/40 dark:text-blue-100">
+          {s.text}
+          <button type="button" onClick={() => onClear(s.key)} aria-label={`Clear the filter ${s.text}`} className="hover:text-red-600">✕</button>
+        </span>
+      ))}
+      {summary.length > 0 && <button type="button" onClick={onClearAll} className="text-blue-700 hover:underline dark:text-blue-300">Clear all filters</button>}
+      <span className="ml-auto flex gap-2">
+        <button type="button" onClick={onSelectShown} disabled={shown === 0} className={`${BTN} disabled:opacity-50`}>Select what they hold</button>
+        <button type="button" onClick={onAddShown} disabled={shown === 0} className="rounded bg-emerald-600 px-2 py-0.5 text-white hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500">Add the {shown} shown as members</button>
+      </span>
+    </div>
+  );
+}
 // How many of the selected people appear in more than one group on screen.
 function repeatedPeople(groups, people) {
   const seen = new Map();

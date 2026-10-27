@@ -84,7 +84,18 @@ function personRow(p, src, accs) {
     email: src.email ?? firstOf(accs, 'email'),
     jobTitle: src.jobTitle ?? firstOf(accs, 'jobTitle'),
     direct: p.direct, units: [...p.units].sort(), accounts: accs,
+    attributes: personAttributes(src, accs),
   };
+}
+
+// The system data the workbench can show as columns: from the person (or the
+// account), else the first account that has it. Systems: every source of an account.
+const ATTRIBUTE_KEYS = ['department', 'employeeId', 'companyName', 'officeLocation', 'city', 'country', 'manager'];
+function personAttributes(src, accs) {
+  const out = {};
+  for (const k of ATTRIBUTE_KEYS) out[k] = src[k] ?? firstOf(accs, k);
+  out.systems = [...new Set(accs.map(a => a.systemName).filter(Boolean))].sort();
+  return out;
 }
 
 function groupBy(rows, keyOf, map = (x) => x) {
@@ -99,6 +110,7 @@ function groupBy(rows, keyOf, map = (x) => x) {
 const account = (a) => ({
   id: a.id, displayName: a.displayName ?? null, email: a.email ?? null, principalType: a.principalType ?? null,
   systemName: a.systemName ?? null, jobTitle: a.jobTitle ?? null,
+  department: a.department ?? null, employeeId: a.employeeId ?? null, companyName: a.companyName ?? null, manager: a.manager ?? null,
 });
 
 /** The principal ids of every account of these people. Pure. */
