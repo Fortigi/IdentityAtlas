@@ -21,15 +21,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
 import { DEFAULT_RULES } from './defaultRules.js';
+import { reweighted, stageMembers, detached } from '../../test-utils/staleNameOnlyLinksKit.js';
 
 vi.mock('../db/connection.js');
 import { query } from '../db/connection.js';
-
-/** The shipped dictionary with one signal's weight replaced. */
-const reweighted = (name, weight) => ({
-  ...DEFAULT_RULES,
-  signals: DEFAULT_RULES.signals.map(s => (s.name === name ? { ...s, weight } : s)),
-});
 
 // One person per name, so uniqueness is never what detaches anything here: only
 // the weights can be, which is what makes these cases discriminate.
@@ -47,17 +42,6 @@ const member = (identityId, principalId, linkSignals, account) =>
 const ADM_FAY = { displayName: 'Admin account 042', email: 'adm-fhogenbirk@corp.example' };
 const ERP_ROBIN = { displayName: 'van Mourik, R.', email: null };
 const ERP_LAURA = { displayName: 'Buskes, L.R.', email: null };
-
-function stageMembers(rows) {
-  query.mockImplementation(async (sql) => {
-    if (/FROM "IdentityMembers" m/.test(sql)) return { rows };
-    return { rows: [] };
-  });
-}
-
-const detached = () => query.mock.calls
-  .filter(c => /DELETE FROM "IdentityMembers"/.test(c[0]))
-  .map(c => c[1][1]);
 
 beforeEach(() => { query.mockReset(); });
 
