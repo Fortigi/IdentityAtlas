@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Fixed a user's Business Roles showing roles that were deleted in the source as if the user still held them. A role that was deleted and re-created under the same name no longer appears twice, and the Business Roles count includes only the roles the user holds now.
+- Relationship lists on detail pages now keep history apart: assignments and roles that no longer exist in the source are collapsed under "Show N historical", labelled "Historical" with their deletion date, and left out of the relationship graph. A CSV export includes them only when they are expanded, with a Status column.
+- The detail page of a business role that was deleted in the source now shows a "Deleted in source" badge next to its name, as user and resource pages already did.
+- Relationship lists on resource, business-role, identity and user pages now keep anything deleted in the source apart from current access: members, assignees, business roles, parent resources, contained resources, owners, sponsors, direct reports, the manager and identity assignments show as "Historical" with their deletion date, collapsed under "Show N historical".
+- The counts behind those relationships (members by assignment type, business roles, parents, assignments, contained resources, owners, sponsors, direct reports, an identity's access and its accounts' group counts) now include only what still exists in the source.
+- The Business Roles page hides roles that were deleted in the source. A new "Include deleted" option shows them with a "Deleted in source" badge, and the Excel export follows the same option with a "Deleted At" column. Assignment totals count only current assignments of current accounts.
+- An identity's linked accounts show a "Deleted in source" badge on an account that no longer exists.
+- Systems, the dashboard, the daily Trends snapshot, matrix totals and scope figures, nested-group expansion, risk score lists and top-10s, and context member lists and counts no longer count users, resources or assignments deleted in the source.
+- Generated contexts (manager hierarchy, departments, account types, AD OUs, resource types, group categories, scope hierarchy, resource clusters) no longer place users or resources deleted in the source in their trees.
+- The matrix's business-role columns and the governance review-compliance figures no longer include business roles or groups deleted in the source.
+
+## Changes in this PR
+
 - Reports that come with charts or pivot tables in their Excel download (Access Review Adoption, Access Reviewer Response, Entitlement Pivot) now show that breakdown on screen too, above the table: a bar per chart with its counts and percentages, and the pivots as grouped tables you can open one level deeper.
 - Clicking a status, verdict or pivot group in that summary narrows the table to those rows. **Show all rows** brings everything back.
 - The report download is now one main **Download XLSX** button, because only the workbook carries the summary, pivots and charts. CSV and JSON are in a menu next to it.
