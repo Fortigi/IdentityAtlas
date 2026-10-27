@@ -49,7 +49,7 @@ A single tree keeps one target type all the way down, but it can mix variants �
 The Contexts tab has one tab per template — **Organisation**, **Applications**, **Tags** and **Segments** — and each is split in two:
 
 - **Left — the trees.** The tab's trees as one tree, under a heading per source (Imported · *system*, Derived · *rule*, Manager hierarchy, Created here). On Organisation, **Show:** switches between the People, Accounts and Resources trees, because each tree holds one kind of member. Each row shows one member count (everyone including sub-units; the direct share is in its tooltip). Filters at the top narrow by source, system and — on Tags and Segments — kind.
-- **Right — the selected context.** Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and members. **Open as page** opens it on its own.
+- **Right — the selected context.** Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and the people overview. **Open as page** in the header's **⋯** menu opens it on its own.
 
 Expand a row with its arrow to see its sub-units. The old **List** mode, which flattened a tree into a table, is gone; a unit's members are listed on its page.
 
