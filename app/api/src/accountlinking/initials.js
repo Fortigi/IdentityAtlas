@@ -10,17 +10,26 @@
 // given-name halves spell initials rather than a name, the sequence a name
 // exposes, and whether two sequences agree — which is both the match test and
 // the contradiction test.
+//
+// The letters are read through the same fold as the classifier's name tokens
+// (see `fold.js`): unfolded, this module would contradict the names it is
+// weighed against and rule out the very person they match (#1480).
+
+import { foldDiacritics, foldedToken } from './fold.js';
 
 /**
  * A run of single letters each followed by a dot — `L.`, `L.R.`, `J.C.` — which
  * is how a source states an initial rather than a name (P3). The dot is what
  * carries the claim: an undotted `Rob` is a (short) name and is read as one, so
  * it is never compared letter-by-letter against somebody's given names.
+ *
+ * Tested against the folded token, so `Ö.R.` is the initials half it plainly is
+ * and reads as the same two letters the classifier folds the name to (#1480).
  */
-const INITIALS_TOKEN = /^(?:[a-z]\.)+$/i;
+const INITIALS_TOKEN = /^(?:[a-z]\.)+$/;
 
 /** The first comparable letter of one name token. */
-const firstLetter = (word) => String(word || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 1);
+const firstLetter = (word) => foldedToken(word).slice(0, 1);
 
 /**
  * Whether a given-name half spells initials rather than a name. Every token has
@@ -28,7 +37,7 @@ const firstLetter = (word) => String(word || '').toLowerCase().replace(/[^a-z0-9
  * convention, not information) while `L.R Buskes` and `Rob` do not.
  */
 export function isInitialsHalf(words = []) {
-  return words.length > 0 && words.every(w => INITIALS_TOKEN.test(w));
+  return words.length > 0 && words.every(w => INITIALS_TOKEN.test(foldDiacritics(w)));
 }
 
 /**
@@ -38,7 +47,7 @@ export function isInitialsHalf(words = []) {
  */
 export function initialsOf(words = []) {
   if (!isInitialsHalf(words)) return [];
-  return words.join('').split('.').filter(Boolean).map(l => l.toLowerCase());
+  return foldDiacritics(words.join('')).split('.').filter(Boolean);
 }
 
 /**

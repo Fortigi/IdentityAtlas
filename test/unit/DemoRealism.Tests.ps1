@@ -23,6 +23,14 @@
 BeforeAll {
     $script:repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $script:genScript = Join-Path $script:repoRoot 'test' 'demo-dataset' 'Generate-DemoDataset.ps1'
+    # The generator's own name fold, so the login keys below are built the way a
+    # directory spells them rather than a second time by hand (#1480).
+    . (Join-Path $script:repoRoot 'test' 'demo-dataset' 'parts' 'DemoState.ps1')
+    # The part turns strict mode on for itself, which the dot-source brings in
+    # here. Turned back off: these tests read columns the generator writes on
+    # only some records, and Script:Prop is how they ask (an absent column is the
+    # same answer as an empty one).
+    Set-StrictMode -Off
     $script:basePath = Join-Path ([System.IO.Path]::GetTempPath()) 'demo-realism-tests-base.json'
     $script:fullPath = Join-Path ([System.IO.Path]::GetTempPath()) 'demo-realism-tests-full.json'
 
@@ -74,12 +82,16 @@ BeforeAll {
     # Every identity indexed under the <first initial><surname> login key, recomputed
     # from their clean name columns rather than read back off the accounts — so a login
     # that stops being spelled after a real person fails rather than matching itself.
+    #
+    # The key is folded to ASCII, because that is the spelling a login convention
+    # produces: Sevgi Doğan answers to `sdogan`, and an index that kept her `ğ`
+    # would say nobody in the directory does (#1480).
     $script:identitiesByLoginKey = @{}
     foreach ($idy in $script:data.identities) {
         $given = Script:Prop $idy 'givenName'
         $surname = Script:Prop $idy 'surname'
         if (-not $given -or -not $surname) { continue }
-        $key = "$($given.Substring(0, 1))$($surname -replace '[^\p{L}]', '')".ToLower()
+        $key = "$((ConvertTo-DemoAsciiName $given).Substring(0, 1))$((ConvertTo-DemoAsciiName $surname) -replace '[^\p{L}]', '')"
         if (-not $script:identitiesByLoginKey.ContainsKey($key)) { $script:identitiesByLoginKey[$key] = [System.Collections.Generic.List[object]]::new() }
         $script:identitiesByLoginKey[$key].Add($idy)
     }
@@ -291,6 +303,31 @@ Describe 'people — the questions about who somebody is' {
         foreach ($acct in $ambiguous) { $script:linkedPrincipals.Contains($acct.id) | Should -BeFalse }
     }
 
+    It 'includes an admin login spelled without the diacritics its owner name carries' {
+        # The #1480 case, in the data rather than only in a unit fixture: one
+        # identity whose surname carries a letter no login convention writes, and
+        # an admin account spelled the ASCII way a directory really spells it.
+        # Nothing but a fold on BOTH sides connects the two, so this is the one
+        # account in the slice whose linking depends on it.
+        $sevgi = @($script:data.identities | Where-Object { $_.surname -eq 'Doğan' })
+        $sevgi.Count | Should -Be 1 -Because 'the diacritic staffer is forced onto a cast position, not drawn'
+        $sevgi[0].givenName | Should -Be 'Sevgi'
+
+        # Her account and her address are spelled the way a directory spells them —
+        # the raw name stays on the HR record, the ASCII fold is what a login and
+        # an address get.
+        $sevgi[0].email | Should -Be 'sevgi.dogan@fortigidemo.com'
+        $account = @(Script:AdminAccounts -ByInitialSurname | Where-Object { $_.email -like 'adm-sdogan@*' })
+        $account.Count | Should -Be 1 -Because 'adm-sdoğan is a login no ASCII convention produces'
+
+        # And she is the only person it can be spelled after, so the link is
+        # unambiguous once the two sides agree on the letter.
+        $owners = @(Script:AdminLoginOwners $account[0])
+        $owners.Count | Should -Be 1
+        $owners[0].employeeId | Should -Be $sevgi[0].employeeId
+        $script:linkedPrincipals.Contains($account[0].id) | Should -BeFalse -Because 'the run has to find her through the login'
+    }
+
     It 'never hands two admin accounts the same login, and never numbers one' {
         $all = @(Script:AdminAccounts) + @(Script:AdminAccounts -ByInitialSurname)
         @($all | Group-Object email | Where-Object { $_.Count -gt 1 }).Count | Should -Be 0
@@ -312,6 +349,42 @@ Describe 'people — the questions about who somebody is' {
             $holdings = if ($script:holdingsOf.ContainsKey($_.id)) { $script:holdingsOf[$_.id] } else { @() }
             @($holdings | Where-Object { $script:resourceById[$_.resourceId].displayName -like "SG-$old-*" }).Count -gt 0 })
         $withOldAccess.Count | Should -BeGreaterThan 20 -Because 'access that does not match the current department is the point'
+    }
+}
+
+Describe 'the fold a login and an address are spelled through' {
+    It 'folds a letter a canonical decomposition splits into base plus accent' {
+        ConvertTo-DemoAsciiName 'Doğan' | Should -Be 'dogan'
+        ConvertTo-DemoAsciiName 'Daniëlle' | Should -Be 'danielle'
+        # Turkish dotted İ: .NET leaves it alone when lower-casing, so only the
+        # decomposition exposes the dot, and the base letter it hands back is an
+        # upper-case I.
+        ConvertTo-DemoAsciiName 'İnönü' | Should -Be 'inonu'
+    }
+
+    It 'folds each letter a decomposition leaves whole, one at a time' {
+        # One input per mapped letter: a single name standing in for the whole
+        # table would pass with any one of them missing.
+        ConvertTo-DemoAsciiName 'Yıldırım' | Should -Be 'yildirim'
+        ConvertTo-DemoAsciiName 'Łukasz' | Should -Be 'lukasz'
+        ConvertTo-DemoAsciiName 'Møller' | Should -Be 'moller'
+        ConvertTo-DemoAsciiName 'Đorđević' | Should -Be 'dordevic'
+        ConvertTo-DemoAsciiName 'Großmann' | Should -Be 'grossmann'
+        ConvertTo-DemoAsciiName 'Æblegaard' | Should -Be 'aeblegaard'
+        ConvertTo-DemoAsciiName 'Œuvre' | Should -Be 'oeuvre'
+        ConvertTo-DemoAsciiName 'Þórsdóttir' | Should -Be 'thorsdottir'
+        ConvertTo-DemoAsciiName 'Guðrún' | Should -Be 'gudrun'
+    }
+
+    It 'leaves separators where they are, and an ASCII name untouched' {
+        # The callers drop the separators they do not want, so the fold must not:
+        # a surname's particles have to still be tellable apart here.
+        ConvertTo-DemoAsciiName 'van der Meer' | Should -Be 'van der meer'
+        ConvertTo-DemoAsciiName 'Doğan-Yıldırım' | Should -Be 'dogan-yildirim'
+        # The control: every name already in the slice folds to itself, which is
+        # why adding the fold changed no existing login or address.
+        ConvertTo-DemoAsciiName 'Kuijpers' | Should -Be 'kuijpers'
+        ConvertTo-DemoAsciiName '' | Should -Be ''
     }
 }
 
@@ -382,6 +455,30 @@ Describe 'two people whose adm-initial-surname login is the same word' {
         Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9003' 'Daan' 'Mulder')
 
         Script:AdminLoginsWritten $state | Should -Be @('adm-svisser', 'adm-dmulder')
+    }
+
+    It 'spells a diacritic name the ASCII way a directory spells it' {
+        # Driven through the seeding function, so the fold is asserted where the
+        # login is produced rather than only where it ends up. An unfolded seed
+        # writes `adm-sdoğan`, which is a login no convention hands out and which
+        # nothing in the directory answers to (#1480).
+        $state = Script:NewLoginState
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9001' 'Sevgi' 'Doğan')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9002' 'Daniëlle' 'van Dongen')
+
+        Script:AdminLoginsWritten $state | Should -Be @('adm-sdogan', 'adm-dvandongen')
+    }
+
+    It 'collides two names that differ only in their diacritics, as a directory would' {
+        # The other side of folding, and the reason it is the engine's uniqueness
+        # guard that has to settle it: `Doğan` and `Dogan` are two families whose
+        # ASCII logins are one word, so the seed hands the login out once and the
+        # second person simply has no second account.
+        $state = Script:NewLoginState
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9001' 'Sevgi' 'Doğan')
+        Add-DemoRealismLinkedAccounts $state -Person (Script:AdminBucketPerson 'R9002' 'Sevgi' 'Dogan')
+
+        Script:AdminLoginsWritten $state | Should -Be @('adm-sdogan')
     }
 
     It 'tells apart two surnames that only differ in their particles' {

@@ -29,11 +29,12 @@ The engine lives in [`app/api/src/accountlinking/`](https://github.com/Fortigi/I
 |---|---|
 | `defaultRules.js` | The shipped default dictionary (`DEFAULT_RULES`). |
 | `rulesMerge.js` | `effectiveLinkingRules(savedRules)` — the one merge of a tenant's saved rules over the shipped ones (see [The effective dictionary](#the-effective-dictionary)). |
+| `fold.js` | `foldDiacritics` / `foldedToken` — the one fold every comparison token on both sides of a comparison goes through (see [The comparison token](#the-comparison-token)). |
 | `classifier.js` | Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching, and the login name forms (`loginToken` / `loginNameForms` / `loginFormMatch` / `loginSpellings` / `numberedAwayFrom`). Regex rules are compiled with **RE2** (linear-time, ReDoS-safe). |
 | `engine.js` | `scoreMatch`, `buildLinks` (pure scoring), and `runLinking(runId, configId)` (the DB-writing run). |
 | `engine.helpers.js` | Pure building blocks: identity indexing, candidate collection, the name-signal set and the graded name ladder (`strongestNameRung`), the `isNameOnly` predicate, the active claim rungs (`activeNameRungs`), reading stored `linkSignals`. |
 | `nameKeys.js` | How a name is keyed at each rung: the exact, surname+initials and surname+initial keys, and how an identity carries each kind (`inUse` / `birth`). |
-| `initials.js` | Reading and comparing *all* the initials two names state, and `initialsRuleOut` — initials that disagree rule a person out rather than counting as a near miss. |
+| `initials.js` | Reading and comparing *all* the initials two names state, and `initialsRuleOut` — initials that disagree rule a person out rather than counting as a near miss. Reads its letters through the same `fold.js` as the names it is weighed against. |
 | `nameClaim.js` | The name-uniqueness reading (`nameClaim`): who an account's names and login point at, weighed at the rung each claim rests on. |
 | `guardEvidence.js` | The evidence the guard weighs beside a name — `nameUnique`, `department`, `manager` — each firing only where it singles exactly one claimant out. |
 | `staleNameOnlyLinks.js` | The retroactive cleanup: removes the engine-scored, analyst-untouched name-only links the active policy would no longer create. |
@@ -125,6 +126,29 @@ When the display name *is* parsed, three things happen before the halves are tak
 3. **The surname keeps its particles.** In the `Given Surname` ordering the surname runs from the first particle (`van`, `de`, `den`, `der`, `ter`, `ten`, …) to the end of the name, including a hyphenated compound whose tail is a particle (`Schilder-van der Steen`). With no particle present it is the last token only, so inconsistently-recorded middle names still collapse (`John Michael Doe` → `{john, doe}`). Taking only the last token instead would reduce every `van den Berg` in a tenant to `berg`, and conflate `van der Steen` with `Schilder-van der Steen`.
 
 The title and particle lists live next to `QUALIFIER_RE` in `classifier.js`; they are not per-tenant editable today.
+
+#### The comparison token
+
+Every name, login and email local part is reduced to a comparison token the same way (`foldedToken` in `fold.js`): lower-case, **fold each letter to its ASCII base letter**, then drop everything outside `[a-z0-9]`. The fold is Unicode NFKD with the combining marks removed, plus an explicit map for the letters NFKD leaves whole because they are not a base letter plus an accent — `ı→i`, `ł→l`, `ø→o`, `đ→d`, `ß→ss`, `æ→ae`, `œ→oe`, `þ→th`, `ð→d`. The `[a-z0-9]` strip stays as the final guard, so a script the fold has no base letter for still cannot reach a comparison half-folded.
+
+| Name | Token |
+|---|---|
+| `Doğan` | `dogan` |
+| `Daniëlle` | `danielle` |
+| `Yıldırım` | `yildirim` |
+| `Großmann` | `grossmann` |
+| `İnönü` | `inonu` |
+
+Why folding and not dropping: the two normalisers used to *delete* every character outside `[a-z0-9]`, so `Doğan` became `doan` and `Daniëlle` `danille`. Display name against display name still matched, because both sides lost the same letters — but one side of a comparison is routinely plain ASCII, since that is all a login, an email local part or an ERP export can carry. A directory spells Sevgi Doğan's admin account `adm-sdogan`, which reduces to `sdogan` while her name reduced to `sdoan`: the two could never meet, and every person whose name carries such a letter kept an unlinked account for ever ([#1480](https://github.com/Fortigi/IdentityAtlas/issues/1480)).
+
+One fold serves **both** sides of every comparison — the name side (`nameVariants`, the name keys), the login/address side (`loginToken`, `emailPrefix`) and the initials (`firstLetter` and the dotted-initials test in `initials.js`). That is the point rather than an implementation detail: folded on one side only, a name that already matched would stop matching, and an `initials.js` left unfolded reads Ömer's initial as `m` and rules out the very person the folded name matches.
+
+Two deliberate consequences:
+
+- **Two people distinguishable only by their diacritics now collide.** `Dogan` and `Doğan` are different families whose tokens are one word, so a login or name that fits both is exactly the namesake case the [name-uniqueness guard](#graded-name-matching-the-name-uniqueness-guard) already holds for review — it is never handed to whichever scored first.
+- **This is comparison-only.** Nothing persisted stores these tokens (`IdentityMembers` keeps the raw `displayName`; `linkSignals` stores signal names), so there is no migration — the next run re-derives everything, and the cleanup re-judges existing name-only links against the corrected tokens with the run's `linksRemoved` / `linksRestored` counters making any one-off reshuffle visible.
+
+Unrelated, despite the shared name: `nlreports/references.js` has its own Unicode-**preserving** `normalizeName` (`Café Élan` → `caféélan`), and the report/UI slug helpers build display slugs, not comparison tokens. Neither is folded through here.
 
 `nameMatchLevel` returns the strongest of:
 
