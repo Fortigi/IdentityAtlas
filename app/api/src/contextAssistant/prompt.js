@@ -10,6 +10,8 @@
 // saved prompt cache of it next to the report prompt's. It is kept short on purpose:
 // on a CPU, reading the prompt is most of the wait.
 
+import { CONTEXT_CATEGORIES } from '../ingest/validation.js';
+
 export const REPLY_LIMITS = {
   terms: 15,
   moreTerms: 10,
@@ -37,15 +39,18 @@ const TERM = {
   required: ['text', 'why'],
 };
 
-const termsReply = (maxTerms) => ({
+// The first answer also guesses what the context is (its template); asking for more
+// terms later does not, the analyst has seen the guess by then.
+const termsReply = (maxTerms, withTemplate) => ({
   type: 'object',
   properties: {
     kind: { type: 'string', enum: ['terms'] },
     name: { type: 'string', maxLength: REPLY_LIMITS.name },
+    ...(withTemplate ? { template: { type: 'string', enum: CONTEXT_CATEGORIES } } : {}),
     terms: boundedList(TERM, maxTerms),
     notes: boundedList({ type: 'string', maxLength: REPLY_LIMITS.note }, REPLY_LIMITS.notes),
   },
-  required: ['kind', 'name', 'terms', 'notes'],
+  required: ['kind', 'name', ...(withTemplate ? ['template'] : []), 'terms', 'notes'],
 });
 
 const CLARIFY_REPLY = {
@@ -58,9 +63,9 @@ const CLARIFY_REPLY = {
   required: ['kind', 'question', 'options'],
 };
 
-export const TERMS_ONLY_SCHEMA = termsReply(REPLY_LIMITS.terms);
+export const TERMS_ONLY_SCHEMA = termsReply(REPLY_LIMITS.terms, true);
 export const RESPONSE_SCHEMA = { anyOf: [TERMS_ONLY_SCHEMA, CLARIFY_REPLY] };
-export const MORE_TERMS_SCHEMA = termsReply(REPLY_LIMITS.moreTerms);
+export const MORE_TERMS_SCHEMA = termsReply(REPLY_LIMITS.moreTerms, false);
 
 const t = (text, why) => ({ text, why });
 
@@ -70,7 +75,7 @@ const t = (text, why) => ({ text, why });
 const EXAMPLES = [
   {
     q: 'Groepen voor de salarisadministratie',
-    a: { kind: 'terms', name: 'Salarisadministratie', notes: [], terms: [
+    a: { kind: 'terms', name: 'Salarisadministratie', template: 'OrganizationalUnit', notes: [], terms: [
       t('salarisadministratie', 'name'), t('salaris', 'name'), t('payroll', 'translation'), t('loonadministratie', 'synonym'),
       t('verloning', 'activity'), t('loonstrook', 'activity'), t('salary', 'translation'), t('Youforce', 'system'),
       t('Loket', 'system'), t('ADP', 'system'),
@@ -78,13 +83,13 @@ const EXAMPLES = [
   },
   {
     q: 'everything to do with Zenvira',
-    a: { kind: 'terms', name: 'Zenvira', terms: [t('Zenvira', 'name')], notes: [
+    a: { kind: 'terms', name: 'Zenvira', template: 'LogicalApplication', terms: [t('Zenvira', 'name')], notes: [
       'I do not know Zenvira, so I search for the name exactly as written. Related words can find the names it appears together with.',
     ] },
   },
   {
     q: 'facility management groups',
-    a: { kind: 'terms', name: 'Facility management', notes: [], terms: [
+    a: { kind: 'terms', name: 'Facility management', template: 'OrganizationalUnit', notes: [], terms: [
       t('facility', 'name'), t('facilities', 'name'), t('facilitair', 'translation'), t('FM', 'abbreviation'),
       t('huisvesting', 'translation'), t('gebouwbeheer', 'activity'), t('receptie', 'activity'), t('catering', 'activity'),
       t('Planon', 'system'), t('TOPdesk', 'system'),
@@ -115,6 +120,7 @@ export function buildContextPrompt() {
 6. "name" is a short name for the context, in the analyst's language.
 7. Reply {"kind":"clarify"} only when the request names no subject at all. Give 2-3 short options.
 8. When you are told which terms the analyst kept and dropped, propose only NEW terms: like the kept ones, unlike the dropped ones.
+9. "template" says what the context is: LogicalApplication for an application or system; OrganizationalUnit for a department, team, project, programme or customer; Segment for a location or region; Tag for anything else, such as a business process or a theme.
 
 # Examples
 ${examples}`;

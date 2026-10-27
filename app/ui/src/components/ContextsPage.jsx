@@ -19,6 +19,7 @@ import TemplateTabs from './contexts/TemplateTabs';
 import { useContextTreeEdits, findNodeById } from './contexts/useContextTreeEdits';
 import { templateTabs, kindOptions, effectiveTab, effectiveKind, rootsForTab, tabOf } from './contexts/templateTabs.helpers';
 import { orderBySource, isEditableTree, rootKindSuffix } from './contexts/treePanel.helpers';
+import { newBuilderId } from './contexts/assistant/recipeDraft';
 import { viewKeyOf, selectedIdFor, forgetView, rootContaining, isMemberMovableTree } from './contexts/contextSelection.helpers';
 
 // The selection, remembered per tab (and Organisation kind) for the session.
@@ -218,7 +219,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
           if (runId) onOpenDetail?.('run', runId, 'Rule run');
         }}
         onOpenCrawlers={() => onNavigate?.('admin')}
-        onOpenBuilder={() => onOpenDetail?.('context-builder', `new-${Date.now()}`, 'New context')}
+        onOpenBuilder={() => onOpenDetail?.('context-builder', newBuilderId(activeTab), 'New context')}
       />
     </div>
   );
