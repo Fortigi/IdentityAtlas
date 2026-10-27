@@ -88,11 +88,17 @@ function userRootNodes(core, identityInfo, manager) {
     // already calls the same bucket.
     { key: 'access-packages', label: 'Business Roles',    count: core.accessPackageCount || 0, kind: 'category' },
     { key: 'identity',        label: 'Identity',          count: identityInfo?.identity ? 1 : 0, kind: 'category' },
-    // Principal→principal relationships (migration 057). Shown only when present,
-    // so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
-    // subject (an AI agent / a guest); the reverse "Owned Agents"/"Sponsored
-    // Guests" on whoever is the owner/sponsor. "Linked Resource" is the agent's
-    // enterprise-app Resource (same id), bridging its Principal ↔ Resource views.
+    ...principalRelationshipNodes(core),
+  ];
+}
+
+// Principal→principal relationships (migration 057). Shown only when present,
+// so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
+// subject (an AI agent / a guest); the reverse "Owned Agents"/"Sponsored
+// Guests" on whoever is the owner/sponsor. "Linked Resource" is the agent's
+// enterprise-app Resource (same id), bridging its Principal ↔ Resource views.
+function principalRelationshipNodes(core) {
+  return [
     ...(core.linkedResource ? [{ key: 'linked-resource',   label: 'Linked Resource',  count: 1, kind: 'category' }] : []),
     ...((core.ownerCount || 0) > 0          ? [{ key: 'owners',            label: 'Owners',            count: core.ownerCount,          kind: 'category' }] : []),
     ...((core.sponsorCount || 0) > 0        ? [{ key: 'sponsors',          label: 'Sponsors',          count: core.sponsorCount,        kind: 'category' }] : []),
