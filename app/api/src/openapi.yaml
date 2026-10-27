@@ -2881,7 +2881,10 @@ components:
         principalId: { type: string, format: uuid, nullable: true }
         identityId: { type: string, format: uuid, nullable: true }
         displayName: { type: string, nullable: true }
-        addedBy: { type: string, enum: [sync, algorithm, analyst] }
+        addedBy:
+          type: string
+          enum: [sync, algorithm, analyst, sourceOwner]
+          description: "`sourceOwner` is the owner a synced context's source names (ownerUserId), kept in step on every sync; `sync` is a role a crawler stated directly."
     ContextRelationship:
       type: object
       description: A relationship as seen from one context.

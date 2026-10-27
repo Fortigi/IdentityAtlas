@@ -84,6 +84,11 @@ export default function ContextPeople({ attrs, onOpenDetail }) {
   );
 }
 
+// Roles the source stated: one a crawler named directly ('sync'), and the owner
+// the source names for a synced context ('sourceOwner', kept in step by the ingest).
+const FROM_SOURCE = new Set(['sync', 'sourceOwner']);
+const addedByLabel = (by) => (by === 'sourceOwner' ? 'sync (the owner the source names)' : by);
+
 // One person holding a role: their name (a link to the account when we can
 // open one), who added the role, the source system when a sync added it,
 // and a remove cross for a writer.
@@ -92,11 +97,11 @@ function RoleChip({ role, sourceName, canWrite, onRemove, onOpenDetail }) {
   const kind = role.principalId ? 'user' : 'identity';
   const linkable = !!onOpenDetail && !!(role.principalId || role.identityId);
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border bg-gray-50 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600" title={`Added by ${role.addedBy}`}>
+    <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border bg-gray-50 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600" title={`Added by ${addedByLabel(role.addedBy)}`}>
       {linkable
         ? <button type="button" onClick={() => onOpenDetail(kind, role.principalId || role.identityId, name)} className="underline decoration-dotted underline-offset-2 hover:text-blue-700 dark:hover:text-blue-300">{name}</button>
         : <span>{name}</span>}
-      {role.addedBy === 'sync' && sourceName && <span className="text-gray-500 dark:text-gray-400">from {sourceName}</span>}
+      {FROM_SOURCE.has(role.addedBy) && sourceName && <span className="text-gray-500 dark:text-gray-400">from {sourceName}</span>}
       {canWrite && (
         <button type="button" onClick={() => onRemove(role.id)} aria-label={`Remove ${name} as ${role.role}`} className="text-gray-500 hover:text-red-600 dark:hover:text-red-400 leading-none">✕</button>
       )}

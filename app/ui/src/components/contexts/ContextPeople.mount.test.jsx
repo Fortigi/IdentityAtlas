@@ -84,6 +84,18 @@ describe('ContextPeople (mounted)', () => {
     expect(screen.getAllByText(/^from /)).toHaveLength(1);
   });
 
+  // The owner field of a synced context lands as 'sourceOwner' (migration 105):
+  // still the source's word, so it names the system too, with a readable title.
+  it('names the source system on the owner the source names (sourceOwner)', async () => {
+    const roles = [
+      { id: 'r-own', role: 'Accountable', principalId: 'p-9', identityId: null, displayName: 'Ivo Brandt', addedBy: 'sourceOwner' },
+      { id: 'r-alg', role: 'Responsible', principalId: 'p-2', identityId: null, displayName: 'Tom Okafor', addedBy: 'algorithm' },
+    ];
+    mount({ id: 'ctx-1', contextCategory: 'LogicalApplication', scopeSystemName: 'IdentityIQ' }, { auth: { api: api({ roles }) } });
+    expect(await screen.findByTitle('Added by sync (the owner the source names)')).toHaveTextContent(/^Ivo Brandt\s*from IdentityIQ/);
+    expect(screen.getByTitle('Added by algorithm')).not.toHaveTextContent('from');
+  });
+
   it('shows no source hint when the context names no source system', async () => {
     const roles = [{ id: 'r-sync', role: 'Accountable', principalId: 'p-9', identityId: null, displayName: 'Ivo Brandt', addedBy: 'sync' }];
     mount({ id: 'ctx-1', contextCategory: 'LogicalApplication' }, { auth: { api: api({ roles }) } });
