@@ -19,7 +19,7 @@ import { PeopleHeader, PersonCells } from './PeopleCells';
 
 const MARK_SIGN = Object.fromEntries(MARK_LEGEND.map(m => [m.key, m]));
 
-function MarkSign({ mark }) {
+export function MarkSign({ mark }) {
   if (!mark) return null;
   const s = MARK_SIGN[mark];
   return (
@@ -98,7 +98,7 @@ export default function WorkbenchGrid({ groups, columns, roles, color, isDark, c
 // A person in a role's own column: holding it (the role's colour), or — for the
 // draft — about to (its provisioning gap). An existing role's cell can be selected
 // like any held access; the draft's cannot (it is no access yet).
-function RoleCell({ role, personKey, cellIndex, color, selection, marks, pick }) {
+export function RoleCell({ role, personKey, cellIndex, color, selection, marks, pick }) {
   const props = roleCellProps({ role, personKey, cellIndex, color });
   const k = cellKey(personKey, role.id);
   const selectable = !role.draft;

@@ -49,8 +49,8 @@ describe('parseName / parseReadAt', () => {
 
 describe('parseView', () => {
   it('keeps only the workbench view keys', () => {
-    expect(parseView({ columns: ['name'], filters: { activity: { values: ['x'] } }, sort: null, evil: 'DROP', groupBy: 'none' }))
-      .toEqual({ columns: ['name'], filters: { activity: { values: ['x'] } }, sort: null, groupBy: 'none' });
+    expect(parseView({ columns: ['name'], filters: { activity: { values: ['x'] } }, sort: null, evil: 'DROP', groupBy: 'none', orientation: 'rows' }))
+      .toEqual({ columns: ['name'], filters: { activity: { values: ['x'] } }, sort: null, groupBy: 'none', orientation: 'rows' });
     expect(parseView(undefined)).toEqual({});
   });
 

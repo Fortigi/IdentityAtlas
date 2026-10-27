@@ -4398,7 +4398,7 @@ components:
       properties:
         name: { type: string, maxLength: 200, description: Required for a new investigation }
         description: { type: string, maxLength: 1000, nullable: true }
-        view: { type: object, description: 'The workbench view: columns, filters, sort, includeChildren, minHolders, columnSearch, groupBy' }
+        view: { type: object, description: 'The workbench view: columns, filters, sort, includeChildren, minHolders, columnSearch, groupBy, orientation (columns | rows)' }
         accessReadAt: { type: string, format: date-time, nullable: true }
         accessCells:
           type: array

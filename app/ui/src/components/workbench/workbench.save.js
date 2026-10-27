@@ -7,7 +7,7 @@
 import { columnByKey } from './workbench.columns';
 
 const ACCESS_TYPES = new Set(['Direct', 'Indirect', 'Eligible']);
-const VIEW_KEYS = ['columns', 'filters', 'sort', 'includeChildren', 'minHolders', 'columnSearch', 'groupBy'];
+const VIEW_KEYS = ['columns', 'filters', 'sort', 'includeChildren', 'minHolders', 'columnSearch', 'groupBy', 'orientation'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const splitKey = (k) => { const i = k.lastIndexOf('|'); return [k.slice(0, i), k.slice(i + 1)]; };

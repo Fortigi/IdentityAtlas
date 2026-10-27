@@ -18,26 +18,35 @@ const cellStyle = (column, left, z) => ({ left, zIndex: z, width: column.width, 
 
 export function PeopleHeader({ columns, offsets, people, filters, sort, onSort, onFilter }) {
   const [open, setOpen] = useState(null);
-  return columns.map((column, i) => {
-    const filtered = !!filters[column.key];
-    const sorted = sort?.key === column.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : '';
-    return (
-      <th key={column.key} scope="col" style={cellStyle(column, offsets[i], open === column.key ? 45 : 30)}
-        className={`${STICKY} top-0 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-200`}>
-        <div className="relative flex items-center gap-1">
-          <button type="button" onClick={() => onSort(column.key)} className="min-w-0 flex-1 truncate text-left hover:underline" title={`Sort by ${column.label}`} aria-label={`Sort by ${column.label}`}>
-            {column.label}{sorted}
-          </button>
-          <button type="button" onClick={() => setOpen(open === column.key ? null : column.key)} aria-label={`Filter ${column.label}`} aria-expanded={open === column.key}
-            className={`rounded px-1 ${filtered ? 'bg-blue-600 text-white dark:bg-blue-500' : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'}`}>▾</button>
-          {open === column.key && (
-            <ColumnFilterMenu column={column} people={people} filter={filters[column.key]}
-              onApply={(f) => { onFilter(column.key, f); setOpen(null); }} onClose={() => setOpen(null)} />
-          )}
-        </div>
-      </th>
-    );
-  });
+  return columns.map((column, i) => (
+    <th key={column.key} scope="col" style={cellStyle(column, offsets[i], open === column.key ? 45 : 30)}
+      className={`${STICKY} top-0 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-200`}>
+      <HeaderControls column={column} people={people} filter={filters[column.key]} sort={sort} onSort={onSort} onFilter={onFilter}
+        open={open === column.key} onOpenChange={(v) => setOpen(v ? column.key : null)} />
+    </th>
+  ));
+}
+
+/**
+ * A people column's name — click to sort by it (again to reverse) — and its
+ * Excel-like filter (▾, filled while a filter is on). Shared by both orientations:
+ * a column header with people as rows, a header row's label with people as columns.
+ */
+export function HeaderControls({ column, people, filter, sort, onSort, onFilter, open, onOpenChange }) {
+  const sorted = sort?.key === column.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : '';
+  return (
+    <div className="relative flex items-center gap-1">
+      <button type="button" onClick={() => onSort(column.key)} className="min-w-0 flex-1 truncate text-left hover:underline" title={`Sort by ${column.label}`} aria-label={`Sort by ${column.label}`}>
+        {column.label}{sorted}
+      </button>
+      <button type="button" onClick={() => onOpenChange(!open)} aria-label={`Filter ${column.label}`} aria-expanded={open}
+        className={`rounded px-1 ${filter ? 'bg-blue-600 text-white dark:bg-blue-500' : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'}`}>▾</button>
+      {open && (
+        <ColumnFilterMenu column={column} people={people} filter={filter}
+          onApply={(f) => { onFilter(column.key, f); onOpenChange(false); }} onClose={() => onOpenChange(false)} />
+      )}
+    </div>
+  );
 }
 
 export function PersonCells({ person, columns, offsets, member, onSelectRow, onDecide, onAdd, knownNames, busy }) {
@@ -89,7 +98,7 @@ function Accounts({ person }) {
 
 const STATE_MARK = { confirmed: '✓', proposed: '?', disputed: '!' };
 
-function Chip({ link, open, onToggle }) {
+export function Chip({ link, open, onToggle }) {
   const style = KIND_STYLE[link.kind];
   const dashed = link.state === 'confirmed' ? '' : 'border-dashed';
   const text = `${style.label}: ${link.name} — ${STATE_LABEL[link.state]}`;
@@ -103,7 +112,7 @@ function Chip({ link, open, onToggle }) {
 
 const POPOVER = 'absolute left-0 top-full z-40 mt-1 w-72 rounded border border-gray-200 bg-white p-2 text-[11px] shadow-lg dark:border-gray-600 dark:bg-gray-900';
 
-function Evidence({ link, onDecide, busy, onClose }) {
+export function Evidence({ link, onDecide, busy, onClose }) {
   const style = KIND_STYLE[link.kind];
   return (
     <div role="dialog" aria-label={`Evidence for ${link.name}`} className={POPOVER}>

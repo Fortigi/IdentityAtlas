@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import WorkbenchPage from './WorkbenchPage';
-import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, makeAuthFetch, fireEvent } from '@ui/test-utils/renderWithProviders';
 
 const UNIT = 'u-9';
 const INV = '11111111-1111-4111-8111-111111111111';
@@ -50,6 +50,7 @@ async function mount(routes = {}) {
   const a = api(routes);
   renderWithProviders(h(WorkbenchPage, { contextId: UNIT, onClose: () => {} }), { auth: { authFetch: a.fetch } });
   await screen.findByRole('heading', { name: 'Motor Claims' }, { timeout: 5000 });
+  fireEvent.click(screen.getByRole('button', { name: 'People as rows' }));
   return { user, calls: a.calls };
 }
 

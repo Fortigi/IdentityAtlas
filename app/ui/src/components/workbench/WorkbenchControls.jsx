@@ -3,6 +3,7 @@ import { DIMENSIONS, MARKS, selectionParts } from './workbench.model';
 import { PEOPLE_COLUMNS } from './workbench.columns';
 import { MARK_LEGEND } from './workbench.cells';
 import { MatrixLegendButton } from '@ui/components/matrix/GridCornerControls';
+import { ORIENTATIONS, orientationOf } from './workbench.transposed';
 
 // ─── The workbench's controls ────────────────────────────────────────────
 // Toolbar: which people columns show, an optional grouping (off by default — one
@@ -17,13 +18,16 @@ export function Toolbar({ view, setView }) {
   const set = (field) => (value) => setView(v => ({ ...v, [field]: value }));
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
+      <OrientationSwitch view={view} onChange={set('orientation')} />
       <ColumnsChooser shown={view.columns} onChange={set('columns')} />
-      <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Group by
-        <select value={view.groupBy} onChange={e => set('groupBy')(e.target.value)} className={FIELD}>
-          {DIMENSIONS.map(d => <option key={d.key} value={d.key}>{d.key === 'none' ? 'No grouping' : d.label}</option>)}
-        </select>
-      </label>
+      {orientationOf(view) === 'rows' && (
+        <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+          Group by
+          <select value={view.groupBy} onChange={e => set('groupBy')(e.target.value)} className={FIELD}>
+            {DIMENSIONS.map(d => <option key={d.key} value={d.key}>{d.key === 'none' ? 'No grouping' : d.label}</option>)}
+          </select>
+        </label>
+      )}
       <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
         <input type="checkbox" checked={view.includeChildren} onChange={e => set('includeChildren')(e.target.checked)} />
         Include sub-units
@@ -35,6 +39,19 @@ export function Toolbar({ view, setView }) {
       </label>
       <input type="search" value={view.columnSearch} onChange={e => set('columnSearch')(e.target.value)} placeholder="Find access…" aria-label="Find a column"
         className={`w-40 px-2 text-xs ${FIELD}`} />
+    </div>
+  );
+}
+
+// People as columns (the matrix's orientation, the default) or as rows. Saved with the view.
+function OrientationSwitch({ view, onChange }) {
+  const current = orientationOf(view);
+  return (
+    <div role="group" aria-label="Orientation" className="inline-flex overflow-hidden rounded border border-gray-300 text-xs dark:border-gray-600">
+      {ORIENTATIONS.map(o => (
+        <button key={o.key} type="button" onClick={() => onChange(o.key)} aria-pressed={current === o.key}
+          className={`px-2 py-0.5 ${current === o.key ? 'bg-blue-600 text-white dark:bg-blue-500' : 'text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700'}`}>{o.label}</button>
+      ))}
     </div>
   );
 }

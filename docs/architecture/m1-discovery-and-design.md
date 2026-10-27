@@ -201,6 +201,39 @@ investigation holding a proposed role, any unit. `POST /api/workbench/proposals/
 `{ principalIds }` (at most 2000) answers the matrix's rows for those accounts, in the shape of the
 matrix feed, plus which business roles cover each cell. Both are read-only.
 
+## People as columns (the matrix's orientation)
+
+With people as rows, someone holding 100+ groups means an endless horizontal scrollbar. That is
+why the global matrix puts resources on the rows and people on the columns. The workbench now
+opens that way too. **People as rows** stays one click away, and the choice is saved with the
+investigation's view as `orientation`.
+
+Only the layout changes (`workbench.transposed.js`, `WorkbenchColumnsGrid`). The cells are still
+person × resource, so the following work the same in both orientations: selection (click,
+Shift-click rectangle, Ctrl/⌘-click), marks, the candidate, rules, impact and save.
+
+- **Rows:** each business role of the band — the unit's roles, then the proposed ones as
+  "Draft: …" — in its matrix colour, with its entitlements nested under it, then "Other
+  access".
+  - A role row folds.
+  - A role lists every entitlement of it the unit knows. Even a rarely held one shows, so the
+    threshold and *Find access* narrow only "Other access".
+  - A resource two roles contain shows under each.
+- **Columns:** the people shown (filtered, sorted).
+  - The chosen people columns become header rows above them, the display name last, next to the
+    cells as in the matrix.
+  - Each header row's label has the same sort and Excel-like filter.
+  - A narrow cell shows the first value written upwards: knowledge with ✓/?/!, then "+N".
+    Hovering lists all values; a click opens their evidence, with Confirm / Reject.
+  - A header row nobody has a value in stays one line high.
+- **Grouping** (*Group by*) is a people-as-rows feature, so it is hidden with people as columns.
+- The rows are virtualised with TanStack Virtual, as the matrix's are.
+
+The grid reuses the matrix's `MatrixCell` and colours. It does not reuse `MatrixGroupRow` or
+`SortableMatrixBody`. Those carry the global matrix's own state (nested-group expansion, drag
+order, fold tallies), and threading the workbench's selection and marks through them would put the
+global matrix at risk.
+
 ## Proposed roles on the unit page
 
 An analyst's unit page shows the same saved proposals. It reads them from the existing

@@ -8,6 +8,8 @@ import { useWorkbenchData, useWorkbenchDraft, activeDraft } from './useWorkbench
 import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
 import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';
+import WorkbenchColumnsGrid from './WorkbenchColumnsGrid';
+import { DEFAULT_ORIENTATION, orientationOf } from './workbench.transposed';
 import CandidatePanel from './CandidatePanel';
 import InvestigationBar from './InvestigationBar';
 import RoleSaveActions from './RoleSaveActions';
@@ -28,8 +30,9 @@ import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, 
 // InvestigationBar). Design: docs/architecture/m1-discovery-and-design.md.
 
 // minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
-// One row per person by default (groupBy 'none'); people columns as in DEFAULT_COLUMNS.
-const DEFAULT_VIEW = { groupBy: 'none', columns: DEFAULT_COLUMNS, filters: {}, sort: null, includeChildren: true, minHolders: null, columnSearch: '' };
+// People as columns by default (the matrix's orientation; workbench.transposed.js), or
+// as rows — one row per person (groupBy 'none'); people columns as in DEFAULT_COLUMNS.
+const DEFAULT_VIEW = { orientation: DEFAULT_ORIENTATION, groupBy: 'none', columns: DEFAULT_COLUMNS, filters: {}, sort: null, includeChildren: true, minHolders: null, columnSearch: '' };
 
 function visibleColumns(columns, view) {
   const q = view.columnSearch.trim().toLowerCase();
@@ -96,9 +99,15 @@ export default function WorkbenchPage({ contextId: routeId, onCacheData, onClose
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
-          <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
-            cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
-            people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
+          {orientationOf(view) === 'rows' ? (
+            <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
+              cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
+              people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
+          ) : (
+            <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color}
+              cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
+              header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter }} />
+          )}
           <Legend />
         </div>
         <div className="w-full shrink-0 xl:w-96">
