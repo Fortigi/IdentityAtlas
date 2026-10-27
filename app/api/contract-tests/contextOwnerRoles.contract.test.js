@@ -74,14 +74,18 @@ async function seed() {
   await context('manual', 'E-A', { variant: 'manual' });
   await context('segment', 'E-A', { category: 'Segment' });
   await context('analyst', 'E-A');
-  await context('syncReplaced', '1001');
-  await context('syncNoOwner', '');
-  await context('syncUnresolvable', 'nobody');
+  await context('ownerReplaced', '1001');
+  await context('ownerGone', '');
+  await context('ownerUnresolvable', 'nobody');
+  await context('crawlerNoOwner', '');      // POST /ingest/context-roles on a context without ownerUserId
+  await context('crawlerOwnerDiffers', 'E-A');
   await context('responsibleOnly', 'E-A');
   await role('analyst', 'x', 'Accountable', 'analyst');
-  await role('syncReplaced', 'a', 'Accountable', 'sync');
-  await role('syncNoOwner', 'a', 'Accountable', 'sync');
-  await role('syncUnresolvable', 'a', 'Accountable', 'sync');
+  await role('ownerReplaced', 'a', 'Accountable', 'sourceOwner');
+  await role('ownerGone', 'a', 'Accountable', 'sourceOwner');
+  await role('ownerUnresolvable', 'a', 'Accountable', 'sourceOwner');
+  await role('crawlerNoOwner', 'x', 'Accountable', 'sync');
+  await role('crawlerOwnerDiffers', 'x', 'Accountable', 'sync');
   await role('responsibleOnly', 'a', 'Responsible', 'analyst');
 }
 
@@ -110,17 +114,23 @@ afterAll(async () => {
   await pool.end();
 });
 
+// A crawler's own 'sync' Accountable stays put either way: with no owner on the
+// context (crawlerNoOwner — the bug this marker fixed) and with an owner that
+// names someone else (crawlerOwnerDiffers — an existing Accountable is never
+// overwritten). Only the reconcile's own 'sourceOwner' rows move or go.
 const AFTER_INGEST = [
   'analyst:Accountable:x:analyst',
-  'empId:Accountable:emp:sync',
-  'empOneLive:Accountable:empLive:sync',
-  'extId:Accountable:a:sync',
-  'liveOverDeleted:Accountable:alive:sync',
-  'onlyDeleted:Accountable:onlyDead:sync',
-  'otherScope:Accountable:a2:sync',
-  'responsibleOnly:Accountable:a:sync',
+  'crawlerNoOwner:Accountable:x:sync',
+  'crawlerOwnerDiffers:Accountable:x:sync',
+  'empId:Accountable:emp:sourceOwner',
+  'empOneLive:Accountable:empLive:sourceOwner',
+  'extId:Accountable:a:sourceOwner',
+  'liveOverDeleted:Accountable:alive:sourceOwner',
+  'onlyDeleted:Accountable:onlyDead:sourceOwner',
+  'otherScope:Accountable:a2:sourceOwner',
+  'ownerReplaced:Accountable:emp:sourceOwner',
+  'responsibleOnly:Accountable:a:sourceOwner',
   'responsibleOnly:Responsible:a:analyst',
-  'syncReplaced:Accountable:emp:sync',
 ];
 
 describe('synced owner → Accountable at ingest', () => {
@@ -140,12 +150,13 @@ describe('synced owner → Accountable at ingest', () => {
   });
 
   it('touches only the contexts of the batch', async () => {
-    const counts = await reconcileBatchAccountables(runner(), 'Contexts', [{ id: C.extId }, { id: C.syncNoOwner }]);
+    const counts = await reconcileBatchAccountables(runner(), 'Contexts', [{ id: C.extId }, { id: C.ownerGone }]);
     expect(counts).toEqual({ set: 1, replaced: 0, removed: 1, unresolved: 0 });
     expect(await roles()).toEqual([
-      'analyst:Accountable:x:analyst', 'extId:Accountable:a:sync',
-      'responsibleOnly:Responsible:a:analyst', 'syncReplaced:Accountable:a:sync',
-      'syncUnresolvable:Accountable:a:sync',
+      'analyst:Accountable:x:analyst', 'crawlerNoOwner:Accountable:x:sync',
+      'crawlerOwnerDiffers:Accountable:x:sync', 'extId:Accountable:a:sourceOwner',
+      'ownerReplaced:Accountable:a:sourceOwner', 'ownerUnresolvable:Accountable:a:sourceOwner',
+      'responsibleOnly:Responsible:a:analyst',
     ]);
   });
 
@@ -154,7 +165,7 @@ describe('synced owner → Accountable at ingest', () => {
     try {
       await client.query('BEGIN');
       await client.query(`CREATE TEMP TABLE "_tmp_owner_test" (id uuid) ON COMMIT DROP`);
-      await client.query(`INSERT INTO "_tmp_owner_test" VALUES ($1), ($2)`, [C.empId, C.syncReplaced]);
+      await client.query(`INSERT INTO "_tmp_owner_test" VALUES ($1), ($2)`, [C.empId, C.ownerReplaced]);
       const counts = await reconcileSessionAccountables(client, 'Contexts', '_tmp_owner_test');
       await client.query('COMMIT');
       expect(counts).toEqual({ set: 1, replaced: 1, removed: 0, unresolved: 0 });
@@ -189,17 +200,19 @@ describe('migration 096 — catch-up, insert-only', () => {
     }
     expect(after).toEqual([
       'analyst:Accountable:x:analyst',
+      'crawlerNoOwner:Accountable:x:sync',
+      'crawlerOwnerDiffers:Accountable:x:sync',
       'empId:Accountable:emp:sync',
       'empOneLive:Accountable:empLive:sync',
       'extId:Accountable:a:sync',
       'liveOverDeleted:Accountable:alive:sync',
       'onlyDeleted:Accountable:onlyDead:sync',
       'otherScope:Accountable:a2:sync',
+      'ownerGone:Accountable:a:sourceOwner',
+      'ownerReplaced:Accountable:a:sourceOwner',
+      'ownerUnresolvable:Accountable:a:sourceOwner',
       'responsibleOnly:Accountable:a:sync',
       'responsibleOnly:Responsible:a:analyst',
-      'syncNoOwner:Accountable:a:sync',
-      'syncReplaced:Accountable:a:sync',
-      'syncUnresolvable:Accountable:a:sync',
     ]);
   });
 });

@@ -24,10 +24,15 @@
  * ix_Principals_employeeId (migration 001), so no index is added for this.
  *
  * What it writes, per context in the batch:
- *   - owner resolves to P, no Accountable yet      → add P, addedBy 'sync'   (set)
- *   - owner resolves to P, 'sync' Accountable ≠ P  → point that row at P     (replaced)
- *   - no owner, or it resolves to nobody           → drop a 'sync' Accountable (removed)
- *   - an 'analyst' or 'algorithm' Accountable      → left alone, whatever the source says
+ *   - owner resolves to P, no Accountable yet             → add P, addedBy 'sourceOwner' (set)
+ *   - owner resolves to P, 'sourceOwner' Accountable ≠ P  → point that row at P (replaced)
+ *   - no owner, or it resolves to nobody                  → drop a 'sourceOwner' Accountable (removed)
+ *   - any other Accountable ('analyst', 'algorithm', or a 'sync' one a crawler
+ *     stated through POST /ingest/context-roles)          → left alone
+ * addedBy 'sourceOwner' marks the rows this reconcile wrote, so it only ever
+ * replaces or removes its own: a crawler that names the Accountable directly,
+ * on a context whose ownerUserId is empty, keeps it (migration 105 relabelled
+ * the rows written as 'sync' before the marker existed).
  * The Accountable is unique per context (ux_ContextRoles_accountable), so a
  * choice an analyst made is never overwritten by the next sync; it gives way
  * only when the analyst removes it. A Responsible is never touched.
@@ -45,6 +50,10 @@ import { ROLE_BEARING_CATEGORIES } from '../lib/contextCategories.js';
 export const OWNER_PRINCIPAL_ORDER = `(p."deletedAt" IS NULL) DESC,
                     (p."systemId" IS NOT DISTINCT FROM c."scopeSystemId") DESC,
                     p.id`;
+
+// The addedBy of an Accountable this reconcile wrote — the only rows it replaces
+// or removes.
+export const OWNER_ADDED_BY = 'sourceOwner';
 
 const ROLE_BEARING_SQL = [...ROLE_BEARING_CATEGORIES].map(cat => `'${cat}'`).join(', ');
 
@@ -97,20 +106,20 @@ replaced AS (
          "updatedAt" = (now() AT TIME ZONE 'utc')
     FROM accountable a
     JOIN resolved res ON res."contextId" = a."contextId"
-   WHERE r.id = a.id AND a."addedBy" = 'sync'
+   WHERE r.id = a.id AND a."addedBy" = '${OWNER_ADDED_BY}'
      AND a."principalId" IS DISTINCT FROM res."principalId"
   RETURNING r.id
 ),
 removed AS (
   DELETE FROM "ContextRoles" r
    USING accountable a
-   WHERE r.id = a.id AND a."addedBy" = 'sync'
+   WHERE r.id = a.id AND a."addedBy" = '${OWNER_ADDED_BY}'
      AND NOT EXISTS (SELECT 1 FROM resolved res WHERE res."contextId" = a."contextId")
   RETURNING r.id
 ),
 added AS (
   INSERT INTO "ContextRoles" ("contextId", "principalId", "role", "addedBy")
-  SELECT res."contextId", res."principalId", 'Accountable', 'sync'
+  SELECT res."contextId", res."principalId", 'Accountable', '${OWNER_ADDED_BY}'
     FROM resolved res
    WHERE NOT EXISTS (SELECT 1 FROM accountable a WHERE a."contextId" = res."contextId")
   ON CONFLICT DO NOTHING
