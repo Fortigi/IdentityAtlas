@@ -53,6 +53,48 @@ function Get-DemoIndex {
     finally { $md5.Dispose() }
 }
 
+# The letters a canonical decomposition leaves whole, because they are not a base
+# letter plus an accent: a stroked or dotless letter, and the ligatures a language
+# writes as two letters. Each has to be named, so they are listed.
+$script:DemoUndecomposedLetters = @{
+    'ı' = 'i'; 'ł' = 'l'; 'ø' = 'o'; 'đ' = 'd'; 'ß' = 'ss'
+    'æ' = 'ae'; 'œ' = 'oe'; 'þ' = 'th'; 'ð' = 'd'
+}
+
+<#
+.SYNOPSIS
+    A name lower-cased and folded to its ASCII base letters.
+.DESCRIPTION
+    How a real directory spells a name it has to put in a login or an address:
+    Sevgi Doğan's admin account is `adm-sdogan`, not `adm-sdoğan`. The generator
+    needs the same fold the engine does (app/api/src/accountlinking/fold.js), or
+    the demo data cannot express the case at all — a login spelled with the
+    letter is a login no ASCII convention would produce, and one hand-written
+    without it is spelled after a person this file indexes under another name
+    (#1480).
+
+    Separators and punctuation are left where they are; each caller drops the
+    ones it does not want, the way it always has.
+#>
+function ConvertTo-DemoAsciiName {
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$Value)
+
+    $decomposed = $Value.ToLowerInvariant().Normalize([System.Text.NormalizationForm]::FormD)
+    $out = [System.Text.StringBuilder]::new()
+    foreach ($ch in $decomposed.ToCharArray()) {
+        # The accent a decomposition split off: dropped, so the base letter it sat
+        # on is what is left.
+        if ([System.Globalization.CharUnicodeInfo]::GetUnicodeCategory($ch) -eq [System.Globalization.UnicodeCategory]::NonSpacingMark) { continue }
+        $letter = [string]$ch
+        $null = $out.Append($(if ($script:DemoUndecomposedLetters.ContainsKey($letter)) { $script:DemoUndecomposedLetters[$letter] } else { $letter }))
+    }
+    # Lower-cased at both ends: before, so the map above is reached at all; after,
+    # because a decomposition can hand back an upper-case base letter that the
+    # first pass never saw (Turkish dotted İ, which .NET leaves alone and only
+    # FormD splits into 'I' plus a dot).
+    return $out.ToString().ToLowerInvariant()
+}
+
 # The accumulator. Every part dot-sourced after this one appends into it; the
 # orchestrator reads it back out to assemble demo-company.json.
 function New-DemoState {

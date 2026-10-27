@@ -55,11 +55,11 @@ describe('nameVariants — the shapes a "Surname, Initials" source writes', () =
   });
 
   it('reads the structured givenName column as a sequence before it collapses', () => {
-    // The identity side of the same comparison. `fGiven` has always collapsed to
-    // one token — `laurarene`, the accent dropped rather than folded (#1480) —
-    // so the second initial only exists because the words are read first.
+    // The identity side of the same comparison. `fGiven` collapses to one token
+    // — `laurarenee`, the accent folded to its base letter (#1480) — so the
+    // second initial only exists because the words are read first.
     expect(one('Laura Renée Buskes', 'Laura Renée', 'Buskes')).toMatchObject({
-      given: 'laurarene', initials: ['l', 'r'],
+      given: 'laurarenee', initials: ['l', 'r'],
     });
   });
 

@@ -697,7 +697,7 @@ describe('loginNameForms - the surname a convention shortened (#1468)', () => {
     const { full, initial, loose } = loginNameForms({
       displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
     });
-    expect([...full.keys()]).toEqual(['danillevandongen']);
+    expect([...full.keys()]).toEqual(['daniellevandongen']); // the ë folded, not dropped (#1480)
     expect([...initial.keys()]).toEqual(['dvandongen']);
     expect([...loose.keys()]).toEqual(['ddongen']);
   });

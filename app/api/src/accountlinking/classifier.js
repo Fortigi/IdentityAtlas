@@ -8,6 +8,7 @@
 import RE2 from 're2';
 import { DEFAULT_RULES } from './defaultRules.js';
 import { isInitialsHalf, nameInitials, initialsAgree } from './initials.js';
+import { foldedToken } from './fold.js';
 
 /** Local part of an email/UPN, lower-cased. Principals store mail-or-UPN in `email`. */
 export function emailLocalPart(email) {
@@ -27,7 +28,10 @@ export function stripKnownPrefixes(localPart, prefixes = []) {
   return localPart;
 }
 
-/** Normalise a display name to a comparable token (lowercased, suffixes removed, alnum only). */
+/**
+ * Normalise a display name to a comparable token: lowercased, suffixes removed,
+ * letters folded to their ASCII base (see `foldDiacritics`), alnum only.
+ */
 export function normalizeName(value, stripSuffixes = []) {
   if (!value) return '';
   let s = String(value).toLowerCase().trim();
@@ -35,7 +39,7 @@ export function normalizeName(value, stripSuffixes = []) {
     const sl = String(suf).toLowerCase();
     if (sl && s.includes(sl)) s = s.split(sl).join(' ');
   }
-  return s.replace(/[^a-z0-9]+/g, '');
+  return foldedToken(s);
 }
 
 /** Compile accountTypeRules once (lowest priority first). */
@@ -84,7 +88,7 @@ export function classifyAccount(principal, rules = DEFAULT_RULES) {
 // "(ADM-azure)". Stripped before parsing so the same person under different
 // roles reduces to the same name.
 const QUALIFIER_RE = /\([^)]*\)|\[[^\]]*\]/g;
-const normToken = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+const normToken = foldedToken;
 
 // Pre- and post-nominal titles that HR and directory display names routinely
 // carry ("drs. Anna Bakker", "Jan de Vries MSc"). A title is not a name token:
