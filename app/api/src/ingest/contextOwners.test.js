@@ -4,7 +4,7 @@
 // analyst's Accountable surviving) is only meaningful against PostgreSQL and is
 // verified in contract-tests/contextOwnerRoles.contract.test.js.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   reconcileBatchAccountables, reconcileSessionAccountables, buildAccountableReconcileSql,
   ownerResolutionCtes, OWNER_PRINCIPAL_ORDER, OWNER_ADDED_BY,
@@ -51,6 +51,27 @@ describe('reconcileBatchAccountables', () => {
       .resolves.toEqual({ set: 2, replaced: 0, removed: 0, unresolved: 0 });
     await expect(reconcileBatchAccountables(runner(), 'Contexts', [{ id: ID1 }]))
       .resolves.toEqual({ set: 0, replaced: 0, removed: 0, unresolved: 0 });
+  });
+});
+
+describe('the "Accountables from source owners" setting', () => {
+  const KEY = 'FEATURE_SOURCE_OWNER_ACCOUNTABLES';
+  afterEach(() => { delete process.env[KEY]; });
+
+  it('switched off, neither reconcile touches the database — every Accountable stays as it is', async () => {
+    process.env[KEY] = 'false';
+    const batch = runner(COUNTS);
+    const session = runner(COUNTS);
+    await expect(reconcileBatchAccountables(batch, 'Contexts', [{ id: ID1 }])).resolves.toBeNull();
+    await expect(reconcileSessionAccountables(session, 'Contexts', '_tmp_session_abc')).resolves.toBeNull();
+    expect(batch.query).not.toHaveBeenCalled();
+    expect(session.query).not.toHaveBeenCalled();
+  });
+
+  it('on by default: with nothing configured the batch is reconciled', async () => {
+    const r = runner(COUNTS);
+    await expect(reconcileBatchAccountables(r, 'Contexts', [{ id: ID1 }])).resolves.toEqual(COUNTS);
+    expect(r.query).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -34,11 +34,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports and contextAssistant follow matrixSharing for the same reason.
+// customReports, contextAssistant and sourceOwnerAccountables follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, sourceOwnerAccountables: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -50,9 +50,9 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Four cards: experimental crawlers off; matrix sharing, custom reports and the context assistant on.
+    // Five cards: experimental crawlers off; matrix sharing, custom reports, the context assistant and source-owner Accountables on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(3);
+    expect(screen.getAllByText('Enabled')).toHaveLength(4);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -60,7 +60,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(3);
+    expect(screen.getAllByText('Disabled')).toHaveLength(4);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
@@ -153,6 +153,23 @@ describe('ExperimentalFeaturesSection', () => {
       renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
         { auth: { authFetch: makeAuthFetch({}) } });
       expect(await screen.findByRole('switch', { name: 'Matrix sharing' })).toBeDisabled();
+    });
+  });
+
+  describe('Accountables from source owners', () => {
+    it('reads its own flag and turns it OFF by posting sourceOwnerAccountables:false', async () => {
+      const { authFetch } = render(true, undefined, true);
+      const sw = await screen.findByRole('switch', { name: 'Accountables from source owners' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'true'));
+      await userEvent.click(sw);
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'sourceOwnerAccountables', enabled: false });
+    });
+
+    it('says that switching it off leaves every Accountable as it is', async () => {
+      render(false);
+      expect(await screen.findByText(/Turning this off leaves every Accountable as it is/)).toBeInTheDocument();
     });
   });
 
