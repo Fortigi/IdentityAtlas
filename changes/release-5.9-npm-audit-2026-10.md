@@ -1,0 +1,1 @@
+- Updated vulnerable third-party packages in the 5.9 release line (vite, multer, body-parser, undici, zod and others) so the dependency audit passes again and pending dependency updates can land
