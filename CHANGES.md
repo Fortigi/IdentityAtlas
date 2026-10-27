@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The **Reports** tab is now shown to every user by default; it no longer has to be switched on under Settings → Visible Tabs.
+- **Contexts** and **Identities** are now optional tabs, hidden by default. Switch them on per user under Settings → Visible Tabs (Identities only while account linking is enabled). The pages stay reachable by link either way.
+
+## Changes in this PR
+
 - The SCIM 2.0 crawler is no longer experimental: it now always appears in Admin → Crawlers → Add Crawler, without the Experimental badge and without having to switch on Admin → Experimental → Experimental crawlers first.
 
 ## Changes in this PR
