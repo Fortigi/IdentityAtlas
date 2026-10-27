@@ -30,6 +30,7 @@ async function resolveProposals(authFetch, invs) {
 
 export async function loadProposedLens(authFetch, list, investigationId, realPackages) {
   const picked = investigationId ? list.filter(i => i.id === investigationId) : list;
+  if (picked.length === 0) return null; // nothing saved: no rows to ask for
   const proposals = await resolveProposals(authFetch, picked);
   const principalIds = [...new Set(proposals.flatMap(p => p.principals))];
   const rows = await json(authFetch, '/api/workbench/proposals/matrix', {
@@ -52,7 +53,7 @@ export function useProposedLens(investigationId, realPackages) {
     let cancelled = false;
     json(authFetch, '/api/workbench/investigations')
       .then(b => { if (!cancelled) setList(b.data || []); })
-      .catch(err => { if (!cancelled) { setList([]); setState({ lens: null, loading: false, error: err.message }); } });
+      .catch(err => { if (!cancelled) setState({ lens: null, loading: false, error: err.message }); });
     return () => { cancelled = true; };
   }, [authFetch]);
 

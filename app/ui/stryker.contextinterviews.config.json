@@ -51,7 +51,10 @@
     "src/components/workbench/useInvestigation.js",
     "src/components/workbench/InvestigationBar.jsx",
     "src/components/workbench/RoleSaveActions.jsx",
-    "src/components/matrix/MatrixBadges.jsx"
+    "src/components/matrix/MatrixBadges.jsx",
+    "src/components/matrix/proposedLens.js",
+    "src/components/matrix/useProposedLens.js",
+    "src/components/matrix/ProposedMatrix.jsx"
   ],
   "mutationExclusions": {
     "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the AddInformation (interviewForms.mount.test.jsx) and ContextPeople mount tests, which mount without one.",

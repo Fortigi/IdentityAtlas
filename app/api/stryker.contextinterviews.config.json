@@ -50,7 +50,8 @@
     "src/routes/contexts/workbench.js",
     "src/contexts/workbench/investigationDraft.js",
     "src/contexts/workbench/investigations.js",
-    "src/routes/contexts/workbenchInvestigations.js"
+    "src/routes/contexts/workbenchInvestigations.js",
+    "src/contexts/workbench/proposedMatrix.js"
   ],
   "thresholds": {
     "high": 90,

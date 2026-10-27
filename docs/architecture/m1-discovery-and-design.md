@@ -177,6 +177,30 @@ investigations with who saved them, when, and when their access data was read; o
 unsaved work and deleting one ask first). The proposed-roles badge says *not saved*, *saved* or
 *unsaved changes*.
 
+## Proposed roles in the matrix
+
+The Matrix's lens switch gets a fifth option, **Proposed**, next to All / Governed / Non-governed
+/ Gaps. It shows the saved proposed roles the way the matrix shows business roles. The first four
+lenses are unchanged, and Proposed only appears for someone with `data.write.contexts` outside a
+shared view. It is not saved with a matrix or a share link: a saved or shared matrix on Proposed
+opens on All.
+
+- Each saved proposed role is a band **"Draft: <name>"** under the category *Proposed*, in its own
+  colour. The cells it covers take that colour (the matrix's own `describeCell` / `MatrixCell`).
+  A member who lacks one of its entitlements shows as the matrix's provisioning gap.
+- The real business roles keep their bands and colours, so an overlap with what is already governed
+  shows.
+- The rows are the members' accounts and *everything* they hold, not only the role's entitlements.
+- **Who it reaches is computed now.** A rule-based role's saved rule runs on the unit's current
+  people (the workbench's own `effectiveMembers`), plus always-include minus always-exclude. A
+  requestable role uses its saved members.
+- **From investigation** picks one saved investigation (unit, saved by, date) or all of them.
+
+**API** (needs `data.write.contexts`): `GET /api/workbench/investigations` lists every saved
+investigation holding a proposed role, any unit. `POST /api/workbench/proposals/matrix` with
+`{ principalIds }` (at most 2000) answers the matrix's rows for those accounts, in the shape of the
+matrix feed, plus which business roles cover each cell. Both are read-only.
+
 ## Deferred (Milestone 2 / 3)
 
 - **M2b:** review, approve and version a proposed role (`status` beyond `draft`, `version` beyond

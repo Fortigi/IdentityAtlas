@@ -39,6 +39,23 @@ describe('MatrixToolbar', () => {
     expect(setManagedFilter).toHaveBeenCalledWith('gaps');
   });
 
+  it('offers the Proposed lens only when asked, after Gaps, and switches to it', async () => {
+    const { setManagedFilter } = renderToolbar({ showProposed: true });
+    expect(screen.getAllByRole('button').map(b => b.textContent.trim()))
+      .toEqual(['All', 'Governed', 'Non-governed', 'Gaps', 'Proposed', 'Export ▾']);
+    await userEvent.click(screen.getByRole('button', { name: 'Proposed' }));
+    expect(setManagedFilter).toHaveBeenCalledWith('proposed');
+  });
+
+  it('keeps every other lens working the same with Proposed on', async () => {
+    const { setManagedFilter } = renderToolbar({ showProposed: true, managedFilter: 'proposed' });
+    expect(screen.getByRole('button', { name: 'Proposed' }).className).toContain('bg-blue-600');
+    for (const [label, key] of [['All', 'all'], ['Governed', 'managed'], ['Non-governed', 'unmanaged'], ['Gaps', 'gaps']]) {
+      await userEvent.click(screen.getByRole('button', { name: label }));
+      expect(setManagedFilter).toHaveBeenLastCalledWith(key);
+    }
+  });
+
   it('drops Gaps when the view has no gap data', () => {
     renderToolbar({ hideGaps: true });
     expect(screen.queryByRole('button', { name: 'Gaps' })).not.toBeInTheDocument();

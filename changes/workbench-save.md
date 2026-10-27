@@ -5,3 +5,4 @@
 - Proposed roles are stored apart from real business roles: saving never creates a role, an assignment or access.
 - Saving an investigation also keeps how each proposed role is assigned: rule-based or requestable, its assignment rule, always-include / always-exclude, joiner and leaver choices, the approver and the "why" — all back on Open.
 - "Save role" and "Save and start the next role" at the end of the proposed role: it says what the role still needs (a name, its kind, an entitlement), asks the investigation's name the first time, and starts the next role with its kind to choose.
+- New **Proposed** view in the Matrix (next to All, Governed, Non-governed and Gaps): the proposed roles saved in workbench investigations show as "Draft: …" business roles in their own colours, over the access of the people they would reach — with the real business roles still shown, so overlaps stand out. Pick one investigation or see them all. Nothing here changes access.

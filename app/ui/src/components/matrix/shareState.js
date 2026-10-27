@@ -81,7 +81,7 @@ export function liveShareWarning(share) {
 
 // ─── A matrix is a document (#1202) ─────────────────────────────────────────
 
-const MANAGED_STATES = ['all', 'managed', 'unmanaged', 'gaps', 'proposed'];
+const MANAGED_STATES = ['all', 'managed', 'unmanaged', 'gaps'];
 
 // What loading a saved matrix applies: its filter — tagged with the saved
 // matrix it came from, so an identical-content twin can't take over its name
