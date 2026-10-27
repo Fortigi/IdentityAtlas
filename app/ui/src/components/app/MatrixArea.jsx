@@ -28,6 +28,11 @@ export default function MatrixArea({
   const canWrite = useHasPermission('data.write.contexts');
   const sharedView = useIsSharedView();
   const showProposed = canWrite && !sharedView;
+  // What the plain grid and the Proposed lens (a grid over other rows) both take.
+  const gridProps = {
+    resourceContexts, filter: matrixFilter, counts, managedFilter, setManagedFilter, groupTagMap,
+    refreshing, shareUrl, onOpenDetail, onAdjustFilter, onLoadSaved: onWizardApply, hasData, onShareView,
+  };
   return (
     <>
       {rollup ? (
@@ -63,41 +68,14 @@ export default function MatrixArea({
         />
       ) : managedFilter === 'proposed' && showProposed ? (
         // The Proposed lens: saved workbench proposals as business-role bands over the rows they reach.
-        <ProposedMatrix
-          accessPackageGroups={accessPackageGroups}
-          resourceContexts={resourceContexts}
-          filter={matrixFilter}
-          counts={counts}
-          managedFilter={managedFilter}
-          setManagedFilter={setManagedFilter}
-          groupTagMap={groupTagMap}
-          refreshing={refreshing}
-          shareUrl={shareUrl}
-          onOpenDetail={onOpenDetail}
-          onAdjustFilter={onAdjustFilter}
-          onLoadSaved={onWizardApply}
-          hasData={hasData}
-          onShareView={onShareView}
-        />
+        <ProposedMatrix accessPackageGroups={accessPackageGroups} {...gridProps} />
       ) : (
         <MatrixView
           showProposed={showProposed}
           data={data}
           accessPackageGroups={accessPackageGroups}
           managedByPackages={managedByPackages}
-          resourceContexts={resourceContexts}
-          filter={matrixFilter}
-          counts={counts}
-          managedFilter={managedFilter}
-          setManagedFilter={setManagedFilter}
-          groupTagMap={groupTagMap}
-          refreshing={refreshing}
-          shareUrl={shareUrl}
-          onOpenDetail={onOpenDetail}
-          onAdjustFilter={onAdjustFilter}
-          onLoadSaved={onWizardApply}
-          hasData={hasData}
-          onShareView={onShareView}
+          {...gridProps}
         />
       )}
     </>
