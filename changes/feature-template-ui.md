@@ -48,3 +48,5 @@
 - The Entitlement Pivot run on a name that belongs to both an application and a unit of accounts now reports on the application instead of refusing the run as a mix, and says so; pick the unit from the list to report on its members
 - Upgrade note: the Entitlement Pivot download has more columns than before (context details on the first tab, owner name / employee ID / e-mail, and the entitlements' own attributes) and is named after the context and the day; a script or workbook that reads it by column position or file name needs adjusting
 - Upgrade note: the Contexts List mode and the Attributes and Relationships tabs are gone; their information is on the unit page itself
+- The context assistant ("Describe it") now asks what the context is (application, organisation, tag or segment), starting from the Contexts tab it was opened from; the model suggests one from your description without ever overriding your own choice
+- The context assistant shows the suggested owner of what its search terms find before you save

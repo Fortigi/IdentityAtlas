@@ -50,10 +50,12 @@ const managerSql = ({ table, managerCol, memberType, holderCol, live }) => `
 const liveDeletedAt = (alias) => ` AND ${alias}."deletedAt" IS NULL`;
 const always = () => '';
 
-// Owners of the member resources, most resources first.
-const OWNER_SQL = `
+// Owners of the member resources, most resources first. `members` is the row
+// source with a "memberId" column, `where` narrows it — a context's members, or
+// the resources a context assistant recipe finds before it is saved.
+const ownerSql = (members, where) => `
     SELECT p.id, p."displayName", COUNT(DISTINCT cm."memberId")::int AS count
-      FROM "ContextMembers" cm
+      FROM ${members}
       JOIN "ResourceRelationships" rr ON rr."parentResourceId" = cm."memberId"
        AND rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIP_TYPES_SQL}
       JOIN "Resources" o ON o.id = rr."childResourceId"
@@ -62,10 +64,13 @@ const OWNER_SQL = `
       JOIN "ResourceAssignments" ra ON ra."resourceId" = o.id
        AND ra."assignmentType" = 'Direct' AND ra."deletedAt" IS NULL
       JOIN "Principals" p ON p.id = ra."principalId" AND p."deletedAt" IS NULL
-     WHERE cm."contextId" = $1 AND cm."memberType" = 'Resource'${notRejected('principalId', 'p.id')}
+     WHERE ${where}
      GROUP BY p.id, p."displayName"
      ORDER BY count DESC, p."displayName", p.id
      LIMIT 1`;
+
+const OWNER_SQL = ownerSql('"ContextMembers" cm', `cm."contextId" = $1 AND cm."memberType" = 'Resource'${notRejected('principalId', 'p.id')}`);
+const OWNER_OF_IDS_SQL = ownerSql('unnest($1::uuid[]) AS cm("memberId")', 'TRUE');
 
 // "3 of the 4 members", but "the only member" / "all 5 members" rather than
 // "1 of the 1" / "5 of the 5".
@@ -114,6 +119,25 @@ export async function suggestAccountable(context) {
     [signal.holderCol]: best.id,
     displayName: best.displayName,
     reason: signal.reason(best.count, total),
+    count: best.count,
+    total,
+  };
+}
+
+// The same best guess for resources that are not a context yet — what the
+// context assistant finds before the analyst saves. Read-only: nothing is
+// assigned, and there are no rejections to respect since there is no context.
+// `resourceIds` are distinct ids; null when none reaches the threshold.
+export async function suggestOwnerOf(resourceIds) {
+  const total = resourceIds?.length || 0;
+  if (!total) return null;
+  const { rows } = await db.query(OWNER_OF_IDS_SQL, [resourceIds]);
+  const best = pickCandidate(rows, total);
+  if (!best) return null;
+  return {
+    principalId: best.id,
+    displayName: best.displayName,
+    reason: SIGNALS.Resource.reason(best.count, total),
     count: best.count,
     total,
   };

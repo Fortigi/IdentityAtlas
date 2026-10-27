@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  addTerm, EMPTY_RECIPE, isRecipeRoot, mergeTerms, relatedWordText, removeTerm, rowAction, saveBlocker,
+  addTerm, applyTemplateGuess, DEFAULT_TEMPLATE, EMPTY_RECIPE, isRecipeRoot, newBuilderId, templateFromBuilderId, mergeTerms, relatedWordText, removeTerm, rowAction, saveBlocker,
   setObjectChoice, setTermMatch, termCounts, termKey, termsReplyText, toggleListValue, toggleTerm, widenWarning,
 } from './recipeDraft';
 
@@ -91,5 +91,30 @@ describe('recipeDraft', () => {
   it('relatedWordText says what adding the word would bring in', () => {
     expect(relatedWordText({ inContext: 6, outside: 0 })).toBe('in 6 of the context · nowhere else');
     expect(relatedWordText({ inContext: 2, outside: 3 })).toBe('in 2 of the context · 3 elsewhere');
+  });
+});
+
+describe('the template a context built with the assistant gets', () => {
+  it('a new builder id carries the tab it was opened from, and reads back as that template', () => {
+    expect(newBuilderId('OrganizationalUnit', 42)).toBe('new-OrganizationalUnit-42');
+    expect(templateFromBuilderId('new-OrganizationalUnit-42')).toBe('OrganizationalUnit');
+    expect(templateFromBuilderId(newBuilderId('Segment', 7))).toBe('Segment');
+  });
+
+  it('the Other tab, an unknown word or no tab at all starts as an application', () => {
+    expect(newBuilderId('Other', 42)).toBe('new-42');
+    expect(newBuilderId(undefined, 42)).toBe('new-42');
+    expect(templateFromBuilderId('new-42')).toBe(DEFAULT_TEMPLATE);
+    expect(templateFromBuilderId('new-Bogus-42')).toBe('LogicalApplication');
+    expect(templateFromBuilderId(undefined)).toBe('LogicalApplication');
+    expect(EMPTY_RECIPE.template).toBe('LogicalApplication');
+  });
+
+  it('the model\'s guess replaces a default, but not the analyst\'s choice, and an unknown guess changes nothing', () => {
+    const r = draft({ template: 'LogicalApplication' });
+    expect(applyTemplateGuess(r, 'OrganizationalUnit', false)).toEqual({ recipe: { ...r, template: 'OrganizationalUnit' }, applied: true });
+    expect(applyTemplateGuess(r, 'OrganizationalUnit', true)).toEqual({ recipe: r, applied: false });
+    expect(applyTemplateGuess(r, 'Department', false)).toEqual({ recipe: r, applied: false });
+    expect(applyTemplateGuess(r, null, false)).toEqual({ recipe: r, applied: false });
   });
 });
