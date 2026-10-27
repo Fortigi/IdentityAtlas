@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { EMPTY_CANDIDATE, toggleAll, addSelection, proposeEntitlements, candidateFromRole } from './workbench.model';
+import { EMPTY_CANDIDATE, toggleAll, addSelection, candidateFromRole } from './workbench.model';
 
 // The workbench's data (GET /api/contexts/:id/workbench, read again after a
 // knowledge change) and the analyst's draft: selection, marks and the candidate
@@ -98,7 +98,6 @@ const ACTIONS = {
   addMembers: (s, a) => withActive(s, d => ({ ...d, members: new Set([...d.members, ...a.people]) })),
   removeMember: (s, a) => withActive(s, d => ({ ...d, members: without(d.members, a.person) })),
   removeEntitlement: (s, a) => withActive(s, d => ({ ...d, entitlements: without(d.entitlements, a.resourceId) })),
-  propose: (s, a) => withActive(s, d => ({ ...d, entitlements: proposeEntitlements(d.members, a.columns, a.cellIndex, s.marks, a.threshold) })),
   fromRole: (s, a) => createDraft(s, candidateFromRole(a.role, a.cellsByResource)),
   newCandidate: (s) => createDraft(s),
   edit: (s, a) => withActive(s, d => ({ ...d, [a.field]: a.value })),

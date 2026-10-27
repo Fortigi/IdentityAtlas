@@ -152,5 +152,7 @@ unsaved work and deleting one ask first). The proposed-roles badge says *not sav
   1, a compare between versions), export it, and optionally raise a change request to the IGA
   system once approved.
 - **M3:** compare an approved proposal with a later snapshot (implemented as proposed? drift?).
+- A computed first proposal of entitlements (e.g. what at least half of the members hold): tried and
+  taken out — the analyst selects entitlements. Revisit with real analyst feedback.
 - Removal simulation with grant-path proof; keyboard range selection; virtualised grid for very
   large units.

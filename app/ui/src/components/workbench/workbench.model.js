@@ -159,8 +159,8 @@ export function addSelection(candidate, selection, cellIndex) {
 }
 
 /**
- * The share of the members holding each column, highest first: the transparent
- * basis of the first proposal. [{ resourceId, held, share }]. Pure.
+ * The share of the members holding each column, highest first — shown beside each
+ * entitlement in the panel (it proposes nothing). [{ resourceId, held, share }]. Pure.
  */
 export function frequencies(members, columns, cellIndex) {
   const n = members.size;
@@ -173,22 +173,6 @@ export function frequencies(members, columns, cellIndex) {
     })
     .filter(f => f.held > 0)
     .sort((a, b) => b.share - a.share || a.resourceId.localeCompare(b.resourceId));
-}
-
-/**
- * The first proposal for these members: every column at least `threshold` of
- * them hold (0.5 → half), minus the cells the analyst marked as other context
- * or unrelated for ALL the members who hold it. Deterministic. Pure.
- */
-export function proposeEntitlements(members, columns, cellIndex, marks, threshold = 0.5) {
-  const out = new Set();
-  for (const f of frequencies(members, columns, cellIndex)) {
-    if (f.share < threshold) continue;
-    const holders = [...members].filter(p => cellIndex.has(cellKey(p, f.resourceId)));
-    const excluded = holders.every(p => ['other', 'unrelated'].includes(marks.get(cellKey(p, f.resourceId))));
-    if (!excluded) out.add(f.resourceId);
-  }
-  return out;
 }
 
 /** A proposed update of an existing business role: its members and what it Contains. Pure. */
