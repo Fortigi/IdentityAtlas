@@ -84,6 +84,15 @@ describe('draftReducer — the proposed roles', () => {
     expect(draftReducer(s, { type: 'selectDraft', id: 'draft:1' }).viewRoleId).toBeNull();
   });
 
+  it('adds only the entitlements of a selection to a rule-based role with a rule — its members follow the rule', () => {
+    const cells = new Map([['i:a|r1', {}], ['i:b|r2', {}]]);
+    const select = { type: 'select', keys: ['i:a|r1', 'i:b|r2'] };
+    const ruled = run({ type: 'newCandidate' }, { type: 'setKind', kind: 'rule' }, { type: 'setRule', rule: { includeChildren: true, filters: {} } }, select, { type: 'addSelection', cellIndex: cells });
+    expect(shape(ruled)[0]).toMatchObject({ members: [], entitlements: ['r1', 'r2'] });
+    const byHand = run({ type: 'newCandidate' }, { type: 'setKind', kind: 'rule' }, select, { type: 'addSelection', cellIndex: cells });
+    expect(shape(byHand)[0]).toMatchObject({ members: ['i:a', 'i:b'], entitlements: ['r1', 'r2'] });
+  });
+
   it('resets everything', () => {
     expect(run({ type: 'newCandidate' }, { type: 'reset' })).toMatchObject({ drafts: [], activeId: null, nextId: 1 });
   });
