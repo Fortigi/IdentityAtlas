@@ -10,6 +10,7 @@ import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';
 import CandidatePanel from './CandidatePanel';
 import InvestigationBar from './InvestigationBar';
+import RoleSaveActions from './RoleSaveActions';
 import { useInvestigation } from './useInvestigation';
 import { Toolbar, SelectionBar, Legend, FilterStrip } from './WorkbenchControls';
 import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
@@ -97,6 +98,7 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
         </div>
         <div className="w-full shrink-0 xl:w-96">
           <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color} saveLabel={saveLabel(inv)}
+            roleActions={({ candidate: role, problems }) => <RoleSaveActions inv={inv} candidate={role} problems={problems} unitName={data.unit.displayName} dispatch={dispatch} />}
             candidate={candidate} unitName={data.unit.displayName} onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}
             peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} />
         </div>

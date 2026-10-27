@@ -121,6 +121,8 @@ const ACTIONS = {
   removeEntitlement: (s, a) => withActive(s, d => ({ ...d, entitlements: without(d.entitlements, a.resourceId) })),
   fromRole: (s, a) => createDraft(s, candidateFromRole(a.role, a.cellsByResource)),
   newCandidate: (s) => createDraft(s),
+  // After saving a role: a fresh one, its kind still to choose; the selection cleared, filters and columns kept.
+  startNext: (s) => ({ ...createDraft(s), selection: new Set(), anchor: null }),
   edit: (s, a) => withActive(s, d => ({ ...d, [a.field]: a.value })),
   selectDraft: (s, a) => ({ ...s, activeId: a.id, viewRoleId: null }),
   viewRole: (s, a) => ({ ...s, viewRoleId: a.id }),

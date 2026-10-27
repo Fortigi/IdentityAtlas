@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ruleFromView, ruleMatches, effectiveMembers, usesOrgKnowledge, ruleSentence, approverText, ROLE_KINDS,
+  ruleFromView, ruleMatches, effectiveMembers, usesOrgKnowledge, ruleSentence, approverText, ROLE_KINDS, roleProblems, roleNotes,
 } from './workbench.rule';
 import { matchesFilter, columnByKey, filterSummary } from './workbench.columns';
 
@@ -99,5 +99,25 @@ describe('approverText and the kinds', () => {
 
   it('maps each kind to the assignment origin', () => {
     expect(ROLE_KINDS.map(k => [k.key, k.origin])).toEqual([['rule', 'Automatic'], ['requestable', 'Requested']]);
+  });
+});
+
+describe('roleProblems / roleNotes', () => {
+  const ok = { name: 'Claims Lawyer', kind: 'requestable', entitlements: new Set(['r1']), rule: null };
+
+  it('asks for a name, a kind and an entitlement — nothing more', () => {
+    expect(roleProblems(ok)).toEqual([]);
+    expect(roleProblems({ name: '  ', kind: null, entitlements: new Set() })).toEqual([
+      'Give the role a name.',
+      'Choose how it is assigned (rule-based or requestable).',
+      'Add at least one entitlement (select cells or a column header, then Add to candidate).',
+    ]);
+  });
+
+  it('notes, without blocking, a rule-based role whose members are chosen by hand', () => {
+    expect(roleNotes({ ...ok, kind: 'rule' })).toEqual(['Members chosen by hand — no rule yet.']);
+    expect(roleNotes({ ...ok, kind: 'rule', rule: { filters: {} } })).toEqual([]);
+    expect(roleNotes(ok)).toEqual([]);
+    expect(roleProblems({ ...ok, kind: 'rule' })).toEqual([]);
   });
 });

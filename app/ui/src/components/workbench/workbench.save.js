@@ -138,3 +138,10 @@ export function accessChanges(savedCells, cells) {
   for (const k of now.keys()) if (!before.has(k)) n++;
   return n;
 }
+
+const pad = (n) => String(n).padStart(2, '0');
+
+/** The name a first save of a role suggests: "<unit> — dd-mm-yyyy". Pure. */
+export function defaultInvestigationName(unitName, now = new Date()) {
+  return `${unitName} — ${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`;
+}

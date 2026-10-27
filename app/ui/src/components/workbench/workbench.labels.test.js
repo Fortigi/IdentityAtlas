@@ -93,6 +93,12 @@ describe('draftReducer — the proposed roles', () => {
     expect(shape(byHand)[0]).toMatchObject({ members: ['i:a', 'i:b'], entitlements: ['r1', 'r2'] });
   });
 
+  it('starts the next role: a new one with its kind still to choose, the selection cleared', () => {
+    const s = run({ type: 'newCandidate' }, { type: 'setKind', kind: 'rule' }, { type: 'select', keys: ['i:a|r1'] }, { type: 'startNext' });
+    expect(s.drafts.map(d => [d.id, d.kind])).toEqual([['draft:1', 'rule'], ['draft:2', null]]);
+    expect([s.activeId, s.selection.size]).toEqual(['draft:2', 0]);
+  });
+
   it('resets everything', () => {
     expect(run({ type: 'newCandidate' }, { type: 'reset' })).toMatchObject({ drafts: [], activeId: null, nextId: 1 });
   });
