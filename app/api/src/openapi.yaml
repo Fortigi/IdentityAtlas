@@ -4092,6 +4092,178 @@ paths:
         '503':
           description: The SQL backend is not configured
 
+  /contexts/{id}/workbench/investigations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: The saved workbench investigations of an organizational unit
+      operationId: listWorkbenchInvestigations
+      description: >
+        Every investigation saved on this unit, last saved first: who saved it and when, when the
+        access data on screen was read, how many marks it holds and the names of its proposed roles.
+        Org-wide, like saved matrices. Needs data.write.contexts.
+        See docs/architecture/m1-discovery-and-design.md ("M2a — save and reopen").
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The investigations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkbenchInvestigationSummary' }
+        '400':
+          description: A malformed id
+        '403':
+          description: Missing data.write.contexts
+        '503':
+          description: The SQL backend is not configured
+    post:
+      tags: [Contexts]
+      summary: Save a new workbench investigation
+      operationId: createWorkbenchInvestigation
+      description: >
+        Saves the analyst's whole workbench draft on this unit: the view, the cells on screen, the
+        marks and every proposed role. A hypothesis: nothing here creates a business role, an
+        assignment or a member, and nothing changes access or a source system.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkbenchInvestigationDraft' }
+      responses:
+        '201':
+          description: The investigation as saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkbenchInvestigation' }
+        '400':
+          description: The draft is not valid, or the context is not an organizational unit
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such context
+        '409':
+          description: The unit already has an investigation with that name
+        '503':
+          description: The SQL backend is not configured
+
+  /workbench/investigations/{invId}:
+    parameters:
+      - name: invId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: Open a saved workbench investigation
+      operationId: getWorkbenchInvestigation
+      description: Everything a reopen needs — the view, the cells on screen when it was saved, the marks and the proposed roles. Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The investigation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkbenchInvestigation' }
+        '400':
+          description: A malformed id
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such investigation
+        '503':
+          description: The SQL backend is not configured
+    put:
+      tags: [Contexts]
+      summary: Save over a workbench investigation
+      operationId: saveWorkbenchInvestigation
+      description: >
+        The whole draft replaces what was saved: a mark or a proposed role the draft no longer holds
+        is removed; an unchanged mark keeps who made it; a proposed role keeps its id. Send
+        expectedUpdatedAt (the updatedAt it was opened with) to be refused when someone saved it since.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkbenchInvestigationDraft' }
+      responses:
+        '200':
+          description: The investigation as saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkbenchInvestigation' }
+        '400':
+          description: The draft is not valid, or a malformed id
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such investigation
+        '409':
+          description: Someone saved it after it was opened, or the name is taken on the unit
+        '503':
+          description: The SQL backend is not configured
+    delete:
+      tags: [Contexts]
+      summary: Delete a workbench investigation
+      operationId: deleteWorkbenchInvestigation
+      description: Deletes the investigation with its marks, snapshot and proposed roles. Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          description: A malformed id
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such investigation
+        '503':
+          description: The SQL backend is not configured
+
+  /workbench/investigations/{invId}/proposals/{pid}:
+    parameters:
+      - name: invId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: pid
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Contexts]
+      summary: Delete one proposed role of an investigation
+      operationId: deleteWorkbenchProposal
+      description: Deletes the proposed role with its members, entitlements and evidence; the investigation's other proposed roles stay. Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          description: A malformed id
+        '403':
+          description: Missing data.write.contexts
+        '404':
+          description: No such proposed role in this investigation
+        '503':
+          description: The SQL backend is not configured
+
 components:
   securitySchemes:
     CrawlerApiKey:
@@ -4105,6 +4277,102 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    WorkbenchPersonKey:
+      type: string
+      description: A workbench row — "i:<identity id>" for a person, "p:<account id>" for an account linked to no person.
+      pattern: '^[ipIP]:[0-9a-fA-F-]{36}$'
+    WorkbenchMark:
+      type: object
+      required: [person, resourceId, mark]
+      properties:
+        person: { $ref: '#/components/schemas/WorkbenchPersonKey' }
+        resourceId: { type: string, format: uuid }
+        mark: { type: string, enum: [other, unrelated, investigate] }
+        note: { type: string, maxLength: 1000, nullable: true }
+        markedBy: { type: string, readOnly: true }
+        markedAt: { type: string, format: date-time, readOnly: true }
+    WorkbenchProposal:
+      type: object
+      description: A proposed role. Never a business role in Resources; extending one only points at it.
+      properties:
+        id: { type: string, format: uuid, description: 'Optional on save. A UUID the browser chose is kept; any other value (an unsaved draft''s handle) makes it a new proposal' }
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 1000, nullable: true }
+        baseBusinessRoleId: { type: string, format: uuid, nullable: true }
+        mode: { type: string, enum: [new, extend], readOnly: true }
+        status: { type: string, enum: [draft, inReview, approved, rejected], readOnly: true }
+        version: { type: integer, readOnly: true }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/WorkbenchPersonKey' }
+        entitlements:
+          type: array
+          items: { type: string, format: uuid }
+        evidenceClaimIds:
+          type: array
+          items: { type: string, format: uuid }
+    WorkbenchInvestigationDraft:
+      type: object
+      description: The whole workbench draft. On a save over an investigation, what it leaves out is removed.
+      properties:
+        name: { type: string, maxLength: 200, description: Required for a new investigation }
+        description: { type: string, maxLength: 1000, nullable: true }
+        view: { type: object, description: 'The workbench view: columns, filters, sort, includeChildren, minHolders, columnSearch, groupBy' }
+        accessReadAt: { type: string, format: date-time, nullable: true }
+        accessCells:
+          type: array
+          maxItems: 120000
+          items: { type: string, description: '"personKey|resourceId|Direct|Indirect|Eligible"' }
+        marks:
+          type: array
+          maxItems: 120000
+          items: { $ref: '#/components/schemas/WorkbenchMark' }
+        proposals:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/WorkbenchProposal' }
+        expectedUpdatedAt: { type: string, format: date-time, nullable: true }
+    WorkbenchInvestigationSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        accessReadAt: { type: string, format: date-time, nullable: true }
+        markCount: { type: integer }
+        proposals:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+    WorkbenchInvestigation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        contextId: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        view: { type: object }
+        accessReadAt: { type: string, format: date-time, nullable: true }
+        accessCells:
+          type: array
+          items: { type: string }
+        marks:
+          type: array
+          items: { $ref: '#/components/schemas/WorkbenchMark' }
+        proposals:
+          type: array
+          items: { $ref: '#/components/schemas/WorkbenchProposal' }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+        updatedAt: { type: string, format: date-time }
     ContextOwnerAccess:
       type: object
       required: [enabled]
