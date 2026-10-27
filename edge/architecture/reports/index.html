@@ -5884,10 +5884,8 @@ re-fetches, and the result reflects whatever the last crawler or account-linking
 template as its <code>params</code>. Auth is <code>authMiddleware</code> only — reports are an analyst surface exposing
 nothing the Contexts page doesn't already show, so there is no admin permission gate.</p>
 <h2 id="ui">UI<a class="headerlink" href="#ui" title="Permanent link">&para;</a></h2>
-<p>Reports is an <strong>optional</strong> nav tab (<code>optional: true</code> in <code>utils/navTabs.js</code>, allowlisted in the API's
-<code>routes/preferences.js</code>): off by default, switched on per user under Settings → Visible Tabs, exactly
-like Systems and Logs. Hiding it only declutters the nav — <code>#reports</code> and <code>#report:&lt;name&gt;</code> stay
-reachable by URL either way.</p>
+<p>Reports is a <strong>default</strong> nav tab in <code>utils/navTabs.js</code>: every user sees it, and Settings → Visible
+Tabs offers no switch for it. <code>#reports</code> and <code>#report:&lt;name&gt;</code> are also reachable by URL.</p>
 <p><code>components/ReportsPage.jsx</code> lists the reports from <code>GET /api/reports</code> and renders the selected one
 through a <strong>form-renderer map</strong> (<code>components/reports/formRenderers.js</code>) keyed on the report's <code>form</code>
 — never on its name. A new report of an existing form costs nothing in the UI; a new <em>form</em> is one

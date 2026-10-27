@@ -6041,10 +6041,10 @@
 <h2 id="pages">Pages<a class="headerlink" href="#pages" title="Permanent link">&para;</a></h2>
 <p>The app opens to the <strong>Dashboard</strong> landing page — not the Matrix. From there the navigation bar has two groups of tabs:</p>
 <ul>
-<li><strong>Always visible:</strong> Dashboard, Matrix, Principals (Users), Resources, Business Roles, Contexts, Admin</li>
-<li><strong>Optional (hidden by default):</strong> Systems, Logs (the Sync Log), Risk Scores, Identities</li>
+<li><strong>Always visible:</strong> Dashboard, Matrix, Principals (Users), Resources, Business Roles, Reports, Admin</li>
+<li><strong>Optional (hidden by default):</strong> Systems, Identities, Contexts, Logs (the Sync Log)</li>
 </ul>
-<p>Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). <strong>Risk Scores</strong> and <strong>Identities</strong> are additionally feature-gated — they only appear in the settings list when their server-side feature flag (<code>riskScoring</code> / <code>accountLinking</code>) is enabled. The <strong>Admin</strong> tab is hidden from users with no <code>admin.*</code> permission.</p>
+<p>Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). <strong>Identities</strong> is additionally feature-gated — its switch only appears while the <code>accountLinking</code> feature flag is on. <strong>Risk Scores</strong> is not a per-user toggle: it appears for everyone as soon as an admin turns on the <code>riskScoring</code> feature. The <strong>Admin</strong> tab is hidden from users with no <code>admin.*</code> permission.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The <strong>Org Chart</strong> tab no longer exists. Manager-hierarchy views are now generated Contexts — see <a href="#contexts">Contexts</a> below.</p>
