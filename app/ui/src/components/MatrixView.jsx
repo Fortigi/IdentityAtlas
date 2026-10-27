@@ -67,7 +67,7 @@ export default function MatrixView({
   hasData,
   onShareView,
   // The Proposed lens in the view switch (the workbench's saved proposals) — offered by the plain matrix.
-  showProposed = false,
+  showProposed,
 }) {
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
