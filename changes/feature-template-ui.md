@@ -45,3 +45,6 @@
 - "Edit members" is now offered only on contexts created in Identity Atlas, where both adding and removing members last; imported and rule-derived contexts no longer offer it, since their members would come back on the next refresh.
 - A report downloaded for one context is named after it and the day, e.g. "SAP ERP 2026-10-22.xlsx".
 - In an application's member list the Owner column comes before Users, and a resolved owner links to their account.
+- The Entitlement Pivot run on a name that belongs to both an application and a unit of accounts now reports on the application instead of refusing the run as a mix, and says so; pick the unit from the list to report on its members
+- Upgrade note: the Entitlement Pivot download has more columns than before (context details on the first tab, owner name / employee ID / e-mail, and the entitlements' own attributes) and is named after the context and the day; a script or workbook that reads it by column position or file name needs adjusting
+- Upgrade note: the Contexts List mode and the Attributes and Relationships tabs are gone; their information is on the unit page itself
