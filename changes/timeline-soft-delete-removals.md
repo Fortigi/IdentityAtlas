@@ -1,4 +1,0 @@
-- Fixed the Timeline on user, resource, business-role and identity pages never showing removed access. Removed assignments now appear as "Removed from …" (or "… removed" on the resource side), and access that comes back appears as added again.
-- A user's Timeline now shows when a role or resource they hold is deleted in the source ("… deleted in source"), even though their own assignment did not change.
-- When the entity itself is deleted or restored in the source, its Timeline now says "Deleted in source" / "Restored in source" instead of showing a "Deleted At" attribute change.
-- Fixed a Timeline entry that read "Removed from …" for a relationship that had only been updated.
