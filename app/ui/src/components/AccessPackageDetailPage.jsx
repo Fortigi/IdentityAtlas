@@ -6,6 +6,7 @@ import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
 import AccessPackageGovernance from './AccessPackageGovernance';
+import DeletedBadge from './DeletedBadge';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import { formatDate } from '@ui/utils/formatters';
 import { ASSIGNMENT_TYPE_STYLES, COMPLIANCE_STYLES } from '@ui/utils/accessPackageStyles';
@@ -57,6 +58,7 @@ function AccessPackageHeader({ data }) {
                 {category.name}
               </span>
             )}
+            {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
           </div>
           {attributes.catalogName && (
             <p className="text-sm text-gray-500 dark:text-gray-400">Catalog: {attributes.catalogName}</p>

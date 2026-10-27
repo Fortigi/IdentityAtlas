@@ -42,13 +42,16 @@ export const MAX_ITEMS_PER_FANOUT = 10;
 // below the graph (ExpandedItemsList) receives the FULL, uncapped list, so the
 // "+N more" in the graph is just a hint — the complete set is shown (and
 // clickable) in the list.
+// Historical (deleted) items never orbit in the graph — the ring shows current
+// access only, matching the category count; history is in the list below.
 export function capItems(items) {
   if (!items) return [];
-  if (items.length <= MAX_ITEMS_PER_FANOUT) return items;
-  const shown = items.slice(0, MAX_ITEMS_PER_FANOUT - 1);
+  const current = items.some(it => it.deleted) ? items.filter(it => !it.deleted) : items;
+  if (current.length <= MAX_ITEMS_PER_FANOUT) return current;
+  const shown = current.slice(0, MAX_ITEMS_PER_FANOUT - 1);
   shown.push({
     key: '__overflow__',
-    label: `+${items.length - (MAX_ITEMS_PER_FANOUT - 1)} more in the list below`,
+    label: `+${current.length - (MAX_ITEMS_PER_FANOUT - 1)} more in the list below`,
     kind: 'item',
     overflow: true,
   });
@@ -136,14 +139,17 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
     // app-permission / directory-role / business-role …). A BusinessRole opens the
     // access-package detail page; everything else the resource page.
     return all.filter(m => m.membershipType === want).map(m => toItem(
-      { id: m.resourceId, displayName: m.resourceDisplayName || m.groupDisplayName },
+      { id: m.resourceId, displayName: m.resourceDisplayName || m.groupDisplayName, deleted: m.deleted, deletedAt: m.deletedAt },
       m.resourceType === 'BusinessRole' ? 'access-package' : 'resource',
       m.resourceType,
     ));
   }
   if (categoryKey === 'access-packages') {
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/access-packages`);
-    return rows.map(ap => toItem({ id: ap.resourceId, displayName: ap.accessPackageName }, 'access-package'));
+    return rows.map(ap => toItem(
+      { id: ap.resourceId, displayName: ap.accessPackageName, deleted: ap.deleted, deletedAt: ap.deletedAt },
+      'access-package',
+    ));
   }
   if (categoryKey === 'identity') {
     return identityInfo?.identity ? [toItem(identityInfo.identity, 'identity')] : [];
@@ -365,6 +371,12 @@ function toItem(row, entityKind, resourceType = null) {
   // …) so the list can show what KIND of thing this row is, distinct from the
   // counterparty's entityKind (which is always 'resource'/'access-package' here).
   if (resourceType) item.resourceType = resourceType;
+  // Historical row: the assignment or its target was deleted in the source. The
+  // graph ring leaves it out (capItems) and the list shows it apart, labelled.
+  if (row?.deleted) {
+    item.deleted = true;
+    item.deletedAt = row.deletedAt || null;
+  }
   return item;
 }
 

@@ -42,6 +42,28 @@ describe('capItems', () => {
     // The first N-1 originals are preserved.
     expect(out.slice(0, MAX_ITEMS_PER_FANOUT - 1)).toEqual(items.slice(0, MAX_ITEMS_PER_FANOUT - 1));
   });
+
+  // The graph ring shows current access only — it must agree with the category
+  // count, which excludes deleted-in-source rows.
+  it('leaves historical (deleted) items out of the graph ring', () => {
+    const items = [{ key: 'live' }, { key: 'old', deleted: true }];
+    expect(capItems(items)).toEqual([{ key: 'live' }]);
+  });
+
+  it('caps on the current items, not on current + history', () => {
+    // 10 current + 3 historical: exactly at the cap once history is dropped.
+    const current = Array.from({ length: MAX_ITEMS_PER_FANOUT }, (_, i) => ({ key: `c${i}` }));
+    const items = [...current, { key: 'h1', deleted: true }, { key: 'h2', deleted: true }, { key: 'h3', deleted: true }];
+    const out = capItems(items);
+    expect(out).toEqual(current);
+    expect(out.some((n) => n.overflow)).toBe(false);
+  });
+
+  it('counts only current items in the overflow marker', () => {
+    const current = Array.from({ length: MAX_ITEMS_PER_FANOUT + 2 }, (_, i) => ({ key: `c${i}` }));
+    const out = capItems([...current, { key: 'h', deleted: true }]);
+    expect(out[out.length - 1].label).toContain('+3 more');
+  });
 });
 
 describe('getRootNodes', () => {
@@ -241,6 +263,32 @@ describe('fetchCategoryItems — user categories', () => {
     const af = stub({ '/access-packages': [{ resourceId: 'ap1', accessPackageName: 'AP' }] });
     const out = await fetchCategoryItems('user', 'u1', 'access-packages', af, {});
     expect(out[0]).toMatchObject({ key: 'access-package:ap1', label: 'AP', entityKind: 'access-package' });
+    expect(out[0]).not.toHaveProperty('deleted');
+  });
+
+  // A role deleted in the source and its re-created twin share a name; only
+  // the flag tells the list which one is history.
+  it('access-packages carry the historical flag and deletion time', async () => {
+    const af = stub({
+      '/access-packages': [
+        { resourceId: 'new', accessPackageName: 'Head of Finance', deleted: false, deletedAt: null },
+        { resourceId: 'old', accessPackageName: 'Head of Finance', deleted: true, deletedAt: '2026-09-08T14:32:00Z' },
+      ],
+    });
+    const out = await fetchCategoryItems('user', 'u1', 'access-packages', af, {});
+    expect(out[0]).not.toHaveProperty('deleted');
+    expect(out[1]).toMatchObject({ entityId: 'old', deleted: true, deletedAt: '2026-09-08T14:32:00Z' });
+  });
+
+  it('assignment buckets carry the historical flag from /memberships', async () => {
+    const af = stub({
+      '/memberships': [
+        { resourceId: 'g1', resourceDisplayName: 'G1', resourceType: 'Group', membershipType: 'Direct', deleted: true },
+      ],
+    });
+    const out = await fetchCategoryItems('user', 'u1', 'assignments-direct', af, {});
+    // No deletion time from the API → null, never undefined.
+    expect(out[0]).toMatchObject({ deleted: true, deletedAt: null });
   });
 
   it('identity from extras', async () => {
