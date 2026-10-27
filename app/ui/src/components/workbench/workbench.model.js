@@ -216,11 +216,16 @@ export function cellImpact({ observed, member, inCandidate, mark }) {
  * outside. Plus the people outside the candidate who already hold most of it
  * (possible members). Pure.
  */
-export function impactSummary(candidate, people, cellIndex, marks) {
+export function impactSummary(candidate, people, cellIndex, marks, visible = null) {
   const counts = { covered: 0, gain: 0, outside: 0, other: 0, unrelated: 0, investigate: 0 };
   const gainers = new Set();
+  // With permission filters on (`visible`: the resources shown), only those count;
+  // `hidden` says how many permissions of the members or the candidate they leave out.
+  const hidden = new Set();
+  const counted = (r) => { if (!visible || visible.has(r)) return true; hidden.add(r); return false; };
   for (const p of candidate.members) {
     for (const r of candidate.entitlements) {
+      if (!counted(r)) continue;
       const k = cellKey(p, r);
       const kind = cellImpact({ observed: cellIndex.has(k), member: true, inCandidate: true, mark: marks.get(k) });
       counts[kind]++;
@@ -228,10 +233,10 @@ export function impactSummary(candidate, people, cellIndex, marks) {
     }
   }
   for (const c of cellIndex.values()) {
-    if (!candidate.members.has(c.person) || candidate.entitlements.has(c.resourceId)) continue;
+    if (!candidate.members.has(c.person) || candidate.entitlements.has(c.resourceId) || !counted(c.resourceId)) continue;
     counts[cellImpact({ observed: true, member: true, inCandidate: false, mark: marks.get(cellKey(c.person, c.resourceId)) })]++;
   }
-  return { counts, gainers: gainers.size, possibleMembers: possibleMembers(candidate, people, cellIndex) };
+  return { counts, gainers: gainers.size, hidden: hidden.size, possibleMembers: possibleMembers(candidate, people, cellIndex) };
 }
 
 /** People outside the candidate who already hold all of its entitlements (or share of them). Pure. */

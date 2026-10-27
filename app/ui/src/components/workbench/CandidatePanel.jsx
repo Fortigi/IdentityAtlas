@@ -23,6 +23,8 @@ export default function CandidatePanel({
   candidate = null, unitName = '', onUseAsRule = () => {}, saveLabel = 'Draft · not saved',
   // Optional: the actions at the end of the role (a screen that saves passes "Save role" here).
   roleActions = null,
+  // Optional: the resources the permission filters show — the impact counts only those.
+  visible = null,
 }) {
   const existing = data.columns.filter(c => c.isRole);
   const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
@@ -38,7 +40,7 @@ export default function CandidatePanel({
       {!viewed && active.id && (
         <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
           columnsById={columnsById} draftColor={colorOf(active.id) ?? color(roles.length)}
-          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} roleActions={roleActions} />
+          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} roleActions={roleActions} visible={visible} />
       )}
       {!viewed && !active.id && (
         <p className="text-xs text-gray-600 dark:text-gray-400">No proposed role yet. Filter or select people and cells, then <span className="font-medium">Add to candidate</span> — or start one here.</p>
@@ -136,10 +138,10 @@ function membersTitle(candidate) {
   return `Members chosen by hand (${n})`;
 }
 
-function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule, roleActions }) {
+function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule, roleActions, visible }) {
   const dialog = useDialog();
   const baseRole = candidate.baseBusinessRoleId ? columnsById.get(candidate.baseBusinessRoleId) : null;
-  const impact = impactSummary(candidate, data.people, cellIndex, draft.marks);
+  const impact = impactSummary(candidate, data.people, cellIndex, draft.marks, visible);
   const share = new Map(frequencies(candidate.members, data.columns, cellIndex).map(f => [f.resourceId, f]));
   const n = candidate.members.size;
   const remove = async () => {
@@ -248,7 +250,7 @@ function Swatch({ kind, draftColor }) {
 }
 
 function ImpactBlock({ impact, peopleByKey, dispatch, draftColor }) {
-  const { counts, gainers, possibleMembers } = impact;
+  const { counts, gainers, hidden, possibleMembers } = impact;
   return (
     <div>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Impact for the members</h4>
@@ -261,6 +263,7 @@ function ImpactBlock({ impact, peopleByKey, dispatch, draftColor }) {
           </li>
         ))}
       </ul>
+      {hidden > 0 && <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{hidden} {hidden === 1 ? 'permission' : 'permissions'} hidden by filters — not counted.</p>}
       {gainers > 0 && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">{gainers} {gainers === 1 ? 'person' : 'people'} would gain access they do not have today.</p>}
       {possibleMembers.length > 0 && (
         <div className="mt-1 text-xs text-gray-700 dark:text-gray-300">

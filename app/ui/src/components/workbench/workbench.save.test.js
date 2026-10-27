@@ -36,6 +36,18 @@ describe('viewToSave / viewFromSaved', () => {
     const view = { ...DEFAULTS, columns: ['displayName', 'duty'], filters: { duty: { values: new Set(['OR']) } }, sort: { key: 'name', dir: 'desc' } };
     expect(viewFromSaved(JSON.parse(JSON.stringify(viewToSave(view))), DEFAULTS)).toEqual(view);
   });
+
+  it('keeps the permission filters (a hide too), sort and held-by range, and drops a filter on a column it does not know', () => {
+    const defaults = { ...DEFAULTS, permissionFilters: {}, permissionSort: null, maxHolders: null };
+    const view = {
+      ...defaults, maxHolders: 3, permissionSort: { key: 'held', dir: 'desc' },
+      permissionFilters: { contexts: { mode: 'hide', values: new Set(['default', 'app']), contains: [] }, type: { values: new Set(['Group']), contains: ['x'] } },
+    };
+    const saved = JSON.parse(JSON.stringify(viewToSave(view)));
+    expect(saved.permissionFilters.contexts).toEqual({ mode: 'hide', values: ['app', 'default'], contains: [] });
+    expect(viewFromSaved(saved, defaults)).toEqual(view);
+    expect(viewFromSaved({ ...saved, permissionFilters: { gone: { values: ['x'] } } }, defaults).permissionFilters).toEqual({});
+  });
 });
 
 describe('accessCellsOf', () => {

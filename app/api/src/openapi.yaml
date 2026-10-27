@@ -3976,7 +3976,10 @@ paths:
         the business roles that explain it), the business roles among the columns with what they
         Contain, and every activity, expertise and duty claim about these people with its source,
         quote and status. Read-only: proposed roles are composed in the browser and saved only as an
-        investigation (/contexts/{id}/workbench/investigations).
+        investigation (/contexts/{id}/workbench/investigations). Each column lists the contexts it is a
+        member of (tags, logical applications, …; `contexts`, ids), and `contexts` at the top holds those
+        contexts and every parent above them (id, displayName, contextType, parentId), so a filter on a
+        context can take its sub-contexts.
         At most 400 people and 300 columns (most held first). Needs data.write.contexts.
         See docs/architecture/m1-discovery-and-design.md.
       security:
@@ -4403,7 +4406,7 @@ components:
       properties:
         name: { type: string, maxLength: 200, description: Required for a new investigation }
         description: { type: string, maxLength: 1000, nullable: true }
-        view: { type: object, description: 'The workbench view: columns, filters, sort, includeChildren, minHolders, columnSearch, groupBy, orientation (columns | rows)' }
+        view: { type: object, description: 'The workbench view: columns, filters, sort, includeChildren, minHolders, maxHolders, columnSearch, groupBy, orientation (columns | rows), permissionFilters, permissionSort' }
         accessReadAt: { type: string, format: date-time, nullable: true }
         accessCells:
           type: array

@@ -122,6 +122,18 @@ describe('loadWorkbench on PostgreSQL', () => {
     expect(out.columns.find(c => c.id === R.read).holders).toBe(2);
   });
 
+  it('gives each access column its contexts, and those contexts with their parents', async () => {
+    const app = (await one(`INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "contextCategory", "displayName")
+      VALUES (gen_random_uuid(), 'manual', 'Resource', 'LogicalApplication', 'LogicalApplication', 'wbc-ClaimsSuite') RETURNING id`)).id;
+    const module = (await one(`INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "contextCategory", "displayName", "parentContextId")
+      VALUES (gen_random_uuid(), 'manual', 'Resource', 'LogicalApplication', 'LogicalApplication', 'wbc-ClaimsSuite Motor', $1) RETURNING id`, [app])).id;
+    await pool.query(`INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy") VALUES ($1, 'Resource', $2, 'analyst')`, [module, R.read]);
+    const out = await loadWorkbench(db, C.unit, { includeChildren: true });
+    expect(out.columns.find(c => c.id === R.read).contexts).toEqual([module]);
+    expect(out.columns.find(c => c.id === R.or).contexts).toEqual([]);
+    expect(out.contexts.map(c => [c.displayName, c.parentId]).sort()).toEqual([['wbc-ClaimsSuite', null], ['wbc-ClaimsSuite Motor', app]].sort());
+  });
+
   it('reads only the unit itself when asked', async () => {
     const out = await loadWorkbench(db, C.unit, { includeChildren: false });
     expect(out.people.map(p => p.displayName)).toEqual(['wbc-Anna']);

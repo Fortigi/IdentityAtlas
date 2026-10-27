@@ -1,1 +1,7 @@
 - The Authorization workbench now opens in the matrix's orientation: people as columns, access as rows. Business roles and proposed roles are rows with their entitlements nested under them in their colours, then "Other access". What is known of people (job title, activity, expertise, duty, …) sits in header rows above their columns, with the same filter and sort. A unit whose people hold hundreds of groups no longer scrolls sideways. **People as rows** is one click away, and the choice is saved with the investigation.
+- Filter the permissions in the Authorization workbench the way you filter the people: Resource name, Contexts, Type, System and Held by each have an Excel-like filter and sort.
+  - Contexts can show **only** the chosen tags or logical applications, or **hide** what is in them (e.g. hide everything tagged "Default access"). Choosing an application includes its sub-contexts.
+  - Held by now also takes **at most** (to spot outliers), and **Hide permissions only one person holds** is one click.
+  - A business role shows only the entitlements left by the filters, and says "(all hidden by filters)" when none are. A proposed role always keeps its own entitlements, marked "hidden by filter", so nothing is silently dropped from a proposal.
+  - The impact counts only what is shown, and says how many permissions the filters leave out.
+  - The filters are saved with the investigation. With people as rows they sit behind a **Permissions** menu.

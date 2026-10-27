@@ -169,6 +169,17 @@ describe('impact', () => {
     expect(s.possibleMembers).toEqual(['c']);
   });
 
+  it('impactSummary counts only the permissions shown, and says how many the filters leave out', () => {
+    const candidate = { members: new Set(['a', 'b']), entitlements: new Set(['r1', 'r2']) };
+    const marks = new Map([[cellKey('b', 'r3'), 'other']]);
+    expect(impactSummary(candidate, people, idx, marks).hidden).toBe(0);
+    // r2 and r3 hidden: only r1 counts (a ✓, b ✓); r2 (candidate) and r3 (b's, outside) are left out.
+    const s = impactSummary(candidate, people, idx, marks, new Set(['r1']));
+    expect(s.counts).toEqual({ covered: 2, gain: 0, outside: 0, other: 0, unrelated: 0, investigate: 0 });
+    expect(s.gainers).toBe(0);
+    expect(s.hidden).toBe(2);
+  });
+
   it('possibleMembers needs all of the entitlements by default, and nothing without entitlements', () => {
     const cand = { members: new Set(['a']), entitlements: new Set(['r1', 'r2', 'r3', 'r4']) };
     expect(possibleMembers(cand, people, idx)).toEqual([]);

@@ -5,9 +5,11 @@
 // /api/workbench/investigations/:id. Design: docs/architecture/m1-discovery-and-design.md.
 
 import { columnByKey } from './workbench.columns';
+import { permissionColumnByKey } from './workbench.permissions';
 
 const ACCESS_TYPES = new Set(['Direct', 'Indirect', 'Eligible']);
-const VIEW_KEYS = ['columns', 'filters', 'sort', 'includeChildren', 'minHolders', 'columnSearch', 'groupBy', 'orientation'];
+const VIEW_KEYS = ['columns', 'filters', 'sort', 'includeChildren', 'minHolders', 'columnSearch', 'groupBy', 'orientation',
+  'permissionFilters', 'permissionSort', 'maxHolders'];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const splitKey = (k) => { const i = k.lastIndexOf('|'); return [k.slice(0, i), k.slice(i + 1)]; };
@@ -22,20 +24,21 @@ function filtersToSave(src) {
   return filters;
 }
 
-// Saved filters back: values a Set again, a filter on a column the workbench no longer has dropped.
-function filtersFromSaved(src) {
+// Saved filters back: values a Set again, a filter on a column the workbench no
+// longer has dropped (people columns, or — `known` — the permission columns).
+function filtersFromSaved(src, known = columnByKey) {
   const filters = {};
   for (const [key, f] of Object.entries(src || {})) {
-    if (columnByKey.has(key) && f && Array.isArray(f.values)) filters[key] = { ...f, values: new Set(f.values) };
+    if (known.has(key) && f && Array.isArray(f.values)) filters[key] = { ...f, values: new Set(f.values) };
   }
   return filters;
 }
 
-/** The view as it can be saved: a filter's ticked values (a Set) become a sorted list. Pure. */
+/** The view as it can be saved: a filter's ticked values (a Set) become a sorted list — people's and permissions'. Pure. */
 export function viewToSave(view) {
-  const filters = filtersToSave(view.filters);
   const out = Object.fromEntries(VIEW_KEYS.filter(k => view[k] !== undefined).map(k => [k, view[k]]));
-  return { ...out, filters };
+  if (view.permissionFilters !== undefined) out.permissionFilters = filtersToSave(view.permissionFilters);
+  return { ...out, filters: filtersToSave(view.filters) };
 }
 
 /**
@@ -49,6 +52,7 @@ export function viewFromSaved(saved, defaults) {
   const columns = Array.isArray(src.columns) ? src.columns.filter(k => columnByKey.has(k)) : [];
   view.columns = columns.length ? columns : defaults.columns;
   view.filters = filtersFromSaved(src.filters);
+  if (view.permissionFilters !== undefined) view.permissionFilters = filtersFromSaved(src.permissionFilters, permissionColumnByKey);
   return view;
 }
 

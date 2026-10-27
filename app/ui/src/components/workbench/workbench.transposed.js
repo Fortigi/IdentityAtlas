@@ -25,25 +25,38 @@ export const DEFAULT_ORIENTATION = 'columns';
 /** The view's orientation: 'rows' when it says so, otherwise the default. Pure. */
 export const orientationOf = (view) => (view?.orientation === 'rows' ? 'rows' : DEFAULT_ORIENTATION);
 
+// A role's entitlements as rows: those the filters show, in the grid's order —
+// and, for a proposed role, also those they hide, last and marked: nothing is
+// ever silently dropped from a proposal.
+function roleEntitlements(role, order, columnsById) {
+  const known = [...role.contains].map(id => columnsById.get(id)).filter(c => c && !c.isRole);
+  const shown = known.filter(c => order.has(c.id)).sort((a, b) => order.get(a.id) - order.get(b.id));
+  const hidden = known.filter(c => !order.has(c.id));
+  return { shown, hidden, rows: role.draft ? [...shown, ...hidden] : shown };
+}
+
 /**
  * The grid's rows. `roles` is the band (bandRoles: existing roles, then proposed
- * ones, each with `contains`); `columns` the access shown (threshold and find
- * applied); `columnsById` every access column the unit has. A role lists every
- * entitlement of it the unit knows — a proposed role's must show even when few
- * hold it — so the threshold and find narrow only "Other access". `folded` holds
- * the roles whose entitlements are hidden. Each row has a unique `key`; a resource
- * two roles contain is a row under each. Pure.
+ * ones, each with `contains`); `columns` the access the permission filters, the
+ * held-by range and find leave, in the order to show (workbench.permissions.js
+ * visibleAccess); `columnsById` every column the unit has. An entitlement the
+ * filters hide is not under its role either; a role whose entitlements are all
+ * hidden says so (`allHidden`). A proposed role keeps them all, the hidden ones
+ * marked (`hiddenByFilter`). `folded` holds the roles whose entitlements are
+ * folded away. Each row has a unique `key`; a resource two roles contain is a row
+ * under each. Pure.
  */
 export function transposedRows(roles, columns, columnsById, folded = new Set()) {
+  const order = new Map(columns.filter(c => !c.isRole).map((c, i) => [c.id, i]));
   const rows = [];
   const inRole = new Set();
   for (const role of roles) {
-    const entitlements = [...role.contains].map(id => columnsById.get(id)).filter(c => c && !c.isRole);
-    entitlements.forEach(c => inRole.add(c.id));
-    rows.push({ type: 'role', key: `role:${role.id}`, role, count: entitlements.length, folded: folded.has(role.id) });
-    if (!folded.has(role.id)) {
-      for (const col of entitlements) rows.push({ type: 'resource', key: `${role.id}:${col.id}`, col, role });
-    }
+    const { shown, hidden, rows: under } = roleEntitlements(role, order, columnsById);
+    shown.forEach(c => inRole.add(c.id));
+    const allHidden = !role.draft && shown.length === 0 && hidden.length > 0;
+    rows.push({ type: 'role', key: `role:${role.id}`, role, count: shown.length, hidden: hidden.length, allHidden, folded: folded.has(role.id) });
+    if (folded.has(role.id)) continue;
+    for (const col of under) rows.push({ type: 'resource', key: `${role.id}:${col.id}`, col, role, hiddenByFilter: !order.has(col.id) });
   }
   const others = columns.filter(c => !c.isRole && !inRole.has(c.id));
   if (others.length > 0 && roles.length > 0) rows.push({ type: 'others', key: 'others', count: others.length });

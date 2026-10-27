@@ -234,6 +234,33 @@ The grid reuses the matrix's `MatrixCell` and colours. It does not reuse `Matrix
 order, fold tallies), and threading the workbench's selection and marks through them would put the
 global matrix at risk.
 
+### Filtering the permissions
+
+The permissions shown are filtered the way the people are (`workbench.permissions.js`): an
+Excel-like filter and sort on each of the matrix's row cells — Resource name, Contexts, Type,
+System, Held by — AND across columns.
+
+- **Contexts** are the tags and logical applications a resource belongs to (`ContextMembers`).
+  - The workbench API returns them per column (`columns[].contexts`, the matrix's own join,
+    `matrix/resourceContexts.js`), plus those contexts with every parent (`contexts`, recursive
+    on `parentContextId`).
+  - A context takes its sub-contexts: choosing a logical application also takes the resources in
+    its modules.
+  - The filter goes both ways: **Only these**, or **Hide resources in these** (e.g. everything
+    tagged "Default access").
+- **Held by:** "Access held by at least N" stays, plus **at most** (outliers), with **Hide
+  permissions only one person holds** as the at-least-2 preset.
+- **Business roles:**
+  - An entitlement the filters hide is not under its role either. A role whose entitlements are
+    all hidden says "(all hidden by filters)".
+  - A *proposed* role keeps all of its own, the hidden ones last and marked "hidden by filter".
+    Nothing is silently dropped from a proposal.
+- **Impact** counts only what is shown, and says "N permissions hidden by filters — not counted".
+- The filters, the permission sort and the held-by range are part of the saved view
+  (`permissionFilters`, `permissionSort`, `maxHolders`).
+- With people as rows the permissions are columns, and the same filters sit behind a
+  **Permissions** menu in the toolbar.
+
 ## Proposed roles on the unit page
 
 An analyst's unit page shows the same saved proposals. It reads them from the existing

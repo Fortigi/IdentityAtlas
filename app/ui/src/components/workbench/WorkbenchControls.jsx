@@ -4,6 +4,7 @@ import { PEOPLE_COLUMNS } from './workbench.columns';
 import { MARK_LEGEND } from './workbench.cells';
 import { MatrixLegendButton } from '@ui/components/matrix/GridCornerControls';
 import { ORIENTATIONS, orientationOf } from './workbench.transposed';
+import { PermissionsMenu } from './PermissionFilters';
 
 // ─── The workbench's controls ────────────────────────────────────────────
 // Toolbar: which people columns show, an optional grouping (off by default — one
@@ -14,7 +15,7 @@ import { ORIENTATIONS, orientationOf } from './workbench.transposed';
 const BTN = 'rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700';
 const FIELD = 'rounded border border-gray-300 bg-white px-1 py-0.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100';
 
-export function Toolbar({ view, setView }) {
+export function Toolbar({ view, setView, perms = null }) {
   const set = (field) => (value) => setView(v => ({ ...v, [field]: value }));
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
@@ -32,14 +33,34 @@ export function Toolbar({ view, setView }) {
         <input type="checkbox" checked={view.includeChildren} onChange={e => set('includeChildren')(e.target.checked)} />
         Include sub-units
       </label>
-      <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Access held by at least
-        <input type="number" min={1} value={view.minHolders} onChange={e => set('minHolders')(Math.max(1, Number(e.target.value) || 1))} className={`w-12 ${FIELD}`} />
-        people
-      </label>
+      <HeldBy view={view} set={set} />
       <input type="search" value={view.columnSearch} onChange={e => set('columnSearch')(e.target.value)} placeholder="Find access…" aria-label="Find a column"
         className={`w-40 px-2 text-xs ${FIELD}`} />
+      {perms && orientationOf(view) === 'rows' && <PermissionsMenu perms={perms} />}
     </div>
+  );
+}
+
+// Access held by at least N people — and, to spot outliers, at most M (empty: no
+// limit). "Hide permissions only one person holds" is the at-least-2 preset.
+function HeldBy({ view, set }) {
+  const max = view.maxHolders ?? '';
+  return (
+    <span className="flex flex-wrap items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+      <label className="flex items-center gap-1">
+        Access held by at least
+        <input type="number" min={1} value={view.minHolders} onChange={e => set('minHolders')(Math.max(1, Number(e.target.value) || 1))} className={`w-12 ${FIELD}`} />
+      </label>
+      <label className="flex items-center gap-1">
+        and at most
+        <input type="number" min={1} value={max} placeholder="any" aria-label="Access held by at most"
+          onChange={e => set('maxHolders')(e.target.value === '' ? null : Math.max(1, Number(e.target.value) || 1))} className={`w-14 ${FIELD}`} />
+        people
+      </label>
+      {view.minHolders < 2 && (
+        <button type="button" onClick={() => set('minHolders')(2)} className="text-blue-700 hover:underline dark:text-blue-300">Hide permissions only one person holds</button>
+      )}
+    </span>
   );
 }
 

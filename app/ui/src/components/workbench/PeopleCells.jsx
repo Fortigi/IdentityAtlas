@@ -32,7 +32,7 @@ export function PeopleHeader({ columns, offsets, people, filters, sort, onSort, 
  * Excel-like filter (▾, filled while a filter is on). Shared by both orientations:
  * a column header with people as rows, a header row's label with people as columns.
  */
-export function HeaderControls({ column, people, filter, sort, onSort, onFilter, open, onOpenChange }) {
+export function HeaderControls({ column, people, values, filter, sort, onSort, onFilter, open, onOpenChange }) {
   const sorted = sort?.key === column.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : '';
   return (
     <div className="relative flex items-center gap-1">
@@ -42,7 +42,7 @@ export function HeaderControls({ column, people, filter, sort, onSort, onFilter,
       <button type="button" onClick={() => onOpenChange(!open)} aria-label={`Filter ${column.label}`} aria-expanded={open}
         className={`rounded px-1 ${filter ? 'bg-blue-600 text-white dark:bg-blue-500' : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'}`}>▾</button>
       {open && (
-        <ColumnFilterMenu column={column} people={people} filter={filter}
+        <ColumnFilterMenu column={column} people={people} values={values} filter={filter}
           onApply={(f) => { onFilter(column.key, f); onOpenChange(false); }} onClose={() => onOpenChange(false)} />
       )}
     </div>

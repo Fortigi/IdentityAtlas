@@ -17,6 +17,7 @@ import {
   buildPeople, buildCells, buildColumns, buildKnowledge, accountIds, unresolvedMembers,
 } from './model.js';
 import { KNOWLEDGE_KINDS, KNOWLEDGE } from '../../lib/orgKnowledge.js';
+import { withContexts } from './resourceContexts.js';
 import { SOURCE_KIND_SQL } from '../interviews/store.js';
 
 export const MAX_PEOPLE = 400;
@@ -163,7 +164,9 @@ export async function loadWorkbench(db, contextId, { includeChildren = true } = 
   const resources = await rowsOf(db, RESOURCES_SQL, [[...holders.keys()]]);
   const roleIds = resources.filter(r => r.governanceResource || r.resourceType === 'BusinessRole').map(r => r.id);
   const roleParts = roleIds.length ? await rowsOf(db, ROLE_PARTS_SQL, [roleIds]) : [];
-  const { columns, truncated } = buildColumns(resources, holders, roleParts, MAX_COLUMNS);
+  const built = buildColumns(resources, holders, roleParts, MAX_COLUMNS);
+  const { columns, contexts } = await withContexts(db, built.columns);
+  const truncated = built.truncated;
   const shown = new Set(columns.map(c => c.id));
   const knowledge = buildKnowledge(people, claims);
 
@@ -174,6 +177,7 @@ export async function loadWorkbench(db, contextId, { includeChildren = true } = 
     people: people.map(p => ({ ...p, knowledge: knowledge.get(p.key) ?? [] })),
     columns,
     truncatedColumns: truncated,
+    contexts,
     cells: cells.filter(c => shown.has(c.resourceId)),
     generatedAt: new Date().toISOString(),
   };

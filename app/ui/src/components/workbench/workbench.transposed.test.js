@@ -33,7 +33,8 @@ describe('the rows with people as columns', () => {
 
   it('runs a Shift-click range along the resources in row order, each once', () => {
     const rows = transposedRows([role('a', ['r2', 'r1']), role('b', ['r1'])], [r1, r2, r3], byId);
-    expect(resourceOrder(rows)).toEqual(['r2', 'r1', 'r3']);
+    // A role's entitlements come in the grid's order (the permission sort), not the role's own.
+    expect(resourceOrder(rows)).toEqual(['r1', 'r2', 'r3']);
   });
 });
 
@@ -79,5 +80,27 @@ describe('the orientation', () => {
     expect(viewToSave({ ...defaults, orientation: 'rows' })).toMatchObject({ orientation: 'rows' });
     expect(viewFromSaved({ orientation: 'rows', columns: ['displayName'] }, defaults).orientation).toBe('rows');
     expect(viewFromSaved({ columns: ['displayName'] }, defaults).orientation).toBe('columns');
+  });
+});
+
+describe('the rows under permission filters', () => {
+  it('drops a filtered-out entitlement from under its role and says how many', () => {
+    const rows = transposedRows([role('br', ['r1', 'r2'])], [r1], byId);
+    expect(rows.map(r => r.key)).toEqual(['role:br', 'br:r1']);
+    expect(rows[0]).toMatchObject({ count: 1, hidden: 1, allHidden: false });
+  });
+
+  it('collapses a role whose entitlements are all hidden', () => {
+    const rows = transposedRows([role('br', ['r1', 'r2'])], [r3], byId);
+    expect(rows.map(r => r.key)).toEqual(['role:br', 'others', 'other:r3']);
+    expect(rows[0]).toMatchObject({ count: 0, hidden: 2, allHidden: true });
+  });
+
+  it('keeps a proposed role\'s hidden entitlements, last and marked — never dropped from a proposal', () => {
+    const rows = transposedRows([role('draft:1', ['r2', 'r1'], { draft: true })], [r1], byId);
+    expect(rows.map(r => [r.key, r.hiddenByFilter])).toEqual([['role:draft:1', undefined], ['draft:1:r1', false], ['draft:1:r2', true]]);
+    expect(rows[0]).toMatchObject({ count: 1, hidden: 1, allHidden: false });
+    // Only the shown one counts as in a role: nothing else is hidden from Other access.
+    expect(resourceOrder(rows)).toEqual(['r1', 'r2']);
   });
 });

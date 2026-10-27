@@ -30,7 +30,8 @@ export const MAX_NOTE = 1000;
 // 400 people × 300 columns is the most the workbench shows (load.js).
 export const MAX_CELLS = 120000;
 export const MAX_VIEW_BYTES = 64 * 1024;
-const VIEW_KEYS = ['columns', 'filters', 'sort', 'includeChildren', 'minHolders', 'columnSearch', 'groupBy', 'orientation'];
+const VIEW_KEYS = ['columns', 'filters', 'sort', 'includeChildren', 'minHolders', 'columnSearch', 'groupBy', 'orientation',
+  'permissionFilters', 'permissionSort', 'maxHolders'];
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERSON_RE = /^([ip]):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;

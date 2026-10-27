@@ -20,7 +20,8 @@ vi.mock('@tanstack/react-virtual', () => ({
 const grid = () => screen.getByRole('table', { name: "Access of the unit's people, people as columns" });
 const opened = () => screen.findByRole('heading', { name: 'Claims Handling' }, { timeout: 5000 });
 const rowNames = () => [...grid().querySelectorAll('tbody tr')].map(tr => tr.querySelector('th')?.textContent.trim()).filter(Boolean);
-const personNames = () => [...grid().querySelectorAll('thead tr:last-child th[scope="col"]')].map(th => th.textContent.trim());
+// The names row: the last header row above the permission headers.
+const personNames = () => [...[...grid().querySelectorAll('thead tr')].at(-2).querySelectorAll('th[scope="col"]')].map(th => th.textContent.trim());
 const candidate = () => screen.getByRole('complementary', { name: 'Candidate role' });
 
 describe('people as columns', () => {
@@ -44,7 +45,7 @@ describe('people as columns', () => {
     await opened();
     const read = screen.getByRole('button', { name: /^Select the row ClaimsSuite Read/ }).closest('tr');
     // Anna D (through the role), Bram D and Cleo E — held outside the role that contains it (the matrix's red 1).
-    expect([...read.querySelectorAll('td')].slice(2).map(td => td.textContent)).toEqual(['D', 'D1', 'E1']);
+    expect([...read.querySelectorAll('td')].slice(4).map(td => td.textContent)).toEqual(['D', 'D1', 'E1']);
     const role = grid().querySelector('tr[data-role="br"]');
     expect(role).toHaveTextContent('Business role');
     expect(role.querySelectorAll('td')[1]).toHaveTextContent('1');
@@ -110,5 +111,80 @@ describe('people as columns', () => {
     expect(screen.getByRole('table', { name: "Access of the unit's people" })).toBeInTheDocument();
     expect(screen.queryByRole('table', { name: "Access of the unit's people, people as columns" })).toBeNull();
     expect(screen.getByText('Group by')).toBeInTheDocument();
+  });
+});
+
+describe('filtering the permissions', () => {
+  const strip = () => screen.getByRole('region', { name: 'Permission filters' });
+
+  it('hides everything in a logical application — its modules too — and says so under the role', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(screen.getByRole('button', { name: 'Filter Contexts' }));
+    const menu = screen.getByRole('dialog', { name: 'Filter Contexts' });
+    await user.click(within(menu).getByRole('radio', { name: 'Hide resources in these' }));
+    // Hiding starts with nothing ticked; the module Motor sits under ClaimsSuite.
+    expect(within(menu).getAllByRole('checkbox').filter(c => c.checked)).toHaveLength(0);
+    await user.click(within(menu).getByRole('checkbox', { name: /^ClaimsSuite\s*2$/ }));
+    await user.click(within(menu).getByRole('button', { name: 'OK' }));
+    expect(rowNames()).toEqual(['▾Claims handler(all hidden by filters)', 'Other access · 1 not in any role shown', 'WorksCouncil site']);
+    expect(strip()).toHaveTextContent('1 of 3 permissions shown');
+    expect(strip()).toHaveTextContent('Contexts: hiding ClaimsSuite');
+    await user.click(within(strip()).getByRole('button', { name: 'Clear permission filters' }));
+    expect(rowNames()).toContain('Motor handler');
+  });
+
+  it('filters by type and sorts the permissions by held by', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(screen.getByRole('button', { name: 'Filter Type' }));
+    const menu = screen.getByRole('dialog', { name: 'Filter Type' });
+    await user.click(within(menu).getByRole('checkbox', { name: /^Group/ }));
+    await user.click(within(menu).getByRole('button', { name: 'OK' }));
+    expect(rowNames()).toEqual(['▾Claims handler2 entitlements', 'ClaimsSuite Read', 'Motor handler']);
+    await user.click(within(strip()).getByRole('button', { name: 'Clear the Type filter' }));
+    await user.click(screen.getByRole('button', { name: 'Sort by Held by' }));
+    expect(rowNames()).toEqual(['▾Claims handler2 entitlements', 'Motor handler', 'ClaimsSuite Read', 'Other access · 1 not in any role shown', 'WorksCouncil site']);
+  });
+
+  it('hides what one person alone holds in one click, and spots outliers with at most', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(screen.getByRole('button', { name: 'Hide permissions only one person holds' }));
+    expect(rowNames()).not.toContain('WorksCouncil site');
+    expect(screen.queryByRole('button', { name: 'Hide permissions only one person holds' })).toBeNull();
+    await user.type(screen.getByRole('spinbutton', { name: 'Access held by at most' }), '2');
+    expect(rowNames()).toEqual(['▾Claims handler1 entitlement · 1 hidden by filters', 'Motor handler']);
+  });
+
+  it('keeps a proposed role\'s hidden entitlement, marked, and leaves it out of the impact', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(within(grid()).getByTitle(/^Cleo Kok Select/));
+    await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
+    await user.click(screen.getByRole('button', { name: 'Filter Resource name' }));
+    const menu = screen.getByRole('dialog', { name: 'Filter Resource name' });
+    await user.click(within(menu).getByRole('checkbox', { name: /^Motor handler/ }));
+    await user.click(within(menu).getByRole('button', { name: 'OK' }));
+    // Under the existing role it is gone; under the proposed one it stays, marked.
+    const hidden = grid().querySelector('tbody tr[data-hidden-by-filter]');
+    expect(hidden).toHaveTextContent('Motor handlerhidden by filter');
+    expect(rowNames().filter(n => n.startsWith('Motor handler'))).toHaveLength(1);
+    expect(candidate()).toHaveTextContent('1 permission hidden by filters — not counted.');
+  });
+
+  it('with people as rows, the same filters sit behind a Permissions menu', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(screen.getByRole('button', { name: 'People as rows' }));
+    await user.click(screen.getByRole('button', { name: 'Permissions ▾' }));
+    const panel = screen.getByRole('dialog', { name: 'Filter the permissions' });
+    await user.click(within(panel).getByRole('button', { name: 'Filter System' }));
+    const menu = screen.getByRole('dialog', { name: 'Filter System' });
+    await user.click(within(menu).getByRole('checkbox', { name: /^CS/ }));
+    await user.click(within(menu).getByRole('button', { name: 'OK' }));
+    const headers = within(screen.getByRole('table', { name: "Access of the unit's people" })).getAllByRole('button', { name: /^Select the column/ }).map(b => b.textContent);
+    expect(headers).toEqual(['WorksCouncil site']);
+    expect(screen.getByRole('button', { name: 'Permissions (1) ▾' })).toBeInTheDocument();
   });
 });

@@ -18,6 +18,8 @@ import { useInvestigation } from './useInvestigation';
 import { useOpenLinked } from './useOpenLinked';
 import { parseWorkbenchRouteId } from './workbench.link';
 import { Toolbar, SelectionBar, Legend, FilterStrip } from './WorkbenchControls';
+import { PermissionStrip } from './PermissionFilters';
+import { contextIndex, visibleAccess, permissionFilterSummary, hasPermissionFilter } from './workbench.permissions';
 import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
 
 // ─── Authorization workbench ─────────────────────────────────────────────
@@ -33,13 +35,12 @@ import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, 
 // minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
 // People as columns by default (the matrix's orientation; workbench.transposed.js), or
 // as rows — one row per person (groupBy 'none'); people columns as in DEFAULT_COLUMNS.
-const DEFAULT_VIEW = { orientation: DEFAULT_ORIENTATION, groupBy: 'none', columns: DEFAULT_COLUMNS, filters: {}, sort: null, includeChildren: true, minHolders: null, columnSearch: '' };
-
-function visibleColumns(columns, view) {
-  const q = view.columnSearch.trim().toLowerCase();
-  // Business roles are not columns here: they are the band on the right, as in the matrix.
-  return columns.filter(c => !c.isRole && c.holders >= view.minHolders && (!q || c.displayName.toLowerCase().includes(q) || (c.systemName || '').toLowerCase().includes(q)));
-}
+// The permissions shown: filtered like the people (permissionFilters, permissionSort),
+// held by at least minHolders and at most maxHolders people (workbench.permissions.js).
+const DEFAULT_VIEW = {
+  orientation: DEFAULT_ORIENTATION, groupBy: 'none', columns: DEFAULT_COLUMNS, filters: {}, sort: null, includeChildren: true,
+  minHolders: null, maxHolders: null, columnSearch: '', permissionFilters: {}, permissionSort: null,
+};
 
 // The workbench is part of organisation knowledge (Admin → Experimental, flag
 // orgKnowledge): while that is off a link to it says so and asks nothing.
@@ -83,8 +84,12 @@ function Workbench({ contextId: routeId, onCacheData, onClose }) {
   if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
   const color = (idx) => getAccessPackageColor(idx, isDark);
   const setFilter = (key, filter) => setView(v => ({ ...v, filters: { ...v.filters, [key]: filter } }));
-  // Click a header: sort by it; again: the other way.
-  const onSort = (key) => setView(v => ({ ...v, sort: v.sort?.key === key && v.sort.dir === 'asc' ? { key, dir: 'desc' } : { key, dir: 'asc' } }));
+  const onSort = (key) => setView(v => ({ ...v, sort: nextSort(v.sort, key) }));
+  const perms = {
+    allAccess: derived.allAccess, ctx: derived.ctx, filters: view.permissionFilters, sort: view.permissionSort,
+    onSort: (key) => setView(v => ({ ...v, permissionSort: nextSort(v.permissionSort, key) })),
+    onFilter: (key, f) => setView(v => ({ ...v, permissionFilters: { ...v.permissionFilters, [key]: f } })),
+  };
   const shownColumns = view.columns.map(k => columnByKey.get(k));
   const peopleColumns = { peopleColumns: shownColumns, offsets: stickyOffsets(shownColumns).offsets };
 
@@ -103,13 +108,16 @@ function Workbench({ contextId: routeId, onCacheData, onClose }) {
     <div className="space-y-3">
       <Header data={data} gaps={derived.gaps} shownColumns={derived.columns.length} onClose={onClose} loading={loading} />
       <InvestigationBar inv={inv} />
-      <Toolbar view={shownView} setView={setView} />
+      <Toolbar view={shownView} setView={setView} perms={perms} />
       {actionError && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">{actionError}</p>}
       <FilterStrip shown={derived.shownPeople.length} total={data.people.length} summary={filterSummary(view.filters, data.people)}
         onClear={(key) => setFilter(key, null)} onClearAll={() => setView(v => ({ ...v, filters: {} }))}
         onSelectShown={() => dispatch({ type: 'select', keys: heldKeys(derived.shownPeople, derived), add: false })}
         onAddShown={() => dispatch({ type: 'addMembers', people: derived.shownPeople.map(p => p.key) })}
         onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })} />
+      <PermissionStrip shown={derived.columns.length} total={derived.accessTotal}
+        summary={permissionFilterSummary(view.permissionFilters, derived.allAccess, derived.ctx)}
+        onClear={(key) => perms.onFilter(key, null)} onClearAll={() => setView(v => ({ ...v, permissionFilters: {} }))} />
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
@@ -120,7 +128,7 @@ function Workbench({ contextId: routeId, onCacheData, onClose }) {
           ) : (
             <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color}
               cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
-              header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter }} />
+              header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, perms }} />
           )}
           <Legend />
         </div>
@@ -128,11 +136,16 @@ function Workbench({ contextId: routeId, onCacheData, onClose }) {
           <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color} saveLabel={saveLabel(inv)}
             roleActions={({ candidate: role, problems }) => <RoleSaveActions inv={inv} candidate={role} problems={problems} unitName={data.unit.displayName} dispatch={dispatch} />}
             candidate={candidate} unitName={data.unit.displayName} onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}
-            peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} />
+            peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} visible={derived.visible} />
         </div>
       </div>
     </div>
   );
+}
+
+// Click a header: sort by it; again: the other way.
+function nextSort(sort, key) {
+  return sort?.key === key && sort.dir === 'asc' ? { key, dir: 'desc' } : { key, dir: 'asc' };
 }
 
 // The badge on the proposed roles: saved, changed since, or never saved.
@@ -151,14 +164,21 @@ function derive(data, view) {
   const cellIndex = indexCells(data.cells);
   const counts = accessCounts(data.cells);
   const shownPeople = sortPeople(applyFilters(data.people, view.filters), view.sort);
+  const ctx = contextIndex(data.contexts);
+  const access = visibleAccess(data.columns, view, ctx);
   return {
+    ctx,
+    allAccess: data.columns.filter(c => !c.isRole),
+    accessTotal: access.total,
+    // What the impact counts: the access shown, and the business roles (rows and bands, never filtered).
+    visible: hasPermissionFilter(view) ? new Set([...access.columns, ...data.columns.filter(c => c.isRole)].map(c => c.id)) : null,
     cellIndex,
     cellsByResource: byResource(data.cells),
     shownPeople,
     groups: view.groupBy === 'none'
       ? [{ key: 'all', label: 'Everyone', count: shownPeople.length, rows: shownPeople.map(person => ({ person, repeat: false })) }]
       : groupPeople(shownPeople, view.groupBy, 'name', (k) => counts.get(k) ?? 0),
-    columns: visibleColumns(data.columns, view),
+    columns: access.columns,
     peopleByKey: new Map(data.people.map(p => [p.key, p])),
     columnsById: new Map(data.columns.map(c => [c.id, c])),
     gaps: knowledgeGaps(data.people),

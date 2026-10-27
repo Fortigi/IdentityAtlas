@@ -33,12 +33,18 @@ export function payload() {
       person('i:c', 'Cleo Kok', []),
     ],
     columns: [
-      { id: 'r1', displayName: 'ClaimsSuite Read', resourceType: 'AppRole', systemName: 'CS', isRole: false, holders: 3, contains: [] },
+      { id: 'r1', displayName: 'ClaimsSuite Read', resourceType: 'AppRole', systemName: 'CS', isRole: false, holders: 3, contains: [], contexts: ['motor'] },
       { id: 'br', displayName: 'Claims handler', resourceType: 'BusinessRole', systemName: 'CS', isRole: true, holders: 1, contains: ['r1', 'r2'] },
-      { id: 'r2', displayName: 'Motor handler', resourceType: 'AppRole', systemName: 'CS', isRole: false, holders: 2, contains: [] },
-      { id: 'or', displayName: 'WorksCouncil site', resourceType: 'Group', systemName: 'Dir', isRole: false, holders: 1, contains: [] },
+      { id: 'r2', displayName: 'Motor handler', resourceType: 'AppRole', systemName: 'CS', isRole: false, holders: 2, contains: [], contexts: ['motor'] },
+      { id: 'or', displayName: 'WorksCouncil site', resourceType: 'Group', systemName: 'Dir', isRole: false, holders: 1, contains: [], contexts: ['default'] },
     ],
     truncatedColumns: 0,
+    // The contexts the columns are in, with their parents: Motor is a module of the ClaimsSuite application.
+    contexts: [
+      { id: 'suite', displayName: 'ClaimsSuite', contextType: 'LogicalApplication', parentId: null },
+      { id: 'motor', displayName: 'Motor', contextType: 'LogicalApplication', parentId: 'suite' },
+      { id: 'default', displayName: 'Default access', contextType: 'Tag', parentId: null },
+    ],
     cells: [
       { person: 'i:a', resourceId: 'r1', type: 'Direct', accounts: ['acc-a'], viaRoles: ['br'] },
       { person: 'i:a', resourceId: 'br', type: 'Direct', accounts: ['acc-a'], viaRoles: [] },
