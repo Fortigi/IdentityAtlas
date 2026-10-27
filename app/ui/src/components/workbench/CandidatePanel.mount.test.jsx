@@ -36,6 +36,6 @@ describe('CandidatePanel — the role\u2019s actions', () => {
   it('notes a rule-based role without a rule, without blocking it', () => {
     mount(role({ kind: 'rule' }), () => null);
     expect(screen.queryByRole('list', { name: 'Before saving' })).toBeNull();
-    expect(screen.getAllByText('Members chosen by hand — no rule yet.').length).toBeGreaterThan(0);
+    expect(screen.getByText('It will be saved with members chosen by hand — it has no assignment rule yet.')).toBeInTheDocument();
   });
 });
