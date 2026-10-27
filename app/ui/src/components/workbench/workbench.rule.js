@@ -112,3 +112,19 @@ export function ruleSentence(draft, unitName, people, accountable = null) {
   if (draft.kind !== 'rule' || !rule) return null;
   return `${scope('Everyone')}${condition} — ${policySentence(JOINER_POLICIES, draft.joinerPolicy)}, ${policySentence(LEAVER_POLICIES, draft.leaverPolicy)}.`;
 }
+/**
+ * What a proposed role still needs before it can be saved as a role: a name, its
+ * kind, and at least one entitlement. Pure.
+ */
+export function roleProblems(candidate) {
+  const out = [];
+  if (!candidate.name?.trim()) out.push('Give the role a name.');
+  if (!candidate.kind) out.push('Choose how it is assigned (rule-based or requestable).');
+  if (!candidate.entitlements?.size) out.push('Add at least one entitlement (select cells or a column header, then Add to candidate).');
+  return out;
+}
+
+/** What is worth knowing but does not stop a save: a rule-based role without a rule. Pure. */
+export function roleNotes(candidate) {
+  return candidate.kind === 'rule' && !candidate.rule ? ['Members chosen by hand — no rule yet.'] : [];
+}

@@ -4,6 +4,7 @@ import { IMPACT } from './workbench.cells';
 import { activeDraft } from './useWorkbench';
 import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 import RoleRuleEditor, { KindPicker } from './RoleRuleEditor';
+import { roleProblems, roleNotes } from './workbench.rule';
 
 // ─── The proposed roles ──────────────────────────────────────────────────
 // The session's proposed roles, each a Draft column in the role band in its own
@@ -19,6 +20,8 @@ import RoleRuleEditor, { KindPicker } from './RoleRuleEditor';
 export default function CandidatePanel({
   draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined,
   candidate = null, unitName = '', onUseAsRule = () => {},
+  // Optional: the actions at the end of the role (a screen that saves passes "Save role" here).
+  roleActions = null,
 }) {
   const existing = data.columns.filter(c => c.isRole);
   const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
@@ -34,13 +37,28 @@ export default function CandidatePanel({
       {!viewed && active.id && (
         <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
           columnsById={columnsById} draftColor={colorOf(active.id) ?? color(roles.length)}
-          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} />
+          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} roleActions={roleActions} />
       )}
       {!viewed && !active.id && (
         <p className="text-xs text-gray-600 dark:text-gray-400">No proposed role yet. Filter or select people and cells, then <span className="font-medium">Add to candidate</span> — or start one here.</p>
       )}
       <button type="button" onClick={() => dispatch({ type: 'reset' })} className="text-xs text-red-700 hover:underline dark:text-red-300">Reset everything (selection, marks and all proposed roles)</button>
     </aside>
+  );
+}
+
+// What the role still needs (blocks a save) and what is worth knowing (does not), above its actions.
+function RoleChecks({ candidate, children }) {
+  const problems = roleProblems(candidate);
+  const notes = roleNotes(candidate);
+  return (
+    <div className="space-y-1 border-t border-gray-100 pt-2 dark:border-gray-700">
+      {problems.length > 0 && (
+        <ul aria-label="Before saving" className="list-disc pl-4 text-xs text-red-700 dark:text-red-300">{problems.map(p => <li key={p}>{p}</li>)}</ul>
+      )}
+      {notes.map(n => <p key={n} className="text-xs text-gray-600 dark:text-gray-400">{n}</p>)}
+      {children}
+    </div>
   );
 }
 
@@ -117,7 +135,7 @@ function membersTitle(candidate) {
   return `Members chosen by hand (${n})`;
 }
 
-function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule }) {
+function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule, roleActions }) {
   const dialog = useDialog();
   const baseRole = candidate.baseBusinessRoleId ? columnsById.get(candidate.baseBusinessRoleId) : null;
   const impact = impactSummary(candidate, data.people, cellIndex, draft.marks);
@@ -177,6 +195,7 @@ function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey,
         Nothing here changes access or is saved. “Outside the candidate” is not a removal: the person may keep it through
         other grants, and removing access is not modelled yet — its impact is unknown.
       </p>
+      {roleActions && <RoleChecks candidate={candidate}>{roleActions({ candidate, problems: roleProblems(candidate) })}</RoleChecks>}
       <button type="button" onClick={remove} className="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/30">Remove this proposed role</button>
     </section>
   );
