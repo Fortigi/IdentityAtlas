@@ -118,7 +118,7 @@ describe('POST /contexts/uploads/preview and /apply', () => {
     expect(res.status).toBe(201);
     expect(vi.mocked(service.applyUpload).mock.calls[0][1]).toBe('analyst@x.nl');
     expect(Object.keys(vi.mocked(service.applyUpload).mock.calls[0][2]).sort())
-      .toEqual(['db', 'insertRelationshipRows', 'insertRoleRows', 'refreshMemberCounts', 'runIngest']);
+      .toEqual(['db', 'insertOwnerRows', 'insertRelationshipRows', 'insertRoleRows', 'refreshMemberCounts', 'runIngest']);
   });
 
   it('an UploadError keeps its status and details', async () => {

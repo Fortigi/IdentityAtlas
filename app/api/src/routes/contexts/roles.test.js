@@ -40,7 +40,11 @@ describe('parseRoleBody', () => {
     ['both holders', { role: 'Accountable', principalId: P1, identityId: I1 }, /Exactly one of principalId or identityId/],
     ['a non-uuid holder', { role: 'Responsible', identityId: 'nope' }, /identityId must be a uuid/],
   ])('rejects %s', (_label, body, message) => {
-    expect(parseRoleBody(body)).toMatchObject({ status: 400, message });
+    // toMatchObject treats a RegExp as an empty object, so the message is
+    // matched on its own.
+    const res = parseRoleBody(body);
+    expect(res.status).toBe(400);
+    expect(res.message).toMatch(message);
   });
 });
 
