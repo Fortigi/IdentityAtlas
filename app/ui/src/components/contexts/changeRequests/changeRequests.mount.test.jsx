@@ -11,6 +11,8 @@ import { render as rtlRender } from '@testing-library/react';
 import { renderWithProviders, makeAuthFetch, makeWrapper, jsonResponse, screen, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
+// Change requests are organisation knowledge (Admin → Experimental, off by default).
+const ON = { orgKnowledge: true };
 const OPEN = {
   id: 'r-1', status: 'open', summary: 'Remove Lotte Lindeboom from Harbour Office', targetName: 'HR export (upload)',
   raisedBy: 'analyst@example.test', raisedAt: '2026-10-23T09:15:00Z',
@@ -46,13 +48,13 @@ describe('changeRequests.helpers', () => {
   });
 });
 
-function render(items, seen = []) {
+function render(items, seen = [], features = ON) {
   const authFetch = makeAuthFetch((url) => {
     seen.push(url);
     if (url === '/api/change-requests?contextId=c-unit') return jsonResponse({ items, counts: {} });
     return undefined;
   });
-  return renderWithProviders(h(ChangeRequestsPanel, { contextId: 'c-unit' }), { auth: { authFetch, ...READER } });
+  return renderWithProviders(h(ChangeRequestsPanel, { contextId: 'c-unit' }), { auth: { authFetch, ...READER }, features });
 }
 
 describe('ChangeRequestsPanel', () => {
@@ -83,7 +85,7 @@ describe('ChangeRequestsPanel', () => {
   it('reads again when the unit\'s claims change (a decision), and not before', async () => {
     const seen = [];
     const authFetch = makeAuthFetch((url) => { seen.push(url); return jsonResponse({ items: [OPEN], counts: {} }); });
-    const { wrapper: Wrapper } = makeWrapper({ auth: { authFetch, ...READER } });
+    const { wrapper: Wrapper } = makeWrapper({ auth: { authFetch, ...READER }, features: ON });
     const panel = (claims) => h(Wrapper, null, h(ClaimsContext.Provider, { value: { claims } }, h(ChangeRequestsPanel, { contextId: 'c-unit' })));
     const claims = [{ id: 'm-1' }];
     const { rerender } = rtlRender(panel(claims));
@@ -94,6 +96,14 @@ describe('ChangeRequestsPanel', () => {
     rerender(panel([{ id: 'm-1', status: 'confirmed' }]));
     await waitFor(() => expect(seen).toHaveLength(2));
     expect(seen).toEqual(['/api/change-requests?contextId=c-unit', '/api/change-requests?contextId=c-unit']);
+  });
+
+  it('asks nothing and shows nothing while organisation knowledge is off', async () => {
+    const seen = [];
+    const { container } = render([OPEN], seen, {});
+    await new Promise(r => setTimeout(r, 20));
+    expect(seen).toEqual([]);
+    expect(container.querySelector('section')).toBeNull();
   });
 
   it('shows nothing while the unit has no request', async () => {

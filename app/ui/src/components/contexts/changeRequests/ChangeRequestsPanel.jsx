@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useContextClaims } from '@ui/components/contexts/interviews/claimsContext';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import { closedLine, countLabel, raisedLine, splitRequests } from './changeRequests.helpers';
 
 // ─── Change requests — what the source still has to change ───────────────
@@ -11,14 +12,16 @@ import { closedLine, countLabel, raisedLine, splitRequests } from './changeReque
 // Listed here, open first. Nobody closes one by hand: the API resolves it when
 // the source shows the change, and an undone decision withdraws it. Re-read
 // whenever the unit's claims change, so a decision shows up straight away.
-// Nothing at all while the unit never had a request.
+// Nothing at all while the unit never had a request, and nothing asked while
+// organisation knowledge is off (the API answers 404 then).
 
 export default function ChangeRequestsPanel({ contextId }) {
   const { authFetch } = useAuth();
   const claimsCtx = useContextClaims();
+  const knowledge = useOrgKnowledge();
   const [showClosed, setShowClosed] = useState(false);
   const { data, reload } = useFetch(`/api/change-requests?contextId=${encodeURIComponent(contextId)}`, {
-    authFetch, enabled: !!contextId, initialData: null,
+    authFetch, enabled: !!contextId && knowledge, initialData: null,
   });
   // The first fetch is useFetch's own; read again only when the claims change after it.
   const claims = claimsCtx?.claims;

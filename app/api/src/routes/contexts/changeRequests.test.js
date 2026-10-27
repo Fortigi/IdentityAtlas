@@ -7,6 +7,7 @@ import { mountRouterAs } from '../../../test-utils/routeTestKit.js';
 vi.mock('../../db/connection.js');
 vi.mock('../../contexts/changeRequests.js', async (orig) => ({ ...(await orig()), listChangeRequests: vi.fn() }));
 process.env.USE_SQL = 'true';
+process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // change requests are organisation knowledge
 
 const { default: router } = await import('./changeRequests.js');
 const { listChangeRequests } = await import('../../contexts/changeRequests.js');
@@ -19,6 +20,18 @@ const app = mountRouterAs(router, () => reader);
 beforeEach(() => vi.mocked(listChangeRequests).mockReset());
 
 describe('GET /change-requests', () => {
+  it('answers 404 and never reads while organisation knowledge is off', async () => {
+    process.env.FEATURE_ORG_KNOWLEDGE = 'false';
+    try {
+      const res = await request(app).get('/api/change-requests');
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'This feature is not enabled' });
+      expect(listChangeRequests).not.toHaveBeenCalled();
+    } finally {
+      process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    }
+  });
+
   it('serves a reader the list, with the filters parsed', async () => {
     const body = { items: [{ id: 'r1', summary: 'Remove Led from Klanten' }], counts: { open: 1, resolved: 0, withdrawn: 0 } };
     vi.mocked(listChangeRequests).mockResolvedValue(body);
@@ -50,6 +63,7 @@ describe('without the SQL backend', () => {
     process.env.USE_SQL = 'false';
     const { default: noSql } = await import('./changeRequests.js');
     process.env.USE_SQL = 'true';
+process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // change requests are organisation knowledge
     const res = await request(mountRouterAs(noSql, () => reader)).get('/api/change-requests');
     expect(res.status).toBe(503);
   });

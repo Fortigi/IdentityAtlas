@@ -3651,7 +3651,8 @@ paths:
         former while the list still has them). Before answering, every open request whose change the
         data now shows is resolved (the source no longer lists the member, or the context is gone).
         Open requests come first, newest first; at most 500. A request rests on a confirmed decision,
-        so every reader may list them. See docs/architecture/change-requests.md.
+        so every reader may list them. See docs/architecture/change-requests.md. Answers 404 while the
+        experimental `orgKnowledge` feature is off.
       security:
         - EntraIdBearer: []
       parameters:
