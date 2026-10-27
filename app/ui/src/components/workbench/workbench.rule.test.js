@@ -115,7 +115,7 @@ describe('roleProblems / roleNotes', () => {
   });
 
   it('notes, without blocking, a rule-based role whose members are chosen by hand', () => {
-    expect(roleNotes({ ...ok, kind: 'rule' })).toEqual(['Members chosen by hand — no rule yet.']);
+    expect(roleNotes({ ...ok, kind: 'rule' })).toEqual(['It will be saved with members chosen by hand — it has no assignment rule yet.']);
     expect(roleNotes({ ...ok, kind: 'rule', rule: { filters: {} } })).toEqual([]);
     expect(roleNotes(ok)).toEqual([]);
     expect(roleProblems({ ...ok, kind: 'rule' })).toEqual([]);

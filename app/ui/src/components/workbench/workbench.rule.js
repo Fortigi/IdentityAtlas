@@ -126,5 +126,5 @@ export function roleProblems(candidate) {
 
 /** What is worth knowing but does not stop a save: a rule-based role without a rule. Pure. */
 export function roleNotes(candidate) {
-  return candidate.kind === 'rule' && !candidate.rule ? ['Members chosen by hand — no rule yet.'] : [];
+  return candidate.kind === 'rule' && !candidate.rule ? ['It will be saved with members chosen by hand — it has no assignment rule yet.'] : [];
 }
