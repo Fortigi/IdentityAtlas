@@ -1,0 +1,3 @@
+- Fixed a user's Business Roles showing roles that were deleted in the source as if the user still held them. A role that was deleted and re-created under the same name no longer appears twice, and the Business Roles count includes only the roles the user holds now.
+- Relationship lists on detail pages now keep history apart: assignments and roles that no longer exist in the source are collapsed under "Show N historical", labelled "Historical" with their deletion date, and left out of the relationship graph. A CSV export includes them only when they are expanded, with a Status column.
+- The detail page of a business role that was deleted in the source now shows a "Deleted in source" badge next to its name, as user and resource pages already did.

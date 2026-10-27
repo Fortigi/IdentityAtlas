@@ -81,14 +81,18 @@ export async function fetchMembershipBreakdown(pool, res, userId) {
   return { membershipCount, membershipByType };
 }
 
-// 3b. Access-package count (governance resources assigned to the user).
+// 3b. Access-package count (governance resources the user holds NOW). A
+// soft-deleted assignment or role is history, not current access — counting it
+// made the "Business Roles" bubble disagree with what the user actually holds.
 export async function fetchUserAccessPackageCount(pool, res, userId) {
   try {
     const r = await timedQuery(pool, 'user-ap-count', res, `SELECT COUNT(DISTINCT ra."resourceId")::int AS cnt
                 FROM "ResourceAssignments" ra
                 JOIN "Resources" r ON r.id = ra."resourceId"
                WHERE ra."principalId"::text = $1
-                 AND r."governanceResource"`, [userId]);
+                 AND r."governanceResource"
+                 AND ra."deletedAt" IS NULL
+                 AND r."deletedAt" IS NULL`, [userId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }
 }

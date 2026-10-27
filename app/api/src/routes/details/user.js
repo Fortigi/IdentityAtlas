@@ -156,7 +156,8 @@ router.get('/user/:id/memberships', async (req, res) => {
       SELECT p."resourceId", p."resourceId" AS "groupId",
              r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
              r."resourceType", r."resourceType" AS "groupTypeCalculated",
-             p."membershipType", p."managedByAccessPackage", false AS "deleted"
+             p."membershipType", p."managedByAccessPackage", false AS "deleted",
+             NULL::timestamptz AS "deletedAt"
         FROM "vw_ResourceUserPermissionAssignments" p
         LEFT JOIN "Resources" r ON p."resourceId" = r.id
        WHERE p."principalId"::text = $1
@@ -166,7 +167,8 @@ router.get('/user/:id/memberships', async (req, res) => {
       SELECT ra."resourceId", ra."resourceId" AS "groupId",
              r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
              r."resourceType", r."resourceType" AS "groupTypeCalculated",
-             ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted"
+             ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted",
+             LEAST(ra."deletedAt", r."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" ra
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
        WHERE ra."principalId"::text = $1
@@ -188,16 +190,23 @@ router.get('/user/:id/access-packages', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
+    // Current business roles first, then historical ones: the assignment or the
+    // role itself was soft-deleted in the source. Historical rows stay in the list
+    // (access history is useful) but carry `deleted` + `deletedAt`, so the UI can
+    // keep them apart. Without the flag a deleted role and its re-created twin of
+    // the same name looked like the same role held twice.
     const r = await timedQuery(pool, 'user-access-packages', res, `
       SELECT DISTINCT
         a."resourceId",
         ap."displayName" AS "accessPackageName",
         a."state",
-        a."expirationDateTime"
+        a."expirationDateTime",
+        (a."deletedAt" IS NOT NULL OR ap."deletedAt" IS NOT NULL) AS "deleted",
+        LEAST(a."deletedAt", ap."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" a
         JOIN "Resources" ap ON a."resourceId" = ap.id AND ap."governanceResource"
        WHERE a."principalId"::text = $1
-       ORDER BY ap."displayName"
+       ORDER BY "deleted", "accessPackageName"
     `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {
