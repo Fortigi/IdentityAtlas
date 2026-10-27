@@ -1,0 +1,1 @@
+- Fixed the user Timeline tab hanging on "Loading timeline…" on tenants with a large change history
