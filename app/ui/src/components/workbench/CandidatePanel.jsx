@@ -23,12 +23,14 @@ export default function CandidatePanel({
 }) {
   const existing = data.columns.filter(c => c.isRole);
   const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
+  // How many hold a proposed role: its band role's holders (computed from its rule), else those chosen by hand.
+  const countOf = (d) => roles.find(r => r.id === d.id)?.holders.size ?? d.members.size;
   const viewed = draft.viewRoleId ? columnsById.get(draft.viewRoleId) : null;
   // The page passes the active role with its members resolved (by rule, or by hand).
   const active = candidate ?? activeDraft(draft);
   return (
     <aside aria-label="Candidate role" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
-      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} saveLabel={saveLabel} />
+      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} countOf={countOf} saveLabel={saveLabel} />
       {viewed && <ExistingRole role={viewed} dispatch={dispatch} cellsByResource={cellsByResource} peopleByKey={peopleByKey} columnsById={columnsById} color={colorOf(viewed.id)} />}
       {!viewed && active.id && (
         <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
@@ -47,7 +49,7 @@ function ColorSwatch({ color }) {
   return <span aria-hidden="true" className="inline-block h-3 w-3 shrink-0 rounded-sm border border-gray-300 dark:border-gray-600" style={{ backgroundColor: color }} />;
 }
 
-function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, saveLabel }) {
+function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, countOf, saveLabel }) {
   const startFrom = (id) => {
     const role = existing.find(r => r.id === id);
     if (role) dispatch({ type: 'fromRole', role, cellsByResource });
@@ -65,7 +67,7 @@ function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, saveLa
               className={`flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-xs ${d.id === draft.activeId && !draft.viewRoleId ? 'bg-blue-50 font-medium text-blue-900 dark:bg-blue-900/40 dark:text-blue-100' : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
               <ColorSwatch color={colorOf(d.id)} />
               <span className="truncate">{d.name || 'Unnamed'}</span>
-              <span className="ml-auto shrink-0 text-gray-600 dark:text-gray-400">{d.members.size} · {d.entitlements.size}</span>
+              <span className="ml-auto shrink-0 text-gray-600 dark:text-gray-400" title="people · entitlements">{countOf(d)} · {d.entitlements.size}</span>
             </button>
           </li>
         ))}

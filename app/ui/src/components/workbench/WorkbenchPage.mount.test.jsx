@@ -355,6 +355,8 @@ describe('WorkbenchPage', () => {
     await user.click(within(candidate()).getByRole('radio', { name: 'Keep' }));
     expect(within(candidate()).getByTestId('rule-sentence')).toHaveTextContent(/— added after approval, kept when they no longer match\.$/);
     expect(within(grid()).getByRole('columnheader', { name: 'Draft: Candidate 1 · rule-based' })).toBeInTheDocument();
+    // The list counts who the rule matches, not who was chosen by hand.
+    expect(within(candidate()).getByRole('list', { name: 'Proposed roles' })).toHaveTextContent('Candidate 13 · 0');
     // A rule on what people do is noted as knowledge the IGA system does not hold.
     expect(within(candidate()).queryByRole('note')).toBeNull();
     await filterTo(user, 'Activity', ['Handle claims']);
