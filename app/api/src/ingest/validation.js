@@ -44,10 +44,13 @@ export const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope
 // ingest REJECTS anything else.
 export const PRINCIPAL_RELATIONSHIP_TYPES = ['Owner', 'Sponsor'];
 // Contexts: how a context came to exist, which kind of node it groups (and a
-// member is), and who added a member. Mirrors the CHECKs in migration 018.
+// member is), and who added a member. Mirrors the CHECKs in migration 018 (and,
+// for addedBy, 105: one value scheme for members, roles and relationships —
+// 'sourceOwner' is the owner a synced context's source names, which only the
+// contexts ingest itself writes, on ContextRoles).
 export const CONTEXT_VARIANTS = ['synced', 'generated', 'manual'];
 export const CONTEXT_TARGET_TYPES = ['Identity', 'Resource', 'Principal', 'System'];
-export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst'];
+export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst', 'sourceOwner'];
 // The template a context falls under (ontology/core.ttl, the ia:template classes
 // below ia:Context; docs/architecture/context-templates-phase-b.md). Nullable in
 // the database: a synced value nobody has placed yet shows as "Other".

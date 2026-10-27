@@ -190,8 +190,8 @@ export default {
 
     const picks = fieldParameters(params);
     const layout = buildLayout(picks);
-    const contexts = await resolveContexts(wanted);
-    const notices = [...contextNotices(wanted, contexts), ...picks.notices];
+    const { contexts, preferred } = preferResourceContexts(wanted, await resolveContexts(wanted));
+    const notices = [...contextNotices(wanted, contexts), ...preferredNotices(preferred), ...picks.notices];
     const shape = { columns: layout.columns, pivots: layout.pivots };
     if (contexts.length === 0) return { rows: [], notices, ...shape };
     const reads = readsFor(contexts);
@@ -356,6 +356,36 @@ async function resolveContexts(wanted) {
         AND (lower(c."displayName") = ANY($1::text[]) OR c.id::text = ANY($1::text[]))
       ORDER BY c."displayName"`, [names]);
   return rows;
+}
+
+/**
+ * A NAME that matches both a context of resources and a unit of accounts — an
+ * application and the team named after it — means the application: this is the
+ * Entitlement Pivot, and its entitlements are what the name is asked about. The
+ * unit of accounts is dropped for that name, so the run is not refused as a mix
+ * of kinds. A context asked for by its id is never dropped: that is a choice,
+ * not a name that happens to be shared.
+ *
+ * @returns {{contexts: object[], preferred: string[]}} the contexts to run on,
+ *          and the names (as matched) for which a unit of accounts was dropped
+ */
+export function preferResourceContexts(wanted, contexts) {
+  const asked = new Set(wanted.map(w => w.toLowerCase()));
+  const resourceNames = new Set(contexts.filter(c => c.targetType === 'Resource').map(c => c.displayName.toLowerCase()));
+  const shadowed = c => c.targetType === 'Principal'
+    && !asked.has(String(c.id).toLowerCase())
+    && resourceNames.has(c.displayName.toLowerCase());
+  const preferred = [...new Set(contexts.filter(shadowed).map(c => c.displayName))];
+  return { contexts: contexts.filter(c => !shadowed(c)), preferred };
+}
+
+function preferredNotices(preferred) {
+  if (preferred.length === 0) return [];
+  return [{
+    severity: 'info',
+    text: `${preferred.map(n => `"${n}"`).join(', ')} names both an application (or another context of resources) `
+      + 'and a unit of accounts; this report uses the resources. Pick the unit from the list to report on its members instead.',
+  }];
 }
 
 // What the run could not do with what it was given. Both cases are warnings

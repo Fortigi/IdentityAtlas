@@ -198,12 +198,14 @@ async function writeMembers(systemId, members, keptIds, deps) {
 
 // The owners this upload matched — by name or as a near miss too, which the
 // contexts ingest's own resolution does not take — as their unit's Accountable.
-// An Accountable the ingest just set, or an analyst's, stays (insert-only).
+// An Accountable the ingest just set, or an analyst's, stays (insert-only). They
+// are written as the owner reconcile's own rows (insertOwnerRows), so the next
+// import replaces or removes them as the owner column changes.
 // Returns the owner matching with the number written, or null without owners.
 async function writeOwners(prep, systemId, deps) {
   if (!prep.owners) return null;
   const rows = buildOwnerRows(prep.plan.units, prep.mapping, systemId, prep.owners.ids.Principal);
-  const out = rows.length ? await deps.insertRoleRows(rows, systemId) : null;
+  const out = rows.length ? await deps.insertOwnerRows(rows, systemId) : null;
   return { ...prep.owners.stats, written: out?.inserted ?? 0 };
 }
 
