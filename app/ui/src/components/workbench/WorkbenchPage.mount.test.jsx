@@ -80,7 +80,7 @@ describe('WorkbenchPage', () => {
     const { onCacheData, calls } = mount();
     expect(await opened()).toBeInTheDocument();
     expect(calls[0].url).toBe(`/api/contexts/${UNIT}/workbench?includeChildren=true`);
-    expect(onCacheData).toHaveBeenCalledWith(UNIT, 'workbench', { displayName: 'Workbench: Claims Handling' });
+    await waitFor(() => expect(onCacheData).toHaveBeenCalledWith(UNIT, 'workbench', { displayName: 'Workbench: Claims Handling' }));
     expect(screen.getByText(/3 people \(4 accounts\) across 3 units/)).toBeInTheDocument();
     expect(screen.getByText(/1 person has no known activity · 1 proposed link to check · 0 disputed/)).toBeInTheDocument();
     const rowgroups = within(grid()).getAllByRole('rowheader').filter(el => el.getAttribute('scope') === 'rowgroup');

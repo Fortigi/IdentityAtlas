@@ -33,25 +33,31 @@ describe('parseLink', () => {
   });
 });
 
+const rowsOf = (row) => ({ rows: row ? [row] : [] });
+
 function fakeDb({ context = { id: CTX }, person = { displayName: 'Anna Vos' }, notes = null, object = null } = {}) {
   const calls = [];
+  // Each statement the module runs and what it answers.
+  const answers = [
+    [(sql) => sql.startsWith('SELECT id FROM "Contexts"'), () => rowsOf(context)],
+    [(sql) => sql.startsWith('SELECT "displayName" FROM'), () => rowsOf(person)],
+    [(sql) => sql === NOTES_SOURCE_SQL, () => rowsOf(notes && { id: notes })],
+    [(sql) => sql === INSERT_NOTES_SQL, () => rowsOf({ id: 'iv-new' })],
+    [(sql) => sql === FIND_OBJECT_SQL, () => rowsOf(object && { id: object })],
+    [(sql) => sql === FIND_ROOT_SQL, () => rowsOf({ id: 'root' })],
+    [(sql) => sql === INSERT_OBJECT_SQL, () => rowsOf({ id: 'obj-new' })],
+    [(sql) => sql === INSERT_LINK_SQL, () => rowsOf({ id: 'claim-1' })],
+  ];
   const client = {
     query: vi.fn(async (sql, params) => {
       calls.push({ sql, params });
-      if (sql.startsWith('SELECT id FROM "Contexts"')) return { rows: context ? [context] : [] };
-      if (sql.startsWith('SELECT "displayName" FROM')) return { rows: person ? [person] : [] };
-      if (sql === NOTES_SOURCE_SQL) return { rows: notes ? [{ id: notes }] : [] };
-      if (sql === INSERT_NOTES_SQL) return { rows: [{ id: 'iv-new' }] };
-      if (sql === FIND_OBJECT_SQL) return { rows: object ? [{ id: object }] : [] };
-      if (sql === FIND_ROOT_SQL) return { rows: [{ id: 'root' }] };
-      if (sql === INSERT_OBJECT_SQL) return { rows: [{ id: 'obj-new' }] };
-      if (sql === INSERT_LINK_SQL) return { rows: [{ id: 'claim-1' }] };
-      throw new Error(`unexpected SQL: ${sql}`);
+      const answer = answers.find(([match]) => match(sql));
+      if (!answer) throw new Error(`unexpected SQL: ${sql}`);
+      return answer[1]();
     }),
   };
   return { calls, tx: async (fn) => fn(client), queryOne: vi.fn(async () => ({ id: 'claim-1', claimKind: 'duty' })) };
 }
-
 describe('addKnowledgeLink', () => {
   it('adds a confirmed link on the unit’s existing notes, naming the object it found, decided by the analyst', async () => {
     const db = fakeDb({ notes: 'iv-1', object: 'obj-1' });
