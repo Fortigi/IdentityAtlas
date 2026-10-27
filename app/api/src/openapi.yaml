@@ -4312,6 +4312,30 @@ components:
         evidenceClaimIds:
           type: array
           items: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [rule, requestable]
+          nullable: true
+          description: How the role is assigned — rule-based (assignment origin Automatic) or requestable (Requested); null until chosen
+        rule:
+          type: object
+          nullable: true
+          description: 'The assignment rule: { includeChildren, filters: { <column>: { values, includeProposed, contains } } } — who holds it (rule) or who may request it (requestable)'
+        excluded:
+          type: array
+          description: People always excluded from the rule's matches
+          items: { $ref: '#/components/schemas/WorkbenchPersonKey' }
+        joinerPolicy: { type: string, enum: [auto, approval], default: auto }
+        leaverPolicy: { type: string, enum: [remove, review, keep], default: remove }
+        approver:
+          type: object
+          nullable: true
+          description: Who approves a request
+          properties:
+            kind: { type: string, enum: [accountable, owner, person] }
+            principalId: { type: string, format: uuid, nullable: true }
+            name: { type: string, nullable: true }
+        rationale: { type: string, maxLength: 2000, nullable: true, description: Why the role should exist }
     WorkbenchInvestigationDraft:
       type: object
       description: The whole workbench draft. On a save over an investigation, what it leaves out is removed.

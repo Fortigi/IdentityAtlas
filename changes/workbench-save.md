@@ -3,3 +3,4 @@
 - When you reopen an investigation, the workbench says how many cells of access changed since you saved it; your marks and proposed roles stay as saved.
 - A save is refused when someone else saved the same investigation after you opened it, naming who did, so nobody's work is silently overwritten.
 - Proposed roles are stored apart from real business roles: saving never creates a role, an assignment or access.
+- Saving an investigation also keeps how each proposed role is assigned: rule-based or requestable, its assignment rule, always-include / always-exclude, joiner and leaver choices, the approver and the "why" — all back on Open.

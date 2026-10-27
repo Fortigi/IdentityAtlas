@@ -97,6 +97,9 @@ Every new proposed role first asks its **kind** (two cards; changeable later):
   its crawled policies (`policyKind`: an auto-add rule → rule-based, a policy without one → requestable),
   else asks. Proposals never write to `AssignmentPolicies` (crawled data).
 - Nothing is enforced anywhere; the impact overlay shows the active role's computed members.
+- **Saved** with the investigation (migration 108): `RoleProposals.assignmentKind`, `membershipRule`
+  (jsonb), `joinerPolicy`, `leaverPolicy`, `approver` (jsonb), `rationale`; "always exclude" people as
+  `RoleProposalMembers` with `kind = 'exclude'`.
 
 ## Impact semantics
 

@@ -7,13 +7,22 @@
 //     accessReadAt when the access data on screen was read (the workbench's generatedAt)
 //     accessCells  the held cells on screen then: "personKey|resourceId|type"
 //     marks        [{ person, resourceId, mark, note }]
-//     proposals    [{ id, name, description, baseBusinessRoleId, members, entitlements, evidenceClaimIds }]
+//     proposals    [{ id, name, description, baseBusinessRoleId, members, entitlements, evidenceClaimIds,
+//                    kind, rule, excluded, joinerPolicy, leaverPolicy, approver, rationale }]
 //                  — every proposed role of the investigation; one left out is removed
 // A person is the workbench's row key: "i:<identity id>" or "p:<account id>".
 //
 // Pure: no database. Never trusts a column name, a size or a value it was sent.
 
 export const MARKS = Object.freeze(['other', 'unrelated', 'investigate']);
+// How a proposed role is assigned (migration 108).
+export const ASSIGNMENT_KINDS = Object.freeze(['rule', 'requestable']);
+export const JOINER_POLICIES = Object.freeze(['auto', 'approval']);
+export const LEAVER_POLICIES = Object.freeze(['remove', 'review', 'keep']);
+export const MEMBER_KINDS = Object.freeze(['member', 'exclude']);
+export const APPROVER_KINDS = Object.freeze(['accountable', 'owner', 'person']);
+export const MAX_RATIONALE = 2000;
+export const MAX_RULE_BYTES = 16 * 1024;
 export const ACCESS_TYPES = Object.freeze(['Direct', 'Indirect', 'Eligible']);
 export const MAX_NAME = 200;
 export const MAX_DESCRIPTION = 1000;
@@ -115,9 +124,9 @@ function ids(value, label, max) {
   return [...new Set(out.map(id => id.toLowerCase()))];
 }
 
-function people(value) {
+function people(value, label = 'members') {
   const seen = new Map();
-  for (const key of list(value, 'members', MAX_CELLS)) {
+  for (const key of list(value, label, MAX_CELLS)) {
     const p = parsePerson(key);
     if (!p) bad('The candidate names a member that is not a workbench row.');
     seen.set(`${p.personKind}|${p.personId}`, p);
@@ -125,9 +134,47 @@ function people(value) {
   return [...seen.values()];
 }
 
+const oneOf = (value, allowed, label, fallback) => {
+  if (value === undefined || value === null) return fallback;
+  if (!allowed.includes(value)) bad(`${label} must be one of: ${allowed.join(', ')}.`);
+  return value;
+};
+
+// The rule: { includeChildren, filters: { <column>: { values: [...], includeProposed, contains: [...] } } }.
+// Kept as given (the browser reads it), only its known keys, refused when too large.
+function parseRule(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) bad('The rule must be an object.');
+  const filters = value.filters && typeof value.filters === 'object' && !Array.isArray(value.filters) ? value.filters : {};
+  const rule = { includeChildren: value.includeChildren !== false, filters };
+  if (JSON.stringify(rule).length > MAX_RULE_BYTES) bad('The rule is too large to save.');
+  return rule;
+}
+
+function parseApprover(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) bad('The approver must be an object.');
+  const kind = oneOf(value.kind, APPROVER_KINDS, 'The approver', null);
+  const principalId = kind === 'person' && value.principalId ? ids([value.principalId], 'The approver', 1)[0] : null;
+  return { kind, principalId, name: text(value.name, MAX_NAME, 'The approver name') };
+}
+
+/** How the role is assigned: its kind, rule, exceptions, joiner/leaver policies, approver, rationale. */
+function parseAssignment(value) {
+  return {
+    kind: oneOf(value.kind, ASSIGNMENT_KINDS, 'The kind', null),
+    rule: parseRule(value.rule),
+    excluded: people(value.excluded, 'excluded'),
+    joinerPolicy: oneOf(value.joinerPolicy, JOINER_POLICIES, 'The joiner policy', 'auto'),
+    leaverPolicy: oneOf(value.leaverPolicy, LEAVER_POLICIES, 'The leaver policy', 'remove'),
+    approver: parseApprover(value.approver),
+    rationale: text(value.rationale, MAX_RATIONALE, 'The rationale'),
+  };
+}
+
 /**
  * One proposed role: { id, name, description, baseBusinessRoleId, members,
- * entitlements, evidenceClaimIds }. `id` is optional (the browser may name a new
+ * entitlements, evidenceClaimIds } and how it is assigned (parseAssignment). `id` is optional (the browser may name a new
  * draft itself); a proposal that starts from an existing business role is an
  * extension of it, otherwise a new role.
  */
@@ -146,6 +193,7 @@ export function parseProposal(value) {
     members: people(value.members),
     entitlements: ids(value.entitlements, 'entitlements', MAX_CELLS),
     evidenceClaimIds: ids(value.evidenceClaimIds, 'evidenceClaimIds', MAX_CELLS),
+    ...parseAssignment(value),
   };
 }
 

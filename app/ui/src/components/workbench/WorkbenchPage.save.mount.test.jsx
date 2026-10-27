@@ -79,7 +79,8 @@ describe('saving', () => {
     await waitFor(() => expect(status()).toMatch(/^Saved as “Motor” · ann@x.test, /));
     const post = calls.find(c => c.method === 'POST');
     expect(post.body).toMatchObject({ name: 'Motor', accessReadAt: '2026-10-27T11:00:00.000Z', accessCells: ['i:p|g1|Direct'], marks: [] });
-    expect(post.body.proposals).toEqual([{ id: 'draft:1', name: 'Candidate 1', description: null, baseBusinessRoleId: null, members: [], entitlements: [] }]);
+    expect(post.body.proposals).toEqual([{ id: 'draft:1', name: 'Candidate 1', description: null, baseBusinessRoleId: null, members: [], entitlements: [],
+      kind: null, rule: null, excluded: [], joinerPolicy: 'auto', leaverPolicy: 'remove', approver: null, rationale: null }]);
     expect(badge()).toBe('Draft · saved');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 

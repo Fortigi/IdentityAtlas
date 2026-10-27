@@ -69,6 +69,31 @@ const draft = () => ({
   ],
 });
 
+describe('how a proposed role is assigned (migration 108)', () => {
+  it('saves and reads back the kind, the rule, the exceptions, the policies, the approver and the why', async () => {
+    const rule = { includeChildren: false, filters: { jobTitle: { values: ['Team lead'], includeProposed: true, contains: ['handler'] } } };
+    const inv = await createInvestigation(db, unitId, {
+      name: 'Assignment rules',
+      proposals: [
+        { name: 'Rule', kind: 'rule', rule, members: [`i:${ID.anna}`], excluded: [`i:${ID.bram}`], joinerPolicy: 'approval', leaverPolicy: 'keep', rationale: 'Every handler' },
+        { name: 'Request', kind: 'requestable', approver: { kind: 'accountable' }, leaverPolicy: 'review', members: [`i:${ID.bram}`] },
+        { name: 'Undecided' },
+      ],
+    }, 'ann@example.test');
+    expect(inv.proposals.map(p => [p.name, p.kind, p.rule, p.members, p.excluded, p.joinerPolicy, p.leaverPolicy, p.approver, p.rationale])).toEqual([
+      ['Rule', 'rule', rule, [`i:${ID.anna}`], [`i:${ID.bram}`], 'approval', 'keep', null, 'Every handler'],
+      ['Request', 'requestable', null, [`i:${ID.bram}`], [], 'auto', 'review', { kind: 'accountable', principalId: null, name: null }, null],
+      ['Undecided', null, null, [], [], 'auto', 'remove', null, null],
+    ]);
+    // A change to how it is assigned is a change to the proposal.
+    const before = inv.proposals[1];
+    const again = await saveInvestigation(db, inv.id, { proposals: inv.proposals.map(p => ({ ...p, leaverPolicy: p.id === before.id ? 'keep' : p.leaverPolicy })) }, 'bob@example.test');
+    expect(again.proposals[1]).toMatchObject({ leaverPolicy: 'keep', updatedBy: 'bob@example.test' });
+    expect(again.proposals[0].updatedBy).toBe('ann@example.test');
+    await pool.query(`DELETE FROM "WorkbenchInvestigations" WHERE id = $1`, [inv.id]);
+  });
+});
+
 let saved;
 
 describe('saving a new investigation', () => {

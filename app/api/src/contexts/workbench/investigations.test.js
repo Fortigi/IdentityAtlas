@@ -73,12 +73,13 @@ describe('getInvestigation', () => {
     const db = fakeDb([
       [/FROM "WorkbenchInvestigations" WHERE id = \$1$/m, { rows: [HEAD] }],
       [/FROM "WorkbenchMarks" WHERE/, { rows: [{ personKind: 'principal', personId: PERSON, resourceId: RES, mark: 'other', note: 'OR', markedBy: 'b', markedAt: 'u' }] }],
-      [/FROM "RoleProposals" p WHERE/, { rows: [{ id: P1, name: 'R', members: [`identity:${PERSON}`, `principal:${P2}`], entitlements: [RES], evidenceClaimIds: [] }] }],
+      [/FROM "RoleProposals" p WHERE/, { rows: [{ id: P1, name: 'R', members: [`identity:${PERSON}`, `principal:${P2}`], excluded: [`identity:${P2}`], entitlements: [RES], evidenceClaimIds: [] }] }],
       [/FROM "WorkbenchAccessSnapshots"/, { rows: [{ cells: [`i:${PERSON}|${RES}|Direct`] }] }],
     ]);
     const out = await getInvestigation(db, INV);
     expect(out.marks).toEqual([{ person: `p:${PERSON}`, resourceId: RES, mark: 'other', note: 'OR', markedBy: 'b', markedAt: 'u' }]);
     expect(out.proposals[0].members).toEqual([`i:${PERSON}`, `p:${P2}`]);
+    expect(out.proposals[0].excluded).toEqual([`i:${P2}`]);
     expect(out.accessCells).toEqual([`i:${PERSON}|${RES}|Direct`]);
   });
 
@@ -114,7 +115,8 @@ describe('createInvestigation', () => {
     await createInvestigation(db, CTX, {
       name: 'Motor', view: { columns: ['name'] }, accessReadAt: '2026-10-27T08:00:00Z', accessCells: [`i:${PERSON}|${RES}|Direct`],
       marks: [{ person: `i:${PERSON}`, resourceId: RES, mark: 'other' }],
-      proposals: [{ id: P1, name: 'A', members: [`i:${PERSON}`], entitlements: [RES] }, { name: 'B' }],
+      proposals: [{ id: P1, name: 'A', members: [`i:${PERSON}`], excluded: [`p:${P2}`], entitlements: [RES], kind: 'rule',
+        rule: { includeChildren: true, filters: {} }, joinerPolicy: 'approval', leaverPolicy: 'keep', rationale: 'why' }, { name: 'B', kind: 'requestable', approver: { kind: 'accountable' } }],
     }, 'ann');
     const head = sqlOf(db, /INSERT INTO "WorkbenchInvestigations"/)[0];
     expect(head.params).toEqual([CTX, 'Motor', null, '{"columns":["name"]}', '2026-10-27T08:00:00.000Z', 'ann']);
@@ -123,8 +125,13 @@ describe('createInvestigation', () => {
     const inserted = sqlOf(db, /INSERT INTO "RoleProposals"/);
     expect(inserted.map(c => c.params[0])).toEqual([P1, null]);
     // Saved in the browser's order, so the answer maps back onto its drafts.
-    expect(inserted.map(c => c.params[7])).toEqual([0, 1]);
-    expect(sqlOf(db, /INSERT INTO "RoleProposalMembers"/)[0].params).toEqual([P1, ['identity'], [PERSON]]);
+    expect(inserted.map(c => c.params[13])).toEqual([0, 1]);
+    // How each is assigned: kind, rule, joiner, leaver, approver, why.
+    expect(inserted.map(c => c.params.slice(7, 13))).toEqual([
+      ['rule', '{"includeChildren":true,"filters":{}}', 'approval', 'keep', null, 'why'],
+      ['requestable', null, 'auto', 'remove', '{"kind":"accountable","principalId":null,"name":null}', null],
+    ]);
+    expect(sqlOf(db, /INSERT INTO "RoleProposalMembers"/)[0].params).toEqual([P1, ['identity', 'principal'], [PERSON, P2], ['member', 'exclude']]);
     expect(sqlOf(db, /INSERT INTO "RoleProposalEntitlements"/)[0].params).toEqual([P1, [RES]]);
     // Both proposals are kept: the clean-up removes only the ones not saved.
     expect(sqlOf(db, /DELETE FROM "RoleProposals"/)[0].params).toEqual([INV, [P1, P2]]);
@@ -160,7 +167,7 @@ describe('saveInvestigation', () => {
     expect(sqlOf(db, /DELETE FROM "WorkbenchMarks"/)[0].sql).toBe(DELETE_CLEARED_MARKS_SQL);
     expect(sqlOf(db, /INSERT INTO "WorkbenchMarks"/)).toHaveLength(0);
     // P1 is this investigation's: updated in place, not inserted again.
-    expect(sqlOf(db, /UPDATE "RoleProposals"/)[0]).toMatchObject({ sql: UPDATE_PROPOSAL_SQL, params: [P1, INV, 'Renamed', null, null, 'new', 'bob'] });
+    expect(sqlOf(db, /UPDATE "RoleProposals"/)[0]).toMatchObject({ sql: UPDATE_PROPOSAL_SQL, params: [P1, INV, 'Renamed', null, null, 'new', 'bob', null, null, 'auto', 'remove', null, null] });
     expect(sqlOf(db, /SET position/)[0]).toMatchObject({ sql: POSITION_SQL, params: [P1, 0] });
     expect(sqlOf(db, /INSERT INTO "RoleProposals"/)).toHaveLength(0);
   });

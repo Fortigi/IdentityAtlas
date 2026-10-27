@@ -13,12 +13,27 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const splitKey = (k) => { const i = k.lastIndexOf('|'); return [k.slice(0, i), k.slice(i + 1)]; };
 const sorted = (iterable) => [...iterable].sort();
 
-/** The view as it can be saved: a filter's ticked values (a Set) become a sorted list. Pure. */
-export function viewToSave(view) {
+// Filters as they can be saved: a filter's ticked values (a Set) become a sorted list.
+function filtersToSave(src) {
   const filters = {};
-  for (const [key, f] of Object.entries(view.filters || {})) {
+  for (const [key, f] of Object.entries(src || {})) {
     if (f && f.values) filters[key] = { ...f, values: sorted(f.values) };
   }
+  return filters;
+}
+
+// Saved filters back: values a Set again, a filter on a column the workbench no longer has dropped.
+function filtersFromSaved(src) {
+  const filters = {};
+  for (const [key, f] of Object.entries(src || {})) {
+    if (columnByKey.has(key) && f && Array.isArray(f.values)) filters[key] = { ...f, values: new Set(f.values) };
+  }
+  return filters;
+}
+
+/** The view as it can be saved: a filter's ticked values (a Set) become a sorted list. Pure. */
+export function viewToSave(view) {
+  const filters = filtersToSave(view.filters);
   const out = Object.fromEntries(VIEW_KEYS.filter(k => view[k] !== undefined).map(k => [k, view[k]]));
   return { ...out, filters };
 }
@@ -33,10 +48,7 @@ export function viewFromSaved(saved, defaults) {
   for (const k of VIEW_KEYS) if (src[k] !== undefined) view[k] = src[k];
   const columns = Array.isArray(src.columns) ? src.columns.filter(k => columnByKey.has(k)) : [];
   view.columns = columns.length ? columns : defaults.columns;
-  view.filters = {};
-  for (const [key, f] of Object.entries(src.filters || {})) {
-    if (columnByKey.has(key) && f && Array.isArray(f.values)) view.filters[key] = { ...f, values: new Set(f.values) };
-  }
+  view.filters = filtersFromSaved(src.filters);
   return view;
 }
 
@@ -50,9 +62,15 @@ const marksToSave = (marks) => sorted(marks.keys()).map(k => {
   return { person, resourceId, mark: marks.get(k) };
 });
 
+// A proposed role as saved, with how it is assigned (kind, rule, exceptions, policies, approver, why).
 const proposalToSave = (d) => ({
   id: d.id, name: d.name, description: d.description || null, baseBusinessRoleId: d.baseBusinessRoleId || null,
   members: sorted(d.members), entitlements: sorted(d.entitlements),
+  kind: d.kind ?? null,
+  rule: d.rule ? { includeChildren: d.rule.includeChildren !== false, filters: filtersToSave(d.rule.filters) } : null,
+  excluded: sorted(d.excluded || []),
+  joinerPolicy: d.joinerPolicy ?? 'auto', leaverPolicy: d.leaverPolicy ?? 'remove',
+  approver: d.approver ?? null, rationale: d.rationale || null,
 });
 
 /**
@@ -78,6 +96,11 @@ export function draftFromSaved(inv) {
   const drafts = (inv.proposals || []).map(p => ({
     id: p.id, name: p.name ?? '', description: p.description ?? '', baseBusinessRoleId: p.baseBusinessRoleId ?? null,
     members: new Set(p.members || []), entitlements: new Set(p.entitlements || []),
+    kind: p.kind ?? null,
+    rule: p.rule ? { includeChildren: p.rule.includeChildren !== false, filters: filtersFromSaved(p.rule.filters) } : null,
+    excluded: new Set(p.excluded || []),
+    joinerPolicy: p.joinerPolicy ?? 'auto', leaverPolicy: p.leaverPolicy ?? 'remove',
+    approver: p.approver ?? null, rationale: p.rationale ?? '',
   }));
   return { marks, drafts };
 }

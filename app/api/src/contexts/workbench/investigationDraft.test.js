@@ -115,7 +115,34 @@ describe('parseProposal / parseProposals', () => {
       id: ID, mode: 'extend', baseBusinessRoleId: RES, name: 'Claims handler', description: 'motor',
       members: [{ personKind: 'identity', personId: ID }, { personKind: 'principal', personId: ID2 }],
       entitlements: [RES], evidenceClaimIds: [ID2],
+      kind: null, rule: null, excluded: [], joinerPolicy: 'auto', leaverPolicy: 'remove', approver: null, rationale: null,
     });
+  });
+
+  it('reads how the role is assigned: kind, rule, exceptions, policies, approver, why', () => {
+    const rule = { includeChildren: false, filters: { jobTitle: { values: ['Team lead Property'], contains: ['handler'] } }, extra: 1 };
+    expect(parseProposal({
+      kind: 'requestable', rule, excluded: [`i:${ID}`, `i:${ID}`], joinerPolicy: 'approval', leaverPolicy: 'review',
+      approver: { kind: 'person', principalId: ID2.toUpperCase(), name: ' Max ' }, rationale: ' because ',
+    })).toMatchObject({
+      kind: 'requestable', rule: { includeChildren: false, filters: rule.filters }, excluded: [{ personKind: 'identity', personId: ID }],
+      joinerPolicy: 'approval', leaverPolicy: 'review', approver: { kind: 'person', principalId: ID2, name: 'Max' }, rationale: 'because',
+    });
+    expect(parseProposal({ rule: { filters: [] } }).rule).toEqual({ includeChildren: true, filters: {} });
+    expect(parseProposal({ approver: { kind: 'owner', principalId: ID } }).approver).toEqual({ kind: 'owner', principalId: null, name: null });
+  });
+
+  it.each([
+    [{ kind: 'auto' }, /The kind must be one of: rule, requestable/],
+    [{ joinerPolicy: 'never' }, /The joiner policy must be one of/],
+    [{ leaverPolicy: 'gone' }, /The leaver policy must be one of/],
+    [{ approver: { kind: 'boss' } }, /The approver must be one of/],
+    [{ approver: 'x' }, /The approver must be an object/],
+    [{ rule: [] }, /The rule must be an object/],
+    [{ rule: { filters: { x: { values: ['a'.repeat(17000)] } } } }, /The rule is too large/],
+    [{ excluded: ['nobody'] }, /not a workbench row/],
+  ])('refuses %j', (body, message) => {
+    expect(() => parseProposal(body)).toThrow(message);
   });
 
   it('reads one without a base role as a new role, with an empty name allowed', () => {

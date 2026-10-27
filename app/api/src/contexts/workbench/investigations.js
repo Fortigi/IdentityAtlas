@@ -34,8 +34,11 @@ const MARKS_SQL = `
 const PROPOSALS_SQL = `
   SELECT p.id, p.name, p.description, p.mode, p."baseBusinessRoleId", p.status, p.version,
          p."createdBy", p."createdAt", p."updatedBy", p."updatedAt",
+         p."assignmentKind" AS kind, p."membershipRule" AS rule, p."joinerPolicy", p."leaverPolicy", p.approver, p.rationale,
          COALESCE((SELECT array_agg(m."personKind" || ':' || m."personId" ORDER BY m."personKind", m."personId")
-                     FROM "RoleProposalMembers" m WHERE m."proposalId" = p.id), '{}') AS members,
+                     FROM "RoleProposalMembers" m WHERE m."proposalId" = p.id AND m.kind = 'member'), '{}') AS members,
+         COALESCE((SELECT array_agg(m."personKind" || ':' || m."personId" ORDER BY m."personKind", m."personId")
+                     FROM "RoleProposalMembers" m WHERE m."proposalId" = p.id AND m.kind = 'exclude'), '{}') AS excluded,
          COALESCE((SELECT array_agg(e."resourceId" ORDER BY e."resourceId")
                      FROM "RoleProposalEntitlements" e WHERE e."proposalId" = p.id), '{}') AS entitlements,
          COALESCE((SELECT array_agg(v."claimId" ORDER BY v."claimId")
@@ -67,7 +70,7 @@ export async function getInvestigation(db, id) {
     marks: marks.rows.map(m => ({
       person: personKeyOf(m.personKind, m.personId), resourceId: m.resourceId, mark: m.mark, note: m.note, markedBy: m.markedBy, markedAt: m.markedAt,
     })),
-    proposals: proposals.rows.map(p => ({ ...p, members: p.members.map(personKeyFromStored) })),
+    proposals: proposals.rows.map(p => ({ ...p, members: p.members.map(personKeyFromStored), excluded: p.excluded.map(personKeyFromStored) })),
     accessCells: snapshot?.cells ?? [],
   };
 }
@@ -109,17 +112,21 @@ async function writeMarks(client, id, marks, actor) {
 const BASE_ROLE_SQL = `(SELECT r.id FROM "Resources" r WHERE r.id = $5::uuid)`;
 
 // Its place in the list moves without counting as a change to the proposal.
+// $8..$13: how it is assigned (migration 108).
 export const UPDATE_PROPOSAL_SQL = `
   UPDATE "RoleProposals"
-     SET name = $3, description = $4, "baseBusinessRoleId" = ${BASE_ROLE_SQL}, mode = $6, "updatedBy" = $7, "updatedAt" = now()
+     SET name = $3, description = $4, "baseBusinessRoleId" = ${BASE_ROLE_SQL}, mode = $6, "updatedBy" = $7, "updatedAt" = now(),
+         "assignmentKind" = $8, "membershipRule" = $9::jsonb, "joinerPolicy" = $10, "leaverPolicy" = $11, approver = $12::jsonb, rationale = $13
    WHERE id = $1 AND "investigationId" = $2
-     AND (name, description, "baseBusinessRoleId", mode) IS DISTINCT FROM ($3, $4, ${BASE_ROLE_SQL}, $6)`;
+     AND (name, description, "baseBusinessRoleId", mode, "assignmentKind", "membershipRule", "joinerPolicy", "leaverPolicy", approver, rationale)
+         IS DISTINCT FROM ($3, $4, ${BASE_ROLE_SQL}, $6, $8, $9::jsonb, $10, $11, $12::jsonb, $13)`;
 
 export const POSITION_SQL = `UPDATE "RoleProposals" SET position = $2 WHERE id = $1 AND position IS DISTINCT FROM $2`;
 
 export const INSERT_PROPOSAL_SQL = `
-  INSERT INTO "RoleProposals" (id, "investigationId", name, description, "baseBusinessRoleId", mode, "createdBy", "updatedBy", position)
-  VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, ${BASE_ROLE_SQL}, $6, $7, $7, $8)
+  INSERT INTO "RoleProposals" (id, "investigationId", name, description, "baseBusinessRoleId", mode, "createdBy", "updatedBy",
+                               "assignmentKind", "membershipRule", "joinerPolicy", "leaverPolicy", approver, rationale, position)
+  VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, ${BASE_ROLE_SQL}, $6, $7, $7, $8, $9::jsonb, $10, $11, $12::jsonb, $13, $14)
   RETURNING id`;
 
 /**
@@ -129,7 +136,9 @@ export const INSERT_PROPOSAL_SQL = `
  * investigation's proposal).
  */
 async function saveProposalRow(client, investigationId, p, actor, existing, position) {
-  const params = [p.id, investigationId, p.name, p.description, p.baseBusinessRoleId, p.mode, actor];
+  const params = [p.id, investigationId, p.name, p.description, p.baseBusinessRoleId, p.mode, actor,
+    p.kind ?? null, p.rule ? JSON.stringify(p.rule) : null, p.joinerPolicy ?? 'auto', p.leaverPolicy ?? 'remove',
+    p.approver ? JSON.stringify(p.approver) : null, p.rationale ?? null];
   if (p.id && existing.has(p.id)) {
     await client.query(UPDATE_PROPOSAL_SQL, params);
     await client.query(POSITION_SQL, [p.id, position]);
@@ -140,13 +149,20 @@ async function saveProposalRow(client, investigationId, p, actor, existing, posi
   return row.id;
 }
 
+// A person is in a proposal once: as a member, or as excluded (the first one wins).
+export const INSERT_MEMBERS_SQL = `
+  INSERT INTO "RoleProposalMembers" ("proposalId", "personKind", "personId", kind)
+  SELECT $1, k, id, kind FROM unnest($2::text[], $3::uuid[], $4::text[]) AS t(k, id, kind)
+  ON CONFLICT ("proposalId", "personKind", "personId") DO NOTHING`;
+
 async function writeProposalParts(client, proposalId, p) {
   await client.query(`DELETE FROM "RoleProposalMembers" WHERE "proposalId" = $1`, [proposalId]);
   await client.query(`DELETE FROM "RoleProposalEntitlements" WHERE "proposalId" = $1`, [proposalId]);
   await client.query(`DELETE FROM "RoleProposalEvidence" WHERE "proposalId" = $1`, [proposalId]);
-  if (p.members.length) {
-    await client.query(`INSERT INTO "RoleProposalMembers" ("proposalId", "personKind", "personId")
-      SELECT $1, k, id FROM unnest($2::text[], $3::uuid[]) AS t(k, id)`, [proposalId, p.members.map(m => m.personKind), p.members.map(m => m.personId)]);
+  // Members chosen by hand ("always include" with a rule), then "always exclude".
+  const people = [...p.members.map(m => ({ ...m, kind: 'member' })), ...(p.excluded || []).map(m => ({ ...m, kind: 'exclude' }))];
+  if (people.length) {
+    await client.query(INSERT_MEMBERS_SQL, [proposalId, people.map(m => m.personKind), people.map(m => m.personId), people.map(m => m.kind)]);
   }
   if (p.entitlements.length) {
     await client.query(`INSERT INTO "RoleProposalEntitlements" ("proposalId", "resourceId")

@@ -60,7 +60,7 @@ describe('toSavePayload', () => {
       accessReadAt: '2026-10-27T09:00:00.000Z',
       accessCells: ['i:a|r1|Indirect'],
       marks: [{ person: 'i:a', resourceId: 'r2', mark: 'investigate' }, { person: 'i:b', resourceId: 'or', mark: 'other' }],
-      proposals: [{ id: 'draft:1', name: 'Candidate 1', description: null, baseBusinessRoleId: null, members: ['i:a', 'i:b'], entitlements: ['r1', 'r2'] }],
+      proposals: [{ id: 'draft:1', name: 'Candidate 1', description: null, baseBusinessRoleId: null, members: ['i:a', 'i:b'], entitlements: ['r1', 'r2'], ...UNSET }],
     });
   });
 
@@ -71,6 +71,30 @@ describe('toSavePayload', () => {
   });
 });
 
+// How a proposed role is assigned, when nothing was chosen (migration 108's defaults).
+const UNSET = { kind: null, rule: null, excluded: [], joinerPolicy: 'auto', leaverPolicy: 'remove', approver: null, rationale: null };
+
+describe('saving how a proposed role is assigned', () => {
+  it('sends the kind, the rule (its values a sorted list), the exceptions, the policies, the approver and the why — and reads them back', () => {
+    const draft = {
+      marks: new Map(), drafts: [{
+        id: 'draft:2', name: 'Lawyer', description: '', baseBusinessRoleId: null, members: new Set(['i:b']), entitlements: new Set(['r1']),
+        kind: 'requestable', rule: { includeChildren: false, filters: { jobTitle: { values: new Set(['Z', 'A']), includeProposed: true, contains: ['law'] } } },
+        excluded: new Set(['i:c']), joinerPolicy: 'approval', leaverPolicy: 'review', approver: { kind: 'accountable' }, rationale: 'Lawyers need it',
+      }],
+    };
+    const [p] = toSavePayload({ view: { filters: {} }, data: null, draft }).proposals;
+    expect(p).toMatchObject({
+      kind: 'requestable', rule: { includeChildren: false, filters: { jobTitle: { values: ['A', 'Z'], includeProposed: true, contains: ['law'] } } },
+      excluded: ['i:c'], joinerPolicy: 'approval', leaverPolicy: 'review', approver: { kind: 'accountable' }, rationale: 'Lawyers need it',
+    });
+    const [back] = draftFromSaved({ proposals: [{ ...p, id: SAVED_ID, rule: { filters: { ...p.rule.filters, gone: { values: ['x'] } } } }] }).drafts;
+    expect(back.rule).toEqual({ includeChildren: true, filters: { jobTitle: { values: new Set(['A', 'Z']), includeProposed: true, contains: ['law'] } } });
+    expect(back.excluded).toEqual(new Set(['i:c']));
+    expect(back).toMatchObject({ kind: 'requestable', joinerPolicy: 'approval', leaverPolicy: 'review', approver: { kind: 'accountable' }, rationale: 'Lawyers need it' });
+  });
+});
+
 describe('draftFromSaved', () => {
   it('gives back marks by cell and the proposed roles with Sets', () => {
     const { marks, drafts } = draftFromSaved({
@@ -78,7 +102,8 @@ describe('draftFromSaved', () => {
       proposals: [{ id: SAVED_ID, name: 'Motor', description: null, baseBusinessRoleId: 'br', members: ['i:a'], entitlements: ['r1'] }],
     });
     expect(marks).toEqual(new Map([['p:x|r1', 'unrelated']]));
-    expect(drafts).toEqual([{ id: SAVED_ID, name: 'Motor', description: '', baseBusinessRoleId: 'br', members: new Set(['i:a']), entitlements: new Set(['r1']) }]);
+    expect(drafts).toEqual([{ id: SAVED_ID, name: 'Motor', description: '', baseBusinessRoleId: 'br', members: new Set(['i:a']), entitlements: new Set(['r1']),
+      kind: null, rule: null, excluded: new Set(), joinerPolicy: 'auto', leaverPolicy: 'remove', approver: null, rationale: '' }]);
     expect(draftFromSaved({})).toEqual({ marks: new Map(), drafts: [] });
   });
 });
