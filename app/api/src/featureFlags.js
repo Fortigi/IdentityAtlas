@@ -66,6 +66,15 @@ export const FEATURE_FLAGS = {
     key: 'SOURCE_OWNER_ACCOUNTABLES',
     envDefault: env => env.FEATURE_SOURCE_OWNER_ACCOUNTABLES !== 'false',
   },
+  // …also match by name: an owner the source names only by display name (no
+  // account key, employee number or e-mail) is matched to the account with that
+  // name. A name is a guess, so OFF unless an operator opts in. The context
+  // upload matches its own owners by name regardless — in a preview the analyst
+  // sees before anything is written.
+  sourceOwnerNameMatch: {
+    key: 'SOURCE_OWNER_NAME_MATCH',
+    envDefault: env => env.FEATURE_SOURCE_OWNER_NAME_MATCH === 'true',
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

@@ -21,7 +21,7 @@ function stageRows(rows) {
 const ENV_KEYS = [
   'USE_SQL', 'FEATURE_RISK_SCORING', 'FEATURE_ACCOUNT_LINKING',
   'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS', 'FEATURE_MATRIX_SHARING',
-  'FEATURE_SOURCE_OWNER_ACCOUNTABLES',
+  'FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'FEATURE_SOURCE_OWNER_NAME_MATCH',
 ];
 let saved;
 
@@ -93,6 +93,15 @@ describe('env-var defaults (no stored override)', () => {
     expect(await isFeatureEnabled('sourceOwnerAccountables')).toBe(false);
     stageRows({ FEATURE_SOURCE_OWNER_ACCOUNTABLES: 'true' });   // a stored choice beats the env var
     expect(await isFeatureEnabled('sourceOwnerAccountables')).toBe(true);
+  });
+
+  it('sourceOwnerNameMatch is OFF unless the env var says exactly "true"', async () => {
+    expect(workerConfigKey('sourceOwnerNameMatch')).toBe('FEATURE_SOURCE_OWNER_NAME_MATCH');
+    expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(false);
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'yes';   // not exactly "true"
+    expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(false);
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'true';
+    expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(true);
   });
 
   it('accountLinking is ON unless explicitly disabled — including via the legacy env var', async () => {
@@ -181,7 +190,7 @@ describe('readFeatures', () => {
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
     expect(payload).toEqual({
       riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false,
-      customReports: false, contextAssistant: false, sourceOwnerAccountables: true,
+      customReports: false, contextAssistant: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false,
     });
   });
 });

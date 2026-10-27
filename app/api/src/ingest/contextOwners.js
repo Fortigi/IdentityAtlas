@@ -30,6 +30,10 @@
  *      " | Org" / " (Org)" ignored on both sides) — when exactly one USER
  *      account has it, else when exactly one principal of any type does. Lists
  *      kept by hand, and SharePoint exports, name owners by display name.
+ *      Only when the "…also match by name" setting is on (featureFlags.js
+ *      sourceOwnerNameMatch, OFF by default): a name is a guess an operator opts
+ *      into. The context upload matches its own owners by name regardless, and
+ *      shows each match in its preview before anything is written.
  * The first three joins are index lookups: ix_Principals_externalId (migration
  * 076), ix_Principals_employeeId (migration 001) and ix_Principals_email_lower
  * (migration 097). The name step looks up, per still-unresolved owner, the
@@ -112,7 +116,8 @@ const ROLE_BEARING_SQL = [...ROLE_BEARING_CATEGORIES].map(cat => `'${cat}'`).joi
 // The CTEs `scoped` (the synced contexts of the batch and the owner each names,
 // NULL when it names none or the context carries no roles) and `resolved`
 // (contextId → principalId). `scopePredicate` selects contexts from "Contexts" c.
-export function ownerResolutionCtes(scopePredicate) {
+// `byName` adds step 4 (resolution by display name).
+export function ownerResolutionCtes(scopePredicate, { byName = true } = {}) {
   return `
 scoped AS (
   SELECT c.id, c."scopeSystemId",
@@ -143,23 +148,23 @@ by_email AS (
      AND NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)
    GROUP BY c.id
   HAVING count(*) = 1
-),${byNameCtes()},
+),${byName ? `${byNameCtes()},` : ''}
 resolved AS (
   SELECT "contextId", "principalId" FROM by_external_id
   UNION ALL
   SELECT "contextId", "principalId" FROM by_employee_id
   UNION ALL
-  SELECT "contextId", "principalId" FROM by_email
+  SELECT "contextId", "principalId" FROM by_email${byName ? `
   UNION ALL
-  SELECT "contextId", "principalId" FROM by_name
+  SELECT "contextId", "principalId" FROM by_name` : ''}
 )`;
 }
 
 // One statement: the data-modifying CTEs all see the same snapshot of
 // `accountable`, so each context lands in exactly one branch.
-export function buildAccountableReconcileSql(scopePredicate) {
+export function buildAccountableReconcileSql(scopePredicate, options) {
   return `
-WITH ${ownerResolutionCtes(scopePredicate)},
+WITH ${ownerResolutionCtes(scopePredicate, options)},
 accountable AS (
   SELECT r.id, r."contextId", r."principalId", r."addedBy"
     FROM "ContextRoles" r
@@ -201,9 +206,11 @@ SELECT (SELECT count(*) FROM added)::int    AS "set",
 
 // Null when the "Accountables from source owners" setting is off (featureFlags.js
 // sourceOwnerAccountables): the sync then leaves every Accountable as it is.
+// Owners are resolved by display name only when sourceOwnerNameMatch is on.
 async function runReconcile(runner, scopePredicate, params) {
   if (!(await isFeatureEnabled('sourceOwnerAccountables'))) return null;
-  const r = await runner.query(buildAccountableReconcileSql(scopePredicate), params);
+  const byName = await isFeatureEnabled('sourceOwnerNameMatch');
+  const r = await runner.query(buildAccountableReconcileSql(scopePredicate, { byName }), params);
   const row = r.rows[0] || {};
   return {
     set: row.set ?? 0,

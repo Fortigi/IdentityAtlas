@@ -123,9 +123,14 @@ function SourceOwnerSettings({ features }) {
         Contexts — what a sync sets on its own
       </h3>
       <FlagCard features={features} name="sourceOwnerAccountables" title="Accountables from source owners" what="Accountables from source owners">
-        When a source names the owner of a unit or application (by account key or employee number), that account
-        becomes its <B>Accountable</B> on every sync, and follows the source when the owner changes. An Accountable
-        an analyst chose is never overwritten. Turning this off leaves every Accountable as it is.
+        When a source names the owner of a unit or application (by account key, employee number or e-mail address),
+        that account becomes its <B>Accountable</B> on every sync, and follows the source when the owner changes. An
+        Accountable an analyst chose is never overwritten. Turning this off leaves every Accountable as it is.
+      </FlagCard>
+      <FlagCard features={features} name="sourceOwnerNameMatch" title="…also match owners by name" what="matching owners by name">
+        When the source names an owner only by display name (no account key, employee number or e-mail address), the
+        one account with that name becomes the Accountable. A name is a guess, so this is off unless you turn it on.
+        An uploaded list matches its owners by name either way — you see each match before anything is written.
       </FlagCard>
     </section>
   );
