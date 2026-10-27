@@ -70,6 +70,34 @@ The global matrix is not touched.
 7. **Read cost.** Eleven statements whatever the unit's size (`load.test.js` pins the list); about
    25 ms for a 9-person unit with 500 held resources on the demo box.
 
+## How a proposed role is assigned
+
+Every new proposed role first asks its **kind** (two cards; changeable later):
+
+| Kind | Members | Rule means | Joiners | Leavers | Assignment `origin` |
+|---|---|---|---|---|---|
+| **Rule-based — assigned automatically** | computed from the rule (+ always include − always exclude); without a rule, chosen by hand | who holds it | add automatically / ask for approval | remove automatically / ask for review / keep | `Automatic` |
+| **Requestable — people request it and someone approves** | chosen by hand: the *expected initial holders* | who may request it (optional) | — (a request) | on leaving the unit: remove / review / keep | `Requested` |
+
+- **The rule is the workbench's filters.** Scope = the unit, with or without its sub-units; conditions
+  = the column filters (AND across columns, ANY ticked value or "contains" text within one; none =
+  everyone in scope). "Use these filters as the role's rule" copies them. The rule shows as one
+  sentence ("Everyone in Property Claims and its sub-units whose job title contains “handler” or is
+  Team lead Property — added automatically, removed when they no longer match"), with "matches now: N"
+  and "would also apply to people who join the unit later".
+- **Approver** (requestable): the unit's Accountable, the role's owner, or a named person (the context
+  role person picker).
+- **Rationale**: a free-text "why this role".
+- **Implementability**: a condition on activity, expertise or duty rests on Identity Atlas knowledge the
+  IGA system does not hold — noted ("can't be enforced automatically there"), not blocked. Job title,
+  department and unit conditions are source data.
+- **Vocabulary.** This is the role's *assignment rule*, the counterpart of the governance model's
+  `AssignmentPolicies` (Entra access-package auto-assignment policy → rule-based; a request policy →
+  requestable; Omada assignment policy). A *Propose update* of an existing role prefills the kind from
+  its crawled policies (`policyKind`: an auto-add rule → rule-based, a policy without one → requestable),
+  else asks. Proposals never write to `AssignmentPolicies` (crawled data).
+- Nothing is enforced anywhere; the impact overlay shows the active role's computed members.
+
 ## Impact semantics
 
 | Observed | In candidate (member) | Shown as |

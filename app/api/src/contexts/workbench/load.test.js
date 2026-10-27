@@ -3,13 +3,13 @@
 // PostgreSQL in contract-tests/workbench.contract.test.js; the assembly is model.test.js's.
 import { describe, it, expect, vi } from 'vitest';
 import {
-  loadWorkbench, WorkbenchError, MAX_PEOPLE, SCOPE_SQL, MEMBERS_SQL, LINKS_SQL, IDENTITIES_SQL, ACCOUNTS_SQL,
+  loadWorkbench, WorkbenchError, MAX_PEOPLE, UNIT_SQL, SCOPE_SQL, MEMBERS_SQL, LINKS_SQL, IDENTITIES_SQL, ACCOUNTS_SQL,
   PRINCIPALS_SQL, ACCESS_SQL, VIA_ROLE_SQL, RESOURCES_SQL, ROLE_PARTS_SQL, KNOWLEDGE_SQL,
 } from './load.js';
 
 const UNIT = 'dddddddd-0000-4000-8000-000000000001';
 
-function fakeDb({ unit = { id: UNIT, displayName: 'Claims', contextType: 'Department', contextCategory: 'OrganizationalUnit', targetType: 'Identity' }, members, resources } = {}) {
+function fakeDb({ unit = { id: UNIT, displayName: 'Claims', contextType: 'Department', contextCategory: 'OrganizationalUnit', targetType: 'Identity', accountable: 'Marieke' }, members, resources } = {}) {
   const calls = [];
   const answers = new Map([
     [SCOPE_SQL, [{ id: UNIT, displayName: 'Claims' }, { id: 'sub', displayName: 'Motor' }]],
@@ -31,7 +31,7 @@ function fakeDb({ unit = { id: UNIT, displayName: 'Claims', contextType: 'Depart
     [KNOWLEDGE_SQL, [{ id: 'c1', claimKind: 'duty', identityId: 'id-b', value: 'Works council', status: 'confirmed', objectName: 'Works council' }]],
     [RESOURCES_SQL, resources ?? [
       { id: 'r1', displayName: 'Read', resourceType: 'AppRole' },
-      { id: 'br', displayName: 'Handler', resourceType: 'BusinessRole', governanceResource: true },
+      { id: 'br', displayName: 'Handler', resourceType: 'BusinessRole', governanceResource: true, policyKind: 'requestable' },
       { id: 'r2', displayName: 'Batch', resourceType: 'Group' },
     ]],
     [ROLE_PARTS_SQL, [{ roleId: 'br', resourceId: 'r1' }]],
@@ -63,10 +63,11 @@ describe('loadWorkbench', () => {
     expect(db.calls[8].params).toEqual([['id-a', 'id-b'], ['p-a', 'p-b', 'p-loose'], ['activity', 'expertise', 'duty']]);
     expect(db.calls[10].params).toEqual([['br']]);
 
-    expect(out.unit).toEqual({ id: UNIT, displayName: 'Claims', contextType: 'Department', targetType: 'Identity' });
+    expect(out.unit).toEqual({ id: UNIT, displayName: 'Claims', contextType: 'Department', targetType: 'Identity', accountable: 'Marieke' });
+    expect(db.queryOne).toHaveBeenCalledWith(UNIT_SQL, [UNIT]);
     expect(out.scope).toEqual({ includeChildren: true, units: 2, truncatedPeople: false, maxPeople: MAX_PEOPLE, unresolved: 0 });
     expect(out.people.map(p => [p.key, p.knowledge.length])).toEqual([['i:id-a', 0], ['i:id-b', 1], ['p:p-loose', 0]]);
-    expect(out.columns.map(c => [c.id, c.isRole, c.contains])).toEqual([['br', true, ['r1']], ['r2', false, []], ['r1', false, []]]);
+    expect(out.columns.map(c => [c.id, c.isRole, c.contains, c.policyKind])).toEqual([['br', true, ['r1'], 'requestable'], ['r2', false, [], null], ['r1', false, [], null]]);
     expect(out.cells).toHaveLength(3);
     expect(out.kinds.map(k => k.predicate)).toEqual(['performsActivity', 'hasExpertise', 'holdsResponsibility']);
     expect(Date.parse(out.generatedAt)).not.toBeNaN();
@@ -96,7 +97,7 @@ describe('loadWorkbench', () => {
 
   it('reads only what it needs: no write, no ResourceAssignments', () => {
     const all = [SCOPE_SQL, MEMBERS_SQL, LINKS_SQL, IDENTITIES_SQL, ACCOUNTS_SQL, PRINCIPALS_SQL, ACCESS_SQL, VIA_ROLE_SQL, RESOURCES_SQL, ROLE_PARTS_SQL, KNOWLEDGE_SQL].join('\n');
-    expect(all).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);
+    expect(all + UNIT_SQL).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);
     expect(all).not.toMatch(/"ResourceAssignments"/);
     expect(MEMBERS_SQL).toMatch(/ContextMemberOverrides/);
   });

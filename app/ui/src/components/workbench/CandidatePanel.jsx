@@ -3,6 +3,7 @@ import { frequencies, impactSummary, roleDelta } from './workbench.model';
 import { IMPACT } from './workbench.cells';
 import { activeDraft } from './useWorkbench';
 import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
+import RoleRuleEditor, { KindPicker } from './RoleRuleEditor';
 
 // ─── The proposed roles ──────────────────────────────────────────────────
 // The session's proposed roles, each a Draft column in the role band in its own
@@ -16,18 +17,23 @@ import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 // "Propose update". Saved only with the investigation (Save in the strip above;
 // saveLabel says which state it is in).
 
-export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined, saveLabel = 'Draft · not saved' }) {
+export default function CandidatePanel({
+  draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined,
+  candidate = null, unitName = '', onUseAsRule = () => {}, saveLabel = 'Draft · not saved',
+}) {
   const existing = data.columns.filter(c => c.isRole);
   const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
   const viewed = draft.viewRoleId ? columnsById.get(draft.viewRoleId) : null;
-  const active = activeDraft(draft);
+  // The page passes the active role with its members resolved (by rule, or by hand).
+  const active = candidate ?? activeDraft(draft);
   return (
     <aside aria-label="Candidate role" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
       <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} saveLabel={saveLabel} />
       {viewed && <ExistingRole role={viewed} dispatch={dispatch} cellsByResource={cellsByResource} peopleByKey={peopleByKey} columnsById={columnsById} color={colorOf(viewed.id)} />}
       {!viewed && active.id && (
         <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
-          columnsById={columnsById} draftColor={colorOf(active.id) ?? color(roles.length)} />
+          columnsById={columnsById} draftColor={colorOf(active.id) ?? color(roles.length)}
+          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} />
       )}
       {!viewed && !active.id && (
         <p className="text-xs text-gray-600 dark:text-gray-400">No proposed role yet. Filter or select people and cells, then <span className="font-medium">Add to candidate</span> — or start one here.</p>
@@ -102,7 +108,15 @@ function ExistingRole({ role, dispatch, cellsByResource, peopleByKey, columnsByI
   );
 }
 
-function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor }) {
+// The members list's title: how they were chosen.
+function membersTitle(candidate) {
+  const n = candidate.members.size;
+  if (candidate.kind === 'requestable') return `Expected initial holders (${n})`;
+  if (candidate.kind === 'rule' && candidate.rule) return `Members by rule (${n})`;
+  return `Members chosen by hand (${n})`;
+}
+
+function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule }) {
   const dialog = useDialog();
   const baseRole = candidate.baseBusinessRoleId ? columnsById.get(candidate.baseBusinessRoleId) : null;
   const impact = impactSummary(candidate, data.people, cellIndex, draft.marks);
@@ -128,7 +142,12 @@ function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey,
           className="mt-0.5 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
       </label>
 
-      <Section title={`Members (${n})`} empty="Select people in the grid, then Add to candidate or Members only.">
+      {candidate.kind
+        ? <RoleRuleEditor candidate={candidate} dispatch={dispatch} unitName={rule.unitName} accountable={rule.accountable} people={data.people}
+            peopleByKey={peopleByKey} onUseAsRule={rule.onUseAsRule} />
+        : <KindPicker onPick={(kind) => dispatch({ type: 'setKind', kind })} suggested={baseRole?.policyKind} />}
+
+      <Section title={membersTitle(candidate)} empty="Select people in the grid, then Add to candidate or Members only — or give it a rule.">
         {[...candidate.members].map(k => (
           <Pill key={k} label={peopleByKey.get(k)?.displayName ?? k} onRemove={() => dispatch({ type: 'removeMember', person: k })} />
         ))}

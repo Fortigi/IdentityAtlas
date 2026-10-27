@@ -26,6 +26,14 @@ export class WorkbenchError extends Error {
   constructor(status, message) { super(message); this.name = 'WorkbenchError'; this.status = status; }
 }
 
+// The unit, and who answers for it (its Accountable — a proposed role's approver may be them).
+export const UNIT_SQL = `
+  SELECT c.id, c."displayName", c."contextType", c."contextCategory", c."targetType",
+         (SELECT COALESCE(p."displayName", i."displayName") FROM "ContextRoles" r
+            LEFT JOIN "Principals" p ON p.id = r."principalId" LEFT JOIN "Identities" i ON i.id = r."identityId"
+           WHERE r."contextId" = c.id AND r.role = 'Accountable' LIMIT 1) AS accountable
+    FROM "Contexts" c WHERE c.id = $1`;
+
 export const SCOPE_SQL = `
   WITH RECURSIVE scope AS (
     SELECT id, "displayName", 0 AS depth FROM "Contexts" WHERE id = $1
@@ -79,8 +87,13 @@ export const VIA_ROLE_SQL = `
     FROM "vw_UserPermissionAssignmentViaBusinessRole"
    WHERE "userId" = ANY($1::uuid[])`;
 
+// policyKind: how the source assigns a business role, read from its crawled assignment
+// policies (Entra access-package policies, …): an auto-add rule → 'rule', a policy
+// without one → 'requestable' (people request it), none → null.
 export const RESOURCES_SQL = `
-  SELECT r.id, r."displayName", r."resourceType", r."governanceResource", s."displayName" AS "systemName"
+  SELECT r.id, r."displayName", r."resourceType", r."governanceResource", s."displayName" AS "systemName",
+         (SELECT CASE WHEN bool_or(ap."hasAutoAddRule") THEN 'rule' WHEN count(*) > 0 THEN 'requestable' END
+            FROM "AssignmentPolicies" ap WHERE ap."resourceId" = r.id) AS "policyKind"
     FROM "Resources" r LEFT JOIN "Systems" s ON s.id = r."systemId"
    WHERE r.id = ANY($1::uuid[])`;
 
@@ -105,8 +118,7 @@ export const KNOWLEDGE_SQL = `
 const rowsOf = async (db, sql, params) => (await db.query(sql, params)).rows;
 
 async function loadUnit(db, contextId) {
-  const unit = await db.queryOne(
-    `SELECT id, "displayName", "contextType", "contextCategory", "targetType" FROM "Contexts" WHERE id = $1`, [contextId]);
+  const unit = await db.queryOne(UNIT_SQL, [contextId]);
   if (!unit) throw new WorkbenchError(404, 'Context not found');
   if (unit.contextCategory !== 'OrganizationalUnit') {
     throw new WorkbenchError(400, 'The authorization workbench opens on an organizational unit.');
@@ -156,7 +168,7 @@ export async function loadWorkbench(db, contextId, { includeChildren = true } = 
   const knowledge = buildKnowledge(people, claims);
 
   return {
-    unit: { id: unit.id, displayName: unit.displayName, contextType: unit.contextType, targetType: unit.targetType },
+    unit: { id: unit.id, displayName: unit.displayName, contextType: unit.contextType, targetType: unit.targetType, accountable: unit.accountable ?? null },
     scope: { includeChildren, units: scope.length, truncatedPeople, maxPeople: MAX_PEOPLE, unresolved },
     kinds: KNOWLEDGE_KINDS.map(k => ({ kind: k, label: KNOWLEDGE[k].label, predicate: KNOWLEDGE[k].predicate })),
     people: people.map(p => ({ ...p, knowledge: knowledge.get(p.key) ?? [] })),

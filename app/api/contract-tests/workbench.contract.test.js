@@ -168,3 +168,18 @@ describe('knowledge on PostgreSQL', () => {
     expect(n).toEqual({ grants: 5, members: 0 });
   });
 });
+
+describe('assignment policies and the Accountable on PostgreSQL', () => {
+  it('reads how the source assigns a business role (auto-add rule → rule, a policy without → requestable) and the unit’s Accountable', async () => {
+    const out1 = await loadWorkbench(db, C.unit);
+    expect(out1.columns.find(c => c.id === R.role).policyKind).toBeNull();
+    const policy = await one(`INSERT INTO "AssignmentPolicies" (id, "systemId", "resourceId", "displayName", "hasAutoAddRule") VALUES (gen_random_uuid(), $1, $2, 'wbc-request', false) RETURNING id`, [sysId, R.role]);
+    expect((await loadWorkbench(db, C.unit)).columns.find(c => c.id === R.role).policyKind).toBe('requestable');
+    await pool.query(`INSERT INTO "AssignmentPolicies" (id, "systemId", "resourceId", "displayName", "hasAutoAddRule") VALUES (gen_random_uuid(), $1, $2, 'wbc-auto', true)`, [sysId, R.role]);
+    expect((await loadWorkbench(db, C.unit)).columns.find(c => c.id === R.role).policyKind).toBe('rule');
+    await pool.query(`INSERT INTO "ContextRoles" ("contextId", "identityId", role, "addedBy") VALUES ($1, $2, 'Accountable', 'analyst')`, [C.unit, ID.anna]);
+    expect((await loadWorkbench(db, C.unit)).unit.accountable).toBe('wbc-Anna');
+    await pool.query(`DELETE FROM "AssignmentPolicies" WHERE "resourceId" = $1`, [R.role]);
+    expect(policy.id).toBeTruthy();
+  });
+});

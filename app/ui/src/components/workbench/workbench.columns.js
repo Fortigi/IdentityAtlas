@@ -80,11 +80,16 @@ export function distinctValues(people, column, includeProposed = true) {
   return out;
 }
 
-/** Does this person pass one column's filter? ANY of their values ticked (or blank ticked when they have none). Pure. */
+/**
+ * Does this person pass one column's filter? ANY of their values ticked, or
+ * containing one of the filter's `contains` texts (case aside) — or blank ticked
+ * when they have none. Pure.
+ */
 export function matchesFilter(person, column, filter) {
   const vals = cellValues(person, column, filter.includeProposed !== false);
   if (vals.length === 0) return filter.values.has(BLANK);
-  return vals.some(v => filter.values.has(v.value));
+  const contains = (filter.contains || []).map(t => t.toLowerCase());
+  return vals.some(v => filter.values.has(v.value) || contains.some(t => v.label.toLowerCase().includes(t)));
 }
 
 /** The people passing every active filter (AND across columns). Pure. */
@@ -115,7 +120,8 @@ export function filterSummary(filters, people) {
     const column = columnByKey.get(key);
     const labels = distinctValues(people, column).filter(v => f.values.has(v.value)).map(v => v.label);
     const proposed = column.type === 'knowledge' && f.includeProposed === false ? ' (confirmed only)' : '';
-    return { key, text: `${column.label}: ${labels.length ? labels.join(', ') : 'nothing'}${proposed}` };
+    const parts = [...(f.contains || []).map(t => `contains “${t}”`), ...labels];
+    return { key, text: `${column.label}: ${parts.length ? parts.join(', ') : 'nothing'}${proposed}` };
   });
 }
 

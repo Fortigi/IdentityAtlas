@@ -42,6 +42,8 @@
     "src/components/workbench/PeopleCells.jsx",
     "src/components/workbench/ColumnFilterMenu.jsx",
     "src/components/workbench/workbench.columns.js",
+    "src/components/workbench/workbench.rule.js",
+    "src/components/workbench/RoleRuleEditor.jsx",
     "src/components/workbench/WorkbenchControls.jsx",
     "src/components/workbench/WorkbenchGrid.jsx",
     "src/components/workbench/WorkbenchPage.jsx",
