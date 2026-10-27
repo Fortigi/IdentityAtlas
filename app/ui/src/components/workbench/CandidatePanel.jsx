@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useDialog } from '@ui/components/dialogContext';
 import { frequencies, impactSummary, roleDelta } from './workbench.model';
 import { IMPACT } from './workbench.cells';
@@ -11,12 +10,10 @@ import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 // "New candidate role" starts another; "Update an existing role" starts one from
 // a role the unit holds (what it Contains and who holds it — the role itself is
 // never changed). The active one is edited here — members and entitlements chosen
-// separately, a deterministic first proposal (every column at least half, ¾ or all
-// of the members hold, minus what was marked other context or unrelated), its
-// impact — and can be removed when it is not right. An existing role clicked in
+// separately — entitlements only as the analyst selects them in the grid (the
+// list shows how many members hold each) — its impact, and it can be removed when
+// it is not right. An existing role clicked in
 // the band shows here read-only, with "Propose update". Nothing is saved.
-
-const THRESHOLDS = [{ v: 0.5, l: '≥ 50 %' }, { v: 0.75, l: '≥ 75 %' }, { v: 1, l: 'all' }];
 
 export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined }) {
   const existing = data.columns.filter(c => c.isRole);
@@ -136,9 +133,7 @@ function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey,
         ))}
       </Section>
 
-      <Proposer n={n} dispatch={dispatch} data={data} cellIndex={cellIndex} />
-
-      <Section title={`Entitlements (${candidate.entitlements.size})`} empty="Select cells in the grid, or propose from the members." list>
+      <Section title={`Entitlements (${candidate.entitlements.size})`} empty="Select cells, a range or a column header in the grid, then Add to candidate." list>
         {[...candidate.entitlements].map(id => {
           const col = columnsById.get(id);
           const f = share.get(id);
@@ -165,21 +160,6 @@ function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey,
     </section>
   );
 }
-function Proposer({ n, dispatch, data, cellIndex }) {
-  const [threshold, setThreshold] = useState(0.5);
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded bg-gray-50 p-2 text-xs dark:bg-gray-900/60">
-      <span className="text-gray-700 dark:text-gray-300">Propose entitlements held by</span>
-      <select value={threshold} onChange={e => setThreshold(Number(e.target.value))} aria-label="Share of the members" className="rounded border border-gray-300 bg-white px-1 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-        {THRESHOLDS.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
-      </select>
-      <span className="text-gray-700 dark:text-gray-300">of the members</span>
-      <button type="button" disabled={n === 0} onClick={() => dispatch({ type: 'propose', threshold, columns: data.columns, cellIndex })}
-        className="rounded bg-blue-600 px-2 py-0.5 text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500">Propose</button>
-    </div>
-  );
-}
-
 function Section({ title, empty, list = false, children }) {
   const items = Array.isArray(children) ? children : [children];
   const has = items.filter(Boolean).length > 0;

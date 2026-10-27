@@ -168,10 +168,15 @@ describe('WorkbenchPage', () => {
     expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
     expect(screen.getByText(/Click a cell, Shift-click for a rectangle/)).toBeInTheDocument();
     expect(within(candidate()).getByText('Entitlements (3)')).toBeInTheDocument();
-    // Keep only what both members hold, and name it: the band says "Draft: <name>".
-    await user.selectOptions(within(candidate()).getByLabelText('Share of the members'), '1');
-    await user.click(within(candidate()).getByRole('button', { name: 'Propose' }));
+    // No proposal by percentage: the panel only says how many members hold each; the analyst removes what does not belong.
+    expect(within(candidate()).queryByRole('button', { name: 'Propose' })).toBeNull();
+    expect(within(candidate()).queryByLabelText('Share of the members')).toBeNull();
+    const entitlements = within(candidate()).getByText('Entitlements (3)').parentElement;
+    expect(within(entitlements).getAllByText(/^\d\/2$/).map(e => e.textContent)).toEqual(['2/2', '1/2', '1/2']);
+    await user.click(within(candidate()).getByRole('button', { name: 'Remove Motor handler' }));
+    await user.click(within(candidate()).getByRole('button', { name: 'Remove WorksCouncil site' }));
     expect(within(candidate()).getByText('Entitlements (1)')).toBeInTheDocument();
+    // Name it: the band says "Draft: <name>".
     await user.clear(within(candidate()).getByPlaceholderText('e.g. Claims handler — motor'));
     await user.type(within(candidate()).getByPlaceholderText('e.g. Claims handler — motor'), 'Motor v2');
     expect(within(grid()).getByRole('columnheader', { name: 'Draft: Motor v2' })).toBeInTheDocument();

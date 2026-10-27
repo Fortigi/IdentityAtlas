@@ -107,5 +107,7 @@ stay out of a claims role. Idempotent; it touches nothing else.
 - **M2:** save, version and approve a candidate (a `RoleProposals` record holding name, members,
   entitlements, the marks with their reasons, the evidence links and the snapshot time).
 - **M3:** compare an approved proposal with a later snapshot (implemented as proposed? drift?).
+- A computed first proposal of entitlements (e.g. what at least half of the members hold): tried and
+  taken out — the analyst selects entitlements. Revisit with real analyst feedback.
 - Removal simulation with grant-path proof; keyboard range selection; virtualised grid for very
   large units.

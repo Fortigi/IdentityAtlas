@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   cellKey, indexCells, groupPeople, accessCounts, rangeKeys, toggleAll, selectionParts, addSelection, frequencies,
-  proposeEntitlements, candidateFromRole, cellsByResource, cellImpact, impactSummary, possibleMembers, roleDelta,
+  candidateFromRole, cellsByResource, cellImpact, impactSummary, possibleMembers, roleDelta,
   startsCrowded, NOT_KNOWN, EMPTY_CANDIDATE,
 } from './workbench.model';
 
@@ -127,23 +127,6 @@ describe('composing the candidate', () => {
       { resourceId: 'r3', held: 1, share: 1 / 3 },
     ]);
     expect(frequencies(new Set(), columns, idx)).toEqual([]);
-  });
-
-  it('proposeEntitlements keeps what at least the threshold share holds', () => {
-    const members = new Set(['a', 'b', 'c']);
-    expect([...proposeEntitlements(members, columns, idx, new Map(), 0.5)]).toEqual(['r1', 'r2']);
-    expect([...proposeEntitlements(members, columns, idx, new Map(), 0.75)]).toEqual(['r1']);
-    expect([...proposeEntitlements(members, columns, idx, new Map(), 1 / 3)]).toEqual(['r1', 'r2', 'r3']);
-  });
-
-  it('proposeEntitlements leaves out a column every holder marked other context or unrelated — not one marked for some', () => {
-    const members = new Set(['a', 'b', 'c']);
-    const allMarked = new Map([[cellKey('a', 'r2'), 'other'], [cellKey('c', 'r2'), 'unrelated']]);
-    expect([...proposeEntitlements(members, columns, idx, allMarked, 0.5)]).toEqual(['r1']);
-    const someMarked = new Map([[cellKey('a', 'r2'), 'other']]);
-    expect([...proposeEntitlements(members, columns, idx, someMarked, 0.5)]).toEqual(['r1', 'r2']);
-    const investigate = new Map([[cellKey('a', 'r2'), 'investigate'], [cellKey('c', 'r2'), 'investigate']]);
-    expect([...proposeEntitlements(members, columns, idx, investigate, 0.5)]).toEqual(['r1', 'r2']);
   });
 
   it('candidateFromRole starts from the role’s holders and what it Contains', () => {
