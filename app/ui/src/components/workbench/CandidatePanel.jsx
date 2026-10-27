@@ -14,7 +14,7 @@ import { BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
 
 const THRESHOLDS = [{ v: 0.5, l: '≥ 50 %' }, { v: 0.75, l: '≥ 75 %' }, { v: 1, l: 'all' }];
 
-export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById }) {
+export default function CandidatePanel({ draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, draftColor }) {
   const { candidate, marks } = draft;
   const roles = data.columns.filter(c => c.isRole);
   const baseRole = candidate.baseRoleId ? columnsById.get(candidate.baseRoleId) : null;
@@ -61,7 +61,7 @@ export default function CandidatePanel({ draft, dispatch, data, cellIndex, cells
       </Section>
 
       {candidate.mode === 'extend' && <RoleDelta delta={roleDelta(candidate, baseRole)} columnsById={columnsById} />}
-      <ImpactBlock impact={impact} peopleByKey={peopleByKey} dispatch={dispatch} />
+      <ImpactBlock impact={impact} peopleByKey={peopleByKey} dispatch={dispatch} draftColor={draftColor} />
       <p className="text-[11px] leading-snug text-gray-600 dark:text-gray-400">
         Nothing here changes access or is saved. “Outside the candidate” is not a removal: the person may keep it through
         other grants, and removing access is not modelled yet — its impact is unknown.
@@ -142,7 +142,16 @@ function RoleDelta({ delta, columnsById }) {
 
 const IMPACT_ROWS = ['covered', 'gain', 'outside', 'other', 'unrelated', 'investigate'];
 
-function ImpactBlock({ impact, peopleByKey, dispatch }) {
+// The swatch of each row as the grid shows it: the draft's colour, the matrix's
+// amber provisioning-gap marker, a plain cell, or the workbench's own mark.
+function Swatch({ kind, draftColor }) {
+  if (kind === 'covered') return <span aria-hidden="true" className="inline-block h-4 w-4 rounded-sm border border-gray-300 dark:border-gray-600" style={{ backgroundColor: draftColor }} />;
+  if (kind === 'gain') return <span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center"><span className="flex h-2 w-2 items-center justify-center rounded-full bg-amber-500 text-[7px] font-bold text-white">!</span></span>;
+  if (kind === 'outside') return <span aria-hidden="true" className="inline-block h-4 w-4 rounded-sm border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800" />;
+  return <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-sm text-[10px] font-bold ${IMPACT[kind].mark}`}>{IMPACT[kind].glyph}</span>;
+}
+
+function ImpactBlock({ impact, peopleByKey, dispatch, draftColor }) {
   const { counts, gainers, possibleMembers } = impact;
   return (
     <div>
@@ -150,7 +159,7 @@ function ImpactBlock({ impact, peopleByKey, dispatch }) {
       <ul className="mt-1 space-y-0.5 text-xs">
         {IMPACT_ROWS.map(k => (
           <li key={k} className="flex items-center gap-2">
-            <span aria-hidden="true" className={`inline-flex h-4 w-4 items-center justify-center rounded-sm text-[10px] font-bold ${IMPACT[k].mark}`}>{IMPACT[k].glyph}</span>
+            <Swatch kind={k} draftColor={draftColor} />
             <span className="flex-1 text-gray-700 dark:text-gray-300">{IMPACT[k].label}</span>
             <span className="font-semibold text-gray-900 dark:text-gray-100">{counts[k]}</span>
           </li>

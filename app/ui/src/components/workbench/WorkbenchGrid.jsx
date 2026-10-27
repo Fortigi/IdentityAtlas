@@ -1,18 +1,35 @@
-import { memo } from 'react';
-import { cellKey, rangeKeys, cellImpact } from './workbench.model';
-import { cellLook } from './workbench.cells';
-import { MembershipBadge, BusinessRoleBadge } from '@ui/components/matrix/MatrixBadges';
+import MatrixCell from '@ui/components/matrix/MatrixCell';
+import MatrixApLabelCell from '@ui/components/matrix/MatrixApLabelCell';
+import { cellKey, rangeKeys } from './workbench.model';
+import { cellProps, roleCellProps, cellLabel, DRAFT_ID } from './workbench.roles';
+import { MARK_LEGEND } from './workbench.cells';
 import PersonCell from './PersonCell';
 
 // ─── The workbench matrix ────────────────────────────────────────────────
 // Rows: the unit's people, in the groups of the chosen dimension (a person with
 // two activities is in both groups — the same person, the same cells: selecting
-// one selects both). Columns: what they hold, most held first; a business role
-// is marked R. Click a cell to select it, Shift-click for the rectangle from the
-// last one, Ctrl/⌘-click to add or remove one; click a column header, a person
-// or a group to select their held cells. The grid never edits access.
+// one selects both). Columns: what they hold, most held first; then, as in the
+// matrix, the business-role band on the right — the unit's roles and the
+// candidate as "Draft: <name>" — each in its matrix colour. Every cell is the
+// matrix's own MatrixCell (badge, role colour, marker strip — workbench.roles.js
+// maps the candidate onto it); the analyst's marks sit on top. Click a cell to
+// select it, Shift-click for the rectangle from the last one, Ctrl/⌘-click to add
+// or remove one; click a column header, a person or a group to select their held
+// cells. The grid never edits access.
 
-export default function WorkbenchGrid({ groups, columns, cellIndex, draft, dispatch, overlay, personProps }) {
+const MARK_SIGN = Object.fromEntries(MARK_LEGEND.map(m => [m.key, m]));
+
+function MarkSign({ mark }) {
+  if (!mark) return null;
+  const s = MARK_SIGN[mark];
+  return (
+    <span aria-hidden="true" className={`absolute bottom-0 right-0 flex h-3 min-w-[0.75rem] items-center justify-center rounded-tl px-0.5 text-[8px] font-bold leading-3 ${s.mark}`}>
+      {s.glyph}
+    </span>
+  );
+}
+
+export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, dispatch, personProps, onOpenDetail }) {
   const rowKeys = groups.flatMap(g => g.rows.map(r => r.person.key));
   const colIds = columns.map(c => c.id);
   const { candidate, marks, selection } = draft;
@@ -29,6 +46,7 @@ export default function WorkbenchGrid({ groups, columns, cellIndex, draft, dispa
   const onColumn = (col, e) => pick(held(rowKeys, [col.id]), e);
   const onPerson = (personKey, e) => pick(held([personKey], colIds), e);
   const onGroup = (group, e) => pick(held(group.rows.map(r => r.person.key), colIds), e);
+  const openRole = (type, id, name) => (id === DRAFT_ID ? undefined : onOpenDetail?.('resource', id, name));
 
   // Where each group's rows start in the flat row order (for Shift-click ranges).
   const starts = groups.reduce((acc, g, i) => [...acc, i === 0 ? 0 : acc[i - 1] + groups[i - 1].rows.length], []);
@@ -40,26 +58,33 @@ export default function WorkbenchGrid({ groups, columns, cellIndex, draft, dispa
             <th scope="col" className="sticky left-0 top-0 z-30 min-w-[16rem] border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left align-bottom font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
               Person <span className="font-normal text-gray-500 dark:text-gray-400">· what they do, know and hold</span>
             </th>
-            {columns.map((col, i) => <ColumnHeader key={col.id} col={col} inCandidate={candidate.entitlements.has(col.id)} onClick={(e) => onColumn(col, e)} index={i} />)}
+            {columns.map(col => <ColumnHeader key={col.id} col={col} inCandidate={candidate.entitlements.has(col.id)} onClick={(e) => onColumn(col, e)} />)}
+            {roles.map((r, i) => <MatrixApLabelCell key={r.id} accessPackages={roles} idx={i} isDark={isDark} onOpenDetail={openRole} />)}
           </tr>
         </thead>
         <tbody>
           {groups.map((group, gi) => [
-            <GroupRow key={`g:${group.key}`} group={group} span={columns.length} onSelect={(e) => onGroup(group, e)} />,
-            ...group.rows.map(({ person, alsoIn, state }, ri) => {
+            <GroupRow key={`g:${group.key}`} group={group} span={columns.length + roles.length} onSelect={(e) => onGroup(group, e)} />,
+            ...group.rows.map(({ person, alsoUnder, repeat, state }, ri) => {
               const row = starts[gi] + ri;
               return (
-                <tr key={`${group.key}::${person.key}`}>
-                  <PersonCell person={person} alsoIn={alsoIn} groupState={state} member={candidate.members.has(person.key)}
+                <tr key={`${group.key}::${person.key}`} className={repeat ? 'opacity-50' : undefined} data-repeat={repeat || undefined}>
+                  <PersonCell person={person} alsoUnder={alsoUnder} repeat={repeat} groupState={state} member={candidate.members.has(person.key)}
                     onSelectRow={(e) => onPerson(person.key, e)} {...personProps} />
                   {columns.map((col, c) => {
                     const k = cellKey(person.key, col.id);
+                    const props = cellProps({ cell: cellIndex.get(k), personKey: person.key, resourceId: col.id, roles, color });
                     return (
-                      <GridCell key={col.id} cell={cellIndex.get(k)} mark={marks.get(k)} selected={selection.has(k)} overlay={overlay}
-                        member={candidate.members.has(person.key)} inCandidate={candidate.entitlements.has(col.id)}
-                        onClick={(e) => onCell(row, c, e)} />
+                      <MatrixCell key={col.id} cellKey={k} {...props} selected={selection.has(k)} label={cellLabel(props, marks.get(k))}
+                        onSelect={(e) => onCell(row, c, e)}>
+                        <MarkSign mark={marks.get(k)} />
+                      </MatrixCell>
                     );
                   })}
+                  {roles.map(role => (
+                    <RoleCell key={role.id} role={role} personKey={person.key} cellIndex={cellIndex} color={color}
+                      selection={selection} marks={marks} pick={pick} />
+                  ))}
                 </tr>
               );
             }),
@@ -70,15 +95,30 @@ export default function WorkbenchGrid({ groups, columns, cellIndex, draft, dispa
   );
 }
 
+// A person in a role's own column: holding it (the role's colour), or — for the
+// draft — about to (its provisioning gap). An existing role's cell can be selected
+// like any held access; the draft's cannot (it is no access yet).
+function RoleCell({ role, personKey, cellIndex, color, selection, marks, pick }) {
+  const props = roleCellProps({ role, personKey, cellIndex, color });
+  const k = cellKey(personKey, role.id);
+  const selectable = !role.draft;
+  return (
+    <MatrixCell cellKey={k} {...props} selected={selectable && selection.has(k)} label={cellLabel(props, marks.get(k))}
+      onSelect={selectable ? (e) => pick([k], e) : undefined}>
+      <MarkSign mark={marks.get(k)} />
+    </MatrixCell>
+  );
+}
+
 function ColumnHeader({ col, inCandidate, onClick }) {
-  const title = [col.displayName, col.isRole ? 'Business role' : col.resourceType, col.systemName, `${col.holders} ${col.holders === 1 ? 'person' : 'people'}`]
+  const title = [col.displayName, col.resourceType, col.systemName, `${col.holders} ${col.holders === 1 ? 'person' : 'people'}`]
     .filter(Boolean).join(' · ');
   return (
-    <th scope="col" className={`sticky top-0 z-20 h-48 w-7 min-w-[1.75rem] border-b border-r border-gray-100 px-0 align-bottom dark:border-gray-700 ${inCandidate ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-gray-50 dark:bg-gray-900'}`}>
+    <th scope="col" className={`sticky top-0 z-20 h-48 w-6 min-w-[1.5rem] border-b border-r border-gray-100 px-0 align-bottom dark:border-gray-700 ${inCandidate ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-gray-50 dark:bg-gray-900'}`}>
       <button type="button" onClick={onClick} title={title} aria-label={`Select the column ${title}`}
-        className="flex h-48 w-7 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+        className="flex h-48 w-6 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
         <span className="max-h-44 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-gray-700 dark:text-gray-200" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-          {col.isRole && <span className="mb-1 inline-block"><BusinessRoleBadge /></span>} {col.displayName}
+          {col.displayName}
         </span>
       </button>
     </th>
@@ -99,23 +139,3 @@ function GroupRow({ group, span, onSelect }) {
     </tr>
   );
 }
-
-const GridCell = memo(function GridCell({ cell, mark, selected, overlay, member, inCandidate, onClick }) {
-  const impact = overlay ? cellImpact({ observed: !!cell, member, inCandidate, mark }) : null;
-  const look = cellLook({ cell, mark, impact, overlay });
-  const ring = selected ? 'outline outline-2 -outline-offset-2 outline-blue-600 dark:outline-blue-300' : '';
-  const title = look?.title ?? 'Not held';
-  return (
-    <td className="h-7 w-7 border-b border-r border-gray-100 p-0 text-center dark:border-gray-700">
-      <button type="button" onClick={onClick} title={title} aria-label={title} aria-pressed={selected}
-        className={`relative flex h-7 w-7 select-none items-center justify-center ${look?.sign?.ring ?? ''} ${look ? '' : 'hover:bg-gray-100 dark:hover:bg-gray-700'} ${ring}`}>
-        {look?.badge && <span className={look.dim ? 'opacity-40' : ''}><MembershipBadge type={look.badge} decorative /></span>}
-        {look?.sign && (
-          <span aria-hidden="true" className={`absolute right-0 top-0 flex h-3 min-w-[0.75rem] items-center justify-center rounded-bl px-0.5 text-[8px] font-bold leading-3 ${look.sign.mark}`}>
-            {look.sign.glyph}
-          </span>
-        )}
-      </button>
-    </td>
-  );
-});

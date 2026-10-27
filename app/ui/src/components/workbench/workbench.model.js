@@ -46,31 +46,47 @@ function valuesOf(person, dimension) {
     .map(l => ({ key: l.name.toLowerCase().replace(/\s+/g, ' ').trim(), name: l.name, state: l.state }));
 }
 
-/**
- * The people in groups for one dimension. A person with several values appears
- * in each of their groups (`alsoIn` says how many others) — the multi-value
- * convention: never one silently chosen. A person with none is in "Not known".
- * Groups largest first, "Not known" last; each group's `count` is its people. Pure.
- */
-export function groupPeople(people, dimension, sortBy = 'name', accessCount = () => 0) {
-  if (dimension === 'none') return [{ key: 'all', label: 'Everyone', count: people.length, rows: sortRows(people.map(p => ({ person: p, alsoIn: 0 })), sortBy, accessCount) }];
-  const groups = new Map();
-  const add = (key, label, person, alsoIn, state) => {
-    if (!groups.has(key)) groups.set(key, { key, label, rows: [], states: new Set() });
-    const g = groups.get(key);
-    g.rows.push({ person, alsoIn, state });
-    g.states.add(state);
-  };
-  for (const p of people) {
-    const values = valuesOf(p, dimension);
-    if (values.length === 0) add(NOT_KNOWN, 'Not known', p, 0, null);
-    for (const v of values) add(v.key, v.name, p, values.length - 1, v.state);
-  }
-  return [...groups.values()]
-    .map(g => ({ key: g.key, label: g.label, count: g.rows.length, rows: sortRows(g.rows, sortBy, accessCount), allProposed: !g.states.has('confirmed') && !g.states.has('source') && g.key !== NOT_KNOWN }))
-    .sort((a, b) => (a.key === NOT_KNOWN) - (b.key === NOT_KNOWN) || b.count - a.count || a.label.localeCompare(b.label));
+// How strong the evidence for a value is: confirmed (or the source's own job
+// title) before disputed before proposed.
+const STRENGTH = { source: 3, confirmed: 3, disputed: 2, proposed: 1 };
+
+/** A person's values for the dimension, strongest evidence first (then by name). Pure. */
+export function rankedValues(person, dimension) {
+  return valuesOf(person, dimension)
+    .sort((a, b) => (STRENGTH[b.state] ?? 0) - (STRENGTH[a.state] ?? 0) || a.name.localeCompare(b.name));
 }
 
+/**
+ * The people in groups for one dimension. A person with several values — the
+ * multi-value convention, never one silently chosen — shows:
+ *   multi 'each'  in each of their groups: first under the strongest evidence,
+ *                 every other appearance a `repeat` that names where else they are
+ *                 (`alsoUnder`);
+ *   multi 'once'  only under their strongest value.
+ * A person with none is in "Not known". Groups largest first, "Not known" last;
+ * each group's `count` is the people shown in it. Pure.
+ */
+export function groupPeople(people, dimension, sortBy = 'name', accessCount = () => 0, multi = 'each') {
+  if (dimension === 'none') return [{ key: 'all', label: 'Everyone', count: people.length, rows: sortRows(people.map(p => ({ person: p, alsoUnder: [], repeat: false })), sortBy, accessCount) }];
+  const groups = new Map();
+  const add = (key, label, row) => {
+    if (!groups.has(key)) groups.set(key, { key, label, rows: [], states: new Set() });
+    groups.get(key).rows.push(row);
+    groups.get(key).states.add(row.state);
+  };
+  for (const p of people) {
+    const values = rankedValues(p, dimension);
+    if (values.length === 0) add(NOT_KNOWN, 'Not known', { person: p, alsoUnder: [], repeat: false, state: null });
+    const shown = multi === 'once' ? values.slice(0, 1) : values;
+    shown.forEach((v, i) => add(v.key, v.name, {
+      person: p, state: v.state, repeat: i > 0,
+      alsoUnder: values.filter(o => o !== v).map(o => o.name),
+    }));
+  }
+  return [...groups.values()]
+    .map(g => ({ key: g.key, label: g.label, count: g.rows.length, rows: sortRows(g.rows, sortBy, accessCount), allProposed: !g.states.has('confirmed') && !g.states.has('source') && !g.states.has('disputed') && g.key !== NOT_KNOWN }))
+    .sort((a, b) => (a.key === NOT_KNOWN) - (b.key === NOT_KNOWN) || b.count - a.count || a.label.localeCompare(b.label));
+}
 function sortRows(rows, sortBy, accessCount) {
   const byName = (a, b) => a.person.displayName.localeCompare(b.person.displayName);
   if (sortBy === 'access') return [...rows].sort((a, b) => accessCount(b.person.key) - accessCount(a.person.key) || byName(a, b));

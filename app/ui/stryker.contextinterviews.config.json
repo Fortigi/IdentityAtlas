@@ -36,6 +36,7 @@
     "src/components/workbench/workbench.model.js",
     "src/components/workbench/workbench.labels.js",
     "src/components/workbench/workbench.cells.js",
+    "src/components/workbench/workbench.roles.js",
     "src/components/workbench/useWorkbench.js",
     "src/components/workbench/CandidatePanel.jsx",
     "src/components/workbench/PersonCell.jsx",

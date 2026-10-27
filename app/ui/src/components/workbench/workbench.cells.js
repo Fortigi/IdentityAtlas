@@ -1,16 +1,13 @@
-// Authorization workbench — how a cell looks. Pure.
+// Authorization workbench — the words for the candidate's impact, and the
+// look of the marks only the workbench has. Pure.
 //
-// Two layers, never mixed:
-//   1. the ACCESS, exactly as the matrix shows it: the D / I / E badge
-//      (components/matrix/MatrixBadges.jsx, TYPE_COLORS) — what the person holds;
-//   2. the WORKBENCH's own sign on top: a small corner mark and a ring — a mark the
-//      analyst set (other context, unrelated, needs investigation) or, with the
-//      overlay on, what the candidate does to the cell (covered, gain, outside).
-// Every sign has a glyph and a title in words, never colour alone.
+// A cell itself is the matrix's (MatrixCell; workbench.roles.js maps the
+// candidate onto it): covered is the role's colour, a potential gain the
+// matrix's provisioning-gap marker, outside the candidate a plain cell. What
+// has no matrix equivalent — the analyst's marks: other context, unrelated,
+// needs investigation — sits on top as a small corner sign (mark).
 
 import { MARKS } from './workbench.model';
-
-export const GRANT_LABEL = { Direct: 'Direct', Indirect: 'Indirect (through a group)', Eligible: 'Eligible' };
 
 export const IMPACT = {
   covered: { glyph: '✓', label: 'Covered — observed, and the candidate would explain it', mark: 'bg-emerald-600 text-white dark:bg-emerald-400 dark:text-gray-900', ring: 'ring-2 ring-inset ring-emerald-500 dark:ring-emerald-400' },
@@ -22,27 +19,5 @@ export const IMPACT = {
   held: { glyph: null, label: 'Held by someone who is not a member of the candidate', mark: null, ring: '' },
 };
 
-export const IMPACT_LEGEND = ['covered', 'gain', 'outside', 'other', 'unrelated', 'investigate'].map(k => ({ key: k, ...IMPACT[k] }));
 export const MARK_LEGEND = Object.keys(MARKS).map(k => ({ key: k, ...IMPACT[k] }));
 
-/**
- * What one cell shows: { badge, sign, dim, title } or null for an empty cell.
- *   badge  the grant type for the matrix's D / I / E badge (null: not held)
- *   sign   the workbench layer on top: { glyph, mark, ring } or null
- *   dim    held by someone outside the candidate (overlay on): the badge fades
- * Without the overlay the sign is the analyst's mark; with it, the impact.
- */
-export function cellLook({ cell, mark, impact, overlay }) {
-  const kind = overlay ? impact : mark;
-  if (!cell && !kind) return null;
-  const sign = kind && IMPACT[kind].glyph ? IMPACT[kind] : null;
-  const access = cell ? `${GRANT_LABEL[cell.type] ?? 'Held'}${viaSuffix(cell)}` : 'Not held';
-  return {
-    badge: cell ? cell.type : null,
-    sign,
-    dim: !!overlay && impact === 'held',
-    title: kind ? `${IMPACT[kind].label} — ${access}` : access,
-  };
-}
-
-const viaSuffix = (cell) => (cell?.viaRoles?.length ? ` · through ${cell.viaRoles.length} business role${cell.viaRoles.length > 1 ? 's' : ''}` : '');

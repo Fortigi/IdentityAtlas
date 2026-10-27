@@ -10,6 +10,9 @@ function MatrixCell({
   extraAccessCount = 0, missingAccessCount = 0,
   heldOutsideCount = 0, heldOutsideNames = null, heldOutsideHoldsRole = false,
   onExplainInherited,
+  // Optional, for a screen that selects cells (the Authorization workbench); the
+  // matrix passes none of these, so its cells stay exactly as they were.
+  onSelect, selected = false, label, children,
 }) {
   const hasMembership = membershipTypes && membershipTypes.size > 0;
   const single = hasMembership && membershipTypes.size === 1;
@@ -19,9 +22,11 @@ function MatrixCell({
     heldOutsideHoldsRole,
   });
 
+  const selectable = selectableProps({ onSelect, selected, label: label ?? title });
   return (
     <td
-      className="text-center border-r border-b border-gray-100 dark:border-gray-700"
+      {...selectable}
+      className={`text-center border-r border-b border-gray-100 dark:border-gray-700${selected ? ' outline outline-2 -outline-offset-2 outline-blue-600 dark:outline-blue-300' : ''}${onSelect ? ' cursor-pointer' : ''}`}
       // The marker strip owns the top of every cell, so a marker is never
       // painted outside its own box and can never land on a neighbour's badge.
       style={{ ...CELL_BOX_STYLE, backgroundColor: bgColor }}
@@ -50,25 +55,30 @@ function MatrixCell({
         heldOutsideNames={heldOutsideNames}
         heldOutsideHoldsRole={heldOutsideHoldsRole}
       />
+      {children}
     </td>
   );
 }
 
-export default memo(MatrixCell, (prev, next) => {
-  return (
-    prev.membershipTypes === next.membershipTypes &&
-    prev.managed === next.managed &&
-    prev.apColor === next.apColor &&
-    prev.apCount === next.apCount &&
-    prev.apNames === next.apNames &&
-    prev.provisioningGap === next.provisioningGap &&
-    prev.gapExpected === next.gapExpected &&
-    prev.overGrant === next.overGrant &&
-    prev.extraAccessCount === next.extraAccessCount &&
-    prev.missingAccessCount === next.missingAccessCount &&
-    prev.heldOutsideCount === next.heldOutsideCount &&
-    prev.heldOutsideNames === next.heldOutsideNames &&
-    prev.heldOutsideHoldsRole === next.heldOutsideHoldsRole &&
-    prev.onExplainInherited === next.onExplainInherited
-  );
-});
+// A cell that can be selected answers a click and Enter / Space, and says
+// whether it is selected. Nothing for the matrix's own cells.
+function selectableProps({ onSelect, selected, label }) {
+  if (!onSelect) return {};
+  return {
+    role: 'button',
+    tabIndex: 0,
+    'aria-pressed': selected,
+    'aria-label': label,
+    onClick: onSelect,
+    onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(e); } },
+  };
+}
+
+// The props a cell re-renders on; everything else (cellKey) is fixed per cell.
+const COMPARED_PROPS = [
+  'membershipTypes', 'managed', 'apColor', 'apCount', 'apNames', 'provisioningGap', 'gapExpected', 'overGrant',
+  'extraAccessCount', 'missingAccessCount', 'heldOutsideCount', 'heldOutsideNames', 'heldOutsideHoldsRole',
+  'onExplainInherited', 'onSelect', 'selected', 'label', 'children',
+];
+
+export default memo(MatrixCell, (prev, next) => COMPARED_PROPS.every(k => prev[k] === next[k]));

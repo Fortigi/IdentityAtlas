@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { KIND_STYLE, STATE_LABEL, evidenceLine } from './workbench.labels';
 
 // ─── One person's row header ─────────────────────────────────────────────
+// A repeat appearance (a person with several values, shown again in another
+// group) is dimmed and says where else they are.
 // Name (click: select what they hold), job title, how many accounts, and what is
 // said they do, know and hold — one chip per link, in the kind's colour, its
 // status in words and a mark (✓ confirmed, ? proposed, ! disputed). A chip opens
 // its evidence: every claim, its source and quote, who decided it, and Confirm /
 // Reject for a proposed one. "+" states a new one (an analyst's own claim).
 
-export default function PersonCell({ person, alsoIn, member, onSelectRow, onDecide, onAdd, knownNames, busy }) {
+export default function PersonCell({ person, alsoUnder = [], repeat = false, member, onSelectRow, onDecide, onAdd, knownNames, busy }) {
   const [open, setOpen] = useState(null);
   const [adding, setAdding] = useState(false);
   const links = person.knowledge || [];
@@ -20,7 +22,7 @@ export default function PersonCell({ person, alsoIn, member, onSelectRow, onDeci
         </button>
         {member && <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">member</span>}
         <Accounts person={person} />
-        {alsoIn > 0 && <span className="text-[10px] text-gray-500 dark:text-gray-400" title="This person is in other groups too">+{alsoIn} group{alsoIn > 1 ? 's' : ''}</span>}
+        {repeat && <span className="text-[10px] italic text-gray-600 dark:text-gray-400" title="The same person, shown again: they have several values here">also under: {alsoUnder.join(', ')}</span>}
       </div>
       {person.jobTitle && <div className="truncate text-[11px] text-gray-600 dark:text-gray-400">{person.jobTitle}</div>}
       <div className="mt-0.5 flex flex-wrap items-center gap-1">

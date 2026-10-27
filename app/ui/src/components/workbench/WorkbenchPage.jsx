@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { getAccessPackageColor } from '@ui/utils/colors';
+import { bandRoles } from './workbench.roles';
 import { useWorkbenchData, useWorkbenchDraft } from './useWorkbench';
 import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
 import { knowledgeGaps, knownNames } from './workbench.labels';
@@ -16,15 +19,18 @@ import { Toolbar, SelectionBar, Legend } from './WorkbenchControls';
 // changes access. Design: docs/architecture/m1-discovery-and-design.md.
 
 // minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
-const DEFAULT_VIEW = { groupBy: 'activity', sortBy: 'name', includeChildren: true, overlay: false, minHolders: null, columnSearch: '' };
+// multi: a person with several values of the dimension shows in each of their groups, or once (strongest).
+const DEFAULT_VIEW = { groupBy: 'activity', multi: 'each', sortBy: 'name', includeChildren: true, minHolders: null, columnSearch: '' };
 
 function visibleColumns(columns, view) {
   const q = view.columnSearch.trim().toLowerCase();
-  return columns.filter(c => c.holders >= view.minHolders && (!q || c.displayName.toLowerCase().includes(q) || (c.systemName || '').toLowerCase().includes(q)));
+  // Business roles are not columns here: they are the band on the right, as in the matrix.
+  return columns.filter(c => !c.isRole && c.holders >= view.minHolders && (!q || c.displayName.toLowerCase().includes(q) || (c.systemName || '').toLowerCase().includes(q)));
 }
 
-export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
+export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenDetail }) {
   const [view, setView] = useState(DEFAULT_VIEW);
+  const isDark = useIsDark();
   const { data, loading, error, reload, send } = useWorkbenchData(contextId, view.includeChildren);
   const [draft, dispatch] = useWorkbenchDraft();
   const [busy, setBusy] = useState(false);
@@ -39,7 +45,10 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
   const shownView = useMemo(() => (data && view.minHolders === null ? { ...view, minHolders: startsCrowded(data) ? 2 : 1 } : view), [data, view]);
   const derived = useMemo(() => derive(data, shownView), [data, shownView]);
 
+  const roles = useMemo(() => (derived ? bandRoles(data.columns, derived.cellsByResource, draft.candidate) : []), [derived, data, draft.candidate]);
+
   if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
+  const color = (idx) => getAccessPackageColor(idx, isDark);
 
   const act = async (fn) => {
     setBusy(true); setActionError(null);
@@ -57,15 +66,15 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
       <Header data={data} gaps={derived.gaps} shownColumns={derived.columns.length} onClose={onClose} loading={loading} />
       <Toolbar view={shownView} setView={setView} />
       {actionError && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">{actionError}</p>}
-      <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} />
+      <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
-          <WorkbenchGrid groups={derived.groups} columns={derived.columns} cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch}
-            overlay={view.overlay} personProps={personProps} />
-          <Legend overlay={view.overlay} />
+          <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
+            cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch} personProps={personProps} onOpenDetail={onOpenDetail} />
+          <Legend />
         </div>
         <div className="w-full shrink-0 xl:w-96">
-          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource}
+          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} draftColor={color(roles.length - 1)}
             peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} />
         </div>
       </div>
@@ -80,7 +89,7 @@ function derive(data, view) {
   return {
     cellIndex,
     cellsByResource: byResource(data.cells),
-    groups: groupPeople(data.people, view.groupBy, view.sortBy, (k) => counts.get(k) ?? 0),
+    groups: groupPeople(data.people, view.groupBy, view.sortBy, (k) => counts.get(k) ?? 0, view.multi),
     columns: visibleColumns(data.columns, view),
     peopleByKey: new Map(data.people.map(p => [p.key, p])),
     columnsById: new Map(data.columns.map(c => [c.id, c])),

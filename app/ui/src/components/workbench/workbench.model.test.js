@@ -32,8 +32,10 @@ describe('groupPeople', () => {
       ['Manage garages', ['b', 'd']],
       ['Not known', ['c']],
     ]);
-    expect(groups[0].rows.find(r => r.person.key === 'b').alsoIn).toBe(1);
-    expect(groups[0].rows.find(r => r.person.key === 'a').alsoIn).toBe(0);
+    // Bram's confirmed value comes first; his proposed one is the repeat, naming where else he is.
+    expect(groups[0].rows.find(r => r.person.key === 'b')).toMatchObject({ repeat: false, alsoUnder: ['Manage garages'] });
+    expect(groups[1].rows.find(r => r.person.key === 'b')).toMatchObject({ repeat: true, alsoUnder: ['Handle claims'] });
+    expect(groups[0].rows.find(r => r.person.key === 'a')).toMatchObject({ repeat: false, alsoUnder: [] });
     expect(groups.at(-1).key).toBe(NOT_KNOWN);
   });
 
@@ -63,6 +65,29 @@ describe('groupPeople', () => {
   it('keeps one group per name whatever its case or spacing', () => {
     const p = [person('x', 'X', [link('duty', 'Fire  warden')]), person('y', 'Y', [link('duty', 'fire warden')])];
     expect(groupPeople(p, 'duty').map(g => g.count)).toEqual([2]);
+  });
+});
+
+describe('groupPeople — several values', () => {
+  const tom = person('t', 'Tom', [link('expertise', 'Motor claims', 'proposed'), link('expertise', 'Fraud detection', 'confirmed')]);
+  const amy = person('y', 'Amy', [link('expertise', 'Motor claims')]);
+
+  it('shows a person first under their strongest evidence, not alphabetically, the other appearance a repeat', () => {
+    const groups = groupPeople([tom, amy], 'expertise');
+    const tomIn = (label) => groups.find(g => g.label === label).rows.find(r => r.person.key === 't');
+    expect(tomIn('Fraud detection')).toMatchObject({ repeat: false, state: 'confirmed', alsoUnder: ['Motor claims'] });
+    expect(tomIn('Motor claims')).toMatchObject({ repeat: true, state: 'proposed', alsoUnder: ['Fraud detection'] });
+  });
+
+  it('shows each person once under their strongest value when asked', () => {
+    const groups = groupPeople([tom, amy], 'expertise', 'name', () => 0, 'once');
+    expect(groups.map(g => [g.label, g.rows.map(r => r.person.key)])).toEqual([['Fraud detection', ['t']], ['Motor claims', ['y']]]);
+    expect(groups.flatMap(g => g.rows).every(r => !r.repeat)).toBe(true);
+  });
+
+  it('notes a group with only proposed evidence, and not one with a disputed or confirmed value', () => {
+    const p = [person('x', 'X', [link('duty', 'OR', 'proposed')]), person('z', 'Z', [link('duty', 'BHV', 'disputed')])];
+    expect(groupPeople(p, 'duty').map(g => [g.label, g.allProposed])).toEqual([['BHV', false], ['OR', true]]);
   });
 });
 

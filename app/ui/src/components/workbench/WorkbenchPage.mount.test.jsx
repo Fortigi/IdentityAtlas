@@ -99,46 +99,51 @@ describe('WorkbenchPage', () => {
     expect(within(candidate()).getByText('Members (1)')).toBeInTheDocument();
   });
 
-  it('adds a group’s held cells to the candidate and shows the impact with words, never a loss', async () => {
+  it('shows the candidate as a Draft business role in the role band, colouring what it covers the matrix way', async () => {
     const { user } = mount();
     await opened();
+    // The existing role is in the band on the right, not among the columns.
+    expect(within(grid()).getByRole('columnheader', { name: 'Claims handler' })).toBeInTheDocument();
     await user.click(within(grid()).getByRole('button', { name: 'Handle claims' }));
-    expect(screen.getByText('5 cells · 2 people · 4 columns')).toBeInTheDocument();
+    expect(screen.getByText('4 cells · 2 people · 3 columns')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
     expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
     expect(screen.getByText(/Click a cell, Shift-click for a rectangle/)).toBeInTheDocument();
-    expect(within(candidate()).getByText('Entitlements (4)')).toBeInTheDocument();
-    // Keep only what both members hold.
+    expect(within(candidate()).getByText('Entitlements (3)')).toBeInTheDocument();
+    // Keep only what both members hold, and name it: the band says "Draft: <name>".
     await user.selectOptions(within(candidate()).getByLabelText('Share of the members'), '1');
     await user.click(within(candidate()).getByRole('button', { name: 'Propose' }));
     expect(within(candidate()).getByText('Entitlements (1)')).toBeInTheDocument();
-    await user.click(screen.getByLabelText('Show candidate impact'));
-    const covered = within(grid()).getAllByRole('button', { name: /^Covered/ });
+    await user.type(within(candidate()).getByPlaceholderText('e.g. Claims handler — motor'), 'Motor v2');
+    expect(within(grid()).getByRole('columnheader', { name: 'Draft: Motor v2' })).toBeInTheDocument();
+    // Covered: the matrix's "managed by" cell in the draft's colour — Anna's read is covered by both roles.
+    const covered = within(grid()).getAllByRole('button', { name: /Managed by: .*Draft: Motor v2/ });
     expect(covered).toHaveLength(2);
-    expect(within(grid()).getAllByRole('button', { name: /^Outside the candidate/ })).toHaveLength(3);
+    expect(covered.find(b => /Claims handler, Draft/.test(b.getAttribute('aria-label')))).toBeTruthy();
+    // The members' own cells in the Draft column are its provisioning gap: they would get it.
+    expect(within(grid()).getAllByTitle(/Provisioning gap: business role expects Direct membership/)).toHaveLength(2);
+    // Cleo holds what the draft and the existing role hand out, without either: the matrix's held-outside marker.
+    const cleoRow = within(grid()).getByRole('button', { name: 'Cleo Kok' }).closest('tr');
+    const outside = within(cleoRow).getAllByRole('button', { name: /Held outside business-role governance/ });
+    expect(outside.map(b => /Draft: Motor v2/.test(b.getAttribute('aria-label')))).toEqual([true, false]);
     expect(screen.queryByText(/loss/i)).not.toBeInTheDocument();
-    // Cleo holds the one entitlement and is not a member.
     expect(within(candidate()).getByText(/Already hold all of it, not members: Cleo Kok/)).toBeInTheDocument();
     await user.click(within(candidate()).getByRole('button', { name: 'Add them' }));
     expect(within(candidate()).getByText('Members (3)')).toBeInTheDocument();
   });
 
-  it('marks a cell as other context, and the impact says so instead of outside', async () => {
+  it('marks a cell as other context on top of its matrix badge, and counts it in the impact', async () => {
     const { user } = mount();
     await opened();
-    const orCell = within(grid()).getAllByRole('button', { name: 'Direct' }).find(b => b.closest('tr').textContent.includes('Bram'));
-    // Bram's cells: r1 then 'or' — pick the last Direct one in his row.
-    const bramRow = orCell.closest('tr');
+    const bramRow = within(grid()).getByRole('button', { name: 'Bram Smit' }).closest('tr');
     const cellsInRow = within(bramRow).getAllByRole('button', { name: 'Direct' });
     await user.click(cellsInRow.at(-1));
     await user.click(screen.getByRole('button', { name: 'Mark: Other context' }));
-    expect(within(bramRow).getByRole('button', { name: 'Other context (marked) — Direct' })).toHaveTextContent('DO');
+    expect(within(bramRow).getByRole('button', { name: 'Other context — Direct' })).toHaveTextContent('DO');
     await user.click(within(bramRow).getByRole('button', { name: 'Bram Smit' }));
     await user.click(screen.getByRole('button', { name: 'Members only' }));
-    await user.click(screen.getByLabelText('Show candidate impact'));
     expect(within(candidate()).getByText('Other context (marked)').nextSibling).toHaveTextContent('1');
   });
-
   it('starts an update from an existing business role and shows how it differs from the role', async () => {
     const { user } = mount();
     await opened();
@@ -213,7 +218,7 @@ describe('WorkbenchPage', () => {
     const { user, calls } = mount();
     await opened();
     const header = () => within(grid()).getAllByRole('button', { name: /^Select the column/ }).length;
-    expect(header()).toBe(4);
+    expect(header()).toBe(3);
     await user.tripleClick(screen.getByLabelText(/Columns held by at least/));
     await user.keyboard('2');
     expect(header()).toBe(2);
@@ -221,6 +226,25 @@ describe('WorkbenchPage', () => {
     expect(header()).toBe(1);
     await user.click(screen.getByLabelText('Include sub-units'));
     await waitFor(() => expect(calls.at(-1).url).toBe(`/api/contexts/${UNIT}/workbench?includeChildren=false`));
+  });
+
+  it('dims a repeat appearance, says where else the person is, counts them once, and can show them once', async () => {
+    const user = userEvent.setup();
+    const data = payload();
+    data.people[0].knowledge.push(knows('activity', 'Fraud', 'proposed', [claim('c9', 'proposed')]));
+    renderWithProviders(h(WorkbenchPage, { contextId: UNIT }), { auth: { authFetch: makeAuthFetch(() => data) } });
+    await opened();
+    const annaRows = () => within(grid()).getAllByRole('button', { name: 'Anna Vos' }).map(b => b.closest('tr'));
+    expect(annaRows()).toHaveLength(2);
+    // First under the confirmed value; the proposed one is the repeat.
+    expect(annaRows()[0]).not.toHaveAttribute('data-repeat');
+    expect(annaRows()[1]).toHaveAttribute('data-repeat', 'true');
+    expect(within(annaRows()[1]).getByText('also under: Handle claims')).toBeInTheDocument();
+    await user.click(within(annaRows()[1]).getByRole('button', { name: 'Anna Vos' }));
+    expect(screen.getByText(/2 cells · 1 person · 2 columns/)).toBeInTheDocument();
+    expect(screen.getByText(/each counted once \(1 shown in more than one group\)/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Show people with several values'), 'once');
+    expect(annaRows()).toHaveLength(1);
   });
 
   it('says how many members no longer resolve, instead of looking empty', async () => {
