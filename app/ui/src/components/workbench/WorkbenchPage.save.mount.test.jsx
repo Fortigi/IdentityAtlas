@@ -193,6 +193,9 @@ describe('saving a role from the panel', () => {
     // The next role: open, its kind to choose, the first one kept in the list.
     expect(within(panel()).getByRole('group', { name: 'How is this role assigned?' })).toBeInTheDocument();
     expect(within(panel()).getByRole('list', { name: 'Proposed roles' }).children).toHaveLength(2);
+    // The first role stays saved while the next one is new work.
+    await user.click(within(within(panel()).getByRole('list', { name: 'Proposed roles' })).getAllByRole('button')[0]);
+    expect(within(panel()).getByText('Saved')).toBeInTheDocument();
     expect(screen.getByText(/Click a cell, Shift-click for a rectangle/)).toBeInTheDocument();
   });
 

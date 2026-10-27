@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { viewToSave, viewFromSaved, accessCellsOf, toSavePayload, draftFromSaved, fingerprint, accessChanges, statusText, defaultInvestigationName } from './workbench.save';
+import { viewToSave, viewFromSaved, accessCellsOf, toSavePayload, draftFromSaved, fingerprint, accessChanges, statusText, defaultInvestigationName, roleFingerprint, roleIsSaved } from './workbench.save';
 import { DEFAULT_COLUMNS } from './workbench.columns';
 
 const SAVED_ID = '11111111-2222-4333-8444-555555555555';
@@ -157,5 +157,16 @@ describe('accessChanges', () => {
 describe('defaultInvestigationName', () => {
   it('suggests "<unit> — dd-mm-yyyy"', () => {
     expect(defaultInvestigationName('Property Claims', new Date(2026, 9, 7))).toBe('Property Claims — 07-10-2026');
+  });
+});
+
+describe('roleIsSaved', () => {
+  const role = { id: 'r1', name: 'Lawyer', description: '', baseBusinessRoleId: null, members: new Set(['i:a']), entitlements: new Set(['g1']), kind: 'requestable' };
+  it('is true while the role is as saved, false once it changes or was never saved', () => {
+    const saved = { roles: new Map([['r1', roleFingerprint(role)]]) };
+    expect(roleIsSaved(saved, role)).toBe(true);
+    expect(roleIsSaved(saved, { ...role, name: 'Lawyers' })).toBe(false);
+    expect(roleIsSaved(saved, { ...role, id: 'r2' })).toBe(false);
+    expect(roleIsSaved(null, role)).toBe(false);
   });
 });

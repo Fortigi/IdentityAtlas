@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { defaultInvestigationName } from './workbench.save';
+import { defaultInvestigationName, roleIsSaved } from './workbench.save';
 
 // ─── Save the role ───────────────────────────────────────────────────────
 // At the end of the active proposed role: "Save role" saves the investigation
@@ -9,14 +9,13 @@ import { defaultInvestigationName } from './workbench.save';
 // still to choose, filters and columns kept. A first save asks the investigation's
 // name here, prefilled "<unit> — dd-mm-yyyy".
 
-const isSavedId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(id));
-
 export default function RoleSaveActions({ inv, candidate, problems, unitName, dispatch }) {
   const [name, setName] = useState(() => defaultInvestigationName(unitName));
   // A refusal shows here only for a save made here (the top strip shows its own).
   const [tried, setTried] = useState(false);
   const blocked = inv.busy || problems.length > 0 || (!inv.saved && !name.trim());
-  const saved = !!inv.saved && !inv.dirty && isSavedId(candidate.id);
+  // This role as saved (its hand-chosen members, not the ones its rule computes).
+  const saved = roleIsSaved(inv.saved, { ...candidate, members: candidate.handMembers ?? candidate.members });
 
   const save = async (next) => {
     setTried(true);

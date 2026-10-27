@@ -145,3 +145,13 @@ const pad = (n) => String(n).padStart(2, '0');
 export function defaultInvestigationName(unitName, now = new Date()) {
   return `${unitName} — ${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`;
 }
+
+/** One proposed role as saved, for telling whether it changed since. Pure. */
+export function roleFingerprint(d) {
+  return JSON.stringify(proposalToSave(d));
+}
+
+/** Is this proposed role saved as it is now? (`role.members` are those chosen by hand.) Pure. */
+export function roleIsSaved(saved, role) {
+  return !!saved?.roles && saved.roles.get(role.id) === roleFingerprint(role);
+}

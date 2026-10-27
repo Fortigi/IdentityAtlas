@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { toSavePayload, draftFromSaved, viewFromSaved, fingerprint, accessChanges } from './workbench.save';
+import { toSavePayload, draftFromSaved, viewFromSaved, fingerprint, accessChanges, roleFingerprint } from './workbench.save';
 
 // Save and reopen (M2a): the investigation the workbench is on, if any, and the
 // requests that save, open, list and delete one. `saved` remembers what was
@@ -7,9 +7,11 @@ import { toSavePayload, draftFromSaved, viewFromSaved, fingerprint, accessChange
 // of the work — so the page can say "unsaved changes" and how much the access
 // data changed since. The pure parts are in workbench.save.js.
 
+// roles: each saved proposed role's own fingerprint, so one role can say "Saved" while another is new.
 const summaryOf = (inv, view, work) => ({
   id: inv.id, name: inv.name, updatedAt: inv.updatedAt, updatedBy: inv.updatedBy,
   accessCells: inv.accessCells ?? [], fingerprint: fingerprint(view, work),
+  roles: new Map(work.drafts.map(d => [d.id, roleFingerprint(d)])),
 });
 
 /**
