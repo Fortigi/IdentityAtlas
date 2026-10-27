@@ -259,6 +259,7 @@ describe('context interviews against PostgreSQL', () => {
 
   it('the context timeline leaves out updates that only moved bookkeeping', async () => {
     process.env.USE_SQL = 'true';
+    process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // the interview events are organisation knowledge
     const { timelineHandler } = await import('../src/routes/recentChanges/timeline.js');
     await pool.query(`UPDATE "Contexts" SET "lastCalculatedAt" = now() WHERE id = $1`, [ctxId]);
     await pool.query(`UPDATE "Contexts" SET "displayName" = 'ivw-Planner 2' WHERE id = $1`, [ctxId]);
@@ -269,6 +270,7 @@ describe('context interviews against PostgreSQL', () => {
     expect(attrs).toContain('displayName');
     expect(attrs).not.toContain('lastCalculatedAt');
     expect(body.events.some(e => e.eventKind === 'interview')).toBe(true);
+    delete process.env.FEATURE_ORG_KNOWLEDGE;
   });
 
   it('deleting the interview removes its claims and keeps what they changed, the role losing only its link', async () => {

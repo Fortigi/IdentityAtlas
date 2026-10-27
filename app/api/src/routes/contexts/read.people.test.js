@@ -7,12 +7,16 @@ import { mountRouterAs } from '../../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 vi.mock('../../db/connection.js');
-import { queryOne } from '../../db/connection.js';
+import { query, queryOne } from '../../db/connection.js';
 let authOn = true;
 vi.mock('../../config/authConfig.js', () => ({ isAuthEnabled: () => authOn }));
-vi.mock('../../contexts/interviews/peopleLoad.js', () => ({ loadPeople: vi.fn() }));
-const { loadPeople } = await import('../../contexts/interviews/peopleLoad.js');
-const { default: router, PEOPLE_DEPS, loadMembers } = await import('./read.js');
+vi.mock('../../contexts/interviews/peopleLoad.js', () => ({ loadPeople: vi.fn(), loadListedPeople: vi.fn() }));
+// Organisation knowledge on unless a test switches it off; read from a variable so it
+// never takes one of the staged queryOne answers.
+let orgKnowledge = true;
+vi.mock('../../featureFlags.js', async (orig) => ({ ...(await orig()), orgKnowledgeEnabled: async () => orgKnowledge }));
+const { loadPeople, loadListedPeople } = await import('../../contexts/interviews/peopleLoad.js');
+const { default: router, PEOPLE_DEPS, LISTED_PEOPLE_DEPS, loadMembers } = await import('./read.js');
 const { loadContextRoles } = await import('./roles.js');
 
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
@@ -23,6 +27,8 @@ const app = mountRouterAs(router, () => caller);
 const unit = { id: CTX, targetType: 'Principal', contextCategory: 'OrganizationalUnit' };
 
 beforeEach(() => {
+  orgKnowledge = true;
+  vi.mocked(loadListedPeople).mockReset();
   caller = analyst;
   authOn = true;
   queryOne.mockReset();
@@ -64,6 +70,29 @@ describe('GET /contexts/:id/people', () => {
     const tag = await request(app).get(`/api/contexts/${CTX}/people`);
     expect([tag.status, tag.body.error]).toEqual([400, 'The people overview is for an organizational unit or a logical application.']);
     expect(loadPeople).not.toHaveBeenCalled();
+  });
+
+  it('while organisation knowledge is off: the plain overview of listed members, no claims read', async () => {
+    orgKnowledge = false;
+    queryOne.mockResolvedValueOnce(unit);
+    vi.mocked(loadListedPeople).mockResolvedValueOnce({ data: [{ key: 'listed' }], total: 1 });
+    const res = await request(app).get(`/api/contexts/${CTX}/people?filter=current`);
+    expect(res.body).toEqual({ data: [{ key: 'listed' }], total: 1 });
+    expect(loadPeople).not.toHaveBeenCalled();
+    const [deps, ctx, query] = vi.mocked(loadListedPeople).mock.calls[0];
+    expect(deps).toBe(LISTED_PEOPLE_DEPS);
+    expect(ctx).toEqual(unit);
+    expect(query).toEqual({ filter: 'current' });
+    expect(LISTED_PEOPLE_DEPS.loadRoles).toBe(loadContextRoles);
+    expect(LISTED_PEOPLE_DEPS.loadMembers).not.toBe(loadMembers);
+  });
+
+  it('the plain overview reads every listed member, a decision marked former or not, and drops the mark', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 'm1', displayName: 'Marked', overrideClaimId: 'c1', overrideSource: 'List', overrideBy: 'a', overrideAt: 'x' }] });
+    queryOne.mockResolvedValueOnce({ current: 0, overridden: 1 });
+    const out = await LISTED_PEOPLE_DEPS.loadMembers(CTX, 'Principal', { limit: 10, withTotal: true });
+    expect(out).toEqual({ rows: [{ id: 'm1', displayName: 'Marked', overridden: null }], total: 1, overriddenCount: 1 });
+    expect(query.mock.calls[0][0]).not.toContain('AND o.id IS NULL');
   });
 
   it('a failure is a generic 500', async () => {

@@ -19,8 +19,15 @@ import { loadWorkbench, WorkbenchError } from '../../contexts/workbench/load.js'
 import { addKnowledgeLink, peopleWithObject, KnowledgeError } from '../../contexts/orgKnowledge/manual.js';
 import { listObjects } from '../../contexts/orgKnowledge/objects.js';
 import { isKnowledgeKind } from '../../lib/orgKnowledge.js';
+import { requireFeature } from '../../featureFlags.js';
 
 const router = Router();
+
+// The paths this router serves; while organisation knowledge is off they do not exist (404).
+export const WORKBENCH_PATHS = Object.freeze([
+  '/contexts/:id/workbench', '/contexts/:id/knowledge', '/org-knowledge',
+]);
+router.use(WORKBENCH_PATHS, requireFeature('orgKnowledge'));
 
 function fail(res, err, label) {
   if (err instanceof WorkbenchError || err instanceof KnowledgeError) return res.status(err.status).json({ error: err.message });

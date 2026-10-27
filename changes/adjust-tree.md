@@ -5,3 +5,4 @@
 - The manager hierarchy can now start from a chosen top (by job title or by person), name units after their people instead of their manager, split a manager's people by department, collect what does not fit in a Not placed unit, and leave out disabled accounts
 - Running a tree now opens it in the Adjust tree screen instead of a "done" message
 - Fixed: a unit added or moved by hand under a generated unit was deleted when the source dropped that unit; it is now kept at the top level
+- Adjust tree is part of the experimental "Organisation knowledge" feature: while it is off the option is hidden and its API answers 404; adjustments made earlier keep being applied after each sync

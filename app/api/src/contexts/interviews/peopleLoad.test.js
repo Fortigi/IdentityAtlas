@@ -8,7 +8,7 @@
 //   Eve    not listed, a source says she left                         → left
 //   Frank, Gina  listed, nothing said about them                      → current
 import { describe, it, expect, vi } from 'vitest';
-import { loadPeople } from './peopleLoad.js';
+import { loadPeople, loadListedPeople } from './peopleLoad.js';
 import * as store from './store.js';
 import { CONTRADICTION_CONTEXT_SQL, CONTRADICTION_MEMBERS_SQL } from './contradictions.js';
 
@@ -173,5 +173,29 @@ describe('loadPeople — a context whose members are not people', () => {
     expect(r.counts).toEqual({ current: 1, former: 1, all: 2, decide: 0 });
     expect(loadMembers).not.toHaveBeenCalled();
     expect(db.query.mock.calls.map(c => c[0])).not.toContain(store.holderRowsSql('Principal'));
+  });
+});
+
+describe('loadListedPeople — organisation knowledge switched off', () => {
+  it('lists only the members the source lists, all current, with roles and holdings — no claim is read', async () => {
+    const deps = unit();
+    const r = await loadListedPeople(deps, context, {});
+    expect(brief(r)).toEqual([['Ann Example', 'current'], ['Cleo Back', 'current'], ['Frank Quiet', 'current'], ['Gina Quiet', 'current']]);
+    expect(r.data[0]).toMatchObject({ roles: ['Accountable'], claims: [], liveEntitlements: 12 });
+    expect(r.counts).toEqual({ current: 4, former: 0, all: 4, decide: 0 });
+    expect(r).toMatchObject({ total: 4, filter: 'current' });
+    const sqls = deps.db.query.mock.calls.map(c => c[0]);
+    expect(sqls.some(s => s.includes('"ContextClaims"'))).toBe(false);
+    expect(sqls).not.toContain(store.holderRowsSql('Principal'));
+  });
+
+  it('former and decide are empty, and their page reads no member rows', async () => {
+    for (const filter of ['former', 'decide']) {
+      const deps = unit();
+      const r = await loadListedPeople(deps, context, { filter });
+      expect(r.data).toEqual([]);
+      expect(r.total).toBe(0);
+      expect(deps.loadMembers.mock.calls[0][2]).toMatchObject({ limit: 0, withTotal: true });
+    }
   });
 });

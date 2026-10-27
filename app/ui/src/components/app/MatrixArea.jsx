@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 
 // Lazy-load the matrix views (route-based code splitting).
 const MatrixView = lazy(() => import('@ui/components/MatrixView'));
@@ -24,10 +25,12 @@ export default function MatrixArea({
   accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
   onWizardApply, onShareView,
 }) {
-  // The Proposed lens reads saved workbench investigations: an analyst's, never a shared view's.
+  // The Proposed lens reads saved workbench investigations: an analyst's, never a
+  // shared view's, and only while organisation knowledge (the workbench's flag) is on.
   const canWrite = useHasPermission('data.write.contexts');
   const sharedView = useIsSharedView();
-  const showProposed = canWrite && !sharedView;
+  const knowledge = useOrgKnowledge();
+  const showProposed = canWrite && !sharedView && knowledge;
   // What the plain grid and the Proposed lens (a grid over other rows) both take.
   const gridProps = {
     resourceContexts, filter: matrixFilter, counts, managedFilter, setManagedFilter, groupTagMap,

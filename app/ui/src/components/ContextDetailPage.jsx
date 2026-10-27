@@ -16,6 +16,7 @@ import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
 import { useContextDetail, contextPageView, listsMembers } from './contexts/useContextDetail';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import ClaimsProvider from './contexts/interviews/ClaimsProvider';
 import { useUnitInvestigations } from './contexts/page/useUnitProposals';
 import { proposalCount } from './contexts/page/unitProposals';
@@ -52,6 +53,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const features = useFeatures();
   const dialog = useDialog();
   const analyst = useIsAnalyst();
+  const knowledge = useOrgKnowledge();
   const sharedView = useIsSharedView();
   // What the page may link to: nothing but the shell's own handler when read-only
   // (a context owner may open no member, person or sub-unit page).
@@ -62,7 +64,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const { detail, loading, error, fetchDetail, refreshDetail, riskData } = useContextDetail(authFetch, contextId, refreshKey, onCacheData);
   const m = useContextMembers(authFetch, contextId, refreshKey, { enabled: listsMembers(detail?.attributes) });
   // The unit's saved workbench investigations: the count on the workbench button and the Proposed roles section.
-  const investigations = useUnitInvestigations(contextId, opensWorkbench(analyst, detail?.attributes));
+  const investigations = useUnitInvestigations(contextId, opensWorkbench(analyst, knowledge, detail?.attributes));
 
   // The standalone page carries the unit's name in the browser tab.
   usePageTitle(pageTitleOf(embedded, detail));
@@ -97,7 +99,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
     <WithClaims contextId={contextId} profile={profile} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
         <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} addInformation={!!profile && analyst}
-          onOpenWorkbench={workbenchOpener({ analyst, attrs, openEntity })} proposedCount={proposalCount(investigations)}
+          onOpenWorkbench={workbenchOpener({ analyst, knowledge, attrs, openEntity })} proposedCount={proposalCount(investigations)}
           {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}>
           <WhoAnswers profile={profile} attrs={attrs} onOpenDetail={openEntity} onRolesChanged={bumpPeople} />
         </ContextDetailHeader>
@@ -116,7 +118,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         <PageBody profile={profile} contextId={contextId} attrs={attrs} subContexts={subContexts} analyst={analyst}
           membersEditable={membersEditable} openEntity={openEntity} onOpenDetail={onOpenDetail} peopleVersion={peopleVersion}
           onMembersChanged={refreshAll} members={members}
-          proposals={investigations} onOpenRole={workbenchOpener({ analyst, attrs, openEntity, role: true })} />
+          proposals={investigations} onOpenRole={workbenchOpener({ analyst, knowledge, attrs, openEntity, role: true })} />
         <AnalystFoot analyst={analyst} contextId={contextId} authFetch={authFetch} onOpenDetail={openEntity}
           riskData={riskShown(features, riskData) ? riskData : null} />
       </div>
@@ -188,15 +190,16 @@ function pageTitleOf(embedded, detail) {
   return embedded ? null : detail?.attributes?.displayName;
 }
 
-// An analyst on an organizational unit has its Authorization workbench.
-function opensWorkbench(analyst, attrs) {
-  return !!analyst && attrs?.contextCategory === 'OrganizationalUnit';
+// An analyst on an organizational unit has its Authorization workbench — while
+// organisation knowledge is on (useOrgKnowledge).
+function opensWorkbench(analyst, knowledge, attrs) {
+  return !!analyst && !!knowledge && attrs?.contextCategory === 'OrganizationalUnit';
 }
 
 // An analyst opens an organizational unit's Authorization workbench as its own tab;
 // `role`: the opener takes (investigationId, proposalId) and opens on that saved proposed role.
-function workbenchOpener({ analyst, attrs, openEntity, role = false }) {
-  if (!openEntity || !opensWorkbench(analyst, attrs)) return undefined;
+function workbenchOpener({ analyst, knowledge, attrs, openEntity, role = false }) {
+  if (!openEntity || !opensWorkbench(analyst, knowledge, attrs)) return undefined;
   const title = `Workbench: ${attrs.displayName}`;
   if (role) return (investigationId, proposalId) => openEntity('workbench', workbenchRouteId(attrs.id, investigationId, proposalId), title);
   return () => openEntity('workbench', attrs.id, title);

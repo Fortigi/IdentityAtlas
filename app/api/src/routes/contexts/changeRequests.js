@@ -6,15 +6,17 @@
 // Every reader may list them: a request rests on a confirmed decision, which a
 // reader already sees. Requests are raised and withdrawn by the decisions
 // themselves (contexts/interviews/memberOverrides.js), never through this router.
+// Answers 404 while organisation knowledge is off (featureFlags.js orgKnowledge).
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { useSql } from './shared.js';
+import { requireFeature } from '../../featureFlags.js';
 import { listChangeRequests, parseFilters, ChangeRequestError } from '../../contexts/changeRequests.js';
 
 const router = Router();
 
-router.get('/change-requests', async (req, res) => {
+router.get('/change-requests', requireFeature('orgKnowledge'), async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'Change requests need the SQL backend' });
   try {
     res.json(await listChangeRequests(db, parseFilters(req.query)));

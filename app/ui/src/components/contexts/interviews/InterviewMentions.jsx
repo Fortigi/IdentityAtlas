@@ -1,5 +1,6 @@
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 
 // ─── Mentioned in interviews — on an account's or a person's page ────────
 // The contexts whose interviews say something about this account or person
@@ -10,8 +11,9 @@ import { useFetch } from '@ui/hooks/useFetch';
 
 export default function InterviewMentions({ holder, onOpenDetail }) {
   const { authFetch } = useAuth();
+  const knowledge = useOrgKnowledge(); // off: nothing to ask, nothing to show
   const [col, id] = Object.entries(holder || {}).find(([, v]) => v) || [];
-  const { data } = useFetch(col ? `/api/contexts/claims/mentions?${col}=${encodeURIComponent(id)}` : null,
+  const { data } = useFetch(knowledge && col ? `/api/contexts/claims/mentions?${col}=${encodeURIComponent(id)}` : null,
     { authFetch, initialData: [], transform: b => b.data || [] });
   if (!data || data.length === 0) return null;
   return (

@@ -4,7 +4,7 @@
 // analyst's Accountable surviving) is only meaningful against PostgreSQL and is
 // verified in contract-tests/contextOwnerRoles.contract.test.js.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   reconcileBatchAccountables, reconcileSessionAccountables, buildAccountableReconcileSql,
   ownerResolutionCtes, OWNER_PRINCIPAL_ORDER, OWNER_ADDED_BY,
@@ -51,6 +51,27 @@ describe('reconcileBatchAccountables', () => {
       .resolves.toEqual({ set: 2, replaced: 0, removed: 0, unresolved: 0 });
     await expect(reconcileBatchAccountables(runner(), 'Contexts', [{ id: ID1 }]))
       .resolves.toEqual({ set: 0, replaced: 0, removed: 0, unresolved: 0 });
+  });
+});
+
+describe('the "Accountables from source owners" setting', () => {
+  const KEY = 'FEATURE_SOURCE_OWNER_ACCOUNTABLES';
+  afterEach(() => { delete process.env[KEY]; });
+
+  it('switched off, neither reconcile touches the database — every Accountable stays as it is', async () => {
+    process.env[KEY] = 'false';
+    const batch = runner(COUNTS);
+    const session = runner(COUNTS);
+    await expect(reconcileBatchAccountables(batch, 'Contexts', [{ id: ID1 }])).resolves.toBeNull();
+    await expect(reconcileSessionAccountables(session, 'Contexts', '_tmp_session_abc')).resolves.toBeNull();
+    expect(batch.query).not.toHaveBeenCalled();
+    expect(session.query).not.toHaveBeenCalled();
+  });
+
+  it('on by default: with nothing configured the batch is reconciled', async () => {
+    const r = runner(COUNTS);
+    await expect(reconcileBatchAccountables(r, 'Contexts', [{ id: ID1 }])).resolves.toEqual(COUNTS);
+    expect(r.query).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -156,10 +177,26 @@ describe('the statement — owners named by display name', () => {
     expect(byName).toMatch(/HAVING count\(\*\) FILTER \(WHERE p\."principalType" = 'User'\) = 1\s+OR \(count\(\*\) FILTER \(WHERE p\."principalType" = 'User'\) = 0 AND count\(\*\) = 1\)/);
   });
 
-  it('is part of the one reconcile statement, not a second query', async () => {
+  it('is part of the one reconcile statement, not a second query — when the name setting is on', async () => {
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'true';
+    try {
+      const r = runner(COUNTS);
+      await reconcileBatchAccountables(r, 'Contexts', [{ id: ID1 }]);
+      expect(r.query).toHaveBeenCalledTimes(1);
+      expect(r.query.mock.calls[0][0]).toContain('by_name AS');
+      expect(r.query.mock.calls[0][0]).toMatch(/FROM by_email\s+UNION ALL\s+SELECT "contextId", "principalId" FROM by_name/);
+    } finally {
+      delete process.env.FEATURE_SOURCE_OWNER_NAME_MATCH;
+    }
+  });
+
+  it('is left out by default: a name alone is a guess the operator has to opt into', async () => {
     const r = runner(COUNTS);
     await reconcileBatchAccountables(r, 'Contexts', [{ id: ID1 }]);
-    expect(r.query).toHaveBeenCalledTimes(1);
-    expect(r.query.mock.calls[0][0]).toContain('by_name AS');
+    const sql = r.query.mock.calls[0][0];
+    expect(sql).not.toContain('by_name');
+    expect(sql).not.toContain('name_owner');
+    // the key and e-mail steps still resolve, ending the union
+    expect(sql).toMatch(/SELECT "contextId", "principalId" FROM by_email\s+\)/);
   });
 });

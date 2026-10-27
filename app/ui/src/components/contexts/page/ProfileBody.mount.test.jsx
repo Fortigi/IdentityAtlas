@@ -5,6 +5,9 @@
 // the review drawer; to correct → the change requests), the sections in reading
 // order, and what a business reader gets instead. Invented names.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+// Organisation knowledge (Admin → Experimental) is off by default; on here unless a test switches it off.
+const knowledge = vi.hoisted(() => ({ on: true }));
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => knowledge.on }));
 import { createElement as h } from 'react';
 import ClaimsProvider from '@ui/components/contexts/interviews/ClaimsProvider';
 import ProfileBody from './ProfileBody';

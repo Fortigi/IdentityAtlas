@@ -80,6 +80,10 @@ const DECLARED_COLUMNS = columnsOf([...baseColumns('Principal'), ...CLAIM_COLUMN
 // confirmed only when nobody said (a caller that is not a request).
 const claimStatusesOf = ctx => (Array.isArray(ctx?.claimStatuses) ? ctx.claimStatuses : [...READER_STATUSES]);
 
+// While organisation knowledge is off (the route says so: ctx.orgKnowledge false) a run
+// reads no claims and the report has no organisational-claim columns.
+const NO_CLAIMS = Object.freeze({ personOf: () => null, others: [], summaries: new Map() });
+
 const COUNT_NOTE = {
   Principal: 'Entitlements counts the distinct resources each account holds (live assignments; business roles '
     + 'are not counted — the entitlements they grant are).',
@@ -139,8 +143,9 @@ export default {
     const members = truncated ? found.slice(0, MAX_ROWS) : found;
 
     const statuses = claimStatusesOf(ctx);
-    const claims = await fetchUnitClaims(kind, units, members, statuses);
-    const result = await memberRows(kind, [...members, ...claims.others], claims.personOf);
+    const withClaims = ctx?.orgKnowledge !== false;
+    const claims = withClaims ? await fetchUnitClaims(kind, units, members, statuses) : NO_CLAIMS;
+    const result = await memberRows(kind, [...members, ...claims.others], claims.personOf, { withClaims });
     notices.push(...result.notices);
     if (truncated) notices.push(truncationNotice());
     const withProposed = statuses.includes('proposed');
@@ -159,17 +164,18 @@ export default {
  * The rows, their columns and what is said about them, for members of one kind:
  * the members the source lists, then the people only the added sources name
  * (`listed: false`). `personOf(member)`: the People overview's person for the
- * row (unitClaims.js), or nothing for a run without claims.
+ * row (unitClaims.js), or nothing for a run without claims. `withClaims` false: no
+ * organisational-claim columns (organisation knowledge is off).
  */
-export async function memberRows(kind, members, personOf = () => null) {
+export async function memberRows(kind, members, personOf = () => null, { withClaims = true } = {}) {
   const base = baseColumns(kind);
-  const fixed = [...base, ...CLAIM_COLUMNS, ENTITLEMENTS_COLUMN];
+  const fixed = [...base, ...(withClaims ? CLAIM_COLUMNS : []), ENTITLEMENTS_COLUMN];
   const extra = attributeColumns(members, [], fixed.map(c => c.label), { kind: MEMBER_ATTRIBUTES });
   const counts = await fetchEntitlementCounts(kind, [...new Set(members.map(m => m.id).filter(Boolean))]);
   const rows = members.map((member) => {
     const row = {};
     for (const c of base) row[c.key] = blankToNull(c.read(member));
-    Object.assign(row, claimCells(personOf(member)));
+    if (withClaims) Object.assign(row, claimCells(personOf(member)));
     // A name no source matched to anyone holds nothing we can count.
     row.entitlements = member.id ? counts.get(member.id) ?? 0 : null;
     for (const f of extra.fields) row[f.key] = f.read({ member });

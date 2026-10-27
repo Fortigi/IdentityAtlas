@@ -1,7 +1,7 @@
 // Route tests for the context interviews: the gate on every write, what a
 // reader without write access gets, the file intake, and failures → answers.
 // The steps themselves are contexts/interviews/*.test.js's.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouterAs } from '../../../test-utils/routeTestKit.js';
 
@@ -21,6 +21,9 @@ vi.mock('../../contexts/interviews/store.js', async (orig) => ({
   ...(await orig()), listInterviews: vi.fn(), getInterview: vi.fn(), deleteInterview: vi.fn(), mentionsOf: vi.fn(),
 }));
 process.env.USE_SQL = 'true';
+// Organisation knowledge is off by default; these tests are about the feature, so on
+// (the describe at the end switches it off).
+process.env.FEATURE_ORG_KNOWLEDGE = 'true';
 
 const { default: router, canWriteContexts, claimStatusesFor, statusesFor, MAX_TRANSCRIPT_BYTES } = await import('./interviews.js');
 const service = await import('../../contexts/interviews/service.js');
@@ -95,6 +98,33 @@ describe('the gate', () => {
     expect(decideClaim).not.toHaveBeenCalled();
     expect(store.listInterviews).not.toHaveBeenCalled();
     expect(service.rejectMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('while organisation knowledge is off', () => {
+  beforeEach(() => { process.env.FEATURE_ORG_KNOWLEDGE = 'false'; });
+  afterEach(() => { process.env.FEATURE_ORG_KNOWLEDGE = 'true'; });
+
+  it.each([
+    ['post', `/api/contexts/${CTX}/interviews`],
+    ['get', `/api/contexts/${CTX}/interviews`],
+    ['get', `/api/contexts/${CTX}/claims`],
+    ['post', `/api/contexts/${CTX}/claims/reject`],
+    ['patch', `/api/contexts/claims/${CLAIM}`],
+    ['get', `/api/contexts/claims/mentions?principalId=${ANNA}`],
+  ])('%s %s answers 404 — for an analyst too — and reaches nothing', async (method, path) => {
+    const res = await request(app)[method](path).send({});
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'This feature is not enabled' });
+    for (const f of [service.createInterview, service.claimsOf, service.rejectMany, decideClaim, store.listInterviews, store.mentionsOf]) {
+      expect(f).not.toHaveBeenCalled();
+    }
+  });
+
+  it('leaves a path this router does not serve alone (a context read falls through)', async () => {
+    const res = await request(app).get(`/api/contexts/${CTX}`);
+    expect(res.status).toBe(404);
+    expect(res.body).not.toEqual({ error: 'This feature is not enabled' });
   });
 });
 

@@ -23,7 +23,13 @@ import {
   listInvestigations, getInvestigation, createInvestigation, saveInvestigation, deleteInvestigation, deleteProposal,
 } from '../../contexts/workbench/investigations.js';
 
+import { requireFeature } from '../../featureFlags.js';
+
 const router = Router();
+
+// Part of organisation knowledge, like the workbench: while it is off these paths do not exist (404).
+export const INVESTIGATION_PATHS = Object.freeze(['/contexts/:id/workbench/investigations', '/workbench']);
+router.use(INVESTIGATION_PATHS, requireFeature('orgKnowledge'));
 
 function fail(res, err, label) {
   if (err instanceof InvestigationError || err instanceof ProposedMatrixError) return res.status(err.status).json({ error: err.message });
