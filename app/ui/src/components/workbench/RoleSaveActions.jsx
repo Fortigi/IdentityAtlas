@@ -13,10 +13,13 @@ const isSavedId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(id));
 
 export default function RoleSaveActions({ inv, candidate, problems, unitName, dispatch }) {
   const [name, setName] = useState(() => defaultInvestigationName(unitName));
+  // A refusal shows here only for a save made here (the top strip shows its own).
+  const [tried, setTried] = useState(false);
   const blocked = inv.busy || problems.length > 0 || (!inv.saved && !name.trim());
   const saved = !!inv.saved && !inv.dirty && isSavedId(candidate.id);
 
   const save = async (next) => {
+    setTried(true);
     const ok = inv.saved ? (inv.dirty ? await inv.save() : true) : await inv.saveAs(name.trim());
     if (ok && next) dispatch({ type: 'startNext' });
   };
@@ -37,7 +40,7 @@ export default function RoleSaveActions({ inv, candidate, problems, unitName, di
           className="rounded border border-blue-600 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/30">Save and start the next role</button>
         {saved && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">Saved</span>}
       </div>
-      {inv.error && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{inv.error}</p>}
+      {tried && inv.error && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{inv.error}</p>}
     </div>
   );
 }

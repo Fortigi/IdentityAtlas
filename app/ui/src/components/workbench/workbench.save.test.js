@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { viewToSave, viewFromSaved, accessCellsOf, toSavePayload, draftFromSaved, fingerprint, accessChanges, statusText } from './workbench.save';
+import { viewToSave, viewFromSaved, accessCellsOf, toSavePayload, draftFromSaved, fingerprint, accessChanges, statusText, defaultInvestigationName } from './workbench.save';
 import { DEFAULT_COLUMNS } from './workbench.columns';
 
 const SAVED_ID = '11111111-2222-4333-8444-555555555555';
@@ -151,5 +151,11 @@ describe('accessChanges', () => {
     expect(accessChanges(before, now)).toBe(3);
     expect(accessChanges(before, before.map(c => { const [p, r, type] = c.split('|'); return { person: p, resourceId: r, type }; }))).toBe(0);
     expect(accessChanges(undefined, [])).toBe(0);
+  });
+});
+
+describe('defaultInvestigationName', () => {
+  it('suggests "<unit> — dd-mm-yyyy"', () => {
+    expect(defaultInvestigationName('Property Claims', new Date(2026, 9, 7))).toBe('Property Claims — 07-10-2026');
   });
 });

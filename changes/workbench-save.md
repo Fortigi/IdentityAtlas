@@ -4,3 +4,4 @@
 - A save is refused when someone else saved the same investigation after you opened it, naming who did, so nobody's work is silently overwritten.
 - Proposed roles are stored apart from real business roles: saving never creates a role, an assignment or access.
 - Saving an investigation also keeps how each proposed role is assigned: rule-based or requestable, its assignment rule, always-include / always-exclude, joiner and leaver choices, the approver and the "why" — all back on Open.
+- "Save role" and "Save and start the next role" at the end of the proposed role: it says what the role still needs (a name, its kind, an entitlement), asks the investigation's name the first time, and starts the next role with its kind to choose.

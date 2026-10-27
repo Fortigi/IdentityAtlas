@@ -163,3 +163,70 @@ describe('opening', () => {
     expect(calls.filter(c => c.method === 'DELETE').map(c => c.url)).toEqual([`/api/workbench/investigations/${INV}`]);
   });
 });
+
+describe('saving a role from the panel', () => {
+  const panel = () => screen.getByRole('complementary', { name: 'Candidate role' });
+
+  it('asks what the role still needs, then saves it under a suggested name, and starts the next role with its kind to choose', async () => {
+    const { user, calls } = await mount({
+      [`POST /api/contexts/${UNIT}/workbench/investigations`]: (body) => savedInv({ name: body.name, proposals: body.proposals.map(p => ({ ...p, id: S1 })) }),
+    });
+    await user.click(screen.getByRole('button', { name: 'New candidate role' }));
+    const before = within(panel()).getByRole('list', { name: 'Before saving' });
+    expect(before).toHaveTextContent('Choose how it is assigned');
+    expect(before).toHaveTextContent('Add at least one entitlement');
+    expect(within(panel()).getByRole('button', { name: 'Save role' })).toBeDisabled();
+    // Its kind, and an entitlement.
+    await user.click(within(panel()).getByRole('button', { name: /^Requestable — people request it/ }));
+    await user.click(screen.getByRole('button', { name: /^Select the column Garage portal/ }));
+    await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
+    expect(within(panel()).queryByRole('list', { name: 'Before saving' })).toBeNull();
+    // A first save asks the investigation's name here: "<unit> — dd-mm-yyyy".
+    const name = within(panel()).getByRole('textbox', { name: 'Save the investigation as' });
+    expect(name.value).toMatch(/^Motor Claims — \d{2}-\d{2}-\d{4}$/);
+    await user.click(within(panel()).getByRole('button', { name: 'Save and start the next role' }));
+    await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
+    // Saved — and the next role is new work on it.
+    await waitFor(() => expect(status()).toMatch(/^Unsaved changes to “Motor Claims — \d{2}-\d{2}-\d{4}”$/));
+    const post = calls.find(c => c.method === 'POST');
+    expect(post.body.proposals[0]).toMatchObject({ kind: 'requestable', entitlements: ['g1'], members: ['i:p'] });
+    // The next role: open, its kind to choose, the first one kept in the list.
+    expect(within(panel()).getByRole('group', { name: 'How is this role assigned?' })).toBeInTheDocument();
+    expect(within(panel()).getByRole('list', { name: 'Proposed roles' }).children).toHaveLength(2);
+    expect(screen.getByText(/Click a cell, Shift-click for a rectangle/)).toBeInTheDocument();
+  });
+
+  it('saves over the saved investigation without asking a name, and says the role is saved', async () => {
+    const { user, calls } = await mount({
+      [`POST /api/contexts/${UNIT}/workbench/investigations`]: (body) => savedInv({ name: body.name, proposals: body.proposals.map(p => ({ ...p, id: S1 })) }),
+      [`PUT /api/workbench/investigations/${INV}`]: (body) => savedInv({ updatedAt: '2026-10-27T12:00:00.000Z', proposals: body.proposals.map(p => ({ ...p, id: S1 })) }),
+    });
+    await user.click(screen.getByRole('button', { name: 'New candidate role' }));
+    await user.click(within(panel()).getByRole('button', { name: /^Rule-based — assigned automatically/ }));
+    await user.click(screen.getByRole('button', { name: /^Select the column Garage portal/ }));
+    await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
+    expect(within(panel()).getByText('It will be saved with members chosen by hand — it has no assignment rule yet.')).toBeInTheDocument();
+    await user.click(within(panel()).getByRole('button', { name: 'Save role' }));
+    await waitFor(() => expect(within(panel()).getByText('Saved')).toBeInTheDocument());
+    expect(within(panel()).queryByRole('textbox', { name: 'Save the investigation as' })).toBeNull();
+    await user.type(within(panel()).getByPlaceholderText('e.g. Claims handler — motor'), 'x');
+    expect(within(panel()).queryByText('Saved')).toBeNull();
+    await user.click(within(panel()).getByRole('button', { name: 'Save role' }));
+    await waitFor(() => expect(calls.some(c => c.method === 'PUT')).toBe(true));
+  });
+});
+
+describe('a refused save from the panel', () => {
+  it('says why under the role', async () => {
+    const { user } = await mount({
+      [`POST /api/contexts/${UNIT}/workbench/investigations`]: () => jsonResponse({ error: 'This unit already has an investigation with that name.' }, { ok: false, status: 409 }),
+    });
+    const panel = () => screen.getByRole('complementary', { name: 'Candidate role' });
+    await user.click(screen.getByRole('button', { name: 'New candidate role' }));
+    await user.click(within(panel()).getByRole('button', { name: /^Requestable — people request it/ }));
+    await user.click(screen.getByRole('button', { name: /^Select the column Garage portal/ }));
+    await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
+    await user.click(within(panel()).getByRole('button', { name: 'Save role' }));
+    expect(await within(panel()).findByRole('alert')).toHaveTextContent('This unit already has an investigation with that name.');
+  });
+});

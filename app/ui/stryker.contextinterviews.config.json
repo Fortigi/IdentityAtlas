@@ -50,6 +50,7 @@
     "src/components/workbench/workbench.save.js",
     "src/components/workbench/useInvestigation.js",
     "src/components/workbench/InvestigationBar.jsx",
+    "src/components/workbench/RoleSaveActions.jsx",
     "src/components/matrix/MatrixBadges.jsx"
   ],
   "mutationExclusions": {
