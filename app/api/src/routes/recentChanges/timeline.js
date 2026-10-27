@@ -86,37 +86,46 @@ export function timelineAttrEvents(row, entityId, acc, lbl) {
     heldResourceEvent(row, data, prev, acc);
     return;
   }
-  // The entity itself soft-deleted (deletedAt stamped) or restored — an UPDATE
-  // in the audit trail, but to a reader a deletion, not an attribute edit.
-  const softAction = row.operation === 'U' ? changeAction(row) : null;
-  if (softAction === 'removed') {
-    acc.removedCount++; acc.events.push(toEvent(row, 'Deleted in source', { eventKind: 'attribute' }));
-  } else if (softAction === 'added') {
-    acc.addedCount++; acc.events.push(toEvent(row, 'Restored in source', { eventKind: 'attribute' }));
-  }
-  // Manager change (Principals only) → its own relationship event.
-  if (row.tableName === 'Principals' && row.operation === 'U') {
-    const before = prev.managerId || null, after = data.managerId || null;
-    if (before !== after) {
-      const name = lbl.principal(after) || after || '(none)';
-      acc.changedCount++;
-      acc.events.push(toEvent(row, after ? `Manager changed to ${name}` : 'Manager removed',
-        { kind: after ? 'user' : null, id: after, label: name, eventKind: 'manager' }));
-    }
-  }
   if (row.operation === 'U') {
-    for (const c of diffRow(prev, data)) {
-      acc.changedCount++;
-      acc.events.push({
-        at: row.changedAt, operation: 'changed', eventKind: 'attribute',
-        summary: `${humanizeField(c.field)}: ${c.from} → ${c.to}`,
-        counterpartyKind: null, counterpartyId: null, counterpartyLabel: null, attribute: c,
-      });
-    }
+    softDeleteEvent(row, acc);
+    managerEvent(row, data, prev, acc, lbl);
+    attributeDiffEvents(row, data, prev, acc);
   } else if (row.operation === 'I') {
     acc.addedCount++; acc.events.push(toEvent(row, 'Created', { eventKind: 'attribute' }));
   } else if (row.operation === 'D') {
     acc.removedCount++; acc.events.push(toEvent(row, 'Deleted', { eventKind: 'attribute' }));
+  }
+}
+
+// The entity itself soft-deleted (deletedAt stamped) or restored — an UPDATE in
+// the audit trail, but to a reader a deletion, not an attribute edit.
+function softDeleteEvent(row, acc) {
+  const action = changeAction(row);
+  if (!action) return;
+  const removed = countAction(acc, action) === false;
+  acc.events.push(toEvent(row, removed ? 'Deleted in source' : 'Restored in source', { eventKind: 'attribute' }));
+}
+
+// Manager change (Principals only) → its own relationship event.
+function managerEvent(row, data, prev, acc, lbl) {
+  if (row.tableName !== 'Principals') return;
+  const before = prev.managerId || null, after = data.managerId || null;
+  if (before === after) return;
+  const name = lbl.principal(after) || after || '(none)';
+  acc.changedCount++;
+  acc.events.push(toEvent(row, after ? `Manager changed to ${name}` : 'Manager removed',
+    { kind: after ? 'user' : null, id: after, label: name, eventKind: 'manager' }));
+}
+
+// One "changed" event per edited scalar field.
+function attributeDiffEvents(row, data, prev, acc) {
+  for (const c of diffRow(prev, data)) {
+    acc.changedCount++;
+    acc.events.push({
+      at: row.changedAt, operation: 'changed', eventKind: 'attribute',
+      summary: `${humanizeField(c.field)}: ${c.from} → ${c.to}`,
+      counterpartyKind: null, counterpartyId: null, counterpartyLabel: null, attribute: c,
+    });
   }
 }
 
