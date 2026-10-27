@@ -112,6 +112,7 @@ export default {
       SELECT ${selectParts.join(', ')}
         FROM "Principals"
        WHERE "systemId" = $1
+         AND "deletedAt" IS NULL  -- a soft-deleted principal is history, not in the org tree
     `, queryParams)).rows;
 
     if (rows.length === 0) {

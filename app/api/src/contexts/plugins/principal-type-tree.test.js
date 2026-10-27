@@ -43,3 +43,10 @@ describe('principal-type-tree', () => {
     await expect(plugin.run({ attribute: 'bad key!' }, ctx)).rejects.toThrow(/simple key/);
   });
 });
+
+describe('principal-type-tree — soft-deleted principals', () => {
+  it('reads live principals only', async () => {
+    await plugin.run({}, ctx);
+    expect(db.query.mock.calls[0][0]).toContain('IS NOT NULL AND p."deletedAt" IS NULL');
+  });
+});

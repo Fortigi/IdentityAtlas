@@ -22,6 +22,7 @@ import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
 import { buildNewIdMap, buildMemberInsertBatch } from './runner.helpers.js';
+import { liveMemberSql } from '../memberCounts.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
 // Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
@@ -384,10 +385,10 @@ async function refreshMemberCounts(client, producedContextIds) {
        SET "directMemberCount" = COALESCE(m.cnt, 0),
            "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
       FROM (
-        SELECT "contextId", COUNT(*)::int AS cnt
-          FROM "ContextMembers"
-         WHERE "contextId" = ANY($1::uuid[])
-         GROUP BY "contextId"
+        SELECT cm."contextId", COUNT(*)::int AS cnt
+          FROM "ContextMembers" cm
+         WHERE cm."contextId" = ANY($1::uuid[]) AND ${liveMemberSql('cm')}
+         GROUP BY cm."contextId"
       ) m
      WHERE c.id = m."contextId"
   `, [producedContextIds]);
@@ -408,7 +409,7 @@ async function refreshMemberCounts(client, producedContextIds) {
     totals AS (
       SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
         FROM subtree s
-        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id AND ${liveMemberSql('cm')}
        GROUP BY s.root_id
     )
     UPDATE "Contexts" c

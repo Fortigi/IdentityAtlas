@@ -11,10 +11,19 @@ import {
   splitValidFilters,
   makeFilterClauses,
   shapeManagedByPackages,
+  TOTAL_USERS_SQL,
 } from './gridQuery.js';
 
 // Deterministic binder: returns $1, $2, … so we can assert clause shape.
 const fakeBinder = () => { let i = 0; return () => `$${++i}`; };
+
+describe('TOTAL_USERS_SQL', () => {
+  it('counts live (not soft-deleted), non-group principals only', () => {
+    expect(TOTAL_USERS_SQL.replace(/\s+/g, ' ').trim()).toBe(
+      'SELECT COUNT(*)::int AS "totalUsers" FROM "Principals" WHERE "deletedAt" IS NULL '
+      + `AND ("principalType" IS NULL OR "principalType" != '#microsoft.graph.group')`);
+  });
+});
 
 describe('parsePermissionsRequest', () => {
   it('defaults userLimit to 0 and filters to {}', () => {
