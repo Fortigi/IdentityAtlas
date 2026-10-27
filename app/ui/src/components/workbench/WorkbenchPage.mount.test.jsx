@@ -74,29 +74,86 @@ const grid = () => screen.getByRole('table', { name: "Access of the unit's peopl
 // The first render of the grid is the slow one on a loaded CI runner.
 const opened = () => screen.findByRole('heading', { name: 'Claims Handling' }, { timeout: 5000 });
 const candidate = () => screen.getByRole('complementary', { name: 'Candidate role' });
+const shownCount = () => within(screen.getByRole('region', { name: 'Filters' })).getByText(/people shown/).textContent;
+// Excel: open the column's filter, untick everything, tick these values, OK.
+async function filterTo(user, column, labels) {
+  await user.click(screen.getByRole('button', { name: `Filter ${column}` }));
+  const menu = screen.getByRole('dialog', { name: `Filter ${column}` });
+  await user.click(within(menu).getByRole('button', { name: 'None' }));
+  for (const l of labels) await user.click(within(menu).getByRole('checkbox', { name: new RegExp(`^${l}`) }));
+  await user.click(within(menu).getByRole('button', { name: 'OK' }));
+}
 
 describe('WorkbenchPage', () => {
-  it('opens on the unit with its people grouped by activity, the gaps counted, and labels the tab', async () => {
+  it('opens on the unit with one row per person in columns, the gaps counted, and labels the tab', async () => {
     const { onCacheData, calls } = mount();
     expect(await opened()).toBeInTheDocument();
     expect(calls[0].url).toBe(`/api/contexts/${UNIT}/workbench?includeChildren=true`);
     await waitFor(() => expect(onCacheData).toHaveBeenCalledWith(UNIT, 'workbench', { displayName: 'Workbench: Claims Handling' }));
     expect(screen.getByText(/3 people \(4 accounts\) across 3 units/)).toBeInTheDocument();
     expect(screen.getByText(/1 person has no known activity · 1 proposed link to check · 0 disputed/)).toBeInTheDocument();
-    const rowgroups = within(grid()).getAllByRole('rowheader').filter(el => el.getAttribute('scope') === 'rowgroup');
-    expect(rowgroups.map(r => r.textContent)).toEqual(['Handle claims2 people', 'Not known1 person']);
+    expect(within(grid()).getAllByRole('button', { name: /^Sort by / }).map(b => b.getAttribute('aria-label').slice(8))).toEqual(['Display name', 'Job title', 'Activity', 'Expertise', 'Duty']);
+    expect(within(grid()).queryAllByRole('rowheader').filter(el => el.getAttribute('scope') === 'rowgroup')).toEqual([]);
+    expect(shownCount()).toBe('3 of 3 people shown');
     expect(screen.getByText('2 accounts')).toBeInTheDocument();
   });
 
-  it('regroups by duty without losing the candidate', async () => {
+  it('filters like Excel — values with counts, (Not known), proposed in or out, AND across columns — without losing the candidate', async () => {
     const { user } = mount();
     await opened();
     await user.click(within(grid()).getByRole('button', { name: 'Anna Vos' }));
     await user.click(screen.getByRole('button', { name: 'Members only' }));
+    await user.click(screen.getByRole('button', { name: 'Filter Activity' }));
+    const menu = screen.getByRole('dialog', { name: 'Filter Activity' });
+    expect(within(menu).getAllByRole('checkbox').map(b => b.closest('label').textContent)).toEqual(['Handle claims2', '(Not known)1', 'Count proposed (not yet confirmed) values']);
+    await user.click(within(menu).getByRole('button', { name: 'Cancel' }));
+    await filterTo(user, 'Activity', ['Handle claims']);
+    expect(shownCount()).toBe('2 of 3 people shown');
+    expect(screen.getByText('Activity: Handle claims')).toBeInTheDocument();
+    // Proposed values out: Bram's activity is only proposed.
+    await user.click(screen.getByRole('button', { name: 'Filter Activity' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Filter Activity' })).getByRole('checkbox', { name: /Count proposed/ }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Filter Activity' })).getByRole('button', { name: 'OK' }));
+    expect(shownCount()).toBe('1 of 3 people shown');
+    expect(screen.getByText('Activity: Handle claims (confirmed only)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
+    // AND across columns: Handle claims (proposed counts) and a duty.
+    await filterTo(user, 'Activity', ['Handle claims']);
+    await filterTo(user, 'Duty', ['Works council member']);
+    expect(shownCount()).toBe('1 of 3 people shown');
+    await filterTo(user, 'Duty', ['\\(Not known\\)']);
+    expect(shownCount()).toBe('1 of 3 people shown');
+    expect(within(grid()).getByRole('button', { name: 'Anna Vos' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Clear the filter Duty/ }));
+    expect(shownCount()).toBe('2 of 3 people shown');
     expect(within(candidate()).getByText('Members (1)')).toBeInTheDocument();
-    await user.click(screen.getByRole('radio', { name: 'Duty' }));
-    expect(within(grid()).getByRole('button', { name: 'Works council member' })).toBeInTheDocument();
-    expect(within(candidate()).getByText('Members (1)')).toBeInTheDocument();
+    // The Excel move: take the people the filter leaves.
+    await user.click(screen.getByRole('button', { name: 'Add the 2 shown as members' }));
+    expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
+  });
+
+  it('sorts by a column header, again the other way, a multi-value column by its strongest value', async () => {
+    const { user } = mount();
+    await opened();
+    const names = () => ['Anna Vos', 'Bram Smit', 'Cleo Kok'].map(n => within(grid()).getByRole('button', { name: n }))
+      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).map(b => b.textContent);
+    await user.click(screen.getByRole('button', { name: 'Sort by Duty' }));
+    expect(names()).toEqual(['Bram Smit', 'Anna Vos', 'Cleo Kok']);
+    await user.click(screen.getByRole('button', { name: 'Sort by Display name' }));
+    await user.click(screen.getByRole('button', { name: 'Sort by Display name' }));
+    expect(names()).toEqual(['Cleo Kok', 'Bram Smit', 'Anna Vos']);
+  });
+
+  it('shows more columns from the chooser, and groups only when asked', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(screen.getByRole('button', { name: 'Columns ▾' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Columns' })).getByRole('checkbox', { name: 'Accounts' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Columns' })).getByRole('checkbox', { name: 'Expertise' }));
+    expect(within(grid()).getAllByRole('button', { name: /^Sort by / }).map(b => b.getAttribute('aria-label').slice(8))).toEqual(['Display name', 'Job title', 'Accounts', 'Activity', 'Duty']);
+    await user.selectOptions(screen.getByLabelText('Group by'), 'duty');
+    const rowgroups = within(grid()).getAllByRole('rowheader').filter(el => el.getAttribute('scope') === 'rowgroup');
+    expect(rowgroups.map(r => r.textContent)).toEqual(['Works council member1 person', 'Not known2 people']);
   });
 
   it('shows the candidate as a Draft business role in the role band, colouring what it covers the matrix way', async () => {
@@ -104,7 +161,8 @@ describe('WorkbenchPage', () => {
     await opened();
     // The existing role is in the band on the right, not among the columns.
     expect(within(grid()).getByRole('columnheader', { name: 'Claims handler' })).toBeInTheDocument();
-    await user.click(within(grid()).getByRole('button', { name: 'Handle claims' }));
+    await filterTo(user, 'Activity', ['Handle claims']);
+    await user.click(screen.getByRole('button', { name: 'Select what they hold' }));
     expect(screen.getByText('4 cells · 2 people · 3 columns')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
     expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
@@ -122,6 +180,7 @@ describe('WorkbenchPage', () => {
     expect(covered.find(b => /Claims handler, Draft/.test(b.getAttribute('aria-label')))).toBeTruthy();
     // The members' own cells in the Draft column are its provisioning gap: they would get it.
     expect(within(grid()).getAllByTitle(/Provisioning gap: business role expects Direct membership/)).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
     // Cleo holds what the draft and the existing role hand out, without either: the matrix's held-outside marker.
     const cleoRow = within(grid()).getByRole('button', { name: 'Cleo Kok' }).closest('tr');
     const outside = within(cleoRow).getAllByRole('button', { name: /Held outside business-role governance/ });
@@ -175,9 +234,8 @@ describe('WorkbenchPage', () => {
   it('adds what a person does through the knowledge API, and shows the API’s refusal', async () => {
     const { user, calls } = mount();
     await opened();
-    await user.click(within(grid()).getByRole('button', { name: 'Add what Cleo Kok does, knows or holds' }));
+    await user.click(within(grid()).getByRole('button', { name: 'Add expertise for Cleo Kok' }));
     const form = screen.getByRole('form', { name: 'Add for Cleo Kok' });
-    await user.selectOptions(within(form).getByLabelText('Kind'), 'expertise');
     await user.type(within(form).getByLabelText('Name'), 'Fraud detection');
     await user.click(within(form).getByRole('button', { name: 'Add' }));
     await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
@@ -198,8 +256,7 @@ describe('WorkbenchPage', () => {
   it('selects a rectangle with Shift-click and adds one cell with Ctrl-click', async () => {
     const { user } = mount();
     await opened();
-    await user.click(screen.getByRole('radio', { name: 'No grouping' }));
-    const rows = within(grid()).getAllByRole('row').filter(r => within(r).queryAllByRole('rowheader').some(x => x.getAttribute('scope') === 'row'));
+    const rows = ['Anna Vos', 'Bram Smit', 'Cleo Kok'].map(n => within(grid()).getByRole('button', { name: n }).closest('tr'));
     const cellsOf = (row) => within(row).getAllByRole('button').filter(b => b.getAttribute('aria-pressed') !== null);
     await user.click(cellsOf(rows[1])[0]);
     await user.keyboard('{Shift>}');
@@ -219,32 +276,13 @@ describe('WorkbenchPage', () => {
     await opened();
     const header = () => within(grid()).getAllByRole('button', { name: /^Select the column/ }).length;
     expect(header()).toBe(3);
-    await user.tripleClick(screen.getByLabelText(/Columns held by at least/));
+    await user.tripleClick(screen.getByLabelText(/Access held by at least/));
     await user.keyboard('2');
     expect(header()).toBe(2);
     await user.type(screen.getByRole('searchbox', { name: 'Find a column' }), 'motor');
     expect(header()).toBe(1);
     await user.click(screen.getByLabelText('Include sub-units'));
     await waitFor(() => expect(calls.at(-1).url).toBe(`/api/contexts/${UNIT}/workbench?includeChildren=false`));
-  });
-
-  it('dims a repeat appearance, says where else the person is, counts them once, and can show them once', async () => {
-    const user = userEvent.setup();
-    const data = payload();
-    data.people[0].knowledge.push(knows('activity', 'Fraud', 'proposed', [claim('c9', 'proposed')]));
-    renderWithProviders(h(WorkbenchPage, { contextId: UNIT }), { auth: { authFetch: makeAuthFetch(() => data) } });
-    await opened();
-    const annaRows = () => within(grid()).getAllByRole('button', { name: 'Anna Vos' }).map(b => b.closest('tr'));
-    expect(annaRows()).toHaveLength(2);
-    // First under the confirmed value; the proposed one is the repeat.
-    expect(annaRows()[0]).not.toHaveAttribute('data-repeat');
-    expect(annaRows()[1]).toHaveAttribute('data-repeat', 'true');
-    expect(within(annaRows()[1]).getByText('also under: Handle claims')).toBeInTheDocument();
-    await user.click(within(annaRows()[1]).getByRole('button', { name: 'Anna Vos' }));
-    expect(screen.getByText(/2 cells · 1 person · 2 columns/)).toBeInTheDocument();
-    expect(screen.getByText(/each counted once \(1 shown in more than one group\)/)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Show people with several values'), 'once');
-    expect(annaRows()).toHaveLength(1);
   });
 
   it('says how many members no longer resolve, instead of looking empty', async () => {

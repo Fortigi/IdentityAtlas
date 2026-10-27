@@ -3,3 +3,5 @@
 - Analysts can state a person's activity, expertise or duty by hand from the workbench, and confirm or reject proposed ones with their source and quote.
 - Added a synthetic demo dataset for the workbench (a fictional insurer's claims department).
 - The workbench shows access with the same D / I / E badges and business-role chip as the matrix; its own marks (covered, potential gain, outside the candidate, other context, unrelated, needs investigation) sit on top as a corner sign.
+- The workbench lists one row per person with Excel-like columns (name, job title, system data, activity, expertise, duty): filter any column by its values (multi-value: any match; proposed values in or out), sort by clicking a header, and add everyone shown to the candidate in one click.
+- The candidate shows as a Draft business role in the business-role band with the matrix's colours: what it covers in its colour, what it would add as the matrix's provisioning gap.
