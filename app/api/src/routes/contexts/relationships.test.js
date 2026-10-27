@@ -30,11 +30,15 @@ describe('parseRelationshipBody', () => {
   });
 
   it.each([
-    ['an unknown type', { relatedContextId: OTHER, relationshipType: 'Contains' }, /relationshipType must be one of DedicatedTo/],
+    ['an unknown type', { relatedContextId: OTHER, relationshipType: 'Contains' }, /^relationshipType must be one of SameUnitAs$/],
     ['a missing related id', { relationshipType: 'SameUnitAs' }, /relatedContextId \(uuid\) is required/],
     ['a self-link', { relatedContextId: CTX.toUpperCase(), relationshipType: 'SameUnitAs' }, /cannot relate to itself/],
   ])('rejects %s', (_label, body, message) => {
-    expect(parseRelationshipBody(body, CTX)).toMatchObject({ status: 400, message });
+    // toMatchObject does not apply a RegExp to a string property, so the
+    // message is matched on its own — the old form passed with any message.
+    const res = parseRelationshipBody(body, CTX);
+    expect(res.status).toBe(400);
+    expect(res.message).toMatch(message);
   });
 });
 

@@ -412,7 +412,7 @@ Edge: `contextId` → `memberId`.
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
 | `addedAt` | `ia:addedAt` | timestamp with time zone |  | When the member was added. |
-| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst` | Who added the member. |
+| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst`, `sourceOwner` | Who added the member. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
 | `memberType` | `ia:memberType` | text | `Identity`, `Resource`, `Principal`, `System` | Which kind of node memberId is. |
@@ -433,7 +433,7 @@ Edge: `contextId` → `relatedContextId`.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst` | Who added the member. |
+| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst`, `sourceOwner` | Who added the member. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
 | `relatedContextId` | `ia:relatedContextId` | uuid | → Contexts | The other context of the link. |
@@ -449,7 +449,7 @@ Edge: `contextId` → `principalId` or `identityId`.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst` | Who added the member. |
+| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst`, `sourceOwner` | Who added the member. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
 | `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments. Ingest alias: `identityExternalId`. |
@@ -653,6 +653,7 @@ Edge: `parentResourceId` → `childResourceId`.
 | `sync` | `ia:MembershipSource_sync` | A crawler. |
 | `algorithm` | `ia:MembershipSource_algorithm` | A context-algorithm plugin. |
 | `analyst` | `ia:MembershipSource_analyst` | An analyst, by hand. |
+| `sourceOwner` | `ia:MembershipSource_sourceOwner` | The owner a synced context's source names (ownerUserId), stated as its Accountable by the contexts ingest and kept in step on every sync. Only the ingest writes it, and it replaces or removes only these rows. |
 
 ### Propagation scope
 
