@@ -1,10 +1,14 @@
 {
   "_comment": "Per-file line-coverage ratchet baseline (floor, integer percent). Each source file's committed minimum; coverage may only rise. Only ever raised (python tools/coverage/ratchet.py --lcov <f> --prefix <p> --update). See the tool header.",
   "files": {
-    "app/api/src/accountlinking/classifier.js": 97,
+    "app/api/src/accountlinking/classifier.js": 99,
     "app/api/src/accountlinking/defaultRules.js": 99,
     "app/api/src/accountlinking/engine.helpers.js": 100,
     "app/api/src/accountlinking/engine.js": 93,
+    "app/api/src/accountlinking/guardEvidence.js": 99,
+    "app/api/src/accountlinking/initials.js": 99,
+    "app/api/src/accountlinking/nameClaim.js": 99,
+    "app/api/src/accountlinking/nameKeys.js": 99,
     "app/api/src/accountlinking/rulesMerge.js": 99,
     "app/api/src/accountlinking/staleNameOnlyLinks.js": 100,
     "app/api/src/app.js": 72,

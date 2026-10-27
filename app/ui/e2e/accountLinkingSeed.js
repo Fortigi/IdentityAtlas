@@ -275,3 +275,19 @@ export async function linkedAccountsPanel(page) {
   await expect(panel).toBeVisible({ timeout: 15000 });
   return panel;
 }
+
+/**
+ * Seed a spec file's fixture once and clear it after, the way every account-linking spec does.
+ * Returns the state its tests read: `rules` (the active dictionary; the file is skipped when this
+ * user cannot read it) and `seeded` (`seedLinkingFixture`'s answer).
+ */
+export function withLinkingFixture(test, fixture) {
+  const state = { rules: undefined, seeded: null };
+  test.beforeAll(async () => {
+    state.rules = await linkingRules();
+    test.skip(!state.rules, 'account-linking config endpoint not available to this user');
+    state.seeded = await seedLinkingFixture(fixture);
+  });
+  test.afterAll(() => clearLinkingFixture(state.seeded, fixture));
+  return state;
+}

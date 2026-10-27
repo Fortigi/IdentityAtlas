@@ -72,9 +72,8 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
 import {
-  BASE, seedLinkingFixture, clearLinkingFixture, linkingRules, loginOnlyLinkingBlocker,
-  runAccountLinkingFromAdmin, latestCompletedRun, linkedAccountNames, linkedPrincipalIds,
-  linkedAccountsPanel, orphanReport,
+  BASE, loginOnlyLinkingBlocker, runAccountLinkingFromAdmin, latestCompletedRun,
+  linkedAccountNames, linkedPrincipalIds, linkedAccountsPanel, orphanReport, withLinkingFixture,
 } from './accountLinkingSeed';
 
 /** The issue this spec replays, which names the throwaway connector and system. */
@@ -264,27 +263,18 @@ const ACCOUNTS = [
 
 /** The fixture, and the two things about the deployment it needs to be true. */
 const FIXTURE = { issue: ISSUE, token: TOKEN, identities: IDENTITIES, accounts: ACCOUNTS };
-let rules;
-let seeded = null;
+const fx = withLinkingFixture(test, FIXTURE);
 let firstRun = null;
-
-test.beforeAll(async () => {
-  rules = await linkingRules();
-  test.skip(!rules, 'account-linking config endpoint not available to this user');
-  seeded = await seedLinkingFixture(FIXTURE);
-});
-
-test.afterAll(() => clearLinkingFixture(seeded, FIXTURE));
 
 test.describe('Account linking — logins a convention writes shorter than the name (#1468)', () => {
   test.describe.configure({ mode: 'serial', timeout: 300000 });
 
   test.beforeEach(() => {
-    test.skip(!seeded?.ok, `could not seed through the ingest API (SQL mode required): ${seeded?.reason}`);
+    test.skip(!fx.seeded?.ok, `could not seed through the ingest API (SQL mode required): ${fx.seeded?.reason}`);
     // All six accounts here rest on their login alone, so a deployment that
     // would not place one on a login holds them back for reasons that are not
     // this bug.
-    const blocker = loginOnlyLinkingBlocker(rules);
+    const blocker = loginOnlyLinkingBlocker(fx.rules);
     test.skip(!!blocker, `this deployment would not link on a login alone — ${blocker}`);
   });
 

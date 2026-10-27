@@ -121,6 +121,22 @@ const ACCOUNTS = [
 /** The login-reading signal in a dictionary, or undefined. */
 const loginSignal = (rules) => (rules?.signals || []).find(s => s.type === 'loginName');
 
+/**
+ * The signals a link rests on, with the name-uniqueness guard's own corroboration
+ * dropped — what the match was found by, rather than what else agreed with it.
+ *
+ * The guard records a signal beside the name whenever something singled one of
+ * its claimants out (#1455), so `loginNameForm,nameUnique` and `loginNameForm`
+ * are the same finding: this account was placed by reading its login as a name.
+ * The assertions here are about which ROUTE found the account, so the evidence
+ * class is read off the dictionary and removed rather than spelled out, and a
+ * second *name* reading creeping in would still fail.
+ */
+const bearingSignals = (link, rules) => {
+  const evidence = new Set((rules?.signals || []).filter(s => s.type === 'evidence').map(s => s.name));
+  return String(link.linkSignals || '').split(',').map(s => s.trim()).filter(s => s && !evidence.has(s));
+};
+
 /** One identity's member row for an account, as the identities API serves it. */
 const memberFor = async (identityId, principalId) =>
   (await identityMembers(identityId)).find(m => m.principalId === principalId);
@@ -236,7 +252,7 @@ test.describe('Account linking — a saved dictionary and a signal shipped after
     // account is hers — on a signal her saved dictionary did not contain.
     expect(await linkedPrincipalIds(IDS.fay)).toContain(IDS.admFay);
     const link = await memberFor(IDS.fay, IDS.admFay);
-    expect(link.linkSignals).toBe(loginSignal(restoreConfig.rules).name);
+    expect(bearingSignals(link, restoreConfig.rules)).toEqual([loginSignal(restoreConfig.rules).name]);
 
     // Through the identity page, which is where the reporter looked.
     await page.goto(`${BASE}/#identity:${IDS.fay}`);

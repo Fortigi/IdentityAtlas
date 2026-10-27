@@ -84,6 +84,33 @@ describe('NameOnlyMatchesCard (mounted)', () => {
       .toBeInTheDocument();
   });
 
+  it('distinguishes a hold on the whole initials sequence from one on the first letter', async () => {
+    // A third finding, and the one #1455 adds: the rivals state the account's
+    // WHOLE sequence of initials (`Buskes, L.R.`), not merely its first letter.
+    // Rendered with the first-initial wording an analyst reads it as a near-miss
+    // and looks for the difference the second letter would have shown — there is
+    // none, which is exactly why the match is held.
+    mount([{ status: 'completed', nameOnlyMatches: 2, nameOnlySuggestions: [
+      ambiguous({
+        principalId: 'p-initials', displayName: 'Buskes, L.R.', matchLevel: 'surnameInitials',
+        rivals: [{ identityId: 'i3', identityName: 'Laura Rosa Buskes' }],
+      }),
+      ambiguous({
+        principalId: 'p-one', displayName: 'Jansen, J.', matchLevel: 'surnameInitial',
+        rivals: [{ identityId: 'i4', identityName: 'Johannes Jansen' }],
+      }),
+    ] }]);
+
+    const initials = (await screen.findByText('Buskes, L.R.')).closest('tr');
+    expect(within(initials).getByText(/surname and initials also shared by Laura Rosa Buskes/i))
+      .toBeInTheDocument();
+    // The paired row, so the two wordings are actually told apart rather than
+    // both matching the looser phrase.
+    const one = screen.getByText('Jansen, J.').closest('tr');
+    expect(within(one).getByText(/surname and first initial also shared by Johannes Jansen/i))
+      .toBeInTheDocument();
+  });
+
   it('keeps the old wording for a stored run that predates the matched level', async () => {
     // A run stored before the field existed cannot say which name was shared, and
     // guessing "full name" for it would be a claim the run never made.
