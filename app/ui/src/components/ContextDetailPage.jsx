@@ -92,6 +92,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
     <WithClaims contextId={contextId} profile={profile} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
         <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} addInformation={!!profile && analyst}
+          onOpenWorkbench={workbenchOpener({ analyst, attrs, openEntity })}
           {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}>
           <WhoAnswers profile={profile} attrs={attrs} onOpenDetail={openEntity} onRolesChanged={bumpPeople} />
         </ContextDetailHeader>
@@ -179,6 +180,12 @@ function linkTarget(sharedView, onOpenDetail) {
 // The standalone page carries the unit's name in the browser tab; embedded, none.
 function pageTitleOf(embedded, detail) {
   return embedded ? null : detail?.attributes?.displayName;
+}
+
+// An analyst opens an organizational unit's Authorization workbench as its own tab.
+function workbenchOpener({ analyst, attrs, openEntity }) {
+  if (!analyst || !openEntity || attrs.contextCategory !== 'OrganizationalUnit') return undefined;
+  return () => openEntity('workbench', attrs.id, `Workbench: ${attrs.displayName}`);
 }
 
 // The Risk section shows when the feature is on and the context has a score.
