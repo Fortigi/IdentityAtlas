@@ -2096,6 +2096,19 @@ paths:
                   addedByModel:
                     type: integer
                     description: Members found only by kept terms the model added that carry none of the analyst's own words.
+                  suggestedOwner:
+                    type: object
+                    nullable: true
+                    description: >
+                      The account that owns the most of the found objects, when it owns at least 40% of
+                      them — the same best guess the context page offers as Accountable after saving.
+                      Read-only here; nothing is assigned.
+                    properties:
+                      principalId: { type: string, format: uuid }
+                      displayName: { type: string }
+                      reason: { type: string }
+                      count: { type: integer }
+                      total: { type: integer }
                   terms:
                     type: array
                     items:
@@ -4413,6 +4426,10 @@ components:
         structure:
           type: string
           enum: [byTerm, flat]
+        template:
+          type: string
+          description: What the context is — its template, written as the root's contextCategory. Defaults to LogicalApplication.
+          enum: [OrganizationalUnit, LogicalApplication, Tag, Segment]
     ContextTermsReply:
       type: object
       required: [kind]
@@ -4423,6 +4440,14 @@ components:
         name:
           type: string
           description: A name for the context, proposed by the model.
+        template:
+          type: string
+          nullable: true
+          description: >
+            What the model takes the subject to be (a guess for the recipe's template); null when
+            it gave none or an unknown one. The builder applies it only while the analyst has not
+            chosen a template themselves.
+          enum: [OrganizationalUnit, LogicalApplication, Tag, Segment]
         terms:
           type: array
           items:

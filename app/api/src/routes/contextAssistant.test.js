@@ -29,8 +29,10 @@ vi.mock('../contexts/recipe/relatedWords.js', () => ({
   relatedWords: vi.fn(() => [{ word: 'vsts', inContext: 2, outside: 0, lift: 3 }]),
 }));
 vi.mock('../contexts/plugins/runner.js', () => ({ enqueueRun: vi.fn(async () => 'run-1'), getRun: vi.fn(async () => ({ status: 'succeeded', membersAdded: 4, membersRemoved: 1 })) }));
+vi.mock('../contexts/roleSuggestion.js', () => ({ suggestOwnerOf: vi.fn(async () => null) }));
 
 import { queryOne } from '../db/connection.js';
+import { suggestOwnerOf } from '../contexts/roleSuggestion.js';
 import { interpret, suggestMore } from '../contextAssistant/service.js';
 import { computeMatches, loadCandidates } from '../contexts/recipe/matches.js';
 import { relatedWords } from '../contexts/recipe/relatedWords.js';
@@ -122,6 +124,22 @@ describe('POST /context-assistant/evaluate', () => {
     expect(res.body).toMatchObject({ scopeTotal: 158, truncated: false, memberCount: 1, addedByModel: 0 });
     expect(res.body.recipe.terms[0]).toMatchObject({ text: 'inkoop', match: 'wordStart' });
     expect(loadCandidates).toHaveBeenCalled();
+    expect(res.body.suggestedOwner).toBeNull();
+  });
+
+  it('names the likely owner of exactly the objects the recipe finds', async () => {
+    const owner = { principalId: 'p1', displayName: 'Anna', reason: 'owns the only resource', count: 1, total: 1 };
+    suggestOwnerOf.mockResolvedValueOnce(owner);
+    const res = await api().post('/api/context-assistant/evaluate').send({ recipe: RECIPE });
+    expect(suggestOwnerOf).toHaveBeenLastCalledWith(['g1']);
+    expect(res.body.suggestedOwner).toEqual(owner);
+  });
+
+  it('keeps the chosen template on the recipe it hands back, and an unknown one becomes an application', async () => {
+    const kept = await api().post('/api/context-assistant/evaluate').send({ recipe: { ...RECIPE, template: 'Segment' } });
+    expect(kept.body.recipe.template).toBe('Segment');
+    const unknown = await api().post('/api/context-assistant/evaluate').send({ recipe: { ...RECIPE, template: 'Department' } });
+    expect(unknown.body.recipe.template).toBe('LogicalApplication');
   });
 
   it('hands back the errors of a recipe that cannot run, rather than failing', async () => {
