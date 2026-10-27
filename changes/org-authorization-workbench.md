@@ -7,3 +7,4 @@
 - The candidate shows as a Draft business role in the business-role band with the matrix's colours: what it covers in its colour, what it would add as the matrix's provisioning gap.
 - Several proposed roles at once, each its own Draft column; click one (in the band or the list) to edit it, remove one that is not right, and open an existing business role read-only with "Propose update".
 - Entitlements enter a proposed role only as the analyst selects them (cells, ranges, column headers); the panel shows how many members hold each.
+- Each proposed role says how it is assigned: rule-based (members follow an assignment rule built from the workbench filters, incl. "contains" text, with always-include / always-exclude and what happens to joiners and leavers) or requestable (who may request it, who approves, what happens when a holder leaves); with a "why", the rule as one sentence, and a note when the rule relies on organisational knowledge the IGA system does not hold.

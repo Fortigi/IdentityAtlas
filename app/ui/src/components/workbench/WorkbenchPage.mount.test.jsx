@@ -17,7 +17,7 @@ const person = (key, displayName, knowledge, extra = {}) => ({
 
 function payload() {
   return {
-    unit: { id: UNIT, displayName: 'Claims Handling', contextType: 'Department', targetType: 'Identity' },
+    unit: { id: UNIT, displayName: 'Claims Handling', contextType: 'Department', targetType: 'Identity', accountable: 'Marieke Jansen' },
     scope: { includeChildren: true, units: 3, truncatedPeople: false, maxPeople: 400 },
     kinds: [],
     people: [
@@ -126,10 +126,10 @@ describe('WorkbenchPage', () => {
     expect(within(grid()).getByRole('button', { name: 'Anna Vos' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Clear the filter Duty/ }));
     expect(shownCount()).toBe('2 of 3 people shown');
-    expect(within(candidate()).getByText('Members (1)')).toBeInTheDocument();
+    expect(within(candidate()).getByText('Members chosen by hand (1)')).toBeInTheDocument();
     // The Excel move: take the people the filter leaves.
     await user.click(screen.getByRole('button', { name: 'Add the 2 shown as members' }));
-    expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
+    expect(within(candidate()).getByText('Members chosen by hand (2)')).toBeInTheDocument();
   });
 
   it('sorts by a column header, again the other way, a multi-value column by its strongest value', async () => {
@@ -165,7 +165,7 @@ describe('WorkbenchPage', () => {
     await user.click(screen.getByRole('button', { name: 'Select what they hold' }));
     expect(screen.getByText('4 cells · 2 people · 3 columns')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add to candidate' }));
-    expect(within(candidate()).getByText('Members (2)')).toBeInTheDocument();
+    expect(within(candidate()).getByText('Members chosen by hand (2)')).toBeInTheDocument();
     expect(screen.getByText(/Click a cell, Shift-click for a rectangle/)).toBeInTheDocument();
     expect(within(candidate()).getByText('Entitlements (3)')).toBeInTheDocument();
     // No proposal by percentage: the panel only says how many members hold each; the analyst removes what does not belong.
@@ -194,7 +194,7 @@ describe('WorkbenchPage', () => {
     expect(screen.queryByText(/loss/i)).not.toBeInTheDocument();
     expect(within(candidate()).getByText(/Already hold all of it, not members: Cleo Kok/)).toBeInTheDocument();
     await user.click(within(candidate()).getByRole('button', { name: 'Add them' }));
-    expect(within(candidate()).getByText('Members (3)')).toBeInTheDocument();
+    expect(within(candidate()).getByText('Members chosen by hand (3)')).toBeInTheDocument();
   });
 
   it('marks a cell as other context on top of its matrix badge, and counts it in the impact', async () => {
@@ -250,7 +250,7 @@ describe('WorkbenchPage', () => {
     await user.click(within(role).getByRole('button', { name: 'Propose update' }));
     expect(within(candidate()).getByRole('heading', { name: 'Proposed update to a role' })).toBeInTheDocument();
     expect(within(candidate()).getByDisplayValue('Claims handler')).toBeInTheDocument();
-    expect(within(candidate()).getByText('Members (1)')).toBeInTheDocument();
+    expect(within(candidate()).getByText('Members chosen by hand (1)')).toBeInTheDocument();
     await user.click(within(candidate()).getByRole('button', { name: 'Remove Motor handler' }));
     expect(within(candidate()).getByText('Leaves out of the role: Motor handler')).toBeInTheDocument();
     expect(within(candidate()).getByText(/impact unknown/)).toBeInTheDocument();
@@ -326,6 +326,64 @@ describe('WorkbenchPage', () => {
     expect(header()).toBe(1);
     await user.click(screen.getByLabelText('Include sub-units'));
     await waitFor(() => expect(calls.at(-1).url).toBe(`/api/contexts/${UNIT}/workbench?includeChildren=false`));
+  });
+
+  it('asks a new role its kind; a rule-based role follows the filters as its assignment rule, with exceptions and joiner/leaver choices', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(within(candidate()).getByRole('button', { name: 'New candidate role' }));
+    const picker = within(candidate()).getByRole('group', { name: 'How is this role assigned?' });
+    await user.click(within(picker).getByRole('button', { name: /^Rule-based — assigned automatically/ }));
+    expect(within(candidate()).getByText('Members chosen by hand — no rule yet.')).toBeInTheDocument();
+    // Job title contains "handler" (nobody has it here but the fixture's own "Handler") — via the filter's "Or contains".
+    await user.click(screen.getByRole('button', { name: 'Filter Job title' }));
+    const menu = screen.getByRole('dialog', { name: 'Filter Job title' });
+    await user.click(within(menu).getByRole('button', { name: 'None' }));
+    await user.type(within(menu).getByLabelText('Job title contains'), 'handl');
+    await user.click(within(menu).getByRole('button', { name: 'OK' }));
+    await user.click(screen.getByRole('button', { name: "Use these filters as the role's rule" }));
+    expect(within(candidate()).getByTestId('rule-sentence')).toHaveTextContent('Everyone in Claims Handling and its sub-units whose job title contains “handl” — added automatically, removed when they no longer match.');
+    expect(within(candidate()).getByText('Members by rule (3)')).toBeInTheDocument();
+    expect(within(candidate()).getByText(/the rule would also apply to people who join the unit later/)).toBeInTheDocument();
+    // An exception: always exclude Cleo; and the policies.
+    await user.click(within(candidate()).getByRole('button', { name: 'Remove Cleo Kok' }));
+    expect(within(candidate()).getByText('Members by rule (2)')).toBeInTheDocument();
+    expect(within(candidate()).getByText(/Always exclude:/)).toHaveTextContent('Cleo Kok');
+    await user.click(within(candidate()).getByRole('button', { name: 'Stop always excluding Cleo Kok' }));
+    expect(within(candidate()).getByText('Members by rule (3)')).toBeInTheDocument();
+    await user.click(within(candidate()).getByRole('radio', { name: 'Ask for approval' }));
+    await user.click(within(candidate()).getByRole('radio', { name: 'Keep' }));
+    expect(within(candidate()).getByTestId('rule-sentence')).toHaveTextContent(/— added after approval, kept when they no longer match\.$/);
+    expect(within(grid()).getByRole('columnheader', { name: 'Draft: Candidate 1 · rule-based' })).toBeInTheDocument();
+    // A rule on what people do is noted as knowledge the IGA system does not hold.
+    expect(within(candidate()).queryByRole('note')).toBeNull();
+    await filterTo(user, 'Activity', ['Handle claims']);
+    await user.click(screen.getByRole('button', { name: "Use these filters as the role's rule" }));
+    expect(within(candidate()).getByRole('note')).toHaveTextContent(/organisational knowledge .* can.t be enforced automatically there/);
+    await user.type(within(candidate()).getByLabelText('Why this role'), 'Every handler needs it');
+    // Drop the rule: who it matched now stays, chosen by hand.
+    await user.click(within(candidate()).getByRole('button', { name: /Drop the rule/ }));
+    expect(within(candidate()).getByText('Members chosen by hand (2)')).toBeInTheDocument();
+  });
+
+  it('a requestable role: who may request it, who approves, what happens when they leave; the hand-chosen people are the expected holders', async () => {
+    const { user } = mount();
+    await opened();
+    await user.click(within(grid()).getByRole('button', { name: 'Bram Smit' }));
+    await user.click(screen.getByRole('button', { name: 'Members only' }));
+    await user.click(within(candidate()).getByRole('button', { name: /^Requestable — people request it/ }));
+    expect(within(candidate()).getByText('Expected initial holders (1)')).toBeInTheDocument();
+    expect(within(candidate()).getByTestId('rule-sentence')).toHaveTextContent('Requestable by anyone, approved by an approver not chosen yet; when they leave the unit: removed.');
+    await user.click(within(candidate()).getByRole('button', { name: 'Use the current filters for who may request it' }));
+    await user.selectOptions(within(candidate()).getByLabelText('Approved by'), 'accountable');
+    await user.click(within(candidate()).getByRole('radio', { name: 'Ask for review' }));
+    expect(within(candidate()).getByTestId('rule-sentence')).toHaveTextContent("Requestable by everyone in Claims Handling and its sub-units, approved by the unit's Accountable (Marieke Jansen); when they leave the unit: reviewed.");
+    // Requestable: the rule says who may ask, not who holds it.
+    expect(within(candidate()).getByText('Expected initial holders (1)')).toBeInTheDocument();
+    expect(within(grid()).getByRole('columnheader', { name: 'Draft: Candidate 1 · requestable' })).toBeInTheDocument();
+    // The kind can change later.
+    await user.click(within(candidate()).getByRole('button', { name: 'Change' }));
+    expect(within(candidate()).getByRole('group', { name: 'How is this role assigned?' })).toBeInTheDocument();
   });
 
   it('says how many members no longer resolve, instead of looking empty', async () => {

@@ -62,7 +62,7 @@ function ColumnsChooser({ shown, onChange }) {
 
 // "8 of 26 people shown", the filters in words (each removable), and the Excel move:
 // take the people the filters leave.
-export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown }) {
+export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown, onUseAsRule }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs" role="region" aria-label="Filters">
       <span className="font-medium text-gray-900 dark:text-gray-100">{shown} of {total} people shown</span>
@@ -75,6 +75,7 @@ export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSele
       {summary.length > 0 && <button type="button" onClick={onClearAll} className="text-blue-700 hover:underline dark:text-blue-300">Clear all filters</button>}
       <span className="ml-auto flex gap-2">
         <button type="button" onClick={onSelectShown} disabled={shown === 0} className={`${BTN} disabled:opacity-50`}>Select what they hold</button>
+        {onUseAsRule && <button type="button" onClick={onUseAsRule} title="The role's members follow these filters (and the sub-units choice), now and as people join or leave" className={BTN}>Use these filters as the role's rule</button>}
         <button type="button" onClick={onAddShown} disabled={shown === 0} className="rounded bg-emerald-600 px-2 py-0.5 text-white hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500">Add the {shown} shown as members</button>
       </span>
     </div>

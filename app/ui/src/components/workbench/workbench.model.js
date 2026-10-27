@@ -179,6 +179,8 @@ export function frequencies(members, columns, cellIndex) {
 export function candidateFromRole(role, cellsByResource) {
   return {
     baseBusinessRoleId: role.id, name: role.displayName, description: '',
+    // How the source assigns it today, when its crawled policies say (else the analyst chooses).
+    kind: role.policyKind ?? null,
     members: new Set((cellsByResource.get(role.id) || []).map(c => c.person)),
     entitlements: new Set(role.contains || []),
   };

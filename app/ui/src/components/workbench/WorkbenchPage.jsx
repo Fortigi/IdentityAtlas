@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { bandRoles } from './workbench.roles';
+import { effectiveMembers, ruleFromView } from './workbench.rule';
+import { EMPTY_CANDIDATE } from './workbench.model';
 import { useWorkbenchData, useWorkbenchDraft, activeDraft } from './useWorkbench';
 import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
 import { knowledgeGaps, knownNames } from './workbench.labels';
@@ -46,7 +48,10 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
   const shownView = useMemo(() => (data && view.minHolders === null ? { ...view, minHolders: startsCrowded(data) ? 2 : 1 } : view), [data, view]);
   const derived = useMemo(() => derive(data, shownView), [data, shownView]);
 
-  const roles = useMemo(() => (derived ? bandRoles(data.columns, derived.cellsByResource, draft.drafts, draft.activeId) : []), [derived, data, draft.drafts, draft.activeId]);
+  // A proposed role's members: by its rule (plus exceptions), or chosen by hand. handMembers keeps the hand-chosen set.
+  const drafts = useMemo(() => (data ? draft.drafts.map(d => ({ ...d, handMembers: d.members, members: effectiveMembers(d, data.people) })) : []), [data, draft.drafts]);
+  const candidate = drafts.find(d => d.id === draft.activeId) ?? EMPTY_CANDIDATE;
+  const roles = useMemo(() => (derived ? bandRoles(data.columns, derived.cellsByResource, drafts, draft.activeId) : []), [derived, data, drafts, draft.activeId]);
 
   if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
   const color = (idx) => getAccessPackageColor(idx, isDark);
@@ -75,17 +80,19 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
       <FilterStrip shown={derived.shownPeople.length} total={data.people.length} summary={filterSummary(view.filters, data.people)}
         onClear={(key) => setFilter(key, null)} onClearAll={() => setView(v => ({ ...v, filters: {} }))}
         onSelectShown={() => dispatch({ type: 'select', keys: heldKeys(derived.shownPeople, derived), add: false })}
-        onAddShown={() => dispatch({ type: 'addMembers', people: derived.shownPeople.map(p => p.key) })} />
+        onAddShown={() => dispatch({ type: 'addMembers', people: derived.shownPeople.map(p => p.key) })}
+        onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })} />
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
           <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
-            cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch} personProps={personProps}
+            cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
             people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
           <Legend />
         </div>
         <div className="w-full shrink-0 xl:w-96">
           <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color}
+            candidate={candidate} unitName={data.unit.displayName} onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}
             peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} />
         </div>
       </div>

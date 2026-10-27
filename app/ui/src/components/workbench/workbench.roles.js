@@ -19,8 +19,13 @@
 import { describeCell } from '@ui/components/matrix/MatrixCell.helpers';
 import { cellKey, MARKS } from './workbench.model';
 
-/** A proposed role's band label: "Draft: <name>", or "Draft" while it has none. Pure. */
-export const draftName = (candidate) => (candidate.name.trim() ? `Draft: ${candidate.name.trim()}` : 'Draft');
+const KIND_SUFFIX = { rule: ' · rule-based', requestable: ' · requestable' };
+
+/** A proposed role's band label: "Draft: <name>" ("Draft" while it has none), then its kind once chosen. Pure. */
+export function draftName(candidate) {
+  const name = candidate.name.trim() ? `Draft: ${candidate.name.trim()}` : 'Draft';
+  return `${name}${KIND_SUFFIX[candidate.kind] ?? ''}`;
+}
 
 /** Does a proposed role show in the band yet? Once it has a member or an entitlement. Pure. */
 export const draftShown = (candidate) => candidate.members.size > 0 || candidate.entitlements.size > 0;

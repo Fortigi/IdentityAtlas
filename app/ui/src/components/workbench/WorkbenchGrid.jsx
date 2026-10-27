@@ -2,7 +2,6 @@ import MatrixCell from '@ui/components/matrix/MatrixCell';
 import MatrixApLabelCell from '@ui/components/matrix/MatrixApLabelCell';
 import { cellKey, rangeKeys } from './workbench.model';
 import { cellProps, roleCellProps, cellLabel } from './workbench.roles';
-import { activeDraft } from './useWorkbench';
 import { MARK_LEGEND } from './workbench.cells';
 import { PeopleHeader, PersonCells } from './PeopleCells';
 
@@ -30,12 +29,11 @@ function MarkSign({ mark }) {
   );
 }
 
-export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, dispatch, personProps, people }) {
+export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, candidate, dispatch, personProps, people }) {
   const { peopleColumns, offsets, allPeople, filters, sort, onSort, onFilter, grouped } = people;
   const rowKeys = groups.flatMap(g => g.rows.map(r => r.person.key));
   const colIds = columns.map(c => c.id);
   const { marks, selection } = draft;
-  const candidate = activeDraft(draft);
 
   const pick = (keys, e, anchor) => dispatch({ type: 'select', keys, add: e.ctrlKey || e.metaKey, anchor });
   const onCell = (row, col, e) => {

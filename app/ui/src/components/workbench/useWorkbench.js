@@ -39,7 +39,9 @@ export function useWorkbenchData(contextId, includeChildren) {
 
 // The session's draft: the selection, the analyst's marks, and the proposed roles.
 // `drafts` is a plain list — { id, name, description, baseBusinessRoleId, members,
-// entitlements } (members: person keys, entitlements: resource ids, both Sets) —
+// entitlements, rule, excluded, joinerPolicy, leaverPolicy, rationale } (members:
+// person keys chosen by hand, or "always include" when there is a rule; excluded:
+// "always exclude"; entitlements: resource ids — all Sets; rule: workbench.rule.js) —
 // one per proposed role; `activeId` is the one the panel edits and the impact
 // reads; `viewRoleId` an existing business role the panel shows read-only.
 const INITIAL_DRAFT = { selection: new Set(), anchor: null, marks: new Map(), drafts: [], activeId: null, viewRoleId: null, nextId: 1 };
@@ -60,7 +62,10 @@ export function activeDraft(state) {
 // A new proposed role, made the active one.
 function createDraft(s, init = {}) {
   const id = `draft:${s.nextId}`;
-  const d = { id, name: `Candidate ${s.nextId}`, description: '', baseBusinessRoleId: null, members: new Set(), entitlements: new Set(), ...init };
+  const d = {
+    id, name: `Candidate ${s.nextId}`, description: '', baseBusinessRoleId: null, members: new Set(), entitlements: new Set(),
+    kind: null, rule: null, excluded: new Set(), joinerPolicy: 'auto', leaverPolicy: 'remove', approver: null, rationale: '', ...init,
+  };
   return { ...s, drafts: [...s.drafts, { ...d, id }], activeId: id, viewRoleId: null, nextId: s.nextId + 1 };
 }
 
@@ -83,8 +88,18 @@ const ACTIONS = {
   mark: (s, a) => ({ ...s, marks: setMarks(s.marks, s.selection, a.mark) }),
   // Added cells leave the selection, so the impact shows without outlines over it.
   addSelection: (s, a) => ({ ...withActive(s, d => addSelection(d, s.selection, a.cellIndex)), selection: new Set(), anchor: null }),
-  addMembers: (s, a) => withActive(s, d => ({ ...d, members: new Set([...d.members, ...a.people]) })),
-  removeMember: (s, a) => withActive(s, d => ({ ...d, members: without(d.members, a.person) })),
+  // With a rule, an added person is "always include" and a removed one "always exclude".
+  addMembers: (s, a) => withActive(s, d => ({ ...d, members: new Set([...d.members, ...a.people]), excluded: new Set([...(d.excluded || [])].filter(k => !a.people.includes(k))) })),
+  removeMember: (s, a) => withActive(s, d => (d.rule
+    ? { ...d, members: without(d.members, a.person), excluded: new Set([...(d.excluded || []), a.person]) }
+    : { ...d, members: without(d.members, a.person) })),
+  uninclude: (s, a) => withActive(s, d => ({ ...d, members: without(d.members, a.person) })),
+  unexclude: (s, a) => withActive(s, d => ({ ...d, excluded: without(d.excluded || new Set(), a.person) })),
+  setRule: (s, a) => withActive(s, d => ({ ...d, rule: a.rule })),
+  // The kind is chosen for every new role (rule-based or requestable), and can change later.
+  setKind: (s, a) => withActive(s, d => ({ ...d, kind: a.kind })),
+  // Dropping the rule keeps who it matched now as members chosen by hand.
+  clearRule: (s, a) => withActive(s, d => ({ ...d, rule: null, members: new Set(a.members), excluded: new Set() })),
   removeEntitlement: (s, a) => withActive(s, d => ({ ...d, entitlements: without(d.entitlements, a.resourceId) })),
   fromRole: (s, a) => createDraft(s, candidateFromRole(a.role, a.cellsByResource)),
   newCandidate: (s) => createDraft(s),

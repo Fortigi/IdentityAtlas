@@ -168,7 +168,7 @@ export function buildColumns(resources, holders, roleParts = [], max = 300) {
     .map(r => ({
       id: r.id, displayName: r.displayName || r.id, resourceType: r.resourceType ?? null,
       systemName: r.systemName ?? null, isRole: !!r.governanceResource || r.resourceType === 'BusinessRole',
-      holders: holders.get(r.id), contains: contains.get(r.id) ?? [],
+      holders: holders.get(r.id), contains: contains.get(r.id) ?? [], policyKind: r.policyKind ?? null,
     }))
     .sort((a, b) => b.holders - a.holders || Number(b.isRole) - Number(a.isRole) || a.displayName.localeCompare(b.displayName));
   return { columns: all.slice(0, max), truncated: Math.max(0, all.length - max) };
