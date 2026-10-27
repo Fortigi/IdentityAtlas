@@ -12,6 +12,8 @@ import ReviewDrawer from './ReviewDrawer';
 import ContextPeople from '@ui/components/contexts/ContextPeople';
 import { PROFILES } from '@ui/components/contexts/profiles/profiles';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+// Organisation knowledge is behind a flag (off by default); these tests are about it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
 const APP = { id: 'c-app', displayName: 'Planner', contextCategory: 'LogicalApplication', targetType: 'Resource', directMemberCount: 3, description: 'Schedules the nursing shifts' };
 const SRC = { intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', fileName: 'gesprek.vtt', proposedBy: 'model' };

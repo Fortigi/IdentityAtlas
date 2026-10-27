@@ -98,6 +98,8 @@ async function rows(contexts, extra = {}) {
 const byName = body => Object.fromEntries(body.rows.map(r => [r.displayName, r]));
 
 beforeAll(async () => {
+  // The organisational-claim columns are organisation knowledge (featureFlags.js orgKnowledge, off by default).
+  process.env.FEATURE_ORG_KNOWLEDGE = 'true';
   ({ agent, pool } = await bootContractApp());
   await seed();
 });
@@ -114,6 +116,7 @@ afterAll(async () => {
   await q(`DELETE FROM "Systems" WHERE id = $1`, [systemId]);
   await pool.end();
   delete process.env.USE_SQL;
+  delete process.env.FEATURE_ORG_KNOWLEDGE;
 });
 
 describe('GET /reports/unit-members on a unit of accounts', () => {

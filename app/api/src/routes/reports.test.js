@@ -117,10 +117,29 @@ describe('what a run is told about its reader', () => {
     } finally {
       unregister();
     }
+    // And whether organisation knowledge is on: off by default, so the unit report drops its claim columns.
     expect(seen).toEqual([
-      { claimStatuses: ['proposed', 'confirmed', 'edited'] },
-      { claimStatuses: ['proposed', 'confirmed', 'edited'] },
+      { claimStatuses: ['proposed', 'confirmed', 'edited'], orgKnowledge: false },
+      { claimStatuses: ['proposed', 'confirmed', 'edited'], orgKnowledge: false },
     ]);
+  });
+
+  it('tells the run when organisation knowledge is on', async () => {
+    const seen = [];
+    const unregister = registerReport({
+      name: 'knowledge-aware-report', displayName: 'Knowledge Aware', description: 'Records its context.', form: 'list',
+      parametersSchema: { type: 'object', required: [], properties: {} },
+      columns: [{ key: 'a', label: 'A' }],
+      run: async (params, ctx) => { seen.push(ctx.orgKnowledge); return { rows: [] }; },
+    });
+    process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    try {
+      await request(app).get('/api/reports/knowledge-aware-report/rows').expect(200);
+    } finally {
+      delete process.env.FEATURE_ORG_KNOWLEDGE;
+      unregister();
+    }
+    expect(seen).toEqual([true]);
   });
 });
 

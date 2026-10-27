@@ -10,6 +10,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useContextRoots, useContextForest } from '@ui/hooks/useContextTrees';
 import usePersistedState from '@ui/hooks/usePersistedState';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import ContextDetailPage from './ContextDetailPage';
 import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';
@@ -75,6 +76,7 @@ function ContextForestTree({ roots, forestNodes, ...props }) {
 export default function ContextsPage({ onOpenDetail, onNavigate }) {
   const { authFetch } = useAuth();
   const canWrite = useHasPermission('data.write.contexts');
+  const knowledge = useOrgKnowledge();
   const { roots, loading: rootsLoading, error: rootsError, reload: reloadRoots } = useContextRoots();
   const [newModalOpen, setNewModalOpen] = useState(false);
   // The uploaded list a Re-import… opened the wizard on; null for a new tree.
@@ -127,15 +129,17 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
   // write; a reader (or an imported tree) gets none, so no +, rename, drag or ⋯.
   // An imported tree gets a ⋯ with Adjust tree (and Re-import… for an uploaded list).
   // Adjust tree opens the tree's own Adjust tree tab (the API says, once the
-  // menu is open, whether this tree can be adjusted and why not).
-  const openAdjust = (treeKey, title) => onOpenDetail?.('adjust-tree', treeKey, title);
+  // menu is open, whether this tree can be adjusted and why not). It is part of
+  // organisation knowledge (useOrgKnowledge): while that is off there is no
+  // Adjust tree, and an imported tree other than an uploaded list has no ⋯.
+  const openAdjust = knowledge ? (treeKey, title) => onOpenDetail?.('adjust-tree', treeKey, title) : undefined;
   function editProps(variant) {
     if (variant === 'synced' && canWrite) {
       return {
-        renderRootActions: (root) => (
-          <TreeRootMenu root={root} onAdjust={openAdjust}
+        renderRootActions: (root) => (openAdjust || isUploadedList(root)
+          ? <TreeRootMenu root={root} onAdjust={openAdjust}
             onReimport={isUploadedList(root) ? (r) => openWizard(r.scopeSystemId) : undefined} />
-        ),
+          : null),
       };
     }
     if (!isEditableTree(variant, canWrite)) return {};

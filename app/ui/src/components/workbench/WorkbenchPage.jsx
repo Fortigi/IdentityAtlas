@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useIsDark } from '@ui/contexts/ThemeContext';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { bandRoles } from './workbench.roles';
 import { effectiveMembers, ruleFromView } from './workbench.rule';
@@ -31,7 +32,20 @@ function visibleColumns(columns, view) {
   return columns.filter(c => !c.isRole && c.holders >= view.minHolders && (!q || c.displayName.toLowerCase().includes(q) || (c.systemName || '').toLowerCase().includes(q)));
 }
 
-export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
+// The workbench is part of organisation knowledge (Admin → Experimental, flag
+// orgKnowledge): while that is off a link to it says so and asks nothing.
+export default function WorkbenchPage(props) {
+  if (!useOrgKnowledge()) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white px-6 py-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+        The Authorization workbench is part of <strong>Organisation knowledge</strong>, which is off on this installation (Admin → Experimental).
+      </div>
+    );
+  }
+  return <Workbench {...props} />;
+}
+
+function Workbench({ contextId, onCacheData, onClose }) {
   const [view, setView] = useState(DEFAULT_VIEW);
   const isDark = useIsDark();
   const { data, loading, error, reload, send } = useWorkbenchData(contextId, view.includeChildren);

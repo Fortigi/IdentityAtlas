@@ -16,6 +16,7 @@ import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
 import { useContextDetail, contextPageView, listsMembers } from './contexts/useContextDetail';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import ClaimsProvider from './contexts/interviews/ClaimsProvider';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const features = useFeatures();
   const dialog = useDialog();
   const analyst = useIsAnalyst();
+  const knowledge = useOrgKnowledge();
   const sharedView = useIsSharedView();
   // What the page may link to: nothing but the shell's own handler when read-only
   // (a context owner may open no member, person or sub-unit page).
@@ -92,7 +94,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
     <WithClaims contextId={contextId} profile={profile} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
         <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} addInformation={!!profile && analyst}
-          onOpenWorkbench={workbenchOpener({ analyst, attrs, openEntity })}
+          onOpenWorkbench={workbenchOpener({ analyst, knowledge, attrs, openEntity })}
           {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}>
           <WhoAnswers profile={profile} attrs={attrs} onOpenDetail={openEntity} onRolesChanged={bumpPeople} />
         </ContextDetailHeader>
@@ -182,9 +184,10 @@ function pageTitleOf(embedded, detail) {
   return embedded ? null : detail?.attributes?.displayName;
 }
 
-// An analyst opens an organizational unit's Authorization workbench as its own tab.
-function workbenchOpener({ analyst, attrs, openEntity }) {
-  if (!analyst || !openEntity || attrs.contextCategory !== 'OrganizationalUnit') return undefined;
+// An analyst opens an organizational unit's Authorization workbench as its own
+// tab — while organisation knowledge is on (useOrgKnowledge).
+function workbenchOpener({ analyst, knowledge, attrs, openEntity }) {
+  if (!analyst || !knowledge || !openEntity || attrs.contextCategory !== 'OrganizationalUnit') return undefined;
   return () => openEntity('workbench', attrs.id, `Workbench: ${attrs.displayName}`);
 }
 

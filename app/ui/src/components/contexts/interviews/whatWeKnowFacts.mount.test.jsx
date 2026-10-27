@@ -4,6 +4,9 @@
 // (the variants switch), and the remaining attributes (More details). Invented
 // names throughout.
 import { describe, it, expect, vi } from 'vitest';
+// Organisation knowledge (Admin → Experimental) is off by default; on here unless a test switches it off.
+const knowledge = vi.hoisted(() => ({ on: true }));
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => knowledge.on }));
 import { createElement as h } from 'react';
 import ClaimsProvider from './ClaimsProvider';
 import WhatWeKnow from './WhatWeKnow';

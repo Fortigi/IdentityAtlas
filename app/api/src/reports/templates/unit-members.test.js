@@ -283,6 +283,21 @@ describe('unit report — organisational claims', () => {
     expect(noticeText(result)).toMatch(/3 more person\(s\) follow the members/);
   });
 
+  it('while organisation knowledge is off: the listed members only, no claim read, no Org claim column or note', async () => {
+    stageAll();
+    const result = await report.run({ contexts: UNIT }, { ...writer, orgKnowledge: false });
+    expect(result.rows.map(r => [r.displayName, r.status, r.entitlements])).toEqual([
+      ['Account a', 'current', 1], ['Account b', 'current', 2], ['Account c', 'current', 3],
+      ['Account d', 'marked former (decision)', 4],
+    ]);
+    expect(result.rows[1]).not.toHaveProperty('claimStatus');
+    expect(result.columns.map(c => c.key)).not.toEqual(expect.arrayContaining(['claimStatus']));
+    expect(result.columns.some(c => /Org claim/.test(c.label))).toBe(false);
+    expect(query.mock.calls.some(([sql]) => sql.includes(CLAIMS_SQL) || sql.includes(HOLDERS_SQL))).toBe(false);
+    expect(entry(result, 'Org claim columns')).toBeUndefined();
+    expect(noticeText(result)).not.toMatch(/more person\(s\) follow the members/);
+  });
+
   it('reads the claims of every unit in one statement, and the holders of the picked unit', async () => {
     stageAll();
     await report.run({ contexts: UNIT }, writer);

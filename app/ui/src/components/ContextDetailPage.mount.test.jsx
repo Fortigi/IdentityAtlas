@@ -164,13 +164,19 @@ describe('ContextDetailPage — Authorization workbench', () => {
   it('opens an organizational unit’s workbench as its own tab', async () => {
     const user = userEvent.setup();
     const onOpenDetail = vi.fn();
-    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: unit('OrganizationalUnit') } });
+    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: unit('OrganizationalUnit') }, features: { orgKnowledge: true } });
     await user.click(await screen.findByRole('button', { name: 'Authorization workbench' }));
     expect(onOpenDetail).toHaveBeenCalledWith('workbench', 'ctx-1', 'Workbench: Engineering Cluster');
   });
 
   it('offers no workbench on an application', async () => {
-    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: unit('LogicalApplication') } });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: unit('LogicalApplication') }, features: { orgKnowledge: true } });
+    expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Authorization workbench' })).toBeNull();
+  });
+
+  it('offers no workbench while organisation knowledge is off', async () => {
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: unit('OrganizationalUnit') } });
     expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Authorization workbench' })).toBeNull();
   });
