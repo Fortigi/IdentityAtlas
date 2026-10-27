@@ -225,9 +225,8 @@ foreach ($g in $groups) {
 Set-ExperimentalCrawlers -Enabled $false
 $gateConfigId = $null
 try {
-    $gateCfg = Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' `
-        -Body @{ crawlerType = 'scim'; displayName = "scim-gate-$runTag"; config = @{ baseUrl = 'http://localhost:1'; authMethod = 'ApiToken'; apiToken = 'x' } }
-    $gateConfigId = $gateCfg.id
+    # The same valid config every other check uses — this asserts the gate, not validation.
+    $gateConfigId = New-ScimConfig -Name "scim-gate-$runTag" -Port 1
     Write-Result 'Scim/Gate — accepted while experimental crawlers are off' ([bool]$gateConfigId) '(no config id returned)'
 } catch {
     $status = $_.Exception.Response.StatusCode.value__
