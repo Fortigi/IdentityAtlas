@@ -88,7 +88,8 @@ describe('GET /user/:id/timeline — soft deletes', () => {
     // The edit to a held role is that role's business, not the user's.
     expect(summaries.some((s) => s.includes('Head of Legal') && !s.startsWith('Added to'))).toBe(false);
     expect(res.body.removedCount).toBe(2);
-    expect(res.body.addedCount).toBe(3);
+    // Three assignments added, plus the user's own "Created" row.
+    expect(res.body.addedCount).toBe(4);
   });
 
   it('the deleted role\'s own timeline reads "Deleted in source", not an attribute diff', async () => {
