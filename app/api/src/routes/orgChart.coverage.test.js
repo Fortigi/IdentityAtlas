@@ -68,6 +68,30 @@ describe('GET /org-chart/user/:id/reports', () => {
   });
 });
 
+// Soft delete (migration 040): a removed manager / report keeps its Principals
+// row. The mock is SQL-blind, so these pin what the handler asks for; the rows
+// themselves are checked in contract-tests/identityAndPeopleHistory.contract.test.js.
+describe('org-chart — soft-deleted manager and reports are flagged, not hidden', () => {
+  it('the manager carries deleted + deletedAt', async () => {
+    queryOne.mockResolvedValueOnce({ id: 'm1', deleted: true, deletedAt: '2026-09-01T00:00:00Z' });
+    const res = await request(app).get(`/api/org-chart/user/${VALID}/manager`);
+    expect(res.body.manager).toMatchObject({ deleted: true, deletedAt: '2026-09-01T00:00:00Z' });
+    const [sql] = queryOne.mock.calls[0];
+    expect(sql).toContain('(m."deletedAt" IS NOT NULL) AS "deleted", m."deletedAt"');
+    expect(sql).not.toMatch(/m\."deletedAt" IS NULL/); // flagged, not filtered out
+  });
+
+  it('reports carry deleted + deletedAt, current ones first', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 'a', deleted: false }, { id: 'b', deleted: true }] });
+    const res = await request(app).get(`/api/org-chart/user/${VALID}/reports`);
+    expect(res.body.reports.map((r) => r.deleted)).toEqual([false, true]);
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain('(r."deletedAt" IS NOT NULL) AS "deleted", r."deletedAt"');
+    expect(sql).toContain('ORDER BY "deleted", r."displayName"');
+    expect(params).toEqual([VALID, 200]);
+  });
+});
+
 describe('GET /org-chart (availability)', () => {
   it('available true when manager-hierarchy contexts exist', async () => {
     queryOne.mockResolvedValueOnce({ n: 4 });

@@ -3,7 +3,8 @@
 // under the complexity threshold.
 // Each fetch keeps its own try/catch (swallow a missing optional table, rethrow
 // anything else to the handler's 500). Covered through resources.test.js +
-// resources.contract.test.js. SQL is moved verbatim — no behaviour change.
+// resources.contract.test.js. The counts include live rows only (soft-deleted
+// = history) — see resourceAndRoleDetailHistory.contract.test.js.
 
 import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
@@ -57,17 +58,21 @@ export async function fetchResourceTags(pool, res, resourceId) {
 
 // 3. Member count, broken down by the universal assignmentType (Direct /
 //    Indirect / Eligible). Falls back to the permission view (no type breakdown)
-//    when ResourceAssignments is absent.
+//    when ResourceAssignments is absent. Current holders only: a soft-deleted
+//    assignment or principal is history, not someone who holds it now.
 export async function fetchMemberBreakdown(pool, res, resourceId) {
   let memberCount = 0;
   const assignmentByType = { Direct: 0, Indirect: 0, Eligible: 0 };
   try {
     const r = await timedQuery(pool, 'resource-member-breakdown', res, `
-        SELECT "assignmentType",
-               COUNT(DISTINCT "principalId")::int AS cnt
-        FROM "ResourceAssignments"
-        WHERE "resourceId" = $1
-        GROUP BY "assignmentType"
+        SELECT ra."assignmentType",
+               COUNT(DISTINCT ra."principalId")::int AS cnt
+        FROM "ResourceAssignments" ra
+        WHERE ra."resourceId" = $1
+          AND ra."deletedAt" IS NULL
+          AND NOT EXISTS (SELECT 1 FROM "Principals" p
+                           WHERE p.id = ra."principalId" AND p."deletedAt" IS NOT NULL)
+        GROUP BY ra."assignmentType"
       `, [resourceId]);
     for (const row of r.rows) {
       if (row.assignmentType in assignmentByType) assignmentByType[row.assignmentType] = row.cnt;
@@ -86,7 +91,8 @@ export async function fetchMemberBreakdown(pool, res, resourceId) {
   return { memberCount, assignmentByType };
 }
 
-// 4. Access-package count (business roles that contain this resource).
+// 4. Access-package count (live business roles that contain this resource; a
+//    role soft-deleted in the source is history, listed but not counted).
 export async function fetchAccessPackageCount(pool, res, resourceId) {
   try {
     const r = await timedQuery(pool, 'resource-ap-count', res, `
@@ -94,6 +100,7 @@ export async function fetchAccessPackageCount(pool, res, resourceId) {
         FROM "ResourceRelationships" rrs
         INNER JOIN "Resources" br ON rrs."parentResourceId" = br.id AND br."resourceType" = 'BusinessRole'
         WHERE rrs."childResourceId" = $1
+          AND br."deletedAt" IS NULL
           AND rrs."relationshipType" = 'Contains'
           AND rrs."parentResourceId" IS NOT NULL
       `, [resourceId]);
@@ -101,13 +108,17 @@ export async function fetchAccessPackageCount(pool, res, resourceId) {
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }
 }
 
-// 4b. Parent resource count (all parents via any relationship type).
+// 4b. Parent resource count (live parents via any relationship type). Joins
+//     Resources like the /parent-resources list does, so the bubble and the list
+//     agree; a soft-deleted parent is history, listed but not counted.
 export async function fetchParentResourceCount(pool, res, resourceId) {
   try {
     const r = await timedQuery(pool, 'resource-parent-count', res, `
         SELECT COUNT(DISTINCT rrs."parentResourceId") AS cnt
         FROM "ResourceRelationships" rrs
+        INNER JOIN "Resources" pr ON rrs."parentResourceId" = pr.id
         WHERE rrs."childResourceId" = $1
+          AND pr."deletedAt" IS NULL
       `, [resourceId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }

@@ -569,6 +569,72 @@ describe('principal→principal relationship nodes (owners / sponsors / linked r
   });
 });
 
+// Every relationship list keeps history apart from current access: whatever the
+// endpoint marks as deleted must reach the item as `deleted` + `deletedAt`, and
+// nothing else may. Each case returns one live row and one historical row.
+describe('fetchCategoryItems — history flag on every relationship list', () => {
+  const AT = '2026-09-08T14:32:00Z';
+  const flagged = (out) => out.map((i) => [i.entityId, !!i.deleted, i.deletedAt ?? null]);
+
+  it.each([
+    ['resource', 'members-direct', '/assignments', [
+      { principalId: 'p1', principalDisplayName: 'A', assignmentType: 'Direct', deleted: false, deletedAt: null },
+      { principalId: 'p2', principalDisplayName: 'B', assignmentType: 'Direct', deleted: true, deletedAt: AT },
+    ]],
+    ['resource', 'business-roles', '/business-roles', [
+      { businessRoleId: 'p1', businessRoleName: 'A', deleted: false },
+      { businessRoleId: 'p2', businessRoleName: 'A', deleted: true, deletedAt: AT },
+    ]],
+    ['resource', 'parents', '/parent-resources', [
+      { parentResourceId: 'p1', parentDisplayName: 'A', parentResourceType: 'Group' },
+      { parentResourceId: 'p2', parentDisplayName: 'B', parentResourceType: 'Group', deleted: true, deletedAt: AT },
+    ]],
+    ['access-package', 'assignments', '/assignments', [
+      { principalId: 'p1', targetDisplayName: 'A' },
+      { principalId: 'p2', targetDisplayName: 'B', deleted: true, deletedAt: AT },
+    ]],
+    ['access-package', 'resources', '/resource-roles', [
+      { childResourceId: 'p1', resourceDisplayName: 'A' },
+      { childResourceId: 'p2', resourceDisplayName: 'B', deleted: true, deletedAt: AT },
+    ]],
+    ['identity', 'assignments-direct', '/assignments', [
+      { resourceId: 'p1', resourceDisplayName: 'A', resourceType: 'Group', principalId: 'acc' },
+      { resourceId: 'p2', resourceDisplayName: 'B', resourceType: 'Group', principalId: 'acc', deleted: true, deletedAt: AT },
+    ]],
+    ['user', 'owners', '/principal-relationships', [
+      { principalId: 'p1', displayName: 'A' },
+      { principalId: 'p2', displayName: 'B', deleted: true, deletedAt: AT },
+    ]],
+  ])('%s → %s carries the flag from %s', async (kind, category, path, rows) => {
+    const out = await fetchCategoryItems(kind, 'x', category, stub({ [path]: rows }), {});
+    expect(flagged(out)).toEqual([['p1', false, null], ['p2', true, AT]]);
+  });
+
+  it('a deleted manager is listed as history and not counted', async () => {
+    const manager = { id: 'm1', displayName: 'Boss', deleted: true, deletedAt: AT };
+    const out = await fetchCategoryItems('user', 'u1', 'manager', stub(), { manager });
+    expect(flagged(out)).toEqual([['m1', true, AT]]);
+    const node = getRootNodes('user', {}, { manager }).find((n) => n.key === 'manager');
+    expect(node.count).toBe(0);
+    const live = getRootNodes('user', {}, { manager: { id: 'm2' } }).find((n) => n.key === 'manager');
+    expect(live.count).toBe(1);
+  });
+
+  it('a direct report with only its own deletedAt is history too', async () => {
+    const af = stub({ '/api/org-chart/user/': { reports: [{ id: 'r1', displayName: 'Rep' }, { id: 'r2', displayName: 'Gone', deletedAt: AT }] } });
+    const out = await fetchCategoryItems('user', 'u1', 'reports', af, {});
+    expect(flagged(out)).toEqual([['r1', false, null], ['r2', true, AT]]);
+  });
+
+  it('a deleted linked account is history in the list and left out of the count', async () => {
+    const members = [{ principalId: 'a1', displayName: 'Live' }, { principalId: 'a2', displayName: 'Gone', deletedAt: AT }];
+    const out = await fetchCategoryItems('identity', 'i1', 'accounts', stub(), { members });
+    expect(flagged(out)).toEqual([['a1', false, null], ['a2', true, AT]]);
+    const accounts = getRootNodes('identity', { members }).find((n) => n.key === 'accounts');
+    expect(accounts.count).toBe(1);
+  });
+});
+
 describe('toItem behaviour via item shapes', () => {
   it('falls back label to id then (unknown), and uses empty id when missing', async () => {
     // A member with no id/displayName exercises the `(unknown)` + '' id path.

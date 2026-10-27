@@ -58,4 +58,16 @@ describe('GET /access-package-groups', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0]).toMatchObject({ accessPackageId: 'ap2', resourceId: null, resourceName: null });
   });
+
+  // Soft delete (migration 040): deleted business roles, deleted child
+  // resources and deleted assignments / principals are history, not matrix columns.
+  it('excludes deleted business roles, deleted children and deleted assignments', async () => {
+    stageQuery.mockResolvedValueOnce({ recordset: [] });
+    await request(app).get('/api/access-package-groups');
+    const [sql] = stageQuery.mock.calls[0];
+    expect(sql).toMatch(/ap\."deletedAt" IS NULL/);
+    expect(sql).toMatch(/dr\.id = rrs\."childResourceId" AND dr\."deletedAt" IS NOT NULL/);
+    expect(sql).toMatch(/ra\."deletedAt" IS NULL/);
+    expect(sql).toMatch(/pr\."deletedAt" IS NULL/);
+  });
 });

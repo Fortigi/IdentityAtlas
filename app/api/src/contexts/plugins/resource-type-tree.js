@@ -30,7 +30,8 @@ export function parseParams(params) {
 
 // Build the resources query: every in-scope resource that carries the grouping attribute.
 export function buildResourceQuery({ scopeSystemId, attribute, resourceType }) {
-  const conds = ['"systemId" = $1', '"extendedAttributes" ->> $2 IS NOT NULL'];
+  // Live resources only: a soft-deleted ("deletedAt") resource is history.
+  const conds = ['"systemId" = $1', '"deletedAt" IS NULL', '"extendedAttributes" ->> $2 IS NOT NULL'];
   const qp = [scopeSystemId, attribute];
   if (resourceType) { qp.push(resourceType); conds.push(`"resourceType" = $${qp.length}`); }
   return {
@@ -41,7 +42,10 @@ export function buildResourceQuery({ scopeSystemId, attribute, resourceType }) {
 
 // Build the capability-resources query used for the optional per-role leaves.
 export function buildCapabilityQuery({ scopeSystemId, attribute, resourceType }) {
-  const capConds = ['cap."systemId" = $1', 'cap."capabilityId" IS NOT NULL', `sc."extendedAttributes" ->> $2 IS NOT NULL`];
+  const capConds = [
+    'cap."systemId" = $1', 'cap."capabilityId" IS NOT NULL', 'cap."deletedAt" IS NULL', 'sc."deletedAt" IS NULL',
+    `sc."extendedAttributes" ->> $2 IS NOT NULL`,
+  ];
   const capQp = [scopeSystemId, attribute];
   if (resourceType) { capQp.push(resourceType); capConds.push(`sc."resourceType" = $${capQp.length}`); }
   return {

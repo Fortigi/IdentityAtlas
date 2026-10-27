@@ -63,7 +63,8 @@ export function capItems(items) {
 function userRootNodes(core, identityInfo, manager) {
   const m = core.membershipByType || {};
   return [
-    { key: 'manager',         label: 'Manager',           count: manager ? 1 : 0, kind: 'category' },
+    // A manager deleted in the source is history: listed, but not counted.
+    { key: 'manager',         label: 'Manager',           count: manager && !manager.deleted ? 1 : 0, kind: 'category' },
     { key: 'reports',         label: 'Direct Reports',    count: core.directReportCount || 0, kind: 'category' },
     // v6: a Principal can belong to many Contexts (one row in ContextMembers
     // per membership). The count comes from /api/user/:id (contextCount);
@@ -87,11 +88,17 @@ function userRootNodes(core, identityInfo, manager) {
     // already calls the same bucket.
     { key: 'access-packages', label: 'Business Roles',    count: core.accessPackageCount || 0, kind: 'category' },
     { key: 'identity',        label: 'Identity',          count: identityInfo?.identity ? 1 : 0, kind: 'category' },
-    // Principal→principal relationships (migration 057). Shown only when present,
-    // so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
-    // subject (an AI agent / a guest); the reverse "Owned Agents"/"Sponsored
-    // Guests" on whoever is the owner/sponsor. "Linked Resource" is the agent's
-    // enterprise-app Resource (same id), bridging its Principal ↔ Resource views.
+    ...principalRelationshipNodes(core),
+  ];
+}
+
+// Principal→principal relationships (migration 057). Shown only when present,
+// so a normal user's graph is unchanged. "Owners"/"Sponsors" appear on the
+// subject (an AI agent / a guest); the reverse "Owned Agents"/"Sponsored
+// Guests" on whoever is the owner/sponsor. "Linked Resource" is the agent's
+// enterprise-app Resource (same id), bridging its Principal ↔ Resource views.
+function principalRelationshipNodes(core) {
+  return [
     ...(core.linkedResource ? [{ key: 'linked-resource',   label: 'Linked Resource',  count: 1, kind: 'category' }] : []),
     ...((core.ownerCount || 0) > 0          ? [{ key: 'owners',            label: 'Owners',            count: core.ownerCount,          kind: 'category' }] : []),
     ...((core.sponsorCount || 0) > 0        ? [{ key: 'sponsors',          label: 'Sponsors',          count: core.sponsorCount,        kind: 'category' }] : []),
@@ -121,11 +128,11 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   const get = (p) => authFetch(p).then(r => r.ok ? r.json() : []);
 
   if (categoryKey === 'manager') {
-    return manager ? [toItem(manager, 'user')] : [];
+    return manager ? [toItem({ ...manager, ...hist(manager) }, 'user')] : [];
   }
   if (categoryKey === 'reports') {
     const d = await authFetch(`/api/org-chart/user/${encodeURIComponent(userId)}/reports`).then(r => r.ok ? r.json() : {});
-    return (d.reports || []).map(r => toItem(r, 'user'));
+    return (d.reports || []).map(r => toItem({ ...r, ...hist(r) }, 'user'));
   }
   if (categoryKey === 'contexts') {
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/contexts`);
@@ -139,7 +146,7 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
     // app-permission / directory-role / business-role …). A BusinessRole opens the
     // access-package detail page; everything else the resource page.
     return all.filter(m => m.membershipType === want).map(m => toItem(
-      { id: m.resourceId, displayName: m.resourceDisplayName || m.groupDisplayName, deleted: m.deleted, deletedAt: m.deletedAt },
+      { id: m.resourceId, displayName: m.resourceDisplayName || m.groupDisplayName, ...hist(m) },
       m.resourceType === 'BusinessRole' ? 'access-package' : 'resource',
       m.resourceType,
     ));
@@ -147,7 +154,7 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   if (categoryKey === 'access-packages') {
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/access-packages`);
     return rows.map(ap => toItem(
-      { id: ap.resourceId, displayName: ap.accessPackageName, deleted: ap.deleted, deletedAt: ap.deletedAt },
+      { id: ap.resourceId, displayName: ap.accessPackageName, ...hist(ap) },
       'access-package',
     ));
   }
@@ -171,7 +178,7 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   if (prMap[categoryKey]) {
     const { type, reverse } = prMap[categoryKey];
     const rows = await get(`/api/user/${encodeURIComponent(userId)}/principal-relationships?type=${type}&reverse=${reverse}`);
-    return rows.map(p => toItem({ id: p.principalId, displayName: p.displayName }, 'user'));
+    return rows.map(p => toItem({ id: p.principalId, displayName: p.displayName, ...hist(p) }, 'user'));
   }
   return [];
 }
@@ -202,19 +209,19 @@ async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = 
     const all = await get(`/api/resources/${encodeURIComponent(resourceId)}/assignments`);
     const want = { 'members-direct': 'Direct', 'members-indirect': 'Indirect', 'members-eligible': 'Eligible' }[categoryKey];
     return all.filter(a => a.assignmentType === want).map(a => toItem({
-      id: a.principalId, displayName: a.principalDisplayName,
+      id: a.principalId, displayName: a.principalDisplayName, ...hist(a),
     }, 'user'));
   }
   if (categoryKey === 'business-roles') {
     const rows = await get(`/api/resources/${encodeURIComponent(resourceId)}/business-roles`);
     return rows.map(r => toItem({
-      id: r.businessRoleId, displayName: r.businessRoleName || 'Unnamed',
+      id: r.businessRoleId, displayName: r.businessRoleName || 'Unnamed', ...hist(r),
     }, 'access-package'));
   }
   if (categoryKey === 'parents') {
     const rows = await get(`/api/resources/${encodeURIComponent(resourceId)}/parent-resources`);
     return rows.map(p => toItem({
-      id: p.parentResourceId, displayName: p.parentDisplayName,
+      id: p.parentResourceId, displayName: p.parentDisplayName, ...hist(p),
     }, p.parentResourceType === 'BusinessRole' ? 'access-package' : 'resource'));
   }
   if (categoryKey === 'contexts') {
@@ -249,13 +256,14 @@ async function fetchAccessPackageItems(apId, categoryKey, authFetch, extras = {}
 
   if (categoryKey === 'assignments') {
     const rows = await get(`/api/access-package/${encodeURIComponent(apId)}/assignments`);
-    return rows.map(a => toItem({ id: a.principalId, displayName: a.targetDisplayName }, 'user'));
+    return rows.map(a => toItem({ id: a.principalId, displayName: a.targetDisplayName, ...hist(a) }, 'user'));
   }
   if (categoryKey === 'resources') {
     const rows = await get(`/api/access-package/${encodeURIComponent(apId)}/resource-roles`);
     return rows.map(r => toItem({
       id: r.childResourceId,
       displayName: r.resourceDisplayName || r.scopeDisplayName || r.groupDisplayName || r.roleName,
+      ...hist(r),
     }, 'resource'));
   }
   if (categoryKey === 'policies') {
@@ -290,8 +298,9 @@ function identityRootNodes(core) {
   // belongs to. The access categories (groups/oauth/etc.) hang off the Linked
   // Accounts node (see fetchIdentityItems 'accounts'), as roll-ups across the
   // accounts, with the per-account source shown in the list when you drill in.
+  // The count is current accounts only; a deleted one stays in the list as history.
   return [
-    { key: 'accounts', label: 'Linked Accounts', count: (core.members || []).length, kind: 'category' },
+    { key: 'accounts', label: 'Linked Accounts', count: (core.members || []).filter(m => !m.deletedAt).length, kind: 'category' },
     { key: 'contexts', label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
   ];
 }
@@ -302,7 +311,7 @@ async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {
     // Keep it simple: Linked Accounts lists the individual accounts. Click an
     // account to see that account's own relationships (groups/oauth/etc.) via
     // the normal user graph — no special aggregate treatment on the identity.
-    return (members || []).map(m => toItem({ id: m.principalId, displayName: m.displayName }, 'user'));
+    return (members || []).map(m => toItem({ id: m.principalId, displayName: m.displayName, ...hist(m) }, 'user'));
   }
   if (categoryKey === 'contexts') {
     const rows = await authFetch(`/api/identities/${encodeURIComponent(identityId)}/contexts`)
@@ -320,7 +329,7 @@ async function fetchIdentityItems(identityId, categoryKey, authFetch, extras = {
     // One row per (resource, account) — annotate each with the account it came
     // through so the list can show "via <account>". Keep keys unique per pair.
     return rows.map(r => {
-      const base = toItem({ id: r.resourceId, displayName: r.resourceDisplayName },
+      const base = toItem({ id: r.resourceId, displayName: r.resourceDisplayName, ...hist(r) },
         r.resourceType === 'BusinessRole' ? 'access-package' : 'resource', r.resourceType);
       return {
         ...base,
@@ -357,6 +366,13 @@ async function fetchContextItems(_contextId, categoryKey, _authFetch, extras = {
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
+
+// History fields from an API row. A relationship endpoint marks a row that no
+// longer exists in the source with `deleted` + `deletedAt`; a principal/member
+// row may carry only its own `deletedAt`. Either way toItem gets a boolean.
+function hist(row) {
+  return { deleted: !!(row?.deleted || row?.deletedAt), deletedAt: row?.deletedAt || null };
+}
 
 function toItem(row, entityKind, resourceType = null) {
   const id = row?.id || '';

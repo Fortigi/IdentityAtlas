@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { bootContractApp } from '../test-utils/contractApp.js';
-import { deleteSystemScopedRows } from '../test-utils/systemScopedCleanup.js';
+import { closeSystemContract } from '../test-utils/systemScopedCleanup.js';
 
 let agent, pool, systemId, userId, liveRoleId, deletedRoleId, removedRoleId;
 
@@ -64,12 +64,7 @@ beforeAll(async () => {
   await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
 });
 
-afterAll(async () => {
-  await deleteSystemScopedRows(pool, systemId);
-  await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
-  await pool.end();
-  delete process.env.USE_SQL; // singleFork — env mutations leak across files
-});
+afterAll(() => closeSystemContract(pool, systemId, { refreshPermissions: true }));
 
 describe('GET /user/:id — business-role count', () => {
   it('counts only the role the user holds now', async () => {
