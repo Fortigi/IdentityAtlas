@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
-import report, { readsFor } from './templates/application-access-review.js';
+import report, { readsFor, preferResourceContexts } from './templates/application-access-review.js';
 import { memberCountKey } from './heldEntitlements.js';
 
 const UNIT = '33333333-3333-3333-3333-333333333333';
@@ -41,6 +41,7 @@ function stage({ contexts = [unit()], entitlements = [], counts = [], owners = [
     // Counts first: its inner select starts the way the entitlement read does.
     if (sql.includes(COUNTS_SQL)) return { rows: counts };
     if (sql.includes(HELD_SQL)) return { rows: entitlements };
+    if (sql.includes('"memberType" = \'Resource\'')) return { rows: [] };
     if (sql.includes('"childResourceId" = ANY')) return { rows: [] };
     if (sql.includes('"parentResourceId" = ANY')) return { rows: owners };
     throw new Error(`unstaged query: ${sql.slice(0, 80)}`);
@@ -125,6 +126,43 @@ describe('Entitlement Pivot on a unit of accounts', () => {
       severity: 'warning', text: expect.stringMatching(/^Pick contexts of one kind/),
     }));
     expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a name shared by an application and a unit of accounts', () => {
+  const app = (over) => unit({ id: UNIT2, displayName: 'SAP', targetType: 'Resource', contextType: 'LogicalApplication', ...over });
+
+  it('runs on the application, not refused as a mix, and says the unit was set aside', async () => {
+    stage({ contexts: [unit({ displayName: 'SAP' }), app()] });
+    const result = await report.run({ contexts: 'sap' }, {});
+    const text = noticeText(result);
+    expect(text).not.toMatch(/Pick contexts of one kind/);
+    // The resource reads ran: the empty text is the resource context's.
+    expect(text).toMatch('"SAP" has no resources as members');
+    expect(text).not.toMatch(/no members holding/);
+    expect(text).toMatch(/^"SAP" names both an application .* this report uses the resources\./m);
+    expect(sqlOf(HELD_SQL)).toBeUndefined();
+  });
+
+  it('keeps a unit of accounts asked for by its id, even when an application shares its name', () => {
+    const contexts = [unit({ displayName: 'SAP' }), app()];
+    expect(preferResourceContexts([UNIT.toUpperCase(), 'SAP'], contexts))
+      .toEqual({ contexts, preferred: [] });
+  });
+
+  it('drops only the shadowed unit; another unit and a name with no application stay', () => {
+    const other = unit({ id: '55555555-5555-5555-5555-555555555555', displayName: 'Finance accounts' });
+    const shadowed = unit({ displayName: 'Sap' });
+    const out = preferResourceContexts(['sap', 'finance accounts'], [shadowed, app(), other]);
+    expect(out.contexts.map(c => c.id)).toEqual([UNIT2, other.id]);
+    expect(out.preferred).toEqual(['Sap']);
+    // A run over the remaining two is still a mix, and still refused.
+    expect(readsFor(out.contexts)).toBeNull();
+  });
+
+  it('changes nothing when every match is of one kind', () => {
+    const contexts = [unit(), unit({ id: UNIT2, displayName: 'Audit accounts' })];
+    expect(preferResourceContexts(['finance accounts', 'audit accounts'], contexts)).toEqual({ contexts, preferred: [] });
   });
 });
 

@@ -23,8 +23,9 @@ describe('migration 094 — context templates', () => {
     expect(statements.match(/CREATE TABLE "(\w+)"/g)).toEqual(['CREATE TABLE "ContextRoles"', 'CREATE TABLE "ContextRelationships"']);
     expect(inList(/"role" IN \(([^)]+)\)/)).toEqual(CONTEXT_ROLE_TYPES);
     expect(inList(/"relationshipType" IN \(([^)]+)\)/)).toEqual(CONTEXT_RELATIONSHIP_TYPES);
+    // 105 widened all three addedBy CHECKs with 'sourceOwner' (its own test pins that).
     for (const list of [...statements.matchAll(/"addedBy" IN \(([^)]+)\)/g)]) {
-      expect(list[1].split(',').map(s => s.trim().replace(/'/g, ''))).toEqual(CONTEXT_MEMBER_ADDED_BY);
+      expect(list[1].split(',').map(s => s.trim().replace(/'/g, ''))).toEqual(CONTEXT_MEMBER_ADDED_BY.filter(v => v !== 'sourceOwner'));
     }
   });
 
