@@ -63,9 +63,8 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
 import {
-  BASE, seedLinkingFixture, clearLinkingFixture, linkingRules,
-  runAccountLinkingFromAdmin, latestCompletedRun, linkedAccountNames, linkedPrincipalIds,
-  identityMembers, linkedAccountsPanel, orphanReport,
+  BASE, runAccountLinkingFromAdmin, latestCompletedRun, linkedAccountNames, linkedPrincipalIds,
+  identityMembers, linkedAccountsPanel, orphanReport, withLinkingFixture,
 } from './accountLinkingSeed';
 
 /** The issue this spec replays, which names the throwaway connector and system. */
@@ -260,24 +259,15 @@ const heldFor = async (principalId) =>
 const heldIds = async () =>
   ((await latestCompletedRun())?.nameOnlySuggestions ?? []).map(s => s.principalId);
 
-let rules;
-let seeded = null;
+const fx = withLinkingFixture(test, FIXTURE);
 let firstRun = null;
-
-test.beforeAll(async () => {
-  rules = await linkingRules();
-  test.skip(!rules, 'account-linking config endpoint not available to this user');
-  seeded = await seedLinkingFixture(FIXTURE);
-});
-
-test.afterAll(() => clearLinkingFixture(seeded, FIXTURE));
 
 test.describe('Account linking — accounts that show only "Surname, Initials" (#1455)', () => {
   test.describe.configure({ mode: 'serial', timeout: 420000 });
 
   test.beforeEach(() => {
-    test.skip(!seeded?.ok, `could not seed through the ingest API (SQL mode required): ${seeded?.reason}`);
-    const blocker = initialsLinkingBlocker(rules);
+    test.skip(!fx.seeded?.ok, `could not seed through the ingest API (SQL mode required): ${fx.seeded?.reason}`);
+    const blocker = initialsLinkingBlocker(fx.rules);
     test.skip(!!blocker, `this deployment would not place a "Surname, Initials" account — ${blocker}`);
   });
 
@@ -295,7 +285,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     const link = await memberFor(IDS.robin, IDS.erpRobin);
     expect(link.linkSignals.split(',')).toEqual(['surnameInitial', 'nameUnique']);
     expect(link.linkConfidence)
-      .toBe(weightOf(rules, 'surnameInitial') + weightOf(rules, 'nameUnique'));
+      .toBe(weightOf(fx.rules, 'surnameInitial') + weightOf(fx.rules, 'nameUnique'));
 
     // Through the identity page, which is where the reporter looked.
     await page.goto(`${BASE}/#identity:${IDS.robin}`);
@@ -331,7 +321,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     const link = await memberFor(IDS.laura, IDS.erpLaura);
     expect(link.linkSignals.split(',')).toEqual(['surnameInitials', 'nameUnique']);
     expect(link.linkConfidence)
-      .toBe(weightOf(rules, 'surnameInitials') + weightOf(rules, 'nameUnique'));
+      .toBe(weightOf(fx.rules, 'surnameInitials') + weightOf(fx.rules, 'nameUnique'));
 
     await page.goto(`${BASE}/#identity:${IDS.laura}`);
     const panel = await linkedAccountsPanel(page);
@@ -372,7 +362,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
 
     const link = await memberFor(IDS.annaFinance, IDS.erpAnna);
     expect(link.linkSignals.split(',')).toEqual(['fullName', 'department']);
-    expect(link.linkConfidence).toBe(weightOf(rules, 'fullName') + weightOf(rules, 'department'));
+    expect(link.linkConfidence).toBe(weightOf(fx.rules, 'fullName') + weightOf(fx.rules, 'department'));
   });
 
   test('two namesakes in one department leave the account held', async () => {
@@ -470,7 +460,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     expect(await linkedAccountNames(IDS.noraHers)).toEqual([]);
     const link = await memberFor(IDS.noraHis, IDS.erpNora);
     expect(link.linkSignals.split(',')).toEqual(['fullName', 'manager']);
-    expect(link.linkConfidence).toBe(weightOf(rules, 'fullName') + weightOf(rules, 'manager'));
+    expect(link.linkConfidence).toBe(weightOf(fx.rules, 'fullName') + weightOf(fx.rules, 'manager'));
   });
 
   test('a third run detaches nothing, so none of these links churns', async ({ page }) => {
