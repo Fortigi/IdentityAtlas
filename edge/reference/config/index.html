@@ -5667,8 +5667,8 @@
 <tbody>
 <tr>
 <td><code>signals</code></td>
-<td>5 shipped signals</td>
-<td>Weighted match rules. An account links to the candidate identity with the highest summed weight that clears <code>linkThreshold</code>.</td>
+<td>9 shipped signals</td>
+<td>Weighted match rules. An account links to the candidate identity with the highest summed weight that clears <code>linkThreshold</code>. Name signals never sum with each other — only the strongest reading of the name fires — but the three <code>evidence</code> signals (<code>nameUnique</code>, <code>department</code>, <code>manager</code>) do add to it: each says something singled <strong>one</strong> person out of the people the name allows. Weight 0 switches a signal off, which also releases the links it had already made on the next run.</td>
 </tr>
 <tr>
 <td><code>accountTypeRules</code></td>
@@ -5678,7 +5678,7 @@
 <tr>
 <td><code>linkThreshold</code></td>
 <td><code>50</code></td>
-<td>Minimum confidence to auto-link — the certainty slider in the UI.</td>
+<td>Minimum confidence to auto-link — the certainty slider in the UI. It is the one control for how much evidence a link needs: at <code>60</code> a unique surname-and-initial match stops linking, at <code>75</code> a unique full-name one does.</td>
 </tr>
 <tr>
 <td><code>onlyLinkTypes</code></td>
@@ -5688,7 +5688,7 @@
 <tr>
 <td><code>allowNameOnlyLinks</code></td>
 <td><code>true</code></td>
-<td>A match whose signals are all name signals links where that name identifies exactly one person. A second person answering to the same name — spelled the same, or, where nobody is spelled it exactly, sharing its surname and first initial — makes the match ambiguous: it is counted and held for review instead, and any such link made earlier is removed on the next run. Set to <code>false</code> — unchecking <strong>"Link on a name match alone"</strong> in Admin → Account Linking — to hold back <em>every</em> name-only match, which stops a display-name-only source linking at all. Only a literal <code>false</code> opts out; a config that never stored the key runs the shipped policy.</td>
+<td>A match whose signals are all name signals links where that name identifies exactly one person, or where the account's own department or manager singles exactly one of its claimants out. A second person answering to the same name — spelled the same, stating the same initials, or, where nobody is spelled it exactly, sharing its surname and first initial — makes the match ambiguous: it is counted and held for review instead, and any such link made earlier is removed on the next run. Set to <code>false</code> — unchecking <strong>"Link on a name match alone"</strong> in Admin → Account Linking — to hold back <em>every</em> name-only match, which stops a display-name-only source linking at all. Only a literal <code>false</code> opts out; a config that never stored the key runs the shipped policy.</td>
 </tr>
 </tbody>
 </table>
