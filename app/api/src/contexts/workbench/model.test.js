@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  betterType, personKey, buildPeople, accountIds, buildCells, buildColumns, linkState, buildKnowledge,
+  betterType, personKey, buildPeople, accountIds, buildCells, buildColumns, linkState, buildKnowledge, unresolvedMembers,
 } from './model.js';
 
 const ID = { anna: 'id-anna', bob: 'id-bob' };
@@ -196,5 +196,19 @@ describe('personKey', () => {
   it('keys a person by identity, an unlinked account by its id', () => {
     expect(personKey('a', 'b')).toBe('i:a');
     expect(personKey(null, 'b')).toBe('p:b');
+  });
+});
+
+describe('unresolvedMembers', () => {
+  it('counts the members whose person or account is gone (a later full sync removed them), each person once', () => {
+    const f = fixture();
+    expect(unresolvedMembers(f)).toBe(0);
+    // The identities were removed by another source's full sync; the member rows still point at them.
+    f.identities = [];
+    f.members.push({ memberType: 'Identity', memberId: ID.anna, direct: true, unitName: 'Claims' });
+    expect(unresolvedMembers(f)).toBe(2);
+    expect(buildPeople(f).map(p => p.key)).toEqual([`p:${ACC.loose}`]);
+    f.principals = [];
+    expect(unresolvedMembers(f)).toBe(3);
   });
 });

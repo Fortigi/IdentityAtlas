@@ -64,7 +64,7 @@ describe('loadWorkbench', () => {
     expect(db.calls[10].params).toEqual([['br']]);
 
     expect(out.unit).toEqual({ id: UNIT, displayName: 'Claims', contextType: 'Department', targetType: 'Identity' });
-    expect(out.scope).toEqual({ includeChildren: true, units: 2, truncatedPeople: false, maxPeople: MAX_PEOPLE });
+    expect(out.scope).toEqual({ includeChildren: true, units: 2, truncatedPeople: false, maxPeople: MAX_PEOPLE, unresolved: 0 });
     expect(out.people.map(p => [p.key, p.knowledge.length])).toEqual([['i:id-a', 0], ['i:id-b', 1], ['p:p-loose', 0]]);
     expect(out.columns.map(c => [c.id, c.isRole, c.contains])).toEqual([['br', true, ['r1']], ['r2', false, []], ['r1', false, []]]);
     expect(out.cells).toHaveLength(3);

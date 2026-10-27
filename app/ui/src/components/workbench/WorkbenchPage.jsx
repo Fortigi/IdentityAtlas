@@ -106,6 +106,11 @@ function Header({ data, gaps, shownColumns, onClose, loading }) {
           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300">
             {gaps.noActivity} {gaps.noActivity === 1 ? 'person has' : 'people have'} no known activity · {gaps.proposed} proposed {gaps.proposed === 1 ? 'link' : 'links'} to check · {gaps.disputed} disputed
           </p>
+          {scope.unresolved > 0 && (
+            <p role="status" className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
+              {scope.unresolved} {scope.unresolved === 1 ? 'member is' : 'members are'} no longer in their source (a later sync removed them) and {scope.unresolved === 1 ? 'is' : 'are'} left out.
+            </p>
+          )}
           {(scope.truncatedPeople || truncatedColumns > 0) && (
             <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
               {scope.truncatedPeople ? `Only the first ${scope.maxPeople} people are shown. ` : ''}

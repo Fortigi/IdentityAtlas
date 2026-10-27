@@ -6,6 +6,12 @@
 -- work — confirmed, proposed and disputed — including two works-council members
 -- whose works-council access must NOT end up in a claims role.
 --
+-- Accounts are the members and the subjects of the claims, not Identities: a
+-- built-in crawler's full identities sync (Entra ID) reconciles the whole
+-- Identities table and would remove persons this fixture wrote. The Identities
+-- and their links are still added, so one person shows with two accounts until
+-- the next such sync; after it each account is its own row and nothing else changes.
+--
 -- Idempotent: it removes what an earlier run of it created, then creates it all
 -- again (deterministic ids: md5('wb:<key>')::uuid). It touches nothing else,
 -- except that it adds the knowledge roots (Activities, Expertise, Duties) when
@@ -145,29 +151,29 @@ SELECT md5('wb:r:br-motor')::uuid, md5('wb:p:' || n)::uuid, 'Direct',
 -- ─── 4. The unit tree and its members ───────────────────────────────────────
 INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "contextCategory", "displayName", description, "parentContextId", "createdByUser", "extendedAttributes")
 VALUES
-  (md5('wb:ctx:root')::uuid, 'manual', 'Identity', 'Department', 'OrganizationalUnit', 'Northwind Insurance (synthetic)',
+  (md5('wb:ctx:root')::uuid, 'manual', 'Principal', 'Department', 'OrganizationalUnit', 'Northwind Insurance (synthetic)',
    'A fictional insurer for the Authorization workbench demo. No real people.', NULL, 'workbench-fixture', '{"fixture":"workbench"}'),
-  (md5('wb:ctx:claims')::uuid, 'manual', 'Identity', 'Department', 'OrganizationalUnit', 'Claims Handling',
+  (md5('wb:ctx:claims')::uuid, 'manual', 'Principal', 'Department', 'OrganizationalUnit', 'Claims Handling',
    'Handles motor and property claims, from first notice to payment.', md5('wb:ctx:root')::uuid, 'workbench-fixture', '{"fixture":"workbench"}'),
-  (md5('wb:ctx:motor')::uuid, 'manual', 'Identity', 'Team', 'OrganizationalUnit', 'Motor Claims',
+  (md5('wb:ctx:motor')::uuid, 'manual', 'Principal', 'Team', 'OrganizationalUnit', 'Motor Claims',
    NULL, md5('wb:ctx:claims')::uuid, 'workbench-fixture', '{"fixture":"workbench"}'),
-  (md5('wb:ctx:property')::uuid, 'manual', 'Identity', 'Team', 'OrganizationalUnit', 'Property Claims',
+  (md5('wb:ctx:property')::uuid, 'manual', 'Principal', 'Team', 'OrganizationalUnit', 'Property Claims',
    NULL, md5('wb:ctx:claims')::uuid, 'workbench-fixture', '{"fixture":"workbench"}');
 
 INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
 SELECT CASE team WHEN 'Motor Claims' THEN md5('wb:ctx:motor')::uuid WHEN 'Property Claims' THEN md5('wb:ctx:property')::uuid
                  ELSE md5('wb:ctx:claims')::uuid END,
-       'Identity', md5('wb:id:' || n)::uuid, 'analyst'
+       'Principal', md5('wb:p:' || n)::uuid, 'analyst'
   FROM wb_people;
 
-INSERT INTO "ContextRoles" ("contextId", "identityId", role, "addedBy")
-VALUES (md5('wb:ctx:claims')::uuid, md5('wb:id:1')::uuid, 'Accountable', 'analyst'),
-       (md5('wb:ctx:motor')::uuid, md5('wb:id:5')::uuid, 'Accountable', 'analyst'),
-       (md5('wb:ctx:property')::uuid, md5('wb:id:17')::uuid, 'Accountable', 'analyst');
+INSERT INTO "ContextRoles" ("contextId", "principalId", role, "addedBy")
+VALUES (md5('wb:ctx:claims')::uuid, md5('wb:p:1')::uuid, 'Accountable', 'analyst'),
+       (md5('wb:ctx:motor')::uuid, md5('wb:p:5')::uuid, 'Accountable', 'analyst'),
+       (md5('wb:ctx:property')::uuid, md5('wb:p:17')::uuid, 'Accountable', 'analyst');
 
 -- ─── 5. The sources: a manager interview and an older team list ─────────────
-INSERT INTO "ContextInterviews" (id, "contextId", "identityId", "intervieweeName", "interviewedAt", "fileName", transcript, "extractionStatus", "createdBy")
-VALUES (md5('wb:iv:marieke')::uuid, md5('wb:ctx:claims')::uuid, md5('wb:id:1')::uuid, 'Marieke Jansen', DATE '2026-10-20',
+INSERT INTO "ContextInterviews" (id, "contextId", "principalId", "intervieweeName", "interviewedAt", "fileName", transcript, "extractionStatus", "createdBy")
+VALUES (md5('wb:iv:marieke')::uuid, md5('wb:ctx:claims')::uuid, md5('wb:p:1')::uuid, 'Marieke Jansen', DATE '2026-10-20',
   'interview-marieke-jansen.txt',
 $t$Interviewer: Can you walk me through who does what in Claims Handling?
 Marieke: Sure. Anna runs the motor team. Tom is our most senior motor handler and he also does fraud investigation with Ruben and Yara.
@@ -248,9 +254,9 @@ SELECT gen_random_uuid(), 'manual', 'Identity', t.ct, 'Tag', o.obj,
  WHERE NOT EXISTS (SELECT 1 FROM "Contexts" c WHERE c."contextType" = t.ct AND lower(c."displayName") = lower(o.obj)
                      AND NOT COALESCE((c."extendedAttributes"->>'knowledgeRoot')::boolean, false));
 
-INSERT INTO "ContextClaims" ("interviewId", "contextId", "claimKind", "subjectKind", "identityId", "subjectName", "subjectMatch",
+INSERT INTO "ContextClaims" ("interviewId", "contextId", "claimKind", "subjectKind", "principalId", "subjectName", "subjectMatch",
                              value, quote, confidence, relevance, "claimStatus", "proposedBy", "decidedBy", "decidedAt", "objectContextId")
-SELECT md5('wb:iv:' || w.src)::uuid, md5('wb:ctx:claims')::uuid, w.kind, 'Person', md5('wb:id:' || w.n)::uuid, p.name, 'name',
+SELECT md5('wb:iv:' || w.src)::uuid, md5('wb:ctx:claims')::uuid, w.kind, 'Person', md5('wb:p:' || w.n)::uuid, p.name, 'name',
        w.obj, w.quote, CASE w.status WHEN 'proposed' THEN 0.7 ELSE 0.9 END, 'high', w.status,
        CASE w.src WHEN 'marieke' THEN 'model' ELSE 'analyst' END,
        CASE WHEN w.status = 'proposed' THEN NULL ELSE 'analyst@northwind.example' END,

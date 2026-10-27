@@ -44,6 +44,21 @@ export function buildPeople({ members, links, identities, accounts, principals }
   return people.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
+/**
+ * How many of the unit's members no longer resolve to a person or an account
+ * (removed by a later sync of their source): left out, and counted so the
+ * workbench can say so instead of looking empty. Pure.
+ */
+export function unresolvedMembers({ members, links, identities, principals }) {
+  const identityIds = new Set(identities.map(i => i.id));
+  const principalIds = new Set(principals.map(p => p.id));
+  let n = 0;
+  for (const p of membersByPerson(members, links).values()) {
+    if (!(p.identityId ? identityIds.has(p.identityId) : principalIds.has(p.principalId))) n++;
+  }
+  return n;
+}
+
 // The member rows folded per person: an account a person owns counts for that person.
 function membersByPerson(members, links) {
   const identityOf = new Map(links.map(l => [l.principalId, l.identityId]));

@@ -14,7 +14,7 @@
 // Read-only: the workbench never writes.
 
 import {
-  buildPeople, buildCells, buildColumns, buildKnowledge, accountIds,
+  buildPeople, buildCells, buildColumns, buildKnowledge, accountIds, unresolvedMembers,
 } from './model.js';
 import { KNOWLEDGE_KINDS, KNOWLEDGE } from '../../lib/orgKnowledge.js';
 import { SOURCE_KIND_SQL } from '../interviews/store.js';
@@ -132,7 +132,9 @@ export async function loadWorkbench(db, contextId, { includeChildren = true } = 
   const scopeIds = scope.map(s => s.id);
   const rows = await loadPeopleRows(db, scopeIds, contextId);
   const truncatedPeople = rows.members.length > MAX_PEOPLE;
-  const people = buildPeople({ ...rows, members: rows.members.slice(0, MAX_PEOPLE) });
+  const shownRows = { ...rows, members: rows.members.slice(0, MAX_PEOPLE) };
+  const people = buildPeople(shownRows);
+  const unresolved = unresolvedMembers(shownRows);
 
   const principalIds = accountIds(people);
   const identityIds = people.map(p => p.identityId).filter(Boolean);
@@ -151,7 +153,7 @@ export async function loadWorkbench(db, contextId, { includeChildren = true } = 
 
   return {
     unit: { id: unit.id, displayName: unit.displayName, contextType: unit.contextType, targetType: unit.targetType },
-    scope: { includeChildren, units: scope.length, truncatedPeople, maxPeople: MAX_PEOPLE },
+    scope: { includeChildren, units: scope.length, truncatedPeople, maxPeople: MAX_PEOPLE, unresolved },
     kinds: KNOWLEDGE_KINDS.map(k => ({ kind: k, label: KNOWLEDGE[k].label, predicate: KNOWLEDGE[k].predicate })),
     people: people.map(p => ({ ...p, knowledge: knowledge.get(p.key) ?? [] })),
     columns,

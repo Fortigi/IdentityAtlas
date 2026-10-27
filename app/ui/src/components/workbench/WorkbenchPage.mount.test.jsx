@@ -223,6 +223,12 @@ describe('WorkbenchPage', () => {
     await waitFor(() => expect(calls.at(-1).url).toBe(`/api/contexts/${UNIT}/workbench?includeChildren=false`));
   });
 
+  it('says how many members no longer resolve, instead of looking empty', async () => {
+    const authFetch = makeAuthFetch(() => ({ ...payload(), people: [], cells: [], columns: [], scope: { ...payload().scope, unresolved: 10 } }));
+    renderWithProviders(h(WorkbenchPage, { contextId: UNIT }), { auth: { authFetch } });
+    expect(await screen.findByRole('status')).toHaveTextContent('10 members are no longer in their source (a later sync removed them) and are left out.');
+  });
+
   it('shows the API error with a way to try again', async () => {
     const user = userEvent.setup();
     const authFetch = makeAuthFetch(() => jsonResponse({ error: 'The authorization workbench opens on an organizational unit.' }, { ok: false, status: 400 }));
