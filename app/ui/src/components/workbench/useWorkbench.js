@@ -76,7 +76,6 @@ function withActive(s, fn) {
   return { ...st, viewRoleId: null, drafts: st.drafts.map(d => (d.id === st.activeId ? fn(d) : d)) };
 }
 
-<<<<<<< HEAD
 // A saved investigation's marks and proposed roles (save and reopen, M2a). After a
 // save (`keep`) the proposed roles come back with their saved ids in the same
 // order, so the open one stays open and the selection stays; on opening one, the
@@ -86,11 +85,11 @@ function loadSaved(s, a) {
   const activeId = a.keep ? (a.drafts[index]?.id ?? null) : (a.drafts[0]?.id ?? null);
   const base = { ...s, marks: a.marks, drafts: a.drafts, activeId, viewRoleId: null };
   return a.keep ? base : { ...base, selection: new Set(), anchor: null, nextId: a.drafts.length + 1 };
-=======
+}
+
 function selectionInto(d, selection, cellIndex) {
   const added = addSelection(d, selection, cellIndex);
   return d.kind === 'rule' && d.rule ? { ...d, entitlements: added.entitlements } : added;
->>>>>>> origin/feature/org-authorization-workbench
 }
 
 function removeDraft(s, id) {
