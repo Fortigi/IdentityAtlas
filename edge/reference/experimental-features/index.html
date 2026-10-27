@@ -5717,22 +5717,11 @@ in the Admin UI overrides the environment variable from then on.</p>
 <h2 id="experimental-crawlers">Experimental crawlers<a class="headerlink" href="#experimental-crawlers" title="Permanent link">&para;</a></h2>
 <p>It controls whether crawler types marked
 experimental are offered in <strong>Admin → Crawlers → Add Crawler</strong>.</p>
-<table>
-<thead>
-<tr>
-<th>Crawler</th>
-<th>What it connects to</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="../../sync/scim/">SCIM 2.0</a></td>
-<td>Any SCIM 2.0 service provider — SAP Cloud Identity Services, Okta, a home-grown SCIM façade</td>
-</tr>
-</tbody>
-</table>
-<p>More connectors are expected to arrive this way — a generic OData crawler, for
-example. They all sit under this one switch rather than getting a switch each.</p>
+<p>This build ships <strong>no experimental crawlers</strong>, so the switch currently has no
+effect. The <a href="../../sync/scim/">SCIM 2.0</a> crawler started out here and has since
+graduated to a regular crawler: it is always offered in Add Crawler.</p>
+<p>New connectors may arrive this way in future. They all sit under this one switch
+rather than getting a switch each.</p>
 <h3 id="what-the-switch-does-precisely">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely" title="Permanent link">&para;</a></h3>
 <p><strong>On</strong> — experimental crawler types appear in the Add Crawler picker, each marked
 with an <code>Experimental</code> badge. You configure, schedule and run them like any other

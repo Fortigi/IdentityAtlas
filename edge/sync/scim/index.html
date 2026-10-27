@@ -5746,15 +5746,6 @@ that speaks <a href="https://datatracker.ietf.org/doc/html/rfc7644">RFC 7643/764
 no vendor-specific code: the crawler asks the endpoint what it serves
 (<code>/ServiceProviderConfig</code>, <code>/ResourceTypes</code>, <code>/Schemas</code>) and reads the standard
 <code>/Users</code> and <code>/Groups</code> collections.</p>
-<div class="admonition warning">
-<p class="admonition-title">This crawler is experimental</p>
-<p>It is built and covered by automated tests, but it has had only limited
-opportunity to prove itself against real SCIM providers. It therefore does not
-appear in <strong>Add Crawler</strong> until you switch on <strong>Admin → Experimental →
-Experimental crawlers</strong>. Turning that switch back off later leaves a SCIM
-crawler you already configured running — it only stops new ones being added.
-See <a href="../../reference/experimental-features/">Experimental features</a>.</p>
-</div>
 <hr />
 <h2 id="what-gets-imported">What Gets Imported<a class="headerlink" href="#what-gets-imported" title="Permanent link">&para;</a></h2>
 <table>
