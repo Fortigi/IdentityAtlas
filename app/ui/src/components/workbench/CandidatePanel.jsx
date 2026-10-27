@@ -158,7 +158,7 @@ function ImpactBlock({ impact, peopleByKey, dispatch }) {
       {gainers > 0 && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">{gainers} {gainers === 1 ? 'person' : 'people'} would gain access they do not have today.</p>}
       {possibleMembers.length > 0 && (
         <div className="mt-1 text-xs text-gray-700 dark:text-gray-300">
-          Already hold most of it, not members: {possibleMembers.map(k => peopleByKey.get(k)?.displayName ?? k).join(', ')}
+          Already hold all of it, not members: {possibleMembers.map(k => peopleByKey.get(k)?.displayName ?? k).join(', ')}
           <button type="button" onClick={() => dispatch({ type: 'addMembers', people: possibleMembers })} className="ml-1 text-blue-700 hover:underline dark:text-blue-300">Add them</button>
         </div>
       )}

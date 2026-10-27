@@ -33,43 +33,54 @@ export const personKey = (identityId, principalId) => (identityId ? `i:${identit
  * principals:  [{ id, displayName, email, principalType, systemName, jobTitle }]  — member accounts without an identity
  */
 export function buildPeople({ members, links, identities, accounts, principals }) {
-  const identityOf = new Map(links.map(l => [l.principalId, l.identityId]));
-  const byKey = new Map();
-  const touch = (key, base) => {
-    if (!byKey.has(key)) byKey.set(key, { ...base, direct: false, units: new Set() });
-    return byKey.get(key);
-  };
   const identityRow = new Map(identities.map(i => [i.id, i]));
   const principalRow = new Map(principals.map(p => [p.id, p]));
-  for (const m of members) {
-    const identityId = m.memberType === 'Identity' ? m.memberId : identityOf.get(m.memberId) ?? null;
-    const principalId = identityId ? null : m.memberId;
-    const key = personKey(identityId, principalId);
-    const row = touch(key, { key, identityId, principalId });
-    row.direct = row.direct || !!m.direct;
-    if (m.unitName) row.units.add(m.unitName);
-  }
-  const accountsOf = new Map();
-  for (const a of accounts) {
-    if (!accountsOf.has(a.identityId)) accountsOf.set(a.identityId, []);
-    accountsOf.get(a.identityId).push(account(a));
-  }
+  const accountsOf = groupBy(accounts, a => a.identityId, account);
   const people = [];
-  for (const p of byKey.values()) {
+  for (const p of membersByPerson(members, links).values()) {
     const src = p.identityId ? identityRow.get(p.identityId) : principalRow.get(p.principalId);
-    if (!src) continue;
-    const accs = p.identityId ? (accountsOf.get(p.identityId) ?? []) : [account(src)];
-    people.push({
-      key: p.key, identityId: p.identityId, principalId: p.principalId,
-      displayName: src.displayName || accs[0]?.displayName || '(no name)',
-      email: src.email ?? accs.find(a => a.email)?.email ?? null,
-      jobTitle: src.jobTitle ?? accs.find(a => a.jobTitle)?.jobTitle ?? null,
-      direct: p.direct, units: [...p.units].sort(), accounts: accs,
-    });
+    if (src) people.push(personRow(p, src, p.identityId ? (accountsOf.get(p.identityId) ?? []) : [account(src)]));
   }
   return people.sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
+// The member rows folded per person: an account a person owns counts for that person.
+function membersByPerson(members, links) {
+  const identityOf = new Map(links.map(l => [l.principalId, l.identityId]));
+  const byKey = new Map();
+  for (const m of members) {
+    const identityId = m.memberType === 'Identity' ? m.memberId : identityOf.get(m.memberId) ?? null;
+    const principalId = identityId ? null : m.memberId;
+    const key = personKey(identityId, principalId);
+    if (!byKey.has(key)) byKey.set(key, { key, identityId, principalId, direct: false, units: new Set() });
+    const row = byKey.get(key);
+    row.direct = row.direct || !!m.direct;
+    if (m.unitName) row.units.add(m.unitName);
+  }
+  return byKey;
+}
+
+const firstOf = (accs, field) => accs.find(a => a[field])?.[field] ?? null;
+
+function personRow(p, src, accs) {
+  return {
+    key: p.key, identityId: p.identityId, principalId: p.principalId,
+    displayName: src.displayName || accs[0]?.displayName || '(no name)',
+    email: src.email ?? firstOf(accs, 'email'),
+    jobTitle: src.jobTitle ?? firstOf(accs, 'jobTitle'),
+    direct: p.direct, units: [...p.units].sort(), accounts: accs,
+  };
+}
+
+function groupBy(rows, keyOf, map = (x) => x) {
+  const out = new Map();
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(map(r));
+  }
+  return out;
+}
 const account = (a) => ({
   id: a.id, displayName: a.displayName ?? null, email: a.email ?? null, principalType: a.principalType ?? null,
   systemName: a.systemName ?? null, jobTitle: a.jobTitle ?? null,
@@ -172,23 +183,25 @@ export function buildKnowledge(people, claimRows) {
   }
   const groups = new Map();
   for (const c of claimRows) {
-    const pk = (c.identityId && personOf.get(`i:${c.identityId}`)) || (c.principalId && personOf.get(`p:${c.principalId}`));
-    if (!pk) continue;
-    const k = `${pk}|${c.claimKind}|${objectKeyOf(c)}`;
-    if (!groups.has(k)) groups.set(k, { person: pk, kind: c.claimKind, objectId: c.objectContextId ?? null, name: c.objectName || c.value, claims: [] });
-    const g = groups.get(k);
-    if (!g.objectId && c.objectContextId) { g.objectId = c.objectContextId; g.name = c.objectName || g.name; }
-    g.claims.push(evidence(c));
+    const pk = personOf.get(`i:${c.identityId}`) ?? personOf.get(`p:${c.principalId}`);
+    if (pk) addToLink(groups, pk, c);
   }
   const out = new Map();
   for (const g of groups.values()) {
-    const link = { kind: g.kind, objectId: g.objectId, name: g.name, state: linkState(g.claims), claims: g.claims };
     if (!out.has(g.person)) out.set(g.person, []);
-    out.get(g.person).push(link);
+    out.get(g.person).push({ kind: g.kind, objectId: g.objectId, name: g.name, state: linkState(g.claims), claims: g.claims });
   }
   return out;
 }
 
+// One link per (person, kind, name); the first claim that names the object gives it its id and name.
+function addToLink(groups, pk, c) {
+  const k = `${pk}|${c.claimKind}|${objectKeyOf(c)}`;
+  if (!groups.has(k)) groups.set(k, { person: pk, kind: c.claimKind, objectId: null, name: c.objectName || c.value, claims: [] });
+  const g = groups.get(k);
+  if (!g.objectId && c.objectContextId) { g.objectId = c.objectContextId; g.name = c.objectName || g.name; }
+  g.claims.push(evidence(c));
+}
 const evidence = (c) => ({
   id: c.id, status: c.status, value: c.value, quote: c.quote ?? null, proposedBy: c.proposedBy,
   decidedBy: c.decidedBy ?? null, decidedAt: c.decidedAt ?? null, contextId: c.contextId, contextName: c.contextName ?? null,

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Context interviews on a context page (docs/architecture/context-interviews.md): grouping and wording claims, the source label per kind, the unit-only What we know summary and the manual-claim body (claims.helpers.js), the shared claims state with its Accountable-replacement question and polling (ClaimsProvider.jsx), the People block suggestions (InterviewSuggestions.jsx), the review list with its relevance fold and bulk rejects (ClaimReviewList.jsx), the transcript view with its highlight segmentation over turns and overlaps, click-to-claim and focus-and-pulse (transcript.helpers.js, TranscriptPanel.jsx), the People overview (one row per person, the status vocabulary, the claim icons and their popovers with Confirm / Reject, the contradiction on the row, Undo of a decision, the filters, search and pages: people.helpers.js, PersonClaims.jsx, ClaimIcon.jsx, PeopleSection.jsx, usePeople.js), the shared Confirm / Reject (ClaimDecision.jsx), and the change requests read (useChangeRequests.js). WHY: a grouping that shows a proposed claim as known, a replacement confirmed without asking, or a suggestion shown to a reader puts unreviewed interview words in front of a business reader as fact. TEST INCLUDE: the helpers unit tests and the mount tests that drive the People overview, What we know, Sources, the review drawer and the unit page body. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
+  "_comment": "Context interviews on a context page (docs/architecture/context-interviews.md): grouping and wording claims, the source label per kind, the unit-only What we know summary and the manual-claim body (claims.helpers.js), the shared claims state with its Accountable-replacement question and polling (ClaimsProvider.jsx), the People block suggestions (InterviewSuggestions.jsx), the review list with its relevance fold and bulk rejects (ClaimReviewList.jsx), the transcript view with its highlight segmentation over turns and overlaps, click-to-claim and focus-and-pulse (transcript.helpers.js, TranscriptPanel.jsx), the People overview (one row per person, the status vocabulary, the claim icons and their popovers with Confirm / Reject, the contradiction on the row, Undo of a decision, the filters, search and pages: people.helpers.js, PersonClaims.jsx, ClaimIcon.jsx, PeopleSection.jsx, usePeople.js), the shared Confirm / Reject (ClaimDecision.jsx), and the change requests read (useChangeRequests.js). Also the Authorization workbench (components/workbench/): grouping people by activity / expertise / duty, selecting cells and ranges, composing a candidate role and its impact words (never a loss). WHY: a grouping that shows a proposed claim as known, a replacement confirmed without asking, or a suggestion shown to a reader puts unreviewed interview words in front of a business reader as fact. TEST INCLUDE: the helpers unit tests and the mount tests that drive the People overview, What we know, Sources, the review drawer and the unit page body. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -32,7 +32,16 @@
     "src/components/contexts/people/PeopleSection.jsx",
     "src/components/contexts/people/usePeople.js",
     "src/components/contexts/interviews/ClaimDecision.jsx",
-    "src/components/contexts/changeRequests/useChangeRequests.js"
+    "src/components/contexts/changeRequests/useChangeRequests.js",
+    "src/components/workbench/workbench.model.js",
+    "src/components/workbench/workbench.labels.js",
+    "src/components/workbench/workbench.cells.js",
+    "src/components/workbench/useWorkbench.js",
+    "src/components/workbench/CandidatePanel.jsx",
+    "src/components/workbench/PersonCell.jsx",
+    "src/components/workbench/WorkbenchControls.jsx",
+    "src/components/workbench/WorkbenchGrid.jsx",
+    "src/components/workbench/WorkbenchPage.jsx"
   ],
   "mutationExclusions": {
     "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the AddInformation (interviewForms.mount.test.jsx) and ContextPeople mount tests, which mount without one.",

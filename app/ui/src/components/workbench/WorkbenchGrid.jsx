@@ -73,10 +73,10 @@ function ColumnHeader({ col, inCandidate, onClick }) {
   const title = [col.displayName, col.isRole ? 'Business role' : col.resourceType, col.systemName, `${col.holders} ${col.holders === 1 ? 'person' : 'people'}`]
     .filter(Boolean).join(' · ');
   return (
-    <th scope="col" className={`sticky top-0 z-20 h-40 w-7 min-w-[1.75rem] border-b border-r border-gray-100 px-0 align-bottom dark:border-gray-700 ${inCandidate ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-gray-50 dark:bg-gray-900'}`}>
+    <th scope="col" className={`sticky top-0 z-20 h-48 w-7 min-w-[1.75rem] border-b border-r border-gray-100 px-0 align-bottom dark:border-gray-700 ${inCandidate ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-gray-50 dark:bg-gray-900'}`}>
       <button type="button" onClick={onClick} title={title} aria-label={`Select the column ${title}`}
-        className="flex h-40 w-7 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-        <span className="max-h-36 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-gray-700 dark:text-gray-200" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+        className="flex h-48 w-7 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+        <span className="max-h-44 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-gray-700 dark:text-gray-200" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
           {col.isRole && <span className="mb-1 inline-block rounded bg-teal-600 px-0.5 font-semibold text-white dark:bg-teal-400 dark:text-gray-900">R</span>} {col.displayName}
         </span>
       </button>

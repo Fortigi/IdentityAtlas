@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWorkbenchData, useWorkbenchDraft } from './useWorkbench';
-import { groupPeople, indexCells, accessCounts, cellsByResource as byResource } from './workbench.model';
+import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
 import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';
 import CandidatePanel from './CandidatePanel';
@@ -15,7 +15,8 @@ import { Toolbar, SelectionBar, Legend } from './WorkbenchControls';
 // impact shows in the grid. A hypothesis workspace: nothing is saved and nothing
 // changes access. Design: docs/architecture/m1-discovery-and-design.md.
 
-const DEFAULT_VIEW = { groupBy: 'activity', sortBy: 'name', includeChildren: true, overlay: false, minHolders: 1, columnSearch: '' };
+// minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
+const DEFAULT_VIEW = { groupBy: 'activity', sortBy: 'name', includeChildren: true, overlay: false, minHolders: null, columnSearch: '' };
 
 function visibleColumns(columns, view) {
   const q = view.columnSearch.trim().toLowerCase();
@@ -34,7 +35,9 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
     if (unitName) onCacheData?.(contextId, 'workbench', { displayName: `Workbench: ${unitName}` });
   }, [unitName, contextId, onCacheData]);
 
-  const derived = useMemo(() => derive(data, view), [data, view]);
+  // A unit whose people hold many things opens on what at least two of them share.
+  const shownView = useMemo(() => (data && view.minHolders === null ? { ...view, minHolders: startsCrowded(data) ? 2 : 1 } : view), [data, view]);
+  const derived = useMemo(() => derive(data, shownView), [data, shownView]);
 
   if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
 
@@ -52,7 +55,7 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
   return (
     <div className="space-y-3">
       <Header data={data} gaps={derived.gaps} shownColumns={derived.columns.length} onClose={onClose} loading={loading} />
-      <Toolbar view={view} setView={setView} />
+      <Toolbar view={shownView} setView={setView} />
       {actionError && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">{actionError}</p>}
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} />
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">

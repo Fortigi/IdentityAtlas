@@ -1,0 +1,4 @@
+- Added the Authorization workbench to organizational units: see the unit's people and what they hold, grouped by the activities they perform, their expertise or the duties they hold beside their work, select clusters of access and compose a candidate role (new, or an update to an existing business role) with its impact shown in the grid — covered, potential gain, outside the candidate, other context. Nothing in it changes access or is saved.
+- "Add information" now also proposes what people do, know and hold (activities, expertise, duties); confirming one links it to a shared, named object you can find again under Contexts.
+- Analysts can state a person's activity, expertise or duty by hand from the workbench, and confirm or reject proposed ones with their source and quote.
+- Added a synthetic demo dataset for the workbench (a fictional insurer's claims department).

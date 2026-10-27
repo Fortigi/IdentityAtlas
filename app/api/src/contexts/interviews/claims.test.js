@@ -229,3 +229,19 @@ Piet de Vries: Jan Smit just left the account. The client calls it the Port Co, 
     expect(checkClaim(left({ relevance: 'urgent' }), f).claim.relevance).toBeNull();
   });
 });
+
+describe('checkClaim — activity, expertise, duty', () => {
+  const folded = foldForQuote('Bram and Stijn sit on the works council, that takes a day a week.');
+
+  it('takes the person and the name of what they do, know or hold, with no attribute', () => {
+    const { claim } = checkClaim({ kind: 'duty', subject: 'Bram', value: 'Works council member', relation: 'owner', quote: 'Bram and Stijn sit on the works council' }, folded);
+    expect(claim).toMatchObject({ claimKind: 'duty', subjectKind: 'Person', subjectName: 'Bram', attribute: null, value: 'Works council member' });
+  });
+
+  it('needs the person, and a name of at most 200 characters', () => {
+    expect(checkClaim({ kind: 'activity', value: 'Handle claims' }, folded, { quoteRequired: false })).toMatchObject({ field: 'subject' });
+    expect(checkClaim({ kind: 'expertise', subject: 'Bram', value: 'x'.repeat(201) }, folded, { quoteRequired: false }))
+      .toMatchObject({ field: 'value', error: 'an expertise is a name of at most 200 characters' });
+    expect(checkClaim({ kind: 'expertise', subject: 'Bram', value: 'x'.repeat(200) }, folded, { quoteRequired: false }).claim.value).toHaveLength(200);
+  });
+});

@@ -50,6 +50,7 @@ function Chip({ link, open, onToggle }) {
   const dashed = link.state === 'confirmed' ? '' : 'border-dashed';
   return (
     <button type="button" onClick={onToggle} aria-expanded={open}
+      aria-label={`${style.label}: ${link.name} — ${STATE_LABEL[link.state]}`}
       title={`${style.label}: ${link.name} — ${STATE_LABEL[link.state]}`}
       className={`max-w-[12rem] truncate rounded border px-1 text-[10px] leading-4 ${style.cls} ${dashed}`}>
       <span aria-hidden="true">{STATE_MARK[link.state]} </span>{link.name}

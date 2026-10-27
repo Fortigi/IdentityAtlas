@@ -1,6 +1,7 @@
 // Deciding a claim: what each confirmation changes, and what it refuses.
 import { describe, it, expect, vi } from 'vitest';
 import { parseDecision, appendDescription, descriptionHeading, mergeDecision, decideClaim, undoClaim, canUndo, ClaimError } from './decide.js';
+import { FIND_OBJECT_SQL } from '../orgKnowledge/objects.js';
 
 const CLAIM_ID = 'cccccccc-0000-4000-8000-000000000001';
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
@@ -306,5 +307,36 @@ describe('canUndo / undoClaim', () => {
   it('a rejected claim had no mark: unmarked is false', async () => {
     const db = fakeDb({ ...LEFT, status: 'rejected' }, { rowCount: 0 });
     expect((await undoClaim(db, CLAIM_ID)).unmarked).toBe(false);
+  });
+});
+
+describe('decideClaim — activity, expertise, duty', () => {
+  const duty = { ...base, claimKind: 'duty', value: 'Works council member', identityId: ANNA, contextCategory: 'OrganizationalUnit' };
+
+  it('confirmed, names its object (found by name) and changes nothing else', async () => {
+    const db = fakeDb(duty);
+    // The object is found by name (orgKnowledge/objects.js): answer that read, pass everything else on.
+    const original = db.tx;
+    db.tx = async (fn) => original(async (c) => fn({ query: async (sql, params) => (sql === FIND_OBJECT_SQL ? { rows: [{ id: 'obj-1' }] } : c.query(sql, params)) }));
+    const { effect } = await decide(db, { status: 'confirmed' });
+    expect(effect).toEqual({ kind: 'knowledge', objectContextId: 'obj-1', created: false });
+    expect(db.writes.find(w => w.sql.startsWith('UPDATE "ContextClaims" SET "objectContextId"')).params).toEqual([CLAIM_ID, 'obj-1']);
+    expect(db.writes.some(w => /ContextRoles|ContextMembers|ResourceAssignments|UPDATE "Contexts"/.test(w.sql))).toBe(false);
+  });
+
+  it('refuses to confirm a claim that names nobody', async () => {
+    await expect(decide(fakeDb({ ...duty, identityId: null }), { status: 'confirmed' })).rejects.toMatchObject({ status: 400, message: 'Choose who this claim is about before confirming it' });
+  });
+
+  it('rejected, names no object', async () => {
+    const db = fakeDb(duty);
+    const { effect } = await decide(db, { status: 'rejected' });
+    expect(effect).toEqual({ kind: 'none' });
+    expect(db.writes.some(w => w.sql.includes('"objectContextId"'))).toBe(false);
+  });
+
+  it('can be undone: the decision changed only the claim', () => {
+    for (const kind of ['activity', 'expertise', 'duty']) expect(canUndo({ status: 'confirmed', claimKind: kind })).toBe(true);
+    expect(canUndo({ status: 'confirmed', claimKind: 'alias' })).toBe(false);
   });
 });

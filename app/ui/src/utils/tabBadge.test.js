@@ -17,6 +17,7 @@ describe('tabBadge', () => {
 
   it('shows ADJ (not AP) for Adjust tree tabs', () => {
     expect(tabBadge('adjust-tree')).toBe('ADJ');
+    expect(tabBadge('workbench')).toBe('WB');
   });
 
   it('shows RUN (not AP) for run tabs', () => {

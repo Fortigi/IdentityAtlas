@@ -74,8 +74,14 @@ export function groupPeople(people, dimension, sortBy = 'name', accessCount = ()
 function sortRows(rows, sortBy, accessCount) {
   const byName = (a, b) => a.person.displayName.localeCompare(b.person.displayName);
   if (sortBy === 'access') return [...rows].sort((a, b) => accessCount(b.person.key) - accessCount(a.person.key) || byName(a, b));
-  if (sortBy === 'jobTitle') return [...rows].sort((a, b) => String(a.person.jobTitle ?? '~').localeCompare(String(b.person.jobTitle ?? '~')) || byName(a, b));
+  if (sortBy === 'jobTitle') return [...rows].sort((a, b) => byTitle(a.person.jobTitle, b.person.jobTitle) || byName(a, b));
   return [...rows].sort(byName);
+}
+
+// Job titles alphabetically, people without one last.
+function byTitle(a, b) {
+  if (!a || !b) return (!a) - (!b);
+  return a.localeCompare(b);
 }
 
 /** How many columns each person holds. Pure. */
@@ -224,8 +230,8 @@ export function impactSummary(candidate, people, cellIndex, marks) {
   return { counts, gainers: gainers.size, possibleMembers: possibleMembers(candidate, people, cellIndex) };
 }
 
-/** People outside the candidate who hold at least 75 % of its entitlements. Pure. */
-export function possibleMembers(candidate, people, cellIndex, share = 0.75) {
+/** People outside the candidate who already hold all of its entitlements (or share of them). Pure. */
+export function possibleMembers(candidate, people, cellIndex, share = 1) {
   const n = candidate.entitlements.size;
   if (n === 0) return [];
   return people.filter(p => {
@@ -244,4 +250,9 @@ export function roleDelta(candidate, role) {
     added: [...candidate.entitlements].filter(r => !base.has(r)),
     leftOut: [...base].filter(r => !candidate.entitlements.has(r)),
   };
+}
+
+/** Many columns and enough people to share them: the workbench starts by hiding what one person alone holds. Pure. */
+export function startsCrowded(data) {
+  return data.columns.length > 120 && data.people.length >= 4;
 }
