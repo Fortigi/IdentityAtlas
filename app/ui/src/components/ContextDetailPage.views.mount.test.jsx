@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// Organisation knowledge (Admin → Experimental) is off by default; on here unless a test switches it off.
+const knowledge = vi.hoisted(() => ({ on: true }));
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => knowledge.on }));
 import { createElement as h } from 'react';
 import ContextDetailPage from './ContextDetailPage';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
@@ -202,6 +205,21 @@ describe('the analyst view', () => {
     expect(onClose).toHaveBeenCalled();
     expect(screen.getByRole('region', { name: 'Timeline' })).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: 'Risk' })).toBeInTheDocument();
+  });
+
+  it('while organisation knowledge is off it is a plain unit page: no Add information, no Sources, no Adjust tree', async () => {
+    knowledge.on = false;
+    try {
+      const { user } = mount();
+      await screen.findByText('Alice Engineer');
+      expect(screen.queryByRole('button', { name: 'Add information' })).toBeNull();
+      expect(screen.queryByRole('region', { name: 'Sources' })).toBeNull();
+      expect(screen.queryByRole('region', { name: 'Change requests' })).toBeNull();
+      expect(menuNames(await openMenu(user))).toEqual(['View in matrix ↗', 'Edit', 'Add sub-unit', 'Copy link', 'Back to Contexts']);
+      expect(screen.getByRole('region', { name: 'People' })).toBeInTheDocument();
+    } finally {
+      knowledge.on = true;
+    }
   });
 
   it('reads as one column: People, What we know, Sources, Sub-units, then the Timeline', async () => {

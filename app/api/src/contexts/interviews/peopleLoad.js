@@ -72,6 +72,25 @@ async function withHoldings(db, contextId, rows, col) {
 }
 
 /**
+ * The overview while organisation knowledge is off (featureFlags.js orgKnowledge):
+ * the members the source lists, with their roles here and what they hold —
+ * nothing from claims or decisions, so nobody is former and nothing is to decide.
+ * `deps.loadMembers` must list every member (the route passes the plain read).
+ */
+export async function loadListedPeople({ db, loadMembers, loadRoles }, context, query) {
+  const q = parsePeopleQuery(query);
+  const col = MEMBER_COLUMN[context.targetType] ?? null;
+  const roles = await loadRoles(context.id);
+  const listed = await listedPage(loadMembers, context, q, !!FILTER_GROUPS[q.filter]?.includes('listed'));
+  const rows = listed.rows.map(row => buildPerson({
+    key: holderKey(col, row.id), member: { ...row, [col]: row.id, listed: true }, group: null, roles, open: [],
+  }));
+  const { data, linkedResources } = await withHoldings(db, context.id, rows, col);
+  const all = { current: listed.total, former: 0, all: listed.total, decide: 0 };
+  return { data, total: all[q.filter], counts: all, filter: q.filter, limit: q.limit, offset: q.offset, linkedResources };
+}
+
+/**
  * @param {{ db, loadMembers: Function, loadRoles: Function }} deps
  * @param {{ id: string, targetType: string }} context
  * @param {object} query      ?filter, ?search, ?limit, ?offset

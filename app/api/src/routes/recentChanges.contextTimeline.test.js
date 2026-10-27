@@ -7,6 +7,7 @@ import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
+process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // the interview events are organisation knowledge
 
 vi.mock('../db/connection.js');
 vi.mock('./contexts/interviews.js', () => ({ canWriteContexts: vi.fn(() => true) }));
@@ -89,6 +90,17 @@ describe('GET /api/contexts/:id/timeline', () => {
     expect(res.status).toBe(200);
     expect(res.body.events.map(e => e.summary)).toEqual(['Description: — → Runs the quays.']);
     spy.mockRestore();
+  });
+
+  it('while organisation knowledge is off the timeline is the context row\'s own changes only', async () => {
+    process.env.FEATURE_ORG_KNOWLEDGE = 'false';
+    try {
+      const res = await request(app).get(`/api/contexts/${CTX}/timeline`);
+      expect(res.body.events.map(e => e.summary)).toEqual(['Description: — → Runs the quays.']);
+      expect(query.mock.calls.some(c => c[0] === TIMELINE_DECISIONS_SQL || c[0] === TIMELINE_INTERVIEWS_SQL)).toBe(false);
+    } finally {
+      process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    }
   });
 
   it('other entities read no interview tables', async () => {

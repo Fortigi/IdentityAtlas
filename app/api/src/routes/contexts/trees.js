@@ -3,6 +3,8 @@
 // A generated or imported tree with the analyst's corrections on top. Reads are
 // open to every signed-in user like the other context reads; writes need
 // data.write.contexts. Design: docs/architecture/adjust-tree.md.
+// Every route answers 404 while organisation knowledge is off (featureFlags.js
+// orgKnowledge). Adjustments made earlier keep being applied after each sync.
 //
 //   GET    /context-trees/resolve?contextId=        which tree a context is in
 //   GET    /context-trees/:key                      the tree with its marks
@@ -17,12 +19,14 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { useSql, UUID_RE, writeContexts } from './shared.js';
+import { requireFeature } from '../../featureFlags.js';
 import { parseTreeKey } from '../../contexts/adjustments/treeKey.js';
 import { treeView, adjustmentsView, resolveTree } from '../../contexts/adjustments/view.js';
 import { attentionView, splitOptions } from '../../contexts/adjustments/attention.js';
 import { createAdjustment, undoAdjustment, redoAdjustment, followAdjustment } from '../../contexts/adjustments/service.js';
 
 const router = Router();
+router.use('/context-trees', requireFeature('orgKnowledge'));
 
 const who = (req) => (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
 

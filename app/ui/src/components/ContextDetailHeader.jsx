@@ -8,6 +8,7 @@ import DownloadReportButton from './contexts/header/DownloadReportButton';
 import MoreMenu from './contexts/header/MoreMenu';
 import { reportFor, offersMatrix } from './contexts/header/headerActions';
 import AddInformation from './contexts/interviews/AddInformation';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 
 // ─── Header: the name, one sentence on what it is, and the page's actions ──
 // The sentence ("Department · imported from Fortigi Demo HR") replaces the old
@@ -17,11 +18,12 @@ import AddInformation from './contexts/interviews/AddInformation';
 //
 // Actions: "Download report" (when the template has one — the reader's main
 // action, for everyone), "Add information" (an analyst, on a unit or an
-// application), and a ⋯ menu with the rest (contexts/header/MoreMenu.jsx), each
+// application, while organisation knowledge is on), and a ⋯ menu with the rest (contexts/header/MoreMenu.jsx), each
 // only when its handler is given:
 //   onEdit        Edit (name, description, parent, template, delete)
 //   onAddSubUnit  Add sub-unit
-//   canAdjustTree Adjust tree (opens the tree's Adjust tree tab through onOpenDetail)
+//   canAdjustTree Adjust tree (opens the tree's Adjust tree tab through onOpenDetail;
+//                 only while organisation knowledge is on)
 //   onOpenAsPage  Open as page (embedded in the Contexts page)
 //   onClose       Back to Contexts (the page opened from the tree)
 // View in matrix and Copy link are offered except in a read-only shell (a
@@ -32,6 +34,7 @@ import AddInformation from './contexts/interviews/AddInformation';
 
 export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, children }) {
   const readOnly = useIsSharedView();
+  const knowledge = useOrgKnowledge();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
   const report = reportFor(attrs);
@@ -47,11 +50,11 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
         </div>
         <div className="flex flex-wrap items-start gap-2">
           {report && <DownloadReportButton attrs={attrs} report={report.report} title={report.title} />}
-          {addInformation && <AddInformation contextId={attrs.id} />}
+          {addInformation && knowledge && <AddInformation contextId={attrs.id} />}
           <MoreMenu
             attrs={attrs}
             matrix={offersMatrix(attrs, { sharedView: readOnly })}
-            onAdjustTree={canAdjustTree && onOpenDetail ? (treeKey, title) => onOpenDetail('adjust-tree', treeKey, title) : undefined}
+            onAdjustTree={canAdjustTree && knowledge && onOpenDetail ? (treeKey, title) => onOpenDetail('adjust-tree', treeKey, title) : undefined}
             onEditRecipe={canEditRecipe ? () => onOpenDetail('context-builder', attrs.id, attrs.displayName) : undefined}
             onEdit={onEdit}
             onAddSubUnit={onAddSubUnit}

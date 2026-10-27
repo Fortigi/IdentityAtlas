@@ -16,6 +16,7 @@ import {
   singleSubject,
 } from '../reports/export.js';
 import { claimStatusesFor } from './contexts/interviews.js';
+import { orgKnowledgeEnabled } from '../featureFlags.js';
 
 const router = Router();
 
@@ -33,8 +34,10 @@ const router = Router();
 // The run's second argument says who is asking, in the one way a template may
 // care: `claimStatuses`, the claim statuses this reader may see (a context owner
 // and any reader without data.write.contexts: confirmed only) — the unit
-// report's organisational-claim columns follow the same rule as the People overview.
-export const runContext = req => ({ claimStatuses: claimStatusesFor(req) });
+// report's organisational-claim columns follow the same rule as the People overview —
+// and orgKnowledge, whether organisation knowledge is on (featureFlags.js): off,
+// the unit report has no organisational-claim columns at all.
+export const runContext = async req => ({ claimStatuses: claimStatusesFor(req), orgKnowledge: await orgKnowledgeEnabled() });
 
 async function runReport(report, params, ctx = {}) {
   const { rows, notices, truncated, constantColumns, columns, pivots, details } = await report.run(params, ctx);
@@ -83,7 +86,7 @@ router.get('/reports/:name/rows', async (req, res) => {
   const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
   try {
-    res.json(await runReport(report, req.query || {}, runContext(req)));
+    res.json(await runReport(report, req.query || {}, await runContext(req)));
   } catch (err) {
     reportFailed(res, report, 'rows', err);
   }
@@ -113,7 +116,7 @@ router.get('/reports/:name/export', async (req, res) => {
     // `carriesContext` and gets it, and every other format is served exactly the
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
-    const full = await runReport(report, params, runContext(req));
+    const full = await runReport(report, params, await runContext(req));
     const { notices: _screenOnly, constantColumns: _headerOnly, details: _aboutOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 

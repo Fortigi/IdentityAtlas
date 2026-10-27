@@ -20,6 +20,7 @@ import { attentionView, splitOptions } from '../../contexts/adjustments/attentio
 import { createAdjustment, undoAdjustment, redoAdjustment, followAdjustment } from '../../contexts/adjustments/service.js';
 import { AdjustmentInvalid } from '../../contexts/adjustments/ops.js';
 process.env.USE_SQL = 'true';
+process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // Adjust tree is organisation knowledge
 
 const { default: router } = await import('./trees.js');
 const app = mountRouter(router);
@@ -33,6 +34,25 @@ const CLIENT = { name: 'tx-client' };
 beforeEach(() => {
   vi.clearAllMocks();
   db.tx.mockImplementation(async (fn) => fn(CLIENT));
+});
+
+describe('while organisation knowledge is off', () => {
+  it('every /context-trees route answers 404 and reads nothing', async () => {
+    process.env.FEATURE_ORG_KNOWLEDGE = 'false';
+    try {
+      for (const path of ['/api/context-trees/resolve?contextId=x', '/api/context-trees/ctx~1', '/api/context-trees/ctx~1/adjustments']) {
+        const res = await request(app).get(path);
+        expect(res.status, path).toBe(404);
+        expect(res.body).toEqual({ error: 'This feature is not enabled' });
+      }
+      expect((await request(app).post('/api/context-trees/ctx~1/adjustments').send({})).status).toBe(404);
+      expect(resolveTree).not.toHaveBeenCalled();
+      expect(treeView).not.toHaveBeenCalled();
+      expect(createAdjustment).not.toHaveBeenCalled();
+    } finally {
+      process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    }
+  });
 });
 
 describe('reads', () => {

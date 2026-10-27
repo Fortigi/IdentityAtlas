@@ -27,6 +27,7 @@ export default defineConfig({
       'src/components/contexts/people/PeopleSection.mount.test.jsx',
       'src/components/contexts/people/PersonClaims.mount.test.jsx',
       'src/components/contexts/page/ProfileBody.mount.test.jsx',
+      'src/components/contexts/interviews/orgKnowledgeOff.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

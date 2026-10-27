@@ -44,6 +44,7 @@ async function resync() {
 }
 
 beforeAll(async () => {
+  process.env.FEATURE_ORG_KNOWLEDGE = 'true'; // Adjust tree is organisation knowledge
   ({ agent, pool } = await bootContractApp());
   systemId = (await q(`INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'Adjust contract list') RETURNING id`)).rows[0].id;
   hrSystemId = (await q(`INSERT INTO "Systems" ("systemType", "displayName") VALUES ('test', 'Adjust contract HR') RETURNING id`)).rows[0].id;
@@ -67,6 +68,7 @@ afterAll(async () => {
   await q(`DELETE FROM "Systems" WHERE id = ANY($1::int[])`, [[systemId, hrSystemId]]);
   await pool.end();
   delete process.env.USE_SQL;
+  delete process.env.FEATURE_ORG_KNOWLEDGE;
 });
 
 describe('adjusting an imported tree', () => {

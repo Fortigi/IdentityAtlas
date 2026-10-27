@@ -12,6 +12,8 @@ import SourcesList from './SourcesList';
 import InterviewMentions from './InterviewMentions';
 import { ClaimsContext } from './claimsContext';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
+// Organisation knowledge is behind a flag (off by default); these tests are about it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
 const TRANSCRIPT = 'Anna Voorbeeld: Yes, I am the owner of this app, but Piet does the day-to-day.';
 const POST = '/api/contexts/c-app/interviews';
