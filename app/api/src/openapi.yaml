@@ -4159,6 +4159,62 @@ paths:
         '503':
           description: The SQL backend is not configured
 
+  /workbench/investigations:
+    get:
+      tags: [Contexts]
+      summary: Every saved investigation that holds proposed roles, any unit
+      operationId: listAllWorkbenchInvestigations
+      description: For the matrix's Proposed lens — each with its unit's name, who saved it and when, and its proposed roles (id, name). Newest first. Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The investigations
+          content:
+            application/json:
+              schema: { type: object }
+        '403':
+          description: Missing data.write.contexts
+        '503':
+          description: The SQL backend is not configured
+
+  /workbench/proposals/matrix:
+    post:
+      tags: [Contexts]
+      summary: The matrix rows of the accounts proposed roles would reach
+      operationId: getProposedRolesMatrix
+      description: >
+        The matrix's own rows (the shape GET /api/permissions answers) for these accounts — every access
+        they hold — and which business roles cover each of their cells (managedByPackages). The browser
+        works out who each saved proposed role reaches and shows the proposals as business-role bands
+        over these rows (the matrix's Proposed lens). Read-only. Needs data.write.contexts.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [principalIds]
+              properties:
+                principalIds:
+                  type: array
+                  maxItems: 2000
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The rows and the business roles covering them
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: principalIds is not a list of ids, or too long
+        '403':
+          description: Missing data.write.contexts
+        '503':
+          description: The SQL backend is not configured
+
   /workbench/investigations/{invId}:
     parameters:
       - name: invId

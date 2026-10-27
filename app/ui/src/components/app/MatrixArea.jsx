@@ -1,9 +1,12 @@
 import { lazy } from 'react';
+import { useHasPermission } from '@ui/auth/usePermissions';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 // Lazy-load the matrix views (route-based code splitting).
 const MatrixView = lazy(() => import('@ui/components/MatrixView'));
 const RotatedMatrixView = lazy(() => import('@ui/components/RotatedMatrixView'));
 const RollupMatrixView = lazy(() => import('@ui/components/RollupMatrixView'));
+const ProposedMatrix = lazy(() => import('@ui/components/matrix/ProposedMatrix'));
 
 // The matrix tab body: one of the three matrix orientations. Which view renders
 // is decided by the roll-up flag and the filter's orientation. (The wizard is
@@ -21,6 +24,10 @@ export default function MatrixArea({
   accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
   onWizardApply, onShareView,
 }) {
+  // The Proposed lens reads saved workbench investigations: an analyst's, never a shared view's.
+  const canWrite = useHasPermission('data.write.contexts');
+  const sharedView = useIsSharedView();
+  const showProposed = canWrite && !sharedView;
   return (
     <>
       {rollup ? (
@@ -54,8 +61,27 @@ export default function MatrixArea({
           hasData={hasData}
           onShareView={onShareView}
         />
+      ) : managedFilter === 'proposed' && showProposed ? (
+        // The Proposed lens: saved workbench proposals as business-role bands over the rows they reach.
+        <ProposedMatrix
+          accessPackageGroups={accessPackageGroups}
+          resourceContexts={resourceContexts}
+          filter={matrixFilter}
+          counts={counts}
+          managedFilter={managedFilter}
+          setManagedFilter={setManagedFilter}
+          groupTagMap={groupTagMap}
+          refreshing={refreshing}
+          shareUrl={shareUrl}
+          onOpenDetail={onOpenDetail}
+          onAdjustFilter={onAdjustFilter}
+          onLoadSaved={onWizardApply}
+          hasData={hasData}
+          onShareView={onShareView}
+        />
       ) : (
         <MatrixView
+          showProposed={showProposed}
           data={data}
           accessPackageGroups={accessPackageGroups}
           managedByPackages={managedByPackages}

@@ -66,6 +66,8 @@ export default function MatrixView({
   onLoadSaved,
   hasData,
   onShareView,
+  // The Proposed lens in the view switch (the workbench's saved proposals) — offered by the plain matrix.
+  showProposed = false,
 }) {
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
@@ -584,6 +586,7 @@ export default function MatrixView({
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
+        showProposed={showProposed}
       />}
 
       {!filterIsApplied ? (

@@ -5,7 +5,7 @@ import { usePopover } from './usePopover';
 // The toolbar row above the matrix grid ("a matrix is a document", #1202).
 //
 // It carries only what changes the view of the whole document: the lens —
-// All / Governed / Non-governed / Gaps — and Export. Controls that act on one
+// All / Governed / Non-governed / Gaps (and Proposed, where offered) — and Export. Controls that act on one
 // axis of the grid (fold columns, expand/fold rows, reset row order, the
 // legend) live in the grid's own header corner (GridCornerControls). Saving,
 // loading and sharing live in the Load / Save / Share bar above. There is no
@@ -45,7 +45,7 @@ function ExportMenu({ onExportExcel }) {
   );
 }
 
-export default function MatrixToolbar({ managedFilter, setManagedFilter, onExportExcel, hideGaps = false }) {
+export default function MatrixToolbar({ managedFilter, setManagedFilter, onExportExcel, hideGaps = false, showProposed = false }) {
   // A recipient of a share link gets the matrix, not the analyst's tooling: no
   // export (#1166).
   const isSharedView = useIsSharedView();
@@ -60,6 +60,8 @@ export default function MatrixToolbar({ managedFilter, setManagedFilter, onExpor
           { key: 'managed',   label: 'Governed' },
           { key: 'unmanaged', label: 'Non-governed' },
           ...(hideGaps ? [] : [{ key: 'gaps', label: 'Gaps' }]),
+          // Saved workbench proposals as business-role bands (app/MatrixArea → ProposedMatrix).
+          ...(showProposed ? [{ key: 'proposed', label: 'Proposed' }] : []),
         ].map(opt => (
           <button
             key={opt.key}

@@ -13,6 +13,7 @@ vi.mock('../../contexts/workbench/investigations.js', () => ({
   listInvestigations: vi.fn(), getInvestigation: vi.fn(), createInvestigation: vi.fn(),
   saveInvestigation: vi.fn(), deleteInvestigation: vi.fn(), deleteProposal: vi.fn(),
 }));
+vi.mock('../../contexts/workbench/proposedMatrix.js', async (orig) => ({ ...(await orig()), listAllInvestigations: vi.fn(), proposedMatrixRows: vi.fn() }));
 process.env.USE_SQL = 'true';
 
 const { default: router } = await import('./workbenchInvestigations.js');
@@ -26,7 +27,8 @@ const analyst = { email: 'ann@example.test', permissions: ['data.write.contexts'
 const reader = { email: 'reader@example.test', permissions: ['data.read'] };
 let caller = analyst;
 const app = mountRouterAs(router, () => caller);
-const ALL = Object.values(store);
+const lens = await import('../../contexts/workbench/proposedMatrix.js');
+const ALL = [...Object.values(store), lens.listAllInvestigations, lens.proposedMatrixRows];
 
 const ROUTES = [
   ['get', `/api/contexts/${CTX}/workbench/investigations`],
@@ -35,6 +37,8 @@ const ROUTES = [
   ['put', `/api/workbench/investigations/${INV}`],
   ['delete', `/api/workbench/investigations/${INV}`],
   ['delete', `/api/workbench/investigations/${INV}/proposals/${PID}`],
+  ['get', '/api/workbench/investigations'],
+  ['post', '/api/workbench/proposals/matrix'],
 ];
 
 beforeEach(() => {
@@ -118,5 +122,25 @@ describe('errors', () => {
     for (const [method, path] of ROUTES) {
       expect((await request(plain)[method](path).send({})).status).toBe(503);
     }
+  });
+});
+
+describe('the Proposed lens', () => {
+  it('lists every saved investigation with proposed roles', async () => {
+    vi.mocked(lens.listAllInvestigations).mockResolvedValueOnce([{ id: INV, unitName: 'Property Claims' }]);
+    const res = await request(app).get('/api/workbench/investigations');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ data: [{ id: INV, unitName: 'Property Claims' }] });
+  });
+
+  it('reads the matrix rows of the accounts asked for, and answers a bad request with its status', async () => {
+    vi.mocked(lens.proposedMatrixRows).mockResolvedValueOnce({ data: [], managedByPackages: [] });
+    const ok = await request(app).post('/api/workbench/proposals/matrix').send({ principalIds: [CTX] });
+    expect(ok.body).toEqual({ data: [], managedByPackages: [] });
+    expect(vi.mocked(lens.proposedMatrixRows).mock.calls[0][1]).toEqual({ principalIds: [CTX] });
+    vi.mocked(lens.proposedMatrixRows).mockRejectedValueOnce(new lens.ProposedMatrixError(400, 'principalIds must be a list.'));
+    const bad = await request(app).post('/api/workbench/proposals/matrix').send({});
+    expect(bad.status).toBe(400);
+    expect(bad.body).toEqual({ error: 'principalIds must be a list.' });
   });
 });
