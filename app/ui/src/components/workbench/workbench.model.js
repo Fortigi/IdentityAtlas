@@ -139,7 +139,8 @@ export function selectionParts(selection) {
   return { people, resources };
 }
 
-export const EMPTY_CANDIDATE = Object.freeze({ mode: 'new', baseRoleId: null, name: '', description: '', members: new Set(), entitlements: new Set() });
+// A proposed role: { id, name, description, baseBusinessRoleId (the role it updates, or null), members, entitlements }.
+export const EMPTY_CANDIDATE = Object.freeze({ id: null, name: '', description: '', baseBusinessRoleId: null, members: new Set(), entitlements: new Set() });
 
 /**
  * The selection added to the candidate: its people become members, and the
@@ -190,10 +191,10 @@ export function proposeEntitlements(members, columns, cellIndex, marks, threshol
   return out;
 }
 
-/** A candidate that starts from an existing business role: its members and what it Contains. Pure. */
+/** A proposed update of an existing business role: its members and what it Contains. Pure. */
 export function candidateFromRole(role, cellsByResource) {
   return {
-    mode: 'extend', baseRoleId: role.id, name: role.displayName, description: '',
+    baseBusinessRoleId: role.id, name: role.displayName, description: '',
     members: new Set((cellsByResource.get(role.id) || []).map(c => c.person)),
     entitlements: new Set(role.contains || []),
   };

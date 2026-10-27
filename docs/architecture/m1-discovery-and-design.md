@@ -14,15 +14,16 @@ full-width tab (`#workbench:<unit id>`) with:
 - what is known of their work — the **activities** they perform, their **expertise** and the
   **duties** they hold beside it — as chips with their status (✓ confirmed, ? proposed, ! disputed)
   and, on click, the evidence: source, quote, who decided;
-- **group by** activity, expertise, duty, job title or nothing; **sort** by name, access or job title;
+- one row per person, with **Excel-like columns** on the left (name, job title, chosen system data, activity, expertise, duty): **filter** any column by its values (a multi-value column keeps a row when any value is ticked; proposed values can be left out; filters combine with AND), **sort** by a header, and take the people shown into the candidate in one click; grouping is optional;
 - **select** cells (click, Shift-click for a rectangle, Ctrl/⌘-click to add; a person, a group or a
   column header selects what they hold) and **mark** them: other context, unrelated here, needs
   investigation;
 - a **candidate role** — new, or a proposed update to a business role the unit already holds —
   with members and entitlements chosen separately, a deterministic first proposal (columns at least
   50 % / 75 % / all of the members hold, minus what was marked other context or unrelated), and
-- an **impact overlay**: covered, potential gain, outside the candidate, other context, unrelated,
-  needs investigation. Never "loss".
+- the candidate shown as **Draft** in the matrix's business-role band, every cell the matrix's own
+  (MatrixCell): covered = the role's colour, potential gain = its provisioning gap, a candidate
+  entitlement a non-member holds = held outside; plain = outside the candidate. Never "loss".
 
 Nothing in the workbench changes access or is saved. The candidate lives in the browser tab.
 
@@ -61,9 +62,9 @@ The global matrix is not touched.
 4. **Link state** is read from all claims about one (person, kind, name): *confirmed* (someone
    confirmed it, nobody rejected it), *disputed* (confirmed or proposed by one source, rejected for
    another), *proposed* (only proposed), *rejected* (only rejected — not shown in groups).
-5. **Multi-value grouping.** A person with two activities appears in both groups ("+1 group" on
-   the row); the group counts its people; the same person's cells are one selection. People with
-   nothing known are in **Not known** — missing is never negative evidence.
+5. **Multi-value columns.** One row per person; a person with two activities has two chips, and a
+   filter keeps the row when any value is ticked. People with nothing known show as **(Not known)**
+   in the filter — missing is never negative evidence. Optional grouping shows a person under each value.
 6. **Scope.** The unit and, by default, its sub-units (toggle). At most 400 people and 300 columns
    (most held first; a unit with more than 120 columns opens on columns at least two people hold).
 7. **Read cost.** Eleven statements whatever the unit's size (`load.test.js` pins the list); about

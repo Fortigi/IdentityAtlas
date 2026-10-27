@@ -25,7 +25,7 @@ export function PeopleHeader({ columns, offsets, people, filters, sort, onSort, 
       <th key={column.key} scope="col" style={cellStyle(column, offsets[i], open === column.key ? 45 : 30)}
         className={`${STICKY} top-0 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-200`}>
         <div className="relative flex items-center gap-1">
-          <button type="button" onClick={() => onSort(column.key)} className="min-w-0 flex-1 truncate text-left hover:underline" title={`Sort by ${column.label}`}>
+          <button type="button" onClick={() => onSort(column.key)} className="min-w-0 flex-1 truncate text-left hover:underline" title={`Sort by ${column.label}`} aria-label={`Sort by ${column.label}`}>
             {column.label}{sorted}
           </button>
           <button type="button" onClick={() => setOpen(open === column.key ? null : column.key)} aria-label={`Filter ${column.label}`} aria-expanded={open === column.key}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { getAccessPackageColor } from '@ui/utils/colors';
 import { bandRoles } from './workbench.roles';
-import { useWorkbenchData, useWorkbenchDraft } from './useWorkbench';
+import { useWorkbenchData, useWorkbenchDraft, activeDraft } from './useWorkbench';
 import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
 import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';
@@ -29,7 +29,7 @@ function visibleColumns(columns, view) {
   return columns.filter(c => !c.isRole && c.holders >= view.minHolders && (!q || c.displayName.toLowerCase().includes(q) || (c.systemName || '').toLowerCase().includes(q)));
 }
 
-export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenDetail }) {
+export default function WorkbenchPage({ contextId, onCacheData, onClose }) {
   const [view, setView] = useState(DEFAULT_VIEW);
   const isDark = useIsDark();
   const { data, loading, error, reload, send } = useWorkbenchData(contextId, view.includeChildren);
@@ -46,7 +46,7 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenD
   const shownView = useMemo(() => (data && view.minHolders === null ? { ...view, minHolders: startsCrowded(data) ? 2 : 1 } : view), [data, view]);
   const derived = useMemo(() => derive(data, shownView), [data, shownView]);
 
-  const roles = useMemo(() => (derived ? bandRoles(data.columns, derived.cellsByResource, draft.candidate) : []), [derived, data, draft.candidate]);
+  const roles = useMemo(() => (derived ? bandRoles(data.columns, derived.cellsByResource, draft.drafts, draft.activeId) : []), [derived, data, draft.drafts, draft.activeId]);
 
   if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
   const color = (idx) => getAccessPackageColor(idx, isDark);
@@ -80,12 +80,12 @@ export default function WorkbenchPage({ contextId, onCacheData, onClose, onOpenD
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
           <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
-            cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch} personProps={personProps} onOpenDetail={onOpenDetail}
+            cellIndex={derived.cellIndex} draft={draft} dispatch={dispatch} personProps={personProps}
             people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
           <Legend />
         </div>
         <div className="w-full shrink-0 xl:w-96">
-          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} draftColor={color(roles.length - 1)}
+          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color}
             peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} />
         </div>
       </div>

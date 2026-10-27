@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bandRoles, cellProps, roleCellProps, cellLabel, draftName, draftShown, DRAFT_ID } from './workbench.roles';
+import { bandRoles, cellProps, roleCellProps, cellLabel, draftName, draftShown } from './workbench.roles';
 import { indexCells, cellsByResource, EMPTY_CANDIDATE } from './workbench.model';
 
 const color = (idx) => `#c${idx}`;
@@ -14,13 +14,15 @@ const columns = [
   { id: 'br', displayName: 'Handler', isRole: true, contains: ['r1', 'r3'] },
   { id: 'r2', displayName: 'Motor', isRole: false },
 ];
-const candidate = (members, entitlements, name = 'Motor v2') => ({ ...EMPTY_CANDIDATE, name, members: new Set(members), entitlements: new Set(entitlements) });
+const candidate = (members, entitlements, name = 'Motor v2', id = 'draft:1') => ({ ...EMPTY_CANDIDATE, id, name, members: new Set(members), entitlements: new Set(entitlements) });
 
 describe('bandRoles', () => {
   it('lists the existing roles with their holders and composition, then the draft once it has members or entitlements', () => {
-    expect(bandRoles(columns, cellsByResource(cells), EMPTY_CANDIDATE).map(r => [r.id, r.idx])).toEqual([['br', 0]]);
-    const roles = bandRoles(columns, cellsByResource(cells), candidate(['b'], ['r2']));
-    expect(roles.map(r => [r.id, r.displayName, r.idx, r.draft])).toEqual([['br', 'Handler', 0, false], [DRAFT_ID, 'Draft: Motor v2', 1, true]]);
+    expect(bandRoles(columns, cellsByResource(cells), []).map(r => [r.id, r.idx])).toEqual([['br', 0]]);
+    const roles = bandRoles(columns, cellsByResource(cells), [candidate(['b'], ['r2']), candidate([], [], 'Empty', 'draft:2'), candidate(['a'], [], 'Second', 'draft:3')], 'draft:3');
+    expect(roles.map(r => [r.id, r.displayName, r.idx, r.draft, !!r.active])).toEqual([
+      ['br', 'Handler', 0, false, false], ['draft:1', 'Draft: Motor v2', 1, true, false], ['draft:3', 'Draft: Second', 2, true, true],
+    ]);
     expect([...roles[0].holders]).toEqual(['a']);
     expect([...roles[0].contains]).toEqual(['r1', 'r3']);
   });
@@ -33,7 +35,7 @@ describe('bandRoles', () => {
 });
 
 describe('cellProps — the candidate in the matrix’s words', () => {
-  const roles = bandRoles(columns, cellsByResource(cells), candidate(['b'], ['r1', 'r3']));
+  const roles = bandRoles(columns, cellsByResource(cells), [candidate(['b'], ['r1', 'r3'])]);
   const idx = indexCells(cells);
   const props = (person, r) => cellProps({ cell: idx.get(`${person}|${r}`), personKey: person, resourceId: r, roles, color });
 
@@ -61,7 +63,7 @@ describe('cellProps — the candidate in the matrix’s words', () => {
 });
 
 describe('roleCellProps', () => {
-  const roles = bandRoles(columns, cellsByResource(cells), candidate(['b'], ['r1']));
+  const roles = bandRoles(columns, cellsByResource(cells), [candidate(['b'], ['r1'])]);
   const idx = indexCells(cells);
 
   it('paints a holder’s own role cell in the role’s colour, and a draft member as the draft’s gap', () => {
