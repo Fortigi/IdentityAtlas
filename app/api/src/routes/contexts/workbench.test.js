@@ -1,7 +1,7 @@
 // Route tests for the workbench and knowledge endpoints: the gate (an analyst
 // only), the parsing, the errors each module throws, and 503 without SQL. What
 // the modules compute is their own tests'.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouterAs } from '../../../test-utils/routeTestKit.js';
 
@@ -13,6 +13,7 @@ vi.mock('../../contexts/workbench/load.js', async (orig) => ({ ...(await orig())
 vi.mock('../../contexts/orgKnowledge/manual.js', async (orig) => ({ ...(await orig()), addKnowledgeLink: vi.fn(), peopleWithObject: vi.fn() }));
 vi.mock('../../contexts/orgKnowledge/objects.js', async (orig) => ({ ...(await orig()), listObjects: vi.fn() }));
 process.env.USE_SQL = 'true';
+process.env.FEATURE_ORG_KNOWLEDGE = 'true';
 
 const { default: router } = await import('./workbench.js');
 const { loadWorkbench, WorkbenchError } = await import('../../contexts/workbench/load.js');
@@ -127,5 +128,28 @@ describe('without the SQL backend', () => {
       expect((await request(plain)[method](path).send({})).status).toBe(503);
     }
     process.env.USE_SQL = 'true';
+  });
+});
+
+describe('while organisation knowledge is off', () => {
+  beforeEach(() => { process.env.FEATURE_ORG_KNOWLEDGE = 'false'; });
+  afterEach(() => { process.env.FEATURE_ORG_KNOWLEDGE = 'true'; });
+
+  it.each([
+    ['get', `/api/contexts/${CTX}/workbench`],
+    ['post', `/api/contexts/${CTX}/knowledge`],
+    ['get', '/api/org-knowledge/objects'],
+    ['get', `/api/org-knowledge/objects/${OBJ}/people`],
+  ])('%s %s answers 404 — for an analyst too — and reaches nothing', async (method, path) => {
+    const res = await request(app)[method](path).send({});
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'This feature is not enabled' });
+    for (const f of [loadWorkbench, addKnowledgeLink, peopleWithObject, listObjects]) expect(f).not.toHaveBeenCalled();
+  });
+
+  it('leaves a path this router does not serve alone', async () => {
+    const res = await request(app).get(`/api/contexts/${CTX}`);
+    expect(res.status).toBe(404);
+    expect(res.body).not.toEqual({ error: 'This feature is not enabled' });
   });
 });

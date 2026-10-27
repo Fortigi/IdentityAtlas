@@ -2,6 +2,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import WorkbenchPage from './WorkbenchPage';
+
+// Organisation knowledge on (the workbench is part of it); the off case is its own test below.
+const knowledge = vi.hoisted(() => ({ on: true }));
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => knowledge.on }));
 import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, makeAuthFetch, fireEvent } from '@ui/test-utils/renderWithProviders';
 
 import { UNIT, claim, knows, payload, api, mount } from '@ui/test-utils/workbenchFixture';
@@ -341,5 +345,19 @@ describe('WorkbenchPage', () => {
     renderWithProviders(h(WorkbenchPage, { contextId: UNIT }), { auth: { authFetch } });
     expect(await screen.findByText('The authorization workbench opens on an organizational unit.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
+  });
+});
+
+describe('WorkbenchPage while organisation knowledge is off', () => {
+  it('says the workbench is part of it, and asks the API nothing', async () => {
+    knowledge.on = false;
+    try {
+      const authFetch = makeAuthFetch(() => payload());
+      renderWithProviders(h(WorkbenchPage, { contextId: UNIT, onClose: () => {} }), { auth: { authFetch } });
+      expect(screen.getByText(/The Authorization workbench is part of/)).toHaveTextContent('Organisation knowledge, which is off on this installation');
+      expect(authFetch).not.toHaveBeenCalled();
+    } finally {
+      knowledge.on = true;
+    }
   });
 });

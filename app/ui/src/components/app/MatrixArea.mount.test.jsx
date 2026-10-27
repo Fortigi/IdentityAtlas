@@ -18,14 +18,14 @@ import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 
 const FILTER = { rowType: 'principal', savedFilterId: 'sf-1' };
 
-function renderArea(props, { shared = false, auth } = {}) {
+function renderArea(props, { shared = false, auth, knowledge = true } = {}) {
   renderWithProviders(
     <SharedViewContext.Provider value={shared}>
       <Suspense fallback={null}>
         <MatrixArea matrixFilter={FILTER} {...props} />
       </Suspense>
     </SharedViewContext.Provider>,
-    auth ? { auth } : undefined,
+    { ...(auth ? { auth } : {}), features: { orgKnowledge: knowledge } },
   );
 }
 
@@ -50,6 +50,12 @@ describe('MatrixArea — the Proposed lens', () => {
     expect(screen.queryByTestId('proposed-view')).not.toBeInTheDocument();
   });
 
+  it('never offers it while organisation knowledge is off, and falls back to the grid', async () => {
+    renderArea({ managedFilter: 'proposed' }, { knowledge: false });
+    expect((await screen.findByTestId('grid-view')).dataset.proposed).toBe('false');
+    expect(screen.queryByTestId('proposed-view')).not.toBeInTheDocument();
+  });
+
   it('never offers it to someone who may not write contexts', async () => {
     renderArea({ managedFilter: 'proposed' }, { auth: READ_ONLY });
     expect((await screen.findByTestId('grid-view')).dataset.proposed).toBe('false');
@@ -57,7 +63,7 @@ describe('MatrixArea — the Proposed lens', () => {
 
   it('leaves All, Governed, Non-governed and Gaps on the grid as before', async () => {
     for (const lens of ['all', 'managed', 'unmanaged', 'gaps']) {
-      const { unmount } = renderWithProviders(<Suspense fallback={null}><MatrixArea matrixFilter={FILTER} managedFilter={lens} /></Suspense>);
+      const { unmount } = renderWithProviders(<Suspense fallback={null}><MatrixArea matrixFilter={FILTER} managedFilter={lens} /></Suspense>, { features: { orgKnowledge: true } });
       expect((await screen.findByTestId('grid-view')).dataset.lens).toBe(lens);
       expect(screen.queryByTestId('proposed-view')).not.toBeInTheDocument();
       unmount();

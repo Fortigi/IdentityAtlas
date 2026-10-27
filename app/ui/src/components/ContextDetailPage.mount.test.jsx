@@ -164,16 +164,25 @@ describe('ContextDetailPage — Authorization workbench', () => {
   it('opens an organizational unit’s workbench as its own tab', async () => {
     const user = userEvent.setup();
     const onOpenDetail = vi.fn();
-    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: unit('OrganizationalUnit') } });
+    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: unit('OrganizationalUnit') }, features: { orgKnowledge: true } });
     await user.click(await screen.findByRole('button', { name: 'Authorization workbench' }));
     expect(onOpenDetail).toHaveBeenCalledWith('workbench', 'ctx-1', 'Workbench: Engineering Cluster');
   });
 
   it('offers no workbench on an application', async () => {
     const authFetch = unit('LogicalApplication');
-    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch }, features: { orgKnowledge: true } });
     expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Authorization workbench' })).toBeNull();
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/workbench/investigations'));
+  });
+
+  it('offers no workbench, no proposed roles and asks for none while organisation knowledge is off', async () => {
+    const authFetch = withProposals();
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Authorization workbench/ })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Proposed roles' })).toBeNull();
     expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/workbench/investigations'));
   });
 
@@ -199,7 +208,7 @@ describe('ContextDetailPage — Authorization workbench', () => {
   it('counts the proposed roles on the workbench button and opens the workbench on one from Proposed roles', async () => {
     const user = userEvent.setup();
     const onOpenDetail = vi.fn();
-    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: withProposals() } });
+    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch: withProposals() }, features: { orgKnowledge: true } });
     expect(await screen.findByRole('button', { name: 'Authorization workbench 3 proposed' })).toBeInTheDocument();
     const section = screen.getByRole('region', { name: 'Proposed roles' });
     expect(section).toHaveTextContent('3 in 2 investigations');
@@ -222,7 +231,7 @@ describe('ContextDetailPage — Authorization workbench', () => {
 
   it('shows the plain button and no section when nothing is saved, or the list cannot be read', async () => {
     for (const answer of [{ data: [] }, jsonResponse({ error: 'nope' }, { ok: false, status: 500 })]) {
-      const { unmount } = renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: withProposals({ '/api/contexts/ctx-1/workbench/investigations': answer }) } });
+      const { unmount } = renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: withProposals({ '/api/contexts/ctx-1/workbench/investigations': answer }) }, features: { orgKnowledge: true } });
       expect(await screen.findByRole('button', { name: 'Authorization workbench' })).toBeInTheDocument();
       expect(screen.queryByRole('region', { name: 'Proposed roles' })).toBeNull();
       unmount();

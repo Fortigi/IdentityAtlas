@@ -8,6 +8,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { screen, within, waitFor } from '@ui/test-utils/renderWithProviders';
 import { mount } from '@ui/test-utils/workbenchFixture';
 
+// Organisation knowledge on: the workbench is part of it.
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: ({ count, estimateSize }) => ({
     getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, start: index * estimateSize(), end: (index + 1) * estimateSize() })),

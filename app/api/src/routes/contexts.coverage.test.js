@@ -26,6 +26,14 @@ vi.mock('../contexts/plugins/runner.js', () => ({
   enqueueRun: (...a) => enqueueRun(...a),
 }));
 
+// Organisation knowledge (featureFlags.js) on, unless a test switches it off —
+// read from a variable so it never takes one of the staged queryOne answers.
+let orgKnowledge = true;
+vi.mock('../featureFlags.js', async (orig) => ({
+  ...(await orig()),
+  orgKnowledgeEnabled: async () => orgKnowledge,
+}));
+
 const { OWNER_JOIN, OWNER_COLUMNS } = await import('./contexts/read.js');
 const { default: router } = await import('./contexts.js');
 const app = mountRouter(router);
@@ -35,6 +43,7 @@ const ID2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const ID3 = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 
 beforeEach(() => {
+  orgKnowledge = true;
   query.mockReset();
   queryOne.mockReset();
   recalcMemberCountsForChain.mockReset();
@@ -296,6 +305,25 @@ describe('GET /contexts/:id/members', () => {
     const res = await request(app).get(`/api/contexts/${ID}/members?limit=10&offset=0`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ data: [{ id: 'm1', displayName: 'P', overridden: null }], total: 1, overriddenCount: 0 });
+  });
+
+  it('while organisation knowledge is off: plain membership — every member, none marked former, no claim facts', async () => {
+    orgKnowledge = false;
+    queryOne.mockResolvedValueOnce({ targetType: 'Principal', contextCategory: 'OrganizationalUnit' });
+    query.mockResolvedValueOnce({ rows: [
+      { id: 'm1', displayName: 'Stays', overrideClaimId: null },
+      { id: 'm2', displayName: 'Marked former', overrideClaimId: 'c1', overrideSource: 'Upload', overrideBy: 'a', overrideAt: 'now' },
+    ] });
+    queryOne.mockResolvedValueOnce({ current: 1, overridden: 1 });
+    const res = await request(app).get(`/api/contexts/${ID}/members`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      data: [{ id: 'm1', displayName: 'Stays', overridden: null }, { id: 'm2', displayName: 'Marked former', overridden: null }],
+      total: 2, overriddenCount: 0,
+    });
+    // The page is read WITHOUT the "not marked former" filter, and no claim facts are read.
+    expect(query.mock.calls[0][0]).not.toContain('AND o.id IS NULL');
+    expect(query).toHaveBeenCalledTimes(1);
   });
 
   it('honours search + include=descendants', async () => {

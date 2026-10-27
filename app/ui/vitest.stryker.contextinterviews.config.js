@@ -39,6 +39,7 @@ export default defineConfig({
       // The shared matrix badges (MatrixBadges.jsx), as the matrix renders them.
       'src/components/matrix/MatrixCell.mount.test.jsx',
       'src/components/matrix/MatrixLegend.test.js',
+      'src/components/contexts/interviews/orgKnowledgeOff.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

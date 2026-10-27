@@ -67,8 +67,22 @@ afterAll(async () => {
   await pool.end();
 });
 
+const accountableCount = async () => (await pool.query(
+  `SELECT count(*)::int AS n FROM "ContextRoles" r JOIN "Contexts" c ON c.id = r."contextId"
+    WHERE c."scopeSystemId" = $1 AND r.role = 'Accountable'`, [sys])).rows[0].n;
+
 describe('synced owner named by display name → Accountable', () => {
+  afterAll(() => { delete process.env.FEATURE_SOURCE_OWNER_NAME_MATCH; });
+
+  it('sets nobody by name while the "…also match by name" setting is off (the default)', async () => {
+    delete process.env.FEATURE_SOURCE_OWNER_NAME_MATCH;
+    const counts = await reconcileBatchAccountables(runner(), 'Contexts', Object.values(C).map(id => ({ id })));
+    expect(counts).toEqual({ set: 0, replaced: 0, removed: 0, unresolved: 9 });
+    expect(await accountableCount()).toBe(0);
+  });
+
   it('resolves a unique normalised name, user accounts first, and nothing else', async () => {
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'true';
     const counts = await reconcileBatchAccountables(runner(), 'Contexts', Object.values(C).map(id => ({ id })));
     const r = await pool.query(
       `SELECT c."displayName" AS c, p."displayName" AS p, p."principalType" AS t

@@ -3,9 +3,12 @@
 // the proposed-roles badge say, opening a saved investigation (its view and draft
 // back, the access change counted), asking before losing unsaved work, deleting,
 // and a refused save shown.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import WorkbenchPage from './WorkbenchPage';
+
+// Organisation knowledge on: the workbench is part of it (the off case: WorkbenchPage.mount.test.jsx).
+vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, makeAuthFetch, fireEvent } from '@ui/test-utils/renderWithProviders';
 
 const UNIT = 'u-9';

@@ -1,7 +1,7 @@
 // Route tests for saved investigations: the gate (an analyst only), the path
 // checks, who is passed on as the actor, the statuses each outcome maps to and
 // 503 without SQL. What is saved is investigations.test.js' and the contract test's.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouterAs } from '../../../test-utils/routeTestKit.js';
 
@@ -15,6 +15,7 @@ vi.mock('../../contexts/workbench/investigations.js', () => ({
 }));
 vi.mock('../../contexts/workbench/proposedMatrix.js', async (orig) => ({ ...(await orig()), listAllInvestigations: vi.fn(), proposedMatrixRows: vi.fn() }));
 process.env.USE_SQL = 'true';
+process.env.FEATURE_ORG_KNOWLEDGE = 'true';
 
 const { default: router } = await import('./workbenchInvestigations.js');
 const store = await import('../../contexts/workbench/investigations.js');
@@ -142,5 +143,17 @@ describe('the Proposed lens', () => {
     const bad = await request(app).post('/api/workbench/proposals/matrix').send({});
     expect(bad.status).toBe(400);
     expect(bad.body).toEqual({ error: 'principalIds must be a list.' });
+  });
+});
+
+describe('while organisation knowledge is off', () => {
+  beforeEach(() => { process.env.FEATURE_ORG_KNOWLEDGE = 'false'; });
+  afterEach(() => { process.env.FEATURE_ORG_KNOWLEDGE = 'true'; });
+
+  it.each(ROUTES)('%s %s answers 404 — for an analyst too — and reaches nothing', async (method, path) => {
+    const res = await request(app)[method](path).send({});
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'This feature is not enabled' });
+    for (const f of ALL) expect(f).not.toHaveBeenCalled();
   });
 });
