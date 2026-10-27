@@ -1,6 +1,7 @@
 // Context builder — header and scope settings. Presentational only; the page owns the draft.
 
 import { MUTED } from '@ui/components/reports/ask/AskAssistant.styles';
+import ContextCategorySelect from '@ui/components/contexts/ContextCategorySelect';
 
 export const CARD = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800';
 export const H3 = 'mb-2 text-sm font-semibold text-gray-900 dark:text-white';
@@ -49,10 +50,39 @@ function Toggles({ legend, values, selected, labelOf = v => v, onToggle }) {
   );
 }
 
+// What the context is: the same template choice the new-context wizard offers.
+// Describe only finds resources today, so an Organisation context made here is
+// a unit's Resources tree, not a unit of people.
+function TemplateChoice({ value, byModel, onChange }) {
+  return (
+    <div>
+      <label htmlFor="ctx-template" className="mb-1 block text-sm font-medium text-gray-800 dark:text-gray-200">
+        This context is
+        {byModel && <span className="ml-2 rounded bg-violet-50 px-1.5 py-0.5 text-xs font-normal text-violet-800 dark:bg-violet-900/30 dark:text-violet-300">suggested by the model</span>}
+      </label>
+      <ContextCategorySelect id="ctx-template" value={value} onChange={onChange} className={INPUT} />
+      <p className={`mt-1 ${MUTED}`}>The assistant finds groups and other resources, so the context holds resources — for an organisation, its Resources tree.</p>
+    </div>
+  );
+}
+
+// The likely Accountable, shown before saving; it is offered to confirm on the context page.
+function SuggestedOwner({ owner }) {
+  if (!owner) return null;
+  return (
+    <p className="text-sm text-gray-700 dark:text-gray-300" data-testid="suggested-owner">
+      Suggested owner: <span className="font-medium">{owner.displayName}</span> — {owner.reason}.
+      <span className={`block ${MUTED}`}>Confirm it on the context page after saving.</span>
+    </p>
+  );
+}
+
 /**
- * Name, structure, and where to search: which kinds of object, which of their fields.
+ * Name, template, structure, and where to search: which kinds of object, which of their fields.
  */
-export function SettingsPanel({ recipe, options, fieldLabels, onName, onStructure, onToggleType, onToggleField }) {
+export function SettingsPanel({
+  recipe, options, fieldLabels, onName, onStructure, onToggleType, onToggleField, templateByModel, onTemplate, suggestedOwner,
+}) {
   const types = [...new Set([...(options?.resourceTypes || []), ...recipe.resourceTypes])];
   return (
     <div className={`${CARD} grid gap-4 md:grid-cols-2`}>
@@ -61,6 +91,8 @@ export function SettingsPanel({ recipe, options, fieldLabels, onName, onStructur
           <label htmlFor="ctx-name" className="mb-1 block text-sm font-medium text-gray-800 dark:text-gray-200">Name</label>
           <input id="ctx-name" className={INPUT} value={recipe.name} onChange={e => onName(e.target.value)} placeholder="e.g. Inkoopproces" />
         </div>
+        <TemplateChoice value={recipe.template} byModel={templateByModel} onChange={onTemplate} />
+        <SuggestedOwner owner={suggestedOwner} />
         <div>
           <label htmlFor="ctx-structure" className="mb-1 block text-sm font-medium text-gray-800 dark:text-gray-200">Structure</label>
           <select id="ctx-structure" className={INPUT} value={recipe.structure} onChange={e => onStructure(e.target.value)}>
