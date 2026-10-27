@@ -44,6 +44,7 @@
  */
 
 import { ROLE_BEARING_CATEGORIES } from '../lib/contextCategories.js';
+import { isFeatureEnabled } from '../featureFlags.js';
 
 // The tie-break among principals sharing an externalId. `p` is the principal,
 // `c` the context (any relation with a "scopeSystemId" column).
@@ -133,7 +134,10 @@ SELECT (SELECT count(*) FROM added)::int    AS "set",
            AND NOT EXISTS (SELECT 1 FROM resolved res WHERE res."contextId" = c.id))::int AS "unresolved"`;
 }
 
+// Null when the "Accountables from source owners" setting is off (featureFlags.js
+// sourceOwnerAccountables): the sync then leaves every Accountable as it is.
 async function runReconcile(runner, scopePredicate, params) {
+  if (!(await isFeatureEnabled('sourceOwnerAccountables'))) return null;
   const r = await runner.query(buildAccountableReconcileSql(scopePredicate), params);
   const row = r.rows[0] || {};
   return {
