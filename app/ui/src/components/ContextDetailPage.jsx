@@ -6,6 +6,7 @@ import ContextAttributesTab from './ContextAttributesTab';
 import ContextRelationshipsTab from './ContextRelationshipsTab';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
+import EntityDiff from './EntityDiff';
 import useTimeline from '@ui/hooks/useTimeline';
 import useFeatures from '@ui/hooks/useFeatures';
 
@@ -146,6 +147,7 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
     { key: 'attributes', label: 'Attributes' },
     { key: 'relationships', label: 'Relationships', count: memberTotal },
     { key: 'timeline', label: 'Timeline' },
+    { key: 'diff', label: 'Diff' },
     hasRisk && { key: 'risk', label: 'Risk' },
   ];
 
@@ -203,6 +205,10 @@ export default function ContextDetailPage({ contextId, cachedData, onCacheData, 
             onSinceDaysChange={setTimelineDays}
             onOpenDetail={onOpenDetail}
           />
+        )}
+
+        {activeTab === 'diff' && (
+          <EntityDiff entityKind="context" entityId={contextId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
         )}
 
         {activeTab === 'risk' && riskData && (

@@ -155,7 +155,7 @@ Browse all synced principals (accounts) with pagination, search, tagging, and at
 - **Filter** by any attribute column or tag
 - **Tag management:** assign/remove tags (Tag Contexts — see [Tagging System](#tagging-system)) from selected users, bulk-tag by filter
 
-Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships** and **Timeline** views.
+Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships**, **Timeline** and **Diff** views. **Diff** compares the account with how it was at a moment you pick (a day, a week, a month or a year ago, or any date): the old state on the left, the current state on the right, with changed attributes and added or removed access highlighted.
 
 <figure markdown="span">
   ![A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments](../assets/screenshots/user-detail.png)

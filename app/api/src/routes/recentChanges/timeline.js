@@ -245,7 +245,8 @@ export function buildEntityTimeline(entityKind, entityId, rows, labels = {}) {
 
 // Batch-resolve counterparty labels referenced by a set of history rows
 // (avoids per-row N+1). Over-fetches across all three kinds — cheap and simple.
-async function resolveTimelineLabels(rows) {
+// Also used by the Diff tab (diff.js), which feeds it the rows of both snapshots.
+export async function resolveTimelineLabels(rows) {
   const resIds = new Set(), princIds = new Set(), identIds = new Set();
   const add = (set, ...vals) => vals.forEach(v => v && set.add(v));
   for (const row of rows) {
