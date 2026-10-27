@@ -115,8 +115,8 @@ afterAll(async () => {
   await q(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await q(`DELETE FROM "Systems" WHERE id = $1`, [systemId]);
   await pool.end();
-  delete process.env.USE_SQL;
-  delete process.env.FEATURE_ORG_KNOWLEDGE;
+  // singleFork: env set here leaks into the next contract file.
+  for (const key of ['USE_SQL', 'FEATURE_ORG_KNOWLEDGE']) delete process.env[key];
 });
 
 describe('GET /reports/unit-members on a unit of accounts', () => {
