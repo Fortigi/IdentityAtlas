@@ -1,0 +1,1 @@
+- The SCIM 2.0 crawler is no longer experimental: it now always appears in Admin → Crawlers → Add Crawler, without the Experimental badge and without having to switch on Admin → Experimental → Experimental crawlers first.
