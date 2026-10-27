@@ -75,6 +75,11 @@ function withActive(s, fn) {
   return { ...st, viewRoleId: null, drafts: st.drafts.map(d => (d.id === st.activeId ? fn(d) : d)) };
 }
 
+function selectionInto(d, selection, cellIndex) {
+  const added = addSelection(d, selection, cellIndex);
+  return d.kind === 'rule' && d.rule ? { ...d, entitlements: added.entitlements } : added;
+}
+
 function removeDraft(s, id) {
   const drafts = s.drafts.filter(d => d.id !== id);
   const activeId = s.activeId === id ? (drafts.at(-1)?.id ?? null) : s.activeId;
@@ -87,7 +92,8 @@ const ACTIONS = {
   clearSelection: (s) => ({ ...s, selection: new Set(), anchor: null }),
   mark: (s, a) => ({ ...s, marks: setMarks(s.marks, s.selection, a.mark) }),
   // Added cells leave the selection, so the impact shows without outlines over it.
-  addSelection: (s, a) => ({ ...withActive(s, d => addSelection(d, s.selection, a.cellIndex)), selection: new Set(), anchor: null }),
+  // A rule-based role with a rule takes only the entitlements: its members follow the rule.
+  addSelection: (s, a) => ({ ...withActive(s, d => selectionInto(d, s.selection, a.cellIndex)), selection: new Set(), anchor: null }),
   // With a rule, an added person is "always include" and a removed one "always exclude".
   addMembers: (s, a) => withActive(s, d => ({ ...d, members: new Set([...d.members, ...a.people]), excluded: new Set([...(d.excluded || [])].filter(k => !a.people.includes(k))) })),
   removeMember: (s, a) => withActive(s, d => (d.rule
