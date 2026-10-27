@@ -26,10 +26,10 @@ The Role Mining UI is a web application that visualizes your synced permission d
 
 The app opens to the **Dashboard** landing page — not the Matrix. From there the navigation bar has two groups of tabs:
 
-- **Always visible:** Dashboard, Matrix, Principals (Users), Resources, Business Roles, Contexts, Admin
-- **Optional (hidden by default):** Systems, Logs (the Sync Log), Risk Scores, Identities
+- **Always visible:** Dashboard, Matrix, Principals (Users), Resources, Business Roles, Reports, Admin
+- **Optional (hidden by default):** Systems, Identities, Contexts, Logs (the Sync Log)
 
-Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). **Risk Scores** and **Identities** are additionally feature-gated — they only appear in the settings list when their server-side feature flag (`riskScoring` / `accountLinking`) is enabled. The **Admin** tab is hidden from users with no `admin.*` permission.
+Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). **Identities** is additionally feature-gated — its switch only appears while the `accountLinking` feature flag is on. **Risk Scores** is not a per-user toggle: it appears for everyone as soon as an admin turns on the `riskScoring` feature. The **Admin** tab is hidden from users with no `admin.*` permission.
 
 !!! note
     The **Org Chart** tab no longer exists. Manager-hierarchy views are now generated Contexts — see [Contexts](#contexts) below.
