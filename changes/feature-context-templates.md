@@ -13,3 +13,6 @@
 - Existing databases get the accountable person filled in for synced groupings that name an owner and have none yet, once, on upgrade
 - The IdentityIQ preset with organisation extensions takes a logical application's owner from the application owner key when the catalogue's owner key is empty
 - Databases that already applied a migration under its earlier number keep it applied when the migration is renumbered, instead of running it again
+- Fixed: an accountable person a crawler sends for a grouping directly is no longer removed by the next contexts sync when the grouping itself names no owner; only the owner taken from the source's owner field follows that field, and existing databases are relabelled on upgrade
+- Upgrade note: the root types of generated trees are renamed (for example PrincipalTypeRoot → PrincipalType, ScopeHierarchy and the Azure scope types → Scope, TagGroup → Tag); saved filters, report parameters or API scripts that select contexts by one of the old type names need the new name
+- Databases that ran an early test build of the context templates (links between variants of a unit stored as "DedicatedTo") are brought level on upgrade: those links become "same unit as" links, a link stored both ways is kept once, and the change history of who answers for a unit is recorded

@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   reconcileBatchAccountables, reconcileSessionAccountables, buildAccountableReconcileSql,
-  ownerResolutionCtes, OWNER_PRINCIPAL_ORDER,
+  ownerResolutionCtes, OWNER_PRINCIPAL_ORDER, OWNER_ADDED_BY,
 } from './contextOwners.js';
 
 const ID1 = '11111111-1111-1111-1111-111111111111';
@@ -88,17 +88,22 @@ describe('the statement', () => {
     expect(ctes).toMatch(/WHERE NOT EXISTS \(SELECT 1 FROM by_external_id x WHERE x\."contextId" = c\.id\)/);
   });
 
-  it('only ever replaces or removes an Accountable it added itself', () => {
+  it('marks its own rows with an addedBy no crawler, plugin or analyst writes', () => {
+    expect(OWNER_ADDED_BY).toBe('sourceOwner');
+  });
+
+  it('only ever replaces or removes an Accountable it added itself — never a crawler\'s sync one', () => {
     const replaced = sql.slice(sql.indexOf('replaced AS'), sql.indexOf('removed AS'));
     const removed = sql.slice(sql.indexOf('removed AS'), sql.indexOf('added AS'));
-    expect(replaced).toContain(`a."addedBy" = 'sync'`);
-    expect(removed).toContain(`a."addedBy" = 'sync'`);
+    expect(replaced).toContain(`a."addedBy" = 'sourceOwner'`);
+    expect(removed).toContain(`a."addedBy" = 'sourceOwner'`);
+    expect(sql).not.toContain(`'sync'`);
     expect(sql).toMatch(/WHERE r\.role = 'Accountable'/);
   });
 
-  it('adds only where no Accountable exists, as addedBy sync, yielding to a concurrent one', () => {
+  it('adds only where no Accountable exists, as addedBy sourceOwner, yielding to a concurrent one', () => {
     const added = sql.slice(sql.indexOf('added AS'));
-    expect(added).toMatch(/SELECT res\."contextId", res\."principalId", 'Accountable', 'sync'/);
+    expect(added).toMatch(/SELECT res\."contextId", res\."principalId", 'Accountable', 'sourceOwner'/);
     expect(added).toMatch(/WHERE NOT EXISTS \(SELECT 1 FROM accountable a WHERE a\."contextId" = res\."contextId"\)/);
     expect(added).toContain('ON CONFLICT DO NOTHING');
   });
