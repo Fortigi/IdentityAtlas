@@ -278,3 +278,45 @@ SELECT 'workbench fixture loaded' AS result,
        (SELECT count(*) FROM "ContextMembers" WHERE "contextId" IN (md5('wb:ctx:claims')::uuid, md5('wb:ctx:motor')::uuid, md5('wb:ctx:property')::uuid)) AS members,
        (SELECT count(*) FROM "ContextClaims" WHERE "contextId" = md5('wb:ctx:claims')::uuid) AS claims,
        md5('wb:ctx:claims')::uuid AS "claimsUnitId";
+
+-- ─── Contexts on the Northwind resources (idempotent; safe to run on its own) ──
+-- So the workbench's Contexts filter has something to show: a Tag "Default access"
+-- on what everyone holds, the logical application "ClaimsSuite" with a
+-- sub-context "ClaimsSuite — Approvals" (choosing the application takes its
+-- sub-context too), and "Works council". This block can be applied on its own to
+-- a stack whose saved investigations must stay:
+--   sed -n '/^-- ─── Contexts on the Northwind resources/,$p' workbench-fixture.sql | psql …
+-- (a full reset deletes them with everything marked fixture=workbench above, and recreates them here).
+BEGIN;
+DELETE FROM "Contexts" WHERE id IN (md5('wb:rctx:approvals')::uuid, md5('wb:rctx:default')::uuid, md5('wb:rctx:suite')::uuid, md5('wb:rctx:or')::uuid);
+
+INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "contextCategory", "displayName", description, "parentContextId", "createdByUser", "extendedAttributes")
+VALUES
+  (md5('wb:rctx:default')::uuid, 'manual', 'Resource', 'Tag', 'Tag', 'Default access',
+   'What every Northwind claims employee gets on day one.', NULL, 'workbench-fixture', '{"fixture":"workbench"}'),
+  (md5('wb:rctx:suite')::uuid, 'manual', 'Resource', 'LogicalApplication', 'LogicalApplication', 'ClaimsSuite',
+   'The claims-handling application (synthetic).', NULL, 'workbench-fixture', '{"fixture":"workbench"}'),
+  (md5('wb:rctx:approvals')::uuid, 'manual', 'Resource', 'LogicalApplication', 'LogicalApplication', 'ClaimsSuite — Approvals',
+   'ClaimsSuite''s approval module.', md5('wb:rctx:suite')::uuid, 'workbench-fixture', '{"fixture":"workbench"}'),
+  (md5('wb:rctx:or')::uuid, 'manual', 'Resource', 'LogicalApplication', 'LogicalApplication', 'Works council',
+   'The works council''s site and mailbox.', NULL, 'workbench-fixture', '{"fixture":"workbench"}');
+
+INSERT INTO "ContextMembers" ("contextId", "memberType", "memberId", "addedBy")
+SELECT md5('wb:rctx:' || ctx)::uuid, 'Resource', md5('wb:r:' || res)::uuid, 'analyst'
+  FROM (VALUES ('default', 'read'), ('default', 'all'), ('default', 'print'),
+               ('suite', 'read'), ('suite', 'motor'), ('suite', 'property'), ('suite', 'fraud'), ('suite', 'keyuser'),
+               ('approvals', 'approve'),
+               ('or', 'or-site'), ('or', 'or-mail')) m(ctx, res)
+ WHERE EXISTS (SELECT 1 FROM "Resources" r WHERE r.id = md5('wb:r:' || res)::uuid);
+
+-- Member counts: direct per context; the application's total takes its sub-context.
+UPDATE "Contexts" c
+   SET "directMemberCount" = (SELECT count(*)::int FROM "ContextMembers" cm WHERE cm."contextId" = c.id),
+       "totalMemberCount"  = (SELECT count(DISTINCT cm."memberId")::int FROM "ContextMembers" cm
+                               WHERE cm."contextId" = c.id OR cm."contextId" IN (SELECT s.id FROM "Contexts" s WHERE s."parentContextId" = c.id)),
+       "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
+ WHERE c.id IN (md5('wb:rctx:approvals')::uuid, md5('wb:rctx:default')::uuid, md5('wb:rctx:suite')::uuid, md5('wb:rctx:or')::uuid);
+COMMIT;
+
+SELECT 'resource contexts loaded' AS result, c."displayName", c."directMemberCount", c."totalMemberCount"
+  FROM "Contexts" c WHERE c."createdByUser" = 'workbench-fixture' AND c."targetType" = 'Resource' ORDER BY c."displayName";
