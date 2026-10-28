@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a **Diff** tab next to Timeline on the user, resource, business role, identity and context detail pages. Pick a moment in the past (1 day to 1 year ago, or any date) and see the item as it was then on the left and as it is now on the right, like a side-by-side file compare: every attribute, plus every relationship — manager, business roles, groups and other resources held, members, contained resources and linked accounts. Changed values are highlighted, added entries are shown in green on the right, removed entries in red on the left, and an "Only show differences" switch hides everything that stayed the same.
+
+## Changes in this PR
+
 - Fixed the user Timeline tab hanging on "Loading timeline…" on tenants with a large change history
 
 ## Changes in this PR
