@@ -1373,6 +1373,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1531,10 +1587,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" checked>
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
             
   
   
@@ -1552,8 +1608,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1714,10 +1770,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-add-one-power-query-per-data-sheet" class="md-nav__link">
+  <a href="#4-turn-off-privacy-level-checking-for-this-workbook-do-this-first" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Add one Power Query per data sheet
+        4. Turn off privacy-level checking for this workbook (do this first)
       
     </span>
   </a>
@@ -1725,10 +1781,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-replace-cell-values-with-placeholders-save-do-not-refresh-again" class="md-nav__link">
+  <a href="#5-add-one-power-query-per-data-sheet" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Replace cell values with placeholders, save, do NOT refresh again
+        5. Add one Power Query per data sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-replace-cell-values-with-placeholders-save-do-not-refresh-again" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Replace cell values with placeholders, save, do NOT refresh again
       
     </span>
   </a>
@@ -5369,10 +5436,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-add-one-power-query-per-data-sheet" class="md-nav__link">
+  <a href="#4-turn-off-privacy-level-checking-for-this-workbook-do-this-first" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Add one Power Query per data sheet
+        4. Turn off privacy-level checking for this workbook (do this first)
       
     </span>
   </a>
@@ -5380,10 +5447,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-replace-cell-values-with-placeholders-save-do-not-refresh-again" class="md-nav__link">
+  <a href="#5-add-one-power-query-per-data-sheet" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Replace cell values with placeholders, save, do NOT refresh again
+        5. Add one Power Query per data sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-replace-cell-values-with-placeholders-save-do-not-refresh-again" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Replace cell values with placeholders, save, do NOT refresh again
       
     </span>
   </a>
@@ -5621,7 +5699,23 @@ must match exactly — they're the named-range / connection labels:</p>
 <code>Excel.CurrentWorkbook(){[Name="BaseUrl"]}[Content]{0}[Column1]</code>. If the
 names go missing, every query stops working at refresh time.</p>
 </blockquote>
-<h3 id="4-add-one-power-query-per-data-sheet">4. Add one Power Query per data sheet<a class="headerlink" href="#4-add-one-power-query-per-data-sheet" title="Permanent link">&para;</a></h3>
+<h3 id="4-turn-off-privacy-level-checking-for-this-workbook-do-this-first">4. Turn off privacy-level checking for this workbook (do this first)<a class="headerlink" href="#4-turn-off-privacy-level-checking-for-this-workbook-do-this-first" title="Permanent link">&para;</a></h3>
+<p>Because every query feeds workbook-sourced values (<code>BaseUrl</code>, <code>AuthToken</code>) into
+<code>Web.Contents</code>, Power Query's Formula Firewall raises <strong>"Information is required
+about data privacy"</strong> the first time a query evaluates, and the queries do not
+run until privacy levels are ignored for the workbook.</p>
+<p><strong>File → Options and settings → Query Options → CURRENT WORKBOOK → Privacy →
+"Ignore the Privacy Levels and potentially improve performance" → OK.</strong></p>
+<p>Set this <strong>before</strong> step 5 so you aren't interrupted mid-way, and never touch
+the Global option — it would disable privacy checking for every workbook on
+your machine.</p>
+<p>This setting is saved <em>inside</em> the workbook, so it travels with the committed
+template. That is the whole point: it is what lets end users skip the dialog
+that the M-as-text MVP forces them through (see
+<a href="../excel-powerquery-export/#the-information-is-required-about-data-privacy-prompt">the privacy-prompt section</a>).
+<strong>Verify it survived the save</strong> in the sanity check below — if it didn't, the
+template gives users no advantage over the MVP on this point.</p>
+<h3 id="5-add-one-power-query-per-data-sheet">5. Add one Power Query per data sheet<a class="headerlink" href="#5-add-one-power-query-per-data-sheet" title="Permanent link">&para;</a></h3>
 <p>For each of the 7 data sheets:</p>
 <ol>
 <li>Activate that sheet (e.g. <strong>Principals</strong>).</li>
@@ -5636,7 +5730,7 @@ names go missing, every query stops working at refresh time.</p>
 </ol>
 <p>Repeat for all 7 sheets. After each one, click <strong>Refresh All</strong> to confirm
 data loads correctly. If a query fails, fix the M code and re-load.</p>
-<h3 id="5-replace-cell-values-with-placeholders-save-do-not-refresh-again">5. Replace cell values with placeholders, save, do NOT refresh again<a class="headerlink" href="#5-replace-cell-values-with-placeholders-save-do-not-refresh-again" title="Permanent link">&para;</a></h3>
+<h3 id="6-replace-cell-values-with-placeholders-save-do-not-refresh-again">6. Replace cell values with placeholders, save, do NOT refresh again<a class="headerlink" href="#6-replace-cell-values-with-placeholders-save-do-not-refresh-again" title="Permanent link">&para;</a></h3>
 <p>Once everything refreshes cleanly:</p>
 <ol>
 <li>On the Settings sheet, change cell <strong>B2</strong> to <code>{{BASE_URL}}</code> (literal text).</li>
@@ -5665,6 +5759,10 @@ code for that endpoint, ready to paste.)</p>
 <li><strong>Don't click Refresh</strong> — there's nothing to refresh against.</li>
 <li>Right-click each query in the Queries pane → <strong>Properties</strong> → confirm
    the query name matches the sheet name.</li>
+<li><strong>File → Options and settings → Query Options → CURRENT WORKBOOK →
+   Privacy</strong> — confirm "Ignore the Privacy Levels…" is still selected. If it
+   reverted, redo step 4 and save again; otherwise every user of the template
+   hits the privacy dialog on their first refresh.</li>
 </ol>
 <h2 id="what-the-backend-does-at-download-time">What the backend does at download time<a class="headerlink" href="#what-the-backend-does-at-download-time" title="Permanent link">&para;</a></h2>
 <p>The download endpoint (<code>POST /api/admin/data-export/workbook</code>) does this

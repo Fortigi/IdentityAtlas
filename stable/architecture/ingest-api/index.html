@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -6130,22 +6186,37 @@
 </tr>
 <tr>
 <td><code>delta</code></td>
-<td>MERGE only; no deletes</td>
+<td>MERGE only; deletes only what the batch names (see below)</td>
 <td>Real-time webhook, incremental changes</td>
 </tr>
 </tbody>
 </table>
+<p>A <code>delta</code> batch removes rows only when you name them explicitly:</p>
+<ul>
+<li><strong><code>deletedIds</code></strong> is an array of UUIDs for rows that have their own <code>id</code> (principals, resources, identities, contexts). This is how a Graph <code>@removed</code> user or group is passed on.</li>
+<li><strong><code>deletedKeys</code></strong> is an array of key objects for rows that have no <code>id</code>. Today only <code>resource-assignments</code> accepts it. Each entry is <code>{ resourceId, principalId, assignmentType, governed }</code>, where <code>governed</code> defaults to <code>false</code>. This is how a removed group membership is passed on, for example from Graph <code>members@delta</code>.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"systemId"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"syncMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"delta"</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"records"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"deletedKeys"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…group id…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…user id…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"assignmentType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Direct"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">}</span>
+</code></pre></div>
+<p>Both kinds only remove rows of the batch's own <code>systemId</code>. A malformed entry rejects the whole batch with <code>400</code>. On soft-delete tables (<code>Principals</code>, <code>Resources</code>, <code>ResourceAssignments</code>) the row is stamped <code>deletedAt</code>; ingesting it again clears the stamp.</p>
 <p><code>POST /api/ingest/systems</code> is never reconciled: systems are registered, not synced, so a <code>full</code> batch there is run as a <code>delta</code>. A reconcile delete that would have no system, scope or ownership bound at all is refused and reports <code>deleted: 0</code>.</p>
 <h3 id="deterministic-guid-generation">Deterministic GUID Generation<a class="headerlink" href="#deterministic-guid-generation" title="Permanent link">&para;</a></h3>
 <p>For source systems that don't use GUIDs (e.g., Omada uses integer IDs):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"systemId"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"idGeneration"</span><span class="p">:</span><span class="w"> </span><span class="s2">"deterministic"</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"idPrefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"omada-resource"</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"records"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"externalId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"12345"</span><span class="p">,</span><span class="w"> </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Admin Role"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"systemId"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"idGeneration"</span><span class="p">:</span><span class="w"> </span><span class="s2">"deterministic"</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"idPrefix"</span><span class="p">:</span><span class="w"> </span><span class="s2">"omada-resource"</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">"records"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"externalId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"12345"</span><span class="p">,</span><span class="w"> </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Admin Role"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
 </code></pre></div>
 <p>When <code>idGeneration: "deterministic"</code>, the API generates <code>MD5(idPrefix + ":" + externalId)</code> as UUID v3, matching the current CSV sync pattern.</p>
 <h3 id="sync-sessions-chunked-uploads">Sync Sessions (Chunked Uploads)<a class="headerlink" href="#sync-sessions-chunked-uploads" title="Permanent link">&para;</a></h3>
@@ -6343,10 +6414,10 @@ six hours after it was opened.</p>
 </tbody>
 </table>
 <h3 id="key-rotation-flow">Key Rotation Flow<a class="headerlink" href="#key-rotation-flow" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Example: Python crawler auto-rotation</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">new_key</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/api/crawlers/rotate"</span><span class="p">,</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">current_key</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"apiKey"</span><span class="p">]</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">save_to_vault</span><span class="p">(</span><span class="n">new_key</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Example: Python crawler auto-rotation</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">new_key</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/api/crawlers/rotate"</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">current_key</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"apiKey"</span><span class="p">]</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">save_to_vault</span><span class="p">(</span><span class="n">new_key</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="auth-middleware-chain">Auth Middleware Chain<a class="headerlink" href="#auth-middleware-chain" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>graph LR
@@ -6358,18 +6429,18 @@ six hours after it was opened.</p>
 <hr />
 <h2 id="ingest-engine">Ingest Engine<a class="headerlink" href="#ingest-engine" title="Permanent link">&para;</a></h2>
 <p>The server-side engine encapsulates all SQL complexity:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>UI/backend/src/
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>├── ingest/
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>│   ├── engine.js              — Core MERGE + delete detection
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>│   ├── validation.js          — JSON Schema validation per entity type
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>│   ├── normalization.js       — Type coercion, GUID generation
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>│   ├── schemas/               — JSON Schema per entity type
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>│   └── sessions.js            — Sync session management
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>├── routes/
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>│   ├── ingest.js              — Ingest endpoints
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>│   └── crawlers.js            — Crawler management
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>├── middleware/
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>│   └── crawlerAuth.js         — API key validation
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>UI/backend/src/
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>├── ingest/
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>│   ├── engine.js              — Core MERGE + delete detection
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>│   ├── validation.js          — JSON Schema validation per entity type
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>│   ├── normalization.js       — Type coercion, GUID generation
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>│   ├── schemas/               — JSON Schema per entity type
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>│   └── sessions.js            — Sync session management
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>├── routes/
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>│   ├── ingest.js              — Ingest endpoints
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>│   └── crawlers.js            — Crawler management
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>├── middleware/
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>│   └── crawlerAuth.js         — API key validation
 </code></pre></div>
 <h3 id="engine-operations">Engine Operations<a class="headerlink" href="#engine-operations" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>flowchart TD
@@ -6420,7 +6491,7 @@ bound against real PostgreSQL.</p>
 <li>the batch would update an existing row owned by another system — ownership is the row's <code>systemId</code>; for tables without one it is derived: a synced context's <code>scopeSystemId</code>, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;</li>
 <li>it is a <code>full</code> sync of <code>identities</code>, <code>identity-members</code>, <code>contexts</code>, <code>context-members</code> or <code>principal-activity</code> without a <code>scope</code>.</li>
 </ul>
-<p><code>deletedIds</code> and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (<code>systemIds</code> null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (<code>deletedAt</code>, <code>riskScore</code>, <code>riskTier</code>, <code>linkConfidence</code>, <code>analystOverride</code>, <code>createdAt</code>, <code>updatedAt</code> and similar) are never written from a crawler record; a field with such a name is kept in <code>extendedAttributes</code> like any other attribute.</p>
+<p><code>deletedIds</code>, <code>deletedKeys</code> and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (<code>systemIds</code> null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (<code>deletedAt</code>, <code>riskScore</code>, <code>riskTier</code>, <code>linkConfidence</code>, <code>analystOverride</code>, <code>createdAt</code>, <code>updatedAt</code> and similar) are never written from a crawler record; a field with such a name is kept in <code>extendedAttributes</code> like any other attribute.</p>
 <p>A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (<code>INGEST_MAX_SESSIONS_PER_CRAWLER</code>, <code>INGEST_MAX_SESSIONS_GLOBAL</code>); a <code>start</code> beyond that returns <code>429</code>. The built-in worker is only subject to the global limit. A record's <code>extendedAttributes</code> may hold at most 500 keys and 512 KB.</p>
 <h3 id="validation-rules">Validation Rules<a class="headerlink" href="#validation-rules" title="Permanent link">&para;</a></h3>
 <table>
@@ -6481,13 +6552,13 @@ bound against real PostgreSQL.</p>
 <li><code>GET /api/docs/openapi.json</code> — OpenAPI 3.0 spec file</li>
 </ul>
 <p>From this spec, crawlers can auto-generate clients:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Generate PowerShell client</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>npx<span class="w"> </span>@openapitools/openapi-generator-cli<span class="w"> </span>generate<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>-i<span class="w"> </span>openapi.json<span class="w"> </span>-g<span class="w"> </span>powershell<span class="w"> </span>-o<span class="w"> </span>./crawler-client-ps
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Generate Python client</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>npx<span class="w"> </span>@openapitools/openapi-generator-cli<span class="w"> </span>generate<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span>-i<span class="w"> </span>openapi.json<span class="w"> </span>-g<span class="w"> </span>python<span class="w"> </span>-o<span class="w"> </span>./crawler-client-py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Generate PowerShell client</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>npx<span class="w"> </span>@openapitools/openapi-generator-cli<span class="w"> </span>generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>-i<span class="w"> </span>openapi.json<span class="w"> </span>-g<span class="w"> </span>powershell<span class="w"> </span>-o<span class="w"> </span>./crawler-client-ps
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Generate Python client</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>npx<span class="w"> </span>@openapitools/openapi-generator-cli<span class="w"> </span>generate<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span>-i<span class="w"> </span>openapi.json<span class="w"> </span>-g<span class="w"> </span>python<span class="w"> </span>-o<span class="w"> </span>./crawler-client-py
 </code></pre></div>
 <hr />
 <h2 id="observed-performance">Observed performance<a class="headerlink" href="#observed-performance" title="Permanent link">&para;</a></h2>

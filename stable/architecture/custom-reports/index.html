@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5504,7 +5560,11 @@ implied type is accepted and normalised away.</p>
 question vocabulary and the per-question attribute block are built from. The entity is still validated,
 compiled and offered in the definition editor. The point is that the system prompt stays byte-identical:
 the prompt cache prepared at build time remains valid and the published accuracy figures still describe
-what ships. Offering such an entity to the model is one flag — and an evaluation run.</p>
+what ships. Offering such an entity to the model is one flag — and an evaluation run, and a look at the
+prompt budget: the context entity's fields alone are about a thousand tokens, and the prompt already sits
+close to the model's 8k context. The other direction is offered: groups, resources, accounts and persons
+have a <code>contexts</code> relation (one prompt line each), so "all groups with the contexts they are part of" and
+"groups in context X" can be asked.</p>
 <p><strong>A context means whatever the deployment says it means.</strong> The <code>context</code> entity has no notion of a
 department or an application: the kind is the <code>contextType</code> value, and what a source stamps on its
 contexts (a CMDB reference, a connection type) arrives as discovered <code>ext.*</code> fields. A report on

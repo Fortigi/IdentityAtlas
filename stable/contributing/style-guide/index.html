@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5691,7 +5747,7 @@
 </tr>
 <tr>
 <td><code>local/no-native-dialogs</code></td>
-<td>error (allowlisted legacy files: warn)</td>
+<td>error</td>
 <td><code>confirm()</code> / <code>alert()</code> / <code>prompt()</code></td>
 </tr>
 <tr>
@@ -5706,7 +5762,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>no-native-dialogs</code> carries a <strong>shrinking allowlist</strong> of files that still use native dialogs (the pre-existing backlog). As each is migrated to an in-app dialog, remove it from the allowlist — new code is gated immediately.</p>
+<p><strong>Warnings fail CI too.</strong> Both <code>npm run lint</code> scripts (UI and API) run with <code>--max-warnings 0</code>, so a rule set to <code>warn</code> blocks a PR exactly like an <code>error</code> does — there is no "yellow but green" state. A warning gets fixed, or — where a human has checked that the rule is wrong for that line — suppressed with <code>// eslint-disable-next-line &lt;rule&gt; -- &lt;why it is safe&gt;</code>. A suppression that stops matching anything is itself reported, so it can't outlive the code it was written for.</p>
 
 
 

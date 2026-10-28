@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5414,23 +5470,23 @@
 <tbody>
 <tr>
 <td><a href="../../coverage/api/">API (Node / Vitest — unit + contract)</a></td>
-<td>93.1%</td>
-<td>85.4%</td>
-<td>90.1%</td>
-<td>3.5 / 20</td>
-<td>2.0 / 15</td>
+<td>94.1%</td>
+<td>86.8%</td>
+<td>89.7%</td>
+<td>3.4 / 20</td>
+<td>1.8 / 15</td>
 <td>86.0%</td>
-<td>13,053 / 14,010</td>
+<td>14,433 / 15,324</td>
 </tr>
 <tr>
 <td><a href="../../coverage/ui/">UI (React / Vitest)</a></td>
-<td>86.3%</td>
-<td>76.8%</td>
-<td>76.6%</td>
+<td>87.4%</td>
+<td>78.1%</td>
+<td>77.8%</td>
 <td>2.8 / 28</td>
 <td>1.1 / 15</td>
 <td>69.5%</td>
-<td>8,181 / 9,470</td>
+<td>8,689 / 9,936</td>
 </tr>
 <tr>
 <td><a href="../../coverage/powershell/">PowerShell (Pester)</a></td>
@@ -5449,18 +5505,18 @@
 <p>Every figure above is scoped to what its tool actually measured. The notes below are generated from the same reports as the table, so they stay true as the numbers move. They are descriptive, not gates — no CI job fails on anything in this section.</p>
 <h3 id="api-node-vitest-unit-contract">API (Node / Vitest — unit + contract)<a class="headerlink" href="#api-node-vitest-unit-contract" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Mutation is scoped.</strong> Mutation testing covers 92 file(s) of 297 — 30% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
-<li><strong>method coverage (90.1%) sits below line coverage (93.1%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
+<li><strong>Mutation is scoped.</strong> Mutation testing covers 115 file(s) of 323 — 34% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 18 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
+<li><strong>method coverage (89.7%) sits below line coverage (94.1%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
 </ul>
 <h3 id="ui-react-vitest">UI (React / Vitest)<a class="headerlink" href="#ui-react-vitest" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Mutation is scoped.</strong> Mutation testing covers 57 file(s) of 324 — 15% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 6 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
-<li><strong>method coverage (76.6%) sits below line coverage (86.3%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
+<li><strong>Mutation is scoped.</strong> Mutation testing covers 71 file(s) of 347 — 17% of the suite's coverable lines. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 6 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
+<li><strong>method coverage (77.8%) sits below line coverage (87.4%)</strong> — roughly a third of functions are never invoked, while the ones that are get exercised well. Typically components rendered but not interacted with: the untested part is event handlers, callbacks and conditional render paths.</li>
 <li><strong>The most complex code is the least branch-covered.</strong> <code>app/ui/src/components/MatrixView.jsx</code> (Function 'MatrixView', cyclomatic 20, 68.8% branch) — below this suite's own branch average, so the aggregate percentage overstates how well the hard parts are tested.</li>
 </ul>
 <h3 id="powershell-pester">PowerShell (Pester)<a class="headerlink" href="#powershell-pester" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Mutation is scoped.</strong> Mutation testing covers 138 file(s) of 169 — 94% of the suite's coverable lines, using 4 mutation operators. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 90 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
+<li><strong>Mutation is scoped.</strong> Mutation testing covers 142 file(s) of 169 — 94% of the suite's coverable lines, using 4 mutation operators. It describes that subset — not the suite — and is not comparable with the suite-wide line figure on the same row. <strong>The score itself is older than that scope:</strong> it was measured over 90 file(s), before the current list was committed. Mutation runs are regenerated on their own schedule, so the percentage catches up on the next run.</li>
 <li><strong>No branch coverage is measured.</strong> The line figure is not comparable with the suites that report both — and for Pester it is command-based rather than true line coverage, so it is not directly comparable with the Vitest suites either.</li>
 </ul>
 <h2 id="browsable-reports">Browsable reports<a class="headerlink" href="#browsable-reports" title="Permanent link">&para;</a></h2>
@@ -5470,7 +5526,7 @@
 <li><a href="../../coverage/ui/">UI (React / Vitest)</a></li>
 <li><a href="../../coverage/powershell/">PowerShell (Pester)</a></li>
 </ul>
-<p><em>Generated 2026-10-09 12:55 UTC from commit <code>6986ead8</code>.</em></p>
+<p><em>Generated 2026-10-28 16:50 UTC from commit <code>37448865</code>.</em></p>
 
 
 

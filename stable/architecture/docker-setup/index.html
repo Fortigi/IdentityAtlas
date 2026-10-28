@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -6464,7 +6520,7 @@ write goes through the API.</p>
 <li><strong>Object types</strong> to sync (Identity, Context, Users &amp; Groups, Governance, Apps, Directory Roles, PIM)</li>
 <li><strong>Custom attributes</strong> — additional user/group attributes to fetch from Graph (e.g., <code>employeeHireDate</code>, <code>extension_*</code>)</li>
 <li><strong>Identity filter</strong> — selects which users are treated as identities (e.g., <code>employeeId</code> is not null)</li>
-<li><strong>Schedule</strong> — hourly/daily/weekly with configurable time</li>
+<li><strong>Schedule</strong> — every few minutes, hourly, daily or weekly, each as a delta or full run</li>
 </ul>
 <h3 id="custom-attributes">Custom Attributes<a class="headerlink" href="#custom-attributes" title="Permanent link">&para;</a></h3>
 <p>Extra attributes are appended to the Graph API <code>$select</code> clause and stored in the <code>extendedAttributes</code> JSON column:</p>
@@ -6510,6 +6566,10 @@ write goes through the API.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>interval</code></td>
+<td>Runs every <code>intervalMinutes</code> (5, 10, 15, 20 or 30) on the clock, e.g. <code>:00</code>, <code>:15</code>, <code>:30</code>, <code>:45</code> for 15. Shown in the UI as <strong>Every few minutes</strong></td>
+</tr>
+<tr>
 <td><code>hourly</code></td>
 <td>Runs at <code>:MM</code> every hour</td>
 </tr>
@@ -6523,7 +6583,14 @@ write goes through the API.</p>
 </tr>
 </tbody>
 </table>
-<p>Scheduled jobs appear in the "Recent Jobs" table like any other job.</p>
+<p>Each schedule entry also has a <code>syncMode</code> (<code>delta</code> or <code>full</code>).</p>
+<p>A crawler configuration only runs one job at a time. If a schedule comes due while a job of the same crawler is still queued or running:</p>
+<ul>
+<li>an <strong>Every few minutes</strong> schedule skips that run and waits for its next one;</li>
+<li>any other schedule waits and starts as soon as the running job finishes, for up to an hour. So a daily full run is not lost because a five-minute delta happened to be running.</li>
+</ul>
+<p>When a full and a delta come due in the same minute, the full goes first.</p>
+<p>Scheduled jobs appear in the "Recent Jobs" table like any other job. That table shows the ten newest jobs plus each crawler's last full run and last delta run, so frequent deltas do not push the last full run out of view. It reads <code>GET /api/admin/crawler-jobs?limit=10&amp;latestPerMode=true</code>.</p>
 <hr />
 <h2 id="worker-container">Worker Container<a class="headerlink" href="#worker-container" title="Permanent link">&para;</a></h2>
 <p>The worker container runs PowerShell 7 with the Identity Atlas module available. It polls the job queue (CrawlerJobs) every 30 seconds and runs each claimed job in its <strong>own <code>pwsh</code> process</strong>, so no credential, token or tenant id from one job is still in memory when the next one starts. The job config reaches that process on standard input and the API key through an environment variable — neither appears on a command line or in the job log.</p>

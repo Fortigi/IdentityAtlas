@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2119,6 +2175,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#delta-and-full-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delta and full runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#which-toggles-to-enable" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2142,6 +2209,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="What Gets Synced">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#application-security-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application security data
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5363,6 +5447,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#delta-and-full-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delta and full runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#which-toggles-to-enable" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5386,6 +5481,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="What Gets Synced">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#application-security-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application security data
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5597,12 +5709,17 @@
 <tr>
 <td><code>-SyncOAuth2Grants</code></td>
 <td>Off</td>
-<td>Sync per-user OAuth2 delegated-permission (consent) grants</td>
+<td>Sync OAuth2 delegated-permission (consent) grants — per user, and tenant-wide admin consents</td>
 </tr>
 <tr>
 <td><code>-SyncAppPermissions</code></td>
 <td>Off</td>
 <td>Sync app-only (admin-consented) API permissions held by service principals, managed identities, and AI agents</td>
+</tr>
+<tr>
+<td><code>-SyncAppRegistrations</code></td>
+<td>Off</td>
+<td>Sync app registrations with their credentials (dates only), public-client flows, redirect URIs, requested permissions and federated credentials</td>
 </tr>
 <tr>
 <td><code>-SyncAppOwners</code></td>
@@ -5651,6 +5768,23 @@
 </tr>
 </tbody>
 </table>
+<h3 id="delta-and-full-runs">Delta and full runs<a class="headerlink" href="#delta-and-full-runs" title="Permanent link">&para;</a></h3>
+<p>Each scheduled run is either a <strong>delta</strong> or a <strong>full</strong> run.</p>
+<ul>
+<li>A <strong>delta run</strong> reads only what changed since the previous run, for the data Microsoft Graph can report that way:</li>
+<li><strong>users</strong> and <strong>service principals</strong>: new, changed and deleted accounts;</li>
+<li><strong>groups</strong>: new, changed and deleted groups;</li>
+<li><strong>direct group memberships and group owners</strong>: members and owners added or removed.</li>
+</ul>
+<p>A delta takes minutes, even on a large tenant, so you can run it every 5 to 30 minutes.
+- A <strong>full run</strong> reads everything you enabled. That includes what a delta leaves out: nested (indirect) group memberships, PIM eligibility, governance, app roles, OAuth2 grants, app permissions, directory roles, sign-in activity and profile photos. On a large tenant this takes hours.</p>
+<p>The data only a full run reads is as fresh as your last full run. A new crawler proposes one full run a day plus a delta every 15 minutes. To schedule a delta every few minutes, pick <strong>Every few minutes</strong> as the frequency.</p>
+<p>Two cases where a delta does less:</p>
+<ul>
+<li><strong>No baseline yet.</strong> If a delta run hits a crawler that has never completed a sync, or whose delta state was cleared, it runs as a full sync instead. That way a new crawler never shows users without their groups.</li>
+<li><strong>Group changes for the first time.</strong> The first delta after upgrading to this version starts tracking group changes from that moment. Group changes made between your last full run and that delta arrive with the next full run.</li>
+</ul>
+<p>If a full run is due while a delta is still running, it waits and starts as soon as the delta finishes, for up to an hour.</p>
 <h3 id="which-toggles-to-enable">Which toggles to enable<a class="headerlink" href="#which-toggles-to-enable" title="Permanent link">&para;</a></h3>
 <p>The defaults (users, groups, memberships, governance, contexts) cover core role-mining. The service-principal and application toggles are <strong>off by default</strong> — they add Graph calls, and several fetch per-object so they get slower as the tenant grows. Enable them by what you want to see:</p>
 <table>
@@ -5683,7 +5817,7 @@
 <td>Moderate</td>
 </tr>
 <tr>
-<td>Per-user consent grants to apps</td>
+<td>Consent grants to apps (per user and tenant-wide)</td>
 <td><code>-SyncOAuth2Grants</code></td>
 <td>Moderate</td>
 </tr>
@@ -5691,6 +5825,11 @@
 <td>App-only API permissions held by SPs / managed identities / agents</td>
 <td><code>-SyncAppPermissions</code></td>
 <td>High — fetched per service principal</td>
+</tr>
+<tr>
+<td>How each app registration is set up: secrets and certificates, public-client flows (ROPC / device code), redirect URIs, federated credentials</td>
+<td><code>-SyncAppRegistrations</code></td>
+<td>Low — one paged read</td>
 </tr>
 <tr>
 <td>Who owns apps / SPs (can add a credential and impersonate the app)</td>
@@ -5728,7 +5867,18 @@
     EntraID --&gt; APR[AP Resource Scopes → ResourceRelationships\nrelationshipType=Contains]
     EntraID --&gt; APP[AP Policies → AssignmentPolicies]
     EntraID --&gt; APQ[AP Requests → AssignmentRequests]
-    EntraID --&gt; APV[AP Reviews → CertificationDecisions]</code></pre>
+    EntraID --&gt; APV[AP Reviews → CertificationDecisions]
+    EntraID --&gt; REG[App Registrations → Resources\nresourceType=AppRegistration]</code></pre>
+<h3 id="application-security-data">Application security data<a class="headerlink" href="#application-security-data" title="Permanent link">&para;</a></h3>
+<p>Three toggles together describe how risky an application is set up. None of them stores a secret: only key ids, names, types and validity dates.</p>
+<ul>
+<li><strong>Service principals</strong> (<code>-SyncServicePrincipals</code>) carry, in <code>extendedAttributes</code>: <code>signInAudience</code>, <code>verifiedPublisherName</code> / <code>verifiedPublisherId</code>, <code>appRoleAssignmentRequired</code> (<code>false</code> means anyone in the tenant can sign in), <code>replyUrls</code>, and the credentials added to the service principal itself. A secret on the service principal is not shown under <strong>App registrations</strong> in the portal, which makes it a known way to keep access hidden.</li>
+<li><strong>App registrations</strong> (<code>-SyncAppRegistrations</code>) become <code>AppRegistration</code> resources (id = the application object id, <code>appId</code> in <code>extendedAttributes</code> links them to their service principal). Each one holds <code>isFallbackPublicClient</code> (public-client flows allowed, which permits ROPC and device-code sign-in), <code>publicClientRedirectUris</code> / <code>webRedirectUris</code> / <code>spaRedirectUris</code>, <code>implicitGrantAccessTokens</code> / <code>implicitGrantIdTokens</code>, <code>requiredResourceAccess</code> with <code>requestedDelegatedPermissionCount</code> / <code>requestedApplicationPermissionCount</code>, and <code>federatedCredentials</code> (issuer, subject, audiences, flexible expression).</li>
+<li><strong>Credentials</strong> on either one are summarised as <code>secretCount</code>, <code>secretLatestEndDateTime</code>, <code>secretMaxValidityDays</code> and the same three for <code>certificate…</code>, with the full list in <code>credentials</code>. A secret that ends in 2299 shows up as a <code>secretMaxValidityDays</code> of about 100,000.</li>
+<li><strong>Consent grants</strong> (<code>-SyncOAuth2Grants</code>): a tenant-wide admin consent marks its <code>DelegatedPermission</code> resource <code>adminConsented: true</code> (with <code>adminConsentGrantId</code>) and adds no assignment, because no single user holds it. A per-user consent stays a <code>Direct</code> assignment to that user, now with <code>consentType: Principal</code>.</li>
+<li><strong>App-only permissions</strong> (<code>-SyncAppPermissions</code>) record when each was granted, as <code>grantedDateTime</code> on the assignment.</li>
+</ul>
+<p>A delta run refreshes a service principal's credentials, but Graph's delta feed omits <code>verifiedPublisher</code>, <code>signInAudience</code> and <code>appRoleAssignmentRequired</code>. A service principal that changes between full runs loses those three until the next full run.</p>
 <hr />
 <h2 id="required-graph-api-permissions">Required Graph API Permissions<a class="headerlink" href="#required-graph-api-permissions" title="Permanent link">&para;</a></h2>
 <p>Grant these as <strong>Application</strong> permissions (not Delegated) on the App Registration the crawler authenticates as, then grant tenant-wide admin consent in the Azure Portal under <strong>App Registrations → API Permissions</strong>. Creating the App Registration itself is standard Entra administration and is not covered here.</p>
@@ -5766,7 +5916,11 @@
 </tr>
 <tr>
 <td><code>Application.Read.All</code></td>
-<td>Read service principals and app role assignments</td>
+<td>Read service principals, app registrations (including credential metadata) and app role assignments</td>
+</tr>
+<tr>
+<td><code>DelegatedPermissionGrant.Read.All</code></td>
+<td>Read OAuth2 consent grants (<code>-SyncOAuth2Grants</code>)</td>
 </tr>
 <tr>
 <td><code>AuditLog.Read.All</code></td>

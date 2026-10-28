@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3027,6 +3083,17 @@
     <span class="md-ellipsis">
       
         Azure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-portable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Desktop (portable)
       
     </span>
   </a>
@@ -5542,6 +5609,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#desktop-portable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Desktop (portable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#updating-an-existing-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6297,6 +6375,10 @@ what it does today.</p>
   generator's public address at all is untested. Deploy the generator only in the default public
   network mode until it can be made reachable from inside the VNet.</li>
 </ul>
+<h3 id="desktop-portable">Desktop (portable)<a class="headerlink" href="#desktop-portable" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">pwsh</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="nb">Start-IdentityAtlas</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-WithLLM</span>
+</code></pre></div>
+<p>The same model runs on the machine itself, with no container and no Python. llama.cpp's <code>llama-server.exe</code> is started by the app's own <code>node.exe</code> on first use and stopped when idle, as the Docker supervisor does. Neither the model (2.5 GB) nor llama.cpp is in the ZIP. The launcher downloads each once and checks it against a pinned SHA-256, or uses files copied into its LLM folder beforehand on a machine without internet access. llama.cpp's binaries are not signed, so a machine with application control needs hash rules for them. Details, including the folder layout and measurements, are in <a href="../../architecture/desktop-portable/#report-model-withllm">Portable Windows Launcher → Report model</a>.</p>
 <h3 id="updating-an-existing-installation">Updating an existing installation<a class="headerlink" href="#updating-an-existing-installation" title="Permanent link">&para;</a></h3>
 <p>Custom reports arrive with a normal update; <strong>the generator does not install itself.</strong></p>
 <table>
@@ -6325,7 +6407,7 @@ what it does today.</p>
 </tr>
 <tr>
 <td><strong>Desktop (portable)</strong></td>
-<td>Not supported — the portable launcher runs no extra containers. The definition editor works.</td>
+<td>Start the launcher with <code>-WithLLM</code>. It downloads llama.cpp and the model once (or uses copies placed in its LLM folder) and runs them without Docker. See <a href="#desktop-portable">Desktop (portable)</a>.</td>
 </tr>
 </tbody>
 </table>
@@ -6378,15 +6460,15 @@ Admin → Roles.</p>
   mode — making it reachable only from inside the VNet is not done yet.</li>
 </ul>
 <h2 id="measuring-it-yourself">Measuring it yourself<a class="headerlink" href="#measuring-it-yourself" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># the expected answers are still right for your data</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># accuracy + latency, per model</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/holdout.json
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check<span class="w"> </span>--base<span class="w"> </span>https://&lt;host&gt;<span class="w"> </span>--token-cmd<span class="w"> </span><span class="s2">"az account get-access-token --resource api://&lt;web app id&gt; --query accessToken -o tsv"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># the expected answers are still right for your data</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># accuracy + latency, per model</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--models<span class="w"> </span>qwen3:4b-instruct-2507-q4_K_M<span class="w"> </span>--file<span class="w"> </span>tools/nl-reports/holdout.json
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># against a stack with sign-in on: a bearer for a signed-in analyst, or a command that mints one</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>node<span class="w"> </span>tools/nl-reports/eval.mjs<span class="w"> </span>--check<span class="w"> </span>--base<span class="w"> </span>https://&lt;host&gt;<span class="w"> </span>--token-cmd<span class="w"> </span><span class="s2">"az account get-access-token --resource api://&lt;web app id&gt; --query accessToken -o tsv"</span>
 </code></pre></div>
 <p>Questions live in <code>tools/nl-reports/questions.json</code> (used while tuning), <code>holdout.json</code> (kept
 untouched, so the number means something) and <code>chat.json</code> (the questions people typed into the

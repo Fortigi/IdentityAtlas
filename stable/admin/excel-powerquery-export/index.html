@@ -1373,6 +1373,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1531,10 +1587,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" checked>
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
             
   
   
@@ -1552,8 +1608,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1659,6 +1715,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="How to use it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-information-is-required-about-data-privacy-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The "Information is required about data privacy" prompt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5343,6 +5416,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="How to use it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-information-is-required-about-data-privacy-prompt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The "Information is required about data privacy" prompt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -5635,13 +5725,46 @@ up.</p>
      editor. Click <strong>Done</strong>.</li>
 <li>Rename the query to match the sheet name (e.g. <code>Principals</code>).</li>
 <li><strong>Home → Close &amp; Load To… → Existing worksheet → that sheet, cell A1</strong>.</li>
+<li><strong>The first query you load raises a data-privacy prompt — allow it once for
+   this workbook.</strong> See below; queries return no data until you do.</li>
 <li>Back in Excel, <strong>Data → Refresh All</strong>. Every sheet fills with live data.</li>
 </ol>
+<h3 id="the-information-is-required-about-data-privacy-prompt">The "Information is required about data privacy" prompt<a class="headerlink" href="#the-information-is-required-about-data-privacy-prompt" title="Permanent link">&para;</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Expected, and mandatory — this is not an error</p>
+<p>The first time a pasted query evaluates, Excel shows
+<strong>"Information is required about data privacy"</strong>. The queries only run once
+privacy-level checking is switched off <strong>for this workbook</strong>.</p>
+</div>
+<p>Every query reads <code>BaseUrl</code> and <code>AuthToken</code> from the workbook's named ranges
+and sends them to the Identity Atlas API. Power Query's Formula Firewall sees
+that as two data sources being combined — the workbook and the web API — and
+because the <code>Web.Contents</code> URL comes from a cell rather than a literal, setting
+individual privacy levels does not reliably satisfy it. Ignoring privacy levels
+does.</p>
+<p>To clear it:</p>
+<ol>
+<li>On the prompt, click <strong>Continue</strong>.</li>
+<li>Tick <strong>"Ignore the Privacy Levels and potentially improve performance"</strong>.</li>
+<li>Click <strong>Save</strong>. Refresh again — the data loads.</li>
+</ol>
+<p>You can also set it before pasting any query: <strong>File → Options and settings →
+Query Options → CURRENT WORKBOOK → Privacy → "Ignore the Privacy Levels and
+potentially improve performance"</strong>.</p>
+<div class="admonition danger">
+<p class="admonition-title">Use the Current Workbook setting, never the Global one</p>
+<p>The <strong>Global</strong> option turns privacy checking off for every workbook you open
+— don't touch it. The per-workbook setting is safe here: the only two
+sources involved are this file and the Identity Atlas API whose read token
+the file already carries, so it creates no path for data to leak anywhere
+new.</p>
+</div>
 <blockquote>
 <p><strong>One-click refresh coming soon.</strong> The current workbook requires the
 paste-into-Advanced-Editor step per sheet. A follow-up PR ships a
-hand-built template where the queries auto-load on first open — at
-that point the flow becomes "download → open → Refresh All".</p>
+hand-built template where the queries auto-load on first open and the
+per-workbook privacy setting is already saved in the file — at that
+point the flow becomes "download → open → Refresh All".</p>
 </blockquote>
 <h2 id="rotating-or-retiring-tokens">Rotating or retiring tokens<a class="headerlink" href="#rotating-or-retiring-tokens" title="Permanent link">&para;</a></h2>
 <p>Each download mints a <strong>new</strong> read token so you have a fresh credential.

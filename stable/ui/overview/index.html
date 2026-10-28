@@ -1773,6 +1773,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../custom-reports/" class="md-nav__link">
         
   
@@ -1929,10 +1985,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
             
   
   
@@ -1950,8 +2006,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5985,10 +6041,10 @@
 <h2 id="pages">Pages<a class="headerlink" href="#pages" title="Permanent link">&para;</a></h2>
 <p>The app opens to the <strong>Dashboard</strong> landing page — not the Matrix. From there the navigation bar has two groups of tabs:</p>
 <ul>
-<li><strong>Always visible:</strong> Dashboard, Matrix, Principals (Users), Resources, Business Roles, Contexts, Admin</li>
-<li><strong>Optional (hidden by default):</strong> Systems, Logs (the Sync Log), Risk Scores, Identities</li>
+<li><strong>Always visible:</strong> Dashboard, Matrix, Principals (Users), Resources, Business Roles, Reports, Admin</li>
+<li><strong>Optional (hidden by default):</strong> Systems, Identities, Contexts, Logs (the Sync Log)</li>
 </ul>
-<p>Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). <strong>Risk Scores</strong> and <strong>Identities</strong> are additionally feature-gated — they only appear in the settings list when their server-side feature flag (<code>riskScoring</code> / <code>accountLinking</code>) is enabled. The <strong>Admin</strong> tab is hidden from users with no <code>admin.*</code> permission.</p>
+<p>Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). <strong>Identities</strong> is additionally feature-gated — its switch only appears while the <code>accountLinking</code> feature flag is on. <strong>Risk Scores</strong> is not a per-user toggle: it appears for everyone as soon as an admin turns on the <code>riskScoring</code> feature. The <strong>Admin</strong> tab is hidden from users with no <code>admin.*</code> permission.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The <strong>Org Chart</strong> tab no longer exists. Manager-hierarchy views are now generated Contexts — see <a href="#contexts">Contexts</a> below.</p>
@@ -6156,7 +6212,7 @@
 <li><strong>Filter</strong> by any attribute column or tag</li>
 <li><strong>Tag management:</strong> assign/remove tags (Tag Contexts — see <a href="#tagging-system">Tagging System</a>) from selected users, bulk-tag by filter</li>
 </ul>
-<p>Clicking a name opens that account in its own detail tab, with <strong>Attributes</strong>, <strong>Relationships</strong> and <strong>Timeline</strong> views.</p>
+<p>Clicking a name opens that account in its own detail tab, with <strong>Attributes</strong>, <strong>Relationships</strong>, <strong>Timeline</strong> and <strong>Diff</strong> views. <strong>Diff</strong> compares the account with how it was at a moment you pick (a day, a week, a month or a year ago, or any date): the old state on the left, the current state on the right, with changed attributes and added or removed access highlighted.</p>
 <figure>
   <img alt="A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments" src="../../assets/screenshots/user-detail.png" />
 <br />
@@ -6352,9 +6408,10 @@ accounts that have been removed (soft-deleted) are not counted.</p>
 <h3 id="account-linking-admin-sub-tab">Account Linking <em>(Admin sub-tab)</em><a class="headerlink" href="#account-linking-admin-sub-tab" title="Permanent link">&para;</a></h3>
 <p>Available under Admin &gt; Account Linking. Configures the deterministic, dictionary-based engine that attaches orphan accounts (admin / guest / secondary) to existing identities — <strong>no LLM</strong>.</p>
 <ul>
-<li><strong>Editable dictionary</strong> — weighted match signals (employeeId / email / email-prefix / graded name) and regex account-type rules.</li>
-<li><strong>Certainty slider</strong> — the <code>linkThreshold</code>; raise it to require stronger evidence before an account is auto-linked.</li>
+<li><strong>Editable dictionary</strong> — weighted match signals (employeeId / email / email-prefix / graded name, including the login read as a name and a surname with initials) and regex account-type rules. Three further signals carry what singled one person out of the people a name allows: that the name points at nobody else, a department that is one of theirs and no other's, or a manager who is one of theirs. The editor shows the <strong>effective</strong> dictionary: your saved rules with the signals this version ships merged in by name, which is exactly what a run uses. Your own values always win, and <strong>deleting a signal does not disable it</strong> — an upgrade adds it back, which is how a new signal reaches a tenant that has saved its settings. To switch one off, set its <code>weight</code> to <code>0</code> and Save; that also releases the links it had already made, on the next run.</li>
+<li><strong>Certainty slider</strong> — the <code>linkThreshold</code>; raise it to require stronger evidence before an account is auto-linked. It is the one control for how much evidence a link needs: at <code>60</code> a unique surname-and-initial match stops linking, at <code>75</code> a unique full-name one does.</li>
 <li><strong>Schedules + Run now</strong> — schedule recurring runs or trigger one immediately; each run's progress and counts are shown.</li>
+<li><strong>Removed accounts are left out</strong> — an account a sync no longer finds in its source system is not an orphan: it is never linked to a person and not counted in "orphans remaining". That also keeps a leaver's account away from a colleague who happens to share their name, which is otherwise the only match left once the leaver is gone from HR. An account that was already linked before it was removed stays linked, so the person's history is kept.</li>
 </ul>
 <p>Editing the config and starting runs requires the <code>admin.crawlers</code> permission. See <a href="../../architecture/account-linking/">Account Linking</a>.</p>
 <hr />

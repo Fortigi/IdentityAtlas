@@ -1367,6 +1367,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/custom-reports/" class="md-nav__link">
         
   
@@ -1520,10 +1576,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
         
           
-          <label class="md-nav__link" for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
             
   
   
@@ -1541,8 +1597,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_9">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5589,6 +5645,10 @@
 <tr>
 <td><strong>Matrix</strong> (<code>vw_ResourceUserPermissionAssignments</code>)</td>
 <td><strong>Excluded.</strong> The matview filters out any cell whose assignment, holder, or target is tombstoned (<code>deletedAt IS NULL</code> + <code>NOT EXISTS</code> a deleted principal/resource), so the live access picture never shows access via a deleted entity. <code>NOT EXISTS</code> (not a join) is used so a row whose endpoint is merely missing is kept — only explicit tombstones are excluded.</td>
+</tr>
+<tr>
+<td><strong>Account Linking</strong> (candidate set, <code>orphansRemaining</code>, the Orphaned Accounts report + context)</td>
+<td><strong>Excluded.</strong> A tombstoned account is not an orphan: it is never newly linked to an identity and never counted as outstanding work (<a href="../account-linking/">account linking</a> → <em>Candidate scope</em>). This is what stops a leaver's account being attached to a live namesake — the leaver's own identity is gone, so the namesake is the only thing left matching it. An account linked <em>before</em> it was tombstoned stays linked — soft-delete never detaches a person's history.</td>
 </tr>
 </tbody>
 </table>
