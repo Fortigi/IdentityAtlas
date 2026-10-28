@@ -200,6 +200,26 @@ describe('ContextDetailPage (mounted)', () => {
     );
   });
 
+  it('switches to the Diff tab and fetches the context diff', async () => {
+    const diff = {
+      at: '2026-09-01T00:00:00.000Z', historySince: null, relationshipsTracked: false, omittedUnchanged: 0,
+      before: { exists: true, deleted: false, attributes: { description: 'Old text' }, relationships: [] },
+      after: { exists: true, deleted: false, attributes: { description: 'New text' }, relationships: [] },
+    };
+    // routes() matches by substring in order, and the bare detail key would
+    // catch /diff — so answer the diff first.
+    const base = routes();
+    const authFetch = vi.fn((url, opts) => (url.includes('/diff?') ? makeAuthFetch({ '/diff': diff })(url) : base(url, opts)));
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    await screen.findByText('Engineering Cluster');
+    await user.click(screen.getByRole('tab', { name: /^Diff$/i }));
+
+    expect(await screen.findByText('Old text')).toBeInTheDocument();
+    expect(screen.getByText(/only its attributes are compared/)).toBeInTheDocument();
+  });
+
   it('shows the Risk tab when risk data + feature flag are present', async () => {
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes() } });
     const user = userEvent.setup();

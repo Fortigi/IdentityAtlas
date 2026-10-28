@@ -145,6 +145,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       { key: 'attributes', label: 'Attributes', count: entries.length },
       { key: 'relationships', label: 'Relationships' },
       { key: 'timeline', label: 'Timeline' },
+      { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
   }, [features, riskData]);
