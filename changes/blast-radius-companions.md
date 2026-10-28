@@ -1,1 +1,0 @@
-- Fixed the automated build pipeline stopping a correct fix for touching the files almost any change touches: the shared end-to-end seed helpers, shared test helpers, a layer's coding guide and the mutation-testing file list. These no longer count as reaching outside the certified scope; the size limit still counts them.
