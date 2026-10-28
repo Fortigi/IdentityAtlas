@@ -1779,6 +1779,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#diff-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diff tab
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Diff tab">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuilding-the-past-from-_history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuilding the past from _history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#endpoint-shape_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoint shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-view-for-any-two-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One view for any two snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-a-new-entity-kind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5629,6 +5690,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#diff-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diff tab
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Diff tab">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuilding-the-past-from-_history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuilding the past from _history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#endpoint-shape_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoint shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-view-for-any-two-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One view for any two snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-a-new-entity-kind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5917,6 +6039,33 @@ kinds consistent.</p>
 <li><strong>Composite-key tables only log changes after migration 018</strong> (April 2026). For rows ingested before 018, the history is silent. A fresh crawler run or manual change generates events from that point forward.</li>
 <li><strong>Recent Changes is a read-only surface.</strong> Every event is derived from <code>_history</code>; nothing writes extra rows.</li>
 <li><strong>Deleted counterparties are still shown</strong> — by label from the snapshot — so a "Removed from BR-Employee-Base" event still reads correctly even if the business role was later deleted.</li>
+</ul>
+<hr />
+<h2 id="diff-tab">Diff tab<a class="headerlink" href="#diff-tab" title="Permanent link">&para;</a></h2>
+<p>The Diff tab sits next to Timeline. The analyst picks a past moment T. The left column shows the entity as it was at T, the right column shows it now, and the rows are aligned like a two-file compare: every attribute (including flattened <code>extendedAttributes</code>) and every relationship, grouped (Manager, Business roles, Groups, Members, Contains, Part of, Linked accounts…).</p>
+<h3 id="rebuilding-the-past-from-_history">Rebuilding the past from <code>_history</code><a class="headerlink" href="#rebuilding-the-past-from-_history" title="Permanent link">&para;</a></h3>
+<p>A <code>_history</code> row stores the row's state <em>before</em> the change in <code>prevData</code>. So the state of any row at T is the <code>prevData</code> of its <strong>first change after T</strong>. When nothing changed after T, it is the row as it is now. When that first change is an insert, the row did not exist at T. Soft-deleted rows (<code>deletedAt</code> set) count as absent.</p>
+<p>This works the same for the entity's own row and for every relationship row. It also holds when history began after the initial load (migration 073), because an untouched row simply reads as unchanged.</p>
+<h3 id="endpoint-shape_1">Endpoint shape<a class="headerlink" href="#endpoint-shape_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>GET /api/&lt;kind&gt;/:id/diff?at=&lt;ISO, in the past&gt;
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>{
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  "at": "2026-09-27T00:00:00.000Z",
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  "historySince": "2026-06-01T08:00:00Z",   // earliest _history row
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  "relationshipsTracked": true,             // false for contexts (ContextMembers isn't history-tracked)
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  "omittedUnchanged": 0,                    // unchanged relationship rows left out by the cap
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>  "before": { "exists": true, "deleted": false, "attributes": { … }, "relationships": [item] },
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>  "after":  { … same shape … }
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>}
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>item = { key, group, label, kind, id, detail }
+</code></pre></div>
+<p>The relationship sources per entity kind live in <code>routes/recentChanges/snapshot.js</code> (<code>RELATIONSHIP_SOURCES</code>), and each lookup is served by the migration-055 partial indexes. Unchanged relationship rows are read from the live table and capped at 2,000 per source. A capped row is left out of <strong>both</strong> sides, so the diff stays correct and the response reports how many were omitted.</p>
+<h3 id="one-view-for-any-two-snapshots">One view for any two snapshots<a class="headerlink" href="#one-view-for-any-two-snapshots" title="Permanent link">&para;</a></h3>
+<p>The UI never assumes the left side is the past. <code>diffSnapshots(before, after)</code> (<code>components/entityDiff.helpers.js</code>) compares any two snapshots of this shape, and <code>SnapshotDiffView</code> renders the result. To compare the current state with a <em>proposed</em> state later, build the proposed snapshot and pass it in. Neither the diff helper nor the view needs to change.</p>
+<h3 id="caveats">Caveats<a class="headerlink" href="#caveats" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Before <code>historySince</code>, nothing is known. Rows loaded by a system's first sync have no insert event either, so a moment before that load shows those rows as already present. The tab shows a note when T is before <code>historySince</code>.</li>
+<li>Context membership (<code>ContextMembers</code>) is not history-tracked, so a context's diff covers its own attributes only.</li>
 </ul>
 <hr />
 <h2 id="adding-a-new-entity-kind">Adding a new entity kind<a class="headerlink" href="#adding-a-new-entity-kind" title="Permanent link">&para;</a></h2>
