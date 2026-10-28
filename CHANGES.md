@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the user Timeline tab hanging on "Loading timeline…" on tenants with a large change history
+
+## Changes in this PR
+
 - Account Linking now places accounts from sources that show a person as "Surname, Initials" — the shape most ERP, finance and payroll exports use, with no address and no employee number. Such an account could never be attached to anybody before: the strongest evidence a name like `van Mourik, R.` can produce sat below the certainty bar, so the account was not even scored and stayed in Orphaned Accounts for ever.
 - All the initials count, not just the first. `Buskes, L.R.` is attached to the Laura Renée Buskes it singles out rather than being held beside the Lars Buskes who shares only the first letter, and initials that disagree in two places rule a person out instead of counting as a near miss.
 - An account whose initials fit more than one person is still held for review with the rival named, never given to whoever scored first — and the held-for-review card now says which name the rivals actually share, so a reviewer is not sent looking for a namesake who does not exist.
