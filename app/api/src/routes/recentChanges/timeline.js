@@ -285,14 +285,20 @@ async function resolveTimelineLabels(rows) {
 // Retention note: `_history` is unbounded (migration 009 defers retention),
 // so the window (sinceDays) and LIMIT bound the work; the
 // ("tableName","rowId","changedAt") / ("changedAt") indexes cover the WHERE.
-async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
-  const r = await db.query(`
+// The timeline's _history query for one entity kind ($1 = days, $2 = entity id,
+// $3 = row cap). Exported so a contract test can EXPLAIN the exact SQL.
+export function timelineSql(entityKind) {
+  return `
     SELECT "tableName", operation, "changedAt", "rowData", "prevData"
       FROM "_history"
-     WHERE "changedAt" > now() - ($1::int || ' days')::interval AND (${where})
+     WHERE "changedAt" > now() - ($1::int || ' days')::interval AND (${TIMELINE_WHERE[entityKind]})
      ORDER BY "changedAt" DESC
      LIMIT $3
-  `, [sinceDays, id, limit * 2]);
+  `;
+}
+
+async function runTimeline(res, { entityKind, id, sinceDays, limit }) {
+  const r = await db.query(timelineSql(entityKind), [sinceDays, id, limit * 2]);
   const labels = await resolveTimelineLabels(r.rows);
   const built = buildEntityTimeline(entityKind, id, r.rows, labels);
 
@@ -348,13 +354,17 @@ const TIMELINE_WHERE = {
   // The last arm: a resource this user holds (or held) that was deleted or
   // restored in the source — only rows that crossed the deletedAt line, so a
   // held resource's ordinary edits stay off the user's timeline.
+  // Every arm must be index-servable, or Postgres drops the BitmapOr and scans
+  // all of _history. So: `= ANY(ARRAY(subquery))` (computed once, usable as an
+  // index condition on ("tableName","rowId")) rather than `IN (subquery)`, and
+  // the parameter is cast, not the column, so ix_RA_principalId applies.
   user: `("tableName" = 'ResourceAssignments' AND "rowData"->>'principalId' = $2)
       OR ("tableName" = 'IdentityMembers'   AND "rowData"->>'principalId' = $2)
       OR ("tableName" = 'Principals'         AND "rowId" = $2)
       OR ("tableName" = 'Resources' AND operation = 'U'
           AND (("prevData"->>'deletedAt') IS NULL) <> (("rowData"->>'deletedAt') IS NULL)
-          AND "rowId" IN (SELECT ra."resourceId"::text FROM "ResourceAssignments" ra
-                           WHERE ra."principalId"::text = $2))`,
+          AND "rowId" = ANY(ARRAY(SELECT ra."resourceId"::text FROM "ResourceAssignments" ra
+                                   WHERE ra."principalId" = $2::uuid)))`,
   resource: `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2)
       OR ("tableName" = 'ResourceRelationships' AND ("rowData"->>'childResourceId' = $2 OR "rowData"->>'parentResourceId' = $2))
       OR ("tableName" = 'Resources' AND "rowId" = $2)`,
@@ -376,7 +386,7 @@ export function timelineHandler(entityKind) {
     const sinceDays = clampTimelineDays(req.query.sinceDays);
     const limit = clampLimit(req.query.limit);
     try {
-      await runTimeline(res, { entityKind, id, sinceDays, limit, where: TIMELINE_WHERE[entityKind] });
+      await runTimeline(res, { entityKind, id, sinceDays, limit });
     } catch (err) {
       console.error(`${entityKind} timeline failed:`, err.message);
       res.status(500).json({ error: 'Failed to load timeline' });

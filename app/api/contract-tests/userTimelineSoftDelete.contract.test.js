@@ -90,6 +90,29 @@ describe('GET /user/:id/timeline — soft deletes', () => {
     expect(res.body.addedCount).toBe(4);
   });
 
+  // The held-resource arm once used `IN (subquery)` under the OR, which no index
+  // can serve, so Postgres scanned all of _history and the user Timeline hung on
+  // a large tenant. With seq scans and plain index scans off, only a BitmapOr of
+  // per-arm index scans remains — if any arm can't be indexed, the planner is
+  // forced back to a Seq Scan (at penalty cost) and this fails.
+  it('the user timeline query stays index-served (no full _history scan)', async () => {
+    const { timelineSql } = await import('../src/routes/recentChanges/timeline.js');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SET LOCAL enable_seqscan = off');
+      await client.query('SET LOCAL enable_indexscan = off');
+      const plan = (await client.query(`EXPLAIN ${timelineSql('user')}`, [90, userId, 1000]))
+        .rows.map((r) => r['QUERY PLAN']).join('\n');
+      expect(plan).not.toMatch(/Seq Scan on _history/);
+      expect(plan).toMatch(/Bitmap Heap Scan on _history/);
+      expect(plan).toMatch(/BitmapOr/);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+
   it('the deleted role\'s own timeline reads "Deleted in source", not an attribute diff', async () => {
     const res = await agent.get(`/api/access-package/${deletedRoleId}/timeline`);
     expect(res.status).toBe(200);
