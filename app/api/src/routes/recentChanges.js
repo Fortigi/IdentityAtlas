@@ -5,6 +5,8 @@
 //
 //   recentChanges/changes.js  — /api/{user,resources,access-package,identities}/:id/recent-changes
 //   recentChanges/timeline.js — /api/{...}/:id/timeline + the pure timeline builders
+//   recentChanges/diff.js     — /api/{...}/:id/diff (the entity then vs now, for the Diff tab)
+//   recentChanges/snapshot.js — the pure point-in-time snapshot builders diff.js uses
 //   recentChanges/shared.js   — useSql / UUID_RE + the day/limit clamps
 //
 // This file composes them onto one router and re-exports it, plus the pure
@@ -15,10 +17,12 @@
 import { Router } from 'express';
 import changesRouter from './recentChanges/changes.js';
 import timelineRouter from './recentChanges/timeline.js';
+import diffRouter from './recentChanges/diff.js';
 
 const router = Router();
 router.use(changesRouter);
 router.use(timelineRouter);
+router.use(diffRouter);
 
 export {
   diffRow, buildEntityTimeline, TIMELINE_SKIP_FIELDS,

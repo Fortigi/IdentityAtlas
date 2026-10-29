@@ -139,6 +139,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
     { key: 'attributes', label: 'Attributes', count: entries.length },
     { key: 'relationships', label: 'Relationships' },
     { key: 'timeline', label: 'Timeline' },
+    { key: 'diff', label: 'Diff' },
     (features.riskScoring && data.attributes.riskScore != null) && { key: 'risk', label: 'Risk' },
   ], [features]);
 

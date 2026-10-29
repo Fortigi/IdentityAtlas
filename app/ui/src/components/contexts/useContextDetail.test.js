@@ -11,10 +11,10 @@ describe('contextPageView — what the page offers this reader', () => {
 
   it('gives the analyst the tabs, Risk only when scored, and the asked tab', () => {
     const scored = contextPageView({ analyst: true, attrs: { variant: 'synced' }, hasRisk: true, memberTotal: 7, activeTab: 'timeline' });
-    expect(keys(scored.tabs)).toEqual(['members', 'timeline', 'risk']);
+    expect(keys(scored.tabs)).toEqual(['members', 'timeline', 'diff', 'risk']);
     expect(scored.tabs[0].count).toBe(7);
     expect(scored.shownTab).toBe('timeline');
-    expect(keys(contextPageView({ analyst: true, attrs: {}, hasRisk: false, memberTotal: 0, activeTab: 'members' }).tabs)).toEqual(['members', 'timeline']);
+    expect(keys(contextPageView({ analyst: true, attrs: {}, hasRisk: false, memberTotal: 0, activeTab: 'members' }).tabs)).toEqual(['members', 'timeline', 'diff']);
   });
 
   it('lets the analyst edit a context created here or derived, not an imported one', () => {

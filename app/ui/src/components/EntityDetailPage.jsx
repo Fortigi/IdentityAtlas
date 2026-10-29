@@ -4,13 +4,14 @@ import { AttributesTable } from './EntityDetailLayout';
 import ExpandedItemsList from './ExpandedItemsList';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
+import EntityDiff from './EntityDiff';
 import useExpandableGraph from '@ui/hooks/useExpandableGraph';
 import useTimeline from '@ui/hooks/useTimeline';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { getRootNodes } from './entityGraphShape';
 
 // Tabs a recipient of a share link sees (#1166). The analyst-only tabs — the
-// change Timeline and the Risk panel with its override controls — are dropped:
+// change Timeline, the Diff and the Risk panel with its override controls — are dropped:
 // a business user who followed a link to one matrix has no use for them, and
 // the override actions inside Risk would 403 for a roleless recipient anyway.
 const SHARED_VIEW_TABS = new Set(['attributes', 'relationships']);
@@ -259,6 +260,10 @@ export default function EntityDetailPage({
             onSinceDaysChange={setTimelineDays}
             onOpenDetail={onOpenDetail}
           />
+        )}
+
+        {activeTab === 'diff' && (
+          <EntityDiff entityKind={entityKind} entityId={entityId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
         )}
 
         {activeTab === 'risk' && renderRisk?.(data)}

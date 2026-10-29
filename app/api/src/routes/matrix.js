@@ -31,7 +31,7 @@ import savedFiltersRouter from './matrix/savedFilters.js';
 import sharesRouter from './matrix/shares.js';
 import scopeRouter from './matrix/scope.js';
 import dataRouter from './matrix/data.js';
-import { getIdentityColumns, getIdentityColumnValuesMeta, parseFilter, buildSubqueries, runCount, subjectScopeClauses } from './matrix/shared.js';
+import { getIdentityColumns, getIdentityColumnValuesMeta, parseFilter, buildSubqueries, runCount, subjectScopeClauses, resourceScopeWhere } from './matrix/shared.js';
 // normaliseSortAttributes lives in shared.js now; re-export so existing consumers
 // (matrix.rollup.test.js) keep importing it from here.
 export { normaliseSortAttributes } from './matrix/shared.js';
@@ -86,7 +86,7 @@ router.post('/matrix/preview', async (req, res) => {
         `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`,
         []),
       runCount(p, 'matrix-preview-resource', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${resourceScopeWhere(rcResourceSql)}`,
         rcp.params),
       runCount(p, 'matrix-preview-resource-total', res,
         `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`,
