@@ -42,6 +42,28 @@ describe('capItems', () => {
     // The first N-1 originals are preserved.
     expect(out.slice(0, MAX_ITEMS_PER_FANOUT - 1)).toEqual(items.slice(0, MAX_ITEMS_PER_FANOUT - 1));
   });
+
+  // The graph ring shows current access only — it must agree with the category
+  // count, which excludes deleted-in-source rows.
+  it('leaves historical (deleted) items out of the graph ring', () => {
+    const items = [{ key: 'live' }, { key: 'old', deleted: true }];
+    expect(capItems(items)).toEqual([{ key: 'live' }]);
+  });
+
+  it('caps on the current items, not on current + history', () => {
+    // 10 current + 3 historical: exactly at the cap once history is dropped.
+    const current = Array.from({ length: MAX_ITEMS_PER_FANOUT }, (_, i) => ({ key: `c${i}` }));
+    const items = [...current, { key: 'h1', deleted: true }, { key: 'h2', deleted: true }, { key: 'h3', deleted: true }];
+    const out = capItems(items);
+    expect(out).toEqual(current);
+    expect(out.some((n) => n.overflow)).toBe(false);
+  });
+
+  it('counts only current items in the overflow marker', () => {
+    const current = Array.from({ length: MAX_ITEMS_PER_FANOUT + 2 }, (_, i) => ({ key: `c${i}` }));
+    const out = capItems([...current, { key: 'h', deleted: true }]);
+    expect(out[out.length - 1].label).toContain('+3 more');
+  });
 });
 
 describe('getRootNodes', () => {
@@ -241,6 +263,32 @@ describe('fetchCategoryItems — user categories', () => {
     const af = stub({ '/access-packages': [{ resourceId: 'ap1', accessPackageName: 'AP' }] });
     const out = await fetchCategoryItems('user', 'u1', 'access-packages', af, {});
     expect(out[0]).toMatchObject({ key: 'access-package:ap1', label: 'AP', entityKind: 'access-package' });
+    expect(out[0]).not.toHaveProperty('deleted');
+  });
+
+  // A role deleted in the source and its re-created twin share a name; only
+  // the flag tells the list which one is history.
+  it('access-packages carry the historical flag and deletion time', async () => {
+    const af = stub({
+      '/access-packages': [
+        { resourceId: 'new', accessPackageName: 'Head of Finance', deleted: false, deletedAt: null },
+        { resourceId: 'old', accessPackageName: 'Head of Finance', deleted: true, deletedAt: '2026-09-08T14:32:00Z' },
+      ],
+    });
+    const out = await fetchCategoryItems('user', 'u1', 'access-packages', af, {});
+    expect(out[0]).not.toHaveProperty('deleted');
+    expect(out[1]).toMatchObject({ entityId: 'old', deleted: true, deletedAt: '2026-09-08T14:32:00Z' });
+  });
+
+  it('assignment buckets carry the historical flag from /memberships', async () => {
+    const af = stub({
+      '/memberships': [
+        { resourceId: 'g1', resourceDisplayName: 'G1', resourceType: 'Group', membershipType: 'Direct', deleted: true },
+      ],
+    });
+    const out = await fetchCategoryItems('user', 'u1', 'assignments-direct', af, {});
+    // No deletion time from the API → null, never undefined.
+    expect(out[0]).toMatchObject({ deleted: true, deletedAt: null });
   });
 
   it('identity from extras', async () => {
@@ -518,6 +566,72 @@ describe('principal→principal relationship nodes (owners / sponsors / linked r
     expect(calledUrl).toContain('/api/user/u1/principal-relationships?');
     expect(calledUrl).toContain(query);
     expect(out[0]).toMatchObject({ key: 'user:p9', label: 'Counterparty', entityKind: 'user' });
+  });
+});
+
+// Every relationship list keeps history apart from current access: whatever the
+// endpoint marks as deleted must reach the item as `deleted` + `deletedAt`, and
+// nothing else may. Each case returns one live row and one historical row.
+describe('fetchCategoryItems — history flag on every relationship list', () => {
+  const AT = '2026-09-08T14:32:00Z';
+  const flagged = (out) => out.map((i) => [i.entityId, !!i.deleted, i.deletedAt ?? null]);
+
+  it.each([
+    ['resource', 'members-direct', '/assignments', [
+      { principalId: 'p1', principalDisplayName: 'A', assignmentType: 'Direct', deleted: false, deletedAt: null },
+      { principalId: 'p2', principalDisplayName: 'B', assignmentType: 'Direct', deleted: true, deletedAt: AT },
+    ]],
+    ['resource', 'business-roles', '/business-roles', [
+      { businessRoleId: 'p1', businessRoleName: 'A', deleted: false },
+      { businessRoleId: 'p2', businessRoleName: 'A', deleted: true, deletedAt: AT },
+    ]],
+    ['resource', 'parents', '/parent-resources', [
+      { parentResourceId: 'p1', parentDisplayName: 'A', parentResourceType: 'Group' },
+      { parentResourceId: 'p2', parentDisplayName: 'B', parentResourceType: 'Group', deleted: true, deletedAt: AT },
+    ]],
+    ['access-package', 'assignments', '/assignments', [
+      { principalId: 'p1', targetDisplayName: 'A' },
+      { principalId: 'p2', targetDisplayName: 'B', deleted: true, deletedAt: AT },
+    ]],
+    ['access-package', 'resources', '/resource-roles', [
+      { childResourceId: 'p1', resourceDisplayName: 'A' },
+      { childResourceId: 'p2', resourceDisplayName: 'B', deleted: true, deletedAt: AT },
+    ]],
+    ['identity', 'assignments-direct', '/assignments', [
+      { resourceId: 'p1', resourceDisplayName: 'A', resourceType: 'Group', principalId: 'acc' },
+      { resourceId: 'p2', resourceDisplayName: 'B', resourceType: 'Group', principalId: 'acc', deleted: true, deletedAt: AT },
+    ]],
+    ['user', 'owners', '/principal-relationships', [
+      { principalId: 'p1', displayName: 'A' },
+      { principalId: 'p2', displayName: 'B', deleted: true, deletedAt: AT },
+    ]],
+  ])('%s → %s carries the flag from %s', async (kind, category, path, rows) => {
+    const out = await fetchCategoryItems(kind, 'x', category, stub({ [path]: rows }), {});
+    expect(flagged(out)).toEqual([['p1', false, null], ['p2', true, AT]]);
+  });
+
+  it('a deleted manager is listed as history and not counted', async () => {
+    const manager = { id: 'm1', displayName: 'Boss', deleted: true, deletedAt: AT };
+    const out = await fetchCategoryItems('user', 'u1', 'manager', stub(), { manager });
+    expect(flagged(out)).toEqual([['m1', true, AT]]);
+    const node = getRootNodes('user', {}, { manager }).find((n) => n.key === 'manager');
+    expect(node.count).toBe(0);
+    const live = getRootNodes('user', {}, { manager: { id: 'm2' } }).find((n) => n.key === 'manager');
+    expect(live.count).toBe(1);
+  });
+
+  it('a direct report with only its own deletedAt is history too', async () => {
+    const af = stub({ '/api/org-chart/user/': { reports: [{ id: 'r1', displayName: 'Rep' }, { id: 'r2', displayName: 'Gone', deletedAt: AT }] } });
+    const out = await fetchCategoryItems('user', 'u1', 'reports', af, {});
+    expect(flagged(out)).toEqual([['r1', false, null], ['r2', true, AT]]);
+  });
+
+  it('a deleted linked account is history in the list and left out of the count', async () => {
+    const members = [{ principalId: 'a1', displayName: 'Live' }, { principalId: 'a2', displayName: 'Gone', deletedAt: AT }];
+    const out = await fetchCategoryItems('identity', 'i1', 'accounts', stub(), { members });
+    expect(flagged(out)).toEqual([['a1', false, null], ['a2', true, AT]]);
+    const accounts = getRootNodes('identity', { members }).find((n) => n.key === 'accounts');
+    expect(accounts.count).toBe(1);
   });
 });
 

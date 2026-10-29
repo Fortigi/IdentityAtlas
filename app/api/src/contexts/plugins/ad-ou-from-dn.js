@@ -45,6 +45,7 @@ export default {
       SELECT id, "displayName", ${dnExpr} AS "dn"
         FROM "Principals"
        WHERE "systemId" = $1
+         AND "deletedAt" IS NULL  -- a soft-deleted principal is history, not an OU member
          AND ${dnExpr} IS NOT NULL
          AND ${dnExpr} <> ''
     `, [scopeSystemId])).rows;

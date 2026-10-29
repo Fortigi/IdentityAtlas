@@ -82,9 +82,10 @@ async function runScopeHierarchy(scopeSystemId, params, ctx) {
 
   // Scope nodes only. Capability-resources ("<role> @ <scope>") live in the same system but are
   // not part of the containment hierarchy — they carry a capabilityId, so exclude them.
+  // Soft-deleted ("deletedAt") resources are history and are excluded too.
   const nodes = (await db.query(
     `SELECT id::text AS id, "displayName" AS name, "resourceType" AS rtype
-       FROM "Resources" WHERE "systemId" = $1 AND "capabilityId" IS NULL`,
+       FROM "Resources" WHERE "systemId" = $1 AND "capabilityId" IS NULL AND "deletedAt" IS NULL`,
     [scopeSystemId],
   )).rows;
   if (nodes.length === 0) {
@@ -96,6 +97,7 @@ async function runScopeHierarchy(scopeSystemId, params, ctx) {
     `SELECT rr."parentResourceId"::text AS parent, rr."childResourceId"::text AS child
        FROM "ResourceRelationships" rr
        JOIN "Resources" rc ON rc.id = rr."childResourceId" AND rc."systemId" = $1
+                            AND rc."deletedAt" IS NULL
       WHERE rr."relationshipType" = 'Contains'
         AND COALESCE((rr."extendedAttributes" ->> 'propagates')::boolean, true) = true`,
     [scopeSystemId],

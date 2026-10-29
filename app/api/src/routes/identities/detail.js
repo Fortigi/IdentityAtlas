@@ -84,7 +84,10 @@ router.get('/identities/:id/contexts', async (req, res) => {
 // Flattens assignments across every linked account — used by the identity
 // detail graph when the user clicks a relationship node. The universal
 // assignmentTypes are the only valid filters (Governed is a flag, Owner /
-// OAuth2Grant are retired — their rows collapse into Direct).
+// OAuth2Grant are retired — their rows collapse into Direct). History stays in
+// the list: a row whose assignment, resource or account was soft-deleted in the
+// source carries `deleted` + `deletedAt` (the earliest of the three) and sorts
+// after the current ones; the identity's counts include current access only.
 router.get('/identities/:id/assignments', async (req, res) => {
   if (!useSql) return res.json([]);
   const identityId = requireValidIdentityId(req, res);
@@ -106,14 +109,16 @@ router.get('/identities/:id/assignments', async (req, res) => {
                m."isPrimary",
                ra.state,
                ra."assignmentStatus",
-               ra."expirationDateTime"
+               ra."expirationDateTime",
+               (ra."deletedAt" IS NOT NULL OR r."deletedAt" IS NOT NULL OR p."deletedAt" IS NOT NULL) AS "deleted",
+               LEAST(ra."deletedAt", r."deletedAt", p."deletedAt") AS "deletedAt"
         FROM "IdentityMembers" m
         JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
         LEFT JOIN "Resources" r ON r.id = ra."resourceId"
         LEFT JOIN "Principals" p ON p.id = m."principalId"
         WHERE m."identityId" = $1
           AND ra."assignmentType" = $2
-        ORDER BY r."displayName", p."displayName"
+        ORDER BY "deleted", r."displayName", p."displayName"
       `, [identityId, type]);
     res.json(r.rows);
   } catch (err) {
@@ -137,7 +142,8 @@ router.get('/identities/:id/account-matrix', async (req, res) => {
         SELECT m."principalId" AS id,
                COALESCE(pr."displayName", m."displayName") AS "displayName",
                m."accountType" AS "accountType",
-               m."isPrimary"   AS "isPrimary"
+               m."isPrimary"   AS "isPrimary",
+               (pr."deletedAt" IS NOT NULL) AS "deleted", pr."deletedAt"
         FROM "IdentityMembers" m
         LEFT JOIN "Principals" pr ON pr.id = m."principalId"
         WHERE m."identityId" = $1
@@ -222,7 +228,8 @@ router.get('/identities/by-user/:userId', async (req, res) => {
                m."accountType",
                m."isPrimary",
                m."isHrAuthoritative",
-               m."accountEnabled"
+               m."accountEnabled",
+               (pr."deletedAt" IS NOT NULL) AS "deleted", pr."deletedAt"
           FROM "IdentityMembers" m
           LEFT JOIN "Principals" pr ON pr.id = m."principalId"
          WHERE m."identityId" = $1

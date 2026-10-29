@@ -16,7 +16,9 @@ export async function fetchIdentity(p, res, identityId) {
 
 // All member accounts from Principals (v5), coalescing displayName / UPN.
 // The Systems join supplies the source-system name the Linked Accounts table
-// shows; it stays null for members whose Principal row is gone.
+// shows; it stays null for members whose Principal row is gone. `deleted` +
+// `deletedAt` mark an account soft-deleted in the source, so the table can badge
+// it rather than present a removed account as a current one.
 export async function fetchIdentityMembers(p, res, identityId) {
   const membersResult = await timedQuery(p, 'identity-members', res, `
         SELECT m."identityId", m."principalId", m."isPrimary", m."isHrAuthoritative",
@@ -28,7 +30,8 @@ export async function fetchIdentityMembers(p, res, identityId) {
                u.department, u."jobTitle", u."createdDateTime",
                u."accountEnabled" AS "userAccountEnabled",
                u."systemId",
-               s."displayName" AS "systemDisplayName"
+               s."displayName" AS "systemDisplayName",
+               (u."deletedAt" IS NOT NULL) AS "deleted", u."deletedAt"
         FROM "IdentityMembers" m
         LEFT JOIN "Principals" u ON m."principalId" = u.id
         LEFT JOIN "Systems" s ON s.id = u."systemId"
@@ -51,13 +54,21 @@ export async function fetchMemberRisks(p, res, identityId) {
   } catch (e) { if (!isMissingSchema(e)) throw e; return []; /* risk columns may not exist yet */ }
 }
 
-// Per-account group-membership counts (optional).
+// Soft-delete guard shared by the count queries below: the assignment `ra` is
+// current only while it, its resource and its holder are all live — the same
+// three conditions the live matview (migration 049) applies.
+const liveAssignment = (ra) => `${ra}."deletedAt" IS NULL
+          AND NOT EXISTS (SELECT 1 FROM "Resources"  dr WHERE dr.id = ${ra}."resourceId"  AND dr."deletedAt" IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM "Principals" dp WHERE dp.id = ${ra}."principalId" AND dp."deletedAt" IS NOT NULL)`;
+
+// Per-account group-membership counts (optional). Current memberships only.
 export async function fetchMemberGroupCounts(p, res, identityId) {
   try {
     const groupCountResult = await timedQuery(p, 'identity-member-groups', res, `
         SELECT m."principalId", COUNT(DISTINCT gm."resourceId")::int AS "groupCount"
         FROM "IdentityMembers" m
         LEFT JOIN "ResourceAssignments" gm ON m."principalId" = gm."principalId" AND gm."assignmentType" = 'Direct'
+          AND ${liveAssignment('gm')}
         WHERE m."identityId" = $1
         GROUP BY m."principalId"
       `, [identityId]);
@@ -67,7 +78,8 @@ export async function fetchMemberGroupCounts(p, res, identityId) {
 
 // Relationship counts aggregated across every linked account, keyed by
 // assignmentType (Governed folds in governanceResource grants). The initial keys
-// double as the allow-list of surfaced types.
+// double as the allow-list of surfaced types. Current access only — history
+// stays visible (flagged) in GET /identities/:id/assignments.
 export async function aggregateIdentityAssignments(p, res, identityId) {
   const aggregate = { Direct: 0, Indirect: 0, Governed: 0, Owner: 0, Eligible: 0, OAuth2Grant: 0 };
   try {
@@ -78,6 +90,7 @@ export async function aggregateIdentityAssignments(p, res, identityId) {
         JOIN "ResourceAssignments" ra ON ra."principalId" = m."principalId"
         LEFT JOIN "Resources" gov ON gov.id = ra."resourceId"
         WHERE m."identityId" = $1
+          AND ${liveAssignment('ra')}
         GROUP BY 1
       `, [identityId]);
     for (const row of aggResult.rows) {

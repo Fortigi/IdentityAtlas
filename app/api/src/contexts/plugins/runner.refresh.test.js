@@ -165,3 +165,20 @@ describe('refreshGeneratedContexts — templates and roles (phase B)', () => {
     expect(query.mock.calls.some(([sql]) => /DELETE FROM "ContextRoles"/.test(sql))).toBe(true);
   });
 });
+
+// A generated context's member counts are current members only: a principal or
+// resource deleted in the source stays in ContextMembers but must not count.
+describe('refreshGeneratedContexts — member counts skip deleted members', () => {
+  it('both count updates carry the live-member filter', async () => {
+    wire([tree({ ikey: 'k1' })]);
+    PLUGIN.run.mockResolvedValue({ contexts: [{ externalId: 'P', displayName: 'Parent' }], members: [] });
+
+    await refreshGeneratedContexts('crawl-refresh', { awaitCompletion: true });
+
+    const direct = query.mock.calls.find(([sql]) => /SET "directMemberCount"/.test(sql));
+    const total = query.mock.calls.find(([sql]) => /SET "totalMemberCount"/.test(sql));
+    expect(direct[0]).toMatch(/dp\."deletedAt" IS NOT NULL/);
+    expect(direct[0]).toMatch(/dr\."deletedAt" IS NOT NULL/);
+    expect(total[0]).toMatch(/ON cm\."contextId" = s\.node_id AND NOT EXISTS/);
+  });
+});

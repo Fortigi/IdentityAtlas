@@ -55,45 +55,26 @@ async function openReport(page, report) {
   await expect(page.getByRole('heading', { name: report.displayName, level: 2 })).toBeVisible({ timeout: 15000 });
 }
 
-// Reports is an opt-in tab (like Systems and Logs): off until the user turns it
-// on in Settings → Visible Tabs. These tests own the tab preferences, so they
-// put every optional tab back afterwards for the rest of the suite.
-test.describe('Reports tab is optional', () => {
+// Reports is a default tab: a user who has switched every optional tab off
+// still sees it, and Settings offers no switch for it. This test owns the tab
+// preferences, so it puts every optional tab back afterwards.
+test.describe('Reports is a default tab', () => {
   test.afterEach(async () => {
     await setVisibleTabs(ALL_OPTIONAL_TABS);
   });
 
-  test('is hidden until the user opts in, but still reachable by URL', async ({ page }) => {
-    await setVisibleTabs(ALL_OPTIONAL_TABS.filter(t => t !== 'reports'));
+  test('shows with every optional tab switched off, and has no Settings switch', async ({ page }) => {
+    await setVisibleTabs([]);
     await page.goto(`${BASE}/`);
 
-    // Systems is still on, so seeing it proves preferences have loaded — before
-    // they do, no optional tab is hidden yet and the assertion below is vacuous.
-    await expect(page.getByRole('button', { name: 'Systems', exact: true })).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('button', { name: 'Reports', exact: true })).toHaveCount(0);
-
-    // Hiding the tab only declutters the nav — the page itself still works.
-    await openReports(page);
-  });
-
-  test('appears in the nav as soon as it is switched on in Settings', async ({ page }) => {
-    await setVisibleTabs(ALL_OPTIONAL_TABS.filter(t => t !== 'reports'));
-    await page.goto(`${BASE}/`);
-    await expect(page.getByRole('button', { name: 'Systems', exact: true })).toBeVisible({ timeout: 30000 });
+    // Systems disappearing proves preferences have loaded — before they do,
+    // no optional tab is hidden yet and the assertion below is vacuous.
+    await expect(page.getByRole('button', { name: 'Systems', exact: true })).toHaveCount(0, { timeout: 30000 });
+    await expect(page.getByRole('navigation').getByRole('button', { name: 'Reports', exact: true })).toBeVisible();
 
     await page.getByTitle('Settings').click();
-    await page.getByRole('switch', { name: 'Show Reports tab' }).click();
-
-    const tab = page.getByRole('navigation').getByRole('button', { name: 'Reports', exact: true });
-    await expect(tab).toBeVisible();
-
-    // The preference stuck — it is still on after a reload, and the tab opens
-    // the page.
-    await page.reload();
-    await expect(tab).toBeVisible({ timeout: 30000 });
-    await tab.click();
-    await expect(page).toHaveURL(/#reports/);
-    await expect(page.getByRole('heading', { name: 'Reports', level: 2 })).toBeVisible();
+    await expect(page.getByRole('switch', { name: 'Show Contexts tab' })).toBeVisible();
+    await expect(page.getByRole('switch', { name: 'Show Reports tab' })).toHaveCount(0);
   });
 });
 
@@ -199,9 +180,11 @@ test.describe('Reports', () => {
     const body = await fetchRows('orphaned-accounts');
     await openReport(page, body);
 
+    // The workbook is the main button; CSV sits in the menu beside it.
+    await page.getByRole('button', { name: 'Other download formats' }).click();
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 30000 }),
-      page.getByRole('button', { name: 'Download CSV' }).click(),
+      page.getByRole('menuitem', { name: 'Download CSV' }).click(),
     ]);
 
     expect(download.suggestedFilename()).toMatch(/^identity-atlas-.*\.csv$/);

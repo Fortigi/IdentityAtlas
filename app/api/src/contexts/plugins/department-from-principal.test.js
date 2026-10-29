@@ -91,3 +91,17 @@ describe('department-from-principal plugin', () => {
     expect(args).toContain(42);
   });
 });
+
+describe('department-from-principal — soft-deleted principals', () => {
+  it.each([
+    [{ scopeSystemId: 3 }, 'WHERE "systemId" = $1 AND "deletedAt" IS NULL AND department'],
+    [{}, 'WHERE "deletedAt" IS NULL AND department'],
+  ])('reads live principals only (%o)', async (params, clause) => {
+    vi.resetModules();
+    const query = vi.fn(async () => ({ rows: [] }));
+    vi.doMock('../../db/connection.js', () => ({ query }));
+    const { default: plugin } = await import('./department-from-principal.js');
+    await plugin.run(params, {});
+    expect(query.mock.calls[0][0]).toContain(clause);
+  });
+});
