@@ -257,7 +257,9 @@ export async function buildSubqueries(filter) {
     // the unscoped "of N resources" totals can apply the same predicate and
     // never count rows that can't render.
     hidesDefaultResourceTypes: hideDefaults,
-    resourceTotalWhere: hideDefaults ? ` WHERE ${visibleResourceTypesSql()}` : '',
+    // Always carries the live-row filter: a soft-deleted resource is history
+    // and never renders, so it must not count toward "of N resources".
+    resourceTotalWhere: ` WHERE ${[LIVE_ROW, hideDefaults && visibleResourceTypesSql()].filter(Boolean).join(' AND ')}`,
     warnings,
     principalCols,
     resourceCols,
@@ -299,12 +301,23 @@ export function collectResources(map, rows, toMeta = resourceMeta) {
   return map;
 }
 
+// Unqualified live-row predicate for the soft-delete tables (Principals,
+// Resources, ResourceAssignments — migration 040). A full sync tombstones rows
+// that vanished from the source; they are history, never part of a count.
+const LIVE_ROW = '"deletedAt" IS NULL';
+
+// WHERE clause for counting the in-scope resources: live rows, narrowed to the
+// resource filter fragment when there is one.
+export function resourceScopeWhere(resourceSql) {
+  return ` WHERE ${LIVE_ROW}${resourceSql ? ` AND id IN ${resourceSql}` : ''}`;
+}
+
 export function subjectScopeClauses(rowType, subjectSql) {
   const subjectTable = rowType === 'identity' ? 'Identities' : 'Principals';
-  // For principals, exclude group-shaped accounts so counts match what the
-  // matrix actually renders.
+  // For principals, exclude soft-deleted and group-shaped accounts so counts
+  // match what the matrix actually renders. Identities have no tombstone.
   const baseWhere = rowType === 'principal'
-    ? `("principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}')`
+    ? `${LIVE_ROW} AND ("principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}')`
     : null;
   const idClause = subjectSql ? `id IN ${subjectSql}` : null;
   const clauses = [baseWhere, idClause].filter(Boolean);
@@ -338,9 +351,9 @@ export async function scopeCounts(p, res, rowType, built) {
     runCount(p, 'matrix-data-subject-total', res,
       `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.baseWhere}`, []),
     runCount(p, 'matrix-data-resource-count', res,
-      `SELECT COUNT(*)::int AS c FROM "Resources"${resourceSql ? ` WHERE id IN ${resourceSql}` : ''}`, rp.params),
+      `SELECT COUNT(*)::int AS c FROM "Resources"${resourceScopeWhere(resourceSql)}`, rp.params),
     runCount(p, 'matrix-data-resource-total', res,
-      `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere || ''}`, []),
+      `SELECT COUNT(*)::int AS c FROM "Resources"${built.resourceTotalWhere}`, []),
     runCount(p, 'matrix-data-assignments', res,
       `SELECT COUNT(*)::int AS c FROM (
          SELECT DISTINCT ${subjectIdExpr} AS sid, p."resourceId" AS rid

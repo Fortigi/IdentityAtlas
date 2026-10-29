@@ -19,6 +19,7 @@ import {
 import { KNOWLEDGE_KINDS, KNOWLEDGE } from '../../lib/orgKnowledge.js';
 import { withContexts } from './resourceContexts.js';
 import { SOURCE_KIND_SQL } from '../interviews/store.js';
+import { liveMemberSql } from '../memberCounts.js';
 
 export const MAX_PEOPLE = 400;
 export const MAX_COLUMNS = 300;
@@ -52,6 +53,8 @@ export const MEMBERS_SQL = `
    WHERE cm."contextId" = ANY($1::uuid[])
      AND cm."memberType" IN ('Identity', 'Principal')
      AND NOT EXISTS (SELECT 1 FROM "ContextMemberOverrides" o WHERE o."contextId" = cm."contextId" AND o."memberId" = cm."memberId")
+     -- A member whose account a sync soft-deleted is not one of the unit's people now (as the unit's counts).
+     AND ${liveMemberSql('cm')}
    ORDER BY cm."memberType", cm."memberId", (cm."contextId" = $2) DESC
    LIMIT $3`;
 

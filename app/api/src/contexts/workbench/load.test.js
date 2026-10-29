@@ -107,3 +107,10 @@ describe('loadWorkbench', () => {
     expect(MEMBERS_SQL).toMatch(/ContextMemberOverrides/);
   });
 });
+
+describe('MEMBERS_SQL', () => {
+  it('leaves out a member whose account a sync soft-deleted, as the unit\'s counts do', async () => {
+    const { liveMemberSql } = await import('../memberCounts.js');
+    expect(MEMBERS_SQL).toContain(liveMemberSql('cm'));
+  });
+});

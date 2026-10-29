@@ -41,7 +41,8 @@ export default {
       throw new Error('scopeSystemId must be an integer when provided');
     }
 
-    const conds = [`"resourceType" = 'Group'`, `"extendedAttributes" ->> 'groupCategory' IS NOT NULL`];
+    // Live groups only: a soft-deleted ("deletedAt") group is history.
+    const conds = [`"resourceType" = 'Group'`, '"deletedAt" IS NULL', `"extendedAttributes" ->> 'groupCategory' IS NOT NULL`];
     const qp = [];
     if (scopeSystemId !== null) { qp.push(scopeSystemId); conds.push(`"systemId" = $${qp.length}`); }
 

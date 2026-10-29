@@ -26,10 +26,10 @@ The Role Mining UI is a web application that visualizes your synced permission d
 
 The app opens to the **Dashboard** landing page — not the Matrix. From there the navigation bar has two groups of tabs:
 
-- **Always visible:** Dashboard, Matrix, Principals (Users), Resources, Business Roles, Contexts, Admin
-- **Optional (hidden by default):** Systems, Logs (the Sync Log), Risk Scores, Identities
+- **Always visible:** Dashboard, Matrix, Principals (Users), Resources, Business Roles, Reports, Admin
+- **Optional (hidden by default):** Systems, Identities, Contexts, Logs (the Sync Log)
 
-Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). **Risk Scores** and **Identities** are additionally feature-gated — they only appear in the settings list when their server-side feature flag (`riskScoring` / `accountLinking`) is enabled. The **Admin** tab is hidden from users with no `admin.*` permission.
+Optional tabs are enabled per-user via the settings dropdown (click the user avatar in the top-right corner). **Identities** is additionally feature-gated — its switch only appears while the `accountLinking` feature flag is on. **Risk Scores** is not a per-user toggle: it appears for everyone as soon as an admin turns on the `riskScoring` feature. The **Admin** tab is hidden from users with no `admin.*` permission.
 
 !!! note
     The **Org Chart** tab no longer exists. Manager-hierarchy views are now generated Contexts — see [Contexts](#contexts) below.
@@ -155,7 +155,7 @@ Browse all synced principals (accounts) with pagination, search, tagging, and at
 - **Filter** by any attribute column or tag
 - **Tag management:** assign/remove tags (Tag Contexts — see [Tagging System](#tagging-system)) from selected users, bulk-tag by filter
 
-Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships** and **Timeline** views.
+Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships**, **Timeline** and **Diff** views. **Diff** compares the account with how it was at a moment you pick (a day, a week, a month or a year ago, or any date): the old state on the left, the current state on the right, with changed attributes and added or removed access highlighted.
 
 <figure markdown="span">
   ![A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments](../assets/screenshots/user-detail.png)
@@ -305,8 +305,8 @@ Real persons linked across multiple accounts and systems. Accounts are attached 
 
 Available under Admin > Account Linking. Configures the deterministic, dictionary-based engine that attaches orphan accounts (admin / guest / secondary) to existing identities — **no LLM**.
 
-- **Editable dictionary** — weighted match signals (employeeId / email / email-prefix / graded name, including the login read as a name) and regex account-type rules. The editor shows the **effective** dictionary: your saved rules with the signals this version ships merged in by name, which is exactly what a run uses. Your own values always win, and **deleting a signal does not disable it** — an upgrade adds it back, which is how a new signal reaches a tenant that has saved its settings. To switch one off, set its `weight` to `0` and Save.
-- **Certainty slider** — the `linkThreshold`; raise it to require stronger evidence before an account is auto-linked.
+- **Editable dictionary** — weighted match signals (employeeId / email / email-prefix / graded name, including the login read as a name and a surname with initials) and regex account-type rules. Three further signals carry what singled one person out of the people a name allows: that the name points at nobody else, a department that is one of theirs and no other's, or a manager who is one of theirs. The editor shows the **effective** dictionary: your saved rules with the signals this version ships merged in by name, which is exactly what a run uses. Your own values always win, and **deleting a signal does not disable it** — an upgrade adds it back, which is how a new signal reaches a tenant that has saved its settings. To switch one off, set its `weight` to `0` and Save; that also releases the links it had already made, on the next run.
+- **Certainty slider** — the `linkThreshold`; raise it to require stronger evidence before an account is auto-linked. It is the one control for how much evidence a link needs: at `60` a unique surname-and-initial match stops linking, at `75` a unique full-name one does.
 - **Schedules + Run now** — schedule recurring runs or trigger one immediately; each run's progress and counts are shown.
 - **Removed accounts are left out** — an account a sync no longer finds in its source system is not an orphan: it is never linked to a person and not counted in "orphans remaining". That also keeps a leaver's account away from a colleague who happens to share their name, which is otherwise the only match left once the leaver is gone from HR. An account that was already linked before it was removed stays linked, so the person's history is kept.
 

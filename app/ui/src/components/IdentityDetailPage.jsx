@@ -105,6 +105,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       { key: 'attributes', label: 'Attributes', count: entries.length },
       { key: 'relationships', label: 'Relationships' },
       { key: 'timeline', label: 'Timeline' },
+      { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
   }, [features, riskData]);

@@ -14,8 +14,9 @@
 //
 //   1. seed a person and a secondary account spelled exactly her name, with no employee id
 //      and an unrelated address — so the name is the only evidence there is;
-//   2. Admin → Account Linking → Run now: the account links to her on `fullName` alone.
-//      The control — without it the later assertion would also pass for a link that was
+//   2. Admin → Account Linking → Run now: the account links to her on the name alone
+//      (`fullName` plus the name-uniqueness guard's own `nameUnique`, #1455 A1). The
+//      control — without it the later assertion would also pass for a link that was
 //      never made;
 //   3. a full sync removes the account (ingest stamps `deletedAt`), and a namesake joins
 //      the directory, so the name no longer points at one person;
@@ -121,7 +122,11 @@ test.describe('Account linking — a removed account keeps the link it already h
     // Both halves rest on a name-only match at full-name strength. A deployment that raised
     // the certainty slider past that weight, or stopped linking plain secondary accounts,
     // would link neither — no control, and the regression half would pass for free.
-    const nameWeight = (rules?.signals || []).find(s => s.name === 'fullName')?.weight ?? 0;
+    // `nameUnique` is part of the bar because these names each point at one person, so the
+    // guard's evidence fires and the match scores the name's weight plus it (#1455 A1).
+    // Reading the name's weight alone would skip a deployment that does link these.
+    const weightOf = (name) => (rules?.signals || []).find(s => s.name === name)?.weight ?? 0;
+    const nameWeight = weightOf('fullName') + weightOf('nameUnique');
     test.skip(
       !(rules?.onlyLinkTypes || []).includes('Secondary') || (rules?.linkThreshold ?? 0) > nameWeight,
       'the deployment\'s linking rules would not link a name-only match',
@@ -134,10 +139,17 @@ test.describe('Account linking — a removed account keeps the link it already h
     await runAccountLinkingFromAdmin(page);
 
     // The control. These are the links the cleanup is entitled to re-judge: scored by the
-    // engine, untouched by an analyst, resting on `fullName` and nothing else.
+    // engine, untouched by an analyst, resting on the name and nothing else.
+    //
+    // `fullName,nameUnique` is the ratified 60 → 70 side effect of #1455 (A1): the
+    // name-uniqueness guard now records that the name singled this person out. The link is
+    // still name-only — `nameUnique` is the guard's own evidence, not a second signal — so
+    // it is still in the cleanup's scope, which is what the regression half rests on.
+    // Pinned exactly: an assertion that accepted either value would stop catching a link
+    // that quietly picked up real corroborating evidence and left that scope.
     const [maritLink] = await identityMembers(IDS.marit);
     expect(maritLink?.principalId, `${NAME} should have linked on the name alone`).toBe(IDS.removedAccount);
-    expect(maritLink?.linkSignals).toBe('fullName');
+    expect(maritLink?.linkSignals).toBe('fullName,nameUnique');
     expect(await linkedPrincipalIds(IDS.sanne)).toEqual([IDS.liveAccount]);
   });
 

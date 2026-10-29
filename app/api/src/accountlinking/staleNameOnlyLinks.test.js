@@ -13,6 +13,7 @@ import { removeStaleNameOnlyLinks } from './staleNameOnlyLinks.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 import { effectiveLinkingRules } from './rulesMerge.js';
 import { PRE_LOGIN_NAME_FORM_RULES } from '../../test-utils/preShippedLinkingRules.js';
+import { stageMembers } from '../../test-utils/staleNameOnlyLinksKit.js';
 
 vi.mock('../db/connection.js');
 import { query } from '../db/connection.js';
@@ -28,14 +29,9 @@ const IDENTITIES = [
   { id: 'euson', displayName: 'Euson, Robin' },
 ];
 
-/** Stage the member scan; every later write resolves empty. */
-function stageMembers(rows) {
-  query.mockImplementation(async (sql) => {
-    if (/FROM "IdentityMembers" m/.test(sql)) return { rows };
-    return { rows: [] };
-  });
-}
-
+// This file asserts on the DELETE calls themselves (their parameters, and that a
+// recompute followed), not just on which principals went — so it keeps its own
+// reader beside the shared `detached()`.
 const deletes = () => query.mock.calls.filter(c => /DELETE FROM "IdentityMembers"/.test(c[0]));
 const countRecomputes = () =>
   query.mock.calls.filter(c => /UPDATE\s+"Identities"/.test(c[0]) && /"accountCount"/.test(c[0]));

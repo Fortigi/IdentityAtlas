@@ -14,6 +14,10 @@
 //                    Name signals never sum with each other: whether the name is
 //                    read off the display name or off the login, it is one piece
 //                    of evidence and only the strongest reading of it fires.
+//                    The `evidence` signals are the exception, and they are not
+//                    readings of the name: each says something singled ONE
+//                    person out of the people the name allows (see
+//                    guardEvidence.js), so they add to the name's weight.
 // accountTypeRules  — regex patterns (lowest `priority` wins) that classify an
 //                    account as Admin / Guest / Service / Shared. Anything that
 //                    matches nothing is "Secondary" (a plain extra human account).
@@ -40,6 +44,16 @@ export const DEFAULT_RULES = {
       name: 'emailPrefix', type: 'prefix', field: 'email', weight: 80,
       stripPrefixes: [...LOGIN_PREFIXES],
     },
+    // Every initial the two sides state, in agreement — `Buskes, L.R.` against
+    // Laura Renée Buskes. Two letters that agree is much stronger evidence than
+    // one, so it sits above the single-initial rung and level with a login form,
+    // and it is what makes a "Surname, Initials" source placeable at all
+    // (#1455). It is listed AHEAD of `loginNameForm` because the shipped ladder
+    // *is* the precedence for equal weights (`strongestNameRung` breaks a tie by
+    // position, see rulesMerge.js): where a display name's initials and a login
+    // both fit one person, the initials are the richer reading and theirs is the
+    // rival set the guard should use.
+    { name: 'surnameInitials', type: 'name', level: 'surnameInitials', weight: 55 },
     // A login that spells the person's name rather than their address:
     // `adm-fhogenbirk` for the `f.h.hogenbirk` mailbox. Name-class evidence, so
     // it is graded below `fullName` and goes through the name-uniqueness guard —
@@ -55,6 +69,15 @@ export const DEFAULT_RULES = {
     // both reduce to {euson, robin}.
     { name: 'fullName',       type: 'name', level: 'full',           weight: 60 },
     { name: 'surnameInitial', type: 'name', level: 'surnameInitial', weight: 45 },
+    // What the name-uniqueness guard adds when something singles ONE of the
+    // name's claimants out (guardEvidence.js). Each fires only in that case, so
+    // they can never hand an ambiguous name to whoever scored first. They are
+    // why an unambiguous `van Mourik, R.` reaches 55 and links as a reviewable
+    // low-confidence match, and why a `Jansen, J.` two people answer to still
+    // does not.
+    { name: 'nameUnique', type: 'evidence', weight: 10 },
+    { name: 'department', type: 'evidence', weight: 10 },
+    { name: 'manager',    type: 'evidence', weight: 15 },
   ],
   accountTypeRules: [
     { accountType: 'Admin',   priority: 1, patterns: ['^adm[-_]', '^a[-_]', '[-_]admin@', '\\badmin\\b', '\\(adm'] },
@@ -65,7 +88,8 @@ export const DEFAULT_RULES = {
   // Auto-link when summed confidence ≥ this. A single fullName match lands at
   // 60, which clears this bar — so the name-uniqueness guard, not the threshold,
   // is what stops a name-only link to a namesake. Raise it via the slider to
-  // require stronger evidence from every match.
+  // require stronger evidence from every match: at 60 a unique surname+initial
+  // match (45 + 10) stops linking, at 75 a unique full-name one (60 + 10) does.
   linkThreshold: 50,
   onlyLinkTypes: ['Admin', 'Guest', 'Secondary'],
   // Policy: a name match on its own may attach an account to a person, but only

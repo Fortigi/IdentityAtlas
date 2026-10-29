@@ -188,6 +188,28 @@ router.post('/categories/unassign', writeCategories, async (req, res) => {
   }
 });
 
+// WHERE clause + bound params for the business-role list and its count query.
+// Business roles deleted in the source are kept as history (soft delete,
+// migration 040): hidden by default, revealed with ?includeDeleted=true — the
+// same convention as the Resources list (resources/list.js).
+export function buildAccessPackagesWhere(query, search) {
+  const params = [];
+  const where = [`ap."resourceType" = 'BusinessRole'`];
+  if (query.includeDeleted !== 'true') where.push(`ap."deletedAt" IS NULL`);
+  if (search) {
+    params.push(likeContains(search));
+    where.push(`(ap."displayName" ILIKE $${params.length} ESCAPE '\\' OR c."displayName" ILIKE $${params.length} ESCAPE '\\')`);
+  }
+  const categoryFilter = query.categoryId ? parseInt(query.categoryId, 10) : null;
+  if (categoryFilter) {
+    params.push(categoryFilter);
+    where.push(`ca."categoryId" = $${params.length}`);
+  } else if (query.uncategorized === 'true') {
+    where.push(`ca."resourceId" IS NULL`);
+  }
+  return { params, whereSql: where.join(' AND ') };
+}
+
 // ─── GET /api/access-packages ────────────────────────────────────
 // Paginated list of business roles (resources where resourceType='BusinessRole')
 // with category, policy, assignment counts. Postgres-native (v5).
@@ -198,9 +220,6 @@ router.get('/access-packages', async (req, res) => {
     const search = (req.query.search || '').trim().slice(0, 200);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
-    const categoryFilter = req.query.categoryId ? parseInt(req.query.categoryId, 10) : null;
-    const showUncategorized = req.query.uncategorized === 'true';
-
     const SORT_COL_MAP = {
       displayName:      'ap."displayName"',
       totalAssignments: 'totalAssignments',
@@ -214,19 +233,7 @@ router.get('/access-packages', async (req, res) => {
     const p = await db.getPool();
     await ensureCategoryTables(p);
 
-    const params = [];
-    const where = [`ap."resourceType" = 'BusinessRole'`];
-    if (search) {
-      params.push(likeContains(search));
-      where.push(`(ap."displayName" ILIKE $${params.length} ESCAPE '\\' OR c."displayName" ILIKE $${params.length} ESCAPE '\\')`);
-    }
-    if (categoryFilter) {
-      params.push(categoryFilter);
-      where.push(`ca."categoryId" = $${params.length}`);
-    } else if (showUncategorized) {
-      where.push(`ca."resourceId" IS NULL`);
-    }
-    const whereSql = where.join(' AND ');
+    const { params, whereSql } = buildAccessPackagesWhere(req.query, search);
 
     params.push(limit);
     const limitIdx = params.length;
@@ -286,11 +293,15 @@ router.get('/access-packages', async (req, res) => {
 
     const dataSql = `
       WITH ac AS (
-        SELECT "resourceId", COUNT(*)::int AS cnt
-          FROM "ResourceAssignments"
-         WHERE "governed" = true
-           AND (LOWER(state) = 'delivered' OR state IS NULL)
-         GROUP BY "resourceId"
+        -- Live assignments held by live principals only: a tombstoned
+        -- assignment, or one held by a deleted account, is history.
+        SELECT ra."resourceId", COUNT(*)::int AS cnt
+          FROM "ResourceAssignments" ra
+          JOIN "Principals" pr ON pr.id = ra."principalId" AND pr."deletedAt" IS NULL
+         WHERE ra."governed" = true
+           AND (LOWER(ra.state) = 'delivered' OR ra.state IS NULL)
+           AND ra."deletedAt" IS NULL
+         GROUP BY ra."resourceId"
       ), pc AS (
         SELECT "resourceId",
                COUNT(*)::int AS "policyCount",
@@ -300,7 +311,7 @@ router.get('/access-packages', async (req, res) => {
           FROM "AssignmentPolicies"
          GROUP BY "resourceId"
       )${reviewCte}
-      SELECT ap.id, ap."displayName", ap.description,
+      SELECT ap.id, ap."displayName", ap.description, ap."deletedAt",
              c."displayName" AS "catalogName", c.id AS "catalogId",
              COALESCE(ac.cnt, 0) AS "totalAssignments",
              cat.id AS "categoryId", cat.name AS "categoryName", cat.color AS "categoryColor",
@@ -352,6 +363,7 @@ router.get('/access-packages', async (req, res) => {
         id: r.id,
         displayName: r.displayName,
         description: r.description,
+        deletedAt: r.deletedAt || null,
         catalogName: r.catalogName,
         catalogId: r.catalogId,
         totalAssignments: r.totalAssignments,
