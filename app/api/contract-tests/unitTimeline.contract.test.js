@@ -88,7 +88,7 @@ describe('GET /contexts/:id/timeline — what happened, in words', () => {
       `people: Max Jacobs (tl) left (list upload: ${LIST})`,
       'roles: Accountable set: Tom Bakker (tl) (analyst)',
       'roles: Accountable changed: Tom Bakker (tl) → Lisa Vos (tl) (analyst)',
-      'people: Max Jacobs (tl)\' job title changed: Loss adjuster → Senior loss adjuster',
+      'people: Max Jacobs (tl)\'s job title changed: Loss adjuster → Senior loss adjuster',
       'structure: Renamed: TL Claims → TL Property Claims',
     ]));
     expect(said.some(s => /last calculated/i.test(s))).toBe(false);
