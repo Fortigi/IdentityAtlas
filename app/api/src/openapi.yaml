@@ -4744,7 +4744,7 @@ components:
             In a context's list of sources: set when the source was added on ANOTHER context and makes
             claims about this context's people (an interview on the parent unit naming who in a sub-unit
             does what). Its claim counts then count those claims only. Null for a source added here.
-        filedUnderName: { type: string, nullable: true, description: The context the source was added on, when not this one }
+        filedUnderName: { type: string, nullable: true, description: 'The context the source was added on, when not this one' }
     ContextClaim:
       type: object
       description: >
