@@ -231,15 +231,4 @@ describe('the matrix’s Proposed lens on PostgreSQL', () => {
     await deleteInvestigation(db, empty.id);
   });
 
-  it('reads an account’s matrix rows in the matrix feed’s shape, and which business roles cover them', async () => {
-    const { proposedMatrixRows } = await import('../src/contexts/workbench/proposedMatrix.js');
-    await pool.query(`INSERT INTO "ResourceAssignments" ("resourceId", "principalId", "assignmentType", "systemId") VALUES ($1, $2, 'Direct', $3)`, [R.read, ID.loose, sysId]);
-    await pool.query(`REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole"`);
-    await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
-    const out = await proposedMatrixRows(db, { principalIds: [ID.loose] });
-    expect(out.data).toEqual([expect.objectContaining({ resourceId: R.read, memberId: ID.loose, membershipType: 'Direct', resourceDisplayName: 'wbs-read', systemName: 'wbs-1' })]);
-    expect(out.managedByPackages).toEqual([]);
-    await pool.query(`DELETE FROM "ResourceAssignments" WHERE "principalId" = $1`, [ID.loose]);
-    await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
-  });
 });

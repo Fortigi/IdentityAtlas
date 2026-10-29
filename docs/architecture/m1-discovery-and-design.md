@@ -209,11 +209,9 @@ With it on (`matrix/ProposedMatrix`):
 - **From investigation** picks one saved investigation (unit, saved by, date) or all of them.
 
 **API** (needs `data.write.contexts`): `GET /api/workbench/investigations` lists every saved
-investigation holding a proposed role, any unit. `POST /api/workbench/proposals/matrix` with
-`{ principalIds }` (at most 2000) answers the matrix's rows for those accounts, in the shape of the
-matrix feed, plus which business roles cover each cell. Both are read-only. The latter served the
-first, separate Proposed view. The toggle adds to the view's own rows, so it no longer calls it.
-It stays for a later "add the members outside this view" option, or goes if that is not wanted.
+investigation holding a proposed role, any unit. Read-only. The toggle adds to the view's own rows,
+so it needs no rows of its own. A "members outside this view" option would need an endpoint for
+those accounts' rows; it is not built.
 
 ## People as columns (the matrix's orientation)
 

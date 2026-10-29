@@ -69,8 +69,10 @@ describe('ProposedMatrix', () => {
       { memberId: ANN, resourceId: 'r1', groupId: 'r1', accessPackageIds: ['p1'] },
       { memberId: BOB, resourceId: 'r2', groupId: 'r2', accessPackageIds: ['p2'] },
     ]);
-    // It reads no matrix rows of its own.
-    expect(authFetch.mock.calls.map(c => c[0])).not.toContain('/api/workbench/proposals/matrix');
+    // It reads the investigations and the unit's people — no matrix rows of its own.
+    expect(new Set(authFetch.mock.calls.map(c => c[0].split('?')[0]))).toEqual(new Set([
+      '/api/workbench/investigations', '/api/workbench/investigations/inv-1', '/api/workbench/investigations/inv-2', '/api/contexts/unit-1/workbench',
+    ]));
   });
 
   it('narrows to one investigation from the picker', async () => {

@@ -7,8 +7,7 @@
 //   PUT    /api/workbench/investigations/:invId                save over it (the whole draft)
 //   DELETE /api/workbench/investigations/:invId                delete it
 //   DELETE /api/workbench/investigations/:invId/proposals/:pid delete one proposed role
-//   GET    /api/workbench/investigations                       every saved investigation with proposed roles (the matrix's Proposed lens)
-//   POST   /api/workbench/proposals/matrix                     the matrix rows of these accounts: { principalIds }
+//   GET    /api/workbench/investigations                       every saved investigation with proposed roles (the matrix's "+ Proposed roles")
 //
 // Same gate as the workbench (data.write.contexts). A saved investigation is an
 // analyst's hypothesis: nothing here changes access or a source system.
@@ -18,7 +17,7 @@ import * as db from '../../db/connection.js';
 import { useSql, writeContexts, UUID_RE } from './shared.js';
 import { userOf } from '../../lib/userOf.js';
 import { InvestigationError } from '../../contexts/workbench/investigationDraft.js';
-import { listAllInvestigations, proposedMatrixRows, ProposedMatrixError } from '../../contexts/workbench/proposedMatrix.js';
+import { listAllInvestigations } from '../../contexts/workbench/proposedMatrix.js';
 import {
   listInvestigations, getInvestigation, createInvestigation, saveInvestigation, deleteInvestigation, deleteProposal,
 } from '../../contexts/workbench/investigations.js';
@@ -32,7 +31,7 @@ export const INVESTIGATION_PATHS = Object.freeze(['/contexts/:id/workbench/inves
 router.use(INVESTIGATION_PATHS, requireFeature('orgKnowledge'));
 
 function fail(res, err, label) {
-  if (err instanceof InvestigationError || err instanceof ProposedMatrixError) return res.status(err.status).json({ error: err.message });
+  if (err instanceof InvestigationError) return res.status(err.status).json({ error: err.message });
   console.error(`${label} failed:`, err?.message);
   return res.status(500).json({ error: `${label} failed` });
 }
@@ -53,9 +52,6 @@ router.get('/workbench/investigations', writeContexts, guard, handle('Listing in
   res.json({ data: await listAllInvestigations(db) });
 }));
 
-router.post('/workbench/proposals/matrix', writeContexts, guard, handle('Reading the proposed roles\' matrix', async (req, res) => {
-  res.json(await proposedMatrixRows(db, req.body ?? {}));
-}));
 
 router.get('/contexts/:id/workbench/investigations', writeContexts, guard, handle('Listing investigations', async (req, res) => {
   res.json({ data: await listInvestigations(db, req.params.id) });
