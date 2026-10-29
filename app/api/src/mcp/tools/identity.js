@@ -60,13 +60,17 @@ export const search = {
     const kinds = Array.isArray(args.kinds) && args.kinds.length
       ? [...new Set(args.kinds)].filter(k => SEARCHABLE.includes(k))
       : DEFAULT_KINDS;
-    const matches = [];
+    // A record can be found twice — a group is also a resource, a user also an
+    // account — so the first (= best-scoring, after the sort) entry per id wins.
+    const found = [];
     for (const kind of kinds) {
       for (const m of await searchNames(query, kind, text)) {
-        matches.push({ ...m, entity: kind, link: detailLink(ctx.baseUrl, { kind: ENTITIES[kind].detailKind, id: m.id }) });
+        found.push({ ...m, entity: kind, link: detailLink(ctx.baseUrl, { kind: ENTITIES[kind].detailKind, id: m.id }) });
       }
     }
-    matches.sort((a, b) => b.score - a.score);
+    found.sort((a, b) => b.score - a.score);
+    const seen = new Set();
+    const matches = found.filter(m => !seen.has(m.id) && seen.add(m.id));
     return jsonResult({ matches }, matches.length);
   },
 };

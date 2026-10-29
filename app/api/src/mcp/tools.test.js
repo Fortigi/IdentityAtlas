@@ -161,6 +161,16 @@ describe('search', () => {
     ]);
   });
 
+  it('lists a record found under two kinds once — a group is also a resource', async () => {
+    vi.mocked(searchNames).mockImplementation(async (_q, entity) => ({
+      group: [{ id: 'g1', name: 'Admins', type: 'Group', score: 0.6 }],
+      resource: [{ id: 'g1', name: 'Admins', type: 'Group', score: 0.6 }, { id: 'r2', name: 'Admin app', type: 'Application', score: 0.5 }],
+    })[entity]);
+    const r = await search.run({ text: 'admin', kinds: ['group', 'resource'] }, ctxWith());
+    expect(r.structuredContent.matches.map(m => [m.id, m.entity])).toEqual([['g1', 'group'], ['r2', 'resource']]);
+    expect(r.rowCount).toBe(2);
+  });
+
   it('searches only the kinds asked for, once each, ignoring unknown ones', async () => {
     vi.mocked(searchNames).mockResolvedValue([]);
     await search.run({ text: 'Fin', kinds: ['group', 'group', 'change', 'nope'] }, ctxWith());
