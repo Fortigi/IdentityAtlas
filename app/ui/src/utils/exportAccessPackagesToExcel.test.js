@@ -185,6 +185,34 @@ describe('exportAccessPackagesToExcel', () => {
     expect(onProgress).toHaveBeenCalledWith('Building Excel file...');
   });
 
+  it('has no Deleted At column and no includeDeleted param by default', async () => {
+    const authFetch = makeAuthFetch([{ id: 'ap1', displayName: 'Live' }], { ap1: [] });
+    await exportAccessPackagesToExcel({ authFetch, categoryFilter: null });
+
+    expect(authFetch.mock.calls[0][0]).not.toContain('includeDeleted');
+    const ws = (await loadCapturedWorkbook()).getWorksheet('Business Roles');
+    expect(ws.getRow(1).values.slice(1)).toEqual(HEADERS);
+    expect(ws.getRow(2).values[12]).toBeUndefined();
+  });
+
+  it('includeDeleted asks for deleted roles and adds a Deleted At column', async () => {
+    const packages = [
+      { id: 'ap1', displayName: 'Live', deletedAt: null },
+      { id: 'ap2', displayName: 'Gone', deletedAt: '2026-10-01T12:00:00Z' },
+    ];
+    const authFetch = makeAuthFetch(packages, { ap1: [], ap2: [{ groupDisplayName: 'Admins', roleDisplayName: 'Owner' }] });
+    await exportAccessPackagesToExcel({ authFetch, categoryFilter: null, includeDeleted: true });
+
+    expect(authFetch.mock.calls[0][0]).toContain('includeDeleted=true');
+    const ws = (await loadCapturedWorkbook()).getWorksheet('Business Roles');
+    expect(ws.getRow(1).values.slice(1)).toEqual([...HEADERS, 'Deleted At']);
+    // A live role leaves the cell empty; a deleted one carries its deletion date.
+    expect(ws.getRow(2).values[12] || '').toBe('');
+    expect(ws.getRow(3).values[1]).toBe('Gone');
+    expect(ws.getRow(3).values[10]).toBe('Admins');
+    expect(ws.getRow(3).values[12]).toBe(new Date('2026-10-01T12:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }));
+  });
+
   it('passes search and category params to the packages endpoint', async () => {
     const authFetch = makeAuthFetch([]);
     await exportAccessPackagesToExcel({

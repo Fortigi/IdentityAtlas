@@ -132,7 +132,7 @@ describe('the analyst view', () => {
     const { onClose, user } = mount();
     await screen.findByText('Alice Engineer');
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-    expect(screen.getAllByRole('tab').map(t => t.textContent.replace(/\d+$/, ''))).toEqual(['Members', 'Timeline', 'Risk']);
+    expect(screen.getAllByRole('tab').map(t => t.textContent.replace(/\d+$/, ''))).toEqual(['Members', 'Timeline', 'Diff', 'Risk']);
     await user.click(screen.getByRole('button', { name: 'Back to Contexts' }));
     expect(onClose).toHaveBeenCalled();
   });

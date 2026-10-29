@@ -1,4 +1,5 @@
 import ConfidenceBar from './ConfidenceBar';
+import DeletedBadge from './DeletedBadge';
 import { isSourceLinkedMember, memberAccountEnabled } from '@ui/utils/linkedMembers';
 
 const EM_DASH = '—';
@@ -56,6 +57,7 @@ function MemberRow({ member, busyMember, onOverride, onOpenDetail }) {
           className="font-medium text-blue-700 dark:text-blue-300 hover:underline text-left truncate block max-w-full">
           {member.displayName}
         </button>
+        {member.deleted && <DeletedBadge at={member.deletedAt} label="Deleted in source" />}
         {(member.userPrincipalName || member.isPrimary) && (
           <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
             {member.userPrincipalName || ''}

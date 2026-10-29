@@ -40,6 +40,23 @@ describe('GET /governance/summary', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ totalAPs: 0, compliant: 0, overdue: 0 });
   });
+
+  // Soft delete (migration 040): a business role deleted in the source no
+  // longer counts toward review compliance.
+  it('skips review decisions of deleted business roles', async () => {
+    stageQuery.mockResolvedValueOnce({ recordset: [] });
+    await request(app).get('/api/governance/summary');
+    expect(stageQuery.mock.calls[0][0]).toMatch(/dr\.id = cd\."resourceId" AND dr\."deletedAt" IS NOT NULL/);
+  });
+});
+
+describe('GET /governance/review-compliance', () => {
+  it('skips review decisions of deleted business roles', async () => {
+    query.mockResolvedValueOnce({ rows: [] });
+    const res = await request(app).get('/api/governance/review-compliance');
+    expect(res.status).toBe(200);
+    expect(query.mock.calls[0][0]).toMatch(/dr\.id = cd\."resourceId" AND dr\."deletedAt" IS NOT NULL/);
+  });
 });
 
 describe('GET /governance/categories', () => {

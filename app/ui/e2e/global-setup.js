@@ -3,8 +3,8 @@
  * Global setup for Playwright E2E tests.
  *
  * Runs once before all specs. Puts the deployment into the state the suite
- * assumes: every optional tab visible (Systems, Reports, Logs, Identities, Org
- * Chart, Risk Scores, Performance, Admin) via the preferences API, and the
+ * assumes: every optional tab visible (Systems, Logs, Identities, Contexts,
+ * Risk Scores, Performance, Admin) via the preferences API, and the
  * opt-in feature flags the suite covers switched on, so no spec has to skip.
  *
  * Both are deliberately done HERE and not in a test: they are global server
@@ -20,19 +20,18 @@ const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
  * keeps seeing every tab.
  */
 export const ALL_OPTIONAL_TABS = [
-  'systems', 'reports', 'sync-log', 'risk-scores', 'identities', 'org-chart', 'performance', 'admin',
+  'systems', 'sync-log', 'risk-scores', 'identities', 'contexts', 'performance', 'admin',
 ];
 
 /**
- * Feature flags the suite needs switched on. `experimentalCrawlers` gates the
- * experimental crawler types out of the Add Crawler picker and makes
- * POST /admin/crawler-configs answer 403 for them, so their wizard specs can't
- * run at all while it is off. The OFF behaviour is asserted in isolation
- * instead — CrawlersPage.SelectType.test.jsx for the picker,
- * jobs.experimentalGate.test.js for the 403, and AC0 of the SCIM crawler's
- * Test-*Crawler.ps1 against a real API.
+ * Feature flags the suite needs switched on. Empty today: `experimentalCrawlers`
+ * used to be listed because the SCIM wizard specs needed it, but SCIM is no
+ * longer experimental and no other crawler is. Add the flag back here when a
+ * new experimental crawler ships with wizard specs. Its OFF behaviour is
+ * asserted in isolation — CrawlersPage.SelectType.test.jsx for the picker and
+ * jobs.experimentalGate.test.js for the 403.
  */
-export const REQUIRED_FEATURES = ['experimentalCrawlers'];
+export const REQUIRED_FEATURES = [];
 
 /** Where global-teardown.js reads the pre-run flag values back from. */
 export const PRIOR_FEATURES_ENV = 'E2E_PRIOR_FEATURES';

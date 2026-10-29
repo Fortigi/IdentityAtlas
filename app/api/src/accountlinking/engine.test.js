@@ -702,8 +702,10 @@ describe('buildLinks - owners with a titled display name (#1439)', () => {
   it('links the orphan account to its titled owner', () => {
     const links = linksFor([orphan], [titledOwner]);
     expect(links).toHaveLength(1);
-    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
-    expect(links[0].confidence).toBe(60); // name-only evidence, reported honestly
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName', 'nameUnique'] });
+    // Name-only evidence, reported honestly: 60 for the name, 10 for nobody else
+    // answering to it.
+    expect(links[0].confidence).toBe(70);
   });
 
   it('leaves a genuine namesake tie for review instead of picking the untitled one', () => {
@@ -777,8 +779,8 @@ describe('buildLinks - an owner whose birth surname differs from her name in use
     // "Anna de Wit", her own account matches nobody, and it stays orphaned.
     const links = linksFor([account('p1', 'Anna Bakker-de Wit')], [owner]);
     expect(links).toHaveLength(1);
-    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
-    expect(links[0].confidence).toBe(60);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName', 'nameUnique'] });
+    expect(links[0].confidence).toBe(70);
   });
 
   it('still links an account that carries the BIRTH surname', () => {
@@ -867,8 +869,8 @@ describe('buildLinks - a birth surname does not tie up a name that is unique in 
   it('links the account to the identity whose name in use it carries', () => {
     const links = linksFor([account], [owner, otherFamily]);
     expect(links).toHaveLength(1);
-    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName'] });
-    expect(links[0].confidence).toBe(60);
+    expect(links[0]).toMatchObject({ identityId: 'owner', signals: ['fullName', 'nameUnique'] });
+    expect(links[0].confidence).toBe(70);
   });
 
   it('links it there whichever order the identities arrive in', () => {
@@ -926,7 +928,7 @@ describe('buildLinks - a per-name claim under the name-uniqueness guard (#1439 x
     // and it links to her rather than to whichever identity was scored first.
     const { links, stats } = buildLinks([account], [otherFamily, owner], DEFAULT_RULES);
     expect(links).toHaveLength(1);
-    expect(links[0]).toMatchObject({ identityId: 'owner', confidence: 60, signals: ['fullName'] });
+    expect(links[0]).toMatchObject({ identityId: 'owner', confidence: 70, signals: ['fullName', 'nameUnique'] });
     expect(stats).toEqual({ nameOnlyMatches: 0, suggestions: [] });
   });
 
@@ -1177,7 +1179,7 @@ describe('buildLinks - what a run reports about an admin login (#1454)', () => {
     const { links } = buildLinks([orphan], [fay], DEFAULT_RULES);
     expect(links[0]).toMatchObject({
       principalId: 'p-adm', identityId: 'idy-fay', accountType: 'Admin',
-      signals: ['loginNameForm'], confidence: 55, accountEnabled: true,
+      signals: ['loginNameForm', 'nameUnique'], confidence: 65, accountEnabled: true,
     });
   });
 

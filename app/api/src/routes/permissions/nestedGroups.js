@@ -45,15 +45,19 @@ router.get('/groups-with-nested', async (req, res) => {
     //     subscription) whose node has propagating Contains children — expands DOWN
     //     the containment tree via the effective-access engine. This is generic:
     //     Azure RM, DevOps, FileShares, SharePoint all qualify with no per-source code.
+    // Both are current-state only: a soft-deleted ("deletedAt") assignment or
+    // resource is history and must not offer an expand affordance.
     const result = await timedQuery(p, 'groups-with-nested', res, `
       SELECT DISTINCT "principalId"::text AS "groupId"
         FROM "ResourceAssignments"
        WHERE "principalType" ILIKE '%group%'
+         AND "deletedAt" IS NULL
       UNION
       SELECT DISTINCT r.id::text AS "groupId"
         FROM "Resources" r
        WHERE r."capabilityId" IS NOT NULL
          AND r."targetNodeId" IS NOT NULL
+         AND r."deletedAt" IS NULL
          AND EXISTS (
            SELECT 1 FROM "ResourceRelationships" rr
             WHERE rr."relationshipType" = 'Contains'
@@ -96,7 +100,8 @@ async function nestedGroupsHandler(req, res) {
     // Any resource where this group is the principal. We deliberately do NOT
     // filter by assignmentType so future group-as-principal types
     // (AppRole, directory roles, etc.) flow through automatically — but we DO
-    // honour the matrix's resource-type filter so the nesting matches the grid.
+    // honour the matrix's resource-type filter so the nesting matches the grid,
+    // and only follow live (not soft-deleted) assignments to live resources.
     // Each query renders the resource fragment through its own binder.
     const gp = createParams();
     const gChildPh = gp.bind(req.params.groupId);
@@ -114,6 +119,8 @@ async function nestedGroupsHandler(req, res) {
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
        WHERE ra."principalId"::text = ${gChildPh}
          AND ra."principalType" ILIKE '%group%'
+         AND ra."deletedAt" IS NULL
+         AND r."deletedAt" IS NULL
          ${groupsResClause}
     `, gp.params);
 
@@ -133,6 +140,7 @@ async function nestedGroupsHandler(req, res) {
            FROM "ResourceAssignments" ra2
           WHERE ra2."principalId"::text = ${mChildPh}
             AND ra2."principalType" ILIKE '%group%'
+            AND ra2."deletedAt" IS NULL
             ${membersResClause}
        )
        AND (p."principalType" IS NULL OR p."principalType" != '${GROUP_PRINCIPAL_TYPE}')
