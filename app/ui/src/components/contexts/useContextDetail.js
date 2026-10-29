@@ -52,7 +52,7 @@ export function useContextDetail(authFetch, contextId, refreshKey, onCacheData) 
 //             only: there adding AND removing both last. A derived or imported
 //             context's members come back on its next refresh, so editing
 //             them would only ever half work.
-//   tabs      the analyst's tabs (Members, Timeline, Risk when scored);
+//   tabs      the analyst's tabs (Members, Timeline, Diff, Risk when scored);
 //             null for a business reader, who gets the members only
 //   shownTab  the tab whose panel renders
 export function contextPageView({ analyst, attrs, hasRisk, memberTotal, activeTab }) {
@@ -63,6 +63,7 @@ export function contextPageView({ analyst, attrs, hasRisk, memberTotal, activeTa
     tabs: [
       { key: 'members', label: 'Members', count: memberTotal },
       { key: 'timeline', label: 'Timeline' },
+      { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ],
     shownTab: activeTab,

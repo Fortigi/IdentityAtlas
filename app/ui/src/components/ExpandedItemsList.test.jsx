@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement as h } from 'react';
 import ExpandedItemsList from './ExpandedItemsList.jsx';
-import { rowType, sortItems, itemsToCsv } from './ExpandedItemsList.helpers.js';
+import { rowType, sortItems, itemsToCsv, splitHistorical } from './ExpandedItemsList.helpers.js';
 
 const ITEMS = [
   { key: 'resource:g1', label: 'ABN AMRO', kind: 'item', entityKind: 'resource', entityId: 'g1', resourceType: 'Group' },
@@ -39,12 +39,33 @@ describe('sortItems', () => {
   });
 });
 
+describe('splitHistorical', () => {
+  it('separates deleted rows from current ones, keeping order', () => {
+    const rows = [
+      { key: 'a', label: 'Live A' },
+      { key: 'b', label: 'Old B', deleted: true },
+      { key: 'c', label: 'Live C', deleted: false },
+      { key: 'd', label: 'Old D', deleted: true },
+    ];
+    const { current, historical } = splitHistorical(rows);
+    expect(current.map((r) => r.key)).toEqual(['a', 'c']);
+    expect(historical.map((r) => r.key)).toEqual(['b', 'd']);
+  });
+  it('tolerates a missing list', () => {
+    expect(splitHistorical(null)).toEqual({ current: [], historical: [] });
+  });
+});
+
 describe('itemsToCsv', () => {
-  it('emits a header + one row per item with Name,Type,Via', () => {
-    const csv = itemsToCsv([{ label: 'ABN AMRO', entityKind: 'resource', resourceType: 'Group', via: 'acct@x' }]);
+  it('emits a header + one row per item with Name,Type,Via,Status', () => {
+    const csv = itemsToCsv([
+      { label: 'ABN AMRO', entityKind: 'resource', resourceType: 'Group', via: 'acct@x' },
+      { label: 'Old role', entityKind: 'access-package', deleted: true },
+    ]);
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe('Name,Type,Via');
-    expect(lines[1]).toBe('"ABN AMRO","Group","acct@x"');
+    expect(lines[0]).toBe('Name,Type,Via,Status');
+    expect(lines[1]).toBe('"ABN AMRO","Group","acct@x","Current"');
+    expect(lines[2]).toBe('"Old role","Business Role","","Historical"');
   });
   it('neutralises spreadsheet formulas in every column (SEC-2026-09 M-13)', () => {
     const csv = itemsToCsv([{
@@ -53,15 +74,15 @@ describe('itemsToCsv', () => {
       resourceType: 'Group',
       via: '\t+cmd',
     }]);
-    expect(csv.split('\r\n')[1]).toBe(`"'=HYPERLINK(""https://x.example"",""Open"")","Group","'\t+cmd"`);
+    expect(csv.split('\r\n')[1]).toBe(`"'=HYPERLINK(""https://x.example"",""Open"")","Group","'\t+cmd","Current"`);
   });
   it('leaves a formula character that is not the first character untouched', () => {
     const csv = itemsToCsv([{ label: 'Sales=EMEA', entityKind: 'resource', resourceType: 'Group', via: 'a-b' }]);
-    expect(csv.split('\r\n')[1]).toBe('"Sales=EMEA","Group","a-b"');
+    expect(csv.split('\r\n')[1]).toBe('"Sales=EMEA","Group","a-b","Current"');
   });
   it('escapes embedded quotes and commas per RFC-4180', () => {
     const csv = itemsToCsv([{ label: 'A, "B"', entityKind: 'resource', resourceType: 'Group' }]);
-    expect(csv.split('\r\n')[1]).toBe('"A, ""B""","Group",""');
+    expect(csv.split('\r\n')[1]).toBe('"A, ""B""","Group","","Current"');
   });
 });
 

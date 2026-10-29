@@ -232,8 +232,13 @@ describe.each(NAMESAKES)('runLinking — a removed account and the live person $
 
     const [member] = await membersOf(fx.identity.id);
     expect(member?.principalId).toBe(fx.account.id);
-    expect(member?.linkConfidence).toBe(60);  // fullName's weight, and nothing else
-    expect(member?.linkSignals).toBe('fullName');
+    // The ratified 60 → 70 side effect of #1455 (A1): the name-uniqueness guard
+    // now records that the name singled this person out, so a unique full-name
+    // match is `fullName` (60) + `nameUnique` (10) rather than the name's weight
+    // on its own. Pinned exactly — an assertion that accepted either value would
+    // stop catching the evidence signal going missing.
+    expect(member?.linkConfidence).toBe(70);
+    expect(member?.linkSignals).toBe('fullName,nameUnique');
   });
 
   it('never attaches it once a sync has removed it', async () => {
@@ -257,15 +262,16 @@ describe('runLinking — the name-only cleanup and removed accounts (#1461)', ()
     // one kind of link the cleanup does re-judge.
     //
     // Control half first: while the account is live and the name points at one
-    // person, the link is made on `fullName` at weight 60, exactly the link
-    // #1450's cleanup exists to re-judge.
+    // person, the link is made on `fullName` plus the guard's `nameUnique` —
+    // the ratified 60 → 70 side effect of #1455 (A1) — and is still name-only,
+    // exactly the link #1450's cleanup exists to re-judge.
     await insertIdentity(ids.identity, 'Tenbergalct, Marit', { email: 'marit.tenbergalct@al-ct.invalid' });
     await insertPrincipal(ids.nameOnlyKept, 'Tenbergalct, Marit', { email: 'mt.unrelatedalct@al-ct.invalid' });
 
     await runLinking();
     const [linked] = await membersOf(ids.identity);
     expect(linked?.principalId).toBe(ids.nameOnlyKept);
-    expect(linked?.linkSignals).toBe('fullName'); // name-only: inside the cleanup's scope
+    expect(linked?.linkSignals).toBe('fullName,nameUnique'); // name-only: inside the cleanup's scope
 
     // Now a full sync removes the account, and a second person of the same name
     // joins the directory — so the name no longer points at one identity.

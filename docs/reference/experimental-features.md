@@ -41,12 +41,12 @@ stored in the database, so it survives container restarts and redeployments.
 It controls whether crawler types marked
 experimental are offered in **Admin → Crawlers → Add Crawler**.
 
-| Crawler | What it connects to |
-|---|---|
-| [SCIM 2.0](../sync/scim.md) | Any SCIM 2.0 service provider — SAP Cloud Identity Services, Okta, a home-grown SCIM façade |
+This build ships **no experimental crawlers**, so the switch currently has no
+effect. The [SCIM 2.0](../sync/scim.md) crawler started out here and has since
+graduated to a regular crawler: it is always offered in Add Crawler.
 
-More connectors are expected to arrive this way — a generic OData crawler, for
-example. They all sit under this one switch rather than getting a switch each.
+New connectors may arrive this way in future. They all sit under this one switch
+rather than getting a switch each.
 
 ### What the switch does, precisely
 

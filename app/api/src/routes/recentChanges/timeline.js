@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
-import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounterpartyKind } from './shared.js';
+import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounterpartyKind, changeAction } from './shared.js';
 
 const router = Router();
 
@@ -24,9 +24,11 @@ const router = Router();
 // Bookkeeping / sync-churn columns that change on every crawl — excluded so
 // the timeline shows meaningful edits, not noise. managerId is handled as its
 // own relationship event, so it's skipped here too.
+// deletedAt is skipped too: crossing it is its own "Deleted / Restored in source"
+// event (see timelineAttrEvents), not an attribute diff.
 export const TIMELINE_SKIP_FIELDS = new Set([
   'id', 'ValidFrom', 'ValidTo', '_operation',
-  'managerId', 'extendedAttributes',
+  'managerId', 'extendedAttributes', 'deletedAt',
   'createdAt', 'updatedAt', 'lastSyncedAt', 'lastSeenAt',
   'lastActivityDateTime', 'syncRunId',
 ]);
@@ -75,25 +77,19 @@ const ATTR_TABLES = new Set(['Principals', 'Resources', 'Identities', 'Contexts'
 export function timelineAttrEvents(row, entityId, acc, lbl) {
   const data = row.rowData || {};
   const prev = row.prevData || {};
-  // Manager change (Principals only) → its own relationship event.
-  if (row.tableName === 'Principals' && row.operation === 'U') {
-    const before = prev.managerId || null, after = data.managerId || null;
-    if (before !== after) {
-      const name = lbl.principal(after) || after || '(none)';
-      acc.changedCount++;
-      acc.events.push(toEvent(row, after ? `Manager changed to ${name}` : 'Manager removed',
-        { kind: after ? 'user' : null, id: after, label: name, eventKind: 'manager' }));
-    }
+  // A Resources row for some OTHER resource only reaches here on a user's
+  // timeline: a resource the user holds that was deleted or restored in the
+  // source. Without it, a deleted business role vanished from the user's
+  // access without a trace on their timeline.
+  const rowEntityId = data.id || prev.id;
+  if (row.tableName === 'Resources' && rowEntityId && rowEntityId !== entityId) {
+    heldResourceEvent(row, data, prev, acc);
+    return;
   }
   if (row.operation === 'U') {
-    for (const c of diffRow(prev, data)) {
-      acc.changedCount++;
-      acc.events.push({
-        at: row.changedAt, operation: 'changed', eventKind: 'attribute',
-        summary: `${humanizeField(c.field)}: ${c.from} → ${c.to}`,
-        counterpartyKind: null, counterpartyId: null, counterpartyLabel: null, attribute: c,
-      });
-    }
+    softDeleteEvent(row, acc);
+    managerEvent(row, data, prev, acc, lbl);
+    attributeDiffEvents(row, data, prev, acc);
   } else if (row.operation === 'I') {
     acc.addedCount++; acc.events.push(toEvent(row, 'Created', { eventKind: 'attribute' }));
   } else if (row.operation === 'D') {
@@ -101,32 +97,95 @@ export function timelineAttrEvents(row, entityId, acc, lbl) {
   }
 }
 
+// The entity itself soft-deleted (deletedAt stamped) or restored — an UPDATE in
+// the audit trail, but to a reader a deletion, not an attribute edit.
+function softDeleteEvent(row, acc) {
+  const action = changeAction(row);
+  if (!action) return;
+  const removed = countAction(acc, action) === false;
+  acc.events.push(toEvent(row, removed ? 'Deleted in source' : 'Restored in source', { eventKind: 'attribute' }));
+}
+
+// Manager change (Principals only) → its own relationship event.
+function managerEvent(row, data, prev, acc, lbl) {
+  if (row.tableName !== 'Principals') return;
+  const before = prev.managerId || null, after = data.managerId || null;
+  if (before === after) return;
+  const name = lbl.principal(after) || after || '(none)';
+  acc.changedCount++;
+  acc.events.push(toEvent(row, after ? `Manager changed to ${name}` : 'Manager removed',
+    { kind: after ? 'user' : null, id: after, label: name, eventKind: 'manager' }));
+}
+
+// One "changed" event per edited scalar field.
+function attributeDiffEvents(row, data, prev, acc) {
+  for (const c of diffRow(prev, data)) {
+    acc.changedCount++;
+    acc.events.push({
+      at: row.changedAt, operation: 'changed', eventKind: 'attribute',
+      summary: `${humanizeField(c.field)}: ${c.from} → ${c.to}`,
+      counterpartyKind: null, counterpartyId: null, counterpartyLabel: null, attribute: c,
+    });
+  }
+}
+
+// A resource the viewed user holds was deleted / restored in the source. Only a
+// crossing of deletedAt counts; any other edit to that resource is its own
+// page's business, not the user's. The name comes from the snapshot, so it
+// reads right even if the resource has since been renamed or removed.
+function heldResourceEvent(row, data, prev, acc) {
+  if (row.operation === 'I') return;
+  const action = changeAction(row);
+  if (!action) return;
+  const id = data.id || prev.id;
+  const name = data.displayName || prev.displayName || id;
+  const kind = resourceCounterpartyKind(data.resourceType || prev.resourceType);
+  const removed = action === 'removed';
+  if (removed) acc.removedCount++; else acc.addedCount++;
+  acc.events.push(toEvent(row, `${name} ${removed ? 'deleted' : 'restored'} in source`,
+    { kind, id, label: name, eventKind: 'assignment' }));
+}
+
+// Bump the added/removed counter for an action and report whether it was an
+// addition. Shared by the relationship-style handlers below.
+function countAction(acc, action) {
+  if (action === 'added') { acc.addedCount++; return true; }
+  acc.removedCount++; return false;
+}
+
 // ResourceAssignments row → assignment event. Counterparty is the resource when
 // we're viewing the principal, or the principal when viewing the resource.
+// changeAction() decides added/removed: a removal is a soft delete (an UPDATE
+// stamping deletedAt), so looking for 'D' alone showed no removal at all.
 export function timelineAssignmentEvents(row, entityId, acc, lbl) {
+  const action = changeAction(row);
+  if (!action) return;
   const data = row.rowData || {};
   const prev = row.prevData || {};
   const princId = data.principalId || prev.principalId;
   const resId = data.resourceId || prev.resourceId;
   const assignType = data.assignmentType || prev.assignmentType;
   const suffix = assignType ? ` (${assignType})` : '';
+  const added = countAction(acc, action);
   if (princId === entityId) {
     // We're the principal — counterparty is the resource.
     const info = lbl.resource(resId); const name = info?.displayName || resId;
     const kind = resourceCounterpartyKind(info?.resourceType);
-    if (row.operation === 'I') { acc.addedCount++; acc.events.push(toEvent(row, `Added to ${name}${suffix}`, { kind, id: resId, label: name, eventKind: 'assignment' })); }
-    else if (row.operation === 'D') { acc.removedCount++; acc.events.push(toEvent(row, `Removed from ${name}${suffix}`, { kind, id: resId, label: name, eventKind: 'assignment' })); }
+    acc.events.push(toEvent(row, `${added ? 'Added to' : 'Removed from'} ${name}${suffix}`, { kind, id: resId, label: name, eventKind: 'assignment' }));
   } else {
     // We're the resource — counterparty is the principal.
     const name = lbl.principal(princId) || princId;
-    if (row.operation === 'I') { acc.addedCount++; acc.events.push(toEvent(row, `${name} granted${suffix}`, { kind: 'user', id: princId, label: name, eventKind: 'assignment' })); }
-    else if (row.operation === 'D') { acc.removedCount++; acc.events.push(toEvent(row, `${name} removed${suffix}`, { kind: 'user', id: princId, label: name, eventKind: 'assignment' })); }
+    acc.events.push(toEvent(row, `${name} ${added ? 'granted' : 'removed'}${suffix}`, { kind: 'user', id: princId, label: name, eventKind: 'assignment' }));
   }
 }
 
 // ResourceRelationships row → containment event, phrased from the viewed
 // entity's side (child sees "Added to", parent sees "Now contains").
 export function timelineRelationshipEvents(row, entityId, acc, lbl) {
+  // An update that touched neither side (a backfilled column) is no change —
+  // it used to fall through to "Removed from".
+  const action = changeAction(row);
+  if (!action) return;
   const data = row.rowData || {};
   const prev = row.prevData || {};
   const childId = data.childResourceId || prev.childResourceId;
@@ -135,10 +194,10 @@ export function timelineRelationshipEvents(row, entityId, acc, lbl) {
   const usIsChild = childId === entityId;
   const otherId = usIsChild ? parentId : childId;
   const info = lbl.resource(otherId); const name = info?.displayName || otherId;
+  const added = countAction(acc, action);
   const verb = usIsChild
-    ? (row.operation === 'I' ? 'Added to' : 'Removed from')
-    : (row.operation === 'I' ? 'Now contains' : 'No longer contains');
-  if (row.operation === 'I') acc.addedCount++; else if (row.operation === 'D') acc.removedCount++;
+    ? (added ? 'Added to' : 'Removed from')
+    : (added ? 'Now contains' : 'No longer contains');
   acc.events.push(toEvent(row, `${verb} ${name}${relType ? ` (${relType})` : ''}`,
     { kind: resourceCounterpartyKind(info?.resourceType), id: otherId, label: name, eventKind: 'relationship' }));
 }
@@ -146,20 +205,21 @@ export function timelineRelationshipEvents(row, entityId, acc, lbl) {
 // IdentityMembers row → account-link event. Counterparty is the linked account
 // when viewing the identity, or the identity when viewing the principal.
 export function timelineIdentityMemberEvents(row, entityId, acc, lbl) {
+  const action = changeAction(row);
+  if (!action) return;
   const data = row.rowData || {};
   const prev = row.prevData || {};
   const identId = data.identityId || prev.identityId;
   const princId = data.principalId || prev.principalId;
+  const added = countAction(acc, action);
   if (identId === entityId) {
     // We're the identity — counterparty is the linked account (principal).
     const name = lbl.principal(princId) || princId;
-    if (row.operation === 'I') { acc.addedCount++; acc.events.push(toEvent(row, `Account ${name} linked`, { kind: 'user', id: princId, label: name, eventKind: 'identity-member' })); }
-    else if (row.operation === 'D') { acc.removedCount++; acc.events.push(toEvent(row, `Account ${name} unlinked`, { kind: 'user', id: princId, label: name, eventKind: 'identity-member' })); }
+    acc.events.push(toEvent(row, `Account ${name} ${added ? 'linked' : 'unlinked'}`, { kind: 'user', id: princId, label: name, eventKind: 'identity-member' }));
   } else {
     // We're the principal — counterparty is the identity.
     const name = lbl.identity(identId) || identId;
-    if (row.operation === 'I') { acc.addedCount++; acc.events.push(toEvent(row, `Linked to identity ${name}`, { kind: 'identity', id: identId, label: name, eventKind: 'identity-member' })); }
-    else if (row.operation === 'D') { acc.removedCount++; acc.events.push(toEvent(row, `Unlinked from identity ${name}`, { kind: 'identity', id: identId, label: name, eventKind: 'identity-member' })); }
+    acc.events.push(toEvent(row, `${added ? 'Linked to' : 'Unlinked from'} identity ${name}`, { kind: 'identity', id: identId, label: name, eventKind: 'identity-member' }));
   }
 }
 
@@ -185,7 +245,8 @@ export function buildEntityTimeline(entityKind, entityId, rows, labels = {}) {
 
 // Batch-resolve counterparty labels referenced by a set of history rows
 // (avoids per-row N+1). Over-fetches across all three kinds — cheap and simple.
-async function resolveTimelineLabels(rows) {
+// Also used by the Diff tab (diff.js), which feeds it the rows of both snapshots.
+export async function resolveTimelineLabels(rows) {
   const resIds = new Set(), princIds = new Set(), identIds = new Set();
   const add = (set, ...vals) => vals.forEach(v => v && set.add(v));
   for (const row of rows) {
@@ -225,14 +286,20 @@ async function resolveTimelineLabels(rows) {
 // Retention note: `_history` is unbounded (migration 009 defers retention),
 // so the window (sinceDays) and LIMIT bound the work; the
 // ("tableName","rowId","changedAt") / ("changedAt") indexes cover the WHERE.
-async function runTimeline(res, { entityKind, id, sinceDays, limit, where }) {
-  const r = await db.query(`
+// The timeline's _history query for one entity kind ($1 = days, $2 = entity id,
+// $3 = row cap). Exported so a contract test can EXPLAIN the exact SQL.
+export function timelineSql(entityKind) {
+  return `
     SELECT "tableName", operation, "changedAt", "rowData", "prevData"
       FROM "_history"
-     WHERE "changedAt" > now() - ($1::int || ' days')::interval AND (${where})
+     WHERE "changedAt" > now() - ($1::int || ' days')::interval AND (${TIMELINE_WHERE[entityKind]})
      ORDER BY "changedAt" DESC
      LIMIT $3
-  `, [sinceDays, id, limit * 2]);
+  `;
+}
+
+async function runTimeline(res, { entityKind, id, sinceDays, limit }) {
+  const r = await db.query(timelineSql(entityKind), [sinceDays, id, limit * 2]);
   const labels = await resolveTimelineLabels(r.rows);
   const built = buildEntityTimeline(entityKind, id, r.rows, labels);
 
@@ -285,9 +352,20 @@ async function reviewInstanceEvents(id) {
 
 // Per-entity _history WHERE clauses ($2 = entity id).
 const TIMELINE_WHERE = {
+  // The last arm: a resource this user holds (or held) that was deleted or
+  // restored in the source — only rows that crossed the deletedAt line, so a
+  // held resource's ordinary edits stay off the user's timeline.
+  // Every arm must be index-servable, or Postgres drops the BitmapOr and scans
+  // all of _history. So: `= ANY(ARRAY(subquery))` (computed once, usable as an
+  // index condition on ("tableName","rowId")) rather than `IN (subquery)`, and
+  // the parameter is cast, not the column, so ix_RA_principalId applies.
   user: `("tableName" = 'ResourceAssignments' AND "rowData"->>'principalId' = $2)
       OR ("tableName" = 'IdentityMembers'   AND "rowData"->>'principalId' = $2)
-      OR ("tableName" = 'Principals'         AND "rowId" = $2)`,
+      OR ("tableName" = 'Principals'         AND "rowId" = $2)
+      OR ("tableName" = 'Resources' AND operation = 'U'
+          AND (("prevData"->>'deletedAt') IS NULL) <> (("rowData"->>'deletedAt') IS NULL)
+          AND "rowId" = ANY(ARRAY(SELECT ra."resourceId"::text FROM "ResourceAssignments" ra
+                                   WHERE ra."principalId" = $2::uuid)))`,
   resource: `("tableName" = 'ResourceAssignments' AND "rowData"->>'resourceId' = $2)
       OR ("tableName" = 'ResourceRelationships' AND ("rowData"->>'childResourceId' = $2 OR "rowData"->>'parentResourceId' = $2))
       OR ("tableName" = 'Resources' AND "rowId" = $2)`,
@@ -309,7 +387,7 @@ export function timelineHandler(entityKind) {
     const sinceDays = clampTimelineDays(req.query.sinceDays);
     const limit = clampLimit(req.query.limit);
     try {
-      await runTimeline(res, { entityKind, id, sinceDays, limit, where: TIMELINE_WHERE[entityKind] });
+      await runTimeline(res, { entityKind, id, sinceDays, limit });
     } catch (err) {
       console.error(`${entityKind} timeline failed:`, err.message);
       res.status(500).json({ error: 'Failed to load timeline' });

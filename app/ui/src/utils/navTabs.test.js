@@ -3,76 +3,76 @@ import { ALL_NAV_TABS, computeNavTabs, availableOptionalTabs } from './navTabs';
 
 const keys = (tabs) => tabs.map(t => t.key);
 const ENABLE_ALL_FEATURES = { riskScoring: true, accountLinking: true };
+const OPT_IN = ['systems', 'identities', 'contexts', 'sync-log'];
 
 describe('navTabs', () => {
-  it('marks Systems, Reports and Sync Log as optional', () => {
-    for (const key of ['systems', 'reports', 'sync-log']) {
+  it('marks Systems, Identities, Contexts and Sync Log as optional', () => {
+    for (const key of OPT_IN) {
       const tab = ALL_NAV_TABS.find(t => t.key === key);
       expect(tab, key).toBeTruthy();
       expect(tab.optional, `${key} should be optional`).toBe(true);
     }
   });
 
-  it('hides Systems, Reports and Sync Log by default (empty visibleTabs)', () => {
+  it('shows Reports to everyone by default — it is not an opt-in tab', () => {
+    expect(ALL_NAV_TABS.find(t => t.key === 'reports').optional).toBeFalsy();
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
-    expect(shown).not.toContain('systems');
-    expect(shown).not.toContain('reports');
-    expect(shown).not.toContain('sync-log');
+    expect(shown).toContain('reports');
+    expect(keys(availableOptionalTabs(ENABLE_ALL_FEATURES))).not.toContain('reports');
+  });
+
+  it('hides the optional tabs by default (empty visibleTabs)', () => {
+    const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
+    for (const key of OPT_IN) expect(shown, key).not.toContain(key);
   });
 
   it('shows them once the user enables them', () => {
-    const shown = keys(computeNavTabs({
-      features: ENABLE_ALL_FEATURES,
-      visibleTabs: ['systems', 'reports', 'sync-log'],
-      canSeeAdmin: true,
-    }));
-    expect(shown).toContain('systems');
-    expect(shown).toContain('reports');
-    expect(shown).toContain('sync-log');
+    const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: OPT_IN, canSeeAdmin: true }));
+    for (const key of OPT_IN) expect(shown, key).toContain(key);
   });
 
   it('enables each optional tab on its own, without dragging the others in', () => {
-    const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: ['reports'], canSeeAdmin: true }));
-    expect(shown).toContain('reports');
+    const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: ['contexts'], canSeeAdmin: true }));
+    expect(shown).toContain('contexts');
+    expect(shown).not.toContain('identities');
     expect(shown).not.toContain('systems');
     expect(shown).not.toContain('sync-log');
   });
 
-  it('offers Systems, Reports and Sync Log among the toggleable optional tabs', () => {
+  it('offers every optional tab as a toggle while its feature is on', () => {
     const optional = keys(availableOptionalTabs(ENABLE_ALL_FEATURES));
-    expect(optional).toEqual(expect.arrayContaining(['systems', 'reports', 'sync-log']));
+    expect(optional.sort()).toEqual([...OPT_IN].sort());
   });
 
-  it('surfaces feature tabs (Risk Scores / Identities) as soon as their feature is on, with no second opt-in (H-13)', () => {
+  it('needs both the feature and the opt-in for Identities', () => {
+    const optedIn = { features: ENABLE_ALL_FEATURES, visibleTabs: ['identities'], canSeeAdmin: true };
+    expect(keys(computeNavTabs(optedIn))).toContain('identities');
+
+    const featureOff = { ...optedIn, features: { ...ENABLE_ALL_FEATURES, accountLinking: false } };
+    expect(keys(computeNavTabs(featureOff))).not.toContain('identities');
+    // No switch for a tab that could not appear anyway.
+    expect(keys(availableOptionalTabs(featureOff.features))).not.toContain('identities');
+    expect(keys(availableOptionalTabs(featureOff.features))).toContain('contexts');
+  });
+
+  it('surfaces Risk Scores as soon as its feature is on, with no second opt-in (H-13)', () => {
     // Feature enabled server-side but the user has never touched their tab prefs
-    // (empty visibleTabs) — the tabs must still show. This was the bug: they were
-    // also `optional`, so they stayed hidden behind a per-user toggle.
+    // (empty visibleTabs) — the tab must still show, and is not a toggle.
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
     expect(shown).toContain('risk-scores');
-    expect(shown).toContain('identities');
-  });
-
-  it('does not list feature tabs as toggleable optional tabs (the feature flag is the control)', () => {
-    const optional = keys(availableOptionalTabs(ENABLE_ALL_FEATURES));
-    expect(optional).not.toContain('risk-scores');
-    expect(optional).not.toContain('identities');
-    for (const tab of ALL_NAV_TABS) {
-      expect(tab.optional && tab.feature, `${tab.key} must not be both feature-gated and optional`).toBeFalsy();
-    }
+    expect(keys(availableOptionalTabs(ENABLE_ALL_FEATURES))).not.toContain('risk-scores');
   });
 
   it('keeps non-optional tabs visible regardless of preferences', () => {
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: [], canSeeAdmin: true }));
-    expect(shown).toEqual(expect.arrayContaining(['dashboard', 'matrix', 'principals', 'resources', 'access-packages', 'contexts']));
+    expect(shown).toEqual(['dashboard', 'matrix', 'principals', 'resources', 'access-packages', 'risk-scores', 'reports', 'admin']);
   });
 
   it('does not hide optional tabs while preferences are still loading (visibleTabs null)', () => {
     const shown = keys(computeNavTabs({ features: ENABLE_ALL_FEATURES, visibleTabs: null, canSeeAdmin: true }));
     // Before prefs load we don't yet know the user's choice, so we don't remove
     // optional tabs — avoids a flash of them disappearing.
-    expect(shown).toContain('systems');
-    expect(shown).toContain('reports');
-    expect(shown).toContain('sync-log');
+    for (const key of OPT_IN) expect(shown, key).toContain(key);
   });
 
   it('keeps Shared matrices out of the top navigation — it lives under Admin (#1166)', () => {

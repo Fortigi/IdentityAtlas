@@ -6,10 +6,21 @@
 //   • the experimental crawlers shipping in this build are listed by name
 //   • the switch POSTs the right feature name and the flipped value
 //   • the copy tells the operator that turning it off keeps existing crawlers
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createElement as h } from 'react';
+
+// Which shipped types are experimental changes over time — at times none are —
+// so the list is driven from a fixture registry the tests can swap, with the
+// REAL selector doing the filtering. Neutral ids: app/ui/ carries no type literals.
+const PREVIEW = { id: 'preview-one', name: 'Preview One', description: 'not yet proven', experimental: true };
+const STABLE = { id: 'stable-one', name: 'Stable One', description: 'an ordinary type' };
+const registry = vi.hoisted(() => ({ types: [] }));
+vi.mock('@ui/utils/crawlerMetaRegistry', async (importOriginal) => {
+  const real = await importOriginal();
+  return { ...real, experimentalCrawlerTypes: (types) => real.experimentalCrawlerTypes(types ?? registry.types) };
+});
+
 import ExperimentalFeaturesSection from './ExperimentalFeaturesSection';
-import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
 import {
   renderWithProviders,
   makeAuthFetch,
@@ -20,6 +31,7 @@ import {
 } from '@ui/test-utils/renderWithProviders';
 
 let reload;
+afterEach(() => { registry.types = []; });
 beforeEach(() => {
   // The toggle hard-reloads so the Crawlers tab re-reads the flag; jsdom can't navigate.
   reload = vi.fn();
@@ -64,15 +76,20 @@ describe('ExperimentalFeaturesSection', () => {
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
-    // Read from the registry rather than naming a crawler: which types are
-    // experimental changes over time, and app/ui/ must carry no type literals.
-    const types = experimentalCrawlerTypes();
-    expect(types.length).toBeGreaterThan(0);
+    registry.types = [STABLE, PREVIEW];
     render(false);
-    for (const t of types) {
-      expect(await screen.findByText(t.name), t.id).toBeInTheDocument();
-      expect(screen.getByText(t.description), t.id).toBeInTheDocument();
-    }
+    expect(await screen.findByText(PREVIEW.name)).toBeInTheDocument();
+    expect(screen.getByText(PREVIEW.description)).toBeInTheDocument();
+    // Only the experimental one — an ordinary type is not "covered by the switch".
+    expect(screen.queryByText(STABLE.name)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ships no experimental crawlers/i)).not.toBeInTheDocument();
+  });
+
+  it('says the build ships no experimental crawlers when none are flagged', async () => {
+    registry.types = [STABLE];
+    render(false);
+    expect(await screen.findByText('This build ships no experimental crawlers.')).toBeInTheDocument();
+    expect(screen.queryByText(STABLE.name)).not.toBeInTheDocument();
   });
 
   it('explains that turning the flag off leaves an already-configured crawler running', async () => {
