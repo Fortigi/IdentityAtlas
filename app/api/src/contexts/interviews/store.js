@@ -34,18 +34,34 @@ export async function insertInterview(db, row) {
   return r.rows[0];
 }
 
-/** The interviews of a context, newest first, each with its claim counts by status. */
-export async function listInterviews(db, contextId) {
-  const r = await db.query(`
-    SELECT ${INTERVIEW_COLUMNS},
+const CLAIM_COUNTS = `
            COUNT(c.id) FILTER (WHERE c."claimStatus" = 'proposed')::int              AS proposed,
            COUNT(c.id) FILTER (WHERE c."claimStatus" IN ('confirmed', 'edited'))::int AS confirmed,
-           COUNT(c.id) FILTER (WHERE c."claimStatus" = 'rejected')::int              AS rejected
+           COUNT(c.id) FILTER (WHERE c."claimStatus" = 'rejected')::int              AS rejected`;
+
+/**
+ * The sources of a context, newest first, each with its claim counts by status:
+ * the ones added on it, and the ones added on another context that make claims
+ * about its people (an interview on the parent unit names who in a sub-unit
+ * does what). Those carry where they were added (`filedUnderId`,
+ * `filedUnderName`) and count only their claims about this context's people.
+ */
+export async function listInterviews(db, contextId) {
+  const r = await db.query(`${CONTEXT_PEOPLE_CTE}
+    SELECT ${INTERVIEW_COLUMNS}, NULL::uuid AS "filedUnderId", NULL::text AS "filedUnderName", ${CLAIM_COUNTS}
       FROM "ContextInterviews" iv
       LEFT JOIN "ContextClaims" c ON c."interviewId" = iv.id
      WHERE iv."contextId" = $1
      GROUP BY iv.id
-     ORDER BY iv."interviewedAt" DESC, iv."createdAt" DESC`, [contextId]);
+    UNION ALL
+    SELECT ${INTERVIEW_COLUMNS}, f.id, f."displayName", ${CLAIM_COUNTS}
+      FROM "ContextInterviews" iv
+      JOIN "Contexts" f ON f.id = iv."contextId"
+      JOIN "ContextClaims" c ON c."interviewId" = iv.id
+       AND (c."identityId" IN (SELECT id FROM ids) OR c."principalId" IN (SELECT id FROM pids))
+     WHERE iv."contextId" <> $1
+     GROUP BY iv.id, f.id
+     ORDER BY "interviewedAt" DESC, "createdAt" DESC`, [contextId]);
   return r.rows;
 }
 
@@ -96,6 +112,21 @@ const CLAIM_SELECT = `
       JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
       LEFT JOIN "Principals" p ON p.id = c."principalId"
       LEFT JOIN "Identities" i ON i.id = c."identityId"`;
+
+// The people of a context — its members as identities and as accounts, each side
+// widened by the identity ↔ account links — so a claim about one of them is found
+// whichever of the two it names. Members taken out here (an override) are not its people.
+const CONTEXT_PEOPLE_CTE = `
+  WITH m AS (
+    SELECT cm."memberType", cm."memberId" FROM "ContextMembers" cm
+     WHERE cm."contextId" = $1 AND cm."memberType" IN ('Identity', 'Principal')
+       AND NOT EXISTS (SELECT 1 FROM "ContextMemberOverrides" o WHERE o."contextId" = cm."contextId" AND o."memberId" = cm."memberId")),
+  ids AS (
+    SELECT "memberId" AS id FROM m WHERE "memberType" = 'Identity'
+    UNION SELECT im."identityId" FROM "IdentityMembers" im JOIN m ON m."memberType" = 'Principal' AND im."principalId" = m."memberId"),
+  pids AS (
+    SELECT "memberId" AS id FROM m WHERE "memberType" = 'Principal'
+    UNION SELECT im."principalId" FROM "IdentityMembers" im JOIN ids ON im."identityId" = ids.id)`;
 
 /** The claims of a context in the given statuses, newest interview first. */
 export async function listClaims(db, contextId, statuses) {

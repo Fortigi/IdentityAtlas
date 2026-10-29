@@ -47,7 +47,9 @@
     "src/contexts/orgKnowledge/manual.js",
     "src/contexts/workbench/model.js",
     "src/contexts/workbench/load.js",
-    "src/routes/contexts/workbench.js"
+    "src/routes/contexts/workbench.js",
+    "src/contexts/timeline/unitEvents.js",
+    "src/contexts/timeline/unitTimeline.js"
   ],
   "thresholds": {
     "high": 90,

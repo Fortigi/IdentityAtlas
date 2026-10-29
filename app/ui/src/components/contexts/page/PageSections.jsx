@@ -10,17 +10,17 @@ import FoldSection from '@ui/components/contexts/FoldSection';
 // with an earlier moment, read only once opened) and the Risk score (when the
 // feature is on and the context has one). All start folded.
 
-// Attributes whose changes mean nothing to a reader of the timeline.
-const TIMELINE_HIDDEN_FIELDS = ['lastCalculatedAt', 'SysStartTime', 'SysEndTime'];
-
+// The unit's timeline says what happened in words (people joined and left,
+// roles, the tree, the members' own changes, what the sources decided), with a
+// People / Roles / Structure / Knowledge filter and bursts folded.
 export function TimelineSection({ contextId, authFetch, onOpenDetail }) {
   const [open, setOpen] = useState(false);
   const [sinceDays, setSinceDays] = useState(90);
   const timeline = useTimeline('context', contextId, authFetch, { sinceDays, enabled: open });
   return (
-    <FoldSection title="Timeline" testId="timeline" summary="What changed, and who decided what" open={open} onOpenChange={setOpen}>
+    <FoldSection title="Timeline" testId="timeline" summary="Who joined and left, roles, the tree, and who decided what" open={open} onOpenChange={setOpen}>
       <EntityTimeline events={timeline.events} loading={timeline.loading} sinceDays={sinceDays} onSinceDaysChange={setSinceDays}
-        onOpenDetail={onOpenDetail} hideFields={TIMELINE_HIDDEN_FIELDS} />
+        onOpenDetail={onOpenDetail} />
     </FoldSection>
   );
 }

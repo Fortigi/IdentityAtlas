@@ -236,10 +236,10 @@ describe('context interviews against PostgreSQL', () => {
     let body;
     const res = { json: (b) => { body = b; }, status: () => res };
     await timelineHandler('context')({ params: { id: ctxId }, query: { sinceDays: '30' } }, res);
-    const attrs = body.events.filter(e => e.eventKind === 'attribute').map(e => e.attribute?.field);
-    expect(attrs).toContain('displayName');
-    expect(attrs).not.toContain('lastCalculatedAt');
-    expect(body.events.some(e => e.eventKind === 'interview')).toBe(true);
+    const structure = body.events.filter(e => e.category === 'structure').map(e => e.summary);
+    expect(structure).toContainEqual(expect.stringMatching(/^Renamed: .+ → ivw-Planner 2$/));
+    expect(structure.some(s => /last calculated/i.test(s))).toBe(false);
+    expect(body.events.some(e => e.eventKind === 'interview' && e.category === 'knowledge')).toBe(true);
     delete process.env.FEATURE_ORG_KNOWLEDGE;
   });
 
