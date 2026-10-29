@@ -13,8 +13,9 @@
 
 import { effectiveMembers } from '@ui/components/workbench/workbench.rule';
 import { draftFromSaved } from '@ui/components/workbench/workbench.save';
+import { PROPOSED_CATEGORY } from './accessPackageModel';
 
-export const PROPOSED_CATEGORY = 'Proposed';
+export { PROPOSED_CATEGORY };
 
 /** The accounts a saved proposal reaches with the unit's people as they are now. Pure. */
 export function proposalPrincipals(proposal, people) {

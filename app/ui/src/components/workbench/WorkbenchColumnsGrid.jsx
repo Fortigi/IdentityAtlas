@@ -29,7 +29,7 @@ const WIDTHS = [240, 150, 84, 90, 52];
 const STICKY_NAME = 'sticky left-0 z-10 border-b border-r border-gray-200 dark:border-gray-700';
 const CELL = 'truncate border-b border-r border-gray-100 px-1 text-[11px] dark:border-gray-700';
 
-export default function WorkbenchColumnsGrid({ people: shownPeople, columns, columnsById, roles, color, cellIndex, draft, candidate, dispatch, personProps, header }) {
+export default function WorkbenchColumnsGrid({ people: shownPeople, columns, columnsById, roles, color, cellIndex, draft, candidate, dispatch, personProps, header, fill = false }) {
   const [folded, setFolded] = useState(() => new Set());
   const rows = useMemo(() => transposedRows(roles, columns, columnsById, folded), [roles, columns, columnsById, folded]);
   const headerCols = useMemo(() => headerColumns(header.peopleColumns), [header.peopleColumns]);
@@ -64,7 +64,7 @@ export default function WorkbenchColumnsGrid({ people: shownPeople, columns, col
   const span = WIDTHS.length + shownPeople.length;
   const ctx = header.perms.ctx;
   return (
-    <div ref={scrollRef} className="overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+    <div ref={scrollRef} className={`overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 ${fill ? 'min-h-0 flex-1' : ''}`}>
       <table className="border-separate border-spacing-0 text-xs" style={{ tableLayout: 'fixed' }} aria-label="Access of the unit's people, people as columns">
         <colgroup>
           {WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}

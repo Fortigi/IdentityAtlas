@@ -179,18 +179,30 @@ unsaved work and deleting one ask first). The proposed-roles badge says *not sav
 
 ## Proposed roles in the matrix
 
-The Matrix's lens switch gets a fifth option, **Proposed**, next to All / Governed / Non-governed
-/ Gaps. It shows the saved proposed roles the way the matrix shows business roles. The first four
-lenses are unchanged, and Proposed only appears for someone with `data.write.contexts` outside a
-shared view. It is not saved with a matrix or a share link: a saved or shared matrix on Proposed
-opens on All.
+Next to the lens switch (All / Governed / Non-governed / Gaps) the Matrix has a toggle, **+ Proposed
+roles**. It is not a lens: it adds the saved proposed roles **on top of** whichever lens is chosen,
+and that lens shows exactly what it shows without the toggle (decided 2026-10-29).
+
+- **Who sees it:** someone with `data.write.contexts`, outside a shared view, while organisation
+  knowledge is on.
+- **Off:** the Matrix is exactly as before.
+- **Session only:** the toggle is session state in `app/MatrixArea`. It is not part of the matrix
+  definition, so a saved or shared matrix never carries it.
+
+With it on (`matrix/ProposedMatrix`):
 
 - Each saved proposed role is a band **"Draft: <name>"** under the category *Proposed*, in its own
   colour. The cells it covers take that colour (the matrix's own `describeCell` / `MatrixCell`).
   A member who lacks one of its entitlements shows as the matrix's provisioning gap.
+- **The lens filters stay real.** Governed and Non-governed still decide from the real
+  business-role coverage (`managedByPackages`). The proposals' cells reach only the colouring
+  (`extraCoverage`, merged into the colour map by `buildManagedApMap`).
+- In Non-governed, where the business-role bands are hidden, the Draft bands still show
+  (`bandsForLens`). In Gaps, a proposed role's provisioning gaps show like a business role's.
 - The real business roles keep their bands and colours, so an overlap with what is already governed
   shows.
-- The rows are the members' accounts and *everything* they hold, not only the role's entitlements.
+- The rows are the view's own; the toggle reads no rows. Members of a proposed role who are not in
+  the view are not added.
 - **Who it reaches is computed now.** A rule-based role's saved rule runs on the unit's current
   people (the workbench's own `effectiveMembers`), plus always-include minus always-exclude. A
   requestable role uses its saved members.
@@ -199,7 +211,9 @@ opens on All.
 **API** (needs `data.write.contexts`): `GET /api/workbench/investigations` lists every saved
 investigation holding a proposed role, any unit. `POST /api/workbench/proposals/matrix` with
 `{ principalIds }` (at most 2000) answers the matrix's rows for those accounts, in the shape of the
-matrix feed, plus which business roles cover each cell. Both are read-only.
+matrix feed, plus which business roles cover each cell. Both are read-only. The latter served the
+first, separate Proposed view. The toggle adds to the view's own rows, so it no longer calls it.
+It stays for a later "add the members outside this view" option, or goes if that is not wanted.
 
 ## People as columns (the matrix's orientation)
 
@@ -233,6 +247,20 @@ The grid reuses the matrix's `MatrixCell` and colours. It does not reuse `Matrix
 `SortableMatrixBody`. Those carry the global matrix's own state (nested-group expansion, drag
 order, fold tallies), and threading the workbench's selection and marks through them would put the
 global matrix at risk.
+
+### One scrollbar
+
+The page and the grid never scroll together; the workbench follows the global matrix here
+(`useViewportFitHeight`, `GridAndPanel`).
+
+- **Wide window (xl):** the grid and the candidate panel share a row sized to the rest of the
+  window. The grid scrolls inside it with its header rows sticky; the panel scrolls on its own; the
+  page does not scroll.
+- **Narrow window (stacked), or too little room for a usable grid:** nothing is capped and the page
+  alone scrolls.
+- **Header rows about people** (job title, activity, …) are only as tall as their longest value
+  needs, within limits (`headerRowHeight`): a longer value is cut off with "…" and shown whole on
+  hover. A row nobody has a value in is one line.
 
 ### Filtering the permissions
 

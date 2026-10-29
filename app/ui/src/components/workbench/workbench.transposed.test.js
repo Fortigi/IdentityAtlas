@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { transposedRows, resourceOrder, compactValue, headerColumns, orientationOf, ORIENTATIONS, DEFAULT_ORIENTATION } from './workbench.transposed';
+import { transposedRows, resourceOrder, compactValue, headerColumns, orientationOf, ORIENTATIONS, DEFAULT_ORIENTATION, headerRowHeight } from './workbench.transposed';
 import { viewToSave, viewFromSaved } from './workbench.save';
 import { columnByKey } from './workbench.columns';
 
@@ -102,5 +102,33 @@ describe('the rows under permission filters', () => {
     expect(rows[0]).toMatchObject({ count: 1, hidden: 1, allHidden: false });
     // Only the shown one counts as in a role: nothing else is hidden from Other access.
     expect(resourceOrder(rows)).toEqual(['r1', 'r2']);
+  });
+});
+
+describe('header row heights', () => {
+  const p = (displayName, extra = {}) => ({ key: displayName, displayName, accounts: [], knowledge: [], ...extra });
+
+  it('fits the longest value, within limits, and one line when nobody has one', () => {
+    const job = columnByKey.get('jobTitle');
+    expect(headerRowHeight(job, [p('A', { jobTitle: 'Clerk' }), p('B', { jobTitle: 'Lead' })])).toBe(38);
+    expect(headerRowHeight(job, [p('A', { jobTitle: 'x'.repeat(60) })])).toBe(80);
+    expect(headerRowHeight(job, [p('A'), p('B')])).toBe(20);
+    expect(headerRowHeight(job, [p('A', { jobTitle: 'IT' })])).toBe(28);
+  });
+
+  it('counts the mark on knowledge and room for "+N"', () => {
+    const act = columnByKey.get('activity');
+    const one = [p('A', { knowledge: [{ kind: 'activity', name: 'Audits', state: 'confirmed', claims: [] }] })];
+    const two = [p('A', { knowledge: [{ kind: 'activity', name: 'Audits', state: 'confirmed', claims: [] }, { kind: 'activity', name: 'Quotes', state: 'proposed', claims: [] }] })];
+    expect(headerRowHeight(act, one)).toBe(55);
+    expect(headerRowHeight(act, two)).toBe(69);
+  });
+
+  it('gives the names row the room the longest name needs', () => {
+    const name = columnByKey.get('displayName');
+    expect(headerRowHeight(name, [p('Ann'), p('Mohamed Aydin')])).toBe(91);
+    expect(headerRowHeight(name, [p('Al')])).toBe(48);
+    expect(headerRowHeight(name, [p('x'.repeat(40))])).toBe(112);
+    expect(headerRowHeight(name, [])).toBe(48);
   });
 });

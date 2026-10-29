@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 //
-// The matrix's Proposed lens: the saved investigations to pick from, and what it
-// hands the matrix — the proposals as "Draft: …" business-role bands next to the
-// real ones, over the rows of the accounts they reach. The matrix itself is
-// stubbed; what it is given is asserted.
+// The matrix with "+ Proposed roles" on: the saved investigations to pick from,
+// and what it hands the matrix — the view it already had (the same rows, the same
+// lens, the same real coverage for the lens filters) plus the proposals as
+// "Draft: …" bands and their cells to colour. The matrix itself is stubbed; what
+// it is given is asserted.
 import { describe, it, expect, vi } from 'vitest';
 import { Suspense } from 'react';
-import { renderWithProviders, screen, userEvent, waitFor, makeAuthFetch, jsonResponse } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, screen, userEvent, waitFor, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
 
 const seen = vi.hoisted(() => ({ props: null }));
 vi.mock('@ui/components/MatrixView', () => ({
@@ -31,43 +32,45 @@ const INV = {
 };
 const PEOPLE = [{ key: 'i:ann', direct: true, accounts: [{ id: ANN }] }, { key: 'i:bob', direct: true, accounts: [{ id: BOB }] }];
 const REAL = [{ accessPackageId: 'br-1', accessPackageName: 'Claims Team', resourceId: 'r1', categoryName: 'Business' }];
+const DATA = [{ memberId: ANN, resourceId: 'r1' }, { memberId: BOB, resourceId: 'r9' }, { memberId: 'x', resourceId: 'r9' }];
+const COVERED = [{ memberId: ANN, resourceId: 'r1', accessPackageIds: ['br-1'] }];
 
-function api({ list = LIST, matrix } = {}) {
-  return makeAuthFetch((url, opts) => {
+function api({ list = LIST, workbench } = {}) {
+  return makeAuthFetch((url) => {
     if (url === '/api/workbench/investigations') return { data: list };
     const inv = url.match(/^\/api\/workbench\/investigations\/(.+)$/);
     if (inv) return INV[inv[1]];
-    if (url.startsWith('/api/contexts/unit-1/workbench')) return { people: PEOPLE };
-    if (url === '/api/workbench/proposals/matrix') {
-      if (matrix) return matrix;
-      const { principalIds } = JSON.parse(opts.body);
-      return { data: principalIds.map(id => ({ memberId: id, resourceId: 'r1' })), managedByPackages: [{ memberId: ANN, resourceId: 'r1', accessPackageIds: ['br-1'] }] };
-    }
+    if (url.startsWith('/api/contexts/unit-1/workbench')) return workbench ?? { people: PEOPLE };
     return undefined;
   });
 }
 
 function renderLens(authFetch) {
   renderWithProviders(
-    <Suspense fallback={null}><ProposedMatrix accessPackageGroups={REAL} managedFilter="proposed" /></Suspense>,
+    <Suspense fallback={null}>
+      <ProposedMatrix data={DATA} accessPackageGroups={REAL} managedByPackages={COVERED} managedFilter="managed" />
+    </Suspense>,
     { auth: { authFetch } },
   );
   return authFetch;
 }
 
 describe('ProposedMatrix', () => {
-  it('shows every saved investigation\'s proposals as Draft bands next to the real business roles', async () => {
+  it('keeps the view — its rows, its lens and the real coverage — and adds every saved proposal as a Draft band', async () => {
     const authFetch = renderLens(api());
     const matrix = await screen.findByTestId('matrix');
     await waitFor(() => expect(matrix).toHaveTextContent('Draft: Lead'));
     expect(matrix).toHaveTextContent('Claims Team');
     expect(matrix).toHaveTextContent('Draft: Handler');
-    expect(matrix).toHaveTextContent('rows 2');
-    const post = authFetch.mock.calls.find(([u]) => u === '/api/workbench/proposals/matrix');
-    expect(JSON.parse(post[1].body).principalIds.sort()).toEqual([ANN, BOB]);
-    // The real role and the proposal both cover ann × r1.
-    expect(seen.props.managedByPackages).toContainEqual({ memberId: ANN, resourceId: 'r1', groupId: 'r1', accessPackageIds: ['br-1', 'p1'] });
-    expect(seen.props.showProposed).toBe(true);
+    expect(matrix).toHaveTextContent('rows 3');
+    expect(seen.props).toMatchObject({ managedFilter: 'managed', managedByPackages: COVERED, showProposed: true, proposedOn: true });
+    // Only the proposals' cells go to colouring; the real coverage stays the lens filters' alone.
+    expect(seen.props.extraCoverage).toEqual([
+      { memberId: ANN, resourceId: 'r1', groupId: 'r1', accessPackageIds: ['p1'] },
+      { memberId: BOB, resourceId: 'r2', groupId: 'r2', accessPackageIds: ['p2'] },
+    ]);
+    // It reads no matrix rows of its own.
+    expect(authFetch.mock.calls.map(c => c[0])).not.toContain('/api/workbench/proposals/matrix');
   });
 
   it('narrows to one investigation from the picker', async () => {
@@ -79,27 +82,21 @@ describe('ProposedMatrix', () => {
     await userEvent.selectOptions(picker, 'inv-1');
     await waitFor(() => expect(screen.getByTestId('matrix')).not.toHaveTextContent('Draft: Lead'));
     expect(screen.getByTestId('matrix')).toHaveTextContent('Draft: Handler');
-    expect(screen.getByTestId('matrix')).toHaveTextContent('rows 1');
   });
 
-  it('says so when no investigation holds a proposed role', async () => {
+  it('says so when no investigation holds a proposed role, and still shows the view', async () => {
     const authFetch = renderLens(api({ list: [] }));
-    const authFetchCalls = () => authFetch.mock.calls.map(([u]) => u);
     expect(await screen.findByText('No workbench investigation with a proposed role is saved yet.')).toBeInTheDocument();
-    expect(screen.queryByTestId('matrix')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('From investigation')).not.toBeInTheDocument();
-    expect(authFetchCalls()).not.toContain('/api/workbench/proposals/matrix');
+    await waitFor(() => expect(screen.getByTestId('matrix')).toHaveTextContent('rows 3'));
+    expect(seen.props.extraCoverage).toEqual([]);
+    expect(authFetch.mock.calls.map(c => c[0])).toEqual(['/api/workbench/investigations']);
   });
 
-  it('shows the API\'s refusal', async () => {
-    renderLens(api({ matrix: jsonResponse({ error: 'At most 2000 accounts.' }, { ok: false, status: 400 }) }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('At most 2000 accounts.');
-  });
-
-  it('shows a failed list', async () => {
+  it('shows why the proposals could not be read, over the view as it was', async () => {
     renderLens(makeAuthFetch({}));
     expect(await screen.findByRole('alert')).toHaveTextContent('not stubbed');
-    expect(screen.queryByText(/No workbench investigation/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(screen.getByTestId('matrix')).toHaveTextContent('Claims Team');
+    expect(screen.getByTestId('matrix')).not.toHaveTextContent('Draft:');
   });
 });

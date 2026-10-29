@@ -29,7 +29,7 @@ export function MarkSign({ mark }) {
   );
 }
 
-export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, candidate, dispatch, personProps, people }) {
+export default function WorkbenchGrid({ groups, columns, roles, color, isDark, cellIndex, draft, candidate, dispatch, personProps, people, fill = false }) {
   const { peopleColumns, offsets, allPeople, filters, sort, onSort, onFilter, grouped } = people;
   const rowKeys = groups.flatMap(g => g.rows.map(r => r.person.key));
   const colIds = columns.map(c => c.id);
@@ -53,7 +53,7 @@ export default function WorkbenchGrid({ groups, columns, roles, color, isDark, c
   // Where each group's rows start in the flat row order (for Shift-click ranges).
   const starts = groups.reduce((acc, g, i) => [...acc, i === 0 ? 0 : acc[i - 1] + groups[i - 1].rows.length], []);
   return (
-    <div className="overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+    <div className={`overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 ${fill ? 'min-h-0 flex-1' : ''}`}>
       <table className="border-separate border-spacing-0 text-xs" aria-label="Access of the unit's people">
         <thead>
           <tr>

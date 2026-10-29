@@ -92,3 +92,30 @@ export function headerColumns(columns) {
   const name = columns.filter(c => c.type === 'name');
   return [...columns.filter(c => c.type !== 'name'), ...name];
 }
+
+// Vertical text in a header cell: about this many pixels per character (10–11px type), plus padding.
+const PX_PER_CHAR = { name: 6.2, value: 5.6 };
+const ROW_LIMITS = { name: [48, 112], value: [28, 80] };
+const EMPTY_ROW = 20;
+const MORE_CHIP = 14;
+const clampTo = ([lo, hi], px) => Math.round(Math.min(hi, Math.max(lo, px)));
+
+/**
+ * How tall a header row is: as tall as its longest value written upwards needs —
+ * within limits; a longer one is cut off with "…" and shown whole on hover — and
+ * one line when nobody shown has a value. So a few short job titles take little
+ * room and the permission rows below stay in view. Pure.
+ */
+export function headerRowHeight(column, people) {
+  if (column.type === 'name') {
+    const longest = Math.max(0, ...people.map(p => String(p.displayName ?? '').length));
+    return clampTo(ROW_LIMITS.name, longest * PX_PER_CHAR.name + 10);
+  }
+  const values = people.map(p => compactValue(p, column));
+  if (values.every(v => v.first === null)) return EMPTY_ROW;
+  // The mark (✓ / ? / !) and a space count as two characters on knowledge.
+  const mark = column.type === 'knowledge' ? 2 : 0;
+  const longest = Math.max(...values.map(v => (v.first ? v.first.label.length + mark : 0)));
+  const chip = values.some(v => v.more > 0) ? MORE_CHIP : 0;
+  return clampTo(ROW_LIMITS.value, longest * PX_PER_CHAR.value + 10 + chip);
+}

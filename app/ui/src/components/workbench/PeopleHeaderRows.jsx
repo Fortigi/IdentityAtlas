@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { HeaderControls, Chip, Evidence } from './PeopleCells';
-import { compactValue } from './workbench.transposed';
+import { compactValue, headerRowHeight } from './workbench.transposed';
 
 // ─── People as columns: what is known of them, as header rows ────────────
 // One header row per people column chosen (Job title, Activity, Expertise, Duty,
@@ -17,31 +17,30 @@ const STATE_MARK = { confirmed: '✓', proposed: '?', disputed: '!' };
 const VERTICAL = { writingMode: 'vertical-rl', transform: 'rotate(180deg)' };
 // A label whose filter is open rises above the labels after it (they are sticky too).
 const LABEL = 'sticky left-0 border-b border-r border-gray-200 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200';
-const HEIGHT = { name: 'h-32', knowledge: 'h-24' };
+// Each header row is as tall as its longest value needs, within limits (headerRowHeight);
+// a longer value is cut off with "…" and shown whole on hover.
 
 function memberBg(member) {
   return member ? 'bg-emerald-50 dark:bg-emerald-950' : 'bg-gray-50 dark:bg-gray-900';
 }
 
-function NameCell({ person, member, onPerson }) {
+function NameCell({ person, member, onPerson, height }) {
   return (
     <button type="button" onClick={(e) => onPerson(person.key, e)} title={`${person.displayName}${member ? ' — member of the candidate' : ''}\nSelect what this person holds`}
-      className={`flex w-full items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30 ${HEIGHT.name}`}>
-      <span className="max-h-28 overflow-hidden text-ellipsis whitespace-nowrap font-medium text-gray-900 dark:text-gray-100" style={VERTICAL}>{person.displayName}</span>
+      className="flex w-full items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30" style={{ height }}>
+      <span className="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-gray-900 dark:text-gray-100" style={{ ...VERTICAL, maxHeight: height - 6 }}>{person.displayName}</span>
     </button>
   );
 }
 
-// A row nobody shown has a value in stays one line high.
-const rowHeight = (column, empty) => (empty ? 'h-5' : HEIGHT[column.type] ?? 'h-20');
-
-function ValueCell({ person, column, empty, personProps, open, onOpenChange }) {
+function ValueCell({ person, column, height, personProps, open, onOpenChange }) {
   const { first, more, title } = compactValue(person, column);
   const knowledge = column.type === 'knowledge';
   const text = first ? `${knowledge ? `${STATE_MARK[first.state] ?? ''} ` : ''}${first.label}` : '';
   const body = (
-    <span className={`flex w-full flex-col items-center justify-end gap-0.5 pb-1 ${rowHeight(column, empty)}`}>
-      <span className={`max-h-20 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] ${first?.state && first.state !== 'confirmed' ? 'text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-200'}`} style={VERTICAL}>{text}</span>
+    <span className="flex w-full flex-col items-center justify-end gap-0.5 pb-1" style={{ height }}>
+      <span className={`overflow-hidden text-ellipsis whitespace-nowrap text-[10px] ${first?.state && first.state !== 'confirmed' ? 'text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}
+        style={{ ...VERTICAL, maxHeight: Math.max(0, height - (more > 0 ? 20 : 6)) }}>{text}</span>
       {more > 0 && <span className="rounded bg-gray-200 px-0.5 text-[9px] leading-3 text-gray-700 dark:bg-gray-700 dark:text-gray-200">+{more}</span>}
     </span>
   );
@@ -88,6 +87,7 @@ export default function PeopleHeaderRows({ columns, people, header, labelSpan, m
   const [open, setOpen] = useState(null);
   return columns.map(column => {
     const empty = column.type !== 'name' && people.every(p => compactValue(p, column).first === null);
+    const height = headerRowHeight(column, people);
     return (
       <tr key={column.key} data-empty={empty || undefined}>
         <th scope="row" colSpan={labelSpan} className={LABEL} style={{ zIndex: open === column.key ? 50 : 30 }}>
@@ -99,8 +99,8 @@ export default function PeopleHeaderRows({ columns, people, header, labelSpan, m
           return (
             <th key={person.key} scope="col" className={`relative w-6 min-w-[1.5rem] max-w-[1.5rem] border-b border-r border-gray-100 p-0 align-bottom font-normal dark:border-gray-700 ${memberBg(members.has(person.key))} ${cellOpen ? 'z-40' : ''}`}>
               {column.type === 'name'
-                ? <NameCell person={person} member={members.has(person.key)} onPerson={onPerson} />
-                : <ValueCell person={person} column={column} empty={empty} personProps={personProps} open={cellOpen} onOpenChange={(v) => setOpen(v ? `${column.key}|${person.key}` : null)} />}
+                ? <NameCell person={person} member={members.has(person.key)} onPerson={onPerson} height={height} />
+                : <ValueCell person={person} column={column} height={height} personProps={personProps} open={cellOpen} onOpenChange={(v) => setOpen(v ? `${column.key}|${person.key}` : null)} />}
             </th>
           );
         })}

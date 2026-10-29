@@ -17,7 +17,8 @@ import RoleSaveActions from './RoleSaveActions';
 import { useInvestigation } from './useInvestigation';
 import { useOpenLinked } from './useOpenLinked';
 import { parseWorkbenchRouteId } from './workbench.link';
-import { Toolbar, SelectionBar, Legend, FilterStrip } from './WorkbenchControls';
+import { Toolbar, SelectionBar, FilterStrip } from './WorkbenchControls';
+import GridAndPanel from './GridAndPanel';
 import { PermissionStrip } from './PermissionFilters';
 import { contextIndex, visibleAccess, permissionFilterSummary, hasPermissionFilter } from './workbench.permissions';
 import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
@@ -119,26 +120,22 @@ function Workbench({ contextId: routeId, onCacheData, onClose }) {
         summary={permissionFilterSummary(view.permissionFilters, derived.allAccess, derived.ctx)}
         onClear={(key) => perms.onFilter(key, null)} onClearAll={() => setView(v => ({ ...v, permissionFilters: {} }))} />
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
-        <div className="min-w-0 flex-1 space-y-2">
-          {orientationOf(view) === 'rows' ? (
-            <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
-              cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
-              people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
-          ) : (
-            <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color}
-              cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
-              header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, perms }} />
-          )}
-          <Legend />
-        </div>
-        <div className="w-full shrink-0 xl:w-96">
+      <GridAndPanel deps={[data, shownView, draft.selection.size > 0, actionError]}
+        grid={(fill) => (orientationOf(view) === 'rows' ? (
+          <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark} fill={fill}
+            cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
+            people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
+        ) : (
+          <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color} fill={fill}
+            cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
+            header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, perms }} />
+        ))}
+        panel={(
           <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color} saveLabel={saveLabel(inv)}
             roleActions={({ candidate: role, problems }) => <RoleSaveActions inv={inv} candidate={role} problems={problems} unitName={data.unit.displayName} dispatch={dispatch} />}
             candidate={candidate} unitName={data.unit.displayName} onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}
             peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} visible={derived.visible} />
-        </div>
-      </div>
+        )} />
     </div>
   );
 }

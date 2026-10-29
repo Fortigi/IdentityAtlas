@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAccessPackages, buildApSortedGroups } from './accessPackageModel.js';
+import { buildAccessPackages, buildApSortedGroups, buildManagedApMap, bandsForLens, PROPOSED_CATEGORY } from './accessPackageModel.js';
 
 const groups = [{ id: 'r1', directCount: 1, memberCount: 1 }, { id: 'r2', directCount: 0, memberCount: 1 }];
 const users = [{ id: 'u1' }];
@@ -56,5 +56,32 @@ describe('buildApSortedGroups', () => {
     // Role is a plain Member (not Owner), so the owner row does NOT bucket into AP1.
     const sorted = buildApSortedGroups(ownerGroups, accessPackages, new Map([['R1|ap1', 'Member']]), 'all');
     expect(sorted.map(g => g.id)).toEqual(['r1__owner']);
+  });
+});
+
+describe('buildManagedApMap', () => {
+  it('keys each cell by resource|member in lower case, the roles in lower case', () => {
+    const map = buildManagedApMap([{ resourceId: 'R1', memberId: 'M1', accessPackageIds: ['BR-1'] }, { groupId: 'G2', memberId: 'm2' }]);
+    expect([...map]).toEqual([['r1|m1', ['br-1']], ['g2|m2', []]]);
+    expect(buildManagedApMap(null).size).toBe(0);
+  });
+
+  it('adds the proposals\' cells on top: a cell both cover lists both, once each', () => {
+    const map = buildManagedApMap(
+      [{ resourceId: 'r1', memberId: 'm1', accessPackageIds: ['br-1'] }],
+      [{ resourceId: 'r1', memberId: 'm1', accessPackageIds: ['p1', 'BR-1'] }, { resourceId: 'r2', memberId: 'm1', accessPackageIds: ['p1'] }]);
+    expect(map.get('r1|m1')).toEqual(['br-1', 'p1']);
+    expect(map.get('r2|m1')).toEqual(['p1']);
+  });
+});
+
+describe('bandsForLens', () => {
+  const aps = [{ id: 'br', categoryName: 'Business' }, { id: 'p1', categoryName: PROPOSED_CATEGORY }, { id: 'x', categoryName: null }];
+  it('shows every band in All, Governed and Gaps', () => {
+    for (const lens of ['all', 'managed', 'gaps']) expect(bandsForLens(aps, lens)).toBe(aps);
+  });
+  it('shows no business role in Non-governed — only proposed roles added on top', () => {
+    expect(bandsForLens(aps, 'unmanaged').map(a => a.id)).toEqual(['p1']);
+    expect(bandsForLens(aps.filter(a => a.id !== 'p1'), 'unmanaged')).toEqual([]);
   });
 });

@@ -39,21 +39,29 @@ describe('MatrixToolbar', () => {
     expect(setManagedFilter).toHaveBeenCalledWith('gaps');
   });
 
-  it('offers the Proposed lens only when asked, after Gaps, and switches to it', async () => {
-    const { setManagedFilter } = renderToolbar({ showProposed: true });
+  it('offers "+ Proposed roles" only when asked — a toggle beside the four lenses, not a lens', async () => {
+    const onToggleProposed = vi.fn();
+    const { setManagedFilter } = renderToolbar({ showProposed: true, onToggleProposed });
     expect(screen.getAllByRole('button').map(b => b.textContent.trim()))
-      .toEqual(['All', 'Governed', 'Non-governed', 'Gaps', 'Proposed', 'Export ▾']);
-    await userEvent.click(screen.getByRole('button', { name: 'Proposed' }));
-    expect(setManagedFilter).toHaveBeenCalledWith('proposed');
+      .toEqual(['All', 'Governed', 'Non-governed', 'Gaps', '+ Proposed roles', 'Export ▾']);
+    const toggle = screen.getByRole('button', { name: '+ Proposed roles' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(toggle);
+    expect(onToggleProposed).toHaveBeenCalledWith(true);
+    expect(setManagedFilter).not.toHaveBeenCalled();
   });
 
-  it('keeps every other lens working the same with Proposed on', async () => {
-    const { setManagedFilter } = renderToolbar({ showProposed: true, managedFilter: 'proposed' });
-    expect(screen.getByRole('button', { name: 'Proposed' }).className).toContain('bg-blue-600');
+  it('keeps the lens and every lens switch while it is on, and turns it off', async () => {
+    const onToggleProposed = vi.fn();
+    const { setManagedFilter } = renderToolbar({ showProposed: true, proposedOn: true, managedFilter: 'managed', onToggleProposed });
+    expect(screen.getByRole('button', { name: 'Governed' }).className).toContain('bg-blue-600');
+    expect(screen.getByRole('button', { name: '+ Proposed roles' })).toHaveAttribute('aria-pressed', 'true');
     for (const [label, key] of [['All', 'all'], ['Governed', 'managed'], ['Non-governed', 'unmanaged'], ['Gaps', 'gaps']]) {
       await userEvent.click(screen.getByRole('button', { name: label }));
       expect(setManagedFilter).toHaveBeenLastCalledWith(key);
     }
+    await userEvent.click(screen.getByRole('button', { name: '+ Proposed roles' }));
+    expect(onToggleProposed).toHaveBeenCalledWith(false);
   });
 
   it('drops Gaps when the view has no gap data', () => {

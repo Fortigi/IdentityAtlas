@@ -1,4 +1,4 @@
-import { lazy } from 'react';
+import { lazy, useState } from 'react';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
@@ -25,13 +25,17 @@ export default function MatrixArea({
   accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
   onWizardApply, onShareView,
 }) {
-  // The Proposed lens reads saved workbench investigations: an analyst's, never a
-  // shared view's, and only while organisation knowledge (the workbench's flag) is on.
+  // "+ Proposed roles" reads saved workbench investigations: an analyst's, never a
+  // shared view's, and only while organisation knowledge (the workbench's flag) is
+  // on. It adds them on top of whichever lens is chosen. Its on/off lives here, for
+  // this session only: it is not part of the matrix definition, so a saved or shared
+  // matrix never carries it (decided 2026-10-29).
   const canWrite = useHasPermission('data.write.contexts');
   const sharedView = useIsSharedView();
   const knowledge = useOrgKnowledge();
   const showProposed = canWrite && !sharedView && knowledge;
-  // What the plain grid and the Proposed lens (a grid over other rows) both take.
+  const [proposedOn, setProposedOn] = useState(false);
+  // What the plain grid and the grid with proposals on top both take.
   const gridProps = {
     resourceContexts, filter: matrixFilter, counts, managedFilter, setManagedFilter, groupTagMap,
     refreshing, shareUrl, onOpenDetail, onAdjustFilter, onLoadSaved: onWizardApply, hasData, onShareView,
@@ -69,12 +73,14 @@ export default function MatrixArea({
           hasData={hasData}
           onShareView={onShareView}
         />
-      ) : managedFilter === 'proposed' && showProposed ? (
-        // The Proposed lens: saved workbench proposals as business-role bands over the rows they reach.
-        <ProposedMatrix accessPackageGroups={accessPackageGroups} {...gridProps} />
+      ) : proposedOn && showProposed ? (
+        // "+ Proposed roles": this same view, with the saved workbench proposals on top.
+        <ProposedMatrix data={data} accessPackageGroups={accessPackageGroups} managedByPackages={managedByPackages}
+          onToggleProposed={setProposedOn} {...gridProps} />
       ) : (
         <MatrixView
           showProposed={showProposed}
+          onToggleProposed={setProposedOn}
           data={data}
           accessPackageGroups={accessPackageGroups}
           managedByPackages={managedByPackages}
