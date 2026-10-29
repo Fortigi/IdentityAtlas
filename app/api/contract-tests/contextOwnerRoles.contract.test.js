@@ -216,3 +216,27 @@ describe('migration 096 — catch-up, insert-only', () => {
     ]);
   });
 });
+
+// The crawler door (POST /ingest/context-roles) and the owner reconcile both
+// speak for the source. The door's Accountable is addedBy 'sync'; the reconcile
+// replaces or removes only its own 'sourceOwner' rows, so a role the door wrote
+// on a context that names no owner survives the next contexts sync — the bug
+// that once deleted every demo application's Accountable.
+describe('an Accountable a crawler posted survives the owner sync', () => {
+  beforeEach(seed);
+
+  it('keeps the door\'s Accountable on a context with no owner, and still drops a stale owner row', async () => {
+    const { roleInsertSql } = await import('../src/routes/ingest/contextLinks.js');
+    await context('posted', '');
+    const ins = await pool.query(roleInsertSql('principalId'),
+      [C.posted, P.x, 'Accountable', sys[0], ['OrganizationalUnit', 'LogicalApplication']]);
+    expect(ins.rowCount).toBe(1);
+
+    const counts = await reconcileBatchAccountables(runner(), 'Contexts', [{ id: C.posted }, { id: C.ownerGone }]);
+
+    expect(counts).toEqual({ set: 0, replaced: 0, removed: 1, unresolved: 0 });
+    const after = await roles();
+    expect(after).toContain('posted:Accountable:x:sync');
+    expect(after.some(r => r.startsWith('ownerGone:'))).toBe(false);
+  });
+});

@@ -3,7 +3,7 @@
   "emits": {
     "principalTypes": ["User", "ExternalUser", "ServicePrincipal", "AIAgent", "SharedMailbox", "ManagedIdentity"],
     "resourceTypes": ["Group", "EntraDirectoryRole", "AppRole", "GroupOwnership", "Application", "DelegatedPermission", "BusinessRole", "AzureScope", "AzureResourceGroup", "AzureResource", "AzureRoleAssignment", "SAPRole", "CRMRole", "ApplicationOwnership", "ServicePrincipalOwnership"],
-    "contextTypes": ["Department", "Team", "AdministrativeUnit"],
+    "contextTypes": ["Department", "Team", "AdministrativeUnit", "LogicalApplication"],
     "open": []
   },
   "displayName": "Demo Dataset",
