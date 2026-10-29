@@ -35,6 +35,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   const [page, setPage] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState(null); // null = all, number = categoryId, 'uncategorized' = no category
   const [typeFilter, setTypeFilter] = useState(null); // null = all, string = assignment type
+  // Business roles deleted in the source are hidden unless asked for (soft delete).
+  const [includeDeleted, setIncludeDeleted] = useState(false);
 
   // Selection state
   const [selected, setSelected] = useState(new Set());
@@ -60,7 +62,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
 
   // Reset page & selection when filters or sort change — during render via a
   // composite-signature compare, so no synchronous setState lives in an effect.
-  const apFilterSig = `${debouncedSearch}|${categoryFilter}|${typeFilter}|${sortCol}|${sortDir}`;
+  const apFilterSig = `${debouncedSearch}|${categoryFilter}|${typeFilter}|${includeDeleted}|${sortCol}|${sortDir}`;
   const [seenApFilterSig, setSeenApFilterSig] = useState(apFilterSig);
   if (apFilterSig !== seenApFilterSig) {
     setSeenApFilterSig(apFilterSig);
@@ -92,6 +94,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         params.set('categoryId', categoryFilter);
       }
     }
+    if (includeDeleted) params.set('includeDeleted', 'true');
     if (sortCol) {
       params.set('sortCol', sortCol);
       params.set('sortDir', sortDir);
@@ -106,7 +109,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
       })
       .catch((err) => console.error('Failed to fetch access packages:', err))
       .finally(() => { if (version === fetchVersion.current) setLoading(false); });
-  }, [page, debouncedSearch, categoryFilter, sortCol, sortDir, authFetch]);
+  }, [page, debouncedSearch, categoryFilter, includeDeleted, sortCol, sortDir, authFetch]);
 
   useEffect(() => { fetchPackages(); }, [fetchPackages]);
 
@@ -237,6 +240,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         sortCol,
         sortDir,
         typeFilter,
+        includeDeleted,
         onProgress: setExportStatus,
       });
     } catch (err) {
@@ -244,7 +248,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
     } finally {
       setExportStatus(null);
     }
-  }, [authFetch, debouncedSearch, categoryFilter, sortCol, sortDir, typeFilter]);
+  }, [authFetch, debouncedSearch, categoryFilter, sortCol, sortDir, typeFilter, includeDeleted]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const allOnPageSelected = packages.length > 0 && selected.size === packages.length;
@@ -285,6 +289,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         setSearch={setSearch}
         typeFilter={typeFilter}
         setTypeFilter={setTypeFilter}
+        includeDeleted={includeDeleted}
+        setIncludeDeleted={setIncludeDeleted}
         hasAnyFilter={hasAnyFilter}
         onClearAll={() => { setCategoryFilter(null); setTypeFilter(null); setSearch(''); }}
       />

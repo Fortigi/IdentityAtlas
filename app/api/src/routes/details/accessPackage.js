@@ -72,17 +72,21 @@ router.get('/access-package/:id/assignments', async (req, res) => {
       // drive the _history lookup from a.id; the audit rows key off the
       // composite too. Skip the assignedDate lookup for now (it's a nice-to
       // have) and fall back to the assignment row itself.
+      // History (assignment or principal soft-deleted in the source) stays in
+      // the list, flagged `deleted` + `deletedAt`, after the current holders.
       r = await timedQuery(pool, 'ap-assignments', res, `
         SELECT
           a."principalId", a.state AS "assignmentState", a."assignmentStatus",
           u."displayName" AS "targetDisplayName",
           u.email AS "targetUPN",
-          NULL::timestamptz AS "assignedDate"
+          NULL::timestamptz AS "assignedDate",
+          (a."deletedAt" IS NOT NULL OR u."deletedAt" IS NOT NULL) AS "deleted",
+          LEAST(a."deletedAt", u."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" a
         LEFT JOIN "Principals" u ON a."principalId" = u.id
         WHERE a."resourceId" = $1
           AND (a.state = 'Delivered' OR a.state IS NULL)
-        ORDER BY u."displayName"
+        ORDER BY "deleted", u."displayName"
       `, [req.params.id]);
     } catch (e) {
       console.error('ap-assignments failed:', e.message);
@@ -102,17 +106,20 @@ router.get('/access-package/:id/resource-roles', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
+    // A contained resource soft-deleted in the source is history: kept in the
+    // list, flagged `deleted` + `deletedAt`, after the current ones.
     const r = await timedQuery(pool, 'ap-resource-roles', res, `
       SELECT
         rrs."roleName", rrs."roleOriginSystem",
         r."displayName" AS "scopeDisplayName", rrs."childResourceId", rrs."roleOriginSystem" AS "scopeOriginSystem",
         COALESCE(r."displayName", rrs."roleName") AS "groupDisplayName",
         COALESCE(r."displayName", rrs."roleName") AS "resourceDisplayName",
-        r."resourceType", r."systemId"
+        r."resourceType", r."systemId",
+        (r."deletedAt" IS NOT NULL) AS "deleted", r."deletedAt" AS "deletedAt"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" r ON rrs."childResourceId" = r.id
       WHERE rrs."parentResourceId" = $1 AND rrs."relationshipType" = 'Contains'
-      ORDER BY r."displayName", rrs."roleName"
+      ORDER BY "deleted", r."displayName", rrs."roleName"
     `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {
