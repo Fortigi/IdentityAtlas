@@ -102,7 +102,15 @@ export const NAMES_SQL = `
     UNION ALL SELECT 'Resource', id::text, "displayName" FROM "Resources" WHERE id = ANY($1::uuid[])
     UNION ALL SELECT 'Context', id::text, "displayName" FROM "Contexts" WHERE id = ANY($1::uuid[])`;
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// The last name an account had, for accounts no longer in Principals (removed
+// outright, not soft-deleted): its history keeps it. Persons have no history.
+export const GONE_NAMES_SQL = `
+    SELECT DISTINCT ON ("rowId") 'Principal' AS kind, "rowId" AS id, COALESCE("rowData", "prevData")->>'displayName' AS "displayName"
+      FROM "_history"
+     WHERE "tableName" = 'Principals' AND "rowId" = ANY($1::text[])
+     ORDER BY "rowId", "changedAt" DESC`;
+
+const UUID_RE =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // The ids a history row names, per table (both sides of an update).
 const both = (r, ...keys) => [r.rowData || {}, r.prevData || {}].flatMap(x => keys.map(k => x[k]));
@@ -172,6 +180,16 @@ export function leavers(memberRows) {
   return { principals, identities };
 }
 
+/** The names of the ids: current rows first, then the last name in history of an account that is gone. */
+export async function nameRows(db, ids) {
+  if (!ids.length) return [];
+  const rows = (await db.query(NAMES_SQL, [ids])).rows;
+  const found = new Set(rows.map(r => r.id));
+  const missing = ids.filter(i => !found.has(i));
+  if (!missing.length) return rows;
+  return [...rows, ...(await db.query(GONE_NAMES_SQL, [missing])).rows.filter(r => r.displayName)];
+}
+
 export async function loadUnitTimeline(db, contextId, { sinceDays, interviewEvents = async () => [] }) {
   const [history, earlier, provenanceRow, interviews] = await Promise.all([
     db.query(UNIT_HISTORY_SQL, [sinceDays, contextId, UNIT_TIMELINE_ROW_CAP]),
@@ -186,7 +204,7 @@ export async function loadUnitTimeline(db, contextId, { sinceDays, interviewEven
     ? (await db.query(PEOPLE_CHANGES_SQL, [sinceDays, accounts, UNIT_TIMELINE_ROW_CAP])).rows
     : [];
   const ids = idsNamed(byTable, people, earlier.rows);
-  const names = nameBook(ids.length ? (await db.query(NAMES_SQL, [ids])).rows : []);
+  const names = nameBook(await nameRows(db, ids));
   const deps = { names, provenance: provenanceRow.rows[0] || {} };
 
   const events = sortEvents([
