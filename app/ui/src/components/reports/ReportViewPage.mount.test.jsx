@@ -135,14 +135,42 @@ describe('ReportViewPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled());
   });
 
-  it('offers one download button per format the API advertised, and no more', async () => {
+  it('offers the first advertised format as the main download and the others in a menu, and no more', async () => {
     renderReport();
 
     expect(await screen.findByRole('button', { name: 'Download JSON' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download XML' })).toBeInTheDocument();
-    // Not a button the page invented for a format this response never offered.
-    expect(screen.queryByRole('button', { name: /Download CSV/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /^Download / })).toHaveLength(2);
+    // The second format is one click further, not a button of its own.
+    expect(screen.queryByRole('button', { name: 'Download XML' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Other download formats' }));
+    expect(screen.getAllByRole('menuitem').map(b => b.textContent)).toEqual(['Download XML']);
+    // Not an entry the page invented for a format this response never offered.
+    expect(screen.queryByText(/Download CSV/)).not.toBeInTheDocument();
+  });
+
+  it('makes the workbook the main download whenever it is offered, wherever it is listed', async () => {
+    renderReport({ rows: rowsBody([ROW], { exportFormats: ['tsv', 'xlsx', 'json'] }) });
+
+    expect(await screen.findByRole('button', { name: 'Download XLSX' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Other download formats' }));
+    expect(screen.getAllByRole('menuitem').map(b => b.textContent)).toEqual(['Download TSV', 'Download JSON']);
+  });
+
+  it('downloads a format picked from the menu, and closes the menu', async () => {
+    const { authFetch } = renderReport();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Other download formats' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download XML' }));
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(
+      '/api/reports/orphaned-accounts/export?format=xml'));
+  });
+
+  it('offers no menu when the API advertises a single format', async () => {
+    renderReport({ rows: rowsBody([ROW], { exportFormats: ['tsv'] }) });
+
+    expect(await screen.findByRole('button', { name: 'Download TSV' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Other download formats' })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -175,25 +203,44 @@ describe('ReportViewPage', () => {
       }),
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download XML' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Other download formats' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Download XML' }));
 
     expect(await screen.findByRole('button', { name: 'Preparing…' })).toBeDisabled();
-    // The other format is locked out too — one download at a time.
+    // The main format is locked out too — one download at a time.
     expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
 
     finish();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Download XML' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Other download formats' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeEnabled();
+  });
+
+  it('shows the main download as busy while it is being prepared', async () => {
+    let finish;
+    renderReport({
+      download: () => new Promise((resolve) => {
+        finish = () => resolve(blobResponse('{}', { type: 'application/json', filename: 'x.json' }));
+      }),
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Download JSON' }));
+
+    expect(await screen.findByRole('button', { name: 'Preparing…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Other download formats' })).toBeDisabled();
+
+    finish();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Download JSON' })).toBeEnabled());
   });
 
   it('tells the user when the download fails, and keeps the report on screen', async () => {
     renderReport({ download: () => blobResponse('{}', { ok: false, status: 500 }) });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download XML' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Download JSON' }));
 
     expect(await screen.findByText('Download failed')).toBeInTheDocument();
     expect(screen.getByText('HTTP 500')).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Ada Lovelace' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download XML' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeEnabled();
   });
 
   it('clears a previous download error when the next download is started', async () => {
@@ -204,10 +251,10 @@ describe('ReportViewPage', () => {
         : blobResponse('<rows/>', { type: 'application/xml', filename: 'x.xml' })),
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download XML' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Download JSON' }));
     expect(await screen.findByText('Download failed')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Download XML' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download JSON' }));
     await waitFor(() => expect(screen.queryByText('Download failed')).not.toBeInTheDocument());
   });
 

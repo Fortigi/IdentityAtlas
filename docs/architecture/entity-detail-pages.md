@@ -169,6 +169,45 @@ The `useRecentChanges` hook surfaces `addedCount`, `removedCount`, and an `added
 
 ---
 
+## Diff tab
+
+The Diff tab sits next to Timeline. The analyst picks a past moment T. The left column shows the entity as it was at T, the right column shows it now, and the rows are aligned like a two-file compare: every attribute (including flattened `extendedAttributes`) and every relationship, grouped (Manager, Business roles, Groups, Members, Contains, Part of, Linked accounts…).
+
+### Rebuilding the past from `_history`
+
+A `_history` row stores the row's state *before* the change in `prevData`. So the state of any row at T is the `prevData` of its **first change after T**. When nothing changed after T, it is the row as it is now. When that first change is an insert, the row did not exist at T. Soft-deleted rows (`deletedAt` set) count as absent.
+
+This works the same for the entity's own row and for every relationship row. It also holds when history began after the initial load (migration 073), because an untouched row simply reads as unchanged.
+
+### Endpoint shape
+
+```
+GET /api/<kind>/:id/diff?at=<ISO, in the past>
+
+{
+  "at": "2026-09-27T00:00:00.000Z",
+  "historySince": "2026-06-01T08:00:00Z",   // earliest _history row
+  "relationshipsTracked": true,             // false for contexts (ContextMembers isn't history-tracked)
+  "omittedUnchanged": 0,                    // unchanged relationship rows left out by the cap
+  "before": { "exists": true, "deleted": false, "attributes": { … }, "relationships": [item] },
+  "after":  { … same shape … }
+}
+item = { key, group, label, kind, id, detail }
+```
+
+The relationship sources per entity kind live in `routes/recentChanges/snapshot.js` (`RELATIONSHIP_SOURCES`), and each lookup is served by the migration-055 partial indexes. Unchanged relationship rows are read from the live table and capped at 2,000 per source. A capped row is left out of **both** sides, so the diff stays correct and the response reports how many were omitted.
+
+### One view for any two snapshots
+
+The UI never assumes the left side is the past. `diffSnapshots(before, after)` (`components/entityDiff.helpers.js`) compares any two snapshots of this shape, and `SnapshotDiffView` renders the result. To compare the current state with a *proposed* state later, build the proposed snapshot and pass it in. Neither the diff helper nor the view needs to change.
+
+### Caveats
+
+- Before `historySince`, nothing is known. Rows loaded by a system's first sync have no insert event either, so a moment before that load shows those rows as already present. The tab shows a note when T is before `historySince`.
+- Context membership (`ContextMembers`) is not history-tracked, so a context's diff covers its own attributes only.
+
+---
+
 ## Adding a new entity kind
 
 To give a new entity kind its own detail page with the graph + recent-changes treatment:

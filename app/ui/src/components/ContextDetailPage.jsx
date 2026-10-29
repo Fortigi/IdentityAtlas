@@ -8,7 +8,7 @@ import UploadProvenance from './contexts/UploadProvenance';
 import ContextEditModal from './contexts/ContextEditModal';
 import ContextRelationshipsTab from './ContextRelationshipsTab';
 import ProfileBody from './contexts/page/ProfileBody';
-import { TimelineSection, RiskSection } from './contexts/page/PageSections';
+import { TimelineSection, DiffSection, RiskSection } from './contexts/page/PageSections';
 import useFeatures from '@ui/hooks/useFeatures';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
@@ -133,12 +133,13 @@ function PageBody({ profile, ...props }) {
   return <GenericBody attrs={props.attrs} analyst={props.analyst} subContexts={props.subContexts} members={props.members} />;
 }
 
-// The analyst's foot of the page: the Timeline, and the Risk score when there is one.
+// The analyst's foot of the page: the Timeline, the Diff, and the Risk score when there is one.
 function AnalystFoot({ analyst, contextId, authFetch, onOpenDetail, riskData }) {
   if (!analyst) return null;
   return (
     <>
       <TimelineSection contextId={contextId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+      <DiffSection contextId={contextId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
       <RiskSection contextId={contextId} riskData={riskData} authFetch={authFetch} />
     </>
   );

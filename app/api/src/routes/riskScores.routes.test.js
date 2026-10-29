@@ -38,6 +38,27 @@ describe('risk-scores — paginated lists (200)', () => {
       expect(res.body.data[0]).toMatchObject({ id: 'x', effectiveScore: 80 });
     });
   }
+
+  // A soft-deleted principal / resource is history: its score must not list.
+  // Contexts, Identities and GovernanceCatalogs have no tombstone column.
+  const fromClauseOf = async (path) => {
+    await request(app).get(`/api/risk-scores/${path}`);
+    return queryRiskScoresPage.mock.calls.at(-1)[2].fromClause;
+  };
+  it.each([
+    ['users', 'p.id AND p."deletedAt" IS NULL'],
+    ['groups', 'r.id AND r."deletedAt" IS NULL'],
+    ['business-roles', `'BusinessRole' AND br."deletedAt" IS NULL`],
+    ['contexts', 'ou."managerId" = p.id AND p."deletedAt" IS NULL'],
+  ])('GET /risk-scores/%s joins only live rows', async (path, clause) => {
+    expect(await fromClauseOf(path)).toContain(clause);
+  });
+
+  it('adds no live filter on tables without a tombstone (identities)', async () => {
+    const from = await fromClauseOf('identities');
+    expect(from).not.toContain('deletedAt');
+    expect(from).not.toContain('1=1');
+  });
 });
 
 describe('GET /risk-scores/:type/:id — validation', () => {

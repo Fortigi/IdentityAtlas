@@ -81,14 +81,18 @@ export async function fetchMembershipBreakdown(pool, res, userId) {
   return { membershipCount, membershipByType };
 }
 
-// 3b. Access-package count (governance resources assigned to the user).
+// 3b. Access-package count (governance resources the user holds NOW). A
+// soft-deleted assignment or role is history, not current access — counting it
+// made the "Business Roles" bubble disagree with what the user actually holds.
 export async function fetchUserAccessPackageCount(pool, res, userId) {
   try {
     const r = await timedQuery(pool, 'user-ap-count', res, `SELECT COUNT(DISTINCT ra."resourceId")::int AS cnt
                 FROM "ResourceAssignments" ra
                 JOIN "Resources" r ON r.id = ra."resourceId"
                WHERE ra."principalId"::text = $1
-                 AND r."governanceResource"`, [userId]);
+                 AND r."governanceResource"
+                 AND ra."deletedAt" IS NULL
+                 AND r."deletedAt" IS NULL`, [userId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }
 }
@@ -100,20 +104,28 @@ export async function fetchUserHistoryCount(userId) {
 }
 
 // OAuth2-grant count (retired assignmentType — best-effort on older deployments).
+// Current grants only — the same filter as GET /user/:id/oauth2-grants.
 export async function fetchOauth2GrantCount(pool, res, userId) {
   try {
     const r = await timedQuery(pool, 'user-oauth2-grant-count', res, `SELECT COUNT(*)::int AS cnt
-                FROM "ResourceAssignments"
-               WHERE "principalId"::text = $1 AND "assignmentType" = 'OAuth2Grant'`, [userId]);
+                FROM "ResourceAssignments" a
+                JOIN "Resources" scope_res
+                  ON scope_res.id = a."resourceId"
+                 AND scope_res."resourceType" = 'DelegatedPermission'
+                 AND scope_res."deletedAt" IS NULL
+               WHERE a."principalId"::text = $1 AND a."assignmentType" = 'OAuth2Grant'
+                 AND a."deletedAt" IS NULL`, [userId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* column may not exist on older deployments */ }
 }
 
-// Direct-report count (cheap query on the managerId FK).
+// Direct-report count (cheap query on the managerId FK). Live reports only — a
+// leaver soft-deleted in the source is history, not a current report (same
+// predicate as the `directReports` reference filter in lib/referenceFilters.js).
 export async function fetchDirectReportCount(pool, res, userId) {
   try {
     const r = await timedQuery(pool, 'user-reports-count', res,
-      `SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = $1`, [userId]);
+      `SELECT COUNT(*)::int AS cnt FROM "Principals" WHERE "managerId" = $1 AND "deletedAt" IS NULL`, [userId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* managerId may not exist on older deployments */ }
 }
@@ -134,16 +146,26 @@ export async function fetchUserContextCount(pool, res, userId) {
 // Principal→principal relationships (migration 057): the four directional counts,
 // plus the "linked resource" (the enterprise-app Resource an AI agent / service
 // principal shares its id with). Both best-effort — absent on older deployments.
+//
+// The counts are of LIVE counterparties: the link row is joined to the principal
+// on the other end and a soft-deleted one is left out (the list endpoint keeps it
+// as flagged history). Same "live related principal" rule as the owners /
+// sponsors / ownsAgents entries of lib/referenceFilters.js; written as one
+// grouped scan here because that registry has no sponsored-guests relation and
+// four correlated subqueries would read the link table four times.
 export async function fetchPrincipalRelationships(pool, userId, res) {
   const counts = { ownerCount: 0, sponsorCount: 0, ownedAgentCount: 0, sponsoredGuestCount: 0 };
   try {
     const r = await timedQuery(pool, 'user-principal-relationships', res, `SELECT
-                COUNT(*) FILTER (WHERE "principalId"::text = $1        AND "relationshipType" = 'Owner')::int   AS "ownerCount",
-                COUNT(*) FILTER (WHERE "principalId"::text = $1        AND "relationshipType" = 'Sponsor')::int AS "sponsorCount",
-                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = $1 AND "relationshipType" = 'Owner')::int   AS "ownedAgentCount",
-                COUNT(*) FILTER (WHERE "relatedPrincipalId"::text = $1 AND "relationshipType" = 'Sponsor')::int AS "sponsoredGuestCount"
-                FROM "PrincipalRelationships"
-               WHERE "principalId"::text = $1 OR "relatedPrincipalId"::text = $1`, [userId]);
+                COUNT(*) FILTER (WHERE pr."principalId"::text = $1        AND pr."relationshipType" = 'Owner')::int   AS "ownerCount",
+                COUNT(*) FILTER (WHERE pr."principalId"::text = $1        AND pr."relationshipType" = 'Sponsor')::int AS "sponsorCount",
+                COUNT(*) FILTER (WHERE pr."relatedPrincipalId"::text = $1 AND pr."relationshipType" = 'Owner')::int   AS "ownedAgentCount",
+                COUNT(*) FILTER (WHERE pr."relatedPrincipalId"::text = $1 AND pr."relationshipType" = 'Sponsor')::int AS "sponsoredGuestCount"
+                FROM "PrincipalRelationships" pr
+                JOIN "Principals" cp
+                  ON cp.id = CASE WHEN pr."principalId"::text = $1 THEN pr."relatedPrincipalId" ELSE pr."principalId" END
+                 AND cp."deletedAt" IS NULL
+               WHERE pr."principalId"::text = $1 OR pr."relatedPrincipalId"::text = $1`, [userId]);
     Object.assign(counts, r.rows[0] || {});
   } catch (e) { if (!isMissingSchema(e)) throw e; /* PrincipalRelationships may not exist on older deployments */ }
 
@@ -151,7 +173,7 @@ export async function fetchPrincipalRelationships(pool, userId, res) {
   try {
     const r = await timedQuery(pool, 'user-linked-resource', res, `SELECT id, "displayName", "resourceType"
                 FROM "Resources"
-               WHERE id = $1 AND "resourceType" = 'Application'
+               WHERE id = $1 AND "resourceType" = 'Application' AND "deletedAt" IS NULL
                LIMIT 1`, [userId]);
     if (r.rows.length > 0) linkedResource = r.rows[0];
   } catch (e) { if (!isMissingSchema(e)) throw e; /* Resources always exists, but be defensive */ }

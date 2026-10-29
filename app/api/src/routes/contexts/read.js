@@ -21,6 +21,7 @@ import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
 import { OVERRIDE_COLUMNS, OVERRIDE_JOIN, withOverride } from '../../contexts/interviews/overrideRows.js';
 import { orgKnowledgeEnabled } from '../../featureFlags.js';
+import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 
 const router = Router();
 
@@ -28,7 +29,8 @@ const VARIANTS = new Set(['synced', 'generated', 'manual']);
 
 // Map targetType → the table name where memberIds live. Used to filter the
 // member list to live rows only (stale member rows are left to a background
-// reconciler, not this endpoint).
+// reconciler, not this endpoint): the member must exist, and — for the tables
+// that carry a soft-delete tombstone (SOFT_DELETE_TABLES) — must not be deleted.
 const MEMBER_TABLE = {
   Identity:  'Identities',
   Resource:  'Resources',
@@ -409,14 +411,17 @@ export async function loadMembers(contextId, targetType, { limit = 100, offset =
   // table shows for that kind of member (MEMBER_COLUMNS).
   const params = [contextId];
   const searchClause = searchFilter(search, params);
-  const { contextFilter, distinct, orderPrefix, countExpr } = memberScopeSql(includeDescendants);
+  const { contextFilter, distinct, orderPrefix, countExpr } = memberScopeSql(includeDescendants);  // A context is a generated view of current state: a soft-deleted principal or
+  // resource is no longer a member, in the list or in the total.
+  const liveClause = SOFT_DELETE_TABLES.has(table) ? ' AND m."deletedAt" IS NULL' : '';
   const from = `
       FROM "ContextMembers" cm
       JOIN "${table}" m ON ${memberJoinOn(targetType)}
       ${OVERRIDE_JOIN}
      WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
+       AND cm."memberType" = '${targetType}'${liveClause}
        ${searchClause}`;
+
 
   const dataSql = `
     SELECT ${distinct} m.id, m."displayName", ${MEMBER_COLUMNS[targetType]},

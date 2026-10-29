@@ -155,7 +155,9 @@ router.get('/resources/:id/contexts', async (req, res) => {
 });
 
 // ─── GET /api/resources/:id/assignments ─────────────────────────
-// Get principals assigned to this resource, with assignment type
+// Get principals assigned to this resource, with assignment type. History (the
+// assignment or the principal soft-deleted in the source) stays in the list but
+// carries `deleted` + `deletedAt` and sorts after current rows.
 router.get('/resources/:id/assignments', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json([]);
@@ -163,11 +165,13 @@ router.get('/resources/:id/assignments', async (req, res) => {
     const pool = await db.getPool();
     const r = await timedQuery(pool, 'resource-assignments', res, `
         SELECT ra."principalId", p."displayName" AS "principalDisplayName", p.email,
-               p."principalType", ra."assignmentType", ra.state, ra."assignmentStatus"
+               p."principalType", ra."assignmentType", ra.state, ra."assignmentStatus",
+               (ra."deletedAt" IS NOT NULL OR p."deletedAt" IS NOT NULL) AS "deleted",
+               LEAST(ra."deletedAt", p."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" ra
         LEFT JOIN "Principals" p ON ra."principalId" = p.id
         WHERE ra."resourceId" = $1
-        ORDER BY ra."assignmentType", p."displayName"
+        ORDER BY "deleted", ra."assignmentType", p."displayName"
       `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {
@@ -177,7 +181,10 @@ router.get('/resources/:id/assignments', async (req, res) => {
 });
 
 // ─── GET /api/resources/:id/business-roles ──────────────────────
-// Get business roles that contain this resource (via ResourceRelationships)
+// Get business roles that contain this resource (via ResourceRelationships).
+// A business role soft-deleted in the source stays listed (history) but carries
+// `deleted` + `deletedAt` and sorts last — otherwise a deleted role and its
+// re-created twin of the same name looked like one role listed twice.
 router.get('/resources/:id/business-roles', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json([]);
@@ -185,13 +192,14 @@ router.get('/resources/:id/business-roles', async (req, res) => {
     const pool = await db.getPool();
     const r = await timedQuery(pool, 'resource-business-roles', res, `
         SELECT DISTINCT rr."parentResourceId" AS "businessRoleId", br."displayName" AS "businessRoleName",
-               rr."roleName", rr."relationshipType"
+               rr."roleName", rr."relationshipType",
+               (br."deletedAt" IS NOT NULL) AS "deleted", br."deletedAt" AS "deletedAt"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" br ON rr."parentResourceId" = br.id
           AND br."resourceType" = 'BusinessRole'
         WHERE rr."childResourceId" = $1 AND rr."relationshipType" = 'Contains'
           AND rr."parentResourceId" IS NOT NULL
-        ORDER BY br."displayName"
+        ORDER BY "deleted", br."displayName"
       `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {
@@ -201,7 +209,8 @@ router.get('/resources/:id/business-roles', async (req, res) => {
 });
 
 // ─── GET /api/resources/:id/parent-resources ────────────────────
-// Get resources this resource is a member/child of (via ResourceRelationships)
+// Get resources this resource is a member/child of (via ResourceRelationships).
+// A parent soft-deleted in the source is history: flagged, sorted last.
 router.get('/resources/:id/parent-resources', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json([]);
@@ -209,11 +218,12 @@ router.get('/resources/:id/parent-resources', async (req, res) => {
     const pool = await db.getPool();
     const r = await timedQuery(pool, 'resource-parents', res, `
         SELECT rr."parentResourceId", pr."displayName" AS "parentDisplayName",
-               pr."resourceType" AS "parentResourceType", rr."relationshipType", rr."roleName"
+               pr."resourceType" AS "parentResourceType", rr."relationshipType", rr."roleName",
+               (pr."deletedAt" IS NOT NULL) AS "deleted", pr."deletedAt" AS "deletedAt"
         FROM "ResourceRelationships" rr
         INNER JOIN "Resources" pr ON rr."parentResourceId" = pr.id
         WHERE rr."childResourceId" = $1
-        ORDER BY rr."relationshipType", pr."displayName"
+        ORDER BY "deleted", rr."relationshipType", pr."displayName"
       `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {

@@ -164,6 +164,16 @@ describe('GET /resources/:id — optional-data error handling (Q2 de-masking)', 
     const ctxSql = mockDb.queryOne.mock.calls.map(([sql]) => sql).find(sql => sql.includes('"ContextMembers"'));
     expect(ctxSql).toContain(`"memberType" = 'Resource'`);
   });
+
+  it('counts only live members, business roles and parents (soft-deleted = history)', async () => {
+    await request(app).get(`/api/resources/${VALID_ID}`);
+    const sqls = timedQuery.mock.calls.map(([sql]) => sql);
+    const breakdown = sqls.find((s) => s.includes('GROUP BY ra."assignmentType"'));
+    expect(breakdown).toContain('ra."deletedAt" IS NULL');
+    expect(breakdown).toContain('p."deletedAt" IS NOT NULL');
+    expect(sqls.find((s) => s.includes('br."resourceType" = \'BusinessRole\''))).toContain('br."deletedAt" IS NULL');
+    expect(sqls.find((s) => s.includes('INNER JOIN "Resources" pr'))).toContain('pr."deletedAt" IS NULL');
+  });
 });
 
 describe('GET /resources/:id/contexts', () => {
@@ -247,6 +257,21 @@ describe('GET /resources/:id — lazy-loaded sub-resources', () => {
   it('surfaces a sub-resource query failure as 500', async () => {
     timedQuery.mockRejectedValue(new Error('boom'));
     expect((await request(app).get(`/api/resources/${VALID_ID}/assignments`)).status).toBe(500);
+  });
+  // Soft-deleted rows are history: the lists keep them but flag them and sort
+  // them last. SQL-blind mock, so this only pins the shape — the real behaviour
+  // is in resourceAndRoleDetailHistory.contract.test.js.
+  it.each([
+    ['assignments', 'LEAST(ra."deletedAt", p."deletedAt") AS "deletedAt"'],
+    ['business-roles', 'br."deletedAt" AS "deletedAt"'],
+    ['parent-resources', 'pr."deletedAt" AS "deletedAt"'],
+  ])('%s flags history with deleted + deletedAt, current rows first', async (sub, deletedAtExpr) => {
+    timedQuery.mockResolvedValue({ rows: [] });
+    await request(app).get(`/api/resources/${VALID_ID}/${sub}`);
+    const [sql] = timedQuery.mock.calls[0];
+    expect(sql).toContain('AS "deleted"');
+    expect(sql).toContain(deletedAtExpr);
+    expect(sql).toMatch(/ORDER BY "deleted",/);
   });
 });
 
