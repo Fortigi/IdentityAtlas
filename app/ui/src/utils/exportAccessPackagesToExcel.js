@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { setHeaderCell } from './excelHelpers';
+import { setHeaderCell, formatDate, thinBorder } from './excelHelpers';
 import {
   buildApValues,
   writeApCells,
@@ -8,9 +8,10 @@ import {
 } from './exportAccessPackagesToExcel.helpers';
 
 // Fetch all APs matching current filters (up to 2000)
-async function fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir }) {
+async function fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir, includeDeleted }) {
   const params = new URLSearchParams({ limit: 2000, offset: 0 });
   if (search) params.set('search', search);
+  if (includeDeleted) params.set('includeDeleted', 'true');
   if (categoryFilter !== null) {
     if (categoryFilter === 'uncategorized') {
       params.set('uncategorized', 'true');
@@ -41,10 +42,18 @@ async function fetchResourceRoles(authFetch, apId) {
   }
 }
 
-export async function exportAccessPackagesToExcel({ authFetch, search, categoryFilter, sortCol, sortDir, typeFilter, onProgress }) {
+// "Deleted At" cell — only written when the export includes deleted roles.
+function writeDeletedAtCell(ws, rowNum, col, deletedAt) {
+  const cell = ws.getCell(rowNum, col);
+  cell.value = formatDate(deletedAt);
+  cell.font = { size: 11 };
+  cell.border = thinBorder();
+}
+
+export async function exportAccessPackagesToExcel({ authFetch, search, categoryFilter, sortCol, sortDir, typeFilter, includeDeleted = false, onProgress }) {
   // 1. Fetch all matching APs
   onProgress?.('Fetching business roles...');
-  const allPackages = await fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir });
+  const allPackages = await fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir, includeDeleted });
 
   // Apply client-side type filter (same as the page does)
   const packages = typeFilter ? allPackages.filter(p => p.assignmentType === typeFilter) : allPackages;
@@ -81,6 +90,9 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
     { header: 'Group',         width: 45 },
     { header: 'Role',          width: 15 },
   ];
+  // Deleted roles are only in the export when asked for; mark when each went.
+  if (includeDeleted) columns.push({ header: 'Deleted At', width: 16 });
+  const deletedAtCol = columns.length;
 
   columns.forEach((col, i) => {
     ws.getColumn(i + 1).width = col.width;
@@ -118,6 +130,7 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
       } else {
         writeEmptyResourceCells(ws, rowNum, AP_COL_COUNT, columns.length);
       }
+      if (includeDeleted) writeDeletedAtCell(ws, rowNum, deletedAtCol, pkg.deletedAt);
 
       rowNum++;
     }

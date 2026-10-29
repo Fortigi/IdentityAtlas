@@ -126,10 +126,21 @@ describe('capability flags', () => {
     expect(getPushModeType()).toBe('custom-connector');
   });
 
-  it('isExperimentalType is true for SCIM and false for every shipped non-experimental crawler', () => {
-    expect(isExperimentalType('scim')).toBe(true);
-    for (const type of ['entra-id', 'omada', 'midpoint', 'csv', 'custom-connector']) {
-      expect(isExperimentalType(type)).toBe(false);
+  it('isExperimentalType is false for every shipped crawler, SCIM included now it has graduated', () => {
+    for (const type of ['scim', 'entra-id', 'omada', 'midpoint', 'csv', 'custom-connector']) {
+      expect(isExperimentalType(type), type).toBe(false);
+    }
+  });
+
+  it('isExperimentalType reads the manifest flag — true only for a manifest that declares it', () => {
+    _crawlerManifests['fixture-experimental'] = { type: 'fixture-experimental', experimental: true };
+    _crawlerManifests['fixture-explicitly-not'] = { type: 'fixture-explicitly-not', experimental: false };
+    try {
+      expect(isExperimentalType('fixture-experimental')).toBe(true);
+      expect(isExperimentalType('fixture-explicitly-not')).toBe(false);
+    } finally {
+      delete _crawlerManifests['fixture-experimental'];
+      delete _crawlerManifests['fixture-explicitly-not'];
     }
   });
 

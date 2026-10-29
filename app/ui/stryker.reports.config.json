@@ -22,8 +22,10 @@
     "src/components/inputs/EntityLookup.jsx",
     "src/components/inputs/EntityLookup.helpers.js",
     "src/components/reports/ListReportRenderer.jsx",
+    "src/components/reports/ReportDownloads.jsx",
     "src/components/reports/ReportError.jsx",
     "src/components/reports/ReportNotices.jsx",
+    "src/components/reports/ReportSummary.jsx",
     "src/components/reports/ReportViewPage.jsx",
     "src/components/reports/ReportViewWizard.jsx",
     "src/components/reports/reportViewSteps.js",
@@ -39,6 +41,7 @@
     "src/components/reports/formRenderers.js",
     "src/components/reports/reportExport.js",
     "src/components/reports/reportParams.js",
+    "src/components/reports/summaryData.js",
     "src/hooks/useCanBuildReports.js",
     "src/utils/download.js"
   ],

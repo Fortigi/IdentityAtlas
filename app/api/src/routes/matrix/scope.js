@@ -12,7 +12,9 @@ import { buildAssignmentExprs } from '../../db/matrixHelpers.js';
 import { getPrincipalColumns, getResourceColumns } from '../../db/columnCache.js';
 import { generateSampleDates, buildScopeAsofSql, historyStartSql } from '../../matrix/scopeHistory.js';
 import { resolveAttrExpr } from '../../matrix/attrExpr.js';
-import { parseFilter, buildSubqueries, subjectScopeClauses, runCount, resolveContextTypes } from './shared.js';
+import {
+  parseFilter, buildSubqueries, subjectScopeClauses, resourceScopeWhere, runCount, resolveContextTypes,
+} from './shared.js';
 import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 
 const router = Router();
@@ -66,7 +68,7 @@ router.post('/matrix/scope-stats', async (req, res) => {
         `SELECT COUNT(*)::int AS c FROM "${subj.subjectTable}"${subj.where}`,
         scp.params),
       runCount(p, 'matrix-scope-resource', res,
-        `SELECT COUNT(*)::int AS c FROM "Resources"${rcResourceSql ? ` WHERE id IN ${rcResourceSql}` : ''}`,
+        `SELECT COUNT(*)::int AS c FROM "Resources"${resourceScopeWhere(rcResourceSql)}`,
         rcp.params),
       timedQuery(p, 'matrix-scope-pairs', res, pairSql, pp.params).then(r => r.rows[0] || { total: 0, governed: 0 }),
     ]);
@@ -198,7 +200,9 @@ router.post('/matrix/scope-breakdown', async (req, res) => {
     const built = await buildSubqueries(filter);
     const p = await db.getPool();
     const grp = `COALESCE(NULLIF(${attrExpr}::text, ''), '(none)')`;
-    const notGroup = `(u."principalType" IS NULL OR u."principalType" <> '${GROUP_PRINCIPAL_TYPE}')`;
+    // Live (not soft-deleted), non-group principals — a tombstoned account is
+    // history and must not count toward a group's principal total.
+    const notGroup = `u."deletedAt" IS NULL AND (u."principalType" IS NULL OR u."principalType" <> '${GROUP_PRINCIPAL_TYPE}')`;
 
     // Principals per group (includes principals with no assignments) — only the
     // subject fragment, rendered with its own params.

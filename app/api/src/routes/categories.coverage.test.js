@@ -254,6 +254,38 @@ describe('GET /access-packages', () => {
     expect(res.body.data[0].assignmentType).toBe('Request-based');
   });
 
+  // Soft delete (migration 040): a business role deleted in the source stays as
+  // history. Hidden by default, revealed — with its deletedAt — on request.
+  it('hides deleted business roles by default and counts only live assignments', async () => {
+    queryOne.mockResolvedValueOnce({ t: null });
+    query
+      .mockResolvedValueOnce({ rows: [{ id: RES, displayName: 'AP', totalAssignments: 1, policyCount: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/access-packages');
+    expect(res.status).toBe(200);
+    const [dataSql] = query.mock.calls[0];
+    const [countSql] = query.mock.calls[1];
+    expect(dataSql).toMatch(/ap\."deletedAt" IS NULL/);
+    expect(countSql).toMatch(/ap\."deletedAt" IS NULL/);
+    expect(dataSql).toMatch(/ra\."deletedAt" IS NULL/);
+    expect(dataSql).toMatch(/pr\."deletedAt" IS NULL/);
+    expect(res.body.data[0].deletedAt).toBeNull();
+  });
+
+  it('?includeDeleted=true drops the filter and returns deletedAt', async () => {
+    queryOne.mockResolvedValueOnce({ t: null });
+    query
+      .mockResolvedValueOnce({ rows: [{ id: RES, displayName: 'AP', deletedAt: '2026-10-01T00:00:00.000Z', totalAssignments: 0, policyCount: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/access-packages?includeDeleted=true');
+    expect(res.status).toBe(200);
+    expect(query.mock.calls[0][0]).not.toMatch(/ap\."deletedAt" IS NULL/);
+    expect(query.mock.calls[1][0]).not.toMatch(/ap\."deletedAt" IS NULL/);
+    // Live-assignment counting does not depend on the toggle.
+    expect(query.mock.calls[0][0]).toMatch(/ra\."deletedAt" IS NULL/);
+    expect(res.body.data[0].deletedAt).toBe('2026-10-01T00:00:00.000Z');
+  });
+
   it('500 when the data query rejects', async () => {
     queryOne.mockResolvedValueOnce({ t: null });
     query.mockRejectedValueOnce(new Error('boom'));
