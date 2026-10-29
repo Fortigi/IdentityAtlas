@@ -119,3 +119,27 @@ describe('authMiddleware — real RS256 token validation', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// The same verification, used by /mcp with its own audiences (mcp/auth.js).
+describe('verifyEntraAccessToken — shared with the MCP endpoint', () => {
+  const MCP_AUD = 'https://atlas.example.com/mcp';
+
+  it('accepts any of the audiences it is given, and only those', async () => {
+    const { verifyEntraAccessToken } = await import('./auth.js');
+    const audiences = [MCP_AUD, GOOD_AUD];
+    await expect(verifyEntraAccessToken(mint({ aud: MCP_AUD }), audiences)).resolves.toMatchObject({ tid: TENANT });
+    await expect(verifyEntraAccessToken(mint(), audiences)).resolves.toMatchObject({ tid: TENANT });
+    await expect(verifyEntraAccessToken(mint({ aud: 'https://other.example.com/mcp' }), audiences)).rejects.toThrow(/audience/);
+  });
+
+  it('marks a token from another tenant so callers can tell it apart', async () => {
+    const { verifyEntraAccessToken } = await import('./auth.js');
+    await expect(verifyEntraAccessToken(mint({ tid: '99999999-9999-9999-9999-999999999999' }), GOOD_AUD))
+      .rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
+  });
+
+  it('a token minted for the MCP resource is NOT accepted by the rest of the API', async () => {
+    const res = await callWith(mint({ aud: MCP_AUD }));
+    expect(res.status).toBe(401);
+  });
+});

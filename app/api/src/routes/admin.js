@@ -8,6 +8,7 @@
 //   admin/maintenance.js — /api/admin/clean-database + /api/admin/history-retention (read/write/prune)
 //   admin/dashboard.js   — /api/admin/dashboard-stats + /api/admin/dashboard-timeseries
 //   admin/settings.js    — /api/admin/features/toggle + /api/admin/auth-settings
+//   admin/mcp.js         — /api/admin/mcp (endpoint URL + MCP audit log)
 //
 // This file just composes them onto one router and re-exports it, so the mount
 // in app.js and every public path are unchanged.
@@ -18,8 +19,10 @@ import riskConfigRouter from './admin/riskConfig.js';
 import maintenanceRouter from './admin/maintenance.js';
 import dashboardRouter from './admin/dashboard.js';
 import settingsRouter from './admin/settings.js';
+import mcpRouter from './admin/mcp.js';
 
 const router = Router();
+router.use(mcpRouter);
 router.use(curatedDataRouter);
 router.use(riskConfigRouter);
 router.use(maintenanceRouter);

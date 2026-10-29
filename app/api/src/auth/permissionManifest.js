@@ -45,6 +45,13 @@ export const GATED_ENDPOINTS = {
   'admin.read-tokens':     { method: 'GET',  path: '/api/admin/read-tokens' },
   'admin.feature-flags':   { method: 'POST', path: '/api/admin/features/toggle', body: { key: 'RISK_SCORING', enabled: false } },
   'admin.auth':            { method: 'GET',  path: '/api/admin/roles' },
+  // The MCP endpoint lives outside /api and checks the token itself
+  // (mcp/auth.js): it also needs the Mcp.Read scope and the mcpServer feature,
+  // both of which permissionMatrix.test.js provides.
+  'mcp.use':               {
+    method: 'POST', path: '/mcp',
+    body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'matrix-test', version: '1' } } },
+  },
 };
 
 // ── Implicit permissions ────────────────────────────────────────────────────

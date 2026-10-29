@@ -29,9 +29,17 @@
 const HOST_RE = /^[a-zA-Z0-9.-]+(:\d{1,5})?$/;
 
 export function resolveExportBaseUrl(req, env = process.env) {
+  return `${resolvePublicBaseUrl(req, env)}/api`;
+}
+
+// The deployment's public origin (scheme + host, no trailing slash), resolved in
+// the trust order above. The MCP endpoint uses it for its resource URL, which an
+// access token's audience is checked against — the same reason it must never
+// come from an untrusted header.
+export function resolvePublicBaseUrl(req, env = process.env) {
   const configured = env.PUBLIC_BASE_URL && env.PUBLIC_BASE_URL.trim();
   if (configured) {
-    return `${configured.replace(/\/+$/, '')}/api`;
+    return configured.replace(/\/+$/, '');
   }
 
   // Scheme: trust the server-side BEHIND_TLS flag first (same flag that drives
@@ -52,7 +60,7 @@ export function resolveExportBaseUrl(req, env = process.env) {
     throw new Error('Cannot resolve a safe export base URL host');
   }
 
-  return `${proto}://${host}/api`;
+  return `${proto}://${host}`;
 }
 
 // X-Forwarded-* may legitimately be a comma-separated chain ("client, proxy1").
