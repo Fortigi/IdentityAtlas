@@ -169,6 +169,20 @@ describe('SourcesList', () => {
     renderWithProviders(h(SourcesList, { contextId: 'c-app', interviews: [], onChanged: vi.fn() }));
     expect(screen.getByText('Nothing added yet.')).toBeInTheDocument();
   });
+
+  it('a source added on another unit says where, counts its claims about this unit\'s people, and can only be viewed', async () => {
+    const onViewTranscript = vi.fn();
+    const parent = { id: 'iv-9', sourceKind: 'interview', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-05', fileName: 'gesprek.txt',
+      extractionStatus: 'done', proposed: 3, confirmed: 1, filedUnderId: 'c-parent', filedUnderName: 'Claims Handling' };
+    renderWithProviders(h(SourcesList, { contextId: 'c-app', interviews: [SOURCES[0], parent], onChanged: vi.fn(), onViewTranscript }));
+    const rows = screen.getAllByTestId('source-row');
+    expect(within(rows[1]).getByTestId('filed-under')).toHaveTextContent('added on Claims Handling');
+    expect(rows[1]).toHaveTextContent('3 to review · 1 confirmed about this unit’s people');
+    expect(within(rows[0]).queryByTestId('filed-under')).toBeNull();
+    for (const name of ['Read again', 'Add claim', 'Delete']) expect(within(rows[1]).queryByRole('button', { name })).toBeNull();
+    await userEvent.setup().click(within(rows[1]).getByRole('button', { name: /^View the/ }));
+    expect(onViewTranscript).toHaveBeenCalledWith('iv-9');
+  });
 });
 
 describe('ManualClaimForm', () => {

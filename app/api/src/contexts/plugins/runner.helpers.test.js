@@ -1,7 +1,7 @@
 // Unit tests for the pure reconcile helpers (runner.helpers.js).
 
 import { describe, it, expect } from 'vitest';
-import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
+import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, producedMemberPairs, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -86,6 +86,20 @@ describe('buildMemberInsertBatch', () => {
     );
     // The skipped member consumes no placeholder slots; the survivor starts at $1.
     expect(values).toEqual(["($1, $2, $3, 'algorithm')"]);
+  });
+});
+
+describe('producedMemberPairs', () => {
+  it('resolves each member to its final context id, in parallel arrays, skipping dangling ones', () => {
+    const pairs = producedMemberPairs(
+      [{ contextExternalId: 'ctx2', memberId: 'm2' }, { contextExternalId: 'gone', memberId: 'm9' }, { contextExternalId: 'ctx1', memberId: 'm1' }],
+      new Map([['ctx1', 'id-1'], ['ctx2', 'id-2']]),
+    );
+    expect(pairs).toEqual({ contextIds: ['id-2', 'id-1'], memberIds: ['m2', 'm1'] });
+  });
+
+  it('returns empty arrays for a run without members', () => {
+    expect(producedMemberPairs([], new Map([['ctx1', 'id-1']]))).toEqual({ contextIds: [], memberIds: [] });
   });
 });
 

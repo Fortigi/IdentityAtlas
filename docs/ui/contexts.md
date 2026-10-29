@@ -53,6 +53,23 @@ The Contexts tab has one tab per template — **Organisation**, **Applications**
 
 Expand a row with its arrow to see its sub-units. The old **List** mode, which flattened a tree into a table, is gone; a unit's members are listed on its page.
 
+### The Timeline
+
+The folded **Timeline** at the bottom of a unit's page says what happened, in words, with who or what did it:
+
+| Filter | What it shows |
+|---|---|
+| **People** | Who joined and who left ("Lisa Vos joined (list upload: Teams.xlsx)"), and changes to its people's job title, department, manager or account (disabled, deleted in the source) — also of someone who left during the period |
+| **Roles** | Accountable and Responsible set, changed ("Accountable changed: Sophie Willems → Tom Bakker (analyst)") and removed, and whether that came from the source owner, a rule, an analyst or an interview |
+| **Structure** | Renamed, moved under another unit, description and other details, tree adjustments and change requests |
+| **Knowledge** | What the sources did: uploads, claims extracted and decided (with organisation knowledge on) |
+
+Many like changes on one day — a list upload adding 40 people — fold into one line ("40 people joined (list upload)") that opens to the names. Joins and leaves are recorded from the moment this version is installed (migration 109); members who joined earlier show when they were added, except members a rule derives.
+
+### Sources added on another unit
+
+An interview added on the parent unit often says who in a sub-unit does what. Such a source is also listed under the sub-unit's **Sources**, marked *added on <that unit>*, with the number of its claims about the sub-unit's people. You can view it there; reading it again, adding claims or deleting it is done on the unit it was added to.
+
 ---
 ## Create a context
 

@@ -41,7 +41,9 @@
     "src/lib/contextNameMatch.js",
     "src/routes/contexts/interviews.js",
     "src/contexts/changeRequests.js",
-    "src/routes/contexts/changeRequests.js"
+    "src/routes/contexts/changeRequests.js",
+    "src/contexts/timeline/unitEvents.js",
+    "src/contexts/timeline/unitTimeline.js"
   ],
   "thresholds": {
     "high": 90,

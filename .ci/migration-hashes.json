@@ -100,6 +100,7 @@
     "101_context_member_overrides.sql": "754b259234d1f33a1addc387b71fe68cc96341dee3e5f599370def35368acf2a",
     "103_change_requests.sql": "8193bae58bee22e559c5a22fa7016534c75a79887cc5c27cb194f428b2065494",
     "104_context_tree_adjustments.sql": "055185bc4e2846eb54a1d2366b05dfca7735f8ca8482a189548e6f014eb282df",
-    "105_context_repairs.sql": "1493d0c9a071ee323e681cad8e8529ef86fca460dd270ba06a0cd473317b9103"
+    "105_context_repairs.sql": "1493d0c9a071ee323e681cad8e8529ef86fca460dd270ba06a0cd473317b9103",
+    "109_context_member_history.sql": "127b63938bc4ff6d2addf6ae2a4923dccdc570c9a609447d84035f2405dbba8f"
   }
 }
