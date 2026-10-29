@@ -94,6 +94,17 @@ describe('GET /contexts/:id/timeline — what happened, in words', () => {
     expect(said.some(s => /last calculated/i.test(s))).toBe(false);
     expect(body.events.find(e => e.summary.startsWith('Lisa Vos (tl) joined')).burst).toMatchObject({ many: 'people joined', actor: `list upload: ${LIST}` });
   });
+
+  it('names an account removed outright by the last name its history recorded', async () => {
+    const gone = randomUUID();
+    await q(`INSERT INTO "Principals" (id, "systemId", "externalId", "displayName", "principalType") VALUES ($1, $2, 'tl-gone', 'Gone Person (tl)', 'User')`, [gone, systemId]);
+    await q(`INSERT INTO "ContextRoles" ("contextId", "principalId", role, "addedBy") VALUES ($1, $2, 'Responsible', 'analyst')`, [id.unit, gone]);
+    await q(`DELETE FROM "Principals" WHERE id = $1`, [gone]); // cascades the role away
+
+    const said = (await timeline()).events.map(e => e.summary);
+    expect(said).toContain('Responsible added: Gone Person (tl) (analyst)');
+    expect(said).toContain('Responsible removed: Gone Person (tl) (analyst)');
+  });
 });
 
 describe('GET /contexts/:id/interviews — Sources', () => {

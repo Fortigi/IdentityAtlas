@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  loadUnitTimeline, idsNamed, nameBook, splitByTable, leavers, untoldJoins,
+  loadUnitTimeline, idsNamed, nameBook, nameRows, splitByTable, leavers, untoldJoins, GONE_NAMES_SQL,
   UNIT_HISTORY_SQL, EARLIER_MEMBERS_SQL, PROVENANCE_SQL, PEOPLE_ACCOUNTS_SQL, PEOPLE_CHANGES_SQL, NAMES_SQL, UNIT_TIMELINE_ROW_CAP,
 } from './unitTimeline.js';
 
@@ -114,6 +114,25 @@ describe('loadUnitTimeline', () => {
     const sqls = db.query.mock.calls.map(c => c[0]);
     expect(sqls).not.toContain(PEOPLE_CHANGES_SQL);
     expect(sqls).not.toContain(NAMES_SQL);
+  });
+});
+
+describe('nameRows', () => {
+  it('asks history only for the ids no current row names, and keeps only names it found there', async () => {
+    const db = fakeDb(new Map([
+      [NAMES_SQL, [{ kind: 'Principal', id: MAX, displayName: 'Max' }]],
+      [GONE_NAMES_SQL, [{ kind: 'Principal', id: TOM, displayName: 'Tom (removed)' }, { kind: 'Principal', id: EVA, displayName: null }]],
+    ]));
+    const rows = await nameRows(db, [MAX, TOM, EVA]);
+    expect(rows.map(r => r.displayName)).toEqual(['Max', 'Tom (removed)']);
+    expect(db.query.mock.calls.find(c => c[0] === GONE_NAMES_SQL)[1]).toEqual([[TOM, EVA]]);
+  });
+
+  it('reads nothing for no ids, and no history when every id is named', async () => {
+    const db = fakeDb(new Map([[NAMES_SQL, [{ kind: 'Principal', id: MAX, displayName: 'Max' }]]]));
+    expect(await nameRows(db, [])).toEqual([]);
+    expect(await nameRows(db, [MAX])).toHaveLength(1);
+    expect(db.query.mock.calls.map(c => c[0])).toEqual([NAMES_SQL]);
   });
 });
 
