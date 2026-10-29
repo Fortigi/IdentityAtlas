@@ -21,7 +21,7 @@ function Controls({ pcol, perms, open, onOpenChange }) {
 export function PermissionHeaderCells({ perms, widths }) {
   const [open, setOpen] = useState(null);
   return PERMISSION_COLUMNS.map((pcol, i) => (
-    <th key={pcol.key} scope="col" style={{ width: widths[i], zIndex: open === pcol.key ? 50 : 30, left: i === 0 ? 0 : undefined }}
+    <th key={pcol.key} scope="col" data-sticky-left style={{ width: widths[i], zIndex: open === pcol.key ? 50 : 30, left: i === 0 ? 0 : undefined }}
       className={`${i === 0 ? 'sticky' : 'relative'} border-b border-r border-gray-200 bg-gray-50 px-1 py-1 text-left text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200`}>
       <Controls pcol={pcol} perms={perms} open={open === pcol.key} onOpenChange={(v) => setOpen(v ? pcol.key : null)} />
     </th>

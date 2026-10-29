@@ -85,3 +85,17 @@ describe('bandsForLens', () => {
     expect(bandsForLens(aps.filter(a => a.id !== 'p1'), 'unmanaged')).toEqual([]);
   });
 });
+
+describe('the order of the role columns with proposed roles added', () => {
+  const ap = (id, extra) => ({ resourceId: 'r1', accessPackageId: id, accessPackageName: id, roleName: 'Member', ...extra });
+  const held = (ids) => new Map([['r1|u1', ids.map(i => i.toLowerCase())]]);
+
+  it('puts every proposed role after every real one — categorised or not — keeping the real ones\' own order', () => {
+    const real = [ap('Zeta', { categoryName: 'Zeta', totalAssignments: 1 }), ap('Uncat', { totalAssignments: 9 }), ap('Alpha', { categoryName: 'Alpha', totalAssignments: 3 })];
+    const drafts = [ap('p2', { categoryName: PROPOSED_CATEGORY, totalAssignments: 1 }), ap('p1', { categoryName: PROPOSED_CATEGORY, totalAssignments: 4 })];
+    const alone = buildAccessPackages(real, groups, users, held(['Zeta', 'Uncat', 'Alpha'])).accessPackages.map(a => a.id);
+    const added = buildAccessPackages([...drafts, ...real], groups, users, held(['Zeta', 'Uncat', 'Alpha', 'p1', 'p2'])).accessPackages.map(a => a.id);
+    expect(alone).toEqual(['Alpha', 'Zeta', 'Uncat']);
+    expect(added).toEqual([...alone, 'p1', 'p2']);
+  });
+});

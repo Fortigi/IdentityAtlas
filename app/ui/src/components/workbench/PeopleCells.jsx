@@ -19,7 +19,7 @@ const cellStyle = (column, left, z) => ({ left, zIndex: z, width: column.width, 
 export function PeopleHeader({ columns, offsets, people, filters, sort, onSort, onFilter }) {
   const [open, setOpen] = useState(null);
   return columns.map((column, i) => (
-    <th key={column.key} scope="col" style={cellStyle(column, offsets[i], open === column.key ? 45 : 30)}
+    <th key={column.key} scope="col" data-sticky-left style={cellStyle(column, offsets[i], open === column.key ? 45 : 30)}
       className={`${STICKY} top-0 bg-gray-50 px-2 py-1 text-left align-bottom text-[11px] font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-200`}>
       <HeaderControls column={column} people={people} filter={filters[column.key]} sort={sort} onSort={onSort} onFilter={onFilter}
         open={open === column.key} onOpenChange={(v) => setOpen(v ? column.key : null)} />

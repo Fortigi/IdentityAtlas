@@ -100,7 +100,8 @@ function ColumnsChooser({ shown, onChange }) {
 
 // "8 of 26 people shown", the filters in words (each removable), and the Excel move:
 // take the people the filters leave.
-export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown, onUseAsRule }) {
+// `children`: more on the same line (the permission filters — PermissionStrip), so the two counts share one row.
+export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown, onUseAsRule, children }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs" role="region" aria-label="Filters">
       <span className="font-medium text-gray-900 dark:text-gray-100">{shown} of {total} people shown</span>
@@ -111,6 +112,7 @@ export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSele
         </span>
       ))}
       {summary.length > 0 && <button type="button" onClick={onClearAll} className="text-blue-700 hover:underline dark:text-blue-300">Clear all filters</button>}
+      {children}
       <span className="ml-auto flex gap-2">
         <button type="button" onClick={onSelectShown} disabled={shown === 0} className={`${BTN} disabled:opacity-50`}>Select what they hold</button>
         {onUseAsRule && <button type="button" onClick={onUseAsRule} title="The role's members follow these filters (and the sub-units choice), now and as people join or leave" className={BTN}>Use these filters as the role's rule</button>}
@@ -129,9 +131,8 @@ function repeatedPeople(groups, people) {
 export function SelectionBar({ selection, dispatch, cellIndex, groups = [] }) {
   const { people, resources } = selectionParts(selection);
   const repeated = repeatedPeople(groups, people);
-  if (selection.size === 0) {
-    return <p className="text-xs text-gray-600 dark:text-gray-400">Click a cell, Shift-click for a rectangle, Ctrl/⌘-click to add; click a person, a group or a column header to select what they hold.</p>;
-  }
+  // Nothing selected: nothing here (how to select is in the legend under the grid).
+  if (selection.size === 0) return null;
   const btn = 'rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700';
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-800 dark:bg-blue-950/50" role="toolbar" aria-label="Selection">
@@ -156,6 +157,7 @@ export function Legend() {
   return (
     <div aria-label="Legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-700 dark:text-gray-300">
       <MatrixLegendButton />
+      <span>Click a cell, Shift-click for a rectangle, Ctrl/⌘-click to add; click a person, a group or a column header to select what they hold.</span>
       <span>Colour = covered by a business role · the candidate shows as <span className="font-medium">Draft</span> in the role band</span>
       <ul aria-label="Marks" className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {MARK_LEGEND.map(s => (

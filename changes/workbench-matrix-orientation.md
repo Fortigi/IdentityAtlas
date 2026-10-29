@@ -5,4 +5,4 @@
   - A business role shows only the entitlements left by the filters, and says "(all hidden by filters)" when none are. A proposed role always keeps its own entitlements, marked "hidden by filter", so nothing is silently dropped from a proposal.
   - The impact counts only what is shown, and says how many permissions the filters leave out.
   - The filters are saved with the investigation. With people as rows they sit behind a **Permissions** menu.
-- The Authorization workbench no longer shows two vertical scrollbars. On a wide window the grid and the proposed-role panel fit the window and each scrolls on its own; on a narrow one the page scrolls. The header rows about people are only as tall as their values need, so the permissions stay in view.
+- The Authorization workbench has one vertical scrollbar, the page's. Its header rows stay at the top of the window as you scroll, and the proposed-role panel stays beside the grid. The header rows about people are compact (full values on hover), so many more permission rows fit on screen.

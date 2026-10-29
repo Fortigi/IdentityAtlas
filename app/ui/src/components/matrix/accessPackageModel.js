@@ -59,8 +59,12 @@ function pruneUnassignedPackages(apMap, managedApMap, visibleGroupIds, visibleUs
   }
 }
 
-// AP order: by category name, then total assignments desc; uncategorized last.
+// AP order: by category name, then total assignments desc; uncategorized after
+// the categories; the proposed roles "+ Proposed roles" adds come last of all, after
+// every real business role.
 function compareAccessPackages(a, b) {
+  const aProposed = a.categoryName === PROPOSED_CATEGORY;
+  if (aProposed !== (b.categoryName === PROPOSED_CATEGORY)) return aProposed ? 1 : -1;
   const aCat = a.categoryName;
   const bCat = b.categoryName;
   if (aCat && !bCat) return -1;

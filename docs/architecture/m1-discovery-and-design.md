@@ -199,6 +199,10 @@ With it on (`matrix/ProposedMatrix`):
   (`extraCoverage`, merged into the colour map by `buildManagedApMap`).
 - In Non-governed, where the business-role bands are hidden, the Draft bands still show
   (`bandsForLens`). In Gaps, a proposed role's provisioning gaps show like a business role's.
+- **The Draft columns come last,** after every real business role (categorised or not), and the real
+  ones keep their order (`compareAccessPackages`). Where the drafts start there is a gap with a faint
+  dashed line, and "Proposed" in the band above them (`isProposedStart`, `PROPOSED_GAP_CLASS`), in
+  the band, names row and body cells alike so the columns line up.
 - The real business roles keep their bands and colours, so an overlap with what is already governed
   shows.
 - The rows are the view's own; the toggle reads no rows. Members of a proposed role who are not in
@@ -246,19 +250,30 @@ The grid reuses the matrix's `MatrixCell` and colours. It does not reuse `Matrix
 order, fold tallies), and threading the workbench's selection and marks through them would put the
 global matrix at risk.
 
-### One scrollbar
+### One scrollbar: the page's
 
-The page and the grid never scroll together; the workbench follows the global matrix here
-(`useViewportFitHeight`, `GridAndPanel`).
+The page scrolls; the workbench grid has no vertical scrollbar of its own (decided with Wim
+2026-10-29, after a first version sized the grid to the window and left room for one row under the
+header rows).
 
-- **Wide window (xl):** the grid and the candidate panel share a row sized to the rest of the
-  window. The grid scrolls inside it with its header rows sticky; the panel scrolls on its own; the
-  page does not scroll.
-- **Narrow window (stacked), or too little room for a usable grid:** nothing is capped and the page
-  alone scrolls.
-- **Header rows about people** (job title, activity, …) are only as tall as their longest value
-  needs, within limits (`headerRowHeight`): a longer value is cut off with "…" and shown whole on
-  hover. A row nobody has a value in is one line.
+- **Header:** the grid's header rows stick to the top of the window as the page scrolls
+  (`PageStickyTable`).
+- **Wide grids:** a grid wider than its column scrolls sideways inside itself. A box that scrolls is
+  what a sticky header sticks to, so the header lives in a strip of its own above the body.
+  - The strip uses the same fixed column widths, clipped sideways (`overflow-x: clip`, so the
+    filter menus and popovers that open from it are not cut off).
+  - It moves with the body's horizontal scroll; its row labels move back, so they stay put.
+  - With people as columns, the five permission columns stay in place too.
+- **Virtualisation:** rows are virtualised against the page (`usePageVirtualRows`, TanStack's
+  window virtualiser).
+- **The candidate panel** sticks to the top of the window beside the grid, and scrolls within itself
+  only when it is taller than the window.
+- **Header rows about people** are as tall as their longest value needs, within tight limits
+  (`headerRowHeight`: values up to 44px — the ✓/? mark and the first few characters — names up to
+  88px); the whole value shows on hover. A row nobody has a value in is one line.
+- **Measured** (Fortigi *Members*, people as columns): 26 permission rows in view without scrolling
+  at 2254×1351, 16 at 1920×1080, 4 at 1366×768. Once scrolled the header sits at the top of the
+  window and 20+ rows show.
 
 ### Filtering the permissions
 

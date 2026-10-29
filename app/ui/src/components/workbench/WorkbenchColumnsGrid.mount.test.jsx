@@ -10,14 +10,15 @@ import { mount } from '@ui/test-utils/workbenchFixture';
 
 // Organisation knowledge on: the workbench is part of it.
 vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
+// Rows are virtualised against the page (usePageVirtualRows): every row, offset by the page margin.
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: ({ count, estimateSize }) => ({
-    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, start: index * estimateSize(), end: (index + 1) * estimateSize() })),
+  useWindowVirtualizer: ({ count, estimateSize, scrollMargin = 0 }) => ({
+    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, start: scrollMargin + index * estimateSize(), end: scrollMargin + (index + 1) * estimateSize() })),
     getTotalSize: () => count * estimateSize(),
   }),
 }));
 
-const grid = () => screen.getByRole('table', { name: "Access of the unit's people, people as columns" });
+const grid = () => screen.getByRole('region', { name: "Access of the unit's people, people as columns" });
 const opened = () => screen.findByRole('heading', { name: 'Claims Handling' }, { timeout: 5000 });
 const rowNames = () => [...grid().querySelectorAll('tbody tr')].map(tr => tr.querySelector('th')?.textContent.trim()).filter(Boolean);
 // The names row: the last header row above the permission headers.
@@ -183,7 +184,7 @@ describe('filtering the permissions', () => {
     const menu = screen.getByRole('dialog', { name: 'Filter System' });
     await user.click(within(menu).getByRole('checkbox', { name: /^CS/ }));
     await user.click(within(menu).getByRole('button', { name: 'OK' }));
-    const headers = within(screen.getByRole('table', { name: "Access of the unit's people" })).getAllByRole('button', { name: /^Select the column/ }).map(b => b.textContent);
+    const headers = within(screen.getByRole('region', { name: "Access of the unit's people" })).getAllByRole('button', { name: /^Select the column/ }).map(b => b.textContent);
     expect(headers).toEqual(['WorksCouncil site']);
     expect(screen.getByRole('button', { name: 'Permissions (1) ▾' })).toBeInTheDocument();
   });

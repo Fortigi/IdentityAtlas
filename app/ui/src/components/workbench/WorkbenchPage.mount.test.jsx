@@ -10,7 +10,7 @@ import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, 
 
 import { UNIT, claim, knows, payload, api, mount } from '@ui/test-utils/workbenchFixture';
 
-const grid = () => screen.getByRole('table', { name: "Access of the unit's people" });
+const grid = () => screen.getByRole('region', { name: "Access of the unit's people" });
 // The first render of the grid is the slow one on a loaded CI runner.
 // These tests read the people-as-rows grid; people as columns has its own (WorkbenchColumnsGrid tests).
 const opened = async () => {

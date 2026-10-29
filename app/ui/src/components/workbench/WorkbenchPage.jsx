@@ -115,21 +115,22 @@ function Workbench({ contextId: routeId, onCacheData, onClose }) {
         onClear={(key) => setFilter(key, null)} onClearAll={() => setView(v => ({ ...v, filters: {} }))}
         onSelectShown={() => dispatch({ type: 'select', keys: heldKeys(derived.shownPeople, derived), add: false })}
         onAddShown={() => dispatch({ type: 'addMembers', people: derived.shownPeople.map(p => p.key) })}
-        onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })} />
-      <PermissionStrip shown={derived.columns.length} total={derived.accessTotal}
-        summary={permissionFilterSummary(view.permissionFilters, derived.allAccess, derived.ctx)}
-        onClear={(key) => perms.onFilter(key, null)} onClearAll={() => setView(v => ({ ...v, permissionFilters: {} }))} />
+        onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}>
+        <PermissionStrip shown={derived.columns.length} total={derived.accessTotal}
+          summary={permissionFilterSummary(view.permissionFilters, derived.allAccess, derived.ctx)}
+          onClear={(key) => perms.onFilter(key, null)} onClearAll={() => setView(v => ({ ...v, permissionFilters: {} }))} />
+      </FilterStrip>
       <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
-      <GridAndPanel deps={[data, shownView, draft.selection.size > 0, actionError]}
-        grid={(fill) => (orientationOf(view) === 'rows' ? (
-          <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark} fill={fill}
+      <GridAndPanel
+        grid={orientationOf(view) === 'rows' ? (
+          <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
             cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
             people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
         ) : (
-          <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color} fill={fill}
+          <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color}
             cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
             header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, perms }} />
-        ))}
+        )}
         panel={(
           <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color} saveLabel={saveLabel(inv)}
             roleActions={({ candidate: role, problems }) => <RoleSaveActions inv={inv} candidate={role} problems={problems} unitName={data.unit.displayName} dispatch={dispatch} />}
@@ -187,17 +188,17 @@ function Header({ data, gaps, shownColumns, onClose, loading }) {
   const { unit, scope, people, columns, truncatedColumns } = data;
   const accounts = people.reduce((n, p) => n + p.accounts.length, 0);
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Authorization workbench</p>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{unit.displayName}</h2>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{unit.displayName}</h2>
+          <p className="text-xs text-gray-700 dark:text-gray-300">
             {people.length} people ({accounts} accounts){scope.includeChildren && scope.units > 1 ? ` across ${scope.units} units` : ''} ·
             {' '}{shownColumns} of {columns.length + truncatedColumns} things they hold shown · access as read {new Date(data.generatedAt).toLocaleString()}
             {loading ? ' · refreshing…' : ''}
           </p>
-          <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-xs text-gray-700 dark:text-gray-300">
             {gaps.noActivity} {gaps.noActivity === 1 ? 'person has' : 'people have'} no known activity · {gaps.proposed} proposed {gaps.proposed === 1 ? 'link' : 'links'} to check · {gaps.disputed} disputed
           </p>
           {scope.unresolved > 0 && (

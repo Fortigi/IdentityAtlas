@@ -1,3 +1,4 @@
+import { PROPOSED_CATEGORY } from './accessPackageModel';
 // Pure helpers for the matrix column-header rows. Extracted from
 // MatrixColumnHeaders so the derivation logic (which grouping cells are
 // collapsible aggregates, member explosions or plain merged groups, plus the
@@ -100,10 +101,27 @@ export function isApCategoryBoundary(accessPackages, idx) {
   return prev !== cur;
 }
 
+// The first of the proposed roles that "+ Proposed roles" adds after the real
+// business roles (matrix/ProposedMatrix): where the proposals start.
+export function isProposedStart(accessPackages, idx) {
+  return idx > 0 && accessPackages[idx].categoryName === PROPOSED_CATEGORY
+    && accessPackages[idx - 1].categoryName !== PROPOSED_CATEGORY;
+}
+
+// A gap before the proposed roles — a wide border in the page's colour — with a
+// faint dashed line in it, so the proposals read as their own group.
+export const PROPOSED_GAP_CLASS = 'border-l-[10px] border-l-white dark:border-l-gray-900';
+export const PROPOSED_GAP_STYLE = Object.freeze({
+  backgroundImage: 'repeating-linear-gradient(to bottom, rgb(156 163 175) 0 3px, transparent 3px 6px)',
+  backgroundSize: '1px 100%', backgroundRepeat: 'no-repeat', backgroundPosition: 'left top',
+});
+
 // Left-border classes for an access-package band cell — indigo on the very
-// first band, grey at each category boundary, none inside a category.
-export function apLeftBorderClass(idx, isCategoryBoundary) {
+// first band, the gap where the proposed roles start, grey at each other category
+// boundary, none inside a category.
+export function apLeftBorderClass(idx, isCategoryBoundary, proposedStart = false) {
   if (idx === 0) return 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500';
+  if (proposedStart) return PROPOSED_GAP_CLASS;
   if (isCategoryBoundary) return 'border-l-2 border-l-gray-400 dark:border-l-gray-500';
   return '';
 }

@@ -90,7 +90,7 @@ export default function PeopleHeaderRows({ columns, people, header, labelSpan, m
     const height = headerRowHeight(column, people);
     return (
       <tr key={column.key} data-empty={empty || undefined}>
-        <th scope="row" colSpan={labelSpan} className={LABEL} style={{ zIndex: open === column.key ? 50 : 30 }}>
+        <th scope="row" colSpan={labelSpan} className={LABEL} data-sticky-left style={{ zIndex: open === column.key ? 50 : 30 }}>
           <HeaderControls column={column} people={header.allPeople} filter={header.filters[column.key]} sort={header.sort}
             onSort={header.onSort} onFilter={header.onFilter} open={open === column.key} onOpenChange={(v) => setOpen(v ? column.key : null)} />
         </th>
