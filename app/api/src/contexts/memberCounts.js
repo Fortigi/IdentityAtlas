@@ -15,6 +15,20 @@
 
 import * as db from '../db/connection.js';
 
+// A ContextMembers row (under `alias`) whose member is still current. A full
+// sync soft-deletes ("deletedAt") a principal or resource that vanished from
+// the source; the membership row stays, but the member is history and must not
+// count. Identities and Systems have no tombstone. Anti-joins on the primary
+// key, so a member missing from its table is still counted, as before.
+export function liveMemberSql(alias = 'cm') {
+  return `NOT EXISTS (SELECT 1 FROM "Principals" dp
+                   WHERE ${alias}."memberType" = 'Principal' AND dp.id = ${alias}."memberId"
+                     AND dp."deletedAt" IS NOT NULL)
+          AND NOT EXISTS (SELECT 1 FROM "Resources" dr
+                   WHERE ${alias}."memberType" = 'Resource' AND dr.id = ${alias}."memberId"
+                     AND dr."deletedAt" IS NOT NULL)`;
+}
+
 // Refresh directMemberCount on `contextId` and totalMemberCount on every
 // ancestor up to the root. Cheap because each ancestor's subtree count is
 // done in a single recursive CTE.
@@ -40,7 +54,8 @@ export async function recalcMemberCountsForChain(contextId) {
   await db.query(
     `UPDATE "Contexts"
         SET "directMemberCount" = COALESCE((
-              SELECT COUNT(*)::int FROM "ContextMembers" WHERE "contextId" = $1
+              SELECT COUNT(*)::int FROM "ContextMembers" cm
+               WHERE cm."contextId" = $1 AND ${liveMemberSql('cm')}
             ), 0),
             "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
       WHERE id = $1`,
@@ -61,6 +76,7 @@ export async function recalcMemberCountsForChain(contextId) {
        SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
          FROM subtree s
          LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+               AND ${liveMemberSql('cm')}
         GROUP BY s.root_id
      )
      UPDATE "Contexts" c
@@ -77,14 +93,16 @@ export async function recalcMemberCountsForChain(contextId) {
 // For a batch writer: the plugin runner (`runner` = its transaction client) and
 // the context upload (`runner` = the db module). A context left with no members
 // is set to 0 — a re-run or re-upload that empties a unit must not keep its old
-// count.
+// count. Only live members count: a principal or resource soft-deleted in the
+// source stays in ContextMembers as history but is no longer a member (#1484).
 export async function refreshMemberCounts(runner, contextIds) {
   if (contextIds.length === 0) return;
 
   await runner.query(`
     UPDATE "Contexts" c
        SET "directMemberCount" = COALESCE((
-             SELECT COUNT(*)::int FROM "ContextMembers" cm WHERE cm."contextId" = c.id
+             SELECT COUNT(*)::int FROM "ContextMembers" cm
+              WHERE cm."contextId" = c.id AND ${liveMemberSql('cm')}
            ), 0),
            "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
      WHERE c.id = ANY($1::uuid[])
@@ -103,7 +121,7 @@ export async function refreshMemberCounts(runner, contextIds) {
     totals AS (
       SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
         FROM subtree s
-        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
+        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id AND ${liveMemberSql('cm')}
        GROUP BY s.root_id
     )
     UPDATE "Contexts" c

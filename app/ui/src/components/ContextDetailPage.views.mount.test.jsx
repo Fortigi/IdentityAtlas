@@ -105,7 +105,7 @@ describe('the business view (no data.write.contexts)', () => {
     expect(screen.getByTestId('context-subtitle')).toHaveTextContent('Department · derived by the Department from Principal rule');
     expect(screen.getByRole('button', { name: 'Download report' })).toBeInTheDocument();
     for (const name of ['Add information', 'Edit members']) expect(screen.queryByRole('button', { name })).toBeNull();
-    for (const region of ['Sources', 'Change requests', 'Timeline', 'Risk']) expect(screen.queryByRole('region', { name: region })).toBeNull();
+    for (const region of ['Sources', 'Change requests', 'Timeline', 'Diff', 'Risk']) expect(screen.queryByRole('region', { name: region })).toBeNull();
     expect(screen.queryByTestId('attention-line')).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
     // The former people are the reader's too: who left but can still get in.
@@ -195,7 +195,7 @@ describe('the page title', () => {
 });
 
 describe('the analyst view', () => {
-  it('adds Add information and a menu with Adjust tree, Edit, Add sub-unit and Back to Contexts; Timeline and Risk at the foot', async () => {
+  it('adds Add information and a menu with Adjust tree, Edit, Add sub-unit and Back to Contexts; Timeline, Diff and Risk at the foot', async () => {
     const { onClose, user } = mount();
     await screen.findByText('Alice Engineer');
     // In the header, and on the Sources line.
@@ -204,6 +204,7 @@ describe('the analyst view', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Back to Contexts' }));
     expect(onClose).toHaveBeenCalled();
     expect(screen.getByRole('region', { name: 'Timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Diff' })).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: 'Risk' })).toBeInTheDocument();
   });
 

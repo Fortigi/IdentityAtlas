@@ -67,3 +67,10 @@ describe('entra-group-category-tree', () => {
     expect(members).toEqual([]);
   });
 });
+
+describe('entra-group-category-tree — soft-deleted groups', () => {
+  it('reads live groups only', async () => {
+    await plugin.run({}, ctx);
+    expect(db.query.mock.calls[0][0]).toContain(`"resourceType" = 'Group' AND "deletedAt" IS NULL`);
+  });
+});

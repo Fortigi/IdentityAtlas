@@ -45,6 +45,8 @@ export default defineConfig({
       'src/components/reports/reportParams.test.js',
       'src/components/reports/ReportViewWizard.mount.test.jsx',
       'src/components/reports/reportViewSteps.test.js',
+      'src/components/reports/ReportSummary.mount.test.jsx',
+      'src/components/reports/summaryData.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

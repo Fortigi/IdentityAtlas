@@ -10,6 +10,15 @@ import { filenameFromDisposition, triggerDownload } from '@ui/utils/download';
 import { paramsQueryString } from './reportParams';
 
 /**
+ * The format the main download button offers: the workbook when the API serves
+ * it, since only the workbook carries the summary sheet, pivots and charts;
+ * otherwise the first format advertised.
+ */
+export function primaryFormat(formats) {
+  return formats.includes('xlsx') ? 'xlsx' : formats[0];
+}
+
+/**
  * The export endpoint for one report in one format, carrying the parameters the
  * screen is showing — a download of a report run at 30 days must not silently
  * come back at the 90-day default.

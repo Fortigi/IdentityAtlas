@@ -225,9 +225,10 @@ describe('ContextDetailPage (mounted)', () => {
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes() } });
     await screen.findByText('Engineering Cluster');
     expect(screen.queryByRole('tab')).toBeNull();
-    // No tabs: the Timeline and Risk fold at the foot of the page, in that order.
-    const folds = ['Timeline', 'Risk'].map(name => screen.getByRole('region', { name }));
+    // No tabs: the Timeline, Diff and Risk fold at the foot of the page, in that order.
+    const folds = ['Timeline', 'Diff', 'Risk'].map(name => screen.getByRole('region', { name }));
     expect(folds[0].compareDocumentPosition(folds[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(folds[1].compareDocumentPosition(folds[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const details = screen.getByRole('region', { name: 'More details' });
     // The analyst's list (with the raw classification) is long, so it starts folded.
@@ -328,6 +329,27 @@ describe('ContextDetailPage (mounted)', () => {
     expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/timeline'));
     await user.click(within(fold).getByRole('button', { name: /Timeline/ }));
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('/api/contexts/ctx-1/timeline')));
+  });
+
+  it('reads the context diff only once its fold is opened', async () => {
+    const diff = {
+      at: '2026-09-01T00:00:00.000Z', historySince: null, relationshipsTracked: false, omittedUnchanged: 0,
+      before: { exists: true, deleted: false, attributes: { description: 'Old text' }, relationships: [] },
+      after: { exists: true, deleted: false, attributes: { description: 'New text' }, relationships: [] },
+    };
+    // routes() matches by substring in order, and the bare detail key would
+    // catch /diff — so answer the diff first.
+    const base = routes();
+    const authFetch = vi.fn((url, opts) => (url.includes('/diff?') ? makeAuthFetch({ '/diff': diff })(url) : base(url, opts)));
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    const fold = await screen.findByRole('region', { name: 'Diff' });
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/diff'));
+    await user.click(within(fold).getByRole('button', { name: /Diff/ }));
+
+    expect(await screen.findByText('Old text')).toBeInTheDocument();
+    expect(screen.getByText(/only its attributes are compared/)).toBeInTheDocument();
   });
 
   it('folds the Risk score at the foot when risk data + feature flag are present, with its tier', async () => {
