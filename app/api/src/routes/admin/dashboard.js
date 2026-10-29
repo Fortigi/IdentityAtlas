@@ -40,6 +40,10 @@ router.get('/admin/dashboard-stats', readDashboard, async (_req, res) => {
     // The dashboard is never treated as a source of truth — detail pages
     // compute their own exact counts. For the landing page, fast + close
     // beats slow + perfect.
+    //
+    // The exact counts are of CURRENT rows: a soft-deleted ("deletedAt" set)
+    // business role or assignment is history, not something the tenant has.
+    // The reltuples estimates can't filter and are left as-is by design.
     const stats = await db.queryOne(`
       WITH estimates AS (
         SELECT relname, reltuples::bigint AS est
@@ -54,12 +58,12 @@ router.get('/admin/dashboard-stats', readDashboard, async (_req, res) => {
       SELECT
         (SELECT COUNT(*)::int FROM "Systems")                                                              AS "systems",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Resources'), 0), 0)::int              AS "resources",
-        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole')          AS "businessRoles",
+        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL) AS "businessRoles",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Principals'), 0), 0)::int             AS "principals",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Identities'), 0), 0)::int             AS "identities",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceAssignments'), 0), 0)::int    AS "assignments",
-        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "governed" = true)  AS "governedAssignments",
-        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "identityId" IS NOT NULL)       AS "identityAssignments",
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "governed" = true AND "deletedAt" IS NULL) AS "governedAssignments",
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "identityId" IS NOT NULL AND "deletedAt" IS NULL) AS "identityAssignments",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'ResourceRelationships'), 0), 0)::int  AS "relationships",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'Contexts'), 0), 0)::int               AS "contexts",
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname = 'IdentityMembers'), 0), 0)::int       AS "identityMembers",

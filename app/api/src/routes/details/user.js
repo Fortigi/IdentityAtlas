@@ -86,12 +86,16 @@ router.get('/user/:id/principal-relationships', async (req, res) => {
   const joinCol  = reverse ? 'principalId' : 'relatedPrincipalId';
   try {
     const pool = await db.getPool();
+    // A counterparty whose account was soft-deleted in the source stays in the
+    // list as history, flagged with `deleted` + `deletedAt` and sorted after the
+    // current ones — the count on GET /user/:id includes live counterparties only.
     const r = await timedQuery(pool, 'user-principal-relationships-list', res, `SELECT p.id AS "principalId", p."displayName", p."principalType",
-                     p."accountEnabled", pr."relationshipType"
+                     p."accountEnabled", pr."relationshipType",
+                     (p."deletedAt" IS NOT NULL) AS "deleted", p."deletedAt"
                 FROM "PrincipalRelationships" pr
                 JOIN "Principals" p ON p.id = pr."${joinCol}"
                WHERE pr."${matchCol}"::text = $1 AND pr."relationshipType" = $2
-               ORDER BY p."displayName"`, [req.params.id, type]);
+               ORDER BY "deleted", p."displayName"`, [req.params.id, type]);
     res.json(r.rows);
   } catch (err) {
     if (isMissingSchema(err)) return res.json([]);
@@ -156,7 +160,8 @@ router.get('/user/:id/memberships', async (req, res) => {
       SELECT p."resourceId", p."resourceId" AS "groupId",
              r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
              r."resourceType", r."resourceType" AS "groupTypeCalculated",
-             p."membershipType", p."managedByAccessPackage", false AS "deleted"
+             p."membershipType", p."managedByAccessPackage", false AS "deleted",
+             NULL::timestamptz AS "deletedAt"
         FROM "vw_ResourceUserPermissionAssignments" p
         LEFT JOIN "Resources" r ON p."resourceId" = r.id
        WHERE p."principalId"::text = $1
@@ -166,7 +171,8 @@ router.get('/user/:id/memberships', async (req, res) => {
       SELECT ra."resourceId", ra."resourceId" AS "groupId",
              r."displayName" AS "resourceDisplayName", r."displayName" AS "groupDisplayName",
              r."resourceType", r."resourceType" AS "groupTypeCalculated",
-             ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted"
+             ra."assignmentType" AS "membershipType", false AS "managedByAccessPackage", true AS "deleted",
+             LEAST(ra."deletedAt", r."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" ra
         LEFT JOIN "Resources" r ON ra."resourceId" = r.id
        WHERE ra."principalId"::text = $1
@@ -188,16 +194,23 @@ router.get('/user/:id/access-packages', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
+    // Current business roles first, then historical ones: the assignment or the
+    // role itself was soft-deleted in the source. Historical rows stay in the list
+    // (access history is useful) but carry `deleted` + `deletedAt`, so the UI can
+    // keep them apart. Without the flag a deleted role and its re-created twin of
+    // the same name looked like the same role held twice.
     const r = await timedQuery(pool, 'user-access-packages', res, `
       SELECT DISTINCT
         a."resourceId",
         ap."displayName" AS "accessPackageName",
         a."state",
-        a."expirationDateTime"
+        a."expirationDateTime",
+        (a."deletedAt" IS NOT NULL OR ap."deletedAt" IS NOT NULL) AS "deleted",
+        LEAST(a."deletedAt", ap."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" a
         JOIN "Resources" ap ON a."resourceId" = ap.id AND ap."governanceResource"
        WHERE a."principalId"::text = $1
-       ORDER BY ap."displayName"
+       ORDER BY "deleted", "accessPackageName"
     `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {
@@ -211,7 +224,8 @@ router.get('/user/:id/access-packages', async (req, res) => {
 // One row per (client app, target API, scope) this user authorized.
 // Joins the scope Resource → DelegatesScope ResourceRelationship → client-app
 // Resource chain so the client app's displayName resolves even when
-// extendedAttributes is blank.
+// extendedAttributes is blank. Current consents only: a soft-deleted grant or
+// scope resource is gone from the source (same filter as the count).
 // ────────────────────────────────────────────────────────────────
 router.get('/user/:id/oauth2-grants', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
@@ -230,6 +244,7 @@ router.get('/user/:id/oauth2-grants', async (req, res) => {
         JOIN "Resources" scope_res
           ON scope_res.id = a."resourceId"
          AND scope_res."resourceType" = 'DelegatedPermission'
+         AND scope_res."deletedAt" IS NULL
         LEFT JOIN "ResourceRelationships" rr
           ON rr."childResourceId" = scope_res.id
          AND rr."relationshipType" = 'DelegatesScope'
@@ -237,6 +252,7 @@ router.get('/user/:id/oauth2-grants', async (req, res) => {
           ON client_res.id = rr."parentResourceId"
        WHERE a."principalId"::text = $1
          AND a."assignmentType" = 'OAuth2Grant'
+         AND a."deletedAt" IS NULL
        ORDER BY client_res."displayName", scope_res."displayName"
     `, [req.params.id]);
     res.json(r.rows);

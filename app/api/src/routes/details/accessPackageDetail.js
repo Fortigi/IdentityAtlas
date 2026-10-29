@@ -31,22 +31,33 @@ export async function fetchApAttributes(pool, res, apId) {
   return cleanRow(apResult.rows[0]);
 }
 
-// 2. Assignment count
+// 2. Assignment count — current only: a soft-deleted assignment or principal is
+//    history (still listed, flagged), not someone who holds the role now.
 export async function fetchAssignmentCount(pool, res, apId) {
   try {
-    const r = await timedQuery(pool, 'ap-assignment-count', res,
-      `SELECT COUNT(*)::int AS cnt FROM "ResourceAssignments" WHERE "resourceId" = $1`, [apId]);
+    const r = await timedQuery(pool, 'ap-assignment-count', res, `
+      SELECT COUNT(*)::int AS cnt
+      FROM "ResourceAssignments" a
+      WHERE a."resourceId" = $1
+        AND a."deletedAt" IS NULL
+        AND NOT EXISTS (SELECT 1 FROM "Principals" p
+                         WHERE p.id = a."principalId" AND p."deletedAt" IS NOT NULL)
+    `, [apId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }
 }
 
-// 3. Group count (resources linked to this AP)
+// 3. Group count (resources linked to this AP) — a contained resource
+//    soft-deleted in the source is history, not counted. A child with no
+//    Resources row at all still counts (the list shows it by its roleName).
 export async function fetchGroupCount(pool, res, apId) {
   try {
     const r = await timedQuery(pool, 'ap-group-count', res, `
-      SELECT COUNT(DISTINCT "childResourceId")::int AS cnt
-      FROM "ResourceRelationships"
-      WHERE "parentResourceId" = $1 AND "relationshipType" = 'Contains'
+      SELECT COUNT(DISTINCT rrs."childResourceId")::int AS cnt
+      FROM "ResourceRelationships" rrs
+      WHERE rrs."parentResourceId" = $1 AND rrs."relationshipType" = 'Contains'
+        AND NOT EXISTS (SELECT 1 FROM "Resources" r
+                         WHERE r.id = rrs."childResourceId" AND r."deletedAt" IS NOT NULL)
     `, [apId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }

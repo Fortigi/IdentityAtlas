@@ -9,6 +9,7 @@ import ContextEditModal from './contexts/ContextEditModal';
 import ContextRelationshipsTab from './ContextRelationshipsTab';
 import TabBar from './TabBar';
 import EntityTimeline from './EntityTimeline';
+import EntityDiff from './EntityDiff';
 import useTimeline from '@ui/hooks/useTimeline';
 import useFeatures from '@ui/hooks/useFeatures';
 import { useHasPermission } from '@ui/auth/usePermissions';
@@ -118,6 +119,8 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         hideFields={TIMELINE_HIDDEN_FIELDS}
       />
     ),
+
+    diff: () => <EntityDiff entityKind="context" entityId={contextId} authFetch={authFetch} onOpenDetail={onOpenDetail} />,
 
     risk: () => riskData && <RiskScoreSection attributes={riskData} entityType="contexts" entityId={contextId} authFetch={authFetch} />,
   };

@@ -84,12 +84,57 @@ describe('NameOnlyMatchesCard (mounted)', () => {
       .toBeInTheDocument();
   });
 
+  it('distinguishes a hold on the whole initials sequence from one on the first letter', async () => {
+    // A third finding, and the one #1455 adds: the rivals state the account's
+    // WHOLE sequence of initials (`Buskes, L.R.`), not merely its first letter.
+    // Rendered with the first-initial wording an analyst reads it as a near-miss
+    // and looks for the difference the second letter would have shown — there is
+    // none, which is exactly why the match is held.
+    mount([{ status: 'completed', nameOnlyMatches: 2, nameOnlySuggestions: [
+      ambiguous({
+        principalId: 'p-initials', displayName: 'Buskes, L.R.', matchLevel: 'surnameInitials',
+        rivals: [{ identityId: 'i3', identityName: 'Laura Rosa Buskes' }],
+      }),
+      ambiguous({
+        principalId: 'p-one', displayName: 'Jansen, J.', matchLevel: 'surnameInitial',
+        rivals: [{ identityId: 'i4', identityName: 'Johannes Jansen' }],
+      }),
+    ] }]);
+
+    const initials = (await screen.findByText('Buskes, L.R.')).closest('tr');
+    expect(within(initials).getByText(/surname and initials also shared by Laura Rosa Buskes/i))
+      .toBeInTheDocument();
+    // The paired row, so the two wordings are actually told apart rather than
+    // both matching the looser phrase.
+    const one = screen.getByText('Jansen, J.').closest('tr');
+    expect(within(one).getByText(/surname and first initial also shared by Johannes Jansen/i))
+      .toBeInTheDocument();
+  });
+
   it('keeps the old wording for a stored run that predates the matched level', async () => {
     // A run stored before the field existed cannot say which name was shared, and
     // guessing "full name" for it would be a claim the run never made.
     mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [ambiguous()] }]);
 
     expect(await screen.findByText(/^name also answered to by Johanna Doe$/i)).toBeInTheDocument();
+  });
+
+  it('says the number is why, for a login held with no rival at all', async () => {
+    // `adm-skleef2` beside the `skleef` mailbox: the login spells her name, so she is
+    // the matched identity, but the number says the account is not hers and nobody
+    // else answers to the form. Rendered as an ambiguity — the fallback every unknown
+    // reason lands on — it would read as "no second signal", which is the one thing
+    // this hold is not: there IS no second person to pick, and the row would give the
+    // reviewer nothing to go on.
+    mount([{ status: 'completed', nameOnlyMatches: 1, nameOnlySuggestions: [suggestion({
+      displayName: 'Admin account 134', identityName: 'Sophie van Kleef',
+      signals: ['loginNameForm'], confidence: 55, reason: 'numberedLogin', matchLevel: 'loginName',
+    })] }]);
+
+    const row = (await screen.findByText('Admin account 134')).closest('tr');
+    expect(within(row).getByText(/un-numbered form is this person’s own address/i)).toBeInTheDocument();
+    expect(within(row).queryByText(/no second signal/i)).not.toBeInTheDocument();
+    expect(within(row).queryByText(/answered to by/i)).not.toBeInTheDocument();
   });
 
   it('counts the rivals it did not name', async () => {

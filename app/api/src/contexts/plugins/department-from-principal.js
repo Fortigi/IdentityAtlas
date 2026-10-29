@@ -33,8 +33,9 @@ export default {
   async run(params, ctx) {
     const scopeSystemId = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
 
-    const whereClause = scopeSystemId ? `WHERE "systemId" = $1 AND department IS NOT NULL AND department <> ''`
-                                      : `WHERE department IS NOT NULL AND department <> ''`;
+    // Live principals only: a soft-deleted ("deletedAt") account is history.
+    const whereClause = scopeSystemId ? `WHERE "systemId" = $1 AND "deletedAt" IS NULL AND department IS NOT NULL AND department <> ''`
+                                      : `WHERE "deletedAt" IS NULL AND department IS NOT NULL AND department <> ''`;
     const queryArgs   = scopeSystemId ? [scopeSystemId] : [];
 
     const rows = (await db.query(
