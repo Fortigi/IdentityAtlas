@@ -16,6 +16,7 @@ import { useCanBuildReports } from '@ui/hooks/useCanBuildReports';
 import { formatDate } from '@ui/utils/formatters';
 import EmptyState from '@ui/components/EmptyState';
 import SchemaConfigForm from '@ui/components/SchemaConfigForm';
+import ReportDownloads from './ReportDownloads';
 import ReportError from './ReportError';
 import ReportNotices from './ReportNotices';
 import ReportViewWizard from './ReportViewWizard';
@@ -117,15 +118,7 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
               {report.view ? 'Edit view' : 'Save as view'}
             </button>
           )}
-          {(report.exportFormats || []).map(format => (
-            <DownloadButton
-              key={format}
-              format={format}
-              busy={downloading === format}
-              disabled={downloading !== null}
-              onDownload={download}
-            />
-          ))}
+          <ReportDownloads formats={report.exportFormats || []} downloading={downloading} onDownload={download} />
           <button
             type="button"
             onClick={reload}
@@ -198,20 +191,5 @@ function ReportParameters({ show, schema, values, onChange, idPrefix }) {
     <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
       <SchemaConfigForm schema={schema} params={values} onChange={onChange} idPrefix={idPrefix} />
     </div>
-  );
-}
-
-// One button per format the API advertised — the UI never assumes a deployment
-// serves CSV, or only CSV.
-function DownloadButton({ format, busy, disabled, onDownload }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onDownload(format)}
-      disabled={disabled}
-      className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-600"
-    >
-      {busy ? 'Preparing…' : `Download ${format.toUpperCase()}`}
-    </button>
   );
 }

@@ -203,3 +203,17 @@ describe('manager-hierarchy — who answers for a team', () => {
     expect(plugin.contextCategory).toBe('OrganizationalUnit');
   });
 });
+
+describe('manager-hierarchy — soft-deleted principals', () => {
+  it('builds the tree from live principals only', async () => {
+    vi.resetModules();
+    const query = vi.fn(async () => ({ rows: [] }));
+    vi.doMock('../../db/columnCache.js', () => ({ getPrincipalColumns: vi.fn(async () => []) }));
+    vi.doMock('../../db/connection.js', () => ({ query }));
+    const { default: plugin } = await import('./manager-hierarchy.js');
+    await plugin.run({ scopeSystemId: 1 }, {});
+    const principalsSql = query.mock.calls.map(c => c[0])
+      .find(sql => /FROM "Principals"\s+WHERE "systemId" = \$1/.test(sql) && !/jsonb_object_keys/.test(sql));
+    expect(principalsSql).toMatch(/WHERE "systemId" = \$1\s+AND "deletedAt" IS NULL/);
+  });
+});

@@ -13,7 +13,8 @@
 // Pure logic (rowType / sortItems / itemsToCsv) lives in the .helpers file.
 
 import { useMemo, useState } from 'react';
-import { rowType, sortItems, itemsToCsv } from './ExpandedItemsList.helpers';
+import { rowType, sortItems, itemsToCsv, splitHistorical } from './ExpandedItemsList.helpers';
+import DeletedBadge from './DeletedBadge';
 
 const DETAIL_TARGET = {
   user:             'user',
@@ -50,9 +51,70 @@ function SortHeader({ label, active, dir, onClick, align = 'left' }) {
   );
 }
 
+function ItemRow({ it, onOpenDetail }) {
+  const target = DETAIL_TARGET[it.entityKind];
+  const clickable = target && !it.overflow && it.entityId;
+  // Historical rows are muted and labelled, so they never read as current access.
+  const linkClass = it.deleted
+    ? 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:underline text-left line-through'
+    : 'text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline text-left font-medium';
+  return (
+    <tr className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/40">
+      <td className="px-4 py-2 align-top">
+        {clickable ? (
+          <button onClick={() => onOpenDetail?.(target, it.entityId, it.label)} className={linkClass}>
+            {it.label}
+          </button>
+        ) : (
+          <span className={it.deleted ? 'text-gray-600 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-gray-100'}>{it.label}</span>
+        )}
+        {it.deleted && <DeletedBadge at={it.deletedAt} label="Historical" className="ml-2" />}
+        {it.via && (
+          <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+            via {it.via}
+            {it.viaType ? ` · ${it.viaType}` : ''}
+            {it.viaPrimary ? ' · primary' : ''}
+          </div>
+        )}
+      </td>
+      <td className="px-4 py-2 text-right text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">
+        {rowType(it)}
+      </td>
+    </tr>
+  );
+}
+
+// The history block under the current rows: collapsed behind a toggle by
+// default, so deleted-in-source rows never mix in with current access.
+function HistoryRows({ items, open, onToggle, onOpenDetail }) {
+  if (items.length === 0) return null;
+  return (
+    <>
+      <tr className="bg-gray-50 dark:bg-gray-900/40 border-y border-gray-200 dark:border-gray-700">
+        <td colSpan={2} className="px-4 py-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+          >
+            {open ? 'Hide' : 'Show'} {items.length} historical (no longer in the source)
+          </button>
+        </td>
+      </tr>
+      {open && items.map((it, i) => <ItemRow key={'h:' + it.key + ':' + i} it={it} onOpenDetail={onOpenDetail} />)}
+    </>
+  );
+}
+
 export default function ExpandedItemsList({ label, items, loading, onOpenDetail }) {
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' });
-  const sorted = useMemo(() => sortItems(items, sort.key === 'type' ? 'type' : 'name', sort.dir), [items, sort]);
+  const [showHistory, setShowHistory] = useState(false);
+  const { current, historical } = useMemo(() => {
+    const key = sort.key === 'type' ? 'type' : 'name';
+    const split = splitHistorical(items);
+    return { current: sortItems(split.current, key, sort.dir), historical: sortItems(split.historical, key, sort.dir) };
+  }, [items, sort]);
 
   if (loading && !items) {
     return (
@@ -74,7 +136,8 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
 
   const onExport = () => {
     const slug = (label || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'list';
-    downloadCsv(`${slug}.csv`, itemsToCsv(sorted));
+    // Export what is on screen: history only once it has been unfolded.
+    downloadCsv(`${slug}.csv`, itemsToCsv(showHistory ? [...current, ...historical] : current));
   };
 
   return (
@@ -82,7 +145,9 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label || 'Selected'}</h3>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500 dark:text-gray-400">{items.length}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {current.length}{historical.length > 0 ? ` · ${historical.length} historical` : ''}
+          </span>
           <button
             type="button"
             onClick={onExport}
@@ -102,37 +167,18 @@ export default function ExpandedItemsList({ label, items, loading, onOpenDetail 
             </tr>
           </thead>
           <tbody>
-            {sorted.map((it, i) => {
-              const target = DETAIL_TARGET[it.entityKind];
-              const typeLabel = rowType(it);
-              const clickable = target && !it.overflow && it.entityId;
-              return (
-                <tr key={it.key + ':' + i} className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                  <td className="px-4 py-2 align-top">
-                    {clickable ? (
-                      <button
-                        onClick={() => onOpenDetail?.(target, it.entityId, it.label)}
-                        className="text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 hover:underline text-left font-medium"
-                      >
-                        {it.label}
-                      </button>
-                    ) : (
-                      <span className="text-gray-900 dark:text-gray-100">{it.label}</span>
-                    )}
-                    {it.via && (
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                        via {it.via}
-                        {it.viaType ? ` · ${it.viaType}` : ''}
-                        {it.viaPrimary ? ' · primary' : ''}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap align-top">
-                    {typeLabel}
-                  </td>
-                </tr>
-              );
-            })}
+            {current.map((it, i) => <ItemRow key={it.key + ':' + i} it={it} onOpenDetail={onOpenDetail} />)}
+            {current.length === 0 && (
+              <tr>
+                <td colSpan={2} className="px-4 py-3 text-sm italic text-gray-600 dark:text-gray-400">No current items.</td>
+              </tr>
+            )}
+            <HistoryRows
+              items={historical}
+              open={showHistory}
+              onToggle={() => setShowHistory(v => !v)}
+              onOpenDetail={onOpenDetail}
+            />
           </tbody>
         </table>
       </div>

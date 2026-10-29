@@ -260,6 +260,17 @@ describe('the count and the probe stay in step', () => {
     expect(filterSql).toContain('CASE WHEN u."managerId" IS NOT NULL');
     expect(filterSql).not.toContain('SELECT count');
   });
+
+  it('a manager counts only while the manager principal is live, in both shapes', async () => {
+    // A managerId left pointing at a tombstoned leaver must read as "no manager".
+    const live = /EXISTS \(SELECT 1 FROM "Principals" mgr\s+WHERE mgr\.id = (\w+)\."managerId" AND mgr\."deletedAt" IS NULL\)/;
+    const filterSql = buildRelationshipWhere(
+      [{ field: 'rel.manager', value: 'None (0)' }], 'principals', 'u');
+    expect(filterSql.match(live)?.[1]).toBe('u');
+    const c = { query: vi.fn(async () => ({ rows: [{}] })) };
+    await discoverReferenceFields('principals', {}, c);
+    expect(c.query.mock.calls[0][0].match(live)?.[1]).toBe('X');
+  });
 });
 
 describe('picklists', () => {
