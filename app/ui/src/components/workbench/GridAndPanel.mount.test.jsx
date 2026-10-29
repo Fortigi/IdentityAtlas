@@ -10,7 +10,7 @@ import { renderWithProviders, screen } from '@ui/test-utils/renderWithProviders'
 const fit = vi.hoisted(() => ({ height: 640 }));
 vi.mock('@ui/hooks/useViewportFitHeight', () => ({ default: () => fit.height }));
 
-import GridAndPanel from './GridAndPanel';
+import GridAndPanel, { MIN_GRID_ROW_HEIGHT } from './GridAndPanel';
 import { useWideLayout, WIDE_QUERY } from './useWideLayout';
 
 function mockWidth(wide) {
@@ -47,9 +47,9 @@ describe('GridAndPanel', () => {
     expect(screen.getByTestId('workbench-panel').className).not.toContain('overflow-y-auto');
   });
 
-  it('wide but too little room for a grid: caps nothing either', () => {
+  it('wide but too little room for a grid under its header rows: caps nothing either', () => {
     mockWidth(true);
-    fit.height = null;
+    fit.height = MIN_GRID_ROW_HEIGHT - 1;
     renderRow();
     expect(row()).toHaveAttribute('data-fit', 'page');
   });
@@ -73,5 +73,14 @@ describe('useWideLayout', () => {
     delete window.matchMedia;
     renderWithProviders(<Probe />);
     expect(screen.getByTestId('wide')).toHaveTextContent('false');
+  });
+});
+
+describe('GridAndPanel — no room measured', () => {
+  it('caps nothing when the window leaves no measurable room', () => {
+    mockWidth(true);
+    fit.height = null;
+    renderRow();
+    expect(row()).toHaveAttribute('data-fit', 'page');
   });
 });

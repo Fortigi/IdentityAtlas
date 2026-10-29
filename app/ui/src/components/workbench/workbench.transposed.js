@@ -95,7 +95,7 @@ export function headerColumns(columns) {
 
 // Vertical text in a header cell: about this many pixels per character (10–11px type), plus padding.
 const PX_PER_CHAR = { name: 6.2, value: 5.6 };
-const ROW_LIMITS = { name: [48, 112], value: [28, 80] };
+const ROW_LIMITS = { name: [48, 96], value: [28, 56] };
 const EMPTY_ROW = 20;
 const MORE_CHIP = 14;
 const clampTo = ([lo, hi], px) => Math.round(Math.min(hi, Math.max(lo, px)));

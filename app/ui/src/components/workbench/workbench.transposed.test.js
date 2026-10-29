@@ -111,7 +111,7 @@ describe('header row heights', () => {
   it('fits the longest value, within limits, and one line when nobody has one', () => {
     const job = columnByKey.get('jobTitle');
     expect(headerRowHeight(job, [p('A', { jobTitle: 'Clerk' }), p('B', { jobTitle: 'Lead' })])).toBe(38);
-    expect(headerRowHeight(job, [p('A', { jobTitle: 'x'.repeat(60) })])).toBe(80);
+    expect(headerRowHeight(job, [p('A', { jobTitle: 'x'.repeat(60) })])).toBe(56);
     expect(headerRowHeight(job, [p('A'), p('B')])).toBe(20);
     expect(headerRowHeight(job, [p('A', { jobTitle: 'IT' })])).toBe(28);
   });
@@ -121,14 +121,14 @@ describe('header row heights', () => {
     const one = [p('A', { knowledge: [{ kind: 'activity', name: 'Audits', state: 'confirmed', claims: [] }] })];
     const two = [p('A', { knowledge: [{ kind: 'activity', name: 'Audits', state: 'confirmed', claims: [] }, { kind: 'activity', name: 'Quotes', state: 'proposed', claims: [] }] })];
     expect(headerRowHeight(act, one)).toBe(55);
-    expect(headerRowHeight(act, two)).toBe(69);
+    expect(headerRowHeight(act, two)).toBe(56);
   });
 
   it('gives the names row the room the longest name needs', () => {
     const name = columnByKey.get('displayName');
     expect(headerRowHeight(name, [p('Ann'), p('Mohamed Aydin')])).toBe(91);
     expect(headerRowHeight(name, [p('Al')])).toBe(48);
-    expect(headerRowHeight(name, [p('x'.repeat(40))])).toBe(112);
+    expect(headerRowHeight(name, [p('x'.repeat(40))])).toBe(96);
     expect(headerRowHeight(name, [])).toBe(48);
   });
 });
