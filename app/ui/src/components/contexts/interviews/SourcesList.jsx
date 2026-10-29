@@ -12,7 +12,8 @@ import { extractionLabel, sourceLabel, SOURCE_KIND_LABELS } from './claims.helpe
 // counts, and: View (the text with what was taken from it highlighted —
 // TranscriptPanel), Read again (retry the model), Add claim (by hand — always
 // there, with or without a model), Delete (its claims go; what confirmed claims
-// changed stays).
+// changed stays). A source added on another unit that makes claims about this
+// unit's people is listed too, "added on <that unit>", with View only.
 
 const BTN = 'rounded px-2 py-0.5 text-xs text-blue-700 underline hover:text-blue-800 disabled:opacity-50 dark:text-blue-300 dark:hover:text-blue-200';
 const CAN_RETRY = new Set(['done', 'failed', 'pending']);
@@ -34,6 +35,17 @@ function whoAndWhen(iv) {
   const kind = iv.sourceKind ?? 'interview';
   const who = kind === 'interview' ? iv.intervieweeName : `added by ${iv.intervieweeName}`;
   return [who, iv.interviewedAt, kind === 'text' ? null : iv.fileName].filter(Boolean).join(' · ');
+}
+
+// Read again, Add claim, Delete: only on the unit the source was added to.
+function OwnSourceActions({ iv, onRetry, onAdd, onRemove }) {
+  return (
+    <>
+      {CAN_RETRY.has(iv.extractionStatus) && <button type="button" className={BTN} onClick={() => onRetry(iv)}>Read again</button>}
+      <button type="button" className={BTN} onClick={() => onAdd(iv)}>Add claim</button>
+      <button type="button" className={BTN} onClick={() => onRemove(iv)}>Delete</button>
+    </>
+  );
 }
 
 export default function SourcesList({ contextId, interviews, onChanged, onViewTranscript }) {
@@ -73,14 +85,15 @@ export default function SourcesList({ contextId, interviews, onChanged, onViewTr
           <li key={iv.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 text-sm text-gray-900 dark:text-gray-200" data-testid="source-row">
             <span className="rounded bg-gray-100 px-1.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">{SOURCE_KIND_LABELS[iv.sourceKind ?? 'interview']}</span>
             <span className="text-sm">{whoAndWhen(iv)}</span>
+            {iv.filedUnderId && <span className="text-xs text-gray-600 dark:text-gray-400" data-testid="filed-under">added on {iv.filedUnderName}</span>}
             <ExtractionStatus interview={iv} />
-            <span className="text-xs text-gray-600 dark:text-gray-400">{iv.proposed ?? 0} to review · {iv.confirmed ?? 0} confirmed</span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">
+              {iv.proposed ?? 0} to review · {iv.confirmed ?? 0} confirmed{iv.filedUnderId ? ' about this unit’s people' : ''}
+            </span>
             {onViewTranscript && (
               <button type="button" className={BTN} onClick={() => onViewTranscript(iv.id)} aria-label={`View the ${sourceLabel(iv)}`}>View</button>
             )}
-            {CAN_RETRY.has(iv.extractionStatus) && <button type="button" className={BTN} onClick={() => retry(iv)}>Read again</button>}
-            <button type="button" className={BTN} onClick={() => setAdding(iv)}>Add claim</button>
-            <button type="button" className={BTN} onClick={() => remove(iv)}>Delete</button>
+            {!iv.filedUnderId && <OwnSourceActions iv={iv} onRetry={retry} onAdd={setAdding} onRemove={remove} />}
             {iv.extractionMessage && <p className="w-full text-xs text-gray-600 dark:text-gray-400">{iv.extractionMessage}</p>}
           </li>
         ))}

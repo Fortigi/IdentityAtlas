@@ -47,7 +47,7 @@ const HIGHLIGHTS = [
 ];
 const INTERVIEW = { id: 'iv-1', ...SRC, sourceKind: 'interview', extractionStatus: 'done', proposed: 5, confirmed: 1 };
 
-function api({ claims = CLAIMS } = {}) {
+function api({ claims = CLAIMS, interview = INTERVIEW } = {}) {
   const state = { claims: claims.map(c => ({ ...c })), patches: [], rejects: [] };
   const authFetch = makeAuthFetch((url, opts = {}) => {
     const u = String(url);
@@ -67,8 +67,8 @@ function api({ claims = CLAIMS } = {}) {
       return { rejected: hit.length, ids: hit.map(c => c.id) };
     }
     if (u === '/api/contexts/c-unit/claims') return { data: state.claims, accountableDoubt: null, contradictions: [] };
-    if (u === '/api/contexts/c-unit/interviews') return { data: [INTERVIEW] };
-    if (u === '/api/contexts/c-unit/interviews/iv-1') return { ...INTERVIEW, transcript: TRANSCRIPT, highlights: HIGHLIGHTS };
+    if (u === '/api/contexts/c-unit/interviews') return { data: [interview] };
+    if (u === `/api/contexts/${interview.filedUnderId || 'c-unit'}/interviews/iv-1`) return { ...INTERVIEW, transcript: TRANSCRIPT, highlights: HIGHLIGHTS };
     if (u === '/api/contexts/c-unit/relationships') return [];
     return undefined;
   });
@@ -160,6 +160,14 @@ describe('the source text', () => {
     const { user } = mount();
     const panel = await openFromSources(user);
     expect(panel).toHaveTextContent('Interview with Piet de Vries, 2026-10-01 · gesprek.vtt');
+  });
+
+  it('a source added on the parent unit is read from there', async () => {
+    const { authFetch, user } = mount({ interview: { ...INTERVIEW, filedUnderId: 'c-parent', filedUnderName: 'Claims Handling' } });
+    const panel = await openFromSources(user);
+    await within(panel).findAllByTestId('transcript-turn');
+    expect(authFetch.mock.calls.map(c => c[0])).toContain('/api/contexts/c-parent/interviews/iv-1');
+    expect(authFetch.mock.calls.map(c => c[0])).not.toContain('/api/contexts/c-unit/interviews/iv-1');
   });
 
   it('reads as a dialogue with the quotes highlighted, a colour per kind and a fill per status, and a legend', async () => {

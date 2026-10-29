@@ -22,6 +22,7 @@ export default defineConfig({
       'src/contexts/workbench/*.test.js',
       'src/routes/contexts/workbench.test.js',
       'src/routes/contexts/workbenchInvestigations.test.js',
+      'src/contexts/timeline/*.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

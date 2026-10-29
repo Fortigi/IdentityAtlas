@@ -93,7 +93,9 @@ function turnsToShow(turns, spans, focusId, pages) {
 export default function TranscriptPanel({ interviewId, focus, onClose }) {
   const ctx = useContextClaims();
   const { authFetch } = useAuth();
-  const { data, loading, error } = useFetch(`/api/contexts/${ctx.contextId}/interviews/${interviewId}`, { authFetch });
+  // A source added on another unit (it makes claims about this unit's people) is read where it was added.
+  const filedOn = ctx.interviews?.find(iv => iv.id === interviewId)?.filedUnderId || ctx.contextId;
+  const { data, loading, error } = useFetch(`/api/contexts/${filedOn}/interviews/${interviewId}`, { authFetch });
   const bodyRef = useRef(null);
   const dialogRef = useRef(null);
   const [selected, setSelected] = useState(() => (focus?.claimId ? [focus.claimId] : []));

@@ -52,7 +52,9 @@
     "src/contexts/workbench/investigations.js",
     "src/routes/contexts/workbenchInvestigations.js",
     "src/contexts/workbench/proposedMatrix.js",
-    "src/contexts/workbench/resourceContexts.js"
+    "src/contexts/workbench/resourceContexts.js",
+    "src/contexts/timeline/unitEvents.js",
+    "src/contexts/timeline/unitTimeline.js"
   ],
   "thresholds": {
     "high": 90,
