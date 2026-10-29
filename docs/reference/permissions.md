@@ -24,6 +24,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | Permission | Label | Notes |
 |---|---|---|
 | `data.read` | Read all data | Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route `requirePermission('data.read')` gate. `fgr_` read tokens are granted it implicitly. The Dashboard reads (`GET /api/admin/dashboard-stats`, `/dashboard-timeseries`), run history (`GET /api/risk-scoring/runs`, `/api/context-plugins/runs`, `/api/account-linking/runs`) `GET /api/updates/intent` and the Performance request log (`GET /api/perf*`, which also refuses `fgr_` read tokens) additionally require **at least one** mapped permission, so a signed-in user whose roles map to nothing is refused. |
+| `mcp.use` | Use the MCP server | Lets the holder connect an AI assistant (Claude, ChatGPT, Copilot) to `POST /mcp` and have it read data on their behalf. It is a gate, not a grant: each MCP tool also needs the permission the same data needs in the UI — reports need **Read all data**, `describe_data_model` and `run_query` need **Ask questions in plain language** — so an assistant never sees more than its user could. Only takes effect while sign-in is on and the experimental **MCP server** feature is switched on. Not in any seed role except `Admin` (`*`). See [MCP server](mcp-server.md). |
 
 ### Export
 

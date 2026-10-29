@@ -17,6 +17,7 @@ import useFeatureToggle from '@ui/hooks/useFeatureToggle';
 import { docsUrl } from '@ui/utils/docsUrl';
 import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
 import { FeatureToggleCard } from './adminUi';
+import McpServerCard from './McpServerCard';
 
 const EXPERIMENTAL_DOCS_PATH = '/reference/experimental-features/';
 
@@ -187,6 +188,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <MatrixSharingCard features={features} />
       <CustomReportsCard features={features} />
       <ContextAssistantCard features={features} />
+      <McpServerCard features={features} />
     </div>
   );
 }

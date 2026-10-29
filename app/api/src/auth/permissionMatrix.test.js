@@ -24,6 +24,7 @@ import { GATED_ENDPOINTS, IMPLICIT_PERMISSIONS, RESERVED_PERMISSIONS } from './p
 // (featureFlags.js requireFeature). This test is about the permission gate, so
 // the flags those representative endpoints sit behind start on.
 process.env.FEATURE_MATRIX_SHARING = 'true';
+process.env.FEATURE_MCP_SERVER = 'true';
 
 const ALL_PERMS = Object.keys(PERMISSIONS);
 const roleFor = (perm) => `role-${perm}`;
@@ -53,7 +54,8 @@ vi.mock('jsonwebtoken', () => ({
         typeof token === 'string' && token.startsWith('roles:')
           ? token.slice('roles:'.length).split(',').filter(Boolean)
           : [];
-      cb(null, { roles, tid: 'test-tenant' });
+      // scp: the delegated MCP scope, which /mcp requires and every other route ignores.
+      cb(null, { roles, tid: 'test-tenant', scp: 'Mcp.Read' });
     },
   },
 }));

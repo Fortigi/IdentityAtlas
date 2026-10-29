@@ -98,70 +98,89 @@ export function authMiddleware(req, res, next) {
     return;
   }
 
-  const tenantId = getTenantId();
-  const clientId = getClientId();
-
-  jwt.verify(token, keyResolver, {
-    // Accept ONLY access tokens issued for our exposed API scope
-    // (aud = api://<clientId>). The bare <clientId> audience is deliberately
-    // NOT accepted: an id_token's aud is the bare client ID, and id_tokens are
-    // minted on every interactive sign-in, cached in browsers/logs, and are not
-    // meant for API authorization (security finding H-01). The SPA already
-    // requests the `api://<clientId>/access` scope, so its access tokens carry
-    // aud = api://<clientId>. (Requires the Entra App ID URI to be the default
-    // `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
-    audience: `api://${clientId}`,
-    issuer: [
-      `https://login.microsoftonline.com/${tenantId}/v2.0`,
-      `https://sts.windows.net/${tenantId}/`,
-    ],
-    algorithms: ['RS256'],
-  }, (err, decoded) => {
-    if (err) {
-      console.error('Token validation failed:', err.message);
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    // Defense-in-depth: token must come from the configured tenant
-    if (decoded.tid && decoded.tid !== tenantId) {
-      console.error(`Token tenant mismatch: expected ${tenantId}, got ${decoded.tid}`);
+  // Accept ONLY access tokens issued for our exposed API scope
+  // (aud = api://<clientId>). The bare <clientId> audience is deliberately
+  // NOT accepted: an id_token's aud is the bare client ID, and id_tokens are
+  // minted on every interactive sign-in, cached in browsers/logs, and are not
+  // meant for API authorization (security finding H-01). The SPA already
+  // requests the `api://<clientId>/access` scope, so its access tokens carry
+  // aud = api://<clientId>. (Requires the Entra App ID URI to be the default
+  // `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
+  verifyEntraAccessToken(token, `api://${getClientId()}`).then((decoded) => {
+    const access = accessFromClaims(decoded);
+    if (!access) return res.status(403).json({ error: 'Insufficient permissions' });
+    req.user = decoded;
+    req.user.roles = access.roles;
+    req.user.permissions = access.permissions;
+    next();
+  }, (err) => {
+    if (err.code === 'TENANT_MISMATCH') {
+      console.error(err.message);
       return res.status(401).json({ error: 'Token issued by unexpected tenant' });
     }
-
-    const tokenRoles = Array.isArray(decoded.roles) ? decoded.roles : [];
-
-    // Optional app-role gate — coarse "must have one of these roles" check
-    // configured via AUTH_REQUIRED_ROLES. Independent of the permission
-    // model below; if both are set, both must pass.
-    const requiredRoles = getRequiredRoles();
-    if (requiredRoles && requiredRoles.length > 0) {
-      if (!requiredRoles.some(r => tokenRoles.includes(r))) {
-        console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
-        return res.status(403).json({ error: 'Insufficient permissions' });
-      }
-    }
-
-    // Resolve roles -> permissions via the configured (or seed) mapping.
-    //
-    // Fail closed: a token whose roles aren't in the mapping resolves to an
-    // EMPTY permission set and is denied by every requirePermission gate. There
-    // is deliberately NO "no recognised roles -> wildcard admin" fallback — that
-    // previously made any authenticated tenant user a full admin whenever app
-    // roles hadn't been assigned yet (security finding C-01).
-    //
-    // To grant access, assign the user an Entra app role that the mapping maps
-    // to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
-    // out by enabling auth before assigning a role? Use the CLI to toggle auth
-    // off, assign the role, then turn it back on (see cli/auth-config.js).
-    // Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
-    const mapping = getRolePermissions();
-    const permissions = resolvePermissions(tokenRoles, mapping);
-
-    req.user = decoded;
-    req.user.roles = tokenRoles;
-    req.user.permissions = permissions;
-    next();
+    console.error('Token validation failed:', err.message);
+    res.status(401).json({ error: 'Invalid or expired token' });
   });
+}
+
+// Verify an Entra-issued access token: signature (tenant JWKS), RS256, issuer
+// (v1 or v2 endpoint of the configured tenant), the given audience(s), and —
+// defense-in-depth — the `tid` claim. Resolves to the decoded claims; rejects
+// with err.code === 'TENANT_MISMATCH' for a token from another tenant. Shared by
+// the API's authMiddleware and the MCP endpoint (mcp/auth.js), so both check a
+// token the same way and only differ in which audience they accept.
+export function verifyEntraAccessToken(token, audience) {
+  const tenantId = getTenantId();
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, keyResolver, {
+      audience,
+      issuer: [
+        `https://login.microsoftonline.com/${tenantId}/v2.0`,
+        `https://sts.windows.net/${tenantId}/`,
+      ],
+      algorithms: ['RS256'],
+    }, (err, decoded) => {
+      if (err) return reject(err);
+      if (decoded.tid && decoded.tid !== tenantId) {
+        const mismatch = new Error(`Token tenant mismatch: expected ${tenantId}, got ${decoded.tid}`);
+        mismatch.code = 'TENANT_MISMATCH';
+        return reject(mismatch);
+      }
+      resolve(decoded);
+    });
+  });
+}
+
+// A verified token's app roles and the permissions they map to, or null when
+// the optional AUTH_REQUIRED_ROLES gate refuses the caller.
+export function accessFromClaims(decoded) {
+  const tokenRoles = Array.isArray(decoded.roles) ? decoded.roles : [];
+
+  // Optional app-role gate — coarse "must have one of these roles" check
+  // configured via AUTH_REQUIRED_ROLES. Independent of the permission
+  // model below; if both are set, both must pass.
+  const requiredRoles = getRequiredRoles();
+  if (requiredRoles && requiredRoles.length > 0) {
+    if (!requiredRoles.some(r => tokenRoles.includes(r))) {
+      console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
+      return null;
+    }
+  }
+
+  // Resolve roles -> permissions via the configured (or seed) mapping.
+  //
+  // Fail closed: a token whose roles aren't in the mapping resolves to an
+  // EMPTY permission set and is denied by every requirePermission gate. There
+  // is deliberately NO "no recognised roles -> wildcard admin" fallback — that
+  // previously made any authenticated tenant user a full admin whenever app
+  // roles hadn't been assigned yet (security finding C-01).
+  //
+  // To grant access, assign the user an Entra app role that the mapping maps
+  // to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
+  // out by enabling auth before assigning a role? Use the CLI to toggle auth
+  // off, assign the role, then turn it back on (see cli/auth-config.js).
+  // Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
+  return { roles: tokenRoles, permissions: resolvePermissions(tokenRoles, getRolePermissions()) };
 }
 
 // Per-route permission gate. Use at the mount line (most routers) or as a

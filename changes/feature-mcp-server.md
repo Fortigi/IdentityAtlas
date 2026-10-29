@@ -1,0 +1,4 @@
+- Added an MCP server (experimental, off by default): connect Claude, ChatGPT or Copilot to Identity Atlas and ask questions in plain language. The assistant signs in as you through Entra ID and only sees what your role allows.
+- The assistant can list and run the ready-made reports, answer free-form questions through the same safe report engine the Ask page uses (it never writes SQL), and find people, accounts, groups and applications by name. Every answer links back to the records in Identity Atlas.
+- Added the "Use the MCP server" permission, so admins decide per role who may connect an assistant. The MCP server can only be switched on while sign-in is enabled.
+- Every call an assistant makes is recorded (who, which tool, how many rows), and the latest calls are shown under Admin → Experimental → MCP server, together with the URL to give the assistant.
