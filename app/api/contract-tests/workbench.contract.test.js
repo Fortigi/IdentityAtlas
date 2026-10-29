@@ -122,6 +122,18 @@ describe('loadWorkbench on PostgreSQL', () => {
     expect(out.columns.find(c => c.id === R.read).holders).toBe(2);
   });
 
+  it('leaves out a member whose account a sync soft-deleted, and has them back when restored', async () => {
+    await pool.query(`UPDATE "Principals" SET "deletedAt" = now() WHERE id = $1`, [P.loose]);
+    try {
+      const out = await loadWorkbench(db, C.unit, { includeChildren: true });
+      expect(out.people.some(p => p.principalId === P.loose)).toBe(false);
+    } finally {
+      await pool.query(`UPDATE "Principals" SET "deletedAt" = NULL WHERE id = $1`, [P.loose]);
+    }
+    const back = await loadWorkbench(db, C.unit, { includeChildren: true });
+    expect(back.people.some(p => p.principalId === P.loose)).toBe(true);
+  });
+
   it('reads only the unit itself when asked', async () => {
     const out = await loadWorkbench(db, C.unit, { includeChildren: false });
     expect(out.people.map(p => p.displayName)).toEqual(['wbc-Anna']);
