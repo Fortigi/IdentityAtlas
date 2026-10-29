@@ -62,5 +62,12 @@ export function parseJsonColumns(row) {
 }
 
 // In v5 (postgres) temporal tables are gone, so the ValidTo filter is a no-op.
-// Constant kept so all the JOIN clauses that reference it still compile.
+// Constant kept so the entity lookups that reference it still compile.
 export const TEMPORAL_FILTER = "1=1";
+
+// Live-row predicate for a soft-delete table (Principals / Resources) joined
+// under `alias`. A full sync tombstones ("deletedAt") an entity that vanished
+// from the source; its risk score is history and must not show in the risk
+// lists or the top-10. Contexts, Identities and GovernanceCatalogs have no
+// tombstone, so their joins need no filter.
+export const liveRow = (alias) => `${alias}."deletedAt" IS NULL`;

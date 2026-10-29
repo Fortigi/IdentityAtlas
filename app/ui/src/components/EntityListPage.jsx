@@ -4,6 +4,7 @@ import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
 import EmptyState from './EmptyState';
 import ExtendedSearchToggle from './ExtendedSearchToggle';
+import IncludeDeletedToggle from './IncludeDeletedToggle';
 import { formatMatchedOn } from '@ui/utils/matchedOn';
 import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
@@ -173,13 +174,7 @@ export default function EntityListPage({
         <ExtendedSearchToggle checked={ep.extendedSearch} onChange={ep.setExtendedSearch} />
 
         {showIncludeDeleted && (
-          <label
-            className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none"
-            title={`Also show ${label} that were deleted in the source system`}
-          >
-            <input type="checkbox" checked={ep.includeDeleted} onChange={e => ep.setIncludeDeleted(e.target.checked)} />
-            Include deleted
-          </label>
+          <IncludeDeletedToggle checked={ep.includeDeleted} onChange={ep.setIncludeDeleted} noun={label} />
         )}
 
         {ep.hasAnyFilter && (

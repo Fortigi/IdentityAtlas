@@ -15,6 +15,7 @@ import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
+import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 
 const router = Router();
 
@@ -22,7 +23,8 @@ const VARIANTS = new Set(['synced', 'generated', 'manual']);
 
 // Map targetType → the table name where memberIds live. Used to filter the
 // member list to live rows only (stale member rows are left to a background
-// reconciler, not this endpoint).
+// reconciler, not this endpoint): the member must exist, and — for the tables
+// that carry a soft-delete tombstone (SOFT_DELETE_TABLES) — must not be deleted.
 const MEMBER_TABLE = {
   Identity:  'Identities',
   Resource:  'Resources',
@@ -335,13 +337,17 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
 
   const { contextFilter, distinct, orderPrefix, countExpr } = memberScopeSql(includeDescendants);
 
+  // A context is a generated view of current state: a soft-deleted principal or
+  // resource is no longer a member, in the list or in the total.
+  const liveClause = SOFT_DELETE_TABLES.has(table) ? ' AND m."deletedAt" IS NULL' : '';
+
   const dataSql = `
     SELECT ${distinct} m.id, m."displayName", ${MEMBER_COLUMNS[targetType]},
            cm."addedBy", cm."addedAt"
       FROM "ContextMembers" cm
       JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
+       AND cm."memberType" = '${targetType}'${liveClause}
        ${searchClause}
      ORDER BY ${orderPrefix}m."displayName"
      LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}
@@ -355,7 +361,7 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
       FROM "ContextMembers" cm
       JOIN "${table}" m ON ${memberJoinOn(targetType)}
      WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
+       AND cm."memberType" = '${targetType}'${liveClause}
        ${searchClause}
   `;
   const total = (await db.queryOne(countSql, params))?.total || 0;

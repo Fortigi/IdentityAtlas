@@ -52,6 +52,26 @@ export function orphanPrincipalsSql(selectList, { joins = '', tail = '' } = {}) 
 }
 
 /**
+ * The identity behind an account's manager, as a scalar subquery over the
+ * `Principals` alias `p` — the context the name-uniqueness guard breaks a tie on
+ * where the name alone leaves two people (#1455). A scalar subquery rather than
+ * a join: a manager principal attached to two identities would otherwise
+ * duplicate the account's row.
+ *
+ * It is null until the manager's own account is linked, which on the first run
+ * after an import it usually is not — the evidence then simply does not fire and
+ * a later run picks it up.
+ *
+ * Both halves of a run read the guard's evidence off this one expression: the
+ * orphan load that scores new matches, and the retroactive cleanup that re-judges
+ * the links an earlier run made. Written twice they would drift, and a cleanup
+ * that cannot see the evidence detaches exactly the links the guard creates.
+ */
+export const MANAGER_IDENTITY_ID_SQL = `
+  (SELECT im."identityId" FROM "IdentityMembers" im
+    WHERE im."principalId" = p."managerId" LIMIT 1) AS "managerIdentityId"`;
+
+/**
  * The active account-linking rule set, merged over the defaults by the one
  * merge the engine uses (`effectiveLinkingRules`) — so this answers with the
  * same dictionary a run would use, newly shipped signals included (#1469).

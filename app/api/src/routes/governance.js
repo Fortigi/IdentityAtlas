@@ -28,7 +28,11 @@ WITH "LatestInstance" AS (
          "reviewInstanceEndDateTime",
          "reviewInstanceStartDateTime",
          "reviewInstanceStatus"
-    FROM "CertificationDecisions"
+    FROM "CertificationDecisions" cd
+   -- A business role deleted in the source (soft delete, migration 040) is
+   -- history: it no longer counts toward review compliance.
+   WHERE NOT EXISTS (SELECT 1 FROM "Resources" dr
+                      WHERE dr.id = cd."resourceId" AND dr."deletedAt" IS NOT NULL)
    ORDER BY "resourceId", "reviewInstanceEndDateTime" DESC NULLS LAST
 ),
 "LastReviewPerAP" AS (
