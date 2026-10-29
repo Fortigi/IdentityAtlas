@@ -48,3 +48,14 @@ describe('scope-hierarchy', () => {
     expect(members).toContainEqual({ contextExternalId: 'rg', memberId: 'res' });
   });
 });
+
+describe('scope-hierarchy — soft-deleted resources', () => {
+  it('reads live scope nodes and follows edges to live children only', async () => {
+    await plugin.run({ scopeSystemId: 1 }, ctx);
+    const sqls = db.query.mock.calls.map((c) => c[0]);
+    expect(sqls.find((s) => !s.includes('ResourceRelationships')))
+      .toContain('"capabilityId" IS NULL AND "deletedAt" IS NULL');
+    expect(sqls.find((s) => s.includes('ResourceRelationships')))
+      .toMatch(/rc\."systemId" = \$1\s+AND rc\."deletedAt" IS NULL/);
+  });
+});

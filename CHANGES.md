@@ -1,5 +1,73 @@
 ## Changes in this PR
 
+- Fixed the automated build pipeline stopping a correct fix for touching the files almost any change touches: the shared end-to-end seed helpers, shared test helpers, a layer's coding guide and the mutation-testing file list. These no longer count as reaching outside the certified scope; the size limit still counts them.
+
+## Changes in this PR
+
+- Added a **Diff** tab next to Timeline on the user, resource, business role, identity and context detail pages. Pick a moment in the past (1 day to 1 year ago, or any date) and see the item as it was then on the left and as it is now on the right, like a side-by-side file compare: every attribute, plus every relationship — manager, business roles, groups and other resources held, members, contained resources and linked accounts. Changed values are highlighted, added entries are shown in green on the right, removed entries in red on the left, and an "Only show differences" switch hides everything that stayed the same.
+
+## Changes in this PR
+
+- Fixed the user Timeline tab hanging on "Loading timeline…" on tenants with a large change history
+
+## Changes in this PR
+
+- Account Linking now places accounts from sources that show a person as "Surname, Initials" — the shape most ERP, finance and payroll exports use, with no address and no employee number. Such an account could never be attached to anybody before: the strongest evidence a name like `van Mourik, R.` can produce sat below the certainty bar, so the account was not even scored and stayed in Orphaned Accounts for ever.
+- All the initials count, not just the first. `Buskes, L.R.` is attached to the Laura Renée Buskes it singles out rather than being held beside the Lars Buskes who shares only the first letter, and initials that disagree in two places rule a person out instead of counting as a near miss.
+- An account whose initials fit more than one person is still held for review with the rival named, never given to whoever scored first — and the held-for-review card now says which name the rivals actually share, so a reviewer is not sent looking for a namesake who does not exist.
+- Where a name leaves two people, the context the account already carries can settle it: a department that is one of them and no other's, or a manager who is one of theirs. Context only narrows the choice the name allows — two namesakes in one department leave the account held, as before.
+- Linking confidence now reflects the corroboration a match actually has, and the recorded signals name it, so a low-confidence link made on initials alone is visible as exactly that. The certainty slider stays the one control for how much evidence a link needs: at 60 a unique surname-and-initial match stops linking, at 75 a unique full-name one does.
+- A link made on a unique full name is therefore recorded at 70 rather than 60, and lists the name's uniqueness among its signals. The link itself is unchanged — the engine has always required the name to point at one person — it now says so where an analyst can read it. Nothing that used to link stops linking, and nothing that was held for review is released.
+- Switching a signal off (weight 0) now also releases the links that were made on it. Previously it only applied to new matches, so an administrator who turned a signal off saw nothing change about the accounts it had already attached.
+- A link that a department or manager settled is no longer detached and re-created on every subsequent run, which churned the account's history and never let the run's "links removed" figure settle.
+
+## Changes in this PR
+
+- The **Reports** tab is now shown to every user by default; it no longer has to be switched on under Settings → Visible Tabs.
+- **Contexts** and **Identities** are now optional tabs, hidden by default. Switch them on per user under Settings → Visible Tabs (Identities only while account linking is enabled). The pages stay reachable by link either way.
+
+## Changes in this PR
+
+- The SCIM 2.0 crawler is no longer experimental: it now always appears in Admin → Crawlers → Add Crawler, without the Experimental badge and without having to switch on Admin → Experimental → Experimental crawlers first.
+
+## Changes in this PR
+
+- Fixed the Timeline on user, resource, business-role and identity pages never showing removed access. Removed assignments now appear as "Removed from …" (or "… removed" on the resource side), and access that comes back appears as added again.
+- A user's Timeline now shows when a role or resource they hold is deleted in the source ("… deleted in source"), even though their own assignment did not change.
+- When the entity itself is deleted or restored in the source, its Timeline now says "Deleted in source" / "Restored in source" instead of showing a "Deleted At" attribute change.
+- Fixed a Timeline entry that read "Removed from …" for a relationship that had only been updated.
+
+## Changes in this PR
+
+- Fixed a user's Business Roles showing roles that were deleted in the source as if the user still held them. A role that was deleted and re-created under the same name no longer appears twice, and the Business Roles count includes only the roles the user holds now.
+- Relationship lists on detail pages now keep history apart: assignments and roles that no longer exist in the source are collapsed under "Show N historical", labelled "Historical" with their deletion date, and left out of the relationship graph. A CSV export includes them only when they are expanded, with a Status column.
+- The detail page of a business role that was deleted in the source now shows a "Deleted in source" badge next to its name, as user and resource pages already did.
+- Relationship lists on resource, business-role, identity and user pages now keep anything deleted in the source apart from current access: members, assignees, business roles, parent resources, contained resources, owners, sponsors, direct reports, the manager and identity assignments show as "Historical" with their deletion date, collapsed under "Show N historical".
+- The counts behind those relationships (members by assignment type, business roles, parents, assignments, contained resources, owners, sponsors, direct reports, an identity's access and its accounts' group counts) now include only what still exists in the source.
+- The Business Roles page hides roles that were deleted in the source. A new "Include deleted" option shows them with a "Deleted in source" badge, and the Excel export follows the same option with a "Deleted At" column. Assignment totals count only current assignments of current accounts.
+- An identity's linked accounts show a "Deleted in source" badge on an account that no longer exists.
+- Systems, the dashboard, the daily Trends snapshot, matrix totals and scope figures, nested-group expansion, risk score lists and top-10s, and context member lists and counts no longer count users, resources or assignments deleted in the source.
+- Generated contexts (manager hierarchy, departments, account types, AD OUs, resource types, group categories, scope hierarchy, resource clusters) no longer place users or resources deleted in the source in their trees.
+- The matrix's business-role columns and the governance review-compliance figures no longer include business roles or groups deleted in the source.
+
+## Changes in this PR
+
+- Reports that come with charts or pivot tables in their Excel download (Access Review Adoption, Access Reviewer Response, Entitlement Pivot) now show that breakdown on screen too, above the table: a bar per chart with its counts and percentages, and the pivots as grouped tables you can open one level deeper.
+- Clicking a status, verdict or pivot group in that summary narrows the table to those rows. **Show all rows** brings everything back.
+- The report download is now one main **Download XLSX** button, because only the workbook carries the summary, pivots and charts. CSV and JSON are in a menu next to it.
+
+## Changes in this PR
+
+- Account Linking now recognises admin logins that a provisioning convention writes shorter than the person's name. An account logging in as `adm-ddongen` is attached to the Daniëlle van Dongen it names even though her name carries the particle, and `adm-wvelde` reaches the W. van der Velde-Bierma whose double surname it keeps one half of. Previously such an account matched no spelling of anybody's name, so it was never even compared to its owner: it stayed off the owner's Linked Accounts and sat in Orphaned Accounts indefinitely.
+- A login numbered to tell two namesakes apart is read as the name it numbers: `adm-svisser2` is now understood as the S. Visser's login it is, instead of being discarded because of the trailing digits. The digits are only dropped as a fallback, so an account whose address genuinely ends in a number (`jan2`) still belongs to the owner of that mailbox.
+- A shortened login never outranks the person actually called the shorter name. Where the tenant has both a D. Dongen and a Daniëlle van Dongen, `adm-ddongen` goes to the D. Dongen; the person whose name the convention shortened only claims it when nobody is really called that.
+- A shortened login never counts against the person an account's name spells out in full either. An account the directory calls "Melanie Schipper-Siemons" is attached to her, even where a Michelle Schipper answers to the shorter form it logs in as — a form carrying one letter of a given name is not a competing answer to the whole name.
+- A numbered account is never attached to the person who holds the un-numbered address. The account `p.h.nanhoe2` is no longer given to the Priya Nanhoe whose own mailbox is `p.h.nanhoe` — the number exists to tell the two apart. Where nobody else answers to the shortened form, the account is held for review and the run says the number is why, rather than naming a rival that does not exist.
+- A login built from half a double surname only reaches people who have one, and a review entry for a contested one now offers the owner of that surname. `adm-abecker` is still held where two people are called A. Becker outright, but the Andrea Neumann-Becker it belongs to is listed among the candidates instead of being left out of the choice entirely.
+- Shortened logins go through the same review as every other name match: one that fits more than one person is held for review on the run with the other candidates named, and one that names nobody in the directory is still attributed to nobody.
+
+## Changes in this PR
+
 - Fixed delta syncs always running as full syncs on Azure App Service deployments. Azure's front end changed the address the crawler uses to save its delta position, so the position was never stored and every scheduled delta (Entra ID and SQL Server) fell back to reading everything.
 
 ## Changes in this PR

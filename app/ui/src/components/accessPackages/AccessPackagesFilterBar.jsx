@@ -1,7 +1,11 @@
+import IncludeDeletedToggle from '@ui/components/IncludeDeletedToggle';
+
 const ASSIGNMENT_TYPES = ['Auto-assigned', 'Request-based', 'Request-based with auto-removal', 'Both'];
 
-// Search box + assignment-type filter + "Clear all" (shown only when filtering).
-export default function AccessPackagesFilterBar({ search, setSearch, typeFilter, setTypeFilter, hasAnyFilter, onClearAll }) {
+// Search box + assignment-type filter + "Include deleted" + "Clear all" (shown only when filtering).
+export default function AccessPackagesFilterBar({
+  search, setSearch, typeFilter, setTypeFilter, includeDeleted, setIncludeDeleted, hasAnyFilter, onClearAll,
+}) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
       <input
@@ -23,6 +27,7 @@ export default function AccessPackagesFilterBar({ search, setSearch, typeFilter,
           <option key={t} value={t}>{t}</option>
         ))}
       </select>
+      <IncludeDeletedToggle checked={includeDeleted} onChange={setIncludeDeleted} noun="business roles" />
       {hasAnyFilter && (
         <>
           <div className="border-l border-gray-300 dark:border-gray-600 h-5 mx-1" />

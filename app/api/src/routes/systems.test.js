@@ -28,12 +28,28 @@ const USER = '11111111-1111-1111-1111-111111111111';    // Principals.id — uui
 
 beforeEach(() => timedQuery.mockReset());
 
+// The SQL text handed to timedQuery(pool, label, res, sql, params).
+const lastSql = () => timedQuery.mock.calls.at(-1)[3];
+// Count the `<alias>."deletedAt" IS NULL` live filters in a SQL string.
+const liveFilters = (sql, alias) =>
+  sql.split(`${alias}."deletedAt" IS NULL`).length - 1;
+
 describe('GET /systems (list)', () => {
   it('returns the recordset', async () => {
     timedQuery.mockResolvedValueOnce({ rows: [{ id: 5, displayName: 'S' }] });
     const res = await request(app).get('/api/systems');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: 5, displayName: 'S' }]);
+  });
+
+  it('counts only live (not soft-deleted) resources, principals and assignments', async () => {
+    timedQuery.mockResolvedValueOnce({ rows: [] });
+    await request(app).get('/api/systems');
+    const sql = lastSql();
+    // res_counts + princ_counts filter unqualified; ra_counts filters on ra.
+    expect(sql).toMatch(/FROM "Resources"\s+WHERE "deletedAt" IS NULL/);
+    expect(sql).toMatch(/FROM "Principals"\s+WHERE "deletedAt" IS NULL/);
+    expect(liveFilters(sql, 'ra')).toBe(1);
   });
 
   it('returns [] when the query throws', async () => {
@@ -55,6 +71,17 @@ describe('GET /systems/:id', () => {
     const res = await request(app).get(`/api/systems/${SYSTEM}`);
     expect(res.status).toBe(200);
     expect(res.body.displayName).toBe('S');
+  });
+
+  it('counts and type lists cover live rows only', async () => {
+    timedQuery.mockResolvedValueOnce({ rows: [{ id: 5 }] });
+    await request(app).get(`/api/systems/${SYSTEM}`);
+    const sql = lastSql();
+    expect(liveFilters(sql, 'r')).toBe(1);   // resourceCount
+    expect(liveFilters(sql, 'p')).toBe(1);   // principalCount
+    expect(liveFilters(sql, 'ra')).toBe(1);  // assignmentCount
+    expect(liveFilters(sql, 'ra2')).toBe(1); // computedAssignmentTypes
+    expect(sql).toMatch(/"resourceType" IS NOT NULL\s+AND "deletedAt" IS NULL/); // computedResourceTypes
   });
 
   it('404 when the system is not found', async () => {
@@ -113,6 +140,12 @@ describe('GET /systems/:id/owners', () => {
     const res = await request(app).get(`/api/systems/${SYSTEM}/owners`);
     expect(res.status).toBe(200);
     expect(res.body[0].userDisplayName).toBe('Z');
+  });
+
+  it('drops owners whose principal is soft-deleted', async () => {
+    timedQuery.mockResolvedValueOnce({ rows: [] });
+    await request(app).get(`/api/systems/${SYSTEM}/owners`);
+    expect(liveFilters(lastSql(), 'u')).toBe(1);
   });
 
   it('returns [] when the query throws', async () => {

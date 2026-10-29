@@ -291,6 +291,25 @@ describe('GET /contexts/:id/members', () => {
     await request(app).get(`/api/contexts/${ID}/members`);
     expect(query.mock.calls[0][0]).toContain('JOIN "Systems" m ON m.id::text = cm."memberId"::text');
   });
+
+  // Contexts are generated views of current state: a soft-deleted principal or
+  // resource drops out of the page AND the total. Identities and Systems have no
+  // tombstone column, so their queries must not reference one.
+  it.each([
+    ['Principal', true],
+    ['Resource', true],
+    ['Identity', false],
+    ['System', false],
+  ])('filters soft-deleted %s members out of the page and the total: %s', async (targetType, live) => {
+    queryOne.mockResolvedValueOnce({ targetType });
+    query.mockResolvedValueOnce({ rows: [] });
+    queryOne.mockResolvedValueOnce({ total: 0 });
+    await request(app).get(`/api/contexts/${ID}/members`);
+    for (const sql of [query.mock.calls[0][0], queryOne.mock.calls[1][0]]) {
+      if (live) expect(sql).toContain(`cm."memberType" = '${targetType}' AND m."deletedAt" IS NULL`);
+      else expect(sql).not.toContain('deletedAt');
+    }
+  });
 });
 
 // ─── POST /contexts (create — happy path beyond contexts.test.js) ────

@@ -4,7 +4,7 @@
 // branch). SQL moved verbatim.
 
 import { timedQuery } from '../../perf/sqlTimer.js';
-import { parseJsonColumns, TEMPORAL_FILTER } from './shared.js';
+import { parseJsonColumns, liveRow } from './shared.js';
 
 // Nested count with a 0 default — a call, so it adds no branch at each use site.
 const num = (byType, type, key) => byType[type]?.[key] || 0;
@@ -20,7 +20,7 @@ export async function fetchRiskOverview(p, res) {
   const topUsers = await timedQuery(p, 'risk-top-users', res, `
     SELECT rs.*, p."displayName", p.email AS "userPrincipalName", p.department
     FROM "RiskScores" rs
-    INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${TEMPORAL_FILTER}
+    INNER JOIN "Principals" p ON rs."entityId" = p.id AND ${liveRow('p')}
     WHERE rs."entityType" = 'Principal'
     ORDER BY rs."riskScore" DESC
     LIMIT 10
@@ -29,7 +29,7 @@ export async function fetchRiskOverview(p, res) {
   const topResources = await timedQuery(p, 'risk-top-resources', res, `
     SELECT rs.*, r."displayName", r."resourceType", r.description
     FROM "RiskScores" rs
-    INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}
+    INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${liveRow('r')}
     WHERE rs."entityType" = 'Resource'
     ORDER BY rs."riskScore" DESC
     LIMIT 10
@@ -56,7 +56,7 @@ export async function fetchRiskOverview(p, res) {
     const typeResult = await timedQuery(p, 'risk-resource-types', res, `
       SELECT r."resourceType", COUNT(*) AS count, AVG(CAST(rs."riskScore" AS FLOAT)) AS "avgScore"
       FROM "RiskScores" rs
-      INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${TEMPORAL_FILTER}
+      INNER JOIN "Resources" r ON rs."entityId" = r.id AND ${liveRow('r')}
       WHERE rs."entityType" = 'Resource'
       GROUP BY r."resourceType"
       ORDER BY AVG(CAST(rs."riskScore" AS FLOAT)) DESC

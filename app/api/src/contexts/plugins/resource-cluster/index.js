@@ -76,7 +76,8 @@ export const plugin = {
     const rows = (await db.query(
       `SELECT id, "displayName"
          FROM "Resources"
-        WHERE $1::int IS NULL OR "systemId" = $1`,
+        WHERE "deletedAt" IS NULL  -- a soft-deleted resource is history
+          AND ($1::int IS NULL OR "systemId" = $1)`,
       [scopeSystemId],
     )).rows;
 

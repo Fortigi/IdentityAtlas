@@ -77,7 +77,8 @@ export default {
     }
 
     // Resolve the attribute from a real column first (e.g. principalType), then extendedAttributes.
-    const conds = [`COALESCE(to_jsonb(p.*) ->> $1, p."extendedAttributes" ->> $1) IS NOT NULL`];
+    // Live principals only: a soft-deleted ("deletedAt") account is history.
+    const conds = [`COALESCE(to_jsonb(p.*) ->> $1, p."extendedAttributes" ->> $1) IS NOT NULL`, 'p."deletedAt" IS NULL'];
     const qp = [attribute];
     if (systemId !== null) { qp.push(systemId); conds.push(`p."systemId" = $${qp.length}`); }
 

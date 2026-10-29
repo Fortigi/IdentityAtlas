@@ -112,4 +112,31 @@ describe('recalcMemberCountsForChain', () => {
     const total = calls.query.find(q => /WITH RECURSIVE subtree/.test(q.sql));
     expect(total.params[0]).toEqual([ROOT]);
   });
+
+  it('counts only live members in both the direct and the total count', async () => {
+    const { recalcMemberCountsForChain, liveMemberSql, calls } = await loadHelperWithChain({ [ROOT]: null });
+    await recalcMemberCountsForChain(ROOT);
+    const live = liveMemberSql('cm');
+    const direct = calls.query.find(q => /SET "directMemberCount"/.test(q.sql));
+    const total = calls.query.find(q => /WITH RECURSIVE subtree/.test(q.sql));
+    expect(direct.sql).toContain(`cm."contextId" = $1 AND ${live}`);
+    // In the LEFT JOIN's ON clause, so an all-deleted context still counts 0.
+    expect(total.sql).toMatch(/LEFT JOIN "ContextMembers" cm ON cm\."contextId" = s\.node_id\s+AND NOT EXISTS/);
+  });
+});
+
+describe('liveMemberSql', () => {
+  it('excludes soft-deleted Principal and Resource members under the given alias', async () => {
+    const { liveMemberSql } = await import('./memberCounts.js');
+    const sql = liveMemberSql('x').replace(/\s+/g, ' ');
+    expect(sql).toContain(`x."memberType" = 'Principal' AND dp.id = x."memberId" AND dp."deletedAt" IS NOT NULL`);
+    expect(sql).toContain(`x."memberType" = 'Resource' AND dr.id = x."memberId" AND dr."deletedAt" IS NOT NULL`);
+    // Identities / Systems have no tombstone — never referenced.
+    expect(sql).not.toMatch(/Identities|Systems/);
+  });
+
+  it('defaults the alias to cm', async () => {
+    const { liveMemberSql } = await import('./memberCounts.js');
+    expect(liveMemberSql()).toBe(liveMemberSql('cm'));
+  });
 });
