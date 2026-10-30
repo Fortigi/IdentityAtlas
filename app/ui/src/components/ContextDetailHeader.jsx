@@ -1,78 +1,72 @@
 import { contextSubtitle } from '@ui/utils/contextStyles';
 import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
-import { useDialog } from '@ui/components/dialogContext';
 import { isRecipeRoot } from './contexts/assistant/recipeDraft';
-import ContextOwner from './contexts/ContextOwner';
 import ContextAccessCounts from './contexts/ContextAccessCounts';
 import { useContextAncestors } from './contexts/useContextAncestors';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
-import { AdjustTreeButton } from '@ui/components/adjustTree/AdjustTreeAction';
+import DownloadReportButton from './contexts/header/DownloadReportButton';
+import MoreMenu from './contexts/header/MoreMenu';
+import { reportFor, offersMatrix } from './contexts/header/headerActions';
+import AddInformation from './contexts/interviews/AddInformation';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import { contextOpener } from './contexts/contextOpener';
 
-// ─── Header: the name, one sentence on what it is, and the page actions ──
-// The sentence ("Department · imported from Fortigi Demo HR") replaces the
-// old row of classification badges; the raw values sit under More details for
-// whoever can edit. Above the name, the parents as a breadcrumb.
+// ─── Header: the name, one sentence on what it is, and the page's actions ──
+// The sentence ("Department · imported from Fortigi Demo HR") replaces the old
+// row of classification badges; the raw values sit under More details for
+// whoever can edit. Above the name, the parents as a breadcrumb. Below it
+// (`children`), for a unit or an application, who answers for it.
 //
-// Actions, each only when its handler is given:
+// Actions: "Download report" (when the template has one — the reader's main
+// action, for everyone), "Add information" (an analyst, on a unit or an
+// application, while organisation knowledge is on), and a ⋯ menu with the rest (contexts/header/MoreMenu.jsx), each
+// only when its handler is given:
 //   onEdit        Edit (name, description, parent, template, delete)
 //   onAddSubUnit  Add sub-unit
 //   canAdjustTree Adjust tree (opens the tree's Adjust tree tab through onOpenDetail;
 //                 only while organisation knowledge is on)
 //   onOpenAsPage  Open as page (embedded in the Contexts page)
 //   onClose       Back to Contexts (the page opened from the tree)
-// Copy link is offered except in a read-only shell (a context owner's page),
-// where the page URL is not this unit's page; there the breadcrumb names the
-// direct parent only, without reading the parents the reader may not open, and
-// it opens only when it is in the owner's scope (`openContext` decides).
+// View in matrix and Copy link are offered except in a read-only shell (a
+// context owner's page), whose URL is not this unit's page and which cannot
+// reach the matrix; there the breadcrumb names the direct parent only, without
+// reading the parents the reader may not open, and opens it only when it is
+// in the owner's scope (`openContext` decides). No owner chip: who answers for
+// the context is the Accountable, shown below the name.
 
-const SECONDARY_BTN = 'rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 whitespace-nowrap';
-const OUTLINE_BTN = 'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700/50 whitespace-nowrap';
-
-function contextLink(id) {
-  const { origin, pathname } = window.location;
-  return `${origin}${pathname}#context:${id}`;
-}
-
-export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree }) {
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, children }) {
   const readOnly = useIsSharedView();
   const knowledge = useOrgKnowledge();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
+  const report = reportFor(attrs);
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <Breadcrumb attrs={attrs} openContext={openContext || contextOpener({ onOpenDetail })} walk={!readOnly} />
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{attrs.displayName || attrs.id}</h2>
-            <ContextOwner attrs={attrs} onOpenDetail={onOpenDetail} />
-          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white break-words">{attrs.displayName || attrs.id}</h2>
           {subtitle && <p data-testid="context-subtitle" className="text-sm text-gray-600 dark:text-gray-400 mt-1">{subtitle}</p>}
           <ContextAccessCounts attrs={attrs} />
         </div>
         <div className="flex flex-wrap items-start gap-2">
-          {canEditRecipe && (
-            <button type="button" onClick={() => onOpenDetail('context-builder', attrs.id, attrs.displayName)} className={SECONDARY_BTN}>
-              Edit search terms
-            </button>
-          )}
-          {onEdit && <button type="button" onClick={onEdit} className={SECONDARY_BTN}>Edit</button>}
-          {onAddSubUnit && <button type="button" onClick={onAddSubUnit} className={SECONDARY_BTN}>Add sub-unit</button>}
-          {canAdjustTree && knowledge && onOpenDetail && (
-            <AdjustTreeButton contextId={attrs.id} onOpen={(treeKey, title) => onOpenDetail('adjust-tree', treeKey, title)} />
-          )}
-          {!readOnly && <CopyLinkButton id={attrs.id} />}
-          {onOpenAsPage && (
-            <button type="button" onClick={onOpenAsPage} className={OUTLINE_BTN} title="Open this unit in its own tab">
-              Open as page
-            </button>
-          )}
-          {onClose && <button type="button" onClick={onClose} className={OUTLINE_BTN}>Back to Contexts</button>}
+          {report && <DownloadReportButton attrs={attrs} report={report.report} title={report.title} />}
+          {addInformation && knowledge && <AddInformation contextId={attrs.id} />}
+          <MoreMenu
+            attrs={attrs}
+            matrix={offersMatrix(attrs, { sharedView: readOnly })}
+            onAdjustTree={canAdjustTree && knowledge && onOpenDetail ? (treeKey, title) => onOpenDetail('adjust-tree', treeKey, title) : undefined}
+            onEditRecipe={canEditRecipe ? () => onOpenDetail('context-builder', attrs.id, attrs.displayName) : undefined}
+            onEdit={onEdit}
+            onAddSubUnit={onAddSubUnit}
+            copyLink={!readOnly}
+            onOpenAsPage={onOpenAsPage}
+            onClose={onClose}
+          />
         </div>
       </div>
+      {children}
     </div>
   );
 }
@@ -99,17 +93,4 @@ function Breadcrumb({ attrs, openContext, walk }) {
       </ol>
     </nav>
   );
-}
-
-function CopyLinkButton({ id }) {
-  const dialog = useDialog();
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(contextLink(id));
-      dialog.toast('Link copied', { variant: 'success' });
-    } catch {
-      dialog.alert('Could not copy the link');
-    }
-  }
-  return <button type="button" onClick={copy} className={OUTLINE_BTN} title="Copy the link to this page">Copy link</button>;
 }

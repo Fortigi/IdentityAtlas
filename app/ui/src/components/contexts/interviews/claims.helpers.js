@@ -39,8 +39,15 @@ export const RELATION_LABELS = {
 
 const isConfirmed = (c) => CONFIRMED.has(c.status);
 
-/** "interview with Anna Voorbeeld, 2026-10-01" */
+// What kind of source a claim (or a source row) comes from — the API's
+// sourceKind: an interview, a file from nobody in particular, or pasted text.
+export const SOURCE_KIND_LABELS = { interview: 'Interview', file: 'File', text: 'Pasted text' };
+
+/** "interview with Anna Voorbeeld, 2026-10-01" · "team.xlsx, 2026-10-01" · "notes added by Ann, 2026-10-01" */
 export function sourceLabel(claim) {
+  const kind = claim.sourceKind ?? 'interview';
+  if (kind === 'file') return `${claim.fileName}, ${claim.interviewedAt}`;
+  if (kind === 'text') return `notes added by ${claim.intervieweeName}, ${claim.interviewedAt}`;
   return `interview with ${claim.intervieweeName}, ${claim.interviewedAt}`;
 }
 
@@ -56,6 +63,11 @@ export const LOW_CONFIDENCE = 0.4;
 /** A claim to read against its quote before confirming. */
 export function isLowConfidence(claim) {
   return typeof claim.confidence === 'number' && claim.confidence < LOW_CONFIDENCE;
+}
+
+/** A role claim that would set a role but names nobody we hold: confirming it asks who was meant. Pure. */
+export function needsPerson(claim) {
+  return claim.claimKind === 'role' && !!claim.roleSuggestion && !claim.principalId && !claim.identityId;
 }
 
 /** A match a person should check before confirming. */
@@ -89,14 +101,16 @@ export function periodLabel(claim) {
 
 const PERSON_CLAIM_KINDS = new Set(['role', 'roleHistory', 'membership']);
 
-/** The confirmed claims, in the groups the "What we know" section shows. */
+/** A claim about a person (role, history, membership) — the People overview's — rather than about the unit. */
+export const isPersonClaim = (c) => PERSON_CLAIM_KINDS.has(c?.claimKind);
+
+/** The confirmed claims about the unit itself, in the groups "What we know" shows. */
 export function groupConfirmed(claims) {
   const confirmed = (claims || []).filter(isConfirmed);
   return {
     description: confirmed.filter(c => c.claimKind === 'description'),
     properties: confirmed.filter(c => c.claimKind === 'property'),
     aliases: confirmed.filter(c => c.claimKind === 'alias'),
-    people: confirmed.filter(c => PERSON_CLAIM_KINDS.has(c.claimKind)),
   };
 }
 
@@ -111,22 +125,38 @@ export function byRelevance(claims) {
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
+const SNIPPET = 80;
+const snippet = (text) => {
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return s.length > SNIPPET ? `${s.slice(0, SNIPPET - 1).trimEnd()}…` : s;
+};
+
 /**
- * The one line a folded "What we know" shows: "7 facts · 3 people · 2 proposed
- * to review". Facts are the confirmed claims, people the distinct persons they
- * name; the review count only for a writer, and only when there is one. Pure.
+ * The one line a folded "What we know" shows, about the unit only: the start of
+ * its description, then "3 properties · also known as HA · 2 to review" — the
+ * review count for a writer only, and only the unit's own claims (a person's are
+ * on their row in People). Pure.
  */
-export function whatWeKnowSummary(claims, canWrite) {
-  const { description, properties, aliases, people } = groupConfirmed(claims);
-  const facts = description.length + properties.length + aliases.length + people.length;
-  const persons = new Set(people.map(personKey)).size;
-  const parts = [plural(facts, 'fact', 'facts'), plural(persons, 'person', 'people')];
-  const toReview = canWrite ? proposedClaims(claims).length : 0;
-  if (toReview > 0) parts.push(`${toReview} proposed to review`);
-  return parts.join(' · ');
+export function whatWeKnowSummary({ description, claims, aliases = [], canWrite }) {
+  const { properties } = groupConfirmed(claims);
+  const parts = [];
+  if (description) parts.push(snippet(description));
+  if (properties.length) parts.push(plural(properties.length, 'property', 'properties'));
+  if (aliases.length) parts.push(`also known as ${aliases.join(', ')}`);
+  const toReview = canWrite ? proposedClaims(claims).filter(c => !isPersonClaim(c)).length : 0;
+  if (toReview > 0) parts.push(`${toReview} to review`);
+  return parts.join(' · ') || 'Nothing recorded yet';
 }
 
 export const proposedClaims = (claims) => (claims || []).filter(c => c.status === 'proposed');
+
+/** The folded Sources line: "2 sources · latest 2026-10-23", or that nothing was added. Pure. */
+export function sourcesSummary(sources) {
+  const list = sources || [];
+  if (list.length === 0) return 'Nothing added yet';
+  const latest = list.map(s => s.interviewedAt).filter(Boolean).sort().pop();
+  return `${plural(list.length, 'source', 'sources')}${latest ? ` · latest ${latest}` : ''}`;
+}
 
 // A name as the API's alias merge compares it: case, accents, dots and spacing aside.
 const aliasKey = (name) => String(name ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[.\s]+/g, '');
@@ -157,50 +187,6 @@ export function aliasFacts(attrs, claims, canWrite) {
 /** Proposed role claims that would set `role` — the People block's interview suggestions. */
 export function roleSuggestions(claims, role) {
   return proposedClaims(claims).filter(c => c.claimKind === 'role' && c.roleSuggestion === role);
-}
-
-const personKey = (c) => c.principalId || c.identityId || `name:${String(c.subjectName || '').toLowerCase()}`;
-
-// A segment's place on the timeline: dated ones by their start, then the
-// undated ones in the order the interview gave them.
-const sortKey = (c) => c.periodFrom || c.periodTo || '9999';
-
-/**
- * One timeline per person over the confirmed role and role-history claims:
- * [{ key, name, segments: [{ id, label, period, from, to }] }], each person's
- * segments in time order (undated last), people by name.
- */
-export function timelines(claims) {
-  const byPerson = new Map();
-  for (const c of groupConfirmed(claims).people) {
-    const key = personKey(c);
-    if (!byPerson.has(key)) byPerson.set(key, { key, name: subjectLabel(c), segments: [] });
-    byPerson.get(key).segments.push({ id: c.id, label: c.value, period: periodLabel(c), from: c.periodFrom, to: c.periodTo, sort: sortKey(c) });
-  }
-  return [...byPerson.values()]
-    .map(p => ({ ...p, segments: [...p.segments].sort((a, b) => a.sort.localeCompare(b.sort)).map(({ sort: _sort, ...s }) => s) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/**
- * Where each dated segment sits on a shared axis, as percentages: { left, width }
- * from the earliest start to the latest end (today for an open end). Undated
- * segments get null. Pure; `today` is passed in.
- */
-export function segmentBars(segments, today) {
-  const dated = segments.filter(s => s.from || s.to);
-  if (dated.length === 0) return segments.map(() => null);
-  const t = (d) => new Date(`${d}T00:00:00Z`).getTime();
-  const end = (s) => (s.to ? t(s.to) : today);
-  const min = Math.min(...dated.map(s => t(s.from || s.to)));
-  const max = Math.max(...dated.map(end));
-  const span = Math.max(max - min, 1);
-  return segments.map(s => {
-    if (!s.from && !s.to) return null;
-    const left = ((t(s.from || s.to) - min) / span) * 100;
-    const width = Math.max(((end(s) - t(s.from || s.to)) / span) * 100, 2);
-    return { left: Math.round(left * 10) / 10, width: Math.round(Math.min(width, 100 - left) * 10) / 10 };
-  });
 }
 
 export const EXTRACTION_LABELS = {

@@ -131,9 +131,11 @@ linked, no Copy link or Open as page.
   plain text. The **breadcrumb** names the direct parent without reading it, and
   opens it in place when it is in scope (a sub-unit's way back up).
 - A **variant** opens in place only when it is in scope.
-- Each **member** expands to its references, grouped and as plain text. Not
-  while *Include sub-units* is on: those rows are members of the sub-units, and
-  the API answers only for a context's own members.
+- Each **member** expands to its references, grouped and as plain text: on a
+  unit of people or accounts the name of each person in the **People** overview
+  whom the member list holds (not a former member, nor someone only an interview
+  names); elsewhere each row of the members list, but not while *Include
+  sub-units* is on. The API answers only for a context's own members.
 - The Actions area drops **View in matrix**, which the owner cannot open, and the
   "Coming soon" survey and review cards, which are the analyst's to start; it
   keeps the report downloads, which run on the context itself: **Download

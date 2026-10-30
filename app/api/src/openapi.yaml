@@ -3093,15 +3093,17 @@ paths:
         schema: { type: string, format: uuid }
     post:
       tags: [Contexts]
-      summary: Upload an interview transcript about a unit or an application
+      summary: Add information about a unit or an application (a file or pasted text)
       operationId: createContextInterview
       description: >
-        Stores the transcript (.txt, .docx, .vtt or .srt, read to plain text; at most 5,000,000
-        characters) with who was interviewed (an account or a person, exactly one) and when. When the
-        report generator's model is configured (`NL_REPORTS_LLM_URL`) extraction starts in the
-        background (`extractionStatus` pending, running, then done or failed); without it the interview
-        is stored as `notConfigured` and claims are added by hand. Nothing is written to the context:
-        every claim waits for review. Organizational units and logical applications only.
+        Stores a source: a file (.txt, .md, .docx, .vtt or .srt read to plain text; .csv or .xlsx read
+        as a list, one line per row as "Header: value; Header: value") or pasted `text`; at most
+        5,000,000 characters. Who it is from (an account or a person) is optional: without one the
+        source is the file or the text and who added it. When the report generator's model is
+        configured (`NL_REPORTS_LLM_URL`) extraction starts in the background (`extractionStatus`
+        pending, running, then done or failed); without it the source is stored as `notConfigured` and
+        claims are added by hand. Nothing is written to the context: every claim waits for review.
+        Organizational units and logical applications only.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -3110,12 +3112,13 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [file, interviewedAt]
+              required: [interviewedAt]
               properties:
-                file: { type: string, format: binary }
-                principalId: { type: string, format: uuid, description: The interviewee as an account }
-                identityId: { type: string, format: uuid, description: The interviewee as a person }
-                interviewedAt: { type: string, format: date }
+                file: { type: string, format: binary, description: 'The file; give this or text' }
+                text: { type: string, description: 'Pasted text, when there is no file' }
+                principalId: { type: string, format: uuid, description: 'Who it is from, as an account (optional)' }
+                identityId: { type: string, format: uuid, description: 'Who it is from, as a person (optional)' }
+                interviewedAt: { type: string, format: date, description: The date of the source }
       responses:
         '201':
           description: The stored interview
@@ -3139,7 +3142,10 @@ paths:
       tags: [Contexts]
       summary: The interviews of a context
       operationId: listContextInterviews
-      description: Newest interview first, without the transcript, each with its claim counts. Needs `data.write.contexts`.
+      description: >
+        Newest interview first, without the transcript, each with its claim counts. Also the sources
+        added on another context that make claims about this context's people, marked with
+        `filedUnderId` / `filedUnderName`. Needs `data.write.contexts`.
       security:
         - EntraIdBearer: []
       responses:
@@ -3394,7 +3400,7 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such context
-  /contexts/{id}/previous-members:
+  /contexts/{id}/people:
     parameters:
       - name: id
         in: path
@@ -3402,49 +3408,58 @@ paths:
         schema: { type: string, format: uuid }
     get:
       tags: [Contexts]
-      summary: The people the interviews say left the context
-      operationId: listContextPreviousMembers
+      summary: The People overview of a unit or an application
+      operationId: listContextPeople
       description: >
-        People whose latest membership claim says they are not in the context any more (former,
-        left) and who are not a direct member now, with their latest role there. A matched account
-        or person comes with the live entitlements it still holds, and how many of those are on the
-        resources the context is linked to (its own resource members, or a resources variant's) —
-        null when it has none. A person who left once and came back is listed too, for the EARLIER
-        stint (`stint: earlier`, `role` = the roles they had then, `nowMember` whether they are a
-        direct member now). A person a decision marked former is listed although the source still
-        lists them (`stillListed`), with the `decision`. Members come from their source; a decision
-        sits on top of it. A reader without `data.write.contexts` gets confirmed claims only.
+        One row per person: the members the source lists, merged with what the added sources say
+        about people (role, role history, membership claims) — each person once, with one status,
+        their roles here, the claims about them, the open contradictions they are in and what they
+        still hold. Sorted: the current members the source lists by name, then the people a source
+        says are in it, the not confirmed, the left (decided) and the left, each by name. Paged
+        (100 by default); `counts` holds the count of every filter. Set-based: a fixed number of
+        statements whatever the size of the unit. A reader without `data.write.contexts` (a context
+        owner too) is answered from confirmed claims only. Organizational units and logical
+        applications only.
       security:
         - EntraIdBearer: []
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [current, former, all, decide], default: current }
+          description: current (current, came back, not confirmed), former (left, left decided), all, or decide (people with an open contradiction)
+        - name: search
+          in: query
+          schema: { type: string, maxLength: 200 }
+          description: A part of the name
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
-          description: The previous members, by name
+          description: One page of people
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  linkedResources: { type: integer }
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        key: { type: string }
-                        principalId: { type: string, format: uuid, nullable: true }
-                        identityId: { type: string, format: uuid, nullable: true }
-                        displayName: { type: string }
-                        subjectName: { type: string, nullable: true }
-                        accountDeleted: { type: boolean }
-                        stint: { type: string, enum: [left, earlier] }
-                        nowMember: { type: boolean }
-                        stillListed: { type: boolean, description: 'The source still lists them' }
-                        decision: { $ref: '#/components/schemas/ContextMemberOverrideDecision' }
-                        left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
-                        rejoined: { $ref: '#/components/schemas/ContextMemberRejoinFact' }
-                        role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
-                        liveEntitlements: { type: integer, nullable: true }
-                        linkedEntitlements: { type: integer, nullable: true }
+                  data: { type: array, items: { $ref: '#/components/schemas/ContextPerson' } }
+                  total: { type: integer, description: How many the filter holds }
+                  counts:
+                    type: object
+                    properties:
+                      current: { type: integer }
+                      former: { type: integer }
+                      all: { type: integer }
+                      decide: { type: integer }
+                  filter: { type: string }
+                  limit: { type: integer }
+                  offset: { type: integer }
+                  linkedResources: { type: integer, description: How many resources the context is linked to }
+        '400':
+          description: Not a unit or an application, or an invalid id
         '404':
           description: No such context
   /contexts/claims/{claimId}:
@@ -3465,7 +3480,7 @@ paths:
         (members come from their source) — except that a claim saying a person the member list still
         lists has left, confirmed as said ("the interview is right"), marks them former by a decision
         (effect formerMember, with the source it overrides): the members list then leaves them out,
-        Previous members lists them, and ContextMembers stays as the source has it; a role claim with a
+        the People overview shows them as Left (decided), and ContextMembers stays as the source has it; a role claim with a
         suggestion becomes the ContextRole (addedBy analyst, with the claim as `sourceClaimId`). An
         Accountable is set only when the context has none; otherwise 409 with the current holder, and
         `replace: true` replaces them. Give `principalId` or `identityId` when the claim's person was
@@ -4149,17 +4164,53 @@ components:
             resolved to an account, else the source's ownerName as-is.
         ownerEmployeeId: { type: string, nullable: true, description: Resource members only. }
         ownerEmail: { type: string, nullable: true, description: Resource members only. }
-        interview:
-          type: object
-          description: >
-            Accounts and persons of an organisational unit or a logical application only — what its
-            interviews say about the member: the latest role there, and the latest membership claim
-            when it says they left. A reader without `data.write.contexts` gets confirmed claims only.
-          properties:
-            role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
-            left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
-            rejoined: { $ref: '#/components/schemas/ContextMemberRejoinFact' }
       additionalProperties: true
+    ContextPerson:
+      type: object
+      description: >
+        One person on a unit's (or an application's) People overview: a member the source lists,
+        merged with what the added sources say about them. Keyed by the holder in the context's kind
+        of member (`principalId:<id>` / `identityId:<id>`), else by the name as said (`name:<name>`).
+      properties:
+        key: { type: string }
+        status:
+          type: string
+          enum: [current, cameBack, notConfirmed, leftDecided, left]
+          description: >
+            current — the source lists them; cameBack — listed, and a source says they left once and
+            came back; notConfirmed — a source says they are in it, the member list does not list them;
+            leftDecided — the source still lists them, a decision marked them former; left — a source
+            says they left and the list does not list them.
+        former: { type: boolean, description: 'leftDecided or left: the Former filter' }
+        principalId: { type: string, format: uuid, nullable: true }
+        identityId: { type: string, format: uuid, nullable: true }
+        displayName: { type: string }
+        email: { type: string, nullable: true }
+        jobTitle: { type: string, nullable: true }
+        department: { type: string, nullable: true }
+        principalType: { type: string, nullable: true }
+        accountEnabled: { type: boolean, nullable: true }
+        accountDeleted: { type: boolean }
+        roles: { type: array, items: { $ref: '#/components/schemas/ContextRoleType' }, description: The roles they hold here }
+        role: { $ref: '#/components/schemas/ContextMemberRoleFact' }
+        rejoined: { $ref: '#/components/schemas/ContextMemberRejoinFact' }
+        left: { $ref: '#/components/schemas/ContextMemberClaimFact' }
+        decision: { $ref: '#/components/schemas/ContextMemberOverrideDecision' }
+        stillListed: { type: boolean, description: 'Marked former by a decision while the source still lists them' }
+        sources:
+          type: array
+          items: { type: string, enum: [list, interview, file, text] }
+          description: The member list when it lists them, then each kind of added source that says something about them
+        claims:
+          type: array
+          description: Every role, role history and membership claim about them the reader may see
+          items: { $ref: '#/components/schemas/ContextClaim' }
+        contradictions:
+          type: array
+          items: { type: string }
+          description: The ids of the open contradictions their claims are in (GET …/claims → contradictions)
+        liveEntitlements: { type: integer, nullable: true, description: 'Live entitlements they hold; null when nobody was matched' }
+        linkedEntitlements: { type: integer, nullable: true, description: How many of those are on this context's resources; null when it has none }
     ContextMemberOverrideDecision:
       type: object
       nullable: true
@@ -4281,7 +4332,11 @@ components:
         closedReason: { type: string, nullable: true }
     ContextInterview:
       type: object
-      description: An interview about a context, which is a source. The interviewee is an account or a person.
+      description: >
+        A source added to a context (Add information): an interview (from an account or a person),
+        a file or list from nobody in particular, or pasted text. The paths and the table keep the
+        word "interview" for any of them. Without a person, `intervieweeName` is who added it (or the
+        file name).
       properties:
         id: { type: string, format: uuid }
         contextId: { type: string, format: uuid }
@@ -4289,7 +4344,8 @@ components:
         identityId: { type: string, format: uuid, nullable: true }
         intervieweeName: { type: string }
         interviewedAt: { type: string, format: date }
-        fileName: { type: string }
+        fileName: { type: string, description: 'The file as uploaded; "Pasted text" for pasted text' }
+        sourceKind: { type: string, enum: [interview, file, text] }
         language: { type: string, nullable: true }
         extractionStatus: { type: string, enum: [pending, running, done, failed, notConfigured] }
         extractionMessage: { type: string, nullable: true }
@@ -4297,6 +4353,15 @@ components:
         model: { type: string, nullable: true }
         createdBy: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+        filedUnderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            In a context's list of sources: set when the source was added on ANOTHER context and makes
+            claims about this context's people (an interview on the parent unit naming who in a sub-unit
+            does what). Its claim counts then count those claims only. Null for a source added here.
+        filedUnderName: { type: string, nullable: true, description: 'The context the source was added on, when not this one' }
     ContextClaim:
       type: object
       description: >
@@ -4333,6 +4398,7 @@ components:
         intervieweeName: { type: string }
         interviewedAt: { type: string, format: date }
         fileName: { type: string }
+        sourceKind: { type: string, enum: [interview, file, text], description: What kind of source the claim comes from }
     ContextRoleSuggestion:
       type: object
       description: A suggested Accountable and why; the holder is an account or a person, exactly one.
@@ -4671,6 +4737,12 @@ components:
           description: >
             Only in the builder catalog: the column reads an `extendedAttributes` key found in this
             deployment's own data rather than a field of the shared catalog.
+        headerFill:
+          type: string
+          pattern: '^[0-9A-Fa-f]{8}$'
+          description: >
+            Optional ARGB colour for the column's header in the Excel download, to set a group of
+            columns apart (the unit report's organisational-claim columns).
 
 
     ReportDefinition:

@@ -1,13 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
   sourceLabel, subjectLabel, isUncertainMatch, periodLabel, groupConfirmed, proposedClaims, roleSuggestions,
-  timelines, segmentBars, anyInProgress, manualClaimBody, manualClaimReady, extractionLabel, BUSY_AFTER_MS,
+  anyInProgress, aliasFacts, sourcesSummary, needsPerson, isPersonClaim, SOURCE_KIND_LABELS, manualClaimBody, manualClaimReady, extractionLabel, BUSY_AFTER_MS,
   byRelevance, whatWeKnowSummary, claimLine, isLowRelevance, isLowConfidence, LOW_CONFIDENCE,
 } from './claims.helpers';
 
 const claim = (over) => ({ id: over.id ?? 'c', claimKind: 'role', status: 'proposed', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', ...over });
 
 describe('labels', () => {
+  it('names the source by its kind: an interview by who, a file by its name, pasted text by who added it', () => {
+    expect(sourceLabel(claim({ sourceKind: 'interview', fileName: 'talk.vtt' }))).toBe('interview with Anna Voorbeeld, 2026-10-01');
+    expect(sourceLabel(claim({ sourceKind: 'file', fileName: 'team.xlsx', intervieweeName: 'analyst@example.test' }))).toBe('team.xlsx, 2026-10-01');
+    expect(sourceLabel(claim({ sourceKind: 'text', fileName: 'Pasted text', intervieweeName: 'analyst@example.test' }))).toBe('notes added by analyst@example.test, 2026-10-01');
+    expect(SOURCE_KIND_LABELS).toEqual({ interview: 'Interview', file: 'File', text: 'Pasted text' });
+  });
+
   it('names the source, and the matched person over the spoken name', () => {
     expect(sourceLabel(claim({}))).toBe('interview with Anna Voorbeeld, 2026-10-01');
     expect(subjectLabel(claim({ subjectName: 'Piet', subjectDisplayName: 'Piet Proefpersoon' }))).toBe('Piet Proefpersoon');
@@ -46,51 +53,31 @@ describe('grouping', () => {
     claim({ id: 'n', claimKind: 'roleHistory', status: 'proposed', roleSuggestion: 'Responsible' }),
   ];
 
-  it('groups confirmed and edited claims; proposed and rejected stay out', () => {
+  it('groups the confirmed and edited claims about the unit; proposed, rejected and people\'s stay out', () => {
     const g = groupConfirmed(claims);
-    expect([g.description, g.properties, g.people].map(l => l.map(c => c.id))).toEqual([['d'], ['p'], ['r', 'h']]);
-    expect(groupConfirmed(undefined).people).toEqual([]);
+    expect(Object.keys(g)).toEqual(['description', 'properties', 'aliases']);
+    expect([g.description, g.properties, g.aliases].map(l => l.map(c => c.id))).toEqual([['d'], ['p'], []]);
+    expect(groupConfirmed(undefined)).toEqual({ description: [], properties: [], aliases: [] });
+  });
+
+  it('a claim about a person is a role, history or membership claim', () => {
+    expect(['role', 'roleHistory', 'membership', 'property', 'alias', 'description'].map(k => isPersonClaim({ claimKind: k })))
+      .toEqual([true, true, true, false, false, false]);
+    expect(isPersonClaim(null)).toBe(false);
+  });
+
+  it('a role claim that would set a role for nobody we hold needs the person first', () => {
+    expect(needsPerson(claim({ roleSuggestion: 'Accountable' }))).toBe(true);
+    expect(needsPerson(claim({ roleSuggestion: 'Accountable', principalId: 'p' }))).toBe(false);
+    expect(needsPerson(claim({ roleSuggestion: 'Accountable', identityId: 'i' }))).toBe(false);
+    expect(needsPerson(claim({ roleSuggestion: null }))).toBe(false);
+    expect(needsPerson(claim({ claimKind: 'roleHistory', roleSuggestion: 'Responsible' }))).toBe(false);
   });
 
   it('suggests a role from proposed role claims only', () => {
     expect(proposedClaims(claims).map(c => c.id)).toEqual(['q', 'a', 'n']);
     expect(roleSuggestions(claims, 'Responsible').map(c => c.id)).toEqual(['q']);
     expect(roleSuggestions(claims, 'Accountable').map(c => c.id)).toEqual(['a']);
-  });
-});
-
-describe('timelines', () => {
-  const P = 'p-1';
-  const claims = [
-    claim({ id: '3', claimKind: 'roleHistory', status: 'confirmed', principalId: P, subjectDisplayName: 'Bram Test', value: 'architect CCoE', periodFrom: '2022-01-01', periodText: 'now' }),
-    claim({ id: '1', claimKind: 'roleHistory', status: 'confirmed', principalId: P, subjectDisplayName: 'Bram Test', value: 'junior', periodFrom: '2015-01-01', periodTo: '2017-12-31' }),
-    claim({ id: '2', claimKind: 'roleHistory', status: 'confirmed', principalId: P, subjectDisplayName: 'Bram Test', value: 'left', periodText: 'for a while' }),
-    claim({ id: '4', claimKind: 'role', status: 'confirmed', subjectName: 'Karel', value: 'day-to-day' }),
-    claim({ id: '5', claimKind: 'roleHistory', status: 'proposed', principalId: P, value: 'not decided' }),
-  ];
-
-  it('one line per person, dated roles in time order and undated ones after, people by name', () => {
-    expect(timelines(claims).map(p => [p.name, p.segments.map(s => s.label)])).toEqual([
-      ['Bram Test', ['junior', 'architect CCoE', 'left']],
-      ['Karel', ['day-to-day']],
-    ]);
-    expect(timelines(claims)[0].segments[1]).toEqual({ id: '3', label: 'architect CCoE', period: 'since 2022 (now)', from: '2022-01-01', to: undefined });
-  });
-
-  it('places dated bars on one axis, an open end at today, undated ones nowhere', () => {
-    const today = Date.parse('2025-01-01T00:00:00Z');
-    const bars = segmentBars([
-      { from: '2015-01-01', to: '2020-01-01' },
-      { from: '2020-01-01' },
-      { label: 'vague' },
-    ], today);
-    expect(bars).toEqual([{ left: 0, width: 50 }, { left: 50, width: 50 }, null]);
-    expect(segmentBars([{ label: 'vague' }], today)).toEqual([null]);
-  });
-
-  it('gives a one-day role a visible bar', () => {
-    const bars = segmentBars([{ from: '2015-01-01', to: '2025-01-01' }, { from: '2020-01-01', to: '2020-01-01' }], Date.now());
-    expect(bars[1].width).toBe(2);
   });
 });
 
@@ -155,29 +142,49 @@ describe('relevance, membership and aliases', () => {
     expect(byRelevance(null)).toEqual({ high: [], low: [] });
   });
 
-  it('groups confirmed aliases on their own, and memberships with the people', () => {
+  it('groups confirmed aliases on their own; a membership is no fact about the unit', () => {
     const g = groupConfirmed([
       claim({ id: 'al', claimKind: 'alias', status: 'confirmed', value: 'Port Co' }),
       claim({ id: 'm', claimKind: 'membership', status: 'edited', attribute: 'left', principalId: 'p-jan' }),
-      claim({ id: 'mp', claimKind: 'membership', status: 'proposed', attribute: 'left' }),
     ]);
     expect(g.aliases.map(c => c.id)).toEqual(['al']);
-    expect(g.people.map(c => c.id)).toEqual(['m']);
+    expect(Object.values(g).flat().map(c => c.id)).toEqual(['al']);
   });
 
-  it('the folded summary counts facts, distinct people, and — for a writer — what is left to review', () => {
+  it('the folded summary: the start of the description, then properties, other names and — for a writer — the unit\'s own review', () => {
     const claims = [
-      claim({ id: '1', claimKind: 'description', status: 'confirmed' }),
-      claim({ id: '2', claimKind: 'role', status: 'confirmed', principalId: 'p-piet' }),
-      claim({ id: '3', claimKind: 'roleHistory', status: 'edited', principalId: 'p-piet' }),
-      claim({ id: '4', claimKind: 'membership', status: 'confirmed', subjectName: 'Karel' }),
-      claim({ id: '5', claimKind: 'property', status: 'proposed' }),
-      claim({ id: '6', claimKind: 'alias', status: 'rejected' }),
+      claim({ id: '1', claimKind: 'property', status: 'confirmed' }),
+      claim({ id: '2', claimKind: 'property', status: 'edited' }),
+      claim({ id: '3', claimKind: 'role', status: 'proposed', principalId: 'p-piet' }),
+      claim({ id: '4', claimKind: 'property', status: 'proposed' }),
+      claim({ id: '5', claimKind: 'alias', status: 'proposed' }),
     ];
-    expect(whatWeKnowSummary(claims, true)).toBe('4 facts · 2 people · 1 proposed to review');
-    expect(whatWeKnowSummary(claims, false)).toBe('4 facts · 2 people');
-    expect(whatWeKnowSummary([claim({ claimKind: 'role', status: 'confirmed', principalId: 'p' })], true)).toBe('1 fact · 1 person');
-    expect(whatWeKnowSummary([], true)).toBe('0 facts · 0 people');
+    const description = `A harbour office  that handles ${'x'.repeat(80)}`;
+    const line = whatWeKnowSummary({ description, claims, aliases: ['HA', 'Haven'], canWrite: true });
+    // 80 characters at most for the description, the spaces folded, then the counts.
+    expect(line).toBe(`A harbour office that handles ${'x'.repeat(49)}… · 2 properties · also known as HA, Haven · 2 to review`);
+    expect(whatWeKnowSummary({ description: 'Short.', claims, canWrite: false })).toBe('Short. · 2 properties');
+    expect(whatWeKnowSummary({ claims: [claims[0]], canWrite: true })).toBe('1 property');
+    expect(whatWeKnowSummary({ claims: [], canWrite: true })).toBe('Nothing recorded yet');
+  });
+
+  it('the sources line: how many and the latest date, or that nothing was added', () => {
+    expect(sourcesSummary([{ interviewedAt: '2026-10-01' }, { interviewedAt: '2026-10-23' }, { interviewedAt: null }])).toBe('3 sources · latest 2026-10-23');
+    expect(sourcesSummary([{ interviewedAt: '2026-10-01' }])).toBe('1 source · latest 2026-10-01');
+    expect(sourcesSummary([{}])).toBe('1 source');
+    expect(sourcesSummary(undefined)).toBe('Nothing added yet');
+  });
+
+  it('the other names: stored aliases and confirmed claims solid, then a writer\'s proposed ones; one per name', () => {
+    const alias = (id, value, status) => claim({ id, claimKind: 'alias', value, status });
+    const unit = { extendedAttributes: { aliases: ['HO'] } };
+    const claims = [alias('a1', 'Havenkantoor', 'proposed'), alias('a2', 'Kade', 'confirmed'), alias('a3', 'h.o.', 'proposed'), alias('a4', 'Gone', 'rejected'), alias('a5', 'Kádé', 'edited')];
+    expect(aliasFacts(unit, claims, true).map(f => [f.name, f.status, f.claim?.id ?? null])).toEqual([
+      ['HO', 'confirmed', null], ['Kade', 'confirmed', 'a2'], ['Havenkantoor', 'proposed', 'a1'],
+    ]);
+    expect(aliasFacts(unit, claims, false).map(f => f.name)).toEqual(['HO', 'Kade']);
+    expect(aliasFacts({ extendedAttributes: { aliases: 'not a list' } }, [], true)).toEqual([]);
+    expect(aliasFacts(null, null, true)).toEqual([]);
   });
 
   it('a claim as one line: who, what, and the relation or the membership status in words when it adds something', () => {

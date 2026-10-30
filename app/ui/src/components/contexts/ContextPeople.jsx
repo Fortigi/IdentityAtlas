@@ -45,17 +45,18 @@ const ROLE_HELPERS = {
   Responsible: () => 'Keeps the membership and access correct day to day',
 };
 
-export default function ContextPeople({ attrs, onOpenDetail, heading = 'People', accountableLabel = 'Accountable', noun = 'this unit', suggest = false }) {
+export default function ContextPeople({ attrs, onOpenDetail, heading = 'People', accountableLabel = 'Accountable', noun = 'this unit', suggest = false, onRolesChanged }) {
   if (!ROLED_CATEGORIES.has(attrs?.contextCategory)) return null;
   return (
     <PeopleBlocks contextId={attrs.id} sourceName={attrs.scopeSystemName} onOpenDetail={onOpenDetail} heading={heading}
-      accountableLabel={accountableLabel} noun={noun} suggest={suggest} />
+      unmatchedOwner={attrs.ownerUserId && !attrs.ownerPrincipalId ? attrs.ownerUserId : null}
+      accountableLabel={accountableLabel} noun={noun} suggest={suggest} onRolesChanged={onRolesChanged} />
   );
 }
 
 // Loads the roles of one context and holds the writes on them. Each write
 // resolves to true when it went through, so the modal knows whether to close.
-function useContextRoles(contextId) {
+function useContextRoles(contextId, onChanged) {
   const { authFetch } = useAuth();
   const { data: roles, loading, error, reload } = useFetch(`/api/contexts/${contextId}/roles`, { authFetch, initialData: [] });
   const [actionError, setActionError] = useState(null);
@@ -72,6 +73,7 @@ function useContextRoles(contextId) {
         throw new Error(body.error || `HTTP ${r.status}`);
       }
       reload();
+      onChanged?.();
       return true;
     } catch (e) {
       setActionError(e.message || fallback);
@@ -102,11 +104,11 @@ function useContextRoles(contextId) {
   };
 }
 
-function PeopleBlocks({ contextId, sourceName, onOpenDetail, heading, accountableLabel, noun, suggest }) {
+function PeopleBlocks({ contextId, sourceName, unmatchedOwner, onOpenDetail, heading, accountableLabel, noun, suggest, onRolesChanged }) {
   const readOnly = useIsSharedView();
   const canWrite = useHasPermission('data.write.contexts') && !readOnly;
   const openPerson = readOnly ? undefined : onOpenDetail;
-  const { accountable, responsible, loading, error, actionError, clearActionError, add, remove } = useContextRoles(contextId);
+  const { accountable, responsible, loading, error, actionError, clearActionError, add, remove } = useContextRoles(contextId, onRolesChanged);
   // Which role's modal is open: 'Accountable', 'Responsible' or null.
   const [editing, setEditing] = useState(null);
 
@@ -120,8 +122,9 @@ function PeopleBlocks({ contextId, sourceName, onOpenDetail, heading, accountabl
   const showGuess = accountable.length === 0 && suggest && !readOnly && !loading && !error;
 
   return (
-    <div className="mt-3 space-y-3" data-testid="context-people">
+    <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3 dark:border-gray-700" data-testid="context-people">
       {heading && <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">{heading}</div>}
+      <UnmatchedOwner value={unmatchedOwner} shown={accountable.length === 0} />
       <RoleBlock label={accountableLabel} helper={ROLE_HELPERS.Accountable(noun)} holders={accountable} loading={loading}
         sourceName={sourceName} canWrite={canWrite} onSet={() => open('Accountable')} onOpenDetail={openPerson}>
         {showGuess && (
@@ -147,6 +150,17 @@ function PeopleBlocks({ contextId, sourceName, onOpenDetail, heading, accountabl
   );
 }
 
+// The owner a source names but nobody we hold matches: worth seeing (blanking it
+// would hide the very defect the reader needs), shown while no Accountable is set.
+function UnmatchedOwner({ value, shown }) {
+  if (!value || !shown) return null;
+  return (
+    <p className="text-xs text-gray-600 dark:text-gray-400" data-testid="unmatched-owner">
+      The source names “{value}” as the owner; no account found.
+    </p>
+  );
+}
+
 // The pop-up for one role, in the profile's vocabulary.
 function RoleEditor({ role, accountableLabel, noun, ...rest }) {
   return (
@@ -160,14 +174,14 @@ function emptyRoleText(label) {
   return label === 'Owner' ? 'No owner yet.' : `Nobody is ${label.toLowerCase()} yet.`;
 }
 
-// One role: its name and meaning on the left, who holds it on the right.
+// One role on one line: its name (what it means on hover, and for a screen
+// reader), then who holds it. Suggestions wrap below.
 function RoleBlock({ label, helper, holders, loading, sourceName, canWrite, onSet, onOpenDetail, children }) {
   const empty = holders.length === 0;
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap items-start gap-x-4 gap-y-1">
-      <div className="w-full sm:w-48 shrink-0">
-        <div className="text-sm font-medium text-gray-900 dark:text-white">{label}</div>
-        <div className="text-xs text-gray-600 dark:text-gray-400">{helper}</div>
+    <div role="group" aria-label={label} className="flex flex-wrap items-start gap-x-3 gap-y-1">
+      <div className="w-full sm:w-28 shrink-0 pt-1 text-sm font-medium text-gray-900 dark:text-white" title={helper}>
+        {label}<span className="sr-only"> — {helper}</span>
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
         {!empty && (

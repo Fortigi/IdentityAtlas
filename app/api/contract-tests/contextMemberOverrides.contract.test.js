@@ -2,7 +2,7 @@
 // over the real app and PostgreSQL: deciding a "left, but still listed"
 // contradiction "the interview is right" leaves ContextMembers as the source has
 // it and marks the person former on top of it — the members list leaves them out
-// (and says so), Previous members lists them with the decision and the access
+// (and says so), the People overview shows them as left (decided) with the decision and the access
 // they still hold, the unit report marks them, the timeline says what was
 // decided. "The list is right" and "both true, at different times" mark nobody.
 // Undo reopens the contradiction and the person is a current member again.
@@ -103,11 +103,17 @@ describe('a member marked former by a decision', () => {
     expect(detail.members.map(m => m.displayName)).toEqual(['Bea Bakker', 'Kai Kuiper']);
   });
 
-  it('Previous members lists Led with the decision, still listed, and the access still held', async () => {
-    const { data } = (await agent.get(`/api/contexts/${id.unit}/previous-members`)).body;
-    expect(data.map(p => p.displayName)).toEqual(['Led Ledeboer']);
-    expect(data[0]).toMatchObject({ stint: 'left', stillListed: true, nowMember: false, liveEntitlements: 1,
+  it('the People overview shows Led once, as left (decided), with the decision and the access still held', async () => {
+    const former = (await agent.get(`/api/contexts/${id.unit}/people?filter=former`)).body;
+    expect(former.data.map(p => [p.displayName, p.status])).toEqual([['Led Ledeboer', 'leftDecided']]);
+    // The source row names nobody interviewed, so it reads as a file.
+    expect(former.data[0]).toMatchObject({ stillListed: true, former: true, liveEntitlements: 1, sources: ['list', 'file'],
       decision: { overrides: SOURCE, claimId: claim.led } });
+    const current = (await agent.get(`/api/contexts/${id.unit}/people`)).body;
+    expect(current.data.map(p => [p.displayName, p.status])).toEqual([['Bea Bakker', 'current'], ['Kai Kuiper', 'current']]);
+    // Bea and Kai: an interview says they left while the list has them — to decide.
+    expect(current.counts).toEqual({ current: 2, former: 1, all: 3, decide: 2 });
+    expect(current.data.every(p => p.contradictions.length === 1)).toBe(true);
   });
 
   it('"the list is right" and "both true, at different times" leave Bea and Kai current', async () => {
@@ -138,7 +144,9 @@ describe('a member marked former by a decision', () => {
     expect([names(body), body.total, body.overriddenCount]).toEqual([['Bea Bakker', 'Kai Kuiper', 'Led Ledeboer'], 3, 0]);
     const { contradictions } = (await agent.get(`/api/contexts/${id.unit}/claims`)).body;
     expect(contradictions.find(c => c.claimIds.includes(claim.led))).toMatchObject({ rule: 'leftButMember', status: 'open' });
-    expect((await agent.get(`/api/contexts/${id.unit}/previous-members`)).body.data).toEqual([]);
+    const people = (await agent.get(`/api/contexts/${id.unit}/people?filter=all`)).body;
+    expect(people.data.map(p => [p.displayName, p.status])).toEqual([['Bea Bakker', 'current'], ['Kai Kuiper', 'current'], ['Led Ledeboer', 'current']]);
+    expect(people.counts.former).toBe(0);
     // Undoing what was not decided is refused.
     expect((await agent.post(`/api/contexts/claims/${claim.led}/undo`)).status).toBe(409);
   });

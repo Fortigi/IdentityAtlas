@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Context interviews on a context page (docs/architecture/context-interviews.md): grouping and wording claims, the role timeline axis and the manual-claim body (claims.helpers.js), the shared claims state with its Accountable-replacement question and polling (ClaimsProvider.jsx), the People block suggestions (InterviewSuggestions.jsx), the review list with its relevance fold and bulk rejects (ClaimReviewList.jsx), the transcript view with its highlight segmentation over turns and overlaps, click-to-claim and focus-and-pulse (transcript.helpers.js, TranscriptPanel.jsx), and the members lists' interview role, left flag and previous members with their live entitlements (memberInterview.helpers.js, MemberInterviewFacts.jsx, PreviousMembers.jsx). WHY: a grouping that shows a proposed claim as known, a replacement confirmed without asking, or a suggestion shown to a reader puts unreviewed interview words in front of a business reader as fact. TEST INCLUDE: the helpers unit tests and the mount tests that drive the page through ContextProfile and the members tab. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
+  "_comment": "Context interviews on a context page (docs/architecture/context-interviews.md): grouping and wording claims, the source label per kind, the unit-only What we know summary and the manual-claim body (claims.helpers.js), the shared claims state with its Accountable-replacement question and polling (ClaimsProvider.jsx), the People block suggestions (InterviewSuggestions.jsx), the review list with its relevance fold and bulk rejects (ClaimReviewList.jsx), the transcript view with its highlight segmentation over turns and overlaps, click-to-claim and focus-and-pulse (transcript.helpers.js, TranscriptPanel.jsx), the People overview (one row per person, the status vocabulary, the claim icons and their popovers with Confirm / Reject, the contradiction on the row, Undo of a decision, the filters, search and pages: people.helpers.js, PersonClaims.jsx, ClaimIcon.jsx, PeopleSection.jsx, usePeople.js), the shared Confirm / Reject (ClaimDecision.jsx), and the change requests read (useChangeRequests.js). WHY: a grouping that shows a proposed claim as known, a replacement confirmed without asking, or a suggestion shown to a reader puts unreviewed interview words in front of a business reader as fact. TEST INCLUDE: the helpers unit tests and the mount tests that drive the People overview, What we know, Sources, the review drawer and the unit page body. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -21,27 +21,39 @@
     "src/components/contexts/interviews/transcript.helpers.js",
     "src/components/contexts/interviews/memberInterview.helpers.js",
     "src/components/contexts/interviews/TranscriptPanel.jsx",
-    "src/components/contexts/interviews/PreviousMembers.jsx",
-    "src/components/contexts/interviews/MemberInterviewFacts.jsx",
     "src/components/contexts/interviews/AlsoKnownAs.jsx",
     "src/components/contexts/interviews/contradiction.helpers.js",
     "src/components/contexts/interviews/Contradictions.jsx",
-    "src/components/contexts/interviews/OverriddenMembers.jsx",
     "src/components/contexts/changeRequests/changeRequests.helpers.js",
-    "src/components/contexts/changeRequests/ChangeRequestsPanel.jsx"
+    "src/components/contexts/changeRequests/ChangeRequestsPanel.jsx",
+    "src/components/contexts/people/people.helpers.js",
+    "src/components/contexts/people/PersonClaims.jsx",
+    "src/components/contexts/people/ClaimIcon.jsx",
+    "src/components/contexts/people/PeopleSection.jsx",
+    "src/components/contexts/people/usePeople.js",
+    "src/components/contexts/interviews/ClaimDecision.jsx",
+    "src/components/contexts/changeRequests/useChangeRequests.js",
+    "src/components/EntityTimeline.helpers.js"
   ],
   "mutationExclusions": {
-    "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the WorkflowsArea and ContextPeople mount tests, which mount without one.",
+    "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the AddInformation (interviewForms.mount.test.jsx) and ContextPeople mount tests, which mount without one.",
     "src/components/contexts/interviews/ChoosePersonModal.jsx": "Presentational modal around the shared PersonSearch; it closes when onPick resolves true. Both callers (suggestions, review list) are mutated here and the pick-and-confirm path is asserted by interviews.mount.test.jsx.",
     "src/components/contexts/interviews/ManualClaimForm.jsx": "A form over manualClaimBody / manualClaimReady in claims.helpers.js, which are mutated here; the selection-to-quote and the posted body are asserted by interviewForms.mount.test.jsx.",
-    "src/components/contexts/interviews/InterviewList.jsx": "Presentational list of interviews with three buttons calling fixed API paths; retry and delete (with its confirmation) are asserted by interviews.mount.test.jsx, the status wording comes from EXTRACTION_LABELS in the mutated helpers.",
-    "src/components/contexts/interviews/UploadInterviewModal.jsx": "A form that builds one FormData and posts it; the fields sent and the refusal path are asserted by interviewForms.mount.test.jsx. The only gate (all three fields filled) is a disabled attribute asserted there too.",
-    "src/components/contexts/interviews/UploadInterviewCard.jsx": "Presentational card: opens the modal and refreshes the provider after an upload; hidden for a reader (asserted both ways in the two mount tests).",
-    "src/components/contexts/interviews/WhatWeKnow.jsx": "Layout over groupConfirmed / proposedClaims / timelines / whatWeKnowSummary in claims.helpers.js (mutated here); the fold (closed by default, opened on click, remembered per context in sessionStorage, and a refusing sessionStorage) and which groups show for a writer and for a reader are asserted by interviews.mount.test.jsx and interviewKnowledge.mount.test.jsx.",
-    "src/components/contexts/interviews/RoleTimeline.jsx": "Draws segmentBars() from claims.helpers.js (mutated here, with discriminating dates); the bar placement and the no-axis case are asserted by interviewForms.mount.test.jsx.",
+    "src/components/contexts/interviews/WhatWeKnow.jsx": "Layout over groupConfirmed / proposedClaims / isPersonClaim / aliasFacts / whatWeKnowSummary in claims.helpers.js (mutated here); the fold, the unit-only review and summary, the variants and More details for a writer and for a reader are asserted by interviews.mount.test.jsx, interviewKnowledge.mount.test.jsx and whatWeKnowFacts.mount.test.jsx.",
     "src/components/contexts/interviews/InterviewMentions.jsx": "Presentational list of what GET /api/contexts/claims/mentions returns; the link target and the empty case are asserted by interviewForms.mount.test.jsx. The narrowing for readers is the API route, mutated in app/api.",
     "src/hooks/useOrgKnowledge.js": "One strict-equality read of the orgKnowledge flag; its truth table (true only for boolean true, a string or a missing flag is off, other flags do not count) is asserted by useOrgKnowledge.test.js, and the off path through ClaimsProvider by orgKnowledgeOff.mount.test.jsx.",
-    "src/components/contexts/SuggestionRow.jsx": "Presentational row shared by the best guess and the interview suggestions: markup and three buttons forwarding to callbacks. Its exact text is asserted by ContextBestGuess.mount.test.jsx and interviews.mount.test.jsx."
+    "src/components/contexts/SuggestionRow.jsx": "Presentational row shared by the best guess and the interview suggestions: markup and three buttons forwarding to callbacks. Its exact text is asserted by ContextBestGuess.mount.test.jsx and interviews.mount.test.jsx.",
+    "src/components/contexts/interviews/AddInformation.jsx": "A button that opens the modal, refreshes the provider after an add and toasts which of two sentences applies (a model configured or not); hidden for a reader. Both sentences and the reader case are asserted by interviewForms.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/interviews/AddInformationModal.jsx": "A form that builds one FormData (a file OR pasted text, an optional principalId, the date) and posts it; the fields sent in each mode, the disabled gate and the refusal path are asserted by interviewForms.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/interviews/SourcesList.jsx": "Presentational list of the added sources with three buttons calling fixed API paths; the kind labels, the who/when line per kind, retry, its refusal and delete (with its confirmation) are asserted by interviewForms.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/interviews/SourcesSection.jsx": "Layout: a FoldSection around SourcesList with Add information on its line, nothing for a reader; its summary comes from sourcesSummary in the mutated claims.helpers.js. Asserted by interviews.mount.test.jsx and interviewKnowledge.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/interviews/ReviewDrawer.jsx": "A side panel around ClaimReviewList (mutated here) of every proposed claim, closed by Escape or its button; opening, closing and the empty case are asserted by interviews.mount.test.jsx and ProfileBody.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/people/PersonRow.jsx": "Presentational row over people.helpers.js (mutated here): the status chip, role, sources, access and Remove; every cell text, tooltip and the Remove-only-for-listed rule are asserted by PeopleSection.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/FoldSection.jsx": "A section folded to one line: a button toggling open, controlled by the page or its own state. Both modes are driven by the What we know, Sources and Change requests mount tests (aria-expanded asserted). Not yet measured.",
+    "src/components/contexts/AttentionLine.jsx": "Presentational: up to three links, each left out at zero, each calling its handler. The text and each link destination are asserted by ProfileBody.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/memberEdits.js": "One DELETE with a status check, resolving true or false; the success path (the URL, then a re-read) is asserted by PeopleSection.mount.test.jsx and the members-table tests. Not yet measured.",
+    "src/components/contexts/page/ProfileBody.jsx": "Layout of a unit page with one routing decision (to decide → People filter, or What we know when only unit contradictions are open) asserted both ways, plus the section order for analyst and reader, by ProfileBody.mount.test.jsx. Not yet measured.",
+    "src/components/contexts/page/PageSections.jsx": "Two folded sections (Timeline read only once opened, Risk only with a score) around existing components; the detail-page mount tests open both. Not yet measured."
   },
   "mutator": {
     "excludedMutations": [

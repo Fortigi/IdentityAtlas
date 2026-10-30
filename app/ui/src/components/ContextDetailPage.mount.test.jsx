@@ -2,90 +2,38 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createElement as h, useState } from 'react';
 import ContextDetailPage from './ContextDetailPage';
-import {
-  renderWithProviders,
-  makeAuthFetch,
-  jsonResponse,
-  screen,
-  fireEvent,
-  waitFor,
-  userEvent,
-  within,
-} from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, jsonResponse, screen, fireEvent, waitFor, userEvent, within } from '@ui/test-utils/renderWithProviders';
 
 // useFeatures uses the global `fetch` (not authFetch) to hit /api/features.
 // Stub it so the riskScoring flag is available and predictable.
-beforeEach(() => {
-  global.fetch = vi.fn(async () =>
-    jsonResponse({ riskScoring: true, accountLinking: true }),
-  );
-});
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+beforeEach(() => { global.fetch = vi.fn(async () => jsonResponse({ riskScoring: true, accountLinking: true })); });
+afterEach(() => { vi.restoreAllMocks(); });
 
 // A loaded "generated" context with a couple of members + a sub-context.
 const generatedDetail = {
   attributes: {
-    id: 'ctx-1',
-    variant: 'generated',
-    targetType: 'Identity',
-    contextType: 'Cluster',
-    displayName: 'Engineering Cluster',
-    description: 'A generated cluster of engineers.',
-    scopeSystemName: 'EntraID',
-    sourceAlgorithmName: 'kmeans',
-    sourceAlgorithmDisplayName: 'K-Means Clustering',
-    directMemberCount: 2,
-    totalMemberCount: 5,
-    department: 'Engineering',          // surfaces in the attributes grid
-    confidence: 0.92,                    // surfaces in the attributes grid
+    id: 'ctx-1', variant: 'generated', targetType: 'Identity', contextType: 'Cluster',
+    displayName: 'Engineering Cluster', description: 'A generated cluster of engineers.',
+    scopeSystemName: 'EntraID', sourceAlgorithmName: 'kmeans', sourceAlgorithmDisplayName: 'K-Means Clustering',
+    directMemberCount: 2, totalMemberCount: 5,
+    department: 'Engineering', confidence: 0.92, // surface under More details
   },
-  subContexts: [
-    { id: 'ctx-child', displayName: 'Backend Squad', memberCount: 3 },
-  ],
+  subContexts: [{ id: 'ctx-child', displayName: 'Backend Squad', memberCount: 3 }],
 };
 
 const members = {
   total: 2,
   data: [
-    {
-      id: 'm-1',
-      displayName: 'Alice Engineer',
-      email: 'alice@example.com',
-      jobTitle: 'Staff Engineer',
-      principalType: 'User',
-      accountEnabled: true,
-      addedBy: 'algorithm',
-    },
-    {
-      id: 'm-2',
-      displayName: 'Bob Builder',
-      email: 'bob@example.com',
-      jobTitle: 'Engineer',
-      principalType: 'User',
-      accountEnabled: false,
-      addedBy: 'analyst',
-    },
+    { id: 'm-1', displayName: 'Alice Engineer', email: 'alice@example.com', jobTitle: 'Staff Engineer', principalType: 'User', accountEnabled: true, addedBy: 'algorithm' },
+    { id: 'm-2', displayName: 'Bob Builder', email: 'bob@example.com', jobTitle: 'Engineer', principalType: 'User', accountEnabled: false, addedBy: 'analyst' },
   ],
 };
 
-const timeline = {
-  events: [],
-  addedCount: 0,
-  removedCount: 0,
-  changedCount: 0,
-  sinceDays: 90,
-};
+const timeline = { events: [], addedCount: 0, removedCount: 0, changedCount: 0, sinceDays: 90 };
 
 const riskData = {
-  riskScore: 70,
-  riskTier: 'High',
-  riskScoredAt: '2026-06-01T10:00:00Z',
-  riskDirectScore: 30,
-  riskMembershipScore: 20,
-  riskStructuralScore: 10,
-  riskPropagatedScore: 10,
+  riskScore: 70, riskTier: 'High', riskScoredAt: '2026-06-01T10:00:00Z',
+  riskDirectScore: 30, riskMembershipScore: 20, riskStructuralScore: 10, riskPropagatedScore: 10,
 };
 
 // Order matters: more-specific substrings (/members, /timeline) before the
@@ -108,37 +56,39 @@ const baseProps = {
   onOpenDetail: () => {},
 };
 
-describe('ContextDetailPage — the owner in the header', () => {
-  // The header is the home the owner was given. Both cases come from real data:
-  // the scale environment, whose owners resolve, and the SQL connector's, whose
-  // owners are employee numbers no principal is keyed on.
-  const withOwner = (owner) => ({
-    ...generatedDetail,
-    attributes: { ...generatedDetail.attributes, ...owner },
+// Opens the header's ⋯ menu and returns the item named `name` (or null).
+async function menuItem(user, name) {
+  await user.click(await screen.findByRole('button', { name: 'More actions' }));
+  return screen.queryByRole('menuitem', { name });
+}
+
+const PEOPLE_EMPTY = { data: [], total: 0, counts: { current: 0, former: 0, all: 0, decide: 0 }, linkedResources: 0 };
+
+describe('ContextDetailPage — no owner chip; who answers for it is the Accountable', () => {
+  // Both cases come from real data shapes: owners that resolve, and owners that
+  // are employee numbers no principal is keyed on.
+  const unitWithOwner = (owner, roles = []) => makeAuthFetch({
+    '/api/contexts/ctx-1/people': PEOPLE_EMPTY,
+    '/api/contexts/ctx-1/roles': roles,
+    '/api/risk-scores/contexts/ctx-1': riskData,
+    '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, contextCategory: 'OrganizationalUnit', targetType: 'Principal', ...owner } },
   });
 
-  it('shows the resolved owner as a person and opens that account', async () => {
-    const onOpenDetail = vi.fn();
-    const authFetch = routes({
-      '/api/contexts/ctx-1': withOwner({ ownerUserId: 'IIQ-4711', ownerPrincipalId: 'p-owner', ownerDisplayName: 'Leo M. Cohen' }),
-    });
-    renderWithProviders(h(ContextDetailPage, { ...baseProps, onOpenDetail }), { auth: { authFetch } });
-
-    const owner = await screen.findByTitle('Owner id: IIQ-4711');
-    expect(owner.textContent).toContain('Leo M. Cohen');
-    await userEvent.setup().click(owner);
-    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p-owner', 'Leo M. Cohen');
-  });
-
-  it('shows the raw value, unlinked, when the owner resolves to nobody', async () => {
-    const authFetch = routes({
-      '/api/contexts/ctx-1': withOwner({ ownerUserId: '10000737', ownerPrincipalId: null, ownerDisplayName: null }),
-    });
+  it('shows no "Owner:" chip for a resolved owner: the Accountable carries the name', async () => {
+    const authFetch = unitWithOwner({ ownerUserId: 'IIQ-4711', ownerPrincipalId: 'p-owner', ownerDisplayName: 'Leo Example' },
+      [{ id: 'r1', role: 'Accountable', principalId: 'p-owner', identityId: null, displayName: 'Leo Example', addedBy: 'sync' }]);
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    expect(await screen.findByRole('button', { name: 'Leo Example' })).toBeInTheDocument();
+    expect(screen.queryByText(/Owner:/)).toBeNull();
+    expect(screen.queryByTitle('Owner id: IIQ-4711')).toBeNull();
+    expect(screen.queryByTestId('unmatched-owner')).toBeNull();
+  });
 
-    const owner = await screen.findByTitle('Owner "10000737" does not match any account we hold');
-    expect(owner.textContent).toContain('10000737');
-    expect(owner.tagName).toBe('SPAN');
+  it('says the source names an owner nobody matches, while no Accountable is set', async () => {
+    const authFetch = unitWithOwner({ ownerUserId: '10000737', ownerPrincipalId: null, ownerDisplayName: null });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    expect(await screen.findByTestId('unmatched-owner')).toHaveTextContent('The source names “10000737” as the owner; no account found.');
+    expect(screen.queryByText(/Owner:/)).toBeNull();
   });
 });
 
@@ -164,28 +114,40 @@ describe('ContextDetailPage — the template in the header', () => {
     }
   });
 
-  it('gives an application its own profile and the download card', async () => {
-    const authFetch = routes({ '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, contextCategory: 'LogicalApplication', targetType: 'Resource' } } });
+  it('gives an application its sections: Download report, its resources, What we know — no Actions grid', async () => {
+    const authFetch = makeAuthFetch({
+      '/api/contexts/ctx-1/people': PEOPLE_EMPTY,
+      '/api/contexts/ctx-1/members': { total: 1, data: [{ id: 'r-1', displayName: 'SG-Ledger', resourceType: 'Group' }] },
+      '/api/risk-scores/contexts/ctx-1': riskData,
+      '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, contextCategory: 'LogicalApplication', targetType: 'Resource' } },
+    });
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
-    expect(await screen.findByRole('region', { name: 'About this application' })).toBeInTheDocument();
-    expect(screen.getByTestId('action-download-report')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Download report' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Resources' })).toHaveTextContent('SG-Ledger');
+    expect(screen.getByRole('region', { name: 'What we know' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
+    // An application's members are resources: its People section waits for a source to name someone.
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('/api/contexts/ctx-1/people?filter=current')));
+    expect(screen.queryByRole('region', { name: 'People' })).toBeNull();
   });
 
-  it('lists the people answering for an organisational unit in its profile', async () => {
+  it('lists the people answering for an organisational unit under its name, in the header', async () => {
     // The roles key must sit before the bare detail key (substring match), so
     // it cannot go through routes()' overrides spread.
     const authFetch = makeAuthFetch({
-      '/api/contexts/ctx-1/roles': [{ id: 'r1', role: 'Accountable', principalId: 'p-1', identityId: null, displayName: 'Mara Lindqvist', addedBy: 'algorithm' }],
+      '/api/contexts/ctx-1/roles': [{ id: 'r1', role: 'Accountable', principalId: 'p-1', identityId: null, displayName: 'Mara Example', addedBy: 'algorithm' }],
+      '/api/contexts/ctx-1/people': PEOPLE_EMPTY,
       '/api/risk-scores/contexts/ctx-1': riskData,
-      '/api/contexts/ctx-1/members': members,
       '/api/contexts/ctx-1/timeline': timeline,
       '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, contextCategory: 'OrganizationalUnit' } },
     });
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
-    expect(await screen.findByText('Mara Lindqvist')).toBeInTheDocument();
-    expect(screen.queryByText('Organisation')).toBeNull();
-    // The people sit in the unit's profile, under its own heading.
-    expect(screen.getByRole('region', { name: 'About this unit' })).toHaveTextContent('Mara Lindqvist');
+    const block = await screen.findByTestId('context-people');
+    await waitFor(() => expect(within(block).getByRole('group', { name: 'Accountable' })).toHaveTextContent('Mara Example'));
+    // The header holds it: the same card as the name.
+    expect(block.closest('.rounded-lg')).toHaveTextContent('Engineering Cluster');
+    // A unit of people reads its people, not the members list.
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/contexts/ctx-1/members'));
   });
 });
 
@@ -232,8 +194,11 @@ describe('ContextDetailPage (mounted)', () => {
   it('has no Attributes tab and shows each remaining attribute once, under More details', async () => {
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes() } });
     await screen.findByText('Engineering Cluster');
-    expect(screen.queryByRole('tab', { name: /Attributes/i })).toBeNull();
-    expect(screen.getAllByRole('tab').map(t => t.textContent.replace(/\d+$/, ''))).toEqual(['Members', 'Timeline', 'Diff', 'Risk']);
+    expect(screen.queryByRole('tab')).toBeNull();
+    // No tabs: the Timeline, Diff and Risk fold at the foot of the page, in that order.
+    const folds = ['Timeline', 'Diff', 'Risk'].map(name => screen.getByRole('region', { name }));
+    expect(folds[0].compareDocumentPosition(folds[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(folds[1].compareDocumentPosition(folds[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const details = screen.getByRole('region', { name: 'More details' });
     // The analyst's list (with the raw classification) is long, so it starts folded.
@@ -271,7 +236,7 @@ describe('ContextDetailPage (mounted)', () => {
     const onEdited = vi.fn();
     renderWithProviders(h(ContextDetailPage, { ...baseProps, onEdited }), { auth: { authFetch } });
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    await user.click(await menuItem(user, 'Edit'));
     expect(screen.getByRole('heading', { name: 'Edit Engineering Cluster' })).toBeInTheDocument();
     expect(screen.queryByText(/Generated context/)).toBeNull();
 
@@ -293,7 +258,7 @@ describe('ContextDetailPage (mounted)', () => {
     const onClose = vi.fn();
     renderWithProviders(h(ContextDetailPage, { ...baseProps, onClose }), { auth: { authFetch } });
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    await user.click(await menuItem(user, 'Edit'));
     await user.click(screen.getByRole('button', { name: 'Delete…' }));
     expect(await screen.findByText(/the next refresh creates it again/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete' }));
@@ -305,7 +270,7 @@ describe('ContextDetailPage (mounted)', () => {
     const authFetch = routes();
     renderWithProviders(h(ContextDetailPage, { ...baseProps, embedded: true }), { auth: { authFetch } });
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    await user.click(await menuItem(user, 'Edit'));
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('heading', { name: 'Edit Engineering Cluster' })).toBeNull();
     expect(authFetch).not.toHaveBeenCalledWith('/api/contexts/ctx-1', expect.objectContaining({ method: 'PATCH' }));
@@ -313,31 +278,30 @@ describe('ContextDetailPage (mounted)', () => {
 
   it('offers no Edit for a synced context, nor to a reader', async () => {
     const synced = routes({ '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, variant: 'synced' } } });
+    const user = userEvent.setup();
     const { unmount } = renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: synced } });
-    await screen.findByText('Engineering Cluster');
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+    expect(await menuItem(user, 'Edit')).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Copy link' })).toBeInTheDocument();
     unmount();
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes(), hasWildcard: false, permissions: new Set(['data.read']) } });
-    await screen.findByText('Engineering Cluster');
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+    expect(await menuItem(user, 'Edit')).toBeNull();
+    // A reader gets neither the Timeline nor the Risk.
+    expect(screen.queryByRole('region', { name: 'Timeline' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Risk' })).toBeNull();
   });
 
-  it('switches to the Timeline tab and triggers the timeline fetch', async () => {
+  it('reads the timeline only once its fold is opened', async () => {
     const authFetch = routes();
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
     const user = userEvent.setup();
 
-    await screen.findByText('Engineering Cluster');
-    await user.click(screen.getByRole('tab', { name: /Timeline/i }));
-
-    await waitFor(() =>
-      expect(authFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/contexts/ctx-1/timeline'),
-      ),
-    );
+    const fold = await screen.findByRole('region', { name: 'Timeline' });
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/timeline'));
+    await user.click(within(fold).getByRole('button', { name: /Timeline/ }));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('/api/contexts/ctx-1/timeline')));
   });
 
-  it('switches to the Diff tab and fetches the context diff', async () => {
+  it('reads the context diff only once its fold is opened', async () => {
     const diff = {
       at: '2026-09-01T00:00:00.000Z', historySince: null, relationshipsTracked: false, omittedUnchanged: 0,
       before: { exists: true, deleted: false, attributes: { description: 'Old text' }, relationships: [] },
@@ -350,22 +314,29 @@ describe('ContextDetailPage (mounted)', () => {
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
     const user = userEvent.setup();
 
-    await screen.findByText('Engineering Cluster');
-    await user.click(screen.getByRole('tab', { name: /^Diff$/i }));
+    const fold = await screen.findByRole('region', { name: 'Diff' });
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/diff'));
+    await user.click(within(fold).getByRole('button', { name: /Diff/ }));
 
     expect(await screen.findByText('Old text')).toBeInTheDocument();
     expect(screen.getByText(/only its attributes are compared/)).toBeInTheDocument();
   });
 
-  it('shows the Risk tab when risk data + feature flag are present', async () => {
+  it('folds the Risk score at the foot when risk data + feature flag are present, with its tier', async () => {
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes() } });
     const user = userEvent.setup();
 
-    await screen.findByText('Engineering Cluster');
-    const riskTab = await screen.findByRole('tab', { name: /^Risk$/i });
-    await user.click(riskTab);
-
+    const fold = await screen.findByRole('region', { name: 'Risk' });
+    expect(within(fold).getByTestId('risk-summary')).toHaveTextContent('High · 70');
+    expect(screen.queryByText('Risk Assessment')).toBeNull();
+    await user.click(within(fold).getByRole('button', { name: /Risk/ }));
     expect(await screen.findByText('Risk Assessment')).toBeInTheDocument();
+  });
+
+  it('shows no Risk fold without a score', async () => {
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes({ '/api/risk-scores/contexts/ctx-1': { riskScore: null } }) } });
+    await screen.findByRole('region', { name: 'Timeline' });
+    expect(screen.queryByRole('region', { name: 'Risk' })).toBeNull();
   });
 
   it('filters members via the search box', async () => {
@@ -537,17 +508,21 @@ describe('ContextDetailPage — embedded in the Contexts page', () => {
     );
     await screen.findByText('Engineering Cluster');
     expect(screen.queryByTitle('Close')).toBeNull();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Open as page' }));
+    const user = userEvent.setup();
+    expect(await menuItem(user, 'Back to Contexts')).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: 'Open as page' }));
     expect(onOpenAsPage).toHaveBeenCalledWith(expect.objectContaining({ id: 'ctx-1', displayName: 'Engineering Cluster' }));
     expect(onClose).not.toHaveBeenCalled();
+    // The menu closed behind the choice.
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('as a page gives the analyst "Back to Contexts" and offers no "Open as page"', async () => {
     const onClose = vi.fn();
     renderWithProviders(h(ContextDetailPage, { ...baseProps, onClose, onOpenAsPage: vi.fn() }), { auth: { authFetch: routes() } });
-    await screen.findByText('Engineering Cluster');
-    expect(screen.queryByRole('button', { name: 'Open as page' })).toBeNull();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Back to Contexts' }));
+    const user = userEvent.setup();
+    expect(await menuItem(user, 'Open as page')).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: 'Back to Contexts' }));
     expect(onClose).toHaveBeenCalled();
   });
 

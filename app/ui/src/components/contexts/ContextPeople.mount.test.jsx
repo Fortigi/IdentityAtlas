@@ -275,3 +275,48 @@ describe('ContextPeople — the Responsible modal', () => {
     expect(writes(authFetch)).toEqual([]);
   });
 });
+
+describe('ContextPeople — compact, in the page header', () => {
+  it('keeps what a role means on hover and for a screen reader, not as a paragraph', async () => {
+    mount(ORG);
+    await screen.findByText('Mara Lindqvist');
+    const label = within(screen.getByRole('group', { name: 'Accountable' })).getByTitle('Answers for who may access this unit');
+    expect(label).toHaveTextContent(/^Accountable — Answers for who may access this unit$/);
+    expect(label.querySelector('.sr-only')).toHaveTextContent('— Answers for who may access this unit');
+  });
+
+  it('names an owner the source gives but nobody matches, while no Accountable is set', async () => {
+    mount({ ...ORG, ownerUserId: '10000737', ownerPrincipalId: null }, { auth: { api: api({ roles: [] }) } });
+    expect(await screen.findByTestId('unmatched-owner')).toHaveTextContent('The source names “10000737” as the owner; no account found.');
+  });
+
+  it('says nothing of the owner once it resolved, or once an Accountable is set', async () => {
+    const { unmount } = renderWithProviders(h(ContextPeople, { attrs: { ...ORG, ownerUserId: 'E-1', ownerPrincipalId: 'p-9' } }), { auth: { authFetch: api({ roles: [] }).authFetch } });
+    await waitFor(() => expect(fact('Accountable')).toHaveTextContent(/^Nobody is accountable yet/));
+    expect(screen.queryByTestId('unmatched-owner')).toBeNull();
+    unmount();
+    mount({ ...ORG, ownerUserId: '10000737', ownerPrincipalId: null });
+    await screen.findByText('Mara Lindqvist');
+    expect(screen.queryByTestId('unmatched-owner')).toBeNull();
+  });
+
+  it('tells the page after a role was added or removed, never after a refused write', async () => {
+    const onRolesChanged = vi.fn();
+    const user = userEvent.setup();
+    const { authFetch } = api();
+    const { unmount } = renderWithProviders(h(ContextPeople, { attrs: ORG, onRolesChanged }), { auth: { authFetch } });
+    await screen.findByText('Mara Lindqvist');
+    await user.click(screen.getByRole('button', { name: 'Edit Accountable' }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(onRolesChanged).toHaveBeenCalledTimes(1));
+    unmount();
+
+    const refused = vi.fn();
+    renderWithProviders(h(ContextPeople, { attrs: ORG, onRolesChanged: refused }), { auth: { authFetch: api({ failWrite: 'no' }).authFetch } });
+    await screen.findByText('Mara Lindqvist');
+    await user.click(screen.getByRole('button', { name: 'Edit Accountable' }));
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(await screen.findByText('no')).toBeInTheDocument();
+    expect(refused).not.toHaveBeenCalled();
+  });
+});

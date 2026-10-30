@@ -1,29 +1,38 @@
 import { describe, it, expect } from 'vitest';
-import { contextPageView } from './useContextDetail';
-
-const keys = (tabs) => tabs.filter(Boolean).map(t => t.key);
+import { contextPageView, listsMembers } from './useContextDetail';
 
 describe('contextPageView — what the page offers this reader', () => {
-  it('gives a business reader the members only, nothing editable, whatever tab was asked', () => {
-    expect(contextPageView({ analyst: false, attrs: { variant: 'manual' }, hasRisk: true, memberTotal: 3, activeTab: 'timeline' }))
-      .toEqual({ editable: false, membersEditable: false, tabs: null, shownTab: 'members' });
-  });
-
-  it('gives the analyst the tabs, Risk only when scored, and the asked tab', () => {
-    const scored = contextPageView({ analyst: true, attrs: { variant: 'synced' }, hasRisk: true, memberTotal: 7, activeTab: 'timeline' });
-    expect(keys(scored.tabs)).toEqual(['members', 'timeline', 'diff', 'risk']);
-    expect(scored.tabs[0].count).toBe(7);
-    expect(scored.shownTab).toBe('timeline');
-    expect(keys(contextPageView({ analyst: true, attrs: {}, hasRisk: false, memberTotal: 0, activeTab: 'members' }).tabs)).toEqual(['members', 'timeline', 'diff']);
+  it('gives a business reader nothing editable, whatever the context', () => {
+    expect(contextPageView({ analyst: false, attrs: { variant: 'manual' } })).toEqual({ editable: false, membersEditable: false });
   });
 
   it('lets the analyst edit a context created here or derived, not an imported one', () => {
-    const editable = (variant) => contextPageView({ analyst: true, attrs: { variant }, activeTab: 'members' }).editable;
+    const editable = (variant) => contextPageView({ analyst: true, attrs: { variant } }).editable;
     expect([editable('manual'), editable('generated'), editable('synced'), editable(undefined)]).toEqual([true, true, false, false]);
   });
 
   it('offers member edits only on a context created here, where adding and removing both last', () => {
-    const members = (variant) => contextPageView({ analyst: true, attrs: { variant }, activeTab: 'members' }).membersEditable;
+    const members = (variant) => contextPageView({ analyst: true, attrs: { variant } }).membersEditable;
     expect([members('manual'), members('generated'), members('synced'), members(undefined)]).toEqual([true, false, false, false]);
+  });
+});
+
+describe('listsMembers — whether the page reads the members as their source lists them', () => {
+  it('not for a unit or an application of people, whose People overview shows them', () => {
+    for (const contextCategory of ['OrganizationalUnit', 'LogicalApplication']) {
+      for (const targetType of ['Principal', 'Identity']) expect(listsMembers({ contextCategory, targetType }), `${contextCategory}/${targetType}`).toBe(false);
+    }
+  });
+
+  it('for a template of other members (resources, systems) and for every context without a template', () => {
+    expect(listsMembers({ contextCategory: 'LogicalApplication', targetType: 'Resource' })).toBe(true);
+    expect(listsMembers({ contextCategory: 'OrganizationalUnit', targetType: 'System' })).toBe(true);
+    expect(listsMembers({ contextCategory: 'Tag', targetType: 'Principal' })).toBe(true);
+    expect(listsMembers({ contextCategory: null, targetType: 'Identity' })).toBe(true);
+  });
+
+  it('nothing before the context is loaded', () => {
+    expect(listsMembers(undefined)).toBe(false);
+    expect(listsMembers(null)).toBe(false);
   });
 });

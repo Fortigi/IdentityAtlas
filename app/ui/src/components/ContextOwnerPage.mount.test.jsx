@@ -34,6 +34,7 @@ const relationships = [
 function api(unitExtra = {}) {
   return makeAuthFetch((url) => {
     const u = String(url);
+    if (u.includes('/people')) return PEOPLE;
     if (u.includes('/roles/suggestion')) return { principalId: 'p-guess', displayName: 'Guessed Person', reason: 'manages most members' };
     if (u.includes('/roles')) return [{ id: 'role-1', role: 'Responsible', principalId: 'p-1', displayName: 'Rita Responsible', addedBy: 'analyst' }];
     if (u.includes(`${RESOURCES}/relationships`)) {
@@ -58,6 +59,9 @@ function api(unitExtra = {}) {
     return undefined;
   });
 }
+
+// The People overview of a unit of people: one current member, named as their list has them.
+const PEOPLE = { data: [{ key: 'identityId:m-1', status: 'current', former: false, principalId: null, identityId: 'm-1', displayName: 'Alice Member', roles: [], role: null, sources: ['list'], claims: [], contradictions: [], liveEntitlements: 3, linkedEntitlements: null }], total: 1, counts: { current: 1, former: 0, all: 1, decide: 0 }, linkedResources: 0 };
 
 const ctx = (id, displayName, role) => ({ id, displayName, role, contextCategory: 'OrganizationalUnit', targetType: 'Identity' });
 
@@ -100,8 +104,10 @@ describe('ContextOwnerPage — one context', () => {
     await screen.findByText('Alice Member');
     expect(await screen.findByText('Rita Responsible')).toBeInTheDocument();
 
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Open as page' })).not.toBeInTheDocument();
+    // Nothing in the ⋯ menu is the owner's: no Edit, no Open as page, no Copy link, no matrix — so no menu.
+    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add information' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit members' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Edit (Accountable|Responsible)$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
     expect(screen.queryByTestId('best-guess')).not.toBeInTheDocument();
@@ -110,8 +116,9 @@ describe('ContextOwnerPage — one context', () => {
 
   it('does not link to pages the owner cannot open: members, people, sub-contexts', async () => {
     mount([ctx(UNIT, 'Finance', 'Responsible')]);
-    const member = await screen.findByText('Alice Member');
-    expect(member.closest('tr')).not.toHaveClass('cursor-pointer');
+    await screen.findByText('Alice Member');
+    // The member's name is the references toggle (names only, in place), not a link to their page.
+    expect(screen.getByRole('button', { name: 'Alice Member' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('button', { name: 'Rita Responsible' })).not.toBeInTheDocument();
     expect(screen.getByText('Payroll team')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Payroll team/ })).not.toBeInTheDocument();
@@ -119,25 +126,25 @@ describe('ContextOwnerPage — one context', () => {
 
   it('offers the unit report on a unit of people, without the matrix or the coming-soon surveys', async () => {
     mount([ctx(UNIT, 'Finance', 'Responsible')]);
-    const card = await screen.findByTestId('action-download-unit-report');
-    expect(within(card).getByRole('button', { name: 'Download (Excel)' })).toBeInTheDocument();
+    const report = await screen.findByRole('button', { name: 'Download report' });
+    expect(report).toHaveAttribute('title', expect.stringMatching(/^Everyone in this unit/));
     expect(screen.queryByRole('link', { name: /View in matrix/ })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('action-download-report')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('action-manager-survey')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('action-review-members')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/survey/i)).not.toBeInTheDocument();
   });
 
-  it('shows no Actions on a unit of resources: no matrix (out of reach) and no report for it', async () => {
+  it('offers nothing to do on a unit of resources: no matrix (out of reach) and no report for it', async () => {
     mount([ctx(UNIT, 'Finance', 'Responsible')], undefined, { targetType: 'Resource' });
-    await screen.findByText('Alice Member');
-    expect(screen.queryByRole('region', { name: 'Actions' })).not.toBeInTheDocument();
+    await screen.findByRole('region', { name: 'Members' });
+    expect(screen.queryByRole('button', { name: 'Download report' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
   });
 
   it('offers the report on an application they own, still without the matrix', async () => {
     mount([ctx(UNIT, 'Finance', 'Accountable')], undefined, { contextCategory: 'LogicalApplication', targetType: 'Resource' });
-    const card = await screen.findByTestId('action-download-report');
-    expect(within(card).getByRole('button', { name: 'Download (Excel)' })).toBeInTheDocument();
-    expect(screen.queryByTestId('action-view-in-matrix')).not.toBeInTheDocument();
+    const report = await screen.findByRole('button', { name: 'Download report' });
+    expect(report).toHaveAttribute('title', expect.stringMatching(/^Every entitlement held here/));
+    expect(screen.queryByRole('link', { name: /View in matrix/ })).not.toBeInTheDocument();
   });
 
   it('has no Copy link, and names the parent without reading it', async () => {
@@ -153,6 +160,8 @@ describe('ContextOwnerPage — one context', () => {
 
   it('opens an in-scope variant in place, and ignores one outside the scope', async () => {
     const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')]);
+    // The variants are a fact about the unit: in What we know, folded.
+    await userEvent.click(await screen.findByRole('button', { name: /What we know/ }));
     const variants = await screen.findByRole('group', { name: 'This unit as' });
 
     await userEvent.click(within(variants).getByRole('button', { name: 'Accounts 9' }));
@@ -161,11 +170,12 @@ describe('ContextOwnerPage — one context', () => {
       .toHaveAttribute('aria-pressed', 'true');
 
     await userEvent.click(within(variants).getByRole('button', { name: 'Resources 4' }));
-    await waitFor(() => {
-      const group = screen.getByRole('group', { name: 'This unit as' });
-      expect(within(group).getByRole('button', { name: /^Resources/ })).toHaveAttribute('aria-pressed', 'true');
-    });
-    expect(fetched(authFetch, `/api/contexts/${RESOURCES}/members`)).toBe(true);
+    await waitFor(() => expect(fetched(authFetch, `/api/contexts/${RESOURCES}/members`)).toBe(true));
+    // The resources variant is its own page: its What we know starts folded again.
+    const know = await screen.findByRole('button', { name: /What we know/ });
+    if (know.getAttribute('aria-expanded') !== 'true') await userEvent.click(know);
+    const group = await screen.findByRole('group', { name: 'This unit as' });
+    expect(within(group).getByRole('button', { name: /^Resources/ })).toHaveAttribute('aria-pressed', 'true');
     expect(fetched(authFetch, `/api/contexts/${ACCOUNTS}/members`)).toBe(false);
   });
 });
@@ -198,7 +208,7 @@ describe('ContextOwnerPage — sub-units', () => {
 
     await userEvent.click(within(subUnits).getByRole('button', { name: /Accounts payable/ }));
     expect(await screen.findByRole('heading', { name: 'Accounts payable', level: 2 })).toBeInTheDocument();
-    expect(fetched(authFetch, `/api/contexts/${OWN_SUB}/members`)).toBe(true);
+    expect(fetched(authFetch, `/api/contexts/${OWN_SUB}/people`)).toBe(true);
     expect(fetched(authFetch, OWNED_SUB)).toBe(false);
 
     // Its parent is the owner's own unit: a link back, opened in place.
@@ -228,12 +238,18 @@ describe('ContextOwnerPage — the references of a member', () => {
     expect(screen.queryByRole('region', { name: 'Groups & resources' })).toBeNull();
   });
 
-  it('offers no references while sub-units are included (they are not own members of this unit)', async () => {
-    mount([ctx(UNIT, 'Finance', 'Responsible')]);
-    await screen.findByRole('button', { name: 'Alice Member' });
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Include sub-units' }));
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Alice Member' })).toBeNull());
-    expect(screen.getByText('Alice Member')).toBeInTheDocument();
+  it('offers no references for someone the member list does not hold (a former member)', async () => {
+    const former = { ...PEOPLE.data[0], key: 'identityId:m-2', identityId: 'm-2', displayName: 'Fred Former', status: 'left', former: true, sources: ['interview'] };
+    const authFetch = makeAuthFetch((url) => (String(url).includes('/people') ? { ...PEOPLE, data: [...PEOPLE.data, former] } : api()(url)));
+    renderWithProviders(<ContextOwnerPage />, {
+      auth: {
+        authFetch, logout: vi.fn(), authEnabled: true, hasWildcard: false, permissions: new Set(),
+        contextOwner: { contexts: [ctx(UNIT, 'Finance', 'Responsible')], contextIds: [UNIT] },
+      },
+    });
+    expect(await screen.findByRole('button', { name: 'Alice Member' })).toBeInTheDocument();
+    expect(screen.getByText('Fred Former')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fred Former' })).toBeNull();
   });
 });
 
@@ -250,6 +266,6 @@ describe('ContextOwnerPage — several contexts', () => {
     await userEvent.click(within(nav).getByRole('button', { name: /Payroll/ }));
     expect(await screen.findByRole('heading', { name: 'Payroll', level: 2 })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: /Payroll/ })).toHaveAttribute('aria-current', 'true');
-    expect(fetched(authFetch, `/api/contexts/${SECOND}/members`)).toBe(true);
+    expect(fetched(authFetch, `/api/contexts/${SECOND}/people`)).toBe(true);
   });
 });

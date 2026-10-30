@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.3.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `2.3.1`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -660,7 +660,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 ### ContextMemberOverrides
 
-`ia:MemberOverride` · Knowledge table · An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access.
+`ia:MemberOverride` · Knowledge table · An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, the People overview shows them as left (decided) with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access.
 
 Identifier: `id` (uuid) — the instance IRI, not a property.
 

@@ -1,12 +1,15 @@
 // Context interviews — the steps behind the routes (routes/contexts/interviews.js).
 //
-//   createInterview({ contextId, file, body, user }, deps)  store the transcript, start extraction
+//   createInterview({ contextId, file, body, user }, deps)  store an added source (a file or pasted text,
+//                                                           from someone or not), start extraction
 //   retryExtraction(contextId, interviewId, deps)           run extraction again
 //   addManualClaim(contextId, interviewId, body, deps)      an analyst's own claim (no model needed)
 //   claimsOf(contextId, { statuses }, deps)                 the claims + whether the Accountable is in doubt
 //   rejectMany(contextId, body, user, deps)                 reject the proposed claims of a kind / a relevance tier
 //   interviewWithTranscript(contextId, interviewId, deps)   one interview, its transcript and where each quote stands
-//   previousMembers(contextId, { statuses }, deps)          who the interviews say left, and what they still hold
+//
+// An "interview" here is any source added to the page: an interview, a file, a
+// list (csv / xlsx), pasted text (sourceText.js; store.js SOURCE_KIND_SQL).
 //
 // Every refusal is an InterviewError with the status the route answers and a
 // sentence for the analyst. Design: docs/architecture/context-interviews.md.
@@ -14,14 +17,13 @@
 import * as defaultDb from '../../db/connection.js';
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 import { detectLanguage } from '../../nlreports/language.js';
-import { parseTranscript } from './transcript.js';
+import { readSourceText } from './sourceText.js';
 import { checkClaim, foldForQuote, ROLE_SUGGESTIONS, CLAIM_KINDS, RELEVANCE } from './claims.js';
 import { llmConfigured, startExtraction } from './extract.js';
 import { resolveSubjects } from './subjects.js';
 import { deduceRoles, accountableDoubt } from './roles.js';
 import { loadContradictions } from './contradictions.js';
 import { locateQuote } from './quoteOffsets.js';
-import { loadPreviousMembers } from './memberFacts.js';
 import * as store from './store.js';
 
 export class InterviewError extends Error {
@@ -49,13 +51,27 @@ export function validDate(value) {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s ? s : null;
 }
 
-/** { principalId } | { identityId } from a form body, or an InterviewError. */
+/**
+ * Who the source is from: { col, id } from a form body (principalId or
+ * identityId), or null when it names nobody — a file or pasted text need not be
+ * an interview. Two at once, or a malformed id, is an InterviewError.
+ */
 export function parseInterviewee(body = {}) {
   const given = ['principalId', 'identityId'].filter(k => body[k]);
-  if (given.length !== 1) throw new InterviewError(400, 'Say who was interviewed: exactly one of principalId or identityId.');
+  if (given.length === 0) return null;
+  if (given.length !== 1) throw new InterviewError(400, 'Say who it is from: one of principalId or identityId, not both.');
   const id = String(body[given[0]]).toLowerCase();
   if (!UUID_RE.test(id)) throw new InterviewError(400, `${given[0]} must be a uuid`);
   return { col: given[0], id };
+}
+
+// The person a source is from, or null; an id that names nobody is refused.
+async function sourcePerson(db, who) {
+  if (!who) return null;
+  const table = who.col === 'principalId' ? 'Principals' : 'Identities';
+  const person = await db.queryOne(`SELECT "displayName" FROM "${table}" WHERE id = $1`, [who.id]);
+  if (!person) throw new InterviewError(404, who.col === 'principalId' ? 'Principal not found' : 'Identity not found');
+  return person;
 }
 
 async function roleBearingContext(db, contextId) {
@@ -73,19 +89,18 @@ export async function createInterview({ contextId, file, body = {}, user }, deps
   await roleBearingContext(db, contextId);
   const who = parseInterviewee(body);
   const interviewedAt = validDate(body.interviewedAt);
-  if (!interviewedAt) throw new InterviewError(400, 'Say when the interview took place (a date, YYYY-MM-DD).');
-  const table = who.col === 'principalId' ? 'Principals' : 'Identities';
-  const person = await db.queryOne(`SELECT "displayName" FROM "${table}" WHERE id = $1`, [who.id]);
-  if (!person) throw new InterviewError(404, who.col === 'principalId' ? 'Principal not found' : 'Identity not found');
+  if (!interviewedAt) throw new InterviewError(400, 'Say when it is from (a date, YYYY-MM-DD).');
+  const person = await sourcePerson(db, who);
 
-  const { text } = await parseTranscript(file.buffer, { fileName: file.originalname });
+  const { text, fileName } = await readSourceText({ file, text: body.text });
   const configured = enabled();
   const interview = await store.insertInterview(db, {
     contextId,
-    [who.col]: who.id,
-    intervieweeName: person.displayName || who.id,
+    ...(who ? { [who.col]: who.id } : {}),
+    // Nobody in particular: the source is the file (or the text) and who added it.
+    intervieweeName: who ? person.displayName || who.id : (user || fileName),
     interviewedAt,
-    fileName: file.originalname,
+    fileName,
     transcript: text,
     language: detectLanguage(text.slice(0, 4000)),
     extractionStatus: configured ? 'pending' : 'notConfigured',
@@ -207,11 +222,4 @@ export async function interviewWithTranscript(contextId, interviewId, deps) {
   }
   highlights.sort((a, b) => a.start - b.start || b.end - a.end);
   return { ...interview, highlights };
-}
-
-/** The people the interviews say left the context, with what they still hold. */
-export async function previousMembers(contextId, { statuses }, deps) {
-  const { db } = defaults(deps);
-  await existingContext(db, contextId);
-  return loadPreviousMembers(db, contextId, statuses);
 }

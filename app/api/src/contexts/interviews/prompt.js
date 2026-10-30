@@ -92,19 +92,28 @@ When the speaker calls the unit or application by another name than the one give
 Only claims the transcript states. Do not guess; do not repeat a claim.`;
 
 export function buildSystemPrompt(template) {
-  return `You read the transcript of an interview and list what it says as claims, for Identity Atlas, an identity governance tool.
+  return `You read the transcript of an interview (or another text about it: notes, a document, a list with one line per row) and list what it says as claims, for Identity Atlas, an identity governance tool.
 ${PURPOSE}
 ${FOCUS[template] || FOCUS.OrganizationalUnit}
 ${RULES}`;
 }
 
-export function buildUserMessage({ contextName, aliases = [], template, intervieweeName, interviewedAt, part = 1, parts = 1, text }) {
+// Who the text is from: the interviewee of an interview; for a file or pasted
+// text nobody in particular (store.js SOURCE_KIND_SQL) — then "I" names nobody.
+function sourceLines({ sourceKind = 'interview', intervieweeName, interviewedAt, fileName }) {
+  if (sourceKind === 'file') return [`Source: the file ${JSON.stringify(fileName)}, added on ${interviewedAt}; nobody in particular is speaking`, 'Text'];
+  if (sourceKind === 'text') return [`Source: text added on ${interviewedAt}; nobody in particular is speaking`, 'Text'];
+  return [`Interviewee: ${JSON.stringify(intervieweeName)} (interviewed on ${interviewedAt})`, 'Transcript'];
+}
+
+export function buildUserMessage({ contextName, aliases = [], template, part = 1, parts = 1, text, ...source }) {
   const kind = template === 'LogicalApplication' ? 'Application' : 'Unit';
   const known = aliases.length ? ` (also known as ${aliases.map(a => JSON.stringify(a)).join(', ')})` : '';
+  const [from, label] = sourceLines(source);
   return [
     `${kind}: ${JSON.stringify(contextName)}${known}`,
-    `Interviewee: ${JSON.stringify(intervieweeName)} (interviewed on ${interviewedAt})`,
-    parts > 1 ? `Transcript, part ${part} of ${parts}:` : 'Transcript:',
+    from,
+    parts > 1 ? `${label}, part ${part} of ${parts}:` : `${label}:`,
     text,
   ].join('\n');
 }

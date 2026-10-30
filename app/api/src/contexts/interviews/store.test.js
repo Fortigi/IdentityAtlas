@@ -67,6 +67,52 @@ describe('currentAccountable / setExtraction / deleteInterview', () => {
   });
 });
 
+describe('source kinds', () => {
+  it('pasted text by its stored name, a source from nobody as a file, else an interview — on interviews and claims alike', () => {
+    expect(store.SOURCE_KIND_SQL).toMatch(new RegExp(`WHEN iv\\."fileName" = '${store.PASTED_TEXT_NAME}' THEN 'text'`));
+    expect(store.SOURCE_KIND_SQL).toMatch(/WHEN iv\."principalId" IS NULL AND iv\."identityId" IS NULL THEN 'file' ELSE 'interview'/);
+    expect(store.SOURCE_KIND_SQL.indexOf("'text'")).toBeLessThan(store.SOURCE_KIND_SQL.indexOf("'file'"));
+  });
+});
+
+describe('the People overview reads', () => {
+  it('a claim is mapped to the holder of the context kind: an account through the unit it lists, a person through any account', () => {
+    expect(store.personClaimsSql('Principal')).toMatch(/COALESCE\(c\."principalId", \(SELECT im\."principalId" FROM "IdentityMembers" im\s+JOIN "ContextMembers" cm ON cm\."contextId" = c\."contextId" AND cm\."memberId" = im\."principalId"/);
+    expect(store.personClaimsSql('Identity')).toMatch(/COALESCE\(c\."identityId", \(SELECT im\."identityId" FROM "IdentityMembers" im\s+WHERE im\."principalId" = c\."principalId"/);
+    expect(store.personClaimsSql('Resource')).toMatch(/NULL::uuid AS "holderId"/);
+  });
+
+  it('reads the claims of several contexts in one statement, each with its context; nothing for none', async () => {
+    expect(store.personClaimsSql('Principal', { many: true })).toMatch(/WHERE c\."contextId" = ANY\(\$1::uuid\[\]\)\s+AND c\."claimKind"/);
+    expect(store.personClaimsSql('Principal')).toMatch(/WHERE c\."contextId" = \$1\s+AND c\."claimKind"/);
+    expect(store.personClaimsSql('Identity')).toContain('c."contextId", COALESCE(p."displayName"');
+    const d = db([{ id: 'c1' }]);
+    expect(await store.personClaimsIn(d, ['u1', 'u2'], 'Identity', ['confirmed'])).toEqual([{ id: 'c1' }]);
+    expect(d.query.mock.calls[0]).toEqual([store.personClaimsSql('Identity', { many: true }), [['u1', 'u2'], store.PERSON_CLAIM_KINDS, ['confirmed']]]);
+    const none = db([{ id: 'c1' }]);
+    expect(await store.personClaimsIn(none, [], 'Identity', ['confirmed'])).toEqual([]);
+    expect(none.query).not.toHaveBeenCalled();
+  });
+
+  it('reads the claims with the person kinds and the statuses given', async () => {
+    const d = db([{ id: 'c1' }]);
+    expect(await store.personClaims(d, 'ctx', 'Principal', ['confirmed'])).toEqual([{ id: 'c1' }]);
+    expect(d.query.mock.calls[0]).toEqual([store.personClaimsSql('Principal'), ['ctx', store.PERSON_CLAIM_KINDS, ['confirmed']]]);
+  });
+
+  it('reads the holders the claims name and everyone marked former, with whether the context lists them; nothing for other members', async () => {
+    expect(store.holderRowsSql('Principal')).toMatch(/FROM "Principals" m/);
+    expect(store.holderRowsSql('Identity')).toMatch(/FROM "Identities" m/);
+    expect(store.holderRowsSql('Principal')).toMatch(/OR m\.id IN \(SELECT x\."memberId" FROM "ContextMemberOverrides" x WHERE x\."contextId" = \$1\)/);
+    const d = db([{ id: 'p' }]);
+    expect(await store.holderRows(d, 'ctx', 'Identity', ['i'])).toEqual([{ id: 'p' }]);
+    expect(d.query.mock.calls[0][1]).toEqual(['ctx', ['i']]);
+    const none = db();
+    expect(await store.holderRows(none, 'ctx', 'Resource', ['r'])).toEqual([]);
+    expect(none.query).not.toHaveBeenCalled();
+  });
+});
+
 describe('rejectProposed / interviewQuotes', () => {
   it('rejects only proposed claims of the context, by kind and/or tier (no tier counts as high), as the user', async () => {
     const d = db([{ id: 'c1' }, { id: 'c2' }]);

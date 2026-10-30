@@ -31,6 +31,7 @@ export default defineConfig({
       'src/lookups/sources/resourceContexts.test.js',
       'src/lookups/sources/unitContexts.test.js',
       'src/reports/templates/unit-members.test.js',
+      'src/reports/unitClaims.test.js',
       'src/lookups/sources/applicationPermissions.test.js',
       'src/reports/appPermissionRisk.test.js',
       'src/reports/templates/high-risk-application-permissions.test.js',

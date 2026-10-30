@@ -39,6 +39,10 @@ export const MEMBERSHIP_STATUSES = Object.freeze(['current', 'former', 'joined',
 export const RELEVANCE = Object.freeze(['high', 'low']);
 export const RELATIONS = Object.freeze(['owner', 'notOwner', 'dayToDay', 'delegate', 'member', 'other']);
 export const CLAIM_STATUSES = Object.freeze(['proposed', 'confirmed', 'rejected', 'edited']);
+// What a reader without write access to contexts sees (a context owner too): decided claims only.
+export const READER_STATUSES = Object.freeze(['confirmed', 'edited']);
+/** The claim statuses a reader may see: a writer sees the proposed ones too. Pure. */
+export const visibleClaimStatuses = (canWrite) => (canWrite ? ['proposed', ...READER_STATUSES] : [...READER_STATUSES]);
 export const ROLE_SUGGESTIONS = Object.freeze(['Accountable', 'Responsible']);
 
 // The kinds whose subject is the context itself.

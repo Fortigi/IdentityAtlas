@@ -20,8 +20,10 @@ export const panelId = (contextId) => `contradictions-${contextId}`;
 /** The contradictions still waiting for a decision. Pure. */
 export const openContradictions = (list) => (list || []).filter(c => c.status === 'open');
 
-/** "1 contradiction" / "3 contradictions". */
-export const contradictionCount = (n) => `${n} ${n === 1 ? 'contradiction' : 'contradictions'}`;
+const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership']);
+
+/** A contradiction about a person (its claim is a role, history or membership claim): decided on their row in People. Pure. */
+export const isPersonContradiction = (con) => PERSON_KINDS.has(con?.claim?.claim?.claimKind);
 
 const isProposed = (side) => side?.kind === 'claim' && side.claim?.status === 'proposed';
 const step = (side, body) => ({ claimId: side.claim.id, claim: side.claim, body });
@@ -29,7 +31,7 @@ const step = (side, body) => ({ claimId: side.claim.id, claim: side.claim, body 
 // Single-claim rules: [interview label, interview hint, source label, offer "both"?, confirm body].
 const SINGLE = {
   leftButMember: (con) => ['The interview is right — mark as former',
-    `Marks them former here and lists them under Previous members; ${con.other.source?.split(',')[0] || 'the source'} still lists them — remove them there, or re-import without them. Undo is possible.`,
+    `Shows them as Left (decided) under People; ${con.other.source?.split(',')[0] || 'the source'} still lists them — remove them there, or re-import without them. Undo is possible.`,
     'The list is right', true, { status: 'confirmed' }],
   memberNotListed: (con) => ['The interview is right',
     `Records it; the member list comes from ${con.other.source?.split(',')[0] || 'the source'} — add them there.`,

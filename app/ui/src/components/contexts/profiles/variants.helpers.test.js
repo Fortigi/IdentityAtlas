@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { memberCount, memberCountText, sameUnitLinks, linksNeedingCount, buildVariants, variantLabel } from './variants.helpers';
+import { memberCount, sameUnitLinks, linksNeedingCount, buildVariants, variantLabel } from './variants.helpers';
 import { profileFor } from './profiles';
 
 const link = (id, targetType, displayName = 'Contoso', extra = {}) => ({
@@ -13,20 +13,6 @@ describe('memberCount', () => {
     expect(memberCount({ totalMemberCount: 0, directMemberCount: 4 })).toBe(0);
     expect(memberCount({})).toBeNull();
     expect(memberCount(null)).toBeNull();
-  });
-});
-
-describe('memberCountText', () => {
-  it('names both counts when sub-units add members, so the fact matches the list', () => {
-    expect(memberCountText({ directMemberCount: 12, totalMemberCount: 37 })).toBe('12 in this unit · 37 including sub-units');
-    expect(memberCountText({ directMemberCount: 0, totalMemberCount: 5 }, 'this application')).toBe('0 in this application · 5 including sub-units');
-  });
-
-  it('gives one count when sub-units add nothing or a count is unknown', () => {
-    expect(memberCountText({ directMemberCount: 12, totalMemberCount: 12 })).toBe('12');
-    expect(memberCountText({ totalMemberCount: 37 })).toBe('37');
-    expect(memberCountText({ directMemberCount: 4 })).toBe('4');
-    expect(memberCountText({})).toBe('0');
   });
 });
 

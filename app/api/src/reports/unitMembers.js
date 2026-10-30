@@ -13,8 +13,9 @@
 //
 // A member a decision marked former (ContextMemberOverrides, migration 101:
 // an interview says they left, an analyst decided it is right, the source still
-// lists them) stays a row, with markedFormer — the report shows what the source
-// lists and what was decided about it, side by side.
+// lists them) stays a row, with markedFormer and the decision's columns
+// (overrideRows.js) — the report shows what the source lists and what was
+// decided about it, side by side.
 //
 // Members are the units' DIRECT members unless `includeSubUnits`, which takes
 // the whole subtree under each unit (a recursive walk; UNION stops on a cycle).
@@ -25,6 +26,7 @@
 
 import * as db from '../db/connection.js';
 import { visibleResourceTypesSql } from '../lib/resourceVisibility.js';
+import { OVERRIDE_COLUMNS } from '../contexts/interviews/overrideRows.js';
 
 // The contexts whose members are read: the named units, or their subtrees.
 export function scopeSql(includeSubUnits) {
@@ -44,7 +46,7 @@ const MEMBER_SQL = {
            m.id, m."displayName", m.email, m."jobTitle", m.department, m."employeeId",
            m."principalType", m."accountEnabled", mgr."displayName" AS "managerName",
            s."displayName" AS "systemName", m."extendedAttributes",
-           cm."contextId", u."displayName" AS "unitName", (o.id IS NOT NULL) AS "markedFormer"
+           cm."contextId", u."displayName" AS "unitName", (o.id IS NOT NULL) AS "markedFormer", ${OVERRIDE_COLUMNS}
       FROM "ContextMembers" cm
       JOIN "Principals" m ON m.id = cm."memberId" AND m."deletedAt" IS NULL
       JOIN "Contexts" u ON u.id = cm."contextId"
@@ -56,7 +58,7 @@ const MEMBER_SQL = {
     SELECT DISTINCT ON (cm."contextId", m.id)
            m.id, m."displayName", m.email, m."jobTitle", m.department, m."employeeId",
            m."accountCount", mgr."displayName" AS "managerName", m."extendedAttributes",
-           cm."contextId", u."displayName" AS "unitName", (o.id IS NOT NULL) AS "markedFormer"
+           cm."contextId", u."displayName" AS "unitName", (o.id IS NOT NULL) AS "markedFormer", ${OVERRIDE_COLUMNS}
       FROM "ContextMembers" cm
       JOIN "Identities" m ON m.id = cm."memberId"
       JOIN "Contexts" u ON u.id = cm."contextId"

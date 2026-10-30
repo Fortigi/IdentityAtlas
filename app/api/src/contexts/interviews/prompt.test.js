@@ -34,6 +34,18 @@ describe('buildUserMessage', () => {
       .toMatch(/^Unit: "Acme"[\s\S]*\nTranscript:\nt$/);
   });
 
+  it('a file or pasted text names its source, and nobody as the speaker; an interview stays as it was', () => {
+    const base = { contextName: 'Acme', template: 'OrganizationalUnit', intervieweeName: 'analyst@example.test', interviewedAt: '2026-10-02', text: 't' };
+    expect(buildUserMessage({ ...base, sourceKind: 'file', fileName: 'team.csv', parts: 2 }).split('\n')).toEqual([
+      'Unit: "Acme"', 'Source: the file "team.csv", added on 2026-10-02; nobody in particular is speaking', 'Text, part 1 of 2:', 't',
+    ]);
+    expect(buildUserMessage({ ...base, sourceKind: 'text' }).split('\n').slice(1, 3)).toEqual([
+      'Source: text added on 2026-10-02; nobody in particular is speaking', 'Text:',
+    ]);
+    expect(buildUserMessage({ ...base, sourceKind: 'interview' }).split('\n')[1]).toBe('Interviewee: "analyst@example.test" (interviewed on 2026-10-02)');
+    expect(buildSystemPrompt('OrganizationalUnit')).toMatch(/or another text about it: notes, a document, a list with one line per row/);
+  });
+
   it('names the other names the context already has, so the model gives only new ones', () => {
     const m = buildUserMessage({ contextName: 'HarbourOfficeNL', aliases: ['HO', 'Haven'], template: 'OrganizationalUnit', intervieweeName: 'X', interviewedAt: 'd', text: 't' });
     expect(m.split('\n')[0]).toBe('Unit: "HarbourOfficeNL" (also known as "HO", "Haven")');
