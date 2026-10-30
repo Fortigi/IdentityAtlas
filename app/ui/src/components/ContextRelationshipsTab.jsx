@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import ContextMemberPicker from './contexts/ContextMemberPicker';
+import MemberReferences from './contexts/MemberReferences';
+import { contextOpener } from './contexts/contextOpener';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { memberKindNoun } from '@ui/utils/contextStyles';
 import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab.helpers';
@@ -10,12 +13,17 @@ import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab
 // reader can edit contexts, and the context was created here — the only kind
 // whose member edits last) adds an "Edit members" button, and only in that mode
 // the add box and the per-row Remove appear.
+//
+// On a context owner's page each member can be expanded to its direct
+// references — names only, plain text (MemberReferences) — and a sub-unit opens
+// only when it is in the owner's scope (`openContext`, from contextOpener).
 
-export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, ...panelProps }) {
+export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, openContext, ...panelProps }) {
+  const opener = openContext || contextOpener({ onOpenDetail: panelProps.onOpenDetail });
   return (
     <>
       {subContexts.length > 0 && (
-        <SubUnitsList id={sectionIds.subUnits} subContexts={subContexts} attrs={panelProps.attrs} onOpenDetail={panelProps.onOpenDetail} />
+        <SubUnitsList id={sectionIds.subUnits} subContexts={subContexts} attrs={panelProps.attrs} openContext={opener} />
       )}
       <MembersPanel id={sectionIds.members} {...panelProps} />
     </>
@@ -25,7 +33,7 @@ export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, 
 const CARD = 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 scroll-mt-4';
 
 // ─── Sub-units ─────────────────────────────────────────────────────────────
-function SubUnitsList({ id, subContexts, attrs, onOpenDetail }) {
+function SubUnitsList({ id, subContexts, attrs, openContext }) {
   return (
     <section id={id} aria-label="Sub-units" className={CARD}>
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Sub-units ({subContexts.length})</h3>
@@ -42,15 +50,17 @@ function SubUnitsList({ id, subContexts, attrs, onOpenDetail }) {
               )}
             </>
           );
-          // Without a detail handler (a read-only shell) a sub-unit is a fact, not a link.
-          if (!onOpenDetail) {
+          // Without a handler (a read-only shell, or a sub-unit outside a
+          // context owner's scope) a sub-unit is a fact, not a link.
+          const open = openContext(sc);
+          if (!open) {
             return <div key={sc.id} className="flex items-center justify-between gap-3 px-3 py-2">{body}</div>;
           }
           return (
             <button
               key={sc.id}
               type="button"
-              onClick={() => onOpenDetail('context', sc.id, sc.displayName)}
+              onClick={open}
               className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group"
             >
               {body}
@@ -123,7 +133,7 @@ function MembersPanel({
       {editMode && <MemberEditBox contextId={contextId} attrs={attrs} members={members} onAdded={onMembersChanged} />}
 
       <MembersBody
-        loading={membersLoading} error={membersError} members={members} attrs={attrs} editMode={editMode}
+        loading={membersLoading} error={membersError} members={members} attrs={attrs} editMode={editMode} contextId={contextId}
         includeDescendants={includeDescendants} onOpenDetail={onOpenDetail} onRemove={removeMember}
       />
       {!membersLoading && members.length > 0 && totalPages > 1 && (
@@ -151,8 +161,18 @@ function MembersBody({ loading, error, members, ...tableProps }) {
 
 // The table reads as a two-line card per member on a narrow screen: the name
 // on the first line, the other columns wrapping under it.
-function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDetail, onRemove }) {
+function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDetail, onRemove, contextId }) {
   const columns = visibleMemberColumns(attrs.targetType, members);
+  // A context owner can open a member's references — of this unit's own
+  // members, so not while sub-units are included (the API checks membership).
+  const withReferences = !!useContextOwnerScope() && !includeDescendants && !editMode;
+  const [expanded, setExpanded] = useState(() => new Set());
+  const toggle = (memberId) => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(memberId)) next.delete(memberId); else next.add(memberId);
+    return next;
+  });
+  const span = 1 + columns.length + (editMode ? 1 : 0);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -165,23 +185,60 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
         </thead>
         <tbody>
           {members.map(m => (
-            <tr
-              key={m.id}
-              className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : ''}`}
-              onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
-            >
-              <td className={`w-full sm:w-auto sm:py-1.5 ${onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100'}`}>{m.displayName}</td>
-              {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
-              {editMode && (
-                <td className="sm:py-1.5 sm:text-right">
-                  <RowAction action={memberRowAction(includeDescendants)} onRemove={() => onRemove(m.id)} />
-                </td>
-              )}
-            </tr>
+            <MemberRow
+              key={m.id} member={m} columns={columns} span={span} contextId={contextId} attrs={attrs}
+              editMode={editMode} includeDescendants={includeDescendants} onOpenDetail={onOpenDetail} onRemove={onRemove}
+              references={withReferences ? { open: expanded.has(m.id), onToggle: () => toggle(m.id) } : null}
+            />
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+// One member: its row and, when a context owner opened it, its references
+// under it. `references` is null where references are not offered.
+function MemberRow({ member: m, columns, span, contextId, attrs, editMode, includeDescendants, onOpenDetail, onRemove, references }) {
+  const rowLink = onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : '';
+  const nameClass = onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100';
+  return (
+    <Fragment>
+      <tr
+        className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${rowLink}`}
+        onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
+      >
+        <td className={`w-full sm:w-auto sm:py-1.5 ${nameClass}`}>
+          {references ? <ReferencesToggle name={m.displayName} {...references} /> : m.displayName}
+        </td>
+        {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
+        {editMode && (
+          <td className="sm:py-1.5 sm:text-right">
+            <RowAction action={memberRowAction(includeDescendants)} onRemove={() => onRemove(m.id)} />
+          </td>
+        )}
+      </tr>
+      {references?.open && (
+        <tr className="block sm:table-row border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+          <td colSpan={span} className="block sm:table-cell px-3 py-3">
+            <MemberReferences contextId={contextId} memberId={m.id} />
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+}
+
+// The member's name as the button that shows or hides its references.
+function ReferencesToggle({ name, open, onToggle }) {
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={open} title={open ? 'Hide references' : 'Show references'}
+      className="inline-flex items-center gap-1.5 text-left hover:underline">
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 shrink-0 text-gray-600 dark:text-gray-400 transition-transform${open ? ' rotate-90' : ''}`}>
+        <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" />
+      </svg>
+      {name}
+    </button>
   );
 }
 

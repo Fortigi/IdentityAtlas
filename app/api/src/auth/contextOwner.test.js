@@ -12,12 +12,13 @@ vi.mock('./resolveMe.js', () => ({ resolveMe: (...a) => resolveMeMock(...a) }));
 
 const { query } = await import('../db/connection.js');
 const {
-  collapseHeld, findHeldContexts, findSameUnitVariants, resolveReportContexts, resolveContextOwner,
+  collapseHeld, findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts, resolveContextOwner,
 } = await import('./contextOwner.js');
 
 const A = 'AAAAAAAA-0000-4000-8000-000000000001';
 const B = 'aaaaaaaa-0000-4000-8000-000000000002';
 const V = 'aaaaaaaa-0000-4000-8000-000000000009';
+const S = 'aaaaaaaa-0000-4000-8000-00000000000b';
 
 const row = (id, role, name = id) => ({ id, displayName: name, role, contextCategory: 'OrganizationalUnit', targetType: 'Identity' });
 
@@ -67,6 +68,17 @@ describe('the reads', () => {
     expect(query.mock.calls[0][1]).toEqual([[B]]);
   });
 
+  it('findOwnedSubUnits does not query for an empty list', async () => {
+    expect(await findOwnedSubUnits({ query }, [])).toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('findOwnedSubUnits asks below the held ids and returns lower-cased ids', async () => {
+    query.mockResolvedValue({ rows: [{ id: S.toUpperCase() }] });
+    expect(await findOwnedSubUnits({ query }, [B])).toEqual([S]);
+    expect(query.mock.calls[0][1]).toEqual([[B]]);
+  });
+
   it('resolveReportContexts lower-cases what it asks for and what it returns', async () => {
     query.mockResolvedValue({ rows: [{ id: A }] });
     expect(await resolveReportContexts({ query }, ['Finance', A])).toEqual([A.toLowerCase()]);
@@ -89,16 +101,21 @@ describe('resolveContextOwner', () => {
     expect(query.mock.calls[0][1]).toEqual(['p-1', null]);
   });
 
-  it('scopes the held contexts plus their variants, and lists only the held ones', async () => {
+  it('scopes the held contexts plus their own sub-units and their variants, and lists only the held ones', async () => {
     resolveMeMock.mockResolvedValue({ principal: { id: 'p-1' }, identity: { id: 'i-1' } });
     query
       .mockResolvedValueOnce({ rows: [row(B, 'Accountable', 'Beta')] })
+      .mockResolvedValueOnce({ rows: [{ id: S }] })
       .mockResolvedValueOnce({ rows: [{ id: V }] });
     const owner = await resolveContextOwner({ oid: 'p-1' });
     expect(owner.contexts.map(c => c.id)).toEqual([B]);
-    expect([...owner.contextIds].sort()).toEqual([B, V]);
+    expect([...owner.contextIds].sort()).toEqual([B, V, S].sort());
     expect(query.mock.calls[0][1]).toEqual(['p-1', 'i-1']);
+    // Sub-units and variants are both sought from the HELD contexts only.
+    expect(query.mock.calls[1][0]).toContain('WITH RECURSIVE');
     expect(query.mock.calls[1][1]).toEqual([[B]]);
+    expect(query.mock.calls[2][0]).toContain('SameUnitAs');
+    expect(query.mock.calls[2][1]).toEqual([[B]]);
   });
 
   it('treats a schema without the roles table as "no owner"', async () => {
