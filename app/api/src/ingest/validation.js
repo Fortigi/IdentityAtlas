@@ -13,7 +13,11 @@ import {
   validateRecord,
 } from './validation.helpers.js';
 
-const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+// The type lists below are exported so the core ontology check
+// (src/ontology/, `npm run ontology:check`) reads the model from the code that
+// enforces it instead of from a second hand-kept copy. Adding a value here
+// without describing it in /ontology/core.ttl fails CI.
+export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
 // Hard rule (assignment-model redesign): an assignment is only ever one of the
 // three universal "how" values. Everything that used to be its own type is now
 // modelled differently — ownership is a Direct membership on a GroupOwnership
@@ -22,7 +26,7 @@ const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'Workloa
 // DirectoryRoleEligible) collapse to Direct/Indirect/Eligible + resourceType.
 // Ingest REJECTS any other value; assignmentTypes.guard.test.js statically
 // scans the crawlers so a retired type can't be reintroduced at the source.
-const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
+export const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
 // Where an assignment came from, as the source records it: a rule or birthright
 // policy assigned it, it was requested, or the source just found it on the
 // target system. Optional: a source that does not say leaves it out, which is
@@ -32,16 +36,35 @@ const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
 // fails when the two differ. Neither field belongs in ENTITY_KEY_MAP or
 // ENTITY_SCOPE_MAP: a grant whose origin changes is the same row, updated.
 export const ASSIGNMENT_ORIGINS = ['Automatic', 'Requested', 'Discovered'];
-const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission'];
+export const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope', 'HasAppRole', 'HasOwnership', 'HasAppOwnership', 'HasApplicationPermission'];
 // Principal→principal links (see migrations/057_principal_relationships.sql).
 // A closed allow-list like assignmentType: ownership of an AI agent and
 // sponsorship of a guest are the two responsibility links between two Principals.
 // Add a value here (and to the CHECK in migration 057) to introduce a new kind —
 // ingest REJECTS anything else.
-const PRINCIPAL_RELATIONSHIP_TYPES = ['Owner', 'Sponsor'];
+export const PRINCIPAL_RELATIONSHIP_TYPES = ['Owner', 'Sponsor'];
+// Contexts: how a context came to exist, which kind of node it groups (and a
+// member is), and who added a member. Mirrors the CHECKs in migration 018 (and,
+// for addedBy, 105: one value scheme for members, roles and relationships —
+// 'sourceOwner' is the owner a synced context's source names, which only the
+// contexts ingest itself writes, on ContextRoles).
+export const CONTEXT_VARIANTS = ['synced', 'generated', 'manual'];
+export const CONTEXT_TARGET_TYPES = ['Identity', 'Resource', 'Principal', 'System'];
+export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst', 'sourceOwner'];
+// The template a context falls under (ontology/core.ttl, the ia:template classes
+// below ia:Context; docs/architecture/context-templates-phase-b.md). Nullable in
+// the database: a synced value nobody has placed yet shows as "Other".
+export const CONTEXT_CATEGORIES = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment'];
+// Who answers for a context: at most one Accountable, any number Responsible.
+// A context→person link, never access (migration 094 CHECK).
+export const CONTEXT_ROLE_TYPES = ['Accountable', 'Responsible'];
+// Context→context links (migration 094 CHECK). SameUnitAs: two contexts are one unit
+// seen through a different kind of member (its people, its accounts, its resources).
+export const CONTEXT_RELATIONSHIP_TYPES = ['SameUnitAs'];
 
-// Schema definitions per entity type
-const SCHEMAS = {
+// Schema definitions per entity type. Exported read-only for the core ontology
+// check, which verifies every field of the core entities is described there.
+export const SCHEMAS = {
   systems: {
     required: ['displayName', 'systemType'],
     fields: {
@@ -255,9 +278,10 @@ const SCHEMAS = {
     idField: 'id',
     fields: {
       id: { type: 'uuid' },
-      variant: { type: 'string', enum: ['synced', 'generated', 'manual'] },
-      targetType: { type: 'string', enum: ['Identity', 'Resource', 'Principal', 'System'] },
+      variant: { type: 'string', enum: CONTEXT_VARIANTS },
+      targetType: { type: 'string', enum: CONTEXT_TARGET_TYPES },
       contextType: { type: 'string', maxLength: 50 },
+      contextCategory: { type: 'string', enum: CONTEXT_CATEGORIES },
       displayName: { type: 'string', maxLength: 500 },
       description: { type: 'string' },
       parentContextId: { type: 'uuid' },
@@ -286,10 +310,10 @@ const SCHEMAS = {
     fields: {
       contextId: { type: 'uuid' },
       contextExternalId: { type: 'string', maxLength: 500 },
-      memberType: { type: 'string', enum: ['Identity', 'Resource', 'Principal', 'System'] },
+      memberType: { type: 'string', enum: CONTEXT_TARGET_TYPES },
       memberId: { type: 'uuid' },
       memberExternalId: { type: 'string', maxLength: 500 },
-      addedBy: { type: 'string', enum: ['sync', 'algorithm', 'analyst'] },
+      addedBy: { type: 'string', enum: CONTEXT_MEMBER_ADDED_BY },
     },
   },
   'governance/catalogs': {

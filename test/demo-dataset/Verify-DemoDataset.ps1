@@ -84,9 +84,9 @@ function Invoke-RowCountChecks {
     $counts = @{
         'Systems'                = @{ Min = 5;  Max = 5 }   # EntraID + HR + IGA + SAP + AzureRM (#705)
         'Principals'             = @{ Min = 49; Max = 49 }  # 26 employees + 5 edge cases + IGA acct + 10 SAP + 3 app SPs + 4 audit cast (2 guests, 1 disabled admin, 1 second admin account)
-        'Resources'              = @{ Min = 47; Max = 47 }  # Entra 10 + ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 + 1 empty group
-        'ResourceAssignments'    = @{ Min = 180; Max = 180 }
-        'ResourceRelationships'  = @{ Min = 27; Max = 27 }  # 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope
+        'Resources'              = @{ Min = 52; Max = 52 }  # Entra 10 + ownership 3 (+5 for the applications) + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 + 1 empty group
+        'ResourceAssignments'    = @{ Min = 185; Max = 185 }  # +5 owners the applications' groups got
+        'ResourceRelationships'  = @{ Min = 32; Max = 32 }  # 21 Contains + 1 GrantsAccessTo + 8 HasOwnership + 2 DelegatesScope
         'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
         'IdentityMembers'        = @{ Min = 39; Max = 39 }  # 27 Entra + 1 IGA + 10 SAP + the CTO's second admin account
         'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
@@ -108,12 +108,13 @@ function Invoke-RowCountChecks {
     }
 
     # Contexts are counted separately, filtered to the dataset's own. In the v6
-    # model a Context carries a `variant`: the demo dataset ingests 9 'synced' ones
-    # (1 root + 5 departments + 2 teams + 1 admin unit), while the API creates
+    # model a Context carries a `variant`: the demo dataset ingests 17 'synced' ones
+    # (1 root + 5 departments + 2 teams + 1 admin unit + 7 logical applications +
+    # the Security Team as its resources), while the API creates
     # 'manual' Tag roots at bootstrap and the context-algorithm plugins emit
     # 'generated' ones whenever the worker runs. A bare COUNT(*) therefore drifts
     # with runtime state. Filtering by variant makes this deterministic.
-    Assert-Count 'RowCount-Contexts' -Min 9 -Max 9 -Query @'
+    Assert-Count 'RowCount-Contexts' -Min 17 -Max 17 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "variant" = 'synced'
 '@
 }
@@ -647,6 +648,53 @@ WHERE r."displayName" = 'SG-VPN-Access' AND ra."assignmentType" = 'Direct'
 '@
 }
 
+# Logical applications and who answers for them (parts/DemoApplications.ps1).
+# Roles and the SameUnitAs link go in through /api/ingest/context-roles and
+# /api/ingest/context-relationships, so these also prove that path landed.
+function Invoke-ApplicationChecks {
+    Write-Host "`n--- Logical applications ---" -ForegroundColor Yellow
+
+    Assert-Count 'Apps-LogicalApplicationContexts' -Min 7 -Max 7 -Query @'
+SELECT COUNT(*) FROM "Contexts"
+WHERE "variant" = 'synced' AND "contextCategory" = 'LogicalApplication' AND "targetType" = 'Resource'
+'@
+
+    Assert-Count 'Apps-FinanceModuleUnderSapErp' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "Contexts" c JOIN "Contexts" p ON p."id" = c."parentContextId"
+WHERE c."displayName" LIKE 'SAP ERP _ Financial Accounting' AND p."displayName" = 'SAP ERP'
+'@
+
+    # 3 Accountable + 4 Responsible, all from the sync.
+    Assert-Count 'Apps-SyncedRoles' -Min 7 -Max 7 -Query @'
+SELECT COUNT(*) FROM "ContextRoles" r JOIN "Contexts" c ON c."id" = r."contextId"
+WHERE r."addedBy" = 'sync' AND c."contextCategory" = 'LogicalApplication'
+'@
+
+    # The best-guess story: Eva Fischer owns 3 of IT Service Management's 5
+    # resources (the API suggests from 40 %), and the intranet has no owner at all.
+    Assert-Count 'Apps-BestGuessOwnerShare' -Min 3 -Max 3 -Label '3 of 5 resources owned' -Query @'
+SELECT COUNT(DISTINCT cm."memberId") FROM "ContextMembers" cm
+JOIN "Contexts" c ON c."id" = cm."contextId" AND c."displayName" = 'IT Service Management'
+JOIN "ResourceRelationships" rr ON rr."parentResourceId" = cm."memberId" AND rr."relationshipType" = 'HasOwnership'
+JOIN "ResourceAssignments" ra ON ra."resourceId" = rr."childResourceId" AND ra."deletedAt" IS NULL
+JOIN "Principals" p ON p."id" = ra."principalId" AND p."displayName" = 'Eva Fischer'
+'@
+
+    Assert-Count 'Apps-EmptyStateHasNoOwner' -Min 0 -Max 0 -Query @'
+SELECT COUNT(*) FROM "ContextMembers" cm
+JOIN "Contexts" c ON c."id" = cm."contextId" AND c."displayName" = 'Employee Portal & Intranet'
+JOIN "ResourceRelationships" rr ON rr."parentResourceId" = cm."memberId" AND rr."relationshipType" IN ('HasOwnership', 'HasAppOwnership')
+'@
+
+    Assert-Count 'Apps-SecurityTeamVariantsLinked' -Min 1 -Max 1 -Query @'
+SELECT COUNT(*) FROM "ContextRelationships" r
+JOIN "Contexts" a ON a."id" = r."contextId"
+JOIN "Contexts" b ON b."id" = r."relatedContextId"
+WHERE r."relationshipType" = 'SameUnitAs'
+  AND a."displayName" = 'Security Team' AND b."displayName" = 'Security Team (resources)'
+'@
+}
+
 function Invoke-ApiChecks {
     Write-Host "`n--- API Verification ---" -ForegroundColor Yellow
 
@@ -693,6 +741,7 @@ function Invoke-DemoDatasetVerification {
     Invoke-BusinessLogicChecks
     Invoke-BusinessRoleRowChecks
     Invoke-AuditReportCastChecks
+    Invoke-ApplicationChecks
     Invoke-CaptureTheFlagChecks
     Invoke-ApiChecks
     Write-VerificationSummary

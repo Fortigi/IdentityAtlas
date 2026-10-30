@@ -176,6 +176,22 @@ profile, or an Azure parameter), and it is shared with custom reports.
 
 ---
 
+## Accountables from source owners (a setting, not experimental)
+
+Shown on the same tab, under **Contexts — what a sync sets on its own**, because it is
+switched the same way. When a source names the owner of a synced unit or application
+(`ownerUserId`: an account key or an employee number), that account becomes the context's
+**Accountable** on every sync and follows the source when the owner changes. An Accountable
+an analyst chose, or one a crawler states directly, is never overwritten.
+
+Environment variable: `FEATURE_SOURCE_OWNER_ACCOUNTABLES=false` turns it off by default.
+It is **on** unless switched off.
+
+**Off** — a sync sets, replaces and removes no Accountable at all; the ones already there
+stay as they are.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_SORT, EMPTY_FILTER, matrixFilterFingerprint, normalizeMatrixFilter } from './matrixFilter';
+import { DEFAULT_SORT, EMPTY_FILTER, matrixFilterFingerprint, normalizeMatrixFilter, matrixHrefForContext,
+  matrixHrefForResourceContext, matrixHrefForUnit } from './matrixFilter';
 
 describe('normalizeMatrixFilter', () => {
   it('returns the empty filter shape for null / undefined / non-objects', () => {
@@ -265,5 +266,85 @@ describe('matrixFilterFingerprint', () => {
     const it_ = { kind: 'attribute', field: 'department', values: ['IT'] };
     expect(matrixFilterFingerprint({ ...seeded, subject: { include: [hr, it_], exclude: [] } }))
       .not.toBe(matrixFilterFingerprint({ ...seeded, subject: { include: [it_, hr], exclude: [] } }));
+  });
+});
+
+describe('matrixHrefForContext', () => {
+  // Read the link back the way App.jsx does: decode the hash, split off the
+  // page, parse the filter param.
+  function parse(href) {
+    expect(href.startsWith('#matrix?')).toBe(true);
+    const raw = decodeURIComponent(href.slice(1));
+    return JSON.parse(new URLSearchParams(raw.slice(raw.indexOf('?') + 1)).get('filter'));
+  }
+  const cond = (id) => ({ kind: 'context', contextId: id, includeChildren: true });
+
+  it('filters the subjects on an account context, rows as accounts', () => {
+    expect(parse(matrixHrefForContext({ id: 'c-acc', targetType: 'Principal' }))).toEqual({
+      rowType: 'principal',
+      subject: { include: [cond('c-acc')], exclude: [] },
+      resource: { include: [], exclude: [] },
+    });
+  });
+
+  it('filters the subjects on a people context and switches the rows to identities', () => {
+    const f = parse(matrixHrefForContext({ id: 'c-ppl', targetType: 'Identity' }));
+    expect(f.rowType).toBe('identity');
+    expect(f.subject.include).toEqual([cond('c-ppl')]);
+    expect(f.resource.include).toEqual([]);
+  });
+
+  it('filters the resources on a resource or system context', () => {
+    for (const targetType of ['Resource', 'System']) {
+      const f = parse(matrixHrefForContext({ id: 'c-res', targetType }));
+      expect(f.rowType).toBe('principal');
+      expect(f.resource.include).toEqual([cond('c-res')]);
+      expect(f.subject.include).toEqual([]);
+    }
+  });
+
+  it('survives the normaliser unchanged on the fields it sets', () => {
+    const f = normalizeMatrixFilter(parse(matrixHrefForContext({ id: 'c-acc', targetType: 'Principal' })));
+    expect(f.subject.include).toEqual([cond('c-acc')]);
+  });
+});
+
+describe('matrixHrefForResourceContext / matrixHrefForUnit', () => {
+  function parse(href) {
+    const raw = decodeURIComponent(href.slice(1));
+    return JSON.parse(new URLSearchParams(raw.slice(raw.indexOf('?') + 1)).get('filter'));
+  }
+  const cond = (id) => ({ kind: 'context', contextId: id, includeChildren: true });
+
+  it('puts an application\'s resources on the columns and leaves the holders unfiltered as rows', () => {
+    expect(parse(matrixHrefForResourceContext({ id: 'c-app', targetType: 'Resource' }))).toEqual({
+      rowType: 'principal',
+      orientation: 'rows-as-subjects',
+      subject: { include: [], exclude: [] },
+      resource: { include: [cond('c-app')], exclude: [] },
+    });
+  });
+
+  it('keeps the rotation through the normaliser, so the matrix opens with resources as columns', () => {
+    const f = normalizeMatrixFilter(parse(matrixHrefForResourceContext({ id: 'c-app' })));
+    expect(f.orientation).toBe('rows-as-subjects');
+    expect(f.resource.include).toEqual([cond('c-app')]);
+  });
+
+  it('opens a resource or system unit by its resources, rotated', () => {
+    for (const targetType of ['Resource', 'System']) {
+      const f = parse(matrixHrefForUnit({ id: 'c-res', targetType }));
+      expect(f.orientation, targetType).toBe('rows-as-subjects');
+      expect(f.resource.include).toEqual([cond('c-res')]);
+    }
+  });
+
+  it('opens a unit of accounts or people by its members, the default way round', () => {
+    expect(matrixHrefForUnit({ id: 'c-acc', targetType: 'Principal' }))
+      .toBe(matrixHrefForContext({ id: 'c-acc', targetType: 'Principal' }));
+    const f = parse(matrixHrefForUnit({ id: 'c-ppl', targetType: 'Identity' }));
+    expect(f.orientation).toBeUndefined();
+    expect(f.rowType).toBe('identity');
+    expect(f.subject.include).toEqual([cond('c-ppl')]);
   });
 });

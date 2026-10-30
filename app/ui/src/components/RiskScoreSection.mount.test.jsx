@@ -97,3 +97,21 @@ describe('RiskScoreSection (mounted)', () => {
     );
   });
 });
+
+describe('RiskScoreSection in a read-only shell', () => {
+  it('shows the score and details but never offers the analyst override', async () => {
+    const { SharedViewContext } = await import('@ui/contexts/SharedViewContext');
+    renderWithProviders(
+      h(SharedViewContext.Provider, { value: true },
+        h(RiskScoreSection, { attributes: baseAttrs, entityType: 'user', entityId: 'u1', authFetch: makeAuthFetch({}) })),
+    );
+    expect(screen.getByText('82')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show Details' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adjust Score' })).toBeNull();
+  });
+
+  it('offers the override outside one', () => {
+    render();
+    expect(screen.getByRole('button', { name: 'Adjust Score' })).toBeInTheDocument();
+  });
+});

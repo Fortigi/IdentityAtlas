@@ -6,7 +6,7 @@
 // or a missing field that defaults the wrong way.
 
 import { describe, it, expect } from 'vitest';
-import { degradedPermState, permStateFromAuthMe } from './authMeState';
+import { degradedPermState, permStateFromAuthMe, isContextOwnerSession } from './authMeState';
 
 describe('degradedPermState', () => {
   it('fails closed — no permissions, no wildcard', () => {
@@ -80,5 +80,51 @@ describe('permStateFromAuthMe', () => {
     // not be two different states to handle.
     expect(permStateFromAuthMe({ me: null }).me).toBeNull();
     expect(permStateFromAuthMe({ permissions: [] }).me).toBeNull();
+  });
+});
+
+describe('contextOwner', () => {
+  it('passes the owner\'s contexts through', () => {
+    const contextOwner = { contexts: [{ id: 'c1', displayName: 'Finance', role: 'Responsible' }] };
+    expect(permStateFromAuthMe({ contextOwner }).contextOwner).toEqual(contextOwner);
+  });
+
+  it('is null when absent (an ordinary user, or an older API)', () => {
+    expect(permStateFromAuthMe({ permissions: ['data.read'] }).contextOwner).toBeNull();
+  });
+
+  it('is null in the degraded state — a failed auth-me never lands anyone on an owner page', () => {
+    expect(degradedPermState().contextOwner).toBeNull();
+  });
+});
+
+describe('isContextOwnerSession', () => {
+  const owner = { contexts: [{ id: 'c1' }] };
+  const base = { permissionsLoaded: true, hasWildcard: false, permissions: new Set(), contextOwner: owner };
+
+  it('is true for a loaded, permissionless owner', () => {
+    expect(isContextOwnerSession(base)).toBe(true);
+  });
+
+  it('is false before auth-me has answered', () => {
+    expect(isContextOwnerSession({ ...base, permissionsLoaded: false })).toBe(false);
+  });
+
+  it('is false with the wildcard (open mode or an admin)', () => {
+    expect(isContextOwnerSession({ ...base, hasWildcard: true })).toBe(false);
+  });
+
+  it('is false with a single real permission', () => {
+    expect(isContextOwnerSession({ ...base, permissions: new Set(['data.read']) })).toBe(false);
+  });
+
+  it('is false with no contexts, or no owner block', () => {
+    expect(isContextOwnerSession({ ...base, contextOwner: { contexts: [] } })).toBe(false);
+    expect(isContextOwnerSession({ ...base, contextOwner: null })).toBe(false);
+    expect(isContextOwnerSession()).toBe(false);
+  });
+
+  it('treats a missing permission set as none', () => {
+    expect(isContextOwnerSession({ ...base, permissions: null })).toBe(true);
   });
 });

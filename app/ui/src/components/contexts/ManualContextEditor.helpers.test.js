@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isContextDirty, normalizeContextFields } from './ManualContextEditor.helpers';
+import { isContextDirty, normalizeContextFields, defaultChildCategory } from './ManualContextEditor.helpers';
 
 describe('normalizeContextFields', () => {
   it('maps loaded attrs onto the editor string fields', () => {
@@ -7,6 +7,7 @@ describe('normalizeContextFields', () => {
       displayName: 'Engineering',
       description: 'A team',
       ownerUserId: 'user-1',
+      contextCategory: 'OrganizationalUnit',
       parentContextId: 'ctx-parent',
       parentDisplayName: 'Company',
     };
@@ -14,6 +15,7 @@ describe('normalizeContextFields', () => {
       displayName: 'Engineering',
       description: 'A team',
       ownerUserId: 'user-1',
+      contextCategory: 'OrganizationalUnit',
       parentId: 'ctx-parent',
       parentLabel: 'Company',
     });
@@ -24,9 +26,21 @@ describe('normalizeContextFields', () => {
       displayName: '',
       description: '',
       ownerUserId: '',
+      contextCategory: '',
       parentId: '',
       parentLabel: '',
     });
+  });
+});
+
+describe('defaultChildCategory', () => {
+  it('is the parent template when the parent has one', () => {
+    expect(defaultChildCategory({ contextCategory: 'LogicalApplication' })).toBe('LogicalApplication');
+  });
+
+  it('is Segment when the parent has none (null, or no parent at all)', () => {
+    expect(defaultChildCategory({ contextCategory: null })).toBe('Segment');
+    expect(defaultChildCategory(undefined)).toBe('Segment');
   });
 });
 
@@ -62,6 +76,12 @@ describe('isContextDirty', () => {
 
   it('detects a changed parent', () => {
     expect(isContextDirty(attrs, { ...pristine, parentId: 'ctx-other' })).toBe(true);
+  });
+
+  it('detects a changed template, and treats "" and null as the same no-template', () => {
+    expect(isContextDirty(attrs, { ...pristine, contextCategory: 'Tag' })).toBe(true);
+    expect(isContextDirty({ ...attrs, contextCategory: null }, { ...pristine, contextCategory: '' })).toBe(false);
+    expect(isContextDirty({ ...attrs, contextCategory: 'Tag' }, { ...pristine, contextCategory: '' })).toBe(true);
   });
 
   it('treats empty-string parent and null parent as equivalent (not dirty)', () => {

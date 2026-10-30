@@ -99,7 +99,7 @@ describe('helpers', () => {
   it('falls back to the id when a system has a blank display name', () => {
     const { contexts } = buildSystemTree(
       [{ systemId: 7, systemName: '   ', memberId: 'x' }],
-      { rootName: 'R', rootType: 'SystemMembershipRoot', childType: 'SystemMembership' },
+      { rootName: 'R', rootType: 'SystemMembership', childType: 'SystemMembership' },
     );
     expect(contexts.find(c => c.externalId === 'system:7').displayName).toBe('System 7');
   });

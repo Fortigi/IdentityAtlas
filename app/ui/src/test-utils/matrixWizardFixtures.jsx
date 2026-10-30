@@ -79,7 +79,7 @@ function discoveryRoute(u, preview) {
     return u.includes('entity=Resource') ? resourceCols : principalCols;
   }
   if (u.includes('/api/matrix/preview')) return { ...previewBody, ...preview };
-  if (u.includes('/api/contexts?contextType=ManagerHierarchy')) {
+  if (u.includes('/api/contexts?sourceAlgorithm=manager-hierarchy')) {
     return { data: [{ id: 'ctx-1', displayName: 'Org Chart', totalMemberCount: 99 }] };
   }
   if (u.startsWith('/api/contexts/')) {

@@ -27,8 +27,8 @@ A **context** is a named group of entities. Contexts nest into **trees** (a root
 
 | Variant | Comes from | Can you edit it? |
 |---------|-----------|------------------|
-| **Synced** 🔵 | A crawler (Entra, CSV, …) ingests the tree — e.g. an HR org hierarchy | No — it is overwritten on the next crawl. You *can* graft manual children under it. |
-| **Generated** 🟢 | A plugin algorithm you run against existing data — e.g. a manager hierarchy or a resource cluster | The generated nodes are read-only, but your manual children and hand-moved members survive re-runs (see [Sync](#run-a-plugin-or-sync-a-tree)). |
+| **Synced** 🔵 | A crawler (CSV, Omada, midPoint, SQL, …) ingests the tree — e.g. an HR org hierarchy | No — it is overwritten on the next crawl. You *can* graft manual children under it. |
+| **Generated** 🟢 | A plugin algorithm you run against existing data — e.g. a manager hierarchy or a resource cluster | Partly — you can rename and re-parent generated nodes, and your renames, placements, manual children and hand-moved members survive re-runs (see [Sync](#run-a-plugin-or-sync-a-tree)). |
 | **Manual** 🟤 | You build it by hand in the UI | Yes — fully editable. |
 
 Every tree also has exactly one **target type** — the kind of thing it groups. This is what lets a context filter know whether to narrow the Matrix's rows or its columns:
@@ -46,17 +46,14 @@ A single tree keeps one target type all the way down, but it can mix variants �
 
 ## The two-pane layout
 
-The Contexts tab is split in two:
+The Contexts tab has one tab per template — **Organisation**, **Applications**, **Tags** and **Segments** — and each is split in two:
 
-- **Left — the tree selector.** Every root tree, grouped by context type. Each entry shows a colored left border for its **variant**, a **target-type** badge, and (when the tree is pinned to one system) a muted **system** chip. A filter bar at the top narrows the list by target type, variant, or system — handy when you have dozens of trees.
-- **Right — the selected tree.** A header card summarizing the tree (name, variant, target type, system, owner, member count), then the tree itself. Toggle between **Tree** and **List** view with the buttons in the header.
+- **Left — the trees.** The tab's trees as one tree, under a heading per source (Imported · *system*, Derived · *rule*, Manager hierarchy, Created here). On Organisation, **Show:** switches between the People, Accounts and Resources trees, because each tree holds one kind of member. Each row shows one member count (everyone including sub-units; the direct share is in its tooltip). Filters at the top narrow by source, system and — on Tags and Segments — kind.
+- **Right — the selected context.** Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and members. **Open as page** opens it on its own.
 
-**Tree view** shows the hierarchy with expand/collapse arrows. Hover a node for its direct and total member counts. Expand a node to see the members (users) directly in it.
-
-**List view** flattens the same tree into a sortable, filterable table — better for very large trees (e.g. a multi-thousand-node AD OU structure) where the indented view is too dense.
+Expand a row with its arrow to see its sub-units. The old **List** mode, which flattened a tree into a table, is gone; a unit's members are listed on its page.
 
 ---
-
 ## Create a context
 
 Click **+ New** (top-right) to open the New-Context wizard. Step 1 asks where the tree should come from — the three cards match the three variants:
@@ -89,6 +86,9 @@ The built-in plugins include:
 | Scope Hierarchy | Resource | The Azure management-group → subscription → resource-group nesting |
 | Entra Group Category Tree | Resource | The Entra group category |
 | Risky Consent | Resource | OAuth consent risk tiers and flagged app consents |
+| Principals by System | Principal | The system each account was loaded from |
+| Resources by System | Resource | The system each resource was loaded from |
+| Context assistant recipe | Resource | A recipe built in the context assistant, plus resources pinned by hand |
 
 ### Create manual
 
@@ -98,7 +98,7 @@ Start an empty tree you curate yourself. Pick a **target type**, give it a **con
 
 ## Run a plugin, or sync a tree
 
-For a **generated** tree, the header shows a **Sync** button. Sync re-runs the generating plugin onto that tree so memberships update — for example, a person who changed manager moves under their new manager. Crucially, **your edits are kept**: manual children you grafted on and members you moved by hand survive the re-run. (The generated nodes themselves stay read-only — you can't rename or reorder them; see below.)
+For a **generated** tree, the header shows a **Sync** button. Sync re-runs the generating plugin onto that tree so memberships update — for example, a person who changed manager moves under their new manager. Crucially, **your edits are kept**: renamed and re-parented nodes, manual children you grafted on and members you moved by hand survive the re-run. The one exception: if the re-run no longer produces a generated node, that node is removed together with everything still under it, manual children included.
 
 To create a fresh generated tree (rather than refresh an existing one), use **+ New → Run a plugin** and choose "Create a new tree" on the preview step.
 
@@ -118,7 +118,7 @@ On a **manual** tree — or on the manual/generated parts of any tree — you ca
 
 On a **Manager Hierarchy** tree there's one more move: drag a person's oval onto another team to record that they report to that team's manager. The person moves immediately, and because the change is stored as a reporting override, it sticks even after the next Sync.
 
-Synced and generated nodes are otherwise read-only — you can graft manual children under them, but you can't rename or reorder the synced/generated nodes themselves.
+Synced nodes are otherwise read-only — you can graft manual children under them, but you can't rename or reorder the synced nodes themselves.
 
 ---
 
