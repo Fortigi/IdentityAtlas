@@ -522,8 +522,10 @@ paths:
       operationId: setContextOwnerAccess
       description: >
         Takes effect on the next request; no restart. A context owner can only read their own
-        contexts (and the contexts linked to them as variants of the same unit), each context's
-        timeline, risk score and Entitlement Pivot download. Every other endpoint answers 403
+        contexts, the sub-units below them that have no Accountable or Responsible of their own,
+        and the contexts linked to them as variants of the same unit: each context's members,
+        each member's direct references (names only), timeline, risk score and report
+        downloads. Every other endpoint answers 403
         for them. Requires `admin.auth`.
       security:
         - EntraIdBearer: []
@@ -2855,6 +2857,42 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such context
+  /contexts/{id}/members/{memberId}/references:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: memberId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: A member's direct references, names only
+      operationId: getContextMemberReferences
+      description: >
+        What one member of this context is directly tied to. An account or a person: the groups
+        and resources they hold (with the assignment type), the business roles they hold and the
+        other contexts they are in (a person through the person and every linked account). A
+        resource: who holds it, the business roles that contain it and its other contexts. A
+        system: its other contexts. Each group lists at most 50 names alphabetically, with the
+        true total. The items carry no ids: a display name and the words needed to read it.
+        Answers 404 for an id that is not a member of this context itself. A context owner may
+        read it for a member of a context in their scope.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The reference groups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextMemberReferences'
+        '400':
+          description: An id is not a uuid
+        '404':
+          description: Not a member of this context
   /contexts/{id}/members/{memberId}/move:
     parameters:
       - name: id
@@ -3975,6 +4013,38 @@ components:
       description: Entra ID JWT token
 
   schemas:
+    ContextMemberReferences:
+      type: object
+      properties:
+        memberType:
+          type: string
+          nullable: true
+          description: Identity, Principal, Resource or System; null without a database
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                enum: [resources, businessRoles, contexts, holders]
+              total:
+                type: integer
+                description: How many there are in all; items holds at most 50 of them.
+              items:
+                type: array
+                maxItems: 50
+                items:
+                  type: object
+                  description: A name and the words to read it — never an id.
+                  properties:
+                    displayName: { type: string, nullable: true }
+                    resourceType: { type: string, nullable: true }
+                    systemName: { type: string, nullable: true }
+                    assignmentType: { type: string, enum: [Direct, Indirect, Eligible] }
+                    holderType: { type: string, nullable: true, description: "An account's principal type, or Person" }
+                    contextType: { type: string, nullable: true }
+                    targetType: { type: string }
     ContextOwnerAccess:
       type: object
       required: [enabled]

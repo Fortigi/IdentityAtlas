@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { copyText } from '@ui/utils/clipboard';
-import ContextOwnerAccessSection from '@ui/components/admin/ContextOwnerAccessSection';
+import RelativePermissionsSection from '@ui/components/admin/RelativePermissionsSection';
 
 function CopyableCommand({ command }) {
   // 'idle' | 'ok' | 'fail' — reflect the real clipboard result, never a
@@ -228,7 +228,7 @@ export default function AuthSettingsPage() {
         reload={reload}
       />
 
-      <ContextOwnerAccessSection />
+      <RelativePermissionsSection />
 
       {isAzure && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 text-sm text-gray-600 dark:text-gray-400">

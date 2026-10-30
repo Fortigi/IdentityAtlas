@@ -12,6 +12,8 @@ import { TimelineSection, DiffSection, RiskSection } from './contexts/page/PageS
 import useFeatures from '@ui/hooks/useFeatures';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
+import { contextOpener } from './contexts/contextOpener';
 import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
@@ -53,6 +55,8 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   // What the page may link to: nothing but the shell's own handler when read-only
   // (a context owner may open no member, person or sub-unit page).
   const openEntity = linkTarget(sharedView, onOpenDetail);
+  // Sub-units and parents: on a context owner's page, those in their scope open in place.
+  const openContext = contextOpener({ sharedView, ownerScope: useContextOwnerScope(), onOpenDetail });
   const [editing, setEditing] = useState(false);
   // Goes up whenever something on the page may have changed who is in it or what is said about them.
   const [peopleVersion, bumpPeople] = useReducer(n => n + 1, 0);
@@ -91,7 +95,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   return (
     <WithClaims contextId={contextId} profile={profile} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
-        <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} addInformation={!!profile && analyst}
+        <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} openContext={openContext} addInformation={!!profile && analyst}
           {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}>
           <WhoAnswers profile={profile} attrs={attrs} onOpenDetail={openEntity} onRolesChanged={bumpPeople} />
         </ContextDetailHeader>
@@ -108,7 +112,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         )}
 
         <PageBody profile={profile} contextId={contextId} attrs={attrs} subContexts={subContexts} analyst={analyst}
-          membersEditable={membersEditable} openEntity={openEntity} onOpenDetail={onOpenDetail} peopleVersion={peopleVersion}
+          membersEditable={membersEditable} openEntity={openEntity} openContext={openContext} onOpenDetail={onOpenDetail} peopleVersion={peopleVersion}
           onMembersChanged={refreshAll} members={members} />
         <AnalystFoot analyst={analyst} contextId={contextId} authFetch={authFetch} onOpenDetail={openEntity}
           riskData={riskShown(features, riskData) ? riskData : null} />
@@ -130,7 +134,7 @@ function WhoAnswers({ profile, attrs, onOpenDetail, onRolesChanged }) {
 // A unit's or an application's sections, or the generic page's.
 function PageBody({ profile, ...props }) {
   if (profile) return <ProfileBody profile={profile} {...props} />;
-  return <GenericBody attrs={props.attrs} analyst={props.analyst} subContexts={props.subContexts} members={props.members} />;
+  return <GenericBody attrs={props.attrs} analyst={props.analyst} subContexts={props.subContexts} members={props.members} openContext={props.openContext} />;
 }
 
 // The analyst's foot of the page: the Timeline, the Diff, and the Risk score when there is one.
@@ -146,14 +150,14 @@ function AnalystFoot({ analyst, contextId, authFetch, onOpenDetail, riskData }) 
 }
 
 // A context without a template: its description, its details, its sub-units and members.
-function GenericBody({ attrs, analyst, subContexts, members }) {
+function GenericBody({ attrs, analyst, subContexts, members, openContext }) {
   return (
     <>
       {attrs.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>
       )}
       <ContextDetails key={attrs.id} attrs={attrs} framed analyst={analyst} />
-      <ContextRelationshipsTab subContexts={subContexts} {...members} />
+      <ContextRelationshipsTab subContexts={subContexts} openContext={openContext} {...members} />
     </>
   );
 }

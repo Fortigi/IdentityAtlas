@@ -22,6 +22,7 @@ import * as db from '../db/connection.js';
 import { isContextOwnerAccessEnabled } from '../auth/contextOwnerSetting.js';
 import { resolveContextOwner, resolveReportContexts } from '../auth/contextOwner.js';
 import { CONTEXT_OWNER_DENIED, contextOwnerVerdict } from '../auth/contextOwnerScope.js';
+import { findContextMember } from '../contexts/memberReferences.js';
 
 const DECISION = Symbol('contextOwnerDecision');
 
@@ -31,10 +32,21 @@ async function decide(req, path) {
   if (!owner) return { owner: null };
 
   const verdict = contextOwnerVerdict({ method: req.method, path, query: req.query }, owner.contextIds);
-  if (!verdict.resolve) return { owner, allow: verdict.allow };
+  return { owner, allow: await settle(verdict, owner.contextIds) };
+}
 
-  const resolved = await resolveReportContexts(await db.getPool(), verdict.resolve);
-  return { owner, allow: resolved.every(id => owner.contextIds.has(id)) };
+// The verdicts that need the database: a report's named contexts must all
+// resolve inside the scope; a member must be a member of that very context.
+async function settle(verdict, contextIds) {
+  if (verdict.resolve) {
+    const resolved = await resolveReportContexts(await db.getPool(), verdict.resolve);
+    return resolved.every(id => contextIds.has(id));
+  }
+  if (verdict.member) {
+    const { contextId, memberId } = verdict.member;
+    return !!(await findContextMember(await db.getPool(), contextId, memberId));
+  }
+  return verdict.allow;
 }
 
 export function applyContextOwnerMode(req, res, next, { path, otherwise }) {

@@ -114,7 +114,7 @@ export default function PeopleSection({ id, attrs, filter, onFilterChange, versi
         </div>
       )}
       <div className="mt-3">
-        <Body list={list} listName={attrs.scopeSystemName} linkedResources={list.linkedResources} onOpenDetail={onOpenDetail} onRemove={editMode ? remove : undefined} />
+        <Body list={list} listName={attrs.scopeSystemName} linkedResources={list.linkedResources} contextId={attrs.id} targetType={attrs.targetType} onOpenDetail={onOpenDetail} onRemove={editMode ? remove : undefined} />
       </div>
       {list.pages > 1 && <MembersPagination memberPage={list.page} totalPages={list.pages} onMemberPageChange={list.setPage} />}
     </section>
