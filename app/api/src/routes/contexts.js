@@ -14,6 +14,7 @@
 //   contexts/trees.js   — /context-trees/...: adjust a generated or imported tree
 //   contexts/workbench.js — /contexts/:id/workbench, /contexts/:id/knowledge, /org-knowledge/…: the authorization workbench
 //   contexts/workbenchInvestigations.js — /contexts/:id/workbench/investigations, /workbench/investigations/…: save and reopen
+//   contexts/references.js — GET /contexts/:id/members/:memberId/references (names only)
 //   contexts/shared.js  — useSql / UUID_RE / TARGET_TYPES + the writeContexts gate
 //
 // This file composes them onto one router and re-exports it, so the mount in
@@ -33,6 +34,7 @@ import relationshipsRouter from './contexts/relationships.js';
 import treesRouter from './contexts/trees.js';
 import workbenchRouter from './contexts/workbench.js';
 import workbenchInvestigationsRouter from './contexts/workbenchInvestigations.js';
+import referencesRouter from './contexts/references.js';
 
 const router = Router();
 // Before the read router: /contexts/uploads must not be taken for /contexts/:id.
@@ -48,5 +50,6 @@ router.use(membersRouter);
 router.use(rolesRouter);
 router.use(relationshipsRouter);
 router.use(treesRouter);
+router.use(referencesRouter);
 
 export default router;

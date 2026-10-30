@@ -1,3 +1,8 @@
+import { Fragment, useState } from 'react';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
+import { ReferencesToggle } from '@ui/components/ContextRelationshipsTab';
+import MemberReferences from '@ui/components/contexts/MemberReferences';
+import { listedMemberId } from '@ui/components/contexts/memberReferences.helpers';
 import { factClass, earlierRolesText } from '@ui/components/contexts/interviews/memberInterview.helpers';
 import PersonClaims from './PersonClaims';
 import { STATUS_CHIP, STATUS_LABELS, SOURCE_CHIP_LABELS, accessText, personLink, sourceChipTitle, statusTitle } from './people.helpers';
@@ -8,6 +13,8 @@ import { STATUS_CHIP, STATUS_LABELS, SOURCE_CHIP_LABELS, accessText, personLink,
 // what they still hold and the claim icons on the second. The name opens the
 // person's page (an account, else the person) where the page may link anywhere.
 // `onRemove`: edit mode on a context created here, for a row its list holds.
+// On a context owner's page the name of a row the member list holds opens that
+// member's references (names only) under the row.
 
 const CELL = 'sm:py-1.5 sm:pr-3 align-middle';
 
@@ -66,29 +73,42 @@ function Access({ person, linkedResources }) {
   );
 }
 
-export default function PersonRow({ person, listName, linkedResources, onOpenDetail, onRemove }) {
+export default function PersonRow({ person, listName, linkedResources, onOpenDetail, onRemove, contextId, targetType }) {
+  const [open, setOpen] = useState(false);
+  const memberId = useContextOwnerScope() ? listedMemberId(person, targetType) : null;
   return (
-    <tr data-testid="person-row" data-key={person.key}
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 py-2 text-sm dark:border-gray-700 sm:table-row sm:py-0">
-      <td className={`basis-full sm:basis-auto ${CELL}`}>
-        <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1">
-          <Name person={person} onOpenDetail={onOpenDetail} />
-          <RoleBadges roles={person.roles || []} />
-          <span className="ml-1.5 sm:hidden"><StatusChip person={person} /></span>
-        </span>
-      </td>
-      <td className={`hidden sm:table-cell ${CELL}`}><StatusChip person={person} /></td>
-      <td className={CELL}><RoleCell person={person} /></td>
-      <td className={CELL}><Sources sources={person.sources || []} listName={listName} /></td>
-      <td className={`${CELL} sm:text-right`}><Access person={person} linkedResources={linkedResources} /></td>
-      <td className={CELL}><PersonClaims person={person} /></td>
-      {onRemove && (
-        <td className={`${CELL} sm:text-right`}>
-          {(person.sources || []).includes('list') && (
-            <button type="button" onClick={() => onRemove(person)} className="text-xs text-red-700 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">Remove</button>
-          )}
+    <Fragment>
+      <tr data-testid="person-row" data-key={person.key}
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-100 py-2 text-sm dark:border-gray-700 sm:table-row sm:py-0">
+        <td className={`basis-full sm:basis-auto ${CELL}`}>
+          <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1">
+            {memberId
+              ? <ReferencesToggle name={person.displayName} open={open} onToggle={() => setOpen(o => !o)} />
+              : <Name person={person} onOpenDetail={onOpenDetail} />}
+            <RoleBadges roles={person.roles || []} />
+            <span className="ml-1.5 sm:hidden"><StatusChip person={person} /></span>
+          </span>
         </td>
+        <td className={`hidden sm:table-cell ${CELL}`}><StatusChip person={person} /></td>
+        <td className={CELL}><RoleCell person={person} /></td>
+        <td className={CELL}><Sources sources={person.sources || []} listName={listName} /></td>
+        <td className={`${CELL} sm:text-right`}><Access person={person} linkedResources={linkedResources} /></td>
+        <td className={CELL}><PersonClaims person={person} /></td>
+        {onRemove && (
+          <td className={`${CELL} sm:text-right`}>
+            {(person.sources || []).includes('list') && (
+              <button type="button" onClick={() => onRemove(person)} className="text-xs text-red-700 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">Remove</button>
+            )}
+          </td>
+        )}
+      </tr>
+      {memberId && open && (
+        <tr className="block sm:table-row border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+          <td colSpan={onRemove ? 7 : 6} className="block sm:table-cell px-3 py-3">
+            <MemberReferences contextId={contextId} memberId={memberId} />
+          </td>
+        </tr>
       )}
-    </tr>
+    </Fragment>
   );
 }

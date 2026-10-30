@@ -39,6 +39,12 @@ vi.mock('../auth/contextOwner.js', () => ({
   resolveReportContexts: (...a) => owners.resolveReportContexts(...a),
 }));
 
+const members = vi.hoisted(() => ({ findContextMember: null }));
+vi.mock('../contexts/memberReferences.js', () => ({
+  findContextMember: (...a) => members.findContextMember(...a),
+  loadMemberReferences: async () => ({ memberType: 'Principal', groups: [] }),
+}));
+
 vi.mock('../db/connection.js');
 const { query, queryOne } = await import('../db/connection.js');
 const { resetContextOwnerSettingForTests } = await import('../auth/contextOwnerSetting.js');
@@ -85,6 +91,7 @@ beforeEach(async () => {
   queryOne.mockResolvedValue(null);
   owners.resolveContextOwner = vi.fn(async (user) => (user.oid === OWNER_OID ? OWNER : null));
   owners.resolveReportContexts = vi.fn(async (_pool, wanted) => wanted);
+  members.findContextMember = vi.fn(async () => null);
 });
 
 describe('the admin switch', () => {
@@ -289,6 +296,36 @@ describe('switch on — the report download', () => {
   it('is refused for any other report, even with their own context', async () => {
     expect(denied(await ownerGet(`/api/reports/stale-accounts/export?format=csv&contexts=${MINE}`))).toBe(true);
     expect(denied(await ownerGet(`/api/reports/application-access-review/rows?contexts=${MINE}`))).toBe(true);
+  });
+});
+
+describe('switch on — the references of a member', () => {
+  beforeEach(async () => { await setSwitch(true); });
+  const MEMBER = 'bbbbbbbb-0000-4000-8000-000000000004';
+  const refs = (ctx) => `/api/contexts/${ctx}/members/${MEMBER}/references`;
+
+  it('reaches them for a member of their own context, checked against THAT context', async () => {
+    members.findContextMember = vi.fn(async () => ({ memberType: 'Principal' }));
+    const res = await ownerGet(refs(MINE));
+    expect(denied(res)).toBe(false);
+    expect(members.findContextMember).toHaveBeenCalledTimes(1);
+    expect(members.findContextMember.mock.calls[0].slice(1)).toEqual([MINE, MEMBER]);
+  });
+
+  it('is refused for an id that is not a member of their context (e.g. one taken from another context)', async () => {
+    expect(denied(await ownerGet(refs(MINE)))).toBe(true);
+    expect(members.findContextMember.mock.calls[0].slice(1)).toEqual([MINE, MEMBER]);
+  });
+
+  it('is refused for a context outside the scope, without looking the member up', async () => {
+    members.findContextMember = vi.fn(async () => ({ memberType: 'Principal' }));
+    expect(denied(await ownerGet(refs(OTHER)))).toBe(true);
+    expect(members.findContextMember).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the member check errors', async () => {
+    members.findContextMember = vi.fn(async () => { throw new Error('db down'); });
+    expect((await ownerGet(refs(MINE))).status).toBe(500);
   });
 });
 

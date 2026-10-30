@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 
-// Admin → Authentication: the context-owner access switch.
+// Admin → Authentication → Authorization → Relative permissions: the
+// context-owner access switch (RelativePermissionsSection holds it).
 // GET/PUT /api/admin/context-owner-access ({ enabled }). When on, people who are
 // Accountable or Responsible for a context can sign in without an Identity
-// Atlas role and land on that context — nothing else (the API enforces it).
+// Atlas role and land on that context, its sub-units without an owner of their
+// own, and the names of what its members hold — nothing else (the API enforces it).
 export default function ContextOwnerAccessSection() {
   const { authFetch } = useAuth();
   const { data, loading, error, reload } = useFetch('/api/admin/context-owner-access', { authFetch });
@@ -36,8 +38,7 @@ export default function ContextOwnerAccessSection() {
 
   const message = saveError || error?.message;
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Authorization</h3>
+    <div>
       <label className="flex items-start gap-3 cursor-pointer">
         <input
           type="checkbox"
@@ -48,12 +49,14 @@ export default function ContextOwnerAccessSection() {
         />
         <span className="text-sm text-gray-800 dark:text-gray-200">
           Context owners — people who are Accountable or Responsible for a context can sign in and see that
-          context, its report and its workflows, even without an Identity Atlas role.
+          context, its sub-units, its report and its workflows, even without an Identity Atlas role.
         </span>
       </label>
       <p className="mt-2 ml-7 text-xs text-gray-600 dark:text-gray-400">
-        They land directly on their own context page, read-only. Everything else stays closed to them. People
-        with an Identity Atlas role keep their normal access.
+        They land directly on their own context page, read-only. For each member they see the names of what
+        that member holds and which other contexts it is in — names only, nothing they can open. A sub-unit
+        with an owner of its own is that owner's. Everything else stays closed to them. People with an Identity
+        Atlas role keep their normal access.
       </p>
       {message && <p role="alert" className="mt-2 ml-7 text-xs text-red-700 dark:text-red-400">{message}</p>}
     </div>

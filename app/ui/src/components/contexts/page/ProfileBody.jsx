@@ -27,7 +27,7 @@ function scrollTo(id) {
   requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
 }
 
-export default function ProfileBody({ contextId, attrs, profile, subContexts, analyst, membersEditable, openEntity, onOpenDetail, peopleVersion, onMembersChanged, members, proposals, onOpenRole }) {
+export default function ProfileBody({ contextId, attrs, profile, subContexts, analyst, membersEditable, openEntity, openContext, onOpenDetail, peopleVersion, onMembersChanged, members, proposals, onOpenRole }) {
   const ctx = useContextClaims();
   const [peopleFilter, setPeopleFilter] = useState('current');
   const [opened, setOpened] = useState({});
@@ -56,7 +56,7 @@ export default function ProfileBody({ contextId, attrs, profile, subContexts, an
       {onOpenRole && <ProposedRolesSection id={`proposed-roles-${contextId}`} contextId={contextId} list={proposals} onOpenRole={onOpenRole} />}
       {analyst && <SourcesSection id={ids.sources} contextId={contextId} {...fold('sources')} />}
       {analyst && <ChangeRequestsPanel id={ids.changes} requests={requests} {...fold('changes')} />}
-      {subContexts.length > 0 && <SubUnitsList subContexts={subContexts} attrs={attrs} onOpenDetail={openEntity} />}
+      {subContexts.length > 0 && <SubUnitsList subContexts={subContexts} attrs={attrs} openContext={openContext} />}
       {reviewing && <ReviewDrawer onClose={() => setReviewing(false)} />}
     </>
   );

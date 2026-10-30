@@ -14,8 +14,12 @@
 // The scope also takes in each held context's variants (SameUnitAs): "Contoso"
 // as its people, its accounts and its resources is one unit: the owner switches
 // between those views, and a people unit's report lives on its accounts view (the
-// report itself always runs on the context it is opened from). Sub-contexts are
-// NOT included.
+// report itself always runs on the context it is opened from).
+//
+// And it takes in the held contexts' sub-units (descendants through
+// parentContextId) — except a sub-unit that has an Accountable or Responsible of
+// its own: that one, and everything below it, is somebody else's subtree. A
+// sub-unit's variants are not added (only a held context's are).
 //
 // Every function takes the pool explicitly so the contract test can run the
 // exact statements against PostgreSQL (contract-tests/contextOwner.contract.test.js).
@@ -74,6 +78,29 @@ export async function findSameUnitVariants(pool, ids) {
   return rows.map(r => lower(r.id));
 }
 
+// The sub-units below `ids` that answer to the holder of `ids`: every
+// descendant, stopping at (and leaving out) a sub-unit that has its own
+// Accountable or Responsible. A sub-unit that is itself in `ids` is a held
+// context, found from its own row. CYCLE guards a corrupt parent chain.
+export async function findOwnedSubUnits(pool, ids) {
+  if (ids.length === 0) return [];
+  const { rows } = await pool.query(
+    `WITH RECURSIVE sub AS (
+       SELECT c.id FROM "Contexts" c
+        WHERE c."parentContextId" = ANY($1::uuid[])
+          AND NOT EXISTS (SELECT 1 FROM "ContextRoles" r
+                           WHERE r."contextId" = c.id AND r.role IN ('Accountable','Responsible'))
+       UNION ALL
+       SELECT c.id FROM "Contexts" c JOIN sub s ON c."parentContextId" = s.id
+        WHERE NOT EXISTS (SELECT 1 FROM "ContextRoles" r
+                           WHERE r."contextId" = c.id AND r.role IN ('Accountable','Responsible'))
+     ) CYCLE id SET "isCycle" USING "cyclePath"
+     SELECT DISTINCT id FROM sub WHERE NOT "isCycle"`,
+    [ids],
+  );
+  return rows.map(r => lower(r.id));
+}
+
 // The contexts the Entitlement Pivot would run on for these `contexts` values.
 // Same matching as the report template (a name, case-insensitive, or an id)
 // but over every context rather than resources-only — wider is the safe
@@ -89,7 +116,8 @@ export async function resolveReportContexts(pool, wanted) {
 
 // req.user → { contexts, contextIds } or null when the caller holds no role (or
 // cannot be matched to our data). `contexts` is what the UI lists; `contextIds`
-// is the scope the API enforces (held contexts plus their variants).
+// is the scope the API enforces (held contexts, their own sub-units and their
+// variants).
 export async function resolveContextOwner(user) {
   const me = await resolveMe(user);
   if (!me?.principal?.id) return null;
@@ -98,8 +126,9 @@ export async function resolveContextOwner(user) {
     const contexts = await findHeldContexts(pool, me.principal.id, me.identity?.id ?? null);
     if (contexts.length === 0) return null;
     const heldIds = contexts.map(c => c.id);
+    const subUnits = await findOwnedSubUnits(pool, heldIds);
     const variants = await findSameUnitVariants(pool, heldIds);
-    return { contexts, contextIds: new Set([...heldIds, ...variants]) };
+    return { contexts, contextIds: new Set([...heldIds, ...subUnits, ...variants]) };
   } catch (err) {
     // Before migration 094 there are no roles, so nobody is an owner yet.
     if (isMissingSchema(err)) return null;
