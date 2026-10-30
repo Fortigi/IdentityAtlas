@@ -9,6 +9,7 @@ import MoreMenu from './contexts/header/MoreMenu';
 import { reportFor, offersMatrix } from './contexts/header/headerActions';
 import AddInformation from './contexts/interviews/AddInformation';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
+import { contextOpener } from './contexts/contextOpener';
 
 // ─── Header: the name, one sentence on what it is, and the page's actions ──
 // The sentence ("Department · imported from Fortigi Demo HR") replaces the old
@@ -31,10 +32,11 @@ import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 // View in matrix and Copy link are offered except in a read-only shell (a
 // context owner's page), whose URL is not this unit's page and which cannot
 // reach the matrix; there the breadcrumb names the direct parent only, without
-// reading the parents the reader may not open. No owner chip: who answers for
+// reading the parents the reader may not open, and opens it only when it is
+// in the owner's scope (`openContext` decides). No owner chip: who answers for
 // the context is the Accountable, shown below the name.
 
-export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, children }) {
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, children }) {
   const readOnly = useIsSharedView();
   const knowledge = useOrgKnowledge();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
@@ -45,7 +47,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Breadcrumb attrs={attrs} onOpenDetail={onOpenDetail} walk={!readOnly} />
+          <Breadcrumb attrs={attrs} openContext={openContext || contextOpener({ onOpenDetail })} walk={!readOnly} />
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white break-words">{attrs.displayName || attrs.id}</h2>
           {subtitle && <p data-testid="context-subtitle" className="text-sm text-gray-600 dark:text-gray-400 mt-1">{subtitle}</p>}
           <ContextAccessCounts attrs={attrs} />
@@ -77,21 +79,25 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, onOp
   );
 }
 
-// The parents above this context, root first, each opening its own page.
-function Breadcrumb({ attrs, onOpenDetail, walk }) {
+// The parents above this context, root first, each opening its own page where
+// openContext gives it a handler.
+function Breadcrumb({ attrs, openContext, walk }) {
   const ancestors = useContextAncestors(attrs, { walk });
   if (ancestors.length === 0) return null;
   return (
     <nav aria-label="Breadcrumb" className="mb-1">
       <ol className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-        {ancestors.map(a => (
-          <li key={a.id} className="flex items-center gap-1">
-            {onOpenDetail
-              ? <button type="button" onClick={() => onOpenDetail('context', a.id, a.displayName)} className="hover:underline hover:text-blue-700 dark:hover:text-blue-300">{a.displayName}</button>
-              : <span>{a.displayName}</span>}
-            <span aria-hidden="true">›</span>
-          </li>
-        ))}
+        {ancestors.map(a => {
+          const open = openContext(a);
+          return (
+            <li key={a.id} className="flex items-center gap-1">
+              {open
+                ? <button type="button" onClick={open} className="hover:underline hover:text-blue-700 dark:hover:text-blue-300">{a.displayName}</button>
+                : <span>{a.displayName}</span>}
+              <span aria-hidden="true">›</span>
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );

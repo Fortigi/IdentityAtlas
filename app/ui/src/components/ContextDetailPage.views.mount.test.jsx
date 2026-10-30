@@ -140,6 +140,9 @@ describe('the business view (no data.write.contexts)', () => {
     expect(screen.queryByRole('region', { name: 'Timeline' })).toBeNull();
     // Names are facts, not links, in a shell that may open no person's page.
     expect(screen.queryByRole('button', { name: 'Alice Engineer' })).toBeNull();
+    // Not an owner's page: no references to expand, and no sub-unit or parent links.
+    expect(screen.queryByRole('button', { name: /Platform/ })).toBeNull();
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).queryByRole('button')).toBeNull();
   });
 
   it('builds the breadcrumb from the parent chain, each parent opening its page', async () => {

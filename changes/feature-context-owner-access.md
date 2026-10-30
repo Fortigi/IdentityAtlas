@@ -2,3 +2,6 @@
 - Context owners can only see their own contexts and those contexts' variants; every other page and API endpoint is refused for them, and they cannot change anything.
 - People with an Identity Atlas role keep their normal access; with the checkbox off nothing changes.
 - The risk score override, "View in matrix", the "Coming soon" survey and review cards, "Copy link" and links to member, person and sub-unit pages are no longer offered inside read-only views (shared matrices and context-owner pages), where they could not be used.
+- Admin → Authentication → Authorization now groups the Context owners checkbox under "Relative permissions" — access people get because of how they relate to the data rather than an Identity Atlas role — and explains that matrix-share recipients are the other kind.
+- Context owners can now also open the sub-units of their contexts, except a sub-unit that has an Accountable or Responsible of its own (and everything below it); in-scope sub-units and parents open in place, the others stay plain text.
+- On a context owner's page each member can be expanded to show, by name only, the groups and resources it holds (with Direct, Indirect or Eligible), its business roles and the other contexts it is in — or, for a resource, who holds it — at most 50 names per group with the total; none of these names can be opened.
