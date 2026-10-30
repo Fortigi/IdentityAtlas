@@ -30,7 +30,19 @@ You need the **Build contexts** permission (`data.write.contexts`).
    whether it matched the name or the description. Tick the ones that fit; untick the rest.
 3. **Check the result.** The table lists every group the terms found, and why. Exclude one that
    does not belong; include one by name that no term finds.
-4. **Create the context.** Give it a name and press **Create context**.
+4. **Create the context.** Give it a name, check what it is (**This context is**), and press
+   **Create context**.
+
+**What the context is.** A new context starts as the template of the Contexts tab you opened the
+builder from (an application when it is not one of the four templates). The model also guesses it
+from your description: *"the claims department"* becomes an Organisation, *"everything to do with
+SAP"* an Application. Its guess is marked *suggested by the model* and replaces only the starting
+value, never a template you picked yourself. The builder finds groups and other resources, so an
+Organisation built here is that unit's **Resources** tree, not a unit of people.
+
+**Suggested owner.** Under the template the builder names the account that owns most of what the
+terms find, when it owns at least 40% of it. It is the same best guess the context page offers as
+Accountable; nothing is assigned until you confirm it there after saving.
 
 ## What the model does, and what it does not
 

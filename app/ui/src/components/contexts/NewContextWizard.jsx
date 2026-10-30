@@ -14,7 +14,7 @@ import {
 // One stepped flow (matching the matrix / crawler wizards via the shared
 // Stepper) for every way of creating a context tree:
 //
-//   Step 1  Source        — Import (→ Crawlers) · Run a plugin · Create manual
+//   Step 1  Source        — Import from a system (→ Crawlers) · Derive from data · Create by hand
 //   Plugin: Step 2 Pick plugin → Step 3 Configure → Step 4 Preview & run
 //   Manual: Step 2 Details (then Create)
 //

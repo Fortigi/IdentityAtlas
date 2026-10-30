@@ -124,7 +124,7 @@ describe('refreshGeneratedContexts — templates and roles (phase B)', () => {
     PLUGIN.run.mockResolvedValue({
       contexts: [
         { externalId: 'root', displayName: 'Org' },
-        { externalId: 'apps', displayName: 'Apps', contextCategory: 'LogicalApplication' },
+        { externalId: 'apps', displayName: 'Apps', contextCategory: 'LogicalApplication', parentExternalId: 'root' },
       ],
       members: [],
       roles: [{ contextExternalId: 'root', principalId: 'mgr-1', role: 'Accountable' }],

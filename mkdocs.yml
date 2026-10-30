@@ -119,6 +119,7 @@ nav:
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
       - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
+      - Unit Report: ui/unit-report.md
       - Access Review Adoption: ui/access-review-adoption.md
       - Custom Reports: ui/custom-reports.md
       - Contexts: ui/contexts.md
@@ -181,6 +182,8 @@ nav:
       - Under the hood:
           - Core Ontology: architecture/core-ontology.md
           - Context Templates (phase B): architecture/context-templates-phase-b.md
+          - Template UI: architecture/template-ui.md
+          - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md

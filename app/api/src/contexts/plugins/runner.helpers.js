@@ -68,3 +68,27 @@ export function buildMemberInsertBatch(slice, newByExternalId, targetType) {
   }
   return { values, params };
 }
+
+// The externalId of the root a run is wrapped under (see withPluginRoot). Fixed,
+// so every re-run of a tree matches the same row and reuses its id.
+export const PLUGIN_ROOT_EXTERNAL_ID = '__plugin-root__';
+
+// A tree has one root. A plugin whose output has several (one context per
+// department, one per risk tier) gets a root named after the plugin, and the
+// nodes that had no parent in the output become its children. A plugin that
+// already emits one root is left as it is. Once a tree has the plugin root it
+// keeps it (hadRoot), even on a run that would leave one node, so the tree's
+// shape and its ids don't flap between runs. An empty run gets no root.
+export function withPluginRoot(contexts, plugin, hadRoot = false) {
+  const ids = new Set(contexts.map(n => n.externalId));
+  const isRoot = n => !n.parentExternalId || !ids.has(n.parentExternalId);
+  const roots = contexts.filter(isRoot).length;
+  if (contexts.length === 0 || (roots < 2 && !hadRoot)) return contexts;
+  const root = {
+    externalId: PLUGIN_ROOT_EXTERNAL_ID,
+    displayName: plugin.rootDisplayName || plugin.displayName,
+    contextType: plugin.contextTypes?.[0], // undefined → the runner writes the plugin name
+    description: `Created by the ${plugin.displayName} rule.`,
+  };
+  return [root, ...contexts.map(n => (isRoot(n) ? { ...n, parentExternalId: PLUGIN_ROOT_EXTERNAL_ID } : n))];
+}

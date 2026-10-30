@@ -161,7 +161,7 @@ describe('GET /reports/orphaned-accounts/export', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/^text\/csv/);
     expect(res.headers['content-disposition']).toMatch(
-      /^attachment; filename="identity-atlas-orphaned-accounts-\d{4}-\d{2}-\d{2}\.csv"$/);
+      /^attachment; filename="identity-atlas-orphaned-accounts-\d{4}-\d{2}-\d{2}\.csv"; filename\*=UTF-8''identity-atlas-orphaned-accounts-\d{4}-\d{2}-\d{2}\.csv$/);
 
     const lines = res.text.split('\r\n');
     const { body } = await ownRows();

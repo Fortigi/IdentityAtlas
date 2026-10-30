@@ -51,6 +51,124 @@ export const CATEGORY_META = {
 // Grouping order in the tree selector: the four templates, then Other.
 export const CATEGORY_ORDER = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Other'];
 
+// The kind of member a context holds, in the words the template screens use:
+// people (identities), accounts (principals), resources. A unit exists as one
+// context per kind, so these are also the variants of a unit, in this order.
+export const MEMBER_KINDS = ['Identity', 'Principal', 'Resource'];
+const MEMBER_KIND_LABELS = { Identity: 'People', Principal: 'Accounts', Resource: 'Resources', System: 'Systems' };
+
+export function memberKindLabel(targetType) {
+  return MEMBER_KIND_LABELS[targetType] || 'Members';
+}
+
+// The kind of member as a lower-case noun for running text, singular for a
+// count of 1: "1 person", "12 people", "Search accounts to add". Never built
+// from the targetType itself ("identitys" was).
+const MEMBER_KIND_NOUNS = {
+  Identity: ['person', 'people'],
+  Principal: ['account', 'accounts'],
+  Resource: ['resource', 'resources'],
+  System: ['system', 'systems'],
+};
+
+export function memberKindNoun(targetType, count = 2) {
+  const [one, many] = MEMBER_KIND_NOUNS[targetType] || ['member', 'members'];
+  return count === 1 ? one : many;
+}
+
+// ─── Context type in words ──────────────────────────────────────────────
+// The stored contextType is a code (ManagerHierarchy, ADMINISTRATIVEUNIT…).
+// Known codes get a written label; anything else is split into Title Case
+// words. Matching ignores case, spaces, dashes and underscores. A code that
+// names no kind of unit (Manual) gives '' — nothing to say.
+const CONTEXT_TYPE_LABELS = {
+  department: 'Department',
+  team: 'Team',
+  managerhierarchy: 'Manager hierarchy',
+  administrativeunit: 'Administrative unit',
+  orphanedaccounts: 'Orphaned accounts',
+  orgunit: 'Organisational unit',
+  organisationalunit: 'Organisational unit',
+  organizationalunit: 'Organisational unit',
+  costcenter: 'Cost center',
+  businessunit: 'Business unit',
+  businessprocess: 'Business process',
+  logicalapplication: 'Application',
+  principaltype: 'Account type',
+  resourcetype: 'Resource type',
+  manual: '',
+};
+
+function titleCaseWords(code) {
+  return String(code)
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim()
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+export function contextTypeLabel(contextType) {
+  if (!contextType) return '';
+  const key = String(contextType).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return key in CONTEXT_TYPE_LABELS ? CONTEXT_TYPE_LABELS[key] : titleCaseWords(contextType);
+}
+
+// ─── Where a context comes from, in words ───────────────────────────────
+// The rules that derive contexts (sourceAlgorithmName), described by what they
+// read. `withSystem` adds "in <system>" where the system matters to the
+// sentence. A rule not listed here is named by its display name.
+const RULE_PHRASES = {
+  'department-from-principal': { text: 'the department field on each account' },
+  department: { text: 'the department field on each person' },
+  'manager-hierarchy': { text: 'who reports to whom', withSystem: true },
+  'ad-ou-from-dn': { text: 'the directory folder each account sits in', withSystem: true },
+  'orphaned-accounts': { text: 'the accounts no person is linked to', withSystem: true },
+  'resource-cluster': { text: 'resources held by the same people' },
+  'principal-type-tree': { text: 'the type of each account' },
+  'resource-type-tree': { text: 'the type of each resource' },
+  'entra-group-category-tree': { text: 'the kind of each group', withSystem: true },
+  'system-membership-principals': { text: 'the system each account belongs to' },
+  'system-membership-resources': { text: 'the system each resource belongs to' },
+  'context-recipe': { text: 'a set of search terms' },
+};
+
+// What a derived context was derived from: "who reports to whom in Contoso
+// EntraID", or 'the rule "K-Means"' for a rule without a phrase.
+export function ruleSourcePhrase(attrs) {
+  const rule = RULE_PHRASES[attrs?.sourceAlgorithmName];
+  const system = attrs?.scopeSystemName;
+  if (rule) return rule.withSystem && system ? `${rule.text} in ${system}` : rule.text;
+  const name = attrs?.sourceAlgorithmDisplayName || attrs?.sourceAlgorithmName;
+  return name ? `the rule "${name}"` : 'a rule';
+}
+
+// What derived a context: the rule by the name it has under Admin, so a reader
+// can tell which rule made it — "derived by the Department from Principal
+// rule"; a rule without a display name is described by what it reads.
+function derivedDescription(attrs) {
+  const name = attrs.sourceAlgorithmDisplayName;
+  return name ? `derived by the ${name} rule` : `derived from ${ruleSourcePhrase(attrs)}`;
+}
+
+// "imported from Fortigi Demo HR" / "derived by the … rule" / "created in
+// Identity Atlas" — '' for a source we cannot name.
+export function sourceDescription(attrs) {
+  if (attrs?.variant === 'synced') return `imported from ${attrs.scopeSystemName || 'a connected system'}`;
+  if (attrs?.variant === 'generated') return derivedDescription(attrs);
+  if (attrs?.variant === 'manual') return 'created in Identity Atlas';
+  return '';
+}
+
+// The one-line subtitle under a context's name: what it is and where it came
+// from — "Department · imported from Fortigi Demo HR".
+export function contextSubtitle(attrs) {
+  const text = [contextTypeLabel(attrs?.contextType), sourceDescription(attrs)].filter(Boolean).join(' · ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 const OTHER_CATEGORY_META = {
   label: 'Other', groupLabel: 'Other',
   description: 'No template: the context type is not one of the four templates.',

@@ -806,6 +806,25 @@ paths:
                         description: >
                           True when the report stopped at its row cap, so `rows` holds only the first
                           `total` rows. Custom reports cap at their definition's limit (1,000 by default).
+                      details:
+                        type: array
+                        description: >
+                          Facts about what the run covers, as titled blocks of label/value pairs. The
+                          Entitlement Pivot returns one block per context: every attribute, the
+                          Accountable and Responsibles, or the suggested Accountable and why. Empty for
+                          a report that has none. The xlsx download writes them on its Summary tab;
+                          csv and json downloads leave them out.
+                        items:
+                          type: object
+                          properties:
+                            title: { type: string }
+                            entries:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  label: { type: string }
+                                  value: {}
                       generatedAt:
                         type: string
                         format: date-time
@@ -2021,6 +2040,19 @@ paths:
                   addedByModel:
                     type: integer
                     description: Members found only by kept terms the model added that carry none of the analyst's own words.
+                  suggestedOwner:
+                    type: object
+                    nullable: true
+                    description: >
+                      The account that owns the most of the found objects, when it owns at least 40% of
+                      them — the same best guess the context page offers as Accountable after saving.
+                      Read-only here; nothing is assigned.
+                    properties:
+                      principalId: { type: string, format: uuid }
+                      displayName: { type: string }
+                      reason: { type: string }
+                      count: { type: integer }
+                      total: { type: integer }
                   terms:
                     type: array
                     items:
@@ -2675,6 +2707,70 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such context, principal or identity
+  /contexts/{id}/roles/suggestion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: Best guess for the Accountable of a context that has none
+      operationId: getContextRoleSuggestion
+      description: >
+        For a people or accounts unit, the manager of the most members; for a resource unit or a
+        logical application, the account that owns the most of its resources. Suggested only when
+        they cover at least 40 % of the members, and never once rejected for this context. Confirm
+        it with PUT /contexts/{id}/roles.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The suggested Accountable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContextRoleSuggestion' }
+        '204':
+          description: >
+            No suggestion — the context already has an Accountable, its template (Segment, Tag)
+            carries no roles, or no signal gives a candidate
+        '400':
+          description: Invalid id
+        '404':
+          description: No such context
+  /contexts/{id}/roles/suggestion/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Reject the suggested Accountable
+      operationId: rejectContextRoleSuggestion
+      description: >
+        Remembers that this account (`principalId`) or person (`identityId`), exactly one, is not
+        the context's Accountable, so it is never suggested again for this context. Idempotent.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                principalId: { type: string, format: uuid }
+                identityId: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Rejected (also when already rejected)
+        '400':
+          description: Invalid id or body
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such context, principal or identity
   /contexts/{id}/roles/{roleId}:
     parameters:
       - name: id
@@ -2872,6 +2968,18 @@ components:
         displayName: { type: string, nullable: true }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         addedAt: { type: string, format: date-time }
+        holderCount:
+          type: integer
+          description: Resource members only — distinct holders of the resource (live assignments).
+        ownerDisplayName:
+          type: string
+          nullable: true
+          description: >
+            Resource members only — the owner: through the ownership link, else the source's ownerId
+            resolved to an account, else the source's ownerName as-is.
+        ownerEmployeeId: { type: string, nullable: true, description: Resource members only. }
+        ownerEmail: { type: string, nullable: true, description: Resource members only. }
+      additionalProperties: true
     ContextRole:
       type: object
       description: Who answers for a context; the holder is an account or a person, exactly one.
@@ -2885,6 +2993,18 @@ components:
           type: string
           enum: [sync, algorithm, analyst, sourceOwner]
           description: "`sourceOwner` is the owner a synced context's source names (ownerUserId), kept in step on every sync; `sync` is a role a crawler stated directly."
+    ContextRoleSuggestion:
+      type: object
+      description: A suggested Accountable and why; the holder is an account or a person, exactly one.
+      required: [role, displayName, reason, count, total]
+      properties:
+        role: { type: string, enum: [Accountable] }
+        principalId: { type: string, format: uuid }
+        identityId: { type: string, format: uuid }
+        displayName: { type: string }
+        reason: { type: string, example: manages 11 of the 14 members }
+        count: { type: integer, description: Members the candidate manages or owns }
+        total: { type: integer, description: Members of the context's kind }
     ContextRelationship:
       type: object
       description: A relationship as seen from one context.
@@ -2898,6 +3018,7 @@ components:
           allOf: [{ $ref: '#/components/schemas/ContextCategory' }]
           nullable: true
         relatedTargetType: { type: string }
+        relatedTotalMemberCount: { type: integer, nullable: true, description: "Members of the related context, sub-contexts included." }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         createdAt: { type: string, format: date-time }
     ContextRecipe:
@@ -2968,6 +3089,10 @@ components:
         structure:
           type: string
           enum: [byTerm, flat]
+        template:
+          type: string
+          description: What the context is — its template, written as the root's contextCategory. Defaults to LogicalApplication.
+          enum: [OrganizationalUnit, LogicalApplication, Tag, Segment]
     ContextTermsReply:
       type: object
       required: [kind]
@@ -2978,6 +3103,14 @@ components:
         name:
           type: string
           description: A name for the context, proposed by the model.
+        template:
+          type: string
+          nullable: true
+          description: >
+            What the model takes the subject to be (a guess for the recipe's template); null when
+            it gave none or an unknown one. The builder applies it only while the analyst has not
+            chosen a template themselves.
+          enum: [OrganizationalUnit, LogicalApplication, Tag, Segment]
         terms:
           type: array
           items:

@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
   VARIANT_META, TARGET_TYPE_META, CATEGORY_META, CATEGORY_ORDER,
-  variantMeta, targetTypeMeta, categoryMeta, editedMeta,
+  variantMeta, targetTypeMeta, categoryMeta, editedMeta, memberKindLabel, MEMBER_KINDS,
 } from './contextStyles';
+
+describe('memberKindLabel', () => {
+  it('names each kind of member in the template screens\' words', () => {
+    expect(MEMBER_KINDS.map(memberKindLabel)).toEqual(['People', 'Accounts', 'Resources']);
+    expect(memberKindLabel('System')).toBe('Systems');
+  });
+
+  it('falls back to "Members" for an unknown or missing kind', () => {
+    expect(memberKindLabel('Gadget')).toBe('Members');
+    expect(memberKindLabel(undefined)).toBe('Members');
+  });
+});
 
 // These metas are applied raw (no per-call dark: overrides) by every Contexts
 // component, so a colour class without a dark: variant breaks the whole tab in

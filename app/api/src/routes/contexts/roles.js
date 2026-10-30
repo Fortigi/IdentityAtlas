@@ -1,6 +1,8 @@
 // Context roles — who answers for an organizational unit or a logical
 // application. GET /api/contexts/:id/roles, PUT /contexts/:id/roles and
-// DELETE /contexts/:id/roles/:roleId.
+// DELETE /contexts/:id/roles/:roleId. Plus the best guess for a missing
+// Accountable: GET /contexts/:id/roles/suggestion and
+// POST /contexts/:id/roles/suggestion/reject (docs/architecture/template-ui.md).
 //
 // A role is Accountable (at most one per context) or Responsible (many) and
 // points at an account (principalId) or a person (identityId), exactly one —
@@ -14,6 +16,8 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { CONTEXT_ROLE_TYPES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, writeContexts } from './shared.js';
+import { suggestAccountable } from '../../contexts/roleSuggestion.js';
+import { userOf } from '../../lib/userOf.js';
 import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
 
 const router = Router();
@@ -23,6 +27,7 @@ export { ROLE_BEARING_CATEGORIES };
 
 // Holder column → the table its display name comes from.
 const HOLDER_TABLE = { principalId: 'Principals', identityId: 'Identities' };
+const HOLDER_NOT_FOUND = { principalId: 'Principal not found', identityId: 'Identity not found' };
 
 // Every role of one context, the Accountable first, with the holder's name
 // resolved. Shared with GET /contexts/:id (read.js) so the detail page paints
@@ -107,7 +112,7 @@ router.put('/contexts/:id/roles', writeContexts, async (req, res) => {
     const holder = await db.queryOne(
       `SELECT "displayName" FROM "${HOLDER_TABLE[parsed.holderCol]}" WHERE id = $1`, [parsed.holderId],
     );
-    if (!holder) return res.status(404).json({ error: `${parsed.holderCol === 'principalId' ? 'Principal' : 'Identity'} not found` });
+    if (!holder) return res.status(404).json({ error: HOLDER_NOT_FOUND[parsed.holderCol] });
 
     const row = await upsertRole(req.params.id, parsed);
     res.json({ ...row, displayName: holder.displayName });
@@ -129,6 +134,62 @@ router.delete('/contexts/:id/roles/:roleId', writeContexts, async (req, res) => 
   } catch (err) {
     console.error('DELETE /contexts/:id/roles/:roleId failed:', err.message);
     res.status(500).json({ error: 'Failed to remove context role' });
+  }
+});
+
+// ─── GET /api/contexts/:id/roles/suggestion ──────────────────────────
+// 200 { role: 'Accountable', principalId | identityId, displayName, reason,
+// count, total }, or 204 when the context already has an Accountable, its
+// template carries no roles, or no signal gives a candidate.
+router.get('/contexts/:id/roles/suggestion', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.status(204).end();
+  try {
+    const ctx = await db.queryOne(`
+      SELECT c.id, c."contextCategory", c."targetType",
+             EXISTS (SELECT 1 FROM "ContextRoles" r
+                      WHERE r."contextId" = c.id AND r.role = 'Accountable') AS "hasAccountable"
+        FROM "Contexts" c WHERE c.id = $1
+    `, [req.params.id]);
+    if (!ctx) return res.status(404).json({ error: 'Context not found' });
+    if (ctx.hasAccountable || !ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) return res.status(204).end();
+    const suggestion = await suggestAccountable(ctx);
+    if (!suggestion) return res.status(204).end();
+    res.json(suggestion);
+  } catch (err) {
+    console.error('GET /contexts/:id/roles/suggestion failed:', err.message);
+    res.status(500).json({ error: 'Failed to suggest a context role' });
+  }
+});
+
+// ─── POST /api/contexts/:id/roles/suggestion/reject ──────────────────
+// Body: { principalId | identityId }. Remembers that this holder is not the
+// context's Accountable, so the suggestion never offers them again. 204, also
+// when the rejection was already stored.
+router.post('/contexts/:id/roles/suggestion/reject', writeContexts, async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+
+  const body = req.body || {};
+  const parsed = parseRoleBody({ role: 'Accountable', principalId: body.principalId, identityId: body.identityId });
+  if (parsed.status) return res.status(parsed.status).json({ error: parsed.message });
+  const { holderCol, holderId } = parsed;
+
+  try {
+    const ctx = await db.queryOne(`SELECT id FROM "Contexts" WHERE id = $1`, [req.params.id]);
+    if (!ctx) return res.status(404).json({ error: 'Context not found' });
+    const holder = await db.queryOne(`SELECT id FROM "${HOLDER_TABLE[holderCol]}" WHERE id = $1`, [holderId]);
+    if (!holder) return res.status(404).json({ error: HOLDER_NOT_FOUND[holderCol] });
+
+    await db.query(`
+      INSERT INTO "ContextRoleSuggestionRejections" ("contextId", "${holderCol}", role, "rejectedBy")
+      VALUES ($1, $2, 'Accountable', $3)
+      ON CONFLICT ("contextId", "${holderCol}", role) WHERE "${holderCol}" IS NOT NULL DO NOTHING
+    `, [req.params.id, holderId, userOf(req)]);
+    res.status(204).end();
+  } catch (err) {
+    console.error('POST /contexts/:id/roles/suggestion/reject failed:', err.message);
+    res.status(500).json({ error: 'Failed to reject the suggestion' });
   }
 });
 

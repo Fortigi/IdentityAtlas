@@ -1,5 +1,5 @@
 import { Field } from './ModalPrimitives';
-import { targetTypeMeta } from '@ui/utils/contextStyles';
+import { memberKindLabel } from '@ui/utils/contextStyles';
 import JsonSchemaForm from './NewContextSchemaForm';
 import ContextCategorySelect from './ContextCategorySelect';
 
@@ -33,7 +33,7 @@ function PluginBody({
 }) {
   if (step === 2) {
     return loading
-      ? <p className="text-xs text-gray-500 dark:text-gray-400">Loading plugins…</p>
+      ? <p className="text-xs text-gray-500 dark:text-gray-400">Loading rules…</p>
       : <PluginPicker grouped={grouped} selected={selected} onPick={setSelected} />;
   }
   if (step === 3) {
@@ -67,11 +67,11 @@ function PluginBody({
 // ─── Step 1 — Source ──────────────────────────────────────────────────────────
 function SourceStep({ source, onPick, canDescribe }) {
   const cards = [
-    { key: 'import', title: 'Import', tone: 'slate', description: 'Crawlers pull trees from source systems (HR, AD OU, app catalogues). Configure one on the Crawlers page — trees appear here after the next crawl.' },
-    { key: 'plugin', title: 'Run a plugin', tone: 'blue', description: 'Build a tree from existing data — manager chains, department strings, OU distinguished names, LLM clusters.' },
-    { key: 'manual', title: 'Create manual', tone: 'amber', description: 'Start an empty tree you’ll curate yourself. Useful for business processes, app groupings, tags.' },
+    { key: 'import', title: 'Import from a system', description: 'Bring in units from a source such as HR or Active Directory; set the import up under Admin › Crawlers.' },
+    { key: 'plugin', title: 'Derive from data', description: 'Build units from data already here, such as who reports to whom or the department on each account.' },
+    { key: 'manual', title: 'Create by hand', description: 'Start an empty tree and add the units yourself.' },
     // Experimental: only offered when the context assistant is on and the user may build contexts.
-    ...(canDescribe ? [{ key: 'describe', title: 'Describe it', tone: 'violet', description: 'Describe a process, application or project; the local model proposes search terms and you pick the groups. Refreshed after every crawl.' }] : []),
+    ...(canDescribe ? [{ key: 'describe', title: 'Describe it', description: 'Describe a process, application or project; you pick the groups from suggested search terms.' }] : []),
   ];
   return (
     <div className={`grid grid-cols-1 gap-3 ${cards.length === 4 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
@@ -82,28 +82,20 @@ function SourceStep({ source, onPick, canDescribe }) {
   );
 }
 
-const TONE = {
-  slate: { bar: 'bg-slate-500', ring: 'border-slate-400 ring-slate-300' },
-  blue:  { bar: 'bg-blue-500',  ring: 'border-blue-500 ring-blue-300' },
-  amber: { bar: 'bg-amber-500', ring: 'border-amber-500 ring-amber-300' },
-  violet: { bar: 'bg-violet-500', ring: 'border-violet-500 ring-violet-300' },
-};
-
-function SourceCard({ title, tone, description, active, onClick }) {
-  const t = TONE[tone] || TONE.slate;
+// One way to start a tree. No colour per source: the chosen card carries the
+// interactive blue, the others are neutral.
+function SourceCard({ title, description, active, onClick }) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={[
         'text-left border rounded-lg p-3 bg-white dark:bg-gray-800 flex flex-col hover:shadow-sm transition',
-        active ? `${t.ring} ring-2` : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
+        active ? 'border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
       ].join(' ')}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span className={`inline-block w-2 h-4 rounded ${t.bar}`} aria-hidden="true" />
-        <span className="text-sm font-semibold text-gray-900 dark:text-white">{title}</span>
-      </div>
-      <p className="text-[11px] text-gray-600 dark:text-gray-400 flex-1">{description}</p>
+      <span className="mb-1 text-sm font-semibold text-gray-900 dark:text-white">{title}</span>
+      <span className="text-xs text-gray-600 dark:text-gray-400 flex-1">{description}</span>
     </button>
   );
 }
@@ -111,7 +103,7 @@ function SourceCard({ title, tone, description, active, onClick }) {
 // ─── Plugin picker (grouped by target type, selectable) ───────────────────────
 function PluginPicker({ grouped, selected, onPick }) {
   if (grouped.length === 0) {
-    return <p className="text-xs text-gray-500 dark:text-gray-400">No plugins are registered.</p>;
+    return <p className="text-xs text-gray-500 dark:text-gray-400">No rules are available.</p>;
   }
   return (
     <div className="space-y-3">
@@ -123,12 +115,10 @@ function PluginPicker({ grouped, selected, onPick }) {
 }
 
 function PluginGroup({ targetType, items, selected, onPick }) {
-  const t = targetTypeMeta(targetType);
   return (
     <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass}`}>{t.label}</span>
-        <span className="text-[11px] text-gray-500 dark:text-gray-400">· {items.length}</span>
+      <div className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
+        Units of {memberKindLabel(targetType).toLowerCase()}
       </div>
       <ul className="border border-gray-200 dark:border-gray-700 rounded divide-y divide-gray-100 dark:divide-gray-700">
         {items.map(p => (
@@ -173,7 +163,7 @@ function TargetChooser({ mode, setMode, refreshKey, setRefreshKey, targets }) {
         <span className="flex-1">
           Refresh an existing tree
           <span className="block text-[11px] text-gray-500 dark:text-gray-400">
-            {targets.length ? 'Re-runs onto the chosen tree and keeps your renames / re-parenting.' : 'No existing tree from this plugin + system yet.'}
+            {targets.length ? 'Re-runs onto the chosen tree and keeps your renames / re-parenting.' : 'No existing tree from this rule and system yet.'}
           </span>
           {mode === 'refresh' && targets.length > 0 && (
             <select

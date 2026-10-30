@@ -1,236 +1,209 @@
-// Contexts tab — two-pane layout: left selector + right tree/list view.
+// Contexts tab — a sub-tab per template; in each, two panes: on the left the
+// tab's trees grouped by where they come from (every root a top-level node, its
+// subtree read when expanded), on the right the selected unit itself. Trees are
+// changed in place only where the change persists (not an imported tree) and
+// only by a user holding data.write.contexts (with auth off, everyone).
 // See docs/architecture/context-redesign-ui.md for the design.
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { useContextRoots, useContextSubtree } from '@ui/hooks/useContextTrees';
+import { useHasPermission } from '@ui/auth/usePermissions';
+import { useContextRoots, useContextForest } from '@ui/hooks/useContextTrees';
+import usePersistedState from '@ui/hooks/usePersistedState';
+import ContextDetailPage from './ContextDetailPage';
 import ContextTreeSelector from './contexts/ContextTreeSelector';
 import ContextTreeView from './contexts/ContextTreeView';
-import ContextListView from './contexts/ContextListView';
+import TreeRootMenu, { TreeStatus } from './contexts/ContextTreeActions';
 import NewContextWizard from './contexts/NewContextWizard';
-import ContextOwner from './contexts/ContextOwner';
-import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import TemplateTabs from './contexts/TemplateTabs';
+import { useContextTreeEdits, findNodeById } from './contexts/useContextTreeEdits';
+import { templateTabs, kindOptions, effectiveTab, effectiveKind, rootsForTab, tabOf } from './contexts/templateTabs.helpers';
+import { orderBySource, isEditableTree, rootKindSuffix } from './contexts/treePanel.helpers';
+import { newBuilderId } from './contexts/assistant/recipeDraft';
+import { viewKeyOf, selectedIdFor, forgetView, rootContaining, isMemberMovableTree } from './contexts/contextSelection.helpers';
+
+// The selection, remembered per tab (and Organisation kind) for the session.
+// `jumpTo` selects a context that may live in another tab or kind — a variant
+// link, a search hit, a new tree: it shows at once, and once its detail has
+// loaded the page switches to the tab and kind it belongs to.
+function useContextSelection({ viewKey, visibleRoots, forestNodes, setChosenTab, setChosenKind }) {
+  const [remembered, setRemembered] = usePersistedState('iatlas.contexts.selected', {});
+  const [jumpId, setJumpId] = useState(null);
+  const jumpRef = useRef(null);
+  const selectedId = jumpId || selectedIdFor(remembered, viewKey, visibleRoots);
+
+  function select(id) {
+    jumpRef.current = null;
+    setJumpId(null);
+    setRemembered(s => ({ ...s, [viewKey]: id }));
+  }
+  function jumpTo(id) {
+    if (findNodeById(forestNodes, id)) { select(id); return; }
+    jumpRef.current = id;
+    setJumpId(id);
+  }
+  function forget() {
+    jumpRef.current = null;
+    setJumpId(null);
+    setRemembered(s => forgetView(s, viewKey));
+  }
+  const onDetailLoaded = useCallback((id, _kind, data) => {
+    const attrs = data?.attributes;
+    if (jumpRef.current !== id || !attrs) return;
+    jumpRef.current = null;
+    const tab = tabOf(attrs);
+    setChosenTab(tab);
+    if (tab === 'OrganizationalUnit') setChosenKind(attrs.targetType);
+    setRemembered(s => ({ ...s, [viewKeyOf(tab, attrs.targetType)]: id }));
+    setJumpId(null);
+  }, [setRemembered, setChosenTab, setChosenKind]);
+
+  return { selectedId, select, jumpTo, forget, onDetailLoaded };
+}
+
+// The forest drawn for one source group of the roots that passed the pane's
+// filters. Memoised: the tree re-seeds its expand state whenever its `nodes`
+// change identity.
+function ContextForestTree({ roots, forestNodes, ...props }) {
+  const nodes = useMemo(() => {
+    const ids = new Set(roots.map(r => r.id));
+    return forestNodes.filter(n => ids.has(n.id));
+  }, [roots, forestNodes]);
+  return <ContextTreeView nodes={nodes} memberMovable={isMemberMovableTree} {...props} />;
+}
 
 export default function ContextsPage({ onOpenDetail, onNavigate }) {
   const { authFetch } = useAuth();
+  const canWrite = useHasPermission('data.write.contexts');
   const { roots, loading: rootsLoading, error: rootsError, reload: reloadRoots } = useContextRoots();
-  const [selectedRootId, setSelectedRootId] = useState(null);
-  const [viewMode, setViewMode] = useState('tree');
   const [newModalOpen, setNewModalOpen] = useState(false);
-  const [deleteError, setDeleteError] = useState(null);
+  // Sub-tab per template; in Organisation, which kind of member the trees hold
+  // (People · Accounts · Resources — only the kinds that have trees). Null =
+  // not chosen yet, so the first tab with trees and the first kind offered.
+  const [chosenTab, setChosenTab] = useState(null);
+  const [chosenKind, setChosenKind] = useState(null);
+  const tabs = useMemo(() => templateTabs(roots), [roots]);
+  const kinds = useMemo(() => kindOptions(roots), [roots]);
+  const activeTab = effectiveTab(tabs, chosenTab);
+  const activeKind = effectiveKind(kinds, chosenKind);
+  // In the order the panel lists them, so the first root is the first one shown.
+  const visibleRoots = useMemo(() => orderBySource(rootsForTab(roots, activeTab, activeKind)), [roots, activeTab, activeKind]);
+  const forest = useContextForest(visibleRoots);
+  const selection = useContextSelection({
+    viewKey: viewKeyOf(activeTab, activeKind), visibleRoots, forestNodes: forest.nodes, setChosenTab, setChosenKind,
+  });
+  const { selectedId } = selection;
+  const treeRootId = rootContaining(forest.nodes, selectedId)?.id;
+  // Bumped after a tree edit, so the detail on the right re-reads the context.
+  const [detailVersion, setDetailVersion] = useState(0);
 
-  // Auto-select the first root when roots load.
-  const effectiveRootId = useMemo(() => {
-    if (selectedRootId && roots.find(r => r.id === selectedRootId)) return selectedRootId;
-    return roots[0]?.id || null;
-  }, [roots, selectedRootId]);
+  // The tree opens on the selected context's root: read its subtree.
+  const { load: loadRoot, reload: reloadForest } = forest;
+  useEffect(() => { if (treeRootId) loadRoot(treeRootId); }, [treeRootId, loadRoot]);
 
-  const { nodes, loading: subtreeLoading, reload: reloadSubtree } = useContextSubtree(effectiveRootId);
-  const selectedRoot = roots.find(r => r.id === effectiveRootId);
-  const [editError, setEditError] = useState(null);
-
-  function open(id, name) {
-    onOpenDetail?.('context', id, name);
-  }
-
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState(null);
-
-  // Refresh both the subtree (structure + recomputed member counts) and the
-  // roots list (root-level totals shown in the left selector) after any edit.
-  async function refreshAfterEdit() {
-    await reloadSubtree();
+  // An edit in the detail pane: the tree and the roots' totals follow.
+  function refreshTree() {
+    reloadForest();
     reloadRoots();
   }
+  const edits = useContextTreeEdits({
+    authFetch,
+    nodes: forest.nodes,
+    refresh: async () => { await reloadForest(); reloadRoots(); setDetailVersion(v => v + 1); },
+    onTreeDeleted: () => { selection.forget(); reloadRoots(); },
+  });
 
-  // Sync = re-run the generating plugin onto this tree so out-of-date
-  // references update (e.g. a user who changed manager moves to the new node),
-  // keeping all analyst edits. We poll the queued run, then refresh the view.
-  async function syncTree(rootId) {
-    setSyncing(true); setSyncMsg(null); setEditError(null);
-    try {
-      const r = await authFetch(`/api/contexts/${rootId}/sync`, { method: 'POST' });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
-      const runId = body.runId;
-      const deadline = Date.now() + 120000;
-      let status = 'queued';
-      while (runId && Date.now() < deadline) {
-        await new Promise(res => setTimeout(res, 2000));
-        const pr = await authFetch(`/api/context-plugins/runs/${runId}`);
-        if (pr.ok) { status = (await pr.json()).status; if (status === 'succeeded' || status === 'failed') break; }
-      }
-      if (status === 'failed') throw new Error('Sync run failed — see the run log.');
-      await refreshAfterEdit();
-      setSyncMsg('Synced');
-      setTimeout(() => setSyncMsg(null), 2500);
-    } catch (e) {
-      setEditError(e.message || 'Sync failed');
-    } finally {
-      setSyncing(false);
-    }
+  // Inside the detail, a link to another context selects it in place; every
+  // other link (a person, a run, the builder) opens its own tab as before.
+  function openFromDetail(kind, id, name) {
+    if (kind === 'context') selection.jumpTo(id);
+    else onOpenDetail?.(kind, id, name);
   }
 
-  // Drag-drop re-parent: make `childId` a child of `newParentId`. The API
-  // validates targetType + cycles and recomputes counts on both branches.
-  async function reparent(childId, newParentId) {
-    setEditError(null);
-    try {
-      const r = await authFetch(`/api/contexts/${childId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parentContextId: newParentId }),
-      });
-      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
-      await refreshAfterEdit();
-    } catch (e) { setEditError(e.message || 'Move failed'); }
+  // The edit callbacks a tree gets when its edits persist and the user may
+  // write; a reader (or an imported tree) gets none, so no +, rename, drag or ⋯.
+  function editProps(variant) {
+    if (!isEditableTree(variant, canWrite)) return {};
+    return {
+      onReparent: edits.reparent,
+      onRename: edits.rename,
+      onAddChild: edits.addChild,
+      onMoveMember: edits.moveMember,
+      renderRootActions: (root) => {
+        const suffix = rootKindSuffix(activeTab, root);
+        return (
+          <TreeRootMenu
+            root={root} label={suffix ? `${root.displayName} · ${suffix}` : undefined}
+            onRefresh={edits.syncTree} refreshing={edits.syncing} onDelete={edits.deleteTree}
+          />
+        );
+      },
+    };
   }
 
-  // Drag a member onto another team in the Manager-Hierarchy tree: records an
-  // override of who they report to (so it survives plugin re-runs) and moves the
-  // membership row immediately. The API validates the tree + recomputes counts.
-  async function moveMember(memberId, fromContextId, toContextId) {
-    setEditError(null);
-    try {
-      const r = await authFetch(`/api/contexts/${fromContextId}/members/${memberId}/move`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toContextId }),
-      });
-      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
-      await refreshAfterEdit();
-    } catch (e) { setEditError(e.message || 'Move member failed'); }
-  }
-
-  // Lazy-load a context's direct members (users) — shown nested inside a node
-  // only when the analyst expands it.
-  async function loadMembers(ctxId) {
-    const r = await authFetch(`/api/contexts/${ctxId}/members?limit=200`);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const body = await r.json();
-    return { rows: body.data || [], total: body.total || 0 };
-  }
-
-  // Inline rename from the tree.
-  async function rename(id, displayName) {
-    setEditError(null);
-    try {
-      const r = await authFetch(`/api/contexts/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName }),
-      });
-      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
-      await refreshAfterEdit();
-    } catch (e) { setEditError(e.message || 'Rename failed'); }
-  }
-
-  // Create a new manual child under `parentId`, inheriting the parent's
-  // targetType (required to sit in the same tree) and contextType.
-  async function addChild(parentId, displayName) {
-    setEditError(null);
-    const parent = findNodeById(nodes, parentId) || selectedRoot;
-    try {
-      const r = await authFetch('/api/contexts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          displayName,
-          targetType: parent?.targetType || selectedRoot?.targetType,
-          contextType: parent?.contextType || selectedRoot?.contextType || 'Manual',
-          parentContextId: parentId,
-        }),
-      });
-      if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.error || `HTTP ${r.status}`); }
-      await refreshAfterEdit();
-    } catch (e) { setEditError(e.message || 'Add child failed'); }
-  }
-
-  // Delete an entire tree (root + all descendants via ON DELETE CASCADE).
-  // Manual + generated allowed; synced is rejected by the API. After delete,
-  // we reload the roots list and clear the selection so the right pane
-  // gracefully falls back to the next available tree.
-  async function deleteTree(rootId) {
-    setDeleteError(null);
-    try {
-      const r = await authFetch(`/api/contexts/${rootId}`, { method: 'DELETE' });
-      if (!r.ok && r.status !== 204) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${r.status}`);
-      }
-      setSelectedRootId(null);
-      reloadRoots();
-    } catch (err) {
-      setDeleteError(err.message || 'Delete failed');
-    }
+  function renderTree(groupRoots, group) {
+    return (
+      <ContextForestTree
+        roots={groupRoots}
+        forestNodes={forest.nodes}
+        selectedId={selectedId}
+        onSelect={selection.select}
+        onExpandNode={loadRoot}
+        onLoadMembers={edits.loadMembers}
+        onOpenMember={(id, name, kind) => onOpenDetail?.(kind || 'user', id, name)}
+        rootSuffix={(root) => rootKindSuffix(activeTab, root)}
+        {...editProps(group?.variant)}
+      />
+    );
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-180px)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <TemplateTabs tabs={tabs} active={activeTab} onChange={setChosenTab} />
       <div className="flex flex-1 min-h-0">
-        <div className="w-80 flex-shrink-0">
+        <div className="w-96 flex-shrink-0">
           <ContextTreeSelector
-            roots={roots}
-            selectedRootId={effectiveRootId}
-            onSelectRoot={setSelectedRootId}
-            onNewTree={() => setNewModalOpen(true)}
-            onOpenContext={open}
+            title={tabs.find(t => t.key === activeTab)?.label}
+            tab={activeTab}
+            kinds={activeTab === 'OrganizationalUnit' ? kinds : null}
+            kind={activeKind}
+            onKindChange={setChosenKind}
+            roots={visibleRoots}
+            renderTree={renderTree}
+            notice={<TreeStatus syncing={edits.syncing} syncMsg={edits.syncMsg} errors={[edits.editError, edits.deleteError]} />}
+            onNewTree={canWrite ? () => setNewModalOpen(true) : undefined}
+            onOpenContext={(id) => selection.jumpTo(id)}
             loading={rootsLoading}
           />
         </div>
 
-        <div className="flex-1 min-w-0 overflow-auto flex flex-col">
+        <div className="flex-1 min-w-0 overflow-auto bg-gray-50 dark:bg-gray-900/40">
           {rootsError && (
-            <div className="p-4 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-b border-red-100">
+            <div className="p-4 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-b border-red-100 dark:border-red-800">
               {rootsError}
             </div>
           )}
 
-          {!selectedRoot && !rootsLoading && (
-            <div className="flex-1 flex items-center justify-center p-8 text-sm text-gray-500 dark:text-gray-400">
-              Select a tree on the left, or click <span className="font-semibold">+ New</span> to create one.
+          {!selectedId && (
+            <div className="h-full flex items-center justify-center p-8 text-sm text-gray-600 dark:text-gray-400" data-testid="context-detail-empty">
+              {rootsLoading ? 'Loading…' : 'Pick a unit on the left.'}
             </div>
           )}
 
-          {selectedRoot && (
-            <>
-              <SelectedRootHeader
-                root={selectedRoot}
-                viewMode={viewMode}
-                onChangeViewMode={setViewMode}
-                onDeleteTree={deleteTree}
-                deleteError={deleteError}
-                onSyncTree={syncTree}
-                syncing={syncing}
-                syncMsg={syncMsg}
-                onOpenOwner={(kind, id, name) => onOpenDetail?.(kind, id, name)}
+          {selectedId && (
+            <div className="p-4" data-testid="context-detail-pane">
+              <ContextDetailPage
+                key={selectedId}
+                contextId={selectedId}
+                embedded
+                refreshKey={detailVersion}
+                onCacheData={selection.onDetailLoaded}
+                onOpenDetail={openFromDetail}
+                onOpenAsPage={(attrs) => onOpenDetail?.('context', attrs.id, attrs.displayName)}
+                onEdited={refreshTree}
+                onClose={() => { selection.forget(); refreshTree(); }}
               />
-              {editError && (
-                <div className="mx-4 mt-3 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">
-                  {editError}
-                </div>
-              )}
-              {/* Only show the loading placeholder on the FIRST load (no nodes
-                  yet). On a refetch after an edit we keep the tree mounted so it
-                  doesn't unmount-and-remount — that would reset every node's
-                  expand/collapse state and collapse the tree on each drag-drop. */}
-              {subtreeLoading && nodes.length === 0 ? (
-                <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading subtree…</div>
-              ) : viewMode === 'tree' ? (
-                <ContextTreeView
-                  nodes={nodes}
-                  onOpenDetail={open}
-                  onReparent={reparent}
-                  onRename={rename}
-                  onAddChild={addChild}
-                  onLoadMembers={loadMembers}
-                  onOpenMember={(id, name, kind) => onOpenDetail?.(kind || 'user', id, name)}
-                  onMoveMember={selectedRoot?.sourceAlgorithmName === 'manager-hierarchy' ? moveMember : undefined}
-                />
-              ) : (
-                <ContextListView nodes={nodes} onOpenDetail={open} />
-              )}
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -240,113 +213,14 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
         onClose={() => setNewModalOpen(false)}
         onCreated={(created) => {
           reloadRoots();
-          if (created?.id) onOpenDetail?.('context', created.id, created.displayName);
+          if (created?.id) selection.jumpTo(created.id);
         }}
         onRunStarted={(runId) => {
-          if (runId) onOpenDetail?.('run', runId, 'Plugin run');
+          if (runId) onOpenDetail?.('run', runId, 'Rule run');
         }}
         onOpenCrawlers={() => onNavigate?.('admin')}
-        onOpenBuilder={() => onOpenDetail?.('context-builder', `new-${Date.now()}`, 'New context')}
+        onOpenBuilder={() => onOpenDetail?.('context-builder', newBuilderId(activeTab), 'New context')}
       />
-    </div>
-  );
-}
-
-// Find a node by id in the nested subtree (used to inherit targetType /
-// contextType when adding a child to a deep node).
-function findNodeById(nodes, id) {
-  for (const n of nodes || []) {
-    if (n.id === id) return n;
-    const hit = findNodeById(n.children, id);
-    if (hit) return hit;
-  }
-  return null;
-}
-
-function SelectedRootHeader({ root, viewMode, onChangeViewMode, onDeleteTree, deleteError, onSyncTree, syncing, syncMsg, onOpenOwner }) {
-  const v = variantMeta(root.variant);
-  const t = targetTypeMeta(root.targetType);
-  const [confirming, setConfirming] = useState(false);
-  // Synced trees come from a crawler — deleting them via the API would
-  // let them re-appear on the next sync, so the API blocks it.
-  const canDelete = root.variant !== 'synced';
-  // Sync re-runs the generating plugin onto this tree, so only generated trees.
-  const canSync = root.variant === 'generated';
-  return (
-    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`w-1.5 h-6 ${v.dotClass} rounded`} aria-hidden="true" />
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white truncate">{root.displayName}</h2>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass}`}>{t.label}</span>
-            <span className={`inline-flex items-center gap-1 text-[10px] ${v.textClass}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${v.dotClass}`} />{v.label}
-            </span>
-            {root.scopeSystemName && (
-              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-600">
-                {root.scopeSystemName}
-              </span>
-            )}
-            <ContextOwner attrs={root} onOpenDetail={onOpenOwner} />
-          </div>
-          {root.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{root.description}</p>}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {canSync && (
-            <button
-              onClick={() => onSyncTree?.(root.id)}
-              disabled={syncing}
-              className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:opacity-50"
-              title="Re-run the plugin to update memberships (e.g. manager changes) — your renames, moves and manual additions are kept"
-            >
-              <span className={syncing ? 'inline-block animate-spin' : ''} aria-hidden="true">↻</span>
-              {syncing ? 'Syncing…' : 'Sync'}
-            </button>
-          )}
-          {syncMsg && <span className="text-[11px] text-green-700 dark:text-green-400">{syncMsg}</span>}
-          {canDelete && !confirming && (
-            <button
-              onClick={() => setConfirming(true)}
-              className="text-[11px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-              title="Delete this entire tree (root + descendants + members)"
-            >Delete tree…</button>
-          )}
-          {canDelete && confirming && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-red-700 dark:text-red-400">
-                Delete the entire "{root.displayName}" tree ({root.totalMemberCount ?? 0} members)?
-              </span>
-              <button
-                onClick={() => { setConfirming(false); onDeleteTree(root.id); }}
-                className="px-2 py-0.5 text-[11px] rounded bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-600"
-              >Yes, delete</button>
-              <button
-                onClick={() => setConfirming(false)}
-                className="px-2 py-0.5 text-[11px] rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300"
-              >Cancel</button>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded p-0.5">
-            <button
-              onClick={() => onChangeViewMode('tree')}
-              className={`px-2.5 py-1 text-xs rounded ${viewMode === 'tree' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
-            >Tree</button>
-            <button
-              onClick={() => onChangeViewMode('list')}
-              className={`px-2.5 py-1 text-xs rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-800 shadow-sm text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
-            >List</button>
-          </div>
-        </div>
-      </div>
-
-      {deleteError && (
-        <div className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">
-          {deleteError}
-        </div>
-      )}
     </div>
   );
 }

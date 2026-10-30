@@ -119,7 +119,7 @@ describe('GET /api/reports/:name/export', () => {
 
     expect(res.headers['content-type']).toMatch(/^text\/csv/);
     expect(res.headers['content-disposition']).toMatch(
-      /^attachment; filename="identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv"$/);
+      /^attachment; filename="identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv"; filename\*=UTF-8''identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(res.text).toBe('"Thing","Count"\r\n"widget","3"');
   });
 
@@ -127,7 +127,7 @@ describe('GET /api/reports/:name/export', () => {
     const res = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
     expect(res.headers['content-type']).toMatch(/^application\/json/);
-    expect(res.headers['content-disposition']).toMatch(/filename=".*\.json"$/);
+    expect(res.headers['content-disposition']).toMatch(/filename=".*\.json";/);
     expect(JSON.parse(res.text)).toMatchObject({
       name: 'downloadable-report', total: 1, rows: [{ thing: 'widget', count: 3 }],
     });
@@ -137,13 +137,14 @@ describe('GET /api/reports/:name/export', () => {
     const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
     const download = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
-    // `notices` and `constantColumns` are the deliberate differences: both are
-    // context ABOUT the rows rather than part of them, and json does not claim
-    // to carry context. Everything else must match byte for byte.
-    const { generatedAt: a, notices, constantColumns, ...served } = rows.body;
+    // `notices`, `constantColumns` and `details` are the deliberate differences:
+    // all three are context ABOUT the rows rather than part of them, and json
+    // does not claim to carry context. Everything else must match byte for byte.
+    const { generatedAt: a, notices, constantColumns, details, ...served } = rows.body;
     const { generatedAt: b, ...downloaded } = JSON.parse(download.text);
     expect(notices).toEqual([]);
     expect(constantColumns).toEqual([]);
+    expect(details).toEqual([]);
     expect(downloaded).toEqual(served);
     expect(Date.parse(a)).not.toBeNaN();
     expect(Date.parse(b)).not.toBeNaN();
@@ -233,6 +234,47 @@ describe('GET /api/reports/:name/export', () => {
       expect(headerLabels(await sheetNamed(xlsx.body, 'Data'), 'Thing')).toEqual(['Thing']);
     } finally {
       constant();
+    }
+  });
+
+  it('gives the details blocks to the screen and the workbook, and to neither csv nor json', async () => {
+    const detailed = registerReport({
+      name: 'detailed-report',
+      displayName: 'Detailed Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({
+        rows: [{ thing: 'widget' }],
+        details: [{ title: 'Context: Ledger', entries: [{ label: 'cmdbReference', value: 'CI-7' }] }],
+      }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/detailed-report/rows').expect(200);
+      expect(rows.body.details).toEqual([{ title: 'Context: Ledger', entries: [{ label: 'cmdbReference', value: 'CI-7' }] }]);
+
+      const csv = await request(app).get('/api/reports/detailed-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing"\r\n"widget"');
+      const json = await request(app).get('/api/reports/detailed-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).details).toBeUndefined();
+
+      const xlsx = await asBinary(request(app).get('/api/reports/detailed-report/export?format=xlsx')).expect(200);
+      const summary = await sheetNamed(xlsx.body, 'Summary');
+      expect(columnA(summary)).toEqual(expect.arrayContaining(['Context: Ledger', 'cmdbReference']));
+      expect(columnA(await sheetNamed(xlsx.body, 'Data'))).toEqual(['Thing', 'widget']);
+    } finally {
+      detailed();
+    }
+  });
+
+  it('defaults the details to an empty list when a run returns something that is not a list', async () => {
+    const odd = registerReport({
+      name: 'odd-details-report', displayName: 'Odd', form: 'list', columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({ rows: [], details: { title: 'not a list' } }),
+    });
+    try {
+      expect((await request(app).get('/api/reports/odd-details-report/rows').expect(200)).body.details).toEqual([]);
+    } finally {
+      odd();
     }
   });
 

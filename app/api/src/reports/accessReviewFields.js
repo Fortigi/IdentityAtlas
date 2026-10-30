@@ -57,6 +57,7 @@ const CORE_FIELDS = [
   { key: 'entitlement.system', label: 'System', read: ({ entitlement }) => entitlement?.systemName },
   { key: 'entitlement.description', label: 'Description', read: ({ entitlement }) => entitlement?.description },
   { key: 'entitlement.owner', label: 'Entitlement owner', read: ({ owner }) => owner?.ownerName },
+  { key: 'entitlement.ownerEmployeeId', label: 'Entitlement owner employee ID', read: ({ owner }) => owner?.ownerEmployeeId },
   { key: 'entitlement.ownerEmail', label: 'Entitlement owner email', read: ({ owner }) => owner?.ownerEmail },
   { key: 'entitlement.eligibleAssignments', label: 'Users eligible', read: ({ count }) => count?.eligible ?? 0 },
 ];
