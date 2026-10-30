@@ -6,18 +6,22 @@
 // the app (AppRoot routes them; the Admin → Authentication switch lets them in).
 // See docs/architecture/context-owner-access.md.
 //
-// The API only answers this user for their own contexts and those contexts'
-// variants (`contextOwner.contextIds` from /api/auth-me), so the page shows
-// exactly that: one context directly, or with several a slim list of them on the
-// left. The context itself is the ordinary context page, wrapped in
-// SharedViewContext so it renders read-only — no edits, no links into pages the
-// owner may not open, and the workflows (the report download) kept.
+// The API only answers this user for their own contexts, the sub-units below
+// them that have no owner of their own, and those contexts' variants
+// (`contextOwner.contextIds` from /api/auth-me), so the page shows exactly
+// that: one context directly, or with several a slim list of them on the left.
+// The context itself is the ordinary context page, wrapped in SharedViewContext
+// so it renders read-only — no edits, no links into pages the owner may not
+// open, and the workflows (the report download) kept — and in
+// ContextOwnerScopeContext, so a sub-unit or parent in scope opens in place and
+// each member can be expanded to its references (names only).
 
 import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useTheme } from '@ui/hooks/useTheme';
 import { ThemeContext } from '@ui/contexts/ThemeContext';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
+import { ContextOwnerScopeContext } from '@ui/contexts/ContextOwnerScopeContext';
 import ErrorBoundary from './ErrorBoundary';
 import Brand from './app/Brand';
 import ContextDetailPage from './ContextDetailPage';
@@ -78,7 +82,7 @@ export default function ContextOwnerPage() {
   const { contextOwner, account, logout } = useAuth();
   const { isDark, mode } = useTheme();
   const contexts = useMemo(() => contextOwner?.contexts || [], [contextOwner]);
-  // The scope the API enforces: the held contexts plus their variants.
+  // The scope the API enforces: the held contexts, their own sub-units and their variants.
   const scope = useMemo(
     () => new Set([...(contextOwner?.contextIds || []), ...contexts.map(c => c.id)].map(id => String(id).toLowerCase())),
     [contextOwner, contexts],
@@ -86,7 +90,8 @@ export default function ContextOwnerPage() {
   const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? null);
 
   // The context page asks to open things; only another context in scope (a
-  // variant of this unit) opens, in place. Anything else would be a 403.
+  // variant of this unit, a sub-unit, a parent) opens, in place. Anything else
+  // would be a 403.
   const openDetail = useCallback((type, id) => {
     if (type === 'context' && scope.has(String(id).toLowerCase())) setSelectedId(id);
   }, [scope]);
@@ -94,19 +99,21 @@ export default function ContextOwnerPage() {
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
       <SharedViewContext.Provider value={true}>
-        <ErrorBoundary>
-          <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
-            <OwnerHeader isDark={isDark} userName={account?.name || account?.username} onSignOut={logout} />
-            <div className="flex-1 min-h-0 flex">
-              {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={setSelectedId} />}
-              <main className="flex-1 min-w-0 overflow-y-auto p-6">
-                {selectedId && (
-                  <ContextDetailPage key={selectedId} contextId={selectedId} embedded onOpenDetail={openDetail} />
-                )}
-              </main>
+        <ContextOwnerScopeContext.Provider value={scope}>
+          <ErrorBoundary>
+            <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
+              <OwnerHeader isDark={isDark} userName={account?.name || account?.username} onSignOut={logout} />
+              <div className="flex-1 min-h-0 flex">
+                {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={setSelectedId} />}
+                <main className="flex-1 min-w-0 overflow-y-auto p-6">
+                  {selectedId && (
+                    <ContextDetailPage key={selectedId} contextId={selectedId} embedded onOpenDetail={openDetail} />
+                  )}
+                </main>
+              </div>
             </div>
-          </div>
-        </ErrorBoundary>
+          </ErrorBoundary>
+        </ContextOwnerScopeContext.Provider>
       </SharedViewContext.Provider>
     </ThemeContext.Provider>
   );

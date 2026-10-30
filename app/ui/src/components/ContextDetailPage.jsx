@@ -15,6 +15,8 @@ import useTimeline from '@ui/hooks/useTimeline';
 import useFeatures from '@ui/hooks/useFeatures';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
+import { contextOpener } from './contexts/contextOpener';
 import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
@@ -53,6 +55,8 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   // What the page may link to: nothing but the shell's own handler when read-only
   // (a context owner may open no member, person or sub-unit page).
   const openEntity = linkTarget(sharedView, onOpenDetail);
+  // Sub-units and parents: on a context owner's page, those in their scope open in place.
+  const openContext = contextOpener({ sharedView, ownerScope: useContextOwnerScope(), onOpenDetail });
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('members');
   const [timelineDays, setTimelineDays] = useState(90);
@@ -122,6 +126,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         authFetch={authFetch}
         onMembersChanged={refreshAll}
         onOpenDetail={openEntity}
+        openContext={openContext}
       />
     ),
 
@@ -152,6 +157,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
           {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
           onOpenDetail={onOpenDetail}
           openEntity={openEntity}
+          openContext={openContext}
           onShowMembers={() => showSection(sectionIds.members)}
           onShowSubUnits={() => showSection(sectionIds.subUnits)}
         />
@@ -269,11 +275,11 @@ function DetailStatus({ loading, error, onRetry, onClose }) {
 // rest keep the generic page, with More details as a card of its own.
 // The header links only through `openEntity` (none when read-only); the profile
 // keeps the shell's handler, which a context owner's page limits to its scope.
-function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, onOpenDetail, openEntity, ...headerProps }) {
+function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, onOpenDetail, openEntity, openContext, ...headerProps }) {
   const profile = profileFor(attrs.contextCategory);
   return (
     <>
-      <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} {...headerProps} />
+      <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} openContext={openContext} {...headerProps} />
       {profile && <div className="flex"><ContradictionsBadge /></div>}
       <UploadProvenance attrs={attrs} />
       {attrs.description && (

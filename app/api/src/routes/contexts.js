@@ -12,6 +12,7 @@
 //   contexts/interviews.js — /contexts/:id/interviews, /contexts/:id/claims, /contexts/claims/…: interview transcripts and their claims
 //   contexts/changeRequests.js — GET /change-requests: what should change in the source a decision overrides
 //   contexts/trees.js   — /context-trees/...: adjust a generated or imported tree
+//   contexts/references.js — GET /contexts/:id/members/:memberId/references (names only)
 //   contexts/shared.js  — useSql / UUID_RE / TARGET_TYPES + the writeContexts gate
 //
 // This file composes them onto one router and re-exports it, so the mount in
@@ -29,6 +30,7 @@ import membersRouter from './contexts/members.js';
 import rolesRouter from './contexts/roles.js';
 import relationshipsRouter from './contexts/relationships.js';
 import treesRouter from './contexts/trees.js';
+import referencesRouter from './contexts/references.js';
 
 const router = Router();
 // Before the read router: /contexts/uploads must not be taken for /contexts/:id.
@@ -42,5 +44,6 @@ router.use(membersRouter);
 router.use(rolesRouter);
 router.use(relationshipsRouter);
 router.use(treesRouter);
+router.use(referencesRouter);
 
 export default router;
