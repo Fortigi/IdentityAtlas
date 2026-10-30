@@ -12,6 +12,9 @@ describe('stepsFor', () => {
   it('returns the two-step manual flow', () => {
     expect(stepsFor('manual').map(s => s.label)).toEqual(['Source', 'Details']);
   });
+  it('returns the four-step upload flow', () => {
+    expect(stepsFor('upload').map(s => s.label)).toEqual(['Source', 'File', 'Mapping', 'Preview & import']);
+  });
   it('returns just the source step for anything else', () => {
     expect(stepsFor(null).map(s => s.label)).toEqual(['Source']);
     expect(stepsFor('import').map(s => s.label)).toEqual(['Source']);
@@ -53,6 +56,7 @@ describe('wizardSubtitle', () => {
   it('describes manual and import sources', () => {
     expect(wizardSubtitle('manual', null)).toMatch(/empty tree/);
     expect(wizardSubtitle('import', null)).toBe('Import from a system');
+    expect(wizardSubtitle('upload', null)).toBe('Your own list of organisation units or applications');
   });
 });
 

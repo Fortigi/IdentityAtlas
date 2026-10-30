@@ -21,6 +21,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { crawlerHasPermission, crawlerHasSystemAccess } from '../../middleware/crawlerAuth.js';
 import { parseRoleBody, ROLE_BEARING_CATEGORIES, HOLDER_TABLE } from '../contexts/roles.js';
+import { OWNER_ADDED_BY } from '../../ingest/contextOwners.js';
 import { parseRelationshipBody } from '../contexts/relationships.js';
 import { UUID_RE } from '../contexts/shared.js';
 
@@ -65,11 +66,16 @@ export const parseRelationshipRecords = (records) => parseRecords(records, (r, c
 // the holder exists. ON CONFLICT DO NOTHING covers both a duplicate and a
 // context that already has its one Accountable (ux_ContextRoles_accountable).
 // holderCol comes from parseRoleBody, which only ever returns the two keys of
-// HOLDER_TABLE, so the identifiers below are never caller text.
-export function roleInsertSql(holderCol) {
+// HOLDER_TABLE, so the identifiers below are never caller text. `addedBy` is
+// 'sync' for a role a crawler states, or the owner reconcile's own marker for
+// an owner the context upload matched itself (a near miss the ingest does not
+// take) — never caller text either.
+const ROLE_ADDED_BY = new Set(['sync', OWNER_ADDED_BY]);
+export function roleInsertSql(holderCol, addedBy = 'sync') {
+  if (!ROLE_ADDED_BY.has(addedBy)) throw new Error(`roleInsertSql: unsupported addedBy ${addedBy}`);
   return `
     INSERT INTO "ContextRoles" ("contextId", "${holderCol}", role, "addedBy")
-    SELECT c.id, h.id, $3, 'sync'
+    SELECT c.id, h.id, $3, '${addedBy}'
       FROM "Contexts" c
       JOIN "${HOLDER_TABLE[holderCol]}" h ON h.id = $2
      WHERE c.id = $1 AND c."scopeSystemId" = $4 AND c."contextCategory" = ANY($5::text[])
@@ -125,17 +131,26 @@ function linkEndpoint(label, parseRows, sqlFor, paramsFor) {
 }
 
 const ROLE_CATEGORIES = [...ROLE_BEARING_CATEGORIES];
+const roleSql = (row) => roleInsertSql(row.holderCol);
+const roleParams = (row, systemId) => [row.contextId, row.holderId, row.role, systemId, ROLE_CATEGORIES];
+const relationshipSql = () => RELATIONSHIP_INSERT_SQL;
+const relationshipParams = (row, systemId) => [row.contextId, row.relatedContextId, row.relationshipType, systemId];
 
-router.post('/ingest/context-roles', linkEndpoint(
-  'context-roles', parseRoleRecords,
-  (row) => roleInsertSql(row.holderCol),
-  (row, systemId) => [row.contextId, row.holderId, row.role, systemId, ROLE_CATEGORIES],
-));
+// The two writers, for in-process sources that hold their own permission (the
+// context upload): already-parsed rows — { contextId, role, holderCol, holderId }
+// and { contextId, relatedContextId, relationshipType } — added for `systemId`
+// under exactly the rules the endpoints apply. Returns { inserted, skipped }.
+export const insertRoleRows = (rows, systemId) => insertEach(rows, roleSql, (row) => roleParams(row, systemId));
+// Accountable rows that state the source's owner field (the upload's owner
+// column): written as the owner reconcile's own rows, so the next import keeps
+// them in step with that column — replaced when the owner changes, removed when
+// it goes — exactly as for an owner the ingest resolved itself.
+export const insertOwnerRows = (rows, systemId) =>
+  insertEach(rows, (row) => roleInsertSql(row.holderCol, OWNER_ADDED_BY), (row) => roleParams(row, systemId));
+export const insertRelationshipRows = (rows, systemId) => insertEach(rows, relationshipSql, (row) => relationshipParams(row, systemId));
 
-router.post('/ingest/context-relationships', linkEndpoint(
-  'context-relationships', parseRelationshipRecords,
-  () => RELATIONSHIP_INSERT_SQL,
-  (row, systemId) => [row.contextId, row.relatedContextId, row.relationshipType, systemId],
-));
+router.post('/ingest/context-roles', linkEndpoint('context-roles', parseRoleRecords, roleSql, roleParams));
+
+router.post('/ingest/context-relationships', linkEndpoint('context-relationships', parseRelationshipRecords, relationshipSql, relationshipParams));
 
 export default router;

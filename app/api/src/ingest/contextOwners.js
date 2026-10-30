@@ -20,8 +20,31 @@
  *   2. Else "Principals"."employeeId" = ownerUserId, but only when exactly ONE
  *      live principal carries it. Two accounts of one person in two systems
  *      share an employee number, and picking one of them would be a guess.
- * Both joins are index lookups: ix_Principals_externalId (migration 076) and
- * ix_Principals_employeeId (migration 001), so no index is added for this.
+ *   3. Else, for an owner that is an e-mail address, "Principals"."email"
+ *      compared case-insensitively — again only when exactly ONE live principal
+ *      has it. A list kept by hand (a context upload) names its owners by
+ *      address, not by a directory key.
+ *   4. Else, for an owner that reads as a person's name (it has a space after
+ *      normalising, and no '@'), the live principal whose display name is the
+ *      same NAME (lib/nameMatch.js: accents, case, "Last, First", a trailing
+ *      " | Org" / " (Org)" ignored on both sides) — when exactly one USER
+ *      account has it, else when exactly one principal of any type does. Lists
+ *      kept by hand, and SharePoint exports, name owners by display name.
+ *      Only when the "…also match by name" setting is on (featureFlags.js
+ *      sourceOwnerNameMatch, OFF by default): a name is a guess an operator opts
+ *      into. The context upload matches its own owners by name regardless, and
+ *      shows each match in its preview before anything is written.
+ * The first three joins are index lookups: ix_Principals_externalId (migration
+ * 076), ix_Principals_employeeId (migration 001) and ix_Principals_email_lower
+ * (migration 097). The name step looks up, per still-unresolved owner, the
+ * accounts whose display name holds its words (word similarity, the
+ * ix_Principals_displayName_trgm index of migration 013) and compares only
+ * those by normalised name — no expression over every principal. A near miss
+ * (a typo) is NOT resolved here: deciding one well needs a runner-up per owner
+ * across the whole directory, and a crawl delivers thousands of owners against
+ * hundreds of thousands of accounts. The context upload, which resolves the
+ * owners of one hand-kept list, takes near misses itself (contexts/upload/
+ * members.js) and shows them in its preview before anything is written.
  *
  * What it writes, per context in the batch:
  *   - owner resolves to P, no Accountable yet             → add P, addedBy 'sourceOwner' (set)
@@ -44,6 +67,7 @@
  */
 
 import { ROLE_BEARING_CATEGORIES } from '../lib/contextCategories.js';
+import { normalizedNameSql } from '../lib/nameMatch.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 
 // The tie-break among principals sharing an externalId. `p` is the principal,
@@ -51,6 +75,37 @@ import { isFeatureEnabled } from '../featureFlags.js';
 export const OWNER_PRINCIPAL_ORDER = `(p."deletedAt" IS NULL) DESC,
                     (p."systemId" IS NOT DISTINCT FROM c."scopeSystemId") DESC,
                     p.id`;
+
+const IS_USER = `p."principalType" = 'User'`;
+
+// Step 4: the owners none of the key steps resolved, as normalised names, and
+// the principal each one names.
+function byNameCtes() {
+  return `
+name_owner AS (
+  SELECT c.id, ${normalizedNameSql('c.owner')} AS name
+    FROM scoped c
+   WHERE c.owner IS NOT NULL AND position('@' in c.owner) = 0
+     AND NOT EXISTS (SELECT 1 FROM by_external_id x WHERE x."contextId" = c.id)
+     AND NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)
+),
+by_name AS (
+  SELECT o.id AS "contextId",
+         coalesce((array_agg(p.id) FILTER (WHERE ${IS_USER}))[1], (array_agg(p.id))[1]) AS "principalId"
+    FROM name_owner o
+    CROSS JOIN LATERAL (
+      SELECT p.id, p."principalType"
+        FROM "Principals" p
+       WHERE p."deletedAt" IS NULL
+         AND o.name <% p."displayName"
+         AND ${normalizedNameSql('p."displayName"')} = o.name
+    ) p
+   WHERE position(' ' in o.name) > 0
+   GROUP BY o.id
+  HAVING count(*) FILTER (WHERE ${IS_USER}) = 1
+      OR (count(*) FILTER (WHERE ${IS_USER}) = 0 AND count(*) = 1)
+)`;
+}
 
 // The addedBy of an Accountable this reconcile wrote — the only rows it replaces
 // or removes.
@@ -61,7 +116,8 @@ const ROLE_BEARING_SQL = [...ROLE_BEARING_CATEGORIES].map(cat => `'${cat}'`).joi
 // The CTEs `scoped` (the synced contexts of the batch and the owner each names,
 // NULL when it names none or the context carries no roles) and `resolved`
 // (contextId → principalId). `scopePredicate` selects contexts from "Contexts" c.
-export function ownerResolutionCtes(scopePredicate) {
+// `byName` adds step 4 (resolution by display name).
+export function ownerResolutionCtes(scopePredicate, { byName = true } = {}) {
   return `
 scoped AS (
   SELECT c.id, c."scopeSystemId",
@@ -83,18 +139,32 @@ by_employee_id AS (
    GROUP BY c.id
   HAVING count(*) = 1
 ),
+by_email AS (
+  SELECT c.id AS "contextId", (array_agg(p.id))[1] AS "principalId"
+    FROM scoped c
+    JOIN "Principals" p ON lower(p.email) = lower(c.owner) AND p."deletedAt" IS NULL
+   WHERE position('@' in c.owner) > 0
+     AND NOT EXISTS (SELECT 1 FROM by_external_id x WHERE x."contextId" = c.id)
+     AND NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)
+   GROUP BY c.id
+  HAVING count(*) = 1
+),${byName ? `${byNameCtes()},` : ''}
 resolved AS (
   SELECT "contextId", "principalId" FROM by_external_id
   UNION ALL
   SELECT "contextId", "principalId" FROM by_employee_id
+  UNION ALL
+  SELECT "contextId", "principalId" FROM by_email${byName ? `
+  UNION ALL
+  SELECT "contextId", "principalId" FROM by_name` : ''}
 )`;
 }
 
 // One statement: the data-modifying CTEs all see the same snapshot of
 // `accountable`, so each context lands in exactly one branch.
-export function buildAccountableReconcileSql(scopePredicate) {
+export function buildAccountableReconcileSql(scopePredicate, options) {
   return `
-WITH ${ownerResolutionCtes(scopePredicate)},
+WITH ${ownerResolutionCtes(scopePredicate, options)},
 accountable AS (
   SELECT r.id, r."contextId", r."principalId", r."addedBy"
     FROM "ContextRoles" r
@@ -136,9 +206,11 @@ SELECT (SELECT count(*) FROM added)::int    AS "set",
 
 // Null when the "Accountables from source owners" setting is off (featureFlags.js
 // sourceOwnerAccountables): the sync then leaves every Accountable as it is.
+// Owners are resolved by display name only when sourceOwnerNameMatch is on.
 async function runReconcile(runner, scopePredicate, params) {
   if (!(await isFeatureEnabled('sourceOwnerAccountables'))) return null;
-  const r = await runner.query(buildAccountableReconcileSql(scopePredicate), params);
+  const byName = await isFeatureEnabled('sourceOwnerNameMatch');
+  const r = await runner.query(buildAccountableReconcileSql(scopePredicate, { byName }), params);
   const row = r.rows[0] || {};
   return {
     set: row.set ?? 0,

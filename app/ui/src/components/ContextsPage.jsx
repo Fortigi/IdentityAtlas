@@ -18,7 +18,7 @@ import NewContextWizard from './contexts/NewContextWizard';
 import TemplateTabs from './contexts/TemplateTabs';
 import { useContextTreeEdits, findNodeById } from './contexts/useContextTreeEdits';
 import { templateTabs, kindOptions, effectiveTab, effectiveKind, rootsForTab, tabOf } from './contexts/templateTabs.helpers';
-import { orderBySource, isEditableTree, rootKindSuffix } from './contexts/treePanel.helpers';
+import { orderBySource, isEditableTree, isUploadedList, rootKindSuffix } from './contexts/treePanel.helpers';
 import { newBuilderId } from './contexts/assistant/recipeDraft';
 import { viewKeyOf, selectedIdFor, forgetView, rootContaining, isMemberMovableTree } from './contexts/contextSelection.helpers';
 
@@ -77,6 +77,9 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
   const canWrite = useHasPermission('data.write.contexts');
   const { roots, loading: rootsLoading, error: rootsError, reload: reloadRoots } = useContextRoots();
   const [newModalOpen, setNewModalOpen] = useState(false);
+  // The uploaded list a Re-import… opened the wizard on; null for a new tree.
+  const [reimportListId, setReimportListId] = useState(null);
+  function openWizard(listId = null) { setReimportListId(listId); setNewModalOpen(true); }
   // Sub-tab per template; in Organisation, which kind of member the trees hold
   // (People · Accounts · Resources — only the kinds that have trees). Null =
   // not chosen yet, so the first tab with trees and the first kind offered.
@@ -122,7 +125,15 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
 
   // The edit callbacks a tree gets when its edits persist and the user may
   // write; a reader (or an imported tree) gets none, so no +, rename, drag or ⋯.
+  // An uploaded list is the one imported tree with a ⋯: Re-import… only.
   function editProps(variant) {
+    if (variant === 'synced' && canWrite) {
+      return {
+        renderRootActions: (root) => (isUploadedList(root)
+          ? <TreeRootMenu root={root} onReimport={(r) => openWizard(r.scopeSystemId)} />
+          : null),
+      };
+    }
     if (!isEditableTree(variant, canWrite)) return {};
     return {
       onReparent: edits.reparent,
@@ -171,7 +182,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
             roots={visibleRoots}
             renderTree={renderTree}
             notice={<TreeStatus syncing={edits.syncing} syncMsg={edits.syncMsg} errors={[edits.editError, edits.deleteError]} />}
-            onNewTree={canWrite ? () => setNewModalOpen(true) : undefined}
+            onNewTree={canWrite ? () => openWizard() : undefined}
             onOpenContext={(id) => selection.jumpTo(id)}
             loading={rootsLoading}
           />
@@ -210,6 +221,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
 
       <NewContextWizard
         open={newModalOpen}
+        reimportListId={reimportListId}
         onClose={() => setNewModalOpen(false)}
         onCreated={(created) => {
           reloadRoots();

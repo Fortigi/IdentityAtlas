@@ -209,3 +209,41 @@ describe('POST /ingest/context-relationships', () => {
     expect(query).not.toHaveBeenCalled();
   });
 });
+
+describe('insertRoleRows / insertRelationshipRows (in-process writers)', () => {
+  it('add the rows for the given system under the endpoints\' SQL and count what landed', async () => {
+    const { insertRoleRows, insertRelationshipRows } = await import('./contextLinks.js');
+    query.mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rowCount: 0 });
+    const roles = await insertRoleRows([
+      { contextId: CTX, role: 'Responsible', holderCol: 'principalId', holderId: P1 },
+      { contextId: CTX2, role: 'Responsible', holderCol: 'principalId', holderId: P1 },
+    ], 9);
+    expect(roles).toEqual({ inserted: 1, skipped: 1 });
+    expect(query.mock.calls[0]).toEqual([roleInsertSql('principalId'), [CTX, P1, 'Responsible', 9, ['OrganizationalUnit', 'LogicalApplication']]]);
+
+    query.mockResolvedValueOnce({ rowCount: 1 });
+    expect(await insertRelationshipRows([{ contextId: CTX, relatedContextId: CTX2, relationshipType: 'SameUnitAs' }], 9))
+      .toEqual({ inserted: 1, skipped: 0 });
+    expect(query.mock.calls[2]).toEqual([RELATIONSHIP_INSERT_SQL, [CTX, CTX2, 'SameUnitAs', 9]]);
+  });
+
+  it('insertOwnerRows writes the owner reconcile\'s own rows (sourceOwner), not crawler sync rows', async () => {
+    const { insertOwnerRows } = await import('./contextLinks.js');
+    query.mockResolvedValueOnce({ rowCount: 1 });
+    expect(await insertOwnerRows([{ contextId: CTX, role: 'Accountable', holderCol: 'principalId', holderId: P1 }], 9))
+      .toEqual({ inserted: 1, skipped: 0 });
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toBe(roleInsertSql('principalId', 'sourceOwner'));
+    expect(sql).toMatch(/SELECT c\.id, h\.id, \$3, 'sourceOwner'/);
+    expect(sql).not.toMatch(/'sync'/);
+    expect(params).toEqual([CTX, P1, 'Accountable', 9, ['OrganizationalUnit', 'LogicalApplication']]);
+  });
+});
+
+describe('roleInsertSql addedBy', () => {
+  it('writes sync by default and refuses any value other than sync or sourceOwner', () => {
+    expect(roleInsertSql('principalId')).toMatch(/SELECT c\.id, h\.id, \$3, 'sync'/);
+    expect(() => roleInsertSql('principalId', 'analyst')).toThrow(/unsupported addedBy analyst/);
+    expect(() => roleInsertSql('principalId', "x'; DROP TABLE t; --")).toThrow(/unsupported addedBy/);
+  });
+});

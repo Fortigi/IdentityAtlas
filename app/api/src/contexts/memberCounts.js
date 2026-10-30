@@ -86,3 +86,47 @@ export async function recalcMemberCountsForChain(contextId) {
     [chain]
   );
 }
+
+// Refresh directMemberCount on every listed context, then roll up
+// totalMemberCount over each one's subtree (distinct members, so a person who is
+// a direct member of two sibling leaves in the same tree isn't double-counted).
+// For a batch writer: the plugin runner (`runner` = its transaction client) and
+// the context upload (`runner` = the db module). A context left with no members
+// is set to 0 — a re-run or re-upload that empties a unit must not keep its old
+// count. Only live members count: a principal or resource soft-deleted in the
+// source stays in ContextMembers as history but is no longer a member (#1484).
+export async function refreshMemberCounts(runner, contextIds) {
+  if (contextIds.length === 0) return;
+
+  await runner.query(`
+    UPDATE "Contexts" c
+       SET "directMemberCount" = COALESCE((
+             SELECT COUNT(*)::int FROM "ContextMembers" cm
+              WHERE cm."contextId" = c.id AND ${liveMemberSql('cm')}
+           ), 0),
+           "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
+     WHERE c.id = ANY($1::uuid[])
+  `, [contextIds]);
+
+  await runner.query(`
+    WITH RECURSIVE subtree AS (
+      SELECT id AS root_id, id AS node_id
+        FROM "Contexts"
+       WHERE id = ANY($1::uuid[])
+      UNION
+      SELECT s.root_id, c.id
+        FROM "Contexts" c
+        JOIN subtree s ON c."parentContextId" = s.node_id
+    ),
+    totals AS (
+      SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
+        FROM subtree s
+        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id AND ${liveMemberSql('cm')}
+       GROUP BY s.root_id
+    )
+    UPDATE "Contexts" c
+       SET "totalMemberCount" = t.cnt
+      FROM totals t
+     WHERE c.id = t.root_id
+  `, [contextIds]);
+}

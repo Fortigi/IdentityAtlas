@@ -2423,6 +2423,193 @@ paths:
           description: A required field is missing, the category is not a template, or the parent is invalid
         '403':
           description: The caller may not write contexts
+  /contexts/uploads:
+    get:
+      tags: [Contexts]
+      summary: The uploaded lists
+      operationId: listContextUploads
+      description: >
+        Every list uploaded as a context tree (a system of type `Upload`), newest first, each with
+        its latest upload — the picker for a re-import. Needs `data.write.contexts`.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The lists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer, description: The list's system id }
+                        displayName: { type: string }
+                        fileName: { type: string }
+                        uploadedAt: { type: string, format: date-time }
+                        uploadedBy: { type: string }
+                        template: { $ref: '#/components/schemas/ContextUploadTemplate' }
+                        rowCount: { type: integer }
+                        rootContextId: { type: string, format: uuid }
+                        uploadCount: { type: integer }
+        '403':
+          description: The caller may not write contexts
+  /contexts/uploads/analyze:
+    post:
+      tags: [Contexts]
+      summary: Read an uploaded list and guess its mapping
+      operationId: analyzeContextUpload
+      description: >
+        Reads a .csv (delimiter sniffed, UTF-8 with or without BOM) or .xlsx (first sheet) list,
+        keeps it server-side as a draft for two hours, and returns its columns with a complete
+        best-guess mapping. The guess is deterministic; when the report generator's model is
+        configured it may refine it (`aiUsed`, `aiFields`). With `listId` the guess starts from that
+        list's last mapping. `existingList` is set when the list (or its name) was uploaded before.
+        At most 50,000 data rows.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                listId: { type: integer, description: Update this uploaded list }
+      responses:
+        '200':
+          description: The columns and the guess
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadDraftId: { type: string, format: uuid }
+                  fileName: { type: string }
+                  rowCount: { type: integer }
+                  columns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        header: { type: string }
+                        samples: { type: array, items: { type: string } }
+                        shape: { type: string }
+                        filled: { type: integer }
+                        distinct: { type: integer }
+                  guess: { $ref: '#/components/schemas/ContextUploadMapping' }
+                  aiUsed: { type: boolean }
+                  aiFields: { type: array, items: { type: string } }
+                  existingList:
+                    type: object
+                    nullable: true
+                    properties:
+                      id: { type: integer }
+                      listName: { type: string }
+                      lastFileName: { type: string }
+                      lastUploadedAt: { type: string, format: date-time }
+                      rootContextId: { type: string, format: uuid }
+        '400':
+          description: The file cannot be read as a list (the message says why)
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: The listId is not an uploaded list
+        '413':
+          description: The file is larger than any 50,000-row list
+  /contexts/uploads/preview:
+    post:
+      tags: [Contexts]
+      summary: What an upload would do
+      operationId: previewContextUpload
+      description: >
+        Applies the mapping to the draft without writing: contexts to create, update, leave
+        unchanged and those of the list not in this file; member match statistics with the first
+        50 unmatched values; row errors (an empty key, a key with two names, a parent loop) and
+        warnings (a parent not in the list).
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadDraftId, mapping]
+              properties:
+                uploadDraftId: { type: string, format: uuid }
+                listId: { type: integer }
+                mapping: { $ref: '#/components/schemas/ContextUploadMapping' }
+      responses:
+        '200':
+          description: The preview
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: The mapping names a column the file does not have, or is incomplete
+        '403':
+          description: The caller may not write contexts
+        '410':
+          description: The draft expired; upload the file again
+  /contexts/uploads/apply:
+    post:
+      tags: [Contexts]
+      summary: Import an uploaded list as a context tree
+      operationId: applyContextUpload
+      description: >
+        Writes the list through the ingest: the list's system (type `Upload`), its synced contexts
+        (one tree per member kind, keyed so a re-import updates in place), their members, the
+        Responsibles and SameUnitAs links, then records the run in ContextUploads. Contexts of the
+        list that are not in the file are kept unless `removeMissing` is true. Without `listId` a
+        list whose name was uploaded before is refused (409) rather than merged.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uploadDraftId, mapping]
+              properties:
+                uploadDraftId: { type: string, format: uuid }
+                listId: { type: integer }
+                removeMissing: { type: boolean, default: false }
+                mapping: { $ref: '#/components/schemas/ContextUploadMapping' }
+      responses:
+        '201':
+          description: The result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listId: { type: integer }
+                  rootContextId: { type: string, format: uuid }
+                  uploadId: { type: string, format: uuid }
+                  contexts:
+                    type: object
+                    properties:
+                      created: { type: integer }
+                      updated: { type: integer }
+                      unchanged: { type: integer }
+                      removed: { type: integer }
+                      notInFile: { type: integer }
+                  members: { type: object }
+        '400':
+          description: The mapping is incomplete or rows cannot be imported (details lists them)
+        '403':
+          description: The caller may not write contexts
+        '409':
+          description: A list with this name was uploaded before; choose it to update it
+        '410':
+          description: The draft expired; upload the file again
   /contexts/tree:
     get:
       tags: [Contexts]
@@ -3037,6 +3224,32 @@ components:
     ContextRoleType:
       type: string
       enum: [Accountable, Responsible]
+    ContextUploadTemplate:
+      type: string
+      enum: [OrganizationalUnit, LogicalApplication]
+    ContextUploadMapping:
+      type: object
+      description: How the columns of an uploaded list become contexts (docs/architecture/context-upload.md).
+      required: [template, listName, nameColumn]
+      properties:
+        template: { $ref: '#/components/schemas/ContextUploadTemplate' }
+        listName: { type: string, maxLength: 200 }
+        nameColumn: { type: string }
+        keyColumn: { type: string, description: Defaults to the name column }
+        ownerColumn: { type: string, nullable: true }
+        responsibleColumn: { type: string, nullable: true }
+        parentColumn: { type: string, nullable: true }
+        memberColumns:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [column, kind]
+            properties:
+              column: { type: string }
+              kind: { type: string, enum: [Identity, Principal, Resource] }
+              shape: { type: string, enum: [list, long] }
+        attributeColumns: { type: array, items: { type: string } }
     ContextRelationshipType:
       type: string
       enum: [SameUnitAs]

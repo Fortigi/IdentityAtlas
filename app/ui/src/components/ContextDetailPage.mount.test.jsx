@@ -584,3 +584,29 @@ describe('ContextDetailPage — embedded in the Contexts page', () => {
     expect(onEdited).not.toHaveBeenCalled(); // a refresh from outside is not an edit here
   });
 });
+
+describe('ContextDetailPage — a unit of an uploaded list', () => {
+  const uploaded = {
+    attributes: {
+      id: 'ctx-1', variant: 'synced', targetType: 'Principal', contextType: 'OrgUnit', contextCategory: 'OrganizationalUnit',
+      displayName: 'Acme', scopeSystemId: 42, scopeSystemName: 'Klanten (upload)', scopeSystemType: 'Upload',
+      createdAt: '2026-10-01T10:00:00.000Z',
+      uploadedFrom: 'klanten.xlsx', uploadedAt: '2026-10-01T10:00:00.000Z', uploadedBy: 'analyst@example.com',
+      lastUploadFile: 'klanten-v2.xlsx', lastUploadAt: '2026-10-20T10:00:00.000Z', lastUploadBy: 'analyst@example.com',
+    },
+    subContexts: [],
+  };
+
+  it('says under its header that it came from an upload, when, by whom, and when it was last updated', async () => {
+    const authFetch = routes({ '/api/contexts/ctx-1': uploaded });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    const line = await screen.findByTestId('upload-provenance');
+    expect(line.textContent).toMatch(/^Uploaded from klanten\.xlsx on .+ by analyst@example\.com; last updated by an upload of klanten-v2\.xlsx on .+\. This unit exists since .+\.$/);
+  });
+
+  it('says nothing about uploads for a context from anywhere else', async () => {
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch: routes() } });
+    await screen.findByText('Engineering Cluster');
+    expect(screen.queryByTestId('upload-provenance')).toBeNull();
+  });
+});
