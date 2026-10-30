@@ -15,6 +15,10 @@ describe('tabBadge', () => {
     expect(tabBadge('identity')).toBe('ID');
   });
 
+  it('shows ADJ (not AP) for Adjust tree tabs', () => {
+    expect(tabBadge('adjust-tree')).toBe('ADJ');
+  });
+
   it('shows RUN (not AP) for run tabs', () => {
     expect(tabBadge('run')).toBe('RUN');
   });

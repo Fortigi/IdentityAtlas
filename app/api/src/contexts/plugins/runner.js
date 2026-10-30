@@ -11,10 +11,12 @@
 //   - Contexts in the plugin output that don't exist yet get INSERT.
 //   - Existing contexts that still appear in the output get UPDATE.
 //   - Contexts previously produced by this (algorithm, scope) that are NOT
-//     in the new output get DELETE. We only delete rows we own, but the FK
-//     is ON DELETE CASCADE on parent: a manual (or analyst-reparented) child
-//     still grafted under a deleted node is deleted with it. Children of a
-//     node that is still produced survive.
+//     in the new output get DELETE. We only delete rows we own; a child that
+//     is not ours (a manual unit, an analyst-added one) still grafted under a
+//     deleted node is lifted to the top level first instead of being
+//     cascade-deleted with it. Children of a node that is still produced survive.
+//   - Afterwards the tree's adjustments (ContextTreeAdjustments) are applied
+//     again on top of the rebuilt tree.
 //   - Members with addedBy='algorithm' are fully replaced by the new set
 //     for contexts we own. Members with addedBy='analyst' or 'sync' survive.
 //   - Roles (who answers for a context) follow the same rule: the plugin's own
@@ -32,6 +34,8 @@ import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
 import { refreshMemberCounts } from '../memberCounts.js';
 import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
+import { reapplyTree } from '../adjustments/service.js';
+import { generatedTreeKey } from '../adjustments/treeKey.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
 // Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
@@ -170,13 +174,19 @@ export async function dryRun(pluginName, params) {
   };
 }
 
+// A run carries the key of the tree it built (null until it wrote one), so the
+// run tab can open that tree to adjust.
 export async function getRun(runId) {
-  return db.queryOne(`
-    SELECT r.*, a.name AS "algorithmName", a."displayName" AS "algorithmDisplayName", a."targetType"
+  const row = await db.queryOne(`
+    SELECT r.*, a.name AS "algorithmName", a."displayName" AS "algorithmDisplayName", a."targetType",
+           (SELECT COALESCE(c."sourceInstanceKey", '') FROM "Contexts" c WHERE c."sourceRunId" = r.id LIMIT 1) AS "builtInstanceKey"
       FROM "ContextAlgorithmRuns" r
       JOIN "ContextAlgorithms" a ON r."algorithmId" = a.id
      WHERE r.id = $1
   `, [runId]);
+  if (!row) return row;
+  const { builtInstanceKey, ...run } = row;
+  return { ...run, treeKey: builtInstanceKey == null ? null : generatedTreeKey(run.algorithmId, builtInstanceKey) };
 }
 
 export async function listRuns({ algorithmId = null, limit = 50 } = {}) {
@@ -284,6 +294,10 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
 
     // 6) Refresh direct + rolled-up member counts on every context we touched.
     await refreshMemberCounts(client, producedContextIds);
+
+    // 7) The analyst's adjustments of this tree, applied again on top of the
+    //    rebuilt base (docs/architecture/adjust-tree.md). No-op without any.
+    await reapplyTree(client, generatedTreeKey(algorithmId, instanceKey));
   });
 
   return counts;
@@ -357,6 +371,13 @@ async function deleteStaleContexts(client, existingRows, contexts, counts) {
   const producedExternalIds = new Set(contexts.map(n => n.externalId));
   const stale = existingRows.filter(r => !producedExternalIds.has(r.externalId)).map(r => r.id);
   if (stale.length > 0) {
+    // What hangs under a vanished unit but is not the plugin's own — a unit an
+    // analyst added or moved there — is lifted to the top instead of being
+    // cascade-deleted with it; the adjustment that put it there reports it.
+    await client.query(`
+      UPDATE "Contexts" SET "parentContextId" = NULL
+       WHERE "parentContextId" = ANY($1::uuid[]) AND NOT (id = ANY($1::uuid[]))
+    `, [stale]);
     await client.query(`DELETE FROM "Contexts" WHERE id = ANY($1::uuid[])`, [stale]);
     counts.contextsRemoved = stale.length;
   }

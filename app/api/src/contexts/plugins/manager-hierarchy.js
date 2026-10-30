@@ -27,6 +27,7 @@ import {
   buildManagerRoles,
   MANAGER_HIERARCHY_CONTEXT_TYPE,
 } from './manager-hierarchy.helpers.js';
+import { LAYOUT_PARAMETERS, resolveLayout, withLayoutFields, excludeInactive, applyLayout } from './manager-hierarchy.options.js';
 
 /** @type {import('./types.js').ContextPlugin} */
 export default {
@@ -85,6 +86,7 @@ export default {
           'Their supposed reports reattach to the tree root. Matching is case-insensitive.',
         items: { type: 'string' },
       },
+      ...LAYOUT_PARAMETERS,
     },
   },
   async run(params, ctx) {
@@ -110,14 +112,15 @@ export default {
     const resolved = resolveNameFields(params.nameFields, validCols, validExtKeys);
     const nameFieldLabels = resolved.map(r => r.name);
     const naming = { resolved, separator, includeManagerName };
+    const layout = resolveLayout(params, validCols, validExtKeys);
 
-    const { selectParts, queryParams } = buildSelectParts(resolved, scopeSystemId);
-    const rows = (await db.query(`
+    const { selectParts, queryParams } = buildSelectParts(withLayoutFields(resolved, layout, validCols), scopeSystemId);
+    const rows = excludeInactive((await db.query(`
       SELECT ${selectParts.join(', ')}
         FROM "Principals"
        WHERE "systemId" = $1
          AND "deletedAt" IS NULL  -- a soft-deleted principal is history, not in the org tree
-    `, queryParams)).rows;
+    `, queryParams)).rows, layout);
 
     if (rows.length === 0) {
       ctx.log?.(`No principals in system ${scopeSystemId} — nothing to do.`);
@@ -157,9 +160,10 @@ export default {
       ...buildManagerContexts(managerIds, byId, rootExt, naming),
     ];
     const members = buildMemberRows(rows, managerIds, overrides, rootExt);
-    const roles = buildManagerRoles(managerIds, byId);
+    const result = applyLayout({ contexts, members }, { rows, byId, managerIds, rootExt, naming, layout });
+    const roles = buildManagerRoles(managerIds, byId, result.contexts);
 
-    ctx.log?.(`Built ${contexts.length} contexts, ${members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
-    return { contexts, members, roles };
+    ctx.log?.(`Built ${result.contexts.length} contexts, ${result.members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
+    return { contexts: result.contexts, members: result.members, roles };
   },
 };

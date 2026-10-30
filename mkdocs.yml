@@ -188,6 +188,7 @@ nav:
           - Context Interviews: architecture/context-interviews.md
           - Change Requests: architecture/change-requests.md
           - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
+          - Adjust Tree (design): architecture/adjust-tree.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md

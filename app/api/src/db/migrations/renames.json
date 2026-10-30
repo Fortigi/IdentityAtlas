@@ -1,5 +1,8 @@
 {
   "_comment": "Migrations renamed after they shipped: { \"<new filename>\": \"<old filename>\" }. A database that recorded the old name records the new one at boot instead of running the file again (db/migrate.js, recordRenamedMigrations). The old row is kept, for traceability. Append-only. Lives beside the .sql files so the Docker image and the portable bundle (which copies this folder) both ship it.",
+  "_gaps": {
+    "102": "Intentionally unused: it held a feature that was removed before it shipped (survey templates). A database that ran it keeps the tables until they are dropped by hand; nothing reads them. Do not reuse the number."
+  },
   "renames": {
     "094_context_templates.sql": "092_context_templates.sql",
     "096_synced_context_accountables.sql": "094_synced_context_accountables.sql",
@@ -8,6 +11,7 @@
     "099_context_interviews.sql": "097_context_interviews.sql",
     "100_context_claims_membership_alias.sql": "098_context_claims_membership_alias.sql",
     "101_context_member_overrides.sql": "099_context_member_overrides.sql",
-    "103_change_requests.sql": "101_change_requests.sql"
+    "103_change_requests.sql": "101_change_requests.sql",
+    "104_context_tree_adjustments.sql": "102_context_tree_adjustments.sql"
   }
 }

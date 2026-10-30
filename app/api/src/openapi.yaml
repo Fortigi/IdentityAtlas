@@ -51,7 +51,8 @@ tags:
       Accountable, who is Responsible) and a relationship to another context (`SameUnitAs`: the same unit through a different kind of member).
       Writes need `data.write.contexts`.
       Organisation knowledge — the `/contexts/{id}/interviews…`, `/contexts/{id}/claims…`,
-      `/contexts/{id}/previous-members` and `/contexts/claims/…` endpoints — answers `404` while the
+      `/contexts/{id}/previous-members`, `/contexts/claims/…`, `/change-requests` and `/context-trees/…`
+      (Adjust tree) endpoints — answers `404` while the
       experimental `orgKnowledge` feature is off (the default); member lists then show plain membership.
   - name: Context Assistant
     description: >
@@ -3678,6 +3679,263 @@ paths:
         '404':
           description: No such relationship on this context
 
+  /context-trees/resolve:
+    get:
+      tags: [Contexts]
+      summary: Which adjustable tree a context is in
+      operationId: resolveContextTree
+      description: >
+        The key of the tree the context belongs to — a generated tree, every imported unit of one
+        source and template, or a hand-built tree (docs/architecture/adjust-tree.md).
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: contextId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The tree
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  treeKey: { type: string }
+                  kind: { type: string, enum: [generated, synced, manual] }
+                  name: { type: string }
+                  targetType: { type: string }
+                  contextCategory: { type: string, nullable: true }
+                  canAdjust: { type: boolean }
+        '400':
+          description: contextId is not a uuid
+        '404':
+          description: No such context
+  /context-trees/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+    get:
+      tags: [Contexts]
+      summary: An adjustable tree with its marks
+      operationId: getAdjustableContextTree
+      description: >
+        Every unit of the tree (parentId null = top level), with whether an adjustment touches or
+        created it, its Accountable and an interim manager.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The tree
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          description: Malformed tree key
+        '404':
+          description: No such tree
+  /context-trees/{key}/adjustments:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+    get:
+      tags: [Contexts]
+      summary: The tree's adjustments, newest first
+      operationId: listContextTreeAdjustments
+      description: The adjustments made to this tree, newest first, each with who made it, when, why and a readable sentence.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ContextTreeAdjustment' }
+        '404':
+          description: No such tree
+    post:
+      tags: [Contexts]
+      summary: Adjust the tree
+      operationId: createContextTreeAdjustment
+      description: >
+        Records one correction (moveUnit, renameUnit, moveMember, addUnit, splitUnit, setManager)
+        and applies it at once. It is applied again after every rebuild of the tree by its source.
+      security:
+        - EntraIdBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [op]
+              properties:
+                op: { type: string, enum: [moveUnit, renameUnit, moveMember, addUnit, splitUnit, setManager] }
+                reason: { type: string }
+      responses:
+        '201':
+          description: The adjustment, applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adjustment: { $ref: '#/components/schemas/ContextTreeAdjustment' }
+        '400':
+          description: Invalid adjustment
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such tree or unit
+  /context-trees/{key}/adjustments/{id}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Contexts]
+      summary: Undo an adjustment
+      operationId: undoContextTreeAdjustment
+      description: Puts back what the adjustment replaced; the remaining adjustments are applied again.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The adjustment, now reverted
+        '400':
+          description: Already undone
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such adjustment
+  /context-trees/{key}/adjustments/{id}/redo:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Redo an undone adjustment
+      operationId: redoContextTreeAdjustment
+      description: Makes an undone adjustment active again and reapplies the tree; only an undone adjustment can be redone.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The adjustment, applied again
+        '400':
+          description: Not undone
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such adjustment
+  /context-trees/{key}/adjustments/{id}/follow:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Contexts]
+      summary: Follow a unit or value the source renamed
+      operationId: followContextTreeAdjustment
+      description: >
+        For an adjustment that needs a decision: point it at the unit (or attribute value) it was
+        probably renamed to, as proposed in its suggestion.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The adjustment, re-pointed and applied
+        '400':
+          description: The adjustment does not need a decision
+        '403':
+          description: The caller may not write contexts
+        '404':
+          description: No such adjustment
+  /context-trees/{key}/attention:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+    get:
+      tags: [Contexts]
+      summary: What in the tree needs the analyst
+      operationId: getContextTreeAttention
+      description: >
+        Adjustments the source overtook (needs a decision, no longer applies, the source agrees,
+        ended), split candidates, and people the tree could not place — each with its fix.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+        '404':
+          description: No such tree
+  /context-trees/{key}/units/{unitId}/split-options:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 'A tree key: gen~<algorithmId>~<instanceKey>, sync~<systemId>~<template> or ctx~<rootId> (URL-encoded)'
+        schema: { type: string }
+      - name: unitId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: The attribute values to split a unit by
+      operationId: getContextTreeSplitOptions
+      description: Department, job title, company and office values among the unit's direct members, with counts (accounts trees only).
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The attributes and their values
+          content:
+            application/json:
+              schema: { type: object }
+        '404':
+          description: No such tree or unit
+
   /change-requests:
     get:
       tags: [Contexts]
@@ -4102,6 +4360,24 @@ components:
         relatedTargetType: { type: string }
         relatedTotalMemberCount: { type: integer, nullable: true, description: "Members of the related context, sub-contexts included." }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
+        createdAt: { type: string, format: date-time }
+    ContextTreeAdjustment:
+      type: object
+      description: One correction of a generated or imported tree, as the Adjust tree log shows it.
+      properties:
+        id: { type: string, format: uuid }
+        op: { type: string, enum: [moveUnit, renameUnit, moveMember, addUnit, splitUnit, setManager] }
+        subjectId: { type: string, format: uuid, nullable: true }
+        subjectName: { type: string, nullable: true }
+        memberId: { type: string, format: uuid, nullable: true }
+        payload: { type: object }
+        reason: { type: string, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [active, needsDecision, orphaned, matches, expired, reverted] }
+        statusDetail: { type: string, nullable: true }
+        suggestion: { type: object, nullable: true }
+        description: { type: string }
+        createdBy: { type: string }
         createdAt: { type: string, format: date-time }
     ContextRecipe:
       type: object
