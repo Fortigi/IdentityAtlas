@@ -145,13 +145,13 @@ Contexts come in three flavours, and this is the bit that confuses people:
 
 | Flavour | Where it comes from |
 |---|---|
-| **Synced** | Read from a source system (an Entra group category, an AD OU) |
+| **Synced** | Read from a source system (Omada org units and departments, a `Contexts.csv` import) |
 | **Generated** | Produced by a **plugin** — an algorithm that derives a grouping from the data you already have |
 | **Manual** | You made it by hand |
 
 A context always targets exactly one kind of thing: an **Identity**, a **Resource**, a **Principal** or a **System**.
 
-**Plugins** are the interesting half. Ten ship in the box — including manager hierarchies, department trees, orphaned accounts and risky-consent grouping. A plugin does not import anything; it finds structure that was already there and gives it a name you can filter on. See [Contexts](../ui/contexts.md).
+**Plugins** are the interesting half. Thirteen ship in the box — including manager hierarchies, department trees, AD OU trees, Entra group categories, orphaned accounts and risky-consent grouping. A plugin does not import anything; it finds structure that was already there and gives it a name you can filter on. See [Contexts](../ui/contexts.md).
 
 ## 12. Effective access
 

@@ -83,6 +83,7 @@ export default {
   displayName: 'Context assistant recipe',
   description: 'Builds a context from search terms and hand-picked objects chosen in the context assistant. Refreshed after every crawl.',
   targetType: 'Resource',
+  contextTypes: [CONTEXT_TYPE],
   hidden: true,
   parametersSchema: {
     type: 'object',

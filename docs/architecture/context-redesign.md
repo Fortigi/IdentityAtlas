@@ -54,17 +54,17 @@ Every context targets **exactly one** of these member types:
 
 This constraint keeps queries and UI simple: a context-filter on the matrix knows whether to filter rows (Identity/Principal) or columns (Resource), without runtime type inspection.
 
-A context tree may mix variants across levels (manual sub-tree under a generated parent), but **every node in one tree shares the same target type**.
+A context tree may mix variants across levels (manual sub-tree under a generated parent), but **every node in one tree shares the same target type**. The manual routes check this and plugin trees are same-type by construction; the database and the ingest (`parentExternalId` on synced contexts) do not enforce it — see [Core Ontology, finding 11](core-ontology.md#inconsistencies-found).
 
 ### 3.2 Variants
 
 | Variant | Created by | Refresh model | Mutable by analyst? |
 |---|---|---|---|
-| `synced` | A crawler (Entra, CSV, etc.) | Each crawl run | No — overwritten on next sync |
+| `synced` | A crawler (CSV, Omada, midPoint, SQL, etc.) | Each crawl run | No — overwritten on next sync |
 | `generated` | A plugin algorithm | Each plugin run | No — overwritten on next run |
 | `manual` | An analyst in the UI | Never — explicit edits | Yes |
 
-Variant is a property of the **node**, not the tree. An analyst can graft a `manual` sub-tree under a `synced` parent. On the next sync the parent updates but the manual children are preserved (matched by `parentContextId` + analyst-set name).
+Variant is a property of the **node**, not the tree. An analyst can graft a `manual` sub-tree under a `synced` parent. On the next sync the parent updates but the manual children are preserved (matched by `parentContextId` + analyst-set name) — as long as the parent itself survives, since `parentContextId` is `ON DELETE CASCADE`.
 
 ### 3.3 Schema
 
@@ -127,7 +127,7 @@ CREATE INDEX ix_ContextMembers_member ON ContextMembers(memberType, memberId);
 -- Plugin registry
 CREATE TABLE ContextAlgorithms (
     id                  UUID PRIMARY KEY,
-    name                TEXT NOT NULL UNIQUE,    -- e.g. 'manager-hierarchy', 'ad-ou-structure'
+    name                TEXT NOT NULL UNIQUE,    -- e.g. 'manager-hierarchy', 'ad-ou-from-dn'
     displayName         TEXT NOT NULL,
     description         TEXT,
     targetType          TEXT NOT NULL,           -- which type of context it produces
@@ -182,6 +182,7 @@ A plugin is a registered algorithm that takes parameters, reads from the databas
 export interface ContextPlugin {
   name: string;                    // matches ContextAlgorithms.name
   targetType: 'Identity'|'Resource'|'Principal'|'System';
+  contextTypes: string[];          // every contextType the plugin can emit
   parametersSchema: object;        // JSON Schema
   run(params, ctx): Promise<{
     contexts: Array<ContextNode>,  // tree by parentExternalId
@@ -190,11 +191,13 @@ export interface ContextPlugin {
 }
 ```
 
-The runner reconciles the plugin output with existing `Contexts` rows where `sourceAlgorithmId` matches: insert new, update changed, delete missing. Manual children grafted under a generated parent are preserved by `parentContextId`.
+The runner reconciles the plugin output with existing `Contexts` rows where `sourceAlgorithmId` matches: insert new, update changed, delete missing. Manual children grafted under a generated parent are preserved by `parentContextId` — as long as the parent itself survives: `parentContextId` is `ON DELETE CASCADE`, so when a re-run drops a generated node, the manual or analyst-reparented children still under it are deleted with it.
+
+Each `contextTypes` value is a subclass of `ia:Context` in the [core ontology](core-ontology.md) whose `ia:producedBy` names the plugin and whose `ia:allowedTargetType` admits the plugin's `targetType`. `npm run ontology:check` compares the two in both directions; `contextTypes.guard.test.js` checks that the list is complete against the literals in the plugin sources. A new plugin, or a new type in an existing one, therefore needs an ontology entry — see [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md#a-context-type).
 
 ### 4.2 Initial plugin set
 
-The registry ships **twelve** plugins (`app/api/src/contexts/plugins/registry.js`):
+The registry ships **thirteen** plugins (`app/api/src/contexts/plugins/registry.js`):
 
 | Plugin | Target | Source | Notes |
 |---|---|---|---|
@@ -210,6 +213,7 @@ The registry ships **twelve** plugins (`app/api/src/contexts/plugins/registry.js
 | `scope-hierarchy` | Resource | `Contains` relationship edges | Walks the resource `Contains` hierarchy into a nested scope tree. |
 | `entra-group-category-tree` | Resource | Entra group category attributes | One bucket per Entra group category; scoped to one Group system or all. |
 | `risky-consent` | Resource | OAuth consent grants + external threat feed | Buckets risky OAuth app-consent grants by tier/severity; the context members are the grant resources. **Fetches a third-party threat feed (OAuthSentry) over the network at run time.** |
+| `context-recipe` | Resource | A recipe built in the context assistant | `contextType='ContextRecipe'`: the resources the recipe matches, plus the ones pinned by hand. |
 
 ### 4.3 Where plugins run
 
@@ -290,9 +294,9 @@ The filter is also exposed on the **detail pages** (e.g. on a Resource Cluster c
 
 ### 6.4 "AD OU structure as a context tree"
 
-1. Admin enables the `ad-ou-from-dn` plugin and configures it with the LDAP DN root.
-2. Plugin reads `Principals.distinguishedName`, parses each DN into OU components, builds the tree, links identities.
-3. Result: a second Identity-targeted tree appears next to the HR tree. Both are visible in the Contexts tab.
+1. Admin enables the `ad-ou-from-dn` plugin (optionally pointing its `dnField` parameter at the attribute that holds the DN).
+2. Plugin reads each account's DN (default `extendedAttributes.onPremisesDistinguishedName`), parses it into OU components, builds the tree (`contextType='OrganisationalUnit'`), links the principals.
+3. Result: a Principal-targeted tree appears next to the HR tree. Both are visible in the Contexts tab.
 
 ## 7. Tags
 
@@ -307,7 +311,7 @@ What the analyst gains:
 - **Own it.** Set `ownerUserId`. Shows up on the detail page; surfaces in governance/compliance views.
 - **Demote back to a tag.** Clearing the parent returns it to the flat-Tags bucket.
 
-Under this model, tag operations (assign/unassign, list, filter) and context operations (add member / remove member / list / filter) share one code path. The `GraphTags` / `GraphTagAssignments` tables go away in v6 — replaced by rows in `Contexts` / `ContextMembers`.
+Under this model, tag operations (assign/unassign, list, filter) and context operations (add member / remove member / list / filter) share one code path. The `GraphTags` / `GraphTagAssignments` tables go away in v6 — replaced by rows in `Contexts` / `ContextMembers`, with backward-compat views of the same names over them (migrations 020, 031).
 
 The tag color survives as `extendedAttributes.tagColor` on the context row, only rendered when `contextType='Tag'`.
 

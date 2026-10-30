@@ -342,14 +342,14 @@ Two sources combined for comprehensive coverage:
 | **OData source** | `/Resourceassignment?$filter=Deleted eq false` |
 | **Filter** | ROLEASSNSTATUS.Value in `['Active', 'Pending']` |
 | **Fan-out** | Each identity assignment → one record per linked User account (via `$IdentityUidToUserUids`) |
-| **IA destination** | `ingest/resource-assignments` (full sync, per-system, `assignmentType='Governed'`) |
+| **IA destination** | `ingest/resource-assignments` (full sync, per-system, `assignmentType='Direct'`, `governed=true`) |
 | **Deduplication** | YES — on `principalId|resourceId` per system |
 
 | Omada field | ResourceAssignments column / extendedAttributes |
 |-------------|------------------------------------------------|
 | ROLEREF.UId | resourceId |
 | *(fanned via Identity.UId)* | principalId (User.UId) |
-| *(constant)* | assignmentType = `'Governed'` |
+| *(constant)* | assignmentType = `'Direct'`, governed = `true` |
 | VALIDFROM / VALIDTO | extendedAttributes.validFrom / validTo |
 
 #### Source B — CalculatedAssignments (account provisioning, all systems)
@@ -365,7 +365,7 @@ Two sub-tracks based on which Omada system the account belongs to:
 **Omada Identity accounts** (AccountName → `$UserNameToUid` lookup):
 ```
 principalId  = existing User.UId
-assignmentType = Governed (IsManaged=true) or Direct (IsManaged=false)
+assignmentType = Direct, governed = true (IsManaged kept in extendedAttributes.isManaged)
 ```
 
 **Connected-system accounts** (Salesforce, AD, etc. — AccountKey as new Principal id):
@@ -386,8 +386,8 @@ New IdentityMember:
 ResourceAssignment:
   Resource.UId     → resourceId
   AccountKey       → principalId
-  IsManaged=true   → assignmentType = 'Governed'
-  IsManaged=false  → assignmentType = 'Direct'
+  (constant)       → assignmentType = 'Direct', governed = true
+  IsManaged        → extendedAttributes.isManaged
 ```
 
 **`extendedAttributes` on CRA assignments:**
@@ -399,6 +399,7 @@ ResourceAssignment:
 | reasons | Reasons[].Description (joined `'; '`) |
 | accountType | ResourceType.DisplayName |
 | accountName | AccountName |
+| isManaged | IsManaged |
 
 ---
 

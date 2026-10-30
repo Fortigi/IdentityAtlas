@@ -1,5 +1,11 @@
 {
   "type": "csv",
+  "emits": {
+    "principalTypes": ["User"],
+    "resourceTypes": ["BusinessRole"],
+    "contextTypes": ["OrgUnit"],
+    "open": ["principalType", "resourceType", "contextType"]
+  },
   "displayName": "CSV Import",
   "entryPoint": "Start-CSVCrawler.ps1",
   "dependsOn": [],

@@ -21,6 +21,10 @@ export default {
     'emits. Use leafResourceTypes to stop the tree at chosen types and attach their descendants ' +
     'as members instead of nodes.',
   targetType: 'Resource',
+  // Below the root, a node is typed after the resource it stands for (an Azure
+  // subscription is contextType 'subscription'), so the list is open.
+  contextTypes: ['ScopeHierarchy', 'Scope'],
+  contextTypesFromResourceType: true,
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],

@@ -1,5 +1,11 @@
 {
   "type": "omada",
+  "emits": {
+    "principalTypes": ["User", "ExternalUser", "ServicePrincipal"],
+    "resourceTypes": ["BusinessRole", "Resource"],
+    "contextTypes": ["OrgUnit", "Department", "Location", "CostCenter"],
+    "open": ["principalType", "resourceType", "contextType"]
+  },
   "displayName": "Omada IGA",
   "entryPoint": "Start-OmadaCrawler.ps1",
   "dependsOn": ["odata"],

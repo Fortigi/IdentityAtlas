@@ -27,8 +27,8 @@ A **context** is a named group of entities. Contexts nest into **trees** (a root
 
 | Variant | Comes from | Can you edit it? |
 |---------|-----------|------------------|
-| **Synced** 🔵 | A crawler (Entra, CSV, …) ingests the tree — e.g. an HR org hierarchy | No — it is overwritten on the next crawl. You *can* graft manual children under it. |
-| **Generated** 🟢 | A plugin algorithm you run against existing data — e.g. a manager hierarchy or a resource cluster | The generated nodes are read-only, but your manual children and hand-moved members survive re-runs (see [Sync](#run-a-plugin-or-sync-a-tree)). |
+| **Synced** 🔵 | A crawler (CSV, Omada, midPoint, SQL, …) ingests the tree — e.g. an HR org hierarchy | No — it is overwritten on the next crawl. You *can* graft manual children under it. |
+| **Generated** 🟢 | A plugin algorithm you run against existing data — e.g. a manager hierarchy or a resource cluster | Partly — you can rename and re-parent generated nodes, and your renames, placements, manual children and hand-moved members survive re-runs (see [Sync](#run-a-plugin-or-sync-a-tree)). |
 | **Manual** 🟤 | You build it by hand in the UI | Yes — fully editable. |
 
 Every tree also has exactly one **target type** — the kind of thing it groups. This is what lets a context filter know whether to narrow the Matrix's rows or its columns:
@@ -89,6 +89,9 @@ The built-in plugins include:
 | Scope Hierarchy | Resource | The Azure management-group → subscription → resource-group nesting |
 | Entra Group Category Tree | Resource | The Entra group category |
 | Risky Consent | Resource | OAuth consent risk tiers and flagged app consents |
+| Principals by System | Principal | The system each account was loaded from |
+| Resources by System | Resource | The system each resource was loaded from |
+| Context assistant recipe | Resource | A recipe built in the context assistant, plus resources pinned by hand |
 
 ### Create manual
 
@@ -98,7 +101,7 @@ Start an empty tree you curate yourself. Pick a **target type**, give it a **con
 
 ## Run a plugin, or sync a tree
 
-For a **generated** tree, the header shows a **Sync** button. Sync re-runs the generating plugin onto that tree so memberships update — for example, a person who changed manager moves under their new manager. Crucially, **your edits are kept**: manual children you grafted on and members you moved by hand survive the re-run. (The generated nodes themselves stay read-only — you can't rename or reorder them; see below.)
+For a **generated** tree, the header shows a **Sync** button. Sync re-runs the generating plugin onto that tree so memberships update — for example, a person who changed manager moves under their new manager. Crucially, **your edits are kept**: renamed and re-parented nodes, manual children you grafted on and members you moved by hand survive the re-run. The one exception: if the re-run no longer produces a generated node, that node is removed together with everything still under it, manual children included.
 
 To create a fresh generated tree (rather than refresh an existing one), use **+ New → Run a plugin** and choose "Create a new tree" on the preview step.
 
@@ -118,7 +121,7 @@ On a **manual** tree — or on the manual/generated parts of any tree — you ca
 
 On a **Manager Hierarchy** tree there's one more move: drag a person's oval onto another team to record that they report to that team's manager. The person moves immediately, and because the change is stored as a reporting override, it sticks even after the next Sync.
 
-Synced and generated nodes are otherwise read-only — you can graft manual children under them, but you can't rename or reorder the synced/generated nodes themselves.
+Synced nodes are otherwise read-only — you can graft manual children under them, but you can't rename or reorder the synced nodes themselves.
 
 ---
 

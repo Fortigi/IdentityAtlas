@@ -41,6 +41,7 @@ Scoring reads the **inputs** and writes the **outputs**. The inputs change only 
 
 ## Entity Relationship Diagram
 
+<!-- ontology: out-of-scope — risk-scoring tables are not part of the core graph model -->
 ```mermaid
 erDiagram
     RiskScores {
@@ -58,23 +59,28 @@ erDiagram
         string riskOverrideReason
         datetime riskScoredAt
     }
-    GraphRiskProfiles {
-        string id PK
+    RiskProfiles {
+        int id PK
+        string displayName
         string domain
         string industry
         string country
         string llmProvider
-        datetime generatedAt
-        string profileJson
+        datetime createdAt
+        string profile
+        bool isActive
     }
-    GraphRiskClassifiers {
-        string id PK
-        string version
-        string customer
-        datetime generatedAt
+    RiskClassifiers {
+        int id PK
+        int profileId FK
+        int version
+        string displayName
+        datetime createdAt
         string llmProvider
-        string classifierJson
+        string classifiers
+        bool isActive
     }
+    RiskProfiles |o--o{ RiskClassifiers : "profileId"
 ```
 
 The `RiskScores` table links back to the core model by `entityId` matching the `id` column on `Principals`, `Resources`, `Identities`, or `Contexts`. There is no FK constraint — this is intentional, so risk scores can be queried independently of whether the source entity still exists.

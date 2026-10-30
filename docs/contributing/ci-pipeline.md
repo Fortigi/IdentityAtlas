@@ -28,8 +28,8 @@ When product changes are detected, a `filter` job uses `dorny/paths-filter` to p
 | `lint-ps` | Lint: PSScriptAnalyzer | `tools/crawlers/**/*.ps1`, `tools/powershell-sdk/**`, `setup/**/*.ps1` |
 | `lint-js` | Lint: ESLint | `app/ui/src/**`, `tools/crawlers/**/*.jsx` |
 | `unit-tests` | Unit Tests: Pester | `tools/powershell-sdk/**`, `tools/crawlers/shared/**`, `setup/docker/Invoke-CrawlerJob.ps1`, `test/unit/**` |
-| `unit-js` | Unit Tests: Vitest (API) | `app/api/src/**` |
-| `contract-tests` | Contract Tests: Vitest + PostgreSQL | `app/api/src/**`, `app/api/contract-tests/**`, `app/api/test-utils/**` |
+| `unit-js` | Unit Tests: Vitest (API) — includes the [core ontology check](maintaining-the-ontology.md) | `app/api/src/**`, `ontology/**`, `docs/**` |
+| `contract-tests` | Contract Tests: Vitest + PostgreSQL | `app/api/src/**`, `app/api/contract-tests/**`, `app/api/test-utils/**`, `ontology/**` |
 | `unit-ui` | Unit Tests: Vitest (UI) | `app/ui/src/**`, `tools/crawlers/**/*.jsx` |
 | `node-launcher-ui-build` | Build: Node-launcher UI | `app/ui/src/**`, `tools/crawlers/**/*.jsx` |
 | `openapi` | Lint: OpenAPI spec | `app/api/src/openapi.yaml` |
