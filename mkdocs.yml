@@ -189,6 +189,8 @@ nav:
           - Change Requests: architecture/change-requests.md
           - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
           - Adjust Tree (design): architecture/adjust-tree.md
+          - Authorization Workbench (M1 design): architecture/m1-discovery-and-design.md
+          - Authorization Workbench (M1 brief): architecture/m1-brief.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Delta Loading: architecture/sql-connector-delta.md
           - Reports: architecture/reports.md

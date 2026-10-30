@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.3.1" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.3.1> ;
+    owl:versionInfo "2.4.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/2.4.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -249,7 +249,7 @@ ia:Interview a owl:Class ; rdfs:subClassOf ia:Source ;
     ia:table "ContextInterviews" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Claim" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access." ;
+    rdfs:comment "A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias, activity, expertise, duty), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access." ;
     ia:table "ContextClaims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 ia:MemberOverride a owl:Class ; rdfs:subClassOf ia:Knowledge ;
     rdfs:label "Member override" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -584,6 +584,15 @@ ia:ClaimKind_membership a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "memb
 ia:ClaimKind_alias a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "alias" ;
     rdfs:label "alias" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases." .
+ia:ClaimKind_activity a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "activity" ;
+    rdfs:label "activity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "performsActivity: a person performs a business activity (value: its name). Confirmed, the claim names its object, an ia:ActivityContext (objectContextId). Knowledge only: it informs role engineering and never grants access." .
+ia:ClaimKind_expertise a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "expertise" ;
+    rdfs:label "expertise" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "hasExpertise: a person has knowledge of a domain (value: its name). Confirmed, the claim names its object, an ia:ExpertiseContext. Knowledge only." .
+ia:ClaimKind_duty a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "duty" ;
+    rdfs:label "duty" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "holdsResponsibility: a person holds a duty outside or across their daily work — works council, fire warden, a project role (value: its name). Called duty so it is never read as the ContextRole Responsible. Confirmed, the claim names its object, an ia:DutyContext. Knowledge only." .
 
 ia:ClaimSubjectKind a owl:Class ;
     rdfs:label "Claim subject" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -771,6 +780,18 @@ ia:TagContext a owl:Class ; rdfs:subClassOf ia:Context ; ia:typeValue "Tag" ;
     ia:allowedTargetType ia:EntityKind_Principal, ia:EntityKind_Resource, ia:EntityKind_Identity ;
     rdfs:label "Tag" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A manual label (variant 'manual') that the tags API reads and writes. One root per targetType holds them, itself a Tag marked extendedAttributes.tagRoot = true, which the tags API and the GraphTags view leave out." .
+ia:ActivityContext a owl:Class ; rdfs:subClassOf ia:TagContext ; ia:typeValue "Activity" ;
+    ia:allowedTargetType ia:EntityKind_Identity ;
+    rdfs:label "Activity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A business activity people perform (performsActivity), the object of an activity claim. Manual, under one root Activities (extendedAttributes.knowledgeRoot); created when a claim naming it is confirmed (Authorization workbench)." .
+ia:ExpertiseContext a owl:Class ; rdfs:subClassOf ia:TagContext ; ia:typeValue "Expertise" ;
+    ia:allowedTargetType ia:EntityKind_Identity ;
+    rdfs:label "Expertise" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A domain people know (hasExpertise), the object of an expertise claim. Manual, under one root Expertise." .
+ia:DutyContext a owl:Class ; rdfs:subClassOf ia:TagContext ; ia:typeValue "Duty" ;
+    ia:allowedTargetType ia:EntityKind_Identity ;
+    rdfs:label "Duty" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A duty people hold beside their daily work (holdsResponsibility: works council, fire warden, a project role), the object of a duty claim. Manual, under one root Duties." .
 
 # Context types that crawlers write (ia:emittedBy = the crawler's manifest type).
 ia:OrgUnitContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "OrgUnit" ;
@@ -1448,6 +1469,11 @@ ia:sourceClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:range ia:Claim ;
     rdfs:label "sourceClaimId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The interview claim this role was confirmed from. NULL for every other role, and once the interview is deleted." .
+ia:objectContextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range ia:Context ;
+    rdfs:label "objectContextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What an activity, expertise or duty claim is about: an Activity, Expertise or Duty context. Set when the claim is confirmed (found by name, or created); NULL for every other claim and when the object is deleted." .
 ia:interviewId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain ia:Claim ;
     rdfs:range ia:Interview ;

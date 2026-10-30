@@ -25,6 +25,10 @@
 //                the role timeline, the members lists). A membership claim never
 //                changes ContextMembers: members come from their source. A
 //                claim never creates access.
+//   activity, expertise, duty
+//                the person must be named; the claim then names its object (an
+//                Activity / Expertise / Duty context, found by name or created:
+//                orgKnowledge/objects.js) in objectContextId. Knowledge only.
 //   a person claim that says they left, about a person the member list still
 //                lists, confirmed as said ("the interview is right"): the person
 //                is marked former by the decision (memberOverrides.js), on top of
@@ -44,6 +48,8 @@ import { periodDate, MAX_VALUE, MAX_PERIOD_TEXT } from './claims.js';
 import * as store from './store.js';
 import { mergeAliases } from '../../lib/contextNameMatch.js';
 import { applyMemberOverride, clearClaimOverride } from './memberOverrides.js';
+import { isKnowledgeKind, KNOWLEDGE_KINDS } from '../../lib/orgKnowledge.js';
+import { objectFor } from '../orgKnowledge/objects.js';
 
 export class ClaimError extends Error {
   constructor(status, message, details) {
@@ -167,7 +173,17 @@ async function applyEffect(client, claim, merged, holder, replace) {
     return { kind: 'alias', aliases };
   }
   if (claim.claimKind === 'role' && claim.roleSuggestion) return applyRole(client, claim, holder, replace);
+  if (isKnowledgeKind(claim.claimKind)) return applyKnowledge(client, claim, merged, holder);
   return { kind: 'none' };
+}
+
+// An activity, expertise or duty, confirmed: it names its object (found by name,
+// or created — objects.js). Knowledge only: no member, no role, no access.
+async function applyKnowledge(client, claim, merged, holder) {
+  if (!holder) throw new ClaimError(400, 'Choose who this claim is about before confirming it');
+  const object = await objectFor(client, claim.claimKind, merged.value);
+  await client.query(`UPDATE "ContextClaims" SET "objectContextId" = $2 WHERE id = $1`, [claim.id, object.id]);
+  return { kind: 'knowledge', objectContextId: object.id, created: object.created };
 }
 
 const PERIOD_KEYS = ['periodFrom', 'periodTo', 'periodText'];
@@ -220,7 +236,8 @@ export async function decideClaim(db, claimId, body, user) {
   return { claim: await store.getClaimRow(db, claimId), effect };
 }
 
-const KNOWLEDGE_ONLY = new Set(['membership', 'roleHistory']);
+// An activity / expertise / duty decision changed only the claim (its object stays).
+const KNOWLEDGE_ONLY = new Set(['membership', 'roleHistory', ...KNOWLEDGE_KINDS]);
 
 /** Can this decided claim be undone? Its decision must have changed nothing but the claim. Pure. */
 export function canUndo(claim) {

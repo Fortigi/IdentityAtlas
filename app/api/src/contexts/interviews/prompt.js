@@ -62,6 +62,7 @@ const PURPOSE = `Only what matters for identity and access governance — who sh
 - people: who works in or on it, in which role, and how that changed over time; who joined, who LEFT, who used to work on it (membership);
 - who owns it or answers for it, who does the daily work, who stands in (role);
 - other names it goes by ("also known as", "or just", an abbreviation) (alias);
+- what a person DOES (activity: "handles motor claims", "does the month-end close"), what they KNOW (expertise: "fraud", "SAP finance"), and a duty they hold beside their daily work (duty: "works council member", "fire warden", "project lead for X") — one claim per person and item;
 - the systems and applications it uses;
 - facts that change who may have access: sector, contract or customer since, regulation and compliance, sensitive data, outsourcing (property).
 SKIP small talk, greetings, opinions, anecdotes and general facts that change nothing about access (the weather, the office, a nice colleague, how busy it is).`;
@@ -76,11 +77,11 @@ Worth a claim: what the application is for (description); its users, the data it
 
 const RULES = `Reply with JSON only: {"claims": [...]}. Each claim:
 - kind: ${CLAIM_KINDS.map(k => `"${k}"`).join(', ')}.
-- subject: for role, roleHistory and membership, the person's name exactly as said, or "${INTERVIEWEE}" when it is the interviewee speaking about themselves ("I", "me", "ik"). null for description, property and alias.
+- subject: for role, roleHistory, membership, activity, expertise and duty, the person's name exactly as said, or "${INTERVIEWEE}" when it is the interviewee speaking about themselves ("I", "me", "ik"). null for description, property and alias.
 - relation (role and roleHistory only): "owner" (owns it / is accountable), "notOwner" (says they are not the owner), "dayToDay" (does the daily work, handles it), "delegate" (backup, deputy, stands in), "member" (works there), "other".
 - membership (membership only): "current" (is in it now), "former" (used to be, worked on it before), "joined", "left", "rejoined" (was in it before, left, and is back — "came back as architect", "is weer terug").
 - attribute (property only): a short attribute name.
-- value: the claim in one short sentence or phrase; for roleHistory the role held ("junior developer", "architect for the CCoE"); for membership what was said ("left the account", "worked on it in the early years"); for alias the other name alone ("HA").
+- value: the claim in one short sentence or phrase; for roleHistory the role held ("junior developer", "architect for the CCoE"); for membership what was said ("left the account", "worked on it in the early years"); for alias the other name alone ("HA"); for activity, expertise and duty a short name of the thing, two to five words, without the person ("Handle motor claims", "Fraud detection", "Works council member").
 - periodFrom / periodTo: "YYYY", "YYYY-MM" or "YYYY-MM-DD" when the interview gives one, else null. periodText: the period as said ("early on", "now"), else null.
 - quote: the words from the transcript the claim rests on, copied EXACTLY, a sentence or less. No quote, no claim.
 - confidence: 0 to 1, how clearly the transcript states it.

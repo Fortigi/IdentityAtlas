@@ -262,7 +262,11 @@ flowchart LR
     end
     subgraph g_TagContext["Tag"]
       direction LR
+      t_Activity["Activity"]:::Context
+      t_Duty["Duty"]:::Context
+      t_Expertise["Expertise"]:::Context
       t_Tag["Tag"]:::Context
+      t_Activity ~~~ t_Duty ~~~ t_Expertise ~~~ t_Tag
     end
     root --> g_LogicalApplicationContext
     root --> g_OrganizationalUnit

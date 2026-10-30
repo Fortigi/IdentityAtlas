@@ -33,6 +33,7 @@ describe('parseDetailRoute', () => {
   it('reads an Adjust tree tab as its tree key, colons and all', () => {
     expect(isDetailPage('adjust-tree:generated:abc')).toBe(true);
     expect(parseDetailRoute('adjust-tree:generated:abc')).toEqual({ type: 'adjust-tree', id: 'generated:abc' });
+    expect(parseDetailRoute('workbench:u-1')).toEqual({ type: 'workbench', id: 'u-1' });
   });
 
   it('splits type/id on the first colon', () => {
@@ -102,6 +103,7 @@ describe('closeFallbackPage', () => {
   it('maps types with a dedicated landing page', () => {
     expect(closeFallbackPage('run')).toBe('contexts');
     expect(closeFallbackPage('adjust-tree')).toBe('contexts');
+    expect(closeFallbackPage('workbench')).toBe('contexts');
     expect(closeFallbackPage('department')).toBe('contexts');
     expect(closeFallbackPage('context')).toBe('contexts');
     expect(closeFallbackPage('identity')).toBe('identities');
@@ -125,6 +127,7 @@ describe('detailTabIconBg', () => {
     expect(detailTabIconBg('department')).toContain('green');
     expect(detailTabIconBg('context')).toContain('sky');
     expect(detailTabIconBg('adjust-tree')).toContain('sky');
+    expect(detailTabIconBg('workbench')).toContain('emerald');
     expect(detailTabIconBg('report')).toContain('amber');
   });
 

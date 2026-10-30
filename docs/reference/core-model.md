@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.3.1`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `2.4.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -21,6 +21,7 @@ classDiagram
     direction LR
     class AIAgent
     class AccessPermission
+    class ActivityContext
     class AdministrativeUnitContext
     class Agent
     class AppRegistration
@@ -42,9 +43,11 @@ classDiagram
     class CostCenterContext
     class DelegatedPermission
     class DepartmentContext
+    class DutyContext
     class Entitlement
     class EntraDirectoryRole
     class EntraGroupCategoryContext
+    class ExpertiseContext
     class ExternalUser
     class Group
     class GroupOwnership
@@ -89,6 +92,7 @@ classDiagram
     class WorkloadIdentity
     Agent <|-- AIAgent
     Permission <|-- AccessPermission
+    TagContext <|-- ActivityContext
     OrganizationalUnit <|-- AdministrativeUnitContext
     Principal <|-- Agent
     Application <|-- AppRegistration
@@ -109,9 +113,11 @@ classDiagram
     OrganizationalUnit <|-- CostCenterContext
     AccessPermission <|-- DelegatedPermission
     OrganizationalUnit <|-- DepartmentContext
+    TagContext <|-- DutyContext
     AccessPermission <|-- Entitlement
     TechnicalRole <|-- EntraDirectoryRole
     Segment <|-- EntraGroupCategoryContext
+    TagContext <|-- ExpertiseContext
     Person <|-- ExternalUser
     Resource <|-- Group
     ControlPermission <|-- GroupOwnership
@@ -179,11 +185,14 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Value | Class | Template | Groups | Made by | Meaning |
 |---|---|---|---|---|---|
+| `Activity` | `ia:ActivityContext` | Tag | Identity | application code | A business activity people perform (performsActivity), the object of an activity claim. Manual, under one root Activities (extendedAttributes.knowledgeRoot); created when a claim naming it is confirmed (Authorization workbench). |
 | `AdministrativeUnit` | `ia:AdministrativeUnitContext` | Organizational unit | Principal | crawler `demo` | An Entra administrative unit. Only the demo dataset emits it; the Entra crawler does not sync administrative units. |
 | `ContextRecipe` | `ia:ContextRecipeContext` | Logical application | Resource | plugin `context-recipe` | Resources matched by a recipe built in the context assistant, plus the ones pinned by hand. The type says how the context was built; its template (contextCategory) is chosen at save time, an application being the common case. |
 | `CostCenter` | `ia:CostCenterContext` | Organizational unit | Identity | crawler `omada` | A cost center synced from Omada, grouping persons: an org dimension a manager recognises, so an organizational unit. |
 | `Department` | `ia:DepartmentContext` | Organizational unit | Identity, Principal | plugin `department-from-principal`; crawlers `demo`, `omada` | One flat context per distinct Principals.department value (externalId 'dept:<value>'), without hierarchy. The Omada crawler syncs departments of persons under the same value, and the demo dataset writes a department tree of accounts. |
+| `Duty` | `ia:DutyContext` | Tag | Identity | application code | A duty people hold beside their daily work (holdsResponsibility: works council, fire warden, a project role), the object of a duty claim. Manual, under one root Duties. |
 | `EntraGroupCategory` | `ia:EntraGroupCategoryContext` | Segment | Resource | plugin `entra-group-category-tree` | The Entra groups of one category (security, Microsoft 365, dynamic …). |
+| `Expertise` | `ia:ExpertiseContext` | Tag | Identity | application code | A domain people know (hasExpertise), the object of an expertise claim. Manual, under one root Expertise. |
 | `Location` | `ia:LocationContext` | Segment | Identity | crawler `omada` | A work location synced from Omada, grouping persons. |
 | `LogicalApplication` | `ia:LogicalApplicationContext` | Logical application | Resource | crawlers `demo`, `mssql` | An application as the business knows it, grouping the technical resources (entitlements, roles, groups) that belong to it. The SQL connector's IdentityIQ preset loads these from the application list. |
 | `ManagerHierarchy` | `ia:ManagerHierarchyContext` | Organizational unit | Principal | plugin `manager-hierarchy` | One generated context per manager of one system's accounts, plus a synthetic root (externalId 'root'). The manager is recorded only in externalId, which holds the manager's Principal id — there is no manager column or member role. Members are the manager's direct reports (Principals.managerId, overridden per account by ManagerHierarchyOverrides); the manager is a member of their own manager's node, not of their own. parentContextId is the node of the manager's own manager, else the root. Accounts with no manager that manage nobody are members of the root; a top-level manager is a member of no node. A managerId that points at no account of the system still becomes a node, named 'Unknown'. A reporting cycle, a self-reference included, leaves a node without a parent: the runner refuses the link that would close the cycle. |
@@ -604,14 +613,14 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 ### ContextClaims
 
-`ia:Claim` · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.
+`ia:Claim` · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias, activity, expertise, duty), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.
 
 Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
 | `attribute` | `ia:attribute` | text |  | A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source. |
-| `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias` | What the claim states. |
+| `claimKind` | `ia:claimKind` | text | `description`, `property`, `role`, `roleHistory`, `membership`, `alias`, `activity`, `expertise`, `duty` | What the claim states. |
 | `claimStatus` | `ia:claimStatus` | text | `proposed`, `confirmed`, `edited`, `rejected` | Where the claim stands in review. |
 | `confidence` | `ia:confidence` | numeric |  | How clearly the transcript states it, 0 to 1. Not a decision. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
@@ -620,6 +629,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `decidedBy` | `ia:decidedBy` | text |  | Who decided it. |
 | `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person. Ingest alias: `identityExternalId`. |
 | `interviewId` | `ia:interviewId` | uuid | → ContextInterviews | The interview that makes the claim. |
+| `objectContextId` | `ia:objectContextId` | uuid | → Contexts | What an activity, expertise or duty claim is about: an Activity, Expertise or Duty context. Set when the claim is confirmed (found by name, or created); NULL for every other claim and when the object is deleted. |
 | `periodFrom` | `ia:periodFrom` | date |  | The start of the period the claim is about, when the interview gives one. |
 | `periodText` | `ia:periodText` | text |  | The period as said (early years, now). |
 | `periodTo` | `ia:periodTo` | date |  | The end of the period the claim is about, when the interview gives one. |
@@ -740,6 +750,9 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `roleHistory` | `ia:ClaimKind_roleHistory` | A role a person held at the context over a period. Knowledge only. |
 | `membership` | `ia:ClaimKind_membership` | Whether a person is in the context: the status (current, former, joined, left, rejoined) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source. |
 | `alias` | `ia:ClaimKind_alias` | Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases. |
+| `activity` | `ia:ClaimKind_activity` | performsActivity: a person performs a business activity (value: its name). Confirmed, the claim names its object, an ia:ActivityContext (objectContextId). Knowledge only: it informs role engineering and never grants access. |
+| `expertise` | `ia:ClaimKind_expertise` | hasExpertise: a person has knowledge of a domain (value: its name). Confirmed, the claim names its object, an ia:ExpertiseContext. Knowledge only. |
+| `duty` | `ia:ClaimKind_duty` | holdsResponsibility: a person holds a duty outside or across their daily work — works council, fire warden, a project role (value: its name). Called duty so it is never read as the ContextRole Responsible. Confirmed, the claim names its object, an ia:DutyContext. Knowledge only. |
 
 ### Claim proposer
 

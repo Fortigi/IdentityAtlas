@@ -13,6 +13,10 @@ export const KIND_LABELS = {
   roleHistory: 'Role history',
   membership: 'Membership',
   alias: 'Also known as',
+  // What a person does, knows and holds beside their work (the Authorization workbench groups by these).
+  activity: 'Activity',
+  expertise: 'Expertise',
+  duty: 'Duty',
 };
 
 // What a membership claim's status means, in the review list.
@@ -99,9 +103,9 @@ export function periodLabel(claim) {
   return range || claim.periodText || '';
 }
 
-const PERSON_CLAIM_KINDS = new Set(['role', 'roleHistory', 'membership']);
+const PERSON_CLAIM_KINDS = new Set(['role', 'roleHistory', 'membership', 'activity', 'expertise', 'duty']);
 
-/** A claim about a person (role, history, membership) — the People overview's — rather than about the unit. */
+/** A claim about a person (role, history, membership, activity, expertise, duty) rather than about the unit. */
 export const isPersonClaim = (c) => PERSON_CLAIM_KINDS.has(c?.claimKind);
 
 /** The confirmed claims about the unit itself, in the groups "What we know" shows. */
@@ -216,7 +220,7 @@ export function anyInProgress(interviews) {
 }
 
 // ─── The manual "Add claim" form ─────────────────────────────────────────
-export const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership']);
+export const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership', 'activity', 'expertise', 'duty']);
 
 /** The body POSTed for the form's fields: only what the kind uses. Pure. */
 export function manualClaimBody(form) {

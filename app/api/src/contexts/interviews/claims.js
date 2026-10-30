@@ -21,6 +21,8 @@
 //     different words are never a match;
 //   - a period is from / to (a year, a year-month or a date; anything else is
 //     kept only as text) and the text as spoken ("early years").
+//   - an activity / expertise / duty names the person and, as value, the name of
+//     what they do, know or hold (≤ MAX_OBJECT_NAME): "Handle claims", not a sentence;
 // Confidence is clamped to 0..1 (default 0.5). relevance is the model's 'high' |
 // 'low' when it gave one (relevance.js decides the final tier).
 //
@@ -31,7 +33,11 @@
 // status. A role without its person, an unknown kind or a missing quote is
 // still dropped. Every drop names the field it failed on (`field`). Pure.
 
-export const CLAIM_KINDS = Object.freeze(['description', 'property', 'role', 'roleHistory', 'membership', 'alias']);
+import { KNOWLEDGE_KINDS, isKnowledgeKind, MAX_OBJECT_NAME } from '../../lib/orgKnowledge.js';
+
+// The last three (migration 106, lib/orgKnowledge.js): what a person does, knows,
+// and which duty they hold — each a name of its object, about one person.
+export const CLAIM_KINDS = Object.freeze(['description', 'property', 'role', 'roleHistory', 'membership', 'alias', ...KNOWLEDGE_KINDS]);
 // A membership claim's status, in `attribute`: is the person in it now, did they leave?
 // 'rejoined': was in it before, left, and is in it again. A code list, not a CHECK.
 export const MEMBERSHIP_STATUSES = Object.freeze(['current', 'former', 'joined', 'left', 'rejoined']);
@@ -154,7 +160,7 @@ const text = (v, max) => {
 };
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
-const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership']);
+const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership', ...KNOWLEDGE_KINDS]);
 
 const attributeName = (v) => {
   const key = text(v, MAX_ATTRIBUTE + 1);
@@ -171,6 +177,7 @@ function checkAttribute(kind, raw) {
       ? { attribute: raw.membership }
       : { error: `a membership claim needs its status: ${MEMBERSHIP_STATUSES.join(', ')}`, field: 'membership' };
   }
+  if (isKnowledgeKind(kind)) return { attribute: null };
   if (PERSON_KINDS.has(kind)) return { attribute: RELATIONS.includes(raw.relation) ? raw.relation : 'other' };
   return { attribute: null };
 }
@@ -230,6 +237,7 @@ function checkFields(raw) {
   const attr = checkAttribute(kind, raw);
   if (attr.error) return drop(attr.field ?? 'attribute', attr.error);
   if (kind === 'alias' && value.length > MAX_ALIAS) return drop('value', `an alias is a name of at most ${MAX_ALIAS} characters`);
+  if (isKnowledgeKind(kind) && value.length > MAX_OBJECT_NAME) return drop('value', `an ${kind} is a name of at most ${MAX_OBJECT_NAME} characters`);
   return { value, subject, attribute: attr.attribute };
 }
 
