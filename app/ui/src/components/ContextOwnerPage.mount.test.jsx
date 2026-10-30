@@ -15,6 +15,8 @@ const UNIT = 'aaaaaaaa-0000-4000-8000-000000000001';
 const SECOND = 'aaaaaaaa-0000-4000-8000-000000000004';
 const RESOURCES = 'aaaaaaaa-0000-4000-8000-000000000002'; // variant, in scope
 const ACCOUNTS = 'aaaaaaaa-0000-4000-8000-000000000003';  // variant of a variant, NOT in scope
+const OWN_SUB = 'aaaaaaaa-0000-4000-8000-0000000000c2';   // sub-unit without an owner of its own, in scope
+const OWNED_SUB = 'aaaaaaaa-0000-4000-8000-0000000000c3'; // sub-unit with its own owner, NOT in scope
 
 const unit = (id, displayName, extra = {}) => ({
   attributes: {
@@ -38,11 +40,19 @@ function api(unitExtra = {}) {
       return [{ id: 'r1', relationshipType: 'SameUnitAs', relatedContextId: UNIT, relatedDisplayName: 'Finance', relatedTargetType: 'Identity', relatedTotalMemberCount: 1 }];
     }
     if (u.includes('/relationships')) return relationships;
+    if (u.includes('/references')) {
+      return { memberType: 'Identity', groups: [
+        { key: 'resources', total: 51, items: [{ displayName: 'Finance-Admins', resourceType: 'Group', systemName: 'Entra ID', assignmentType: 'Direct' }] },
+        { key: 'businessRoles', total: 0, items: [] },
+        { key: 'contexts', total: 1, items: [{ displayName: 'Sales', contextType: 'Department' }] },
+      ] };
+    }
     if (u.includes('/members')) return { total: 1, data: [{ id: 'm-1', displayName: 'Alice Member', principalType: 'User', addedBy: 'analyst' }] };
     if (u.includes('/timeline')) return { events: [] };
     if (u.includes('/risk-scores/')) return jsonResponse({}, { ok: false, status: 404 });
     if (u.endsWith(`/api/contexts/${UNIT}`)) return unit(UNIT, 'Finance', unitExtra);
     if (u.endsWith(`/api/contexts/${SECOND}`)) return unit(SECOND, 'Payroll');
+    if (u.endsWith(`/api/contexts/${OWN_SUB}`)) return unit(OWN_SUB, 'Accounts payable', { parentContextId: UNIT, parentDisplayName: 'Finance' });
     if (u.endsWith(`/api/contexts/${RESOURCES}`)) return unit(RESOURCES, 'Finance', { targetType: 'Resource' });
     if (u.endsWith(`/api/contexts/${ACCOUNTS}`)) return jsonResponse({ error: 'Context owners can only open their own context' }, { ok: false, status: 403 });
     return undefined;
@@ -157,6 +167,73 @@ describe('ContextOwnerPage — one context', () => {
     });
     expect(fetched(authFetch, `/api/contexts/${RESOURCES}/members`)).toBe(true);
     expect(fetched(authFetch, `/api/contexts/${ACCOUNTS}/members`)).toBe(false);
+  });
+});
+
+describe('ContextOwnerPage — sub-units', () => {
+  const withSubs = { subContexts: [
+    { id: OWN_SUB, displayName: 'Accounts payable', memberCount: 2 },
+    { id: OWNED_SUB, displayName: 'Treasury', memberCount: 3 },
+  ] };
+  function mountWithSubs() {
+    const authFetch = makeAuthFetch((url) => {
+      if (String(url).endsWith(`/api/contexts/${UNIT}`)) return { ...unit(UNIT, 'Finance'), ...withSubs };
+      return api()(url);
+    });
+    renderWithProviders(<ContextOwnerPage />, {
+      auth: {
+        authFetch, logout: vi.fn(), authEnabled: true, hasWildcard: false, permissions: new Set(),
+        account: { name: 'Olivia Owner' },
+        contextOwner: { contexts: [ctx(UNIT, 'Finance', 'Accountable')], contextIds: [UNIT, OWN_SUB] },
+      },
+    });
+    return authFetch;
+  }
+
+  it('opens a sub-unit in scope in place, leaves one with its own owner as plain text, and leads back by the breadcrumb', async () => {
+    const authFetch = mountWithSubs();
+    const subUnits = await screen.findByRole('region', { name: 'Sub-units' });
+    expect(within(subUnits).queryByRole('button', { name: /Treasury/ })).toBeNull();
+    expect(within(subUnits).getByText('Treasury')).toBeInTheDocument();
+
+    await userEvent.click(within(subUnits).getByRole('button', { name: /Accounts payable/ }));
+    expect(await screen.findByRole('heading', { name: 'Accounts payable', level: 2 })).toBeInTheDocument();
+    expect(fetched(authFetch, `/api/contexts/${OWN_SUB}/members`)).toBe(true);
+    expect(fetched(authFetch, OWNED_SUB)).toBe(false);
+
+    // Its parent is the owner's own unit: a link back, opened in place.
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    await userEvent.click(within(crumbs).getByRole('button', { name: 'Finance' }));
+    expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
+  });
+});
+
+describe('ContextOwnerPage — the references of a member', () => {
+  it('expands a member to the names of what it holds, read for that member of that context', async () => {
+    const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')]);
+    const toggle = await screen.findByRole('button', { name: 'Alice Member' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(fetched(authFetch, '/references')).toBe(false);
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const held = await screen.findByRole('region', { name: 'Groups & resources' });
+    expect(within(held).getByText('Finance-Admins')).toBeInTheDocument();
+    expect(within(held).getByText('+ 50 more')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Other contexts' })).getByText('Sales')).toBeInTheDocument();
+    expect(fetched(authFetch, `/api/contexts/${UNIT}/members/m-1/references`)).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Finance-Admins' })).toBeNull();
+
+    await userEvent.click(toggle);
+    expect(screen.queryByRole('region', { name: 'Groups & resources' })).toBeNull();
+  });
+
+  it('offers no references while sub-units are included (they are not own members of this unit)', async () => {
+    mount([ctx(UNIT, 'Finance', 'Responsible')]);
+    await screen.findByRole('button', { name: 'Alice Member' });
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Include sub-units' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Alice Member' })).toBeNull());
+    expect(screen.getByText('Alice Member')).toBeInTheDocument();
   });
 });
 
