@@ -38,6 +38,14 @@ export const CONTEXT_PATHS = [
   new RegExp(`^/api/risk-scores/contexts/${UUID}$`),
 ];
 
+// One member's direct references (names only, no ids — see
+// contexts/memberReferences.js). Allowed when the context is in scope AND the
+// member is a member of that context itself; the second half needs the
+// database, so the verdict hands it to the caller as `member`
+// (middleware/contextOwnerMode.js). A member id taken from another context, or
+// from one of this context's sub-units, is refused there.
+export const MEMBER_REFERENCES_PATH = new RegExp(`^/api/contexts/${UUID}/members/${UUID}/references$`);
+
 // The Actions cards' downloads: the Entitlement Pivot (an application) and the
 // unit report (a unit of accounts or people). Allowed only when every context
 // they name is in scope; the caller then checks what those values RESOLVE to (a
@@ -84,9 +92,19 @@ export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.
   return { allow: false, resolve: wanted };
 }
 
-// { method, path, query } + the owner's scope → ALLOW, DENY, or
+// A member's references: the context must be in scope; whether the member is
+// one of its members is for the caller to check. null when not this path.
+export function memberReferencesVerdict(path, contextIds) {
+  const m = MEMBER_REFERENCES_PATH.exec(path);
+  if (!m) return null;
+  if (!contextIds.has(m[1])) return DENY;
+  return { allow: false, member: { contextId: m[1], memberId: m[2] } };
+}
+
+// { method, path, query } + the owner's scope → ALLOW, DENY,
 // { allow: false, resolve: [...] } when the answer depends on what the named
-// contexts resolve to.
+// contexts resolve to, or { allow: false, member: { contextId, memberId } }
+// when it depends on that member being in that context.
 export function contextOwnerVerdict({ method, path, query }, contextIds) {
   if (method !== 'GET') return DENY;
   if (SHELL_PATHS.has(path)) return ALLOW;
@@ -94,6 +112,8 @@ export function contextOwnerVerdict({ method, path, query }, contextIds) {
     const m = shape.exec(path);
     if (m) return contextIds.has(m[1]) ? ALLOW : DENY;
   }
+  const member = memberReferencesVerdict(path, contextIds);
+  if (member) return member;
   const refused = REPORT_EXPORTS.get(path);
   if (refused) return reportExportVerdict(query, contextIds, refused);
   return DENY;

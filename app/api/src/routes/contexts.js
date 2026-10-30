@@ -8,6 +8,7 @@
 //   contexts/members.js — POST/DELETE/PATCH-move /contexts/:id/members[...]
 //   contexts/roles.js   — GET/PUT /contexts/:id/roles + DELETE /contexts/:id/roles/:roleId
 //   contexts/relationships.js — GET/POST /contexts/:id/relationships + DELETE .../:relId
+//   contexts/references.js — GET /contexts/:id/members/:memberId/references (names only)
 //   contexts/shared.js  — useSql / UUID_RE / TARGET_TYPES + the writeContexts gate
 //
 // This file composes them onto one router and re-exports it, so the mount in
@@ -21,6 +22,7 @@ import crudRouter from './contexts/crud.js';
 import membersRouter from './contexts/members.js';
 import rolesRouter from './contexts/roles.js';
 import relationshipsRouter from './contexts/relationships.js';
+import referencesRouter from './contexts/references.js';
 
 const router = Router();
 router.use(readRouter);
@@ -28,5 +30,6 @@ router.use(crudRouter);
 router.use(membersRouter);
 router.use(rolesRouter);
 router.use(relationshipsRouter);
+router.use(referencesRouter);
 
 export default router;

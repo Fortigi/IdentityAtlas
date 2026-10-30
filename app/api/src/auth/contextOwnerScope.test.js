@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ALLOW, DENY, CONTEXT_OWNER_DENIED, REPORT_EXPORT_PATH, UNIT_REPORT_EXPORT_PATH, SHELL_PATHS,
-  contextOwnerVerdict, reportExportVerdict, requestedContexts,
+  contextOwnerVerdict, reportExportVerdict, requestedContexts, memberReferencesVerdict,
 } from './contextOwnerScope.js';
 
 const MINE = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -90,6 +90,43 @@ describe('contextOwnerVerdict — everything else', () => {
     '/api/admin/roles', '/api/admin/context-owner-access', '/api/matrix/shares/resolve', '/api/permissions',
   ])('refuses GET %s', (path) => {
     expect(get(path, { contexts: MINE })).toBe(DENY);
+  });
+});
+
+describe('the references of a member', () => {
+  const MEMBER = 'bbbbbbbb-0000-4000-8000-000000000004';
+  const refs = (ctx, member = MEMBER) => `/api/contexts/${ctx}/members/${member}/references`;
+
+  it('hands the member check to the caller when the context is in scope', () => {
+    expect(get(refs(MINE))).toEqual({ allow: false, member: { contextId: MINE, memberId: MEMBER } });
+    expect(get(refs(VARIANT))).toEqual({ allow: false, member: { contextId: VARIANT, memberId: MEMBER } });
+  });
+
+  it('refuses outright for a context outside the scope — no member check asked for', () => {
+    expect(get(refs(OTHER))).toBe(DENY);
+  });
+
+  it('captures the member id exactly — an in-scope CONTEXT id in the member slot is just a member id', () => {
+    expect(get(refs(OTHER, MINE))).toBe(DENY);
+    expect(get(refs(MINE, OTHER))).toEqual({ allow: false, member: { contextId: MINE, memberId: OTHER } });
+  });
+
+  it.each([
+    [`${refs(MINE)}/`, 'trailing slash'],
+    [`/api/contexts/${MINE}/members/${MEMBER}`, 'the member without /references'],
+    [`/api/contexts/${MINE}/members/${MEMBER}/references/x`, 'a deeper path'],
+    [`/api/contexts/${MINE}/members/not-a-uuid/references`, 'a member id that is not a uuid'],
+    [`/api/contexts/${MINE}/members/${MEMBER.toUpperCase()}/references`, 'an upper-case member id'],
+  ])('refuses %s (%s)', (path) => {
+    expect(get(path)).toBe(DENY);
+  });
+
+  it('refuses anything but GET', () => {
+    expect(contextOwnerVerdict({ method: 'DELETE', path: refs(MINE) }, scope)).toBe(DENY);
+  });
+
+  it('is null (not its business) for any other path', () => {
+    expect(memberReferencesVerdict(`/api/contexts/${MINE}/members`, scope)).toBeNull();
   });
 });
 
