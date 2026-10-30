@@ -70,7 +70,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.3.1 | UI framework | MIT |
 | react-dom | ^19.3.1 | React DOM renderer | MIT |
-| vite | ^8.3.4 | Build tool and dev server | MIT |
+| vite | ^8.3.5 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.25.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.26.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
