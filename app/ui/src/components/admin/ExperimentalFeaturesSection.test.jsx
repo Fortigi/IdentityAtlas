@@ -46,11 +46,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports, contextAssistant and the two source-owner settings follow matrixSharing for the same reason.
+// customReports, contextAssistant, orgKnowledge and the two source-owner settings follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, sourceOwnerAccountables: matrixSharing, sourceOwnerNameMatch: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, sourceOwnerAccountables: matrixSharing, sourceOwnerNameMatch: matrixSharing, orgKnowledge: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -62,9 +62,9 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Six cards: experimental crawlers off; matrix sharing, custom reports, the context assistant and both source-owner settings on.
+    // Seven cards: experimental crawlers off; matrix sharing, custom reports, the context assistant, organisation knowledge and both source-owner settings on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(5);
+    expect(screen.getAllByText('Enabled')).toHaveLength(6);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -72,7 +72,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(5);
+    expect(screen.getAllByText('Disabled')).toHaveLength(6);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
@@ -170,6 +170,19 @@ describe('ExperimentalFeaturesSection', () => {
       renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
         { auth: { authFetch: makeAuthFetch({}) } });
       expect(await screen.findByRole('switch', { name: 'Matrix sharing' })).toBeDisabled();
+    });
+  });
+
+  describe('Organisation knowledge', () => {
+    it('turns it ON by posting orgKnowledge:true, and says the text goes to the model', async () => {
+      const { authFetch } = render(true, undefined, false);
+      const sw = await screen.findByRole('switch', { name: 'Organisation knowledge' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'));
+      expect(screen.getByText(/the text of what is uploaded is sent/)).toBeInTheDocument();
+      await userEvent.click(sw);
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'orgKnowledge', enabled: true });
     });
   });
 

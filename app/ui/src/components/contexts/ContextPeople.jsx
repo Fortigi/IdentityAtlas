@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useHasPermission } from '@ui/auth/usePermissions';
@@ -6,6 +6,8 @@ import { PencilIcon } from '@ui/components/admin/adminIcons';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import ContextBestGuess from './ContextBestGuess';
 import ContextRoleModal from './ContextRoleModal';
+import InterviewSuggestions from './interviews/InterviewSuggestions';
+import { useContextClaims } from './interviews/claimsContext';
 
 // ─── The people who answer for a context ─────────────────────────────────
 // An organizational unit and a logical application carry roles: one
@@ -27,6 +29,10 @@ import ContextRoleModal from './ContextRoleModal';
 //
 // In a read-only shell (a context owner's page) the names are plain text and
 // there is no suggestion: the owner sees who answers for the unit, nothing to act on.
+//
+// Inside a template profile (ClaimsProvider) the roles interviews suggest show
+// under each role too (interviews/InterviewSuggestions), and a role confirmed
+// from an interview names it ("from the interview with …").
 //
 // A role the source sync stated (a synced context's owner, addedBy 'sync')
 // says which system it came from; an analyst's choice replaces it and then
@@ -53,6 +59,9 @@ function useContextRoles(contextId) {
   const { authFetch } = useAuth();
   const { data: roles, loading, error, reload } = useFetch(`/api/contexts/${contextId}/roles`, { authFetch, initialData: [] });
   const [actionError, setActionError] = useState(null);
+  // A claim confirmed elsewhere on the page may have set a role: read them again.
+  const rolesVersion = useContextClaims()?.rolesVersion ?? 0;
+  useEffect(() => { if (rolesVersion > 0) reload(); }, [rolesVersion, reload]);
 
   async function write(url, init, fallback) {
     setActionError(null);
@@ -119,9 +128,12 @@ function PeopleBlocks({ contextId, sourceName, onOpenDetail, heading, accountabl
           <ContextBestGuess contextId={contextId} canWrite={canWrite}
             onConfirm={holder => add('Accountable', holder)} onChooseOther={() => open('Accountable')} />
         )}
+        <InterviewSuggestions role="Accountable" label={accountableLabel} holders={accountable} />
       </RoleBlock>
       <RoleBlock label="Responsible" helper={ROLE_HELPERS.Responsible(noun)} holders={responsible} loading={loading}
-        sourceName={sourceName} canWrite={canWrite} onSet={() => open('Responsible')} onOpenDetail={openPerson} />
+        sourceName={sourceName} canWrite={canWrite} onSet={() => open('Responsible')} onOpenDetail={openPerson}>
+        <InterviewSuggestions role="Responsible" holders={responsible} />
+      </RoleBlock>
       {message && !editing && (
         <div role="alert" className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded px-2 py-1">{message}</div>
       )}
@@ -206,6 +218,11 @@ function Holder({ role, sourceName, onOpenDetail }) {
         ? <button type="button" onClick={() => onOpenDetail(kind, role.principalId || role.identityId, name)} className="font-medium hover:underline hover:text-blue-700 dark:hover:text-blue-300">{name}</button>
         : <span className="font-medium">{name}</span>}
       {FROM_SOURCE.has(role.addedBy) && sourceName && <span className="text-xs text-gray-600 dark:text-gray-400">from {sourceName}</span>}
+      {role.sourceClaimId && (
+        <span className="text-xs text-gray-600 dark:text-gray-400" title={role.sourceQuote || undefined}>
+          from the interview with {role.sourceIntervieweeName}, {role.sourceInterviewedAt}
+        </span>
+      )}
     </span>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hiddenDetailKeys, detailEntries, detailLabel, provenanceText } from './ContextDetails.helpers';
+import { hiddenDetailKeys, detailEntries, detailLabel, provenanceText, extendedLabel, detailValue } from './ContextDetails.helpers';
 import { formatDate } from '@ui/utils/formatters';
 
 const keys = (entries) => entries.map(([k]) => k);
@@ -90,5 +90,20 @@ describe('provenanceText (a unit of an uploaded list)', () => {
     expect(detailLabel('lastUploadAt')).toBe('Last upload on');
     expect(hiddenDetailKeys({}).has('scopeSystemType')).toBe(true);
     expect(hiddenDetailKeys({}, { analyst: true }).has('scopeSystemType')).toBe(false);
+  });
+});
+
+describe('the aliases attribute', () => {
+  it('reads as "Also known as"; every other extended key keeps its own name', () => {
+    expect(extendedLabel('aliases')).toBe('Also known as');
+    expect(extendedLabel('customerSince')).toBe('customerSince');
+  });
+
+  it('shows a list of names as one line, and leaves anything else as it is', () => {
+    expect(detailValue(['Port Co', 'PC'])).toBe('Port Co, PC');
+    const mixed = ['Port Co', 3];
+    expect(detailValue(mixed)).toBe(mixed);
+    expect(detailValue('2019')).toBe('2019');
+    expect(detailValue(null)).toBeNull();
   });
 });

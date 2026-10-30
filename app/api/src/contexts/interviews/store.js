@@ -1,0 +1,370 @@
+// Context interviews — the SQL. Every statement the feature runs is here, so the
+// contract test (contract-tests/contextInterviews.contract.test.js) can hold
+// them all against a migrated PostgreSQL; the rest of the feature is pure or
+// calls these. Tables: migration 099 (and 100: relevance, quote offsets, two more kinds).
+//
+// Dates leave PostgreSQL as text ('YYYY-MM-DD'): node-postgres turns a DATE into
+// a local-midnight Date, which shifts a day in any timezone west of UTC.
+
+import { normalizedNameSql } from '../../lib/nameMatch.js';
+
+const INTERVIEW_COLUMNS = `iv.id, iv."contextId", iv."principalId", iv."identityId", iv."intervieweeName",
+       iv."interviewedAt"::text AS "interviewedAt", iv."fileName", iv.language, iv."extractionStatus",
+       iv."extractionMessage", iv."extractionStartedAt", iv.model, iv."createdBy", iv."createdAt"`;
+
+export async function insertInterview(db, row) {
+  const r = await db.query(`
+    INSERT INTO "ContextInterviews" AS iv
+      ("contextId", "principalId", "identityId", "intervieweeName", "interviewedAt", "fileName", transcript, language,
+       "extractionStatus", "createdBy")
+    VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8, $9, $10)
+    RETURNING ${INTERVIEW_COLUMNS}`,
+  [row.contextId, row.principalId ?? null, row.identityId ?? null, row.intervieweeName, row.interviewedAt, row.fileName,
+    row.transcript, row.language ?? null, row.extractionStatus, row.createdBy ?? null]);
+  return r.rows[0];
+}
+
+/** The interviews of a context, newest first, each with its claim counts by status. */
+export async function listInterviews(db, contextId) {
+  const r = await db.query(`
+    SELECT ${INTERVIEW_COLUMNS},
+           COUNT(c.id) FILTER (WHERE c."claimStatus" = 'proposed')::int              AS proposed,
+           COUNT(c.id) FILTER (WHERE c."claimStatus" IN ('confirmed', 'edited'))::int AS confirmed,
+           COUNT(c.id) FILTER (WHERE c."claimStatus" = 'rejected')::int              AS rejected
+      FROM "ContextInterviews" iv
+      LEFT JOIN "ContextClaims" c ON c."interviewId" = iv.id
+     WHERE iv."contextId" = $1
+     GROUP BY iv.id
+     ORDER BY iv."interviewedAt" DESC, iv."createdAt" DESC`, [contextId]);
+  return r.rows;
+}
+
+/** One interview of a context, with its transcript when asked; null when it is not that context's. */
+export async function getInterview(db, contextId, interviewId, { withTranscript = false } = {}) {
+  return db.queryOne(`
+    SELECT ${INTERVIEW_COLUMNS}${withTranscript ? ', iv.transcript' : ''}
+      FROM "ContextInterviews" iv
+     WHERE iv.id = $1 AND iv."contextId" = $2`, [interviewId, contextId]);
+}
+
+/** What extraction needs: the interview, its transcript, and the context it is about. */
+export async function loadForExtraction(db, interviewId) {
+  return db.queryOne(`
+    SELECT ${INTERVIEW_COLUMNS}, iv.transcript, ctx."displayName" AS "contextName", ctx."contextCategory",
+           ctx."extendedAttributes"->'aliases' AS "contextAliases"
+      FROM "ContextInterviews" iv
+      JOIN "Contexts" ctx ON ctx.id = iv."contextId"
+     WHERE iv.id = $1`, [interviewId]);
+}
+
+export async function setExtraction(db, interviewId, { status, message = null, model = null, started = false }) {
+  await db.query(`
+    UPDATE "ContextInterviews"
+       SET "extractionStatus" = $2, "extractionMessage" = $3,
+           model = COALESCE($4, model),
+           "extractionStartedAt" = CASE WHEN $5 THEN now() ELSE "extractionStartedAt" END
+     WHERE id = $1`, [interviewId, status, message, model, started]);
+}
+
+export async function deleteInterview(db, contextId, interviewId) {
+  const r = await db.query(`DELETE FROM "ContextInterviews" WHERE id = $1 AND "contextId" = $2`, [interviewId, contextId]);
+  return r.rowCount;
+}
+
+// ─── Claims ──────────────────────────────────────────────────────────────
+const CLAIM_SELECT = `
+    SELECT c.id, c."interviewId", c."contextId", c."claimKind", c."subjectKind", c."principalId", c."identityId",
+           c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName", c."subjectMatch",
+           c.attribute, c.value, c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText",
+           c.quote, c."quoteStart", c."quoteEnd", c.confidence::float8 AS confidence, c.relevance,
+           c."roleSuggestion", c."claimStatus" AS status, c."proposedBy",
+           c."decidedBy", c."decidedAt", c."createdAt",
+           (SELECT r.id FROM "ContextRoles" r WHERE r."sourceClaimId" = c.id LIMIT 1) AS "appliedRoleId",
+           iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "Principals" p ON p.id = c."principalId"
+      LEFT JOIN "Identities" i ON i.id = c."identityId"`;
+
+/** The claims of a context in the given statuses, newest interview first. */
+export async function listClaims(db, contextId, statuses) {
+  const r = await db.query(`${CLAIM_SELECT}
+     WHERE c."contextId" = $1 AND c."claimStatus" = ANY($2::text[])
+     ORDER BY iv."interviewedAt" DESC, c."createdAt", c.id`, [contextId, statuses]);
+  return r.rows;
+}
+
+export async function getClaimRow(db, claimId) {
+  return db.queryOne(`${CLAIM_SELECT} WHERE c.id = $1`, [claimId]);
+}
+
+const CLAIM_INSERT_COLUMNS = ['claimKind', 'subjectKind', 'principalId', 'identityId', 'subjectName', 'subjectMatch', 'attribute',
+  'value', 'periodFrom', 'periodTo', 'periodText', 'quote', 'confidence', 'roleSuggestion', 'relevance', 'quoteStart', 'quoteEnd'];
+
+/** Insert claims of one interview in one statement (jsonb_to_recordset). Returns their ids. */
+export async function insertClaims(db, { interviewId, contextId, proposedBy }, claims) {
+  if (claims.length === 0) return [];
+  const records = claims.map(c => Object.fromEntries(CLAIM_INSERT_COLUMNS.map(k => [k, c[k] ?? null])));
+  const r = await db.query(`
+    INSERT INTO "ContextClaims"
+      ("interviewId", "contextId", "proposedBy", ${CLAIM_INSERT_COLUMNS.map(k => `"${k}"`).join(', ')})
+    SELECT $1, $2, $3, x."claimKind", x."subjectKind", x."principalId", x."identityId", x."subjectName", x."subjectMatch",
+           x.attribute, x.value, x."periodFrom", x."periodTo", x."periodText", x.quote, x.confidence, x."roleSuggestion",
+           x.relevance, x."quoteStart", x."quoteEnd"
+      FROM jsonb_to_recordset($4::jsonb) AS x(
+           "claimKind" text, "subjectKind" text, "principalId" uuid, "identityId" uuid, "subjectName" text, "subjectMatch" text,
+           attribute text, value text, "periodFrom" date, "periodTo" date, "periodText" text, quote text,
+           confidence numeric, "roleSuggestion" text, relevance text, "quoteStart" integer, "quoteEnd" integer)
+    RETURNING id`, [interviewId, contextId, proposedBy, JSON.stringify(records)]);
+  return r.rows.map(x => x.id);
+}
+
+/** A re-run replaces the model's undecided claims; decided ones and an analyst's stay. */
+export async function deleteProposedModelClaims(db, interviewId) {
+  await db.query(`DELETE FROM "ContextClaims" WHERE "interviewId" = $1 AND "claimStatus" = 'proposed' AND "proposedBy" = 'model'`, [interviewId]);
+}
+
+/** Every claim of an interview that a re-run must not propose again. */
+export async function keptClaims(db, interviewId) {
+  const r = await db.query(`
+    SELECT "claimKind", "subjectName", attribute, value FROM "ContextClaims"
+     WHERE "interviewId" = $1 AND ("claimStatus" <> 'proposed' OR "proposedBy" = 'analyst')`, [interviewId]);
+  return r.rows;
+}
+
+/** Every decided claim of a context (any interview): a re-extraction must not propose one again, a rejected one included. */
+export async function decidedClaims(db, contextId) {
+  const r = await db.query(`
+    SELECT "claimKind", "subjectName", "principalId", "identityId", attribute, value FROM "ContextClaims"
+     WHERE "contextId" = $1 AND "claimStatus" IN ('confirmed', 'edited', 'rejected')`, [contextId]);
+  return r.rows;
+}
+
+/**
+ * Which of `names` (normalised as lib/nameMatch.js does) is the display name or
+ * an alias of ANOTHER context. Returns those names.
+ */
+export async function otherContextNames(db, contextId, names) {
+  if (names.length === 0) return [];
+  const r = await db.query(`
+    SELECT DISTINCT n.name
+      FROM unnest($2::text[]) AS n(name)
+      JOIN "Contexts" c ON c.id <> $1
+       AND (${normalizedNameSql('c."displayName"')} = n.name
+            OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(
+                         CASE WHEN jsonb_typeof(c."extendedAttributes"->'aliases') = 'array'
+                              THEN c."extendedAttributes"->'aliases' ELSE '[]'::jsonb END) AS a(v)
+                        WHERE ${normalizedNameSql('a.v')} = n.name))`, [contextId, names]);
+  return r.rows.map(x => x.name);
+}
+
+/** The current Accountable of a context, or null. Runs inside a transaction too (query only). */
+export async function currentAccountable(db, contextId) {
+  const r = await db.query(`
+    SELECT r.id, r."principalId", r."identityId", r."addedBy", COALESCE(p."displayName", i."displayName") AS "displayName"
+      FROM "ContextRoles" r
+      LEFT JOIN "Principals" p ON p.id = r."principalId"
+      LEFT JOIN "Identities" i ON i.id = r."identityId"
+     WHERE r."contextId" = $1 AND r.role = 'Accountable'`, [contextId]);
+  return r.rows[0] ?? null;
+}
+
+export const HOLDER_COLUMNS = Object.freeze(['principalId', 'identityId']);
+
+/** Contexts whose interviews mention an account or a person in claims of the given statuses, most recent first. */
+export async function mentionsOf(db, holderCol, holderId, statuses) {
+  if (!HOLDER_COLUMNS.includes(holderCol)) throw new Error(`unknown holder column ${holderCol}`);
+  const r = await db.query(`
+    SELECT ctx.id AS "contextId", ctx."displayName" AS "contextName", ctx."contextCategory",
+           COUNT(*)::int AS claims, MAX(iv."interviewedAt")::text AS "lastInterviewedAt"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      JOIN "Contexts" ctx ON ctx.id = c."contextId"
+     WHERE c."${holderCol}" = $1 AND c."claimStatus" = ANY($2::text[])
+     GROUP BY ctx.id, ctx."displayName", ctx."contextCategory"
+     ORDER BY MAX(iv."interviewedAt") DESC, ctx."displayName"`, [holderId, statuses]);
+  return r.rows;
+}
+
+// ─── Several claims at once ──────────────────────────────────────────────
+// Rejects the context's proposed claims of one kind and/or one relevance tier
+// in one statement ("Reject all less relevant", "Reject all descriptions"). A
+// claim without a tier (from before tiers existed) counts as high.
+export async function rejectProposed(db, contextId, { kind = null, relevance = null }, user) {
+  const r = await db.query(`
+    UPDATE "ContextClaims"
+       SET "claimStatus" = 'rejected', "decidedBy" = $4, "decidedAt" = now()
+     WHERE "contextId" = $1 AND "claimStatus" = 'proposed'
+       AND ($2::text IS NULL OR "claimKind" = $2)
+       AND ($3::text IS NULL OR COALESCE(relevance, 'high') = $3)
+    RETURNING id`, [contextId, kind, relevance, user]);
+  return r.rows.map(x => x.id);
+}
+
+/** Every claim of an interview that has a quote, with the offsets stored for it (the transcript view). */
+export async function interviewQuotes(db, interviewId) {
+  const r = await db.query(`
+    SELECT id, quote, "quoteStart", "quoteEnd" FROM "ContextClaims" WHERE "interviewId" = $1 AND quote IS NOT NULL`, [interviewId]);
+  return r.rows;
+}
+
+// ─── What the interviews say about people, for the members lists ─────────
+// The person claims (role, roleHistory, membership) of a context, set-based:
+// one statement for a whole page of members, one for the previous members.
+const PERSON_CLAIM_COLUMNS = `c.id, c."interviewId", c."claimKind", c.attribute, c.value,
+           c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText", c.quote,
+           c."claimStatus" AS status, c."createdAt", c."subjectName", iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt"`;
+export const PERSON_CLAIM_KINDS = Object.freeze(['role', 'roleHistory', 'membership']);
+
+// memberId: the member the claim is about. A context of accounts reads the
+// claims about those accounts; a context of persons the claims about the
+// person or about one of their accounts (IdentityMembers).
+export const MEMBER_CLAIMS_SQL = Object.freeze({
+  Principal: `
+    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId" AS "memberId"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+     WHERE c."contextId" = $1 AND c."principalId" = ANY($2::uuid[])
+       AND c."claimKind" = ANY($3::text[]) AND c."claimStatus" = ANY($4::text[])`,
+  Identity: `
+    SELECT ${PERSON_CLAIM_COLUMNS}, COALESCE(c."identityId", im."identityId") AS "memberId"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "IdentityMembers" im ON im."principalId" = c."principalId" AND im."identityId" = ANY($2::uuid[])
+     WHERE c."contextId" = $1 AND (c."identityId" = ANY($2::uuid[]) OR im."identityId" IS NOT NULL)
+       AND c."claimKind" = ANY($3::text[]) AND c."claimStatus" = ANY($4::text[])`,
+});
+
+/** The person claims about a page of members (ids of the context's targetType); [] for other kinds. */
+export async function memberClaims(db, contextId, targetType, ids, statuses) {
+  const sql = MEMBER_CLAIMS_SQL[targetType];
+  if (!sql || ids.length === 0) return [];
+  return (await db.query(sql, [contextId, ids, PERSON_CLAIM_KINDS, statuses])).rows;
+}
+
+// Every person claim of the context, with the person matched (if any), whether
+// that account or person is a direct member now, and whether the account is gone.
+// A person a decision marked former (ContextMemberOverrides, migration 101) is
+// listed by the source (isListed) but not a member now (isMember), and carries
+// the decision.
+export const PEOPLE_CLAIMS_SQL = `
+    SELECT ${PERSON_CLAIM_COLUMNS}, c."principalId", c."identityId",
+           COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
+           (p."deletedAt" IS NOT NULL) AS "accountDeleted",
+           l.listed AS "isListed", (l.listed AND o.id IS NULL) AS "isMember",
+           o."claimId" AS "overrideClaimId", o.overrides AS "overrideSource", o."decidedBy" AS "overrideBy", o."decidedAt" AS "overrideAt"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "Principals" p ON p.id = c."principalId"
+      LEFT JOIN "Identities" i ON i.id = c."identityId"
+      CROSS JOIN LATERAL (SELECT EXISTS (SELECT 1 FROM "ContextMembers" cm
+                    WHERE cm."contextId" = c."contextId" AND cm."memberId" = COALESCE(c."principalId", c."identityId")) AS listed) l
+      LEFT JOIN "ContextMemberOverrides" o ON o."contextId" = c."contextId" AND o."memberId" = COALESCE(c."principalId", c."identityId")
+     WHERE c."contextId" = $1 AND c."claimKind" = ANY($2::text[]) AND c."claimStatus" = ANY($3::text[])`;
+
+export async function peopleClaims(db, contextId, statuses) {
+  return (await db.query(PEOPLE_CLAIMS_SQL, [contextId, PERSON_CLAIM_KINDS, statuses])).rows;
+}
+
+// The resources "this application" means: the members of this context when it
+// holds resources, and of every SameUnitAs variant that holds resources.
+const LINKED_RESOURCES = `
+    SELECT cm."memberId" AS "resourceId"
+      FROM "ContextMembers" cm
+      JOIN "Contexts" x ON x.id = cm."contextId" AND x."targetType" = 'Resource'
+     WHERE cm."memberType" = 'Resource'
+       AND cm."contextId" IN (
+             SELECT $1::uuid
+             UNION
+             SELECT CASE WHEN r."contextId" = $1 THEN r."relatedContextId" ELSE r."contextId" END
+               FROM "ContextRelationships" r
+              WHERE r."relationshipType" = 'SameUnitAs' AND $1 IN (r."contextId", r."relatedContextId"))`;
+
+// Live entitlements (ResourceAssignments not deleted) per account and per person
+// — a person's own and those of their accounts — and how many of them are on
+// the linked resources. One statement for every previous member at once.
+export const ENTITLEMENT_COUNTS_SQL = `
+    WITH linked AS (${LINKED_RESOURCES}),
+    held AS (
+      SELECT 'principalId' AS col, ra."principalId" AS id, ra."resourceId"
+        FROM "ResourceAssignments" ra
+       WHERE ra."principalId" = ANY($2::uuid[]) AND ra."deletedAt" IS NULL
+      UNION ALL
+      SELECT 'identityId', ra."identityId", ra."resourceId"
+        FROM "ResourceAssignments" ra
+       WHERE ra."identityId" = ANY($3::uuid[]) AND ra."deletedAt" IS NULL
+      UNION ALL
+      SELECT 'identityId', im."identityId", ra."resourceId"
+        FROM "IdentityMembers" im
+        JOIN "ResourceAssignments" ra ON ra."principalId" = im."principalId" AND ra."deletedAt" IS NULL
+       WHERE im."identityId" = ANY($3::uuid[])
+    )
+    SELECT h.col, h.id, count(*)::int AS "liveEntitlements",
+           count(*) FILTER (WHERE h."resourceId" IN (SELECT "resourceId" FROM linked))::int AS "linkedEntitlements"
+      FROM held h
+     GROUP BY h.col, h.id`;
+
+export const LINKED_RESOURCE_COUNT_SQL = `SELECT count(*)::int AS n FROM (${LINKED_RESOURCES}) l`;
+
+/**
+ * Live entitlements of the given accounts and persons, and how many resources
+ * "this application" has: { counts: Map('principalId:<id>' | 'identityId:<id>'
+ * → { liveEntitlements, linkedEntitlements }), linkedResources }. Two statements.
+ */
+export async function entitlementCounts(db, contextId, principalIds, identityIds) {
+  const [counts, linked] = await Promise.all([
+    principalIds.length + identityIds.length > 0
+      ? db.query(ENTITLEMENT_COUNTS_SQL, [contextId, principalIds, identityIds])
+      : { rows: [] },
+    db.query(LINKED_RESOURCE_COUNT_SQL, [contextId]),
+  ]);
+  return {
+    counts: new Map(counts.rows.map(r => [`${r.col}:${r.id}`, { liveEntitlements: r.liveEntitlements, linkedEntitlements: r.linkedEntitlements }])),
+    linkedResources: linked.rows[0]?.n ?? 0,
+  };
+}
+
+// ─── The context's timeline (routes/recentChanges/timeline.js) ───────────
+// The interviews uploaded in the window, each with how many claims the model
+// proposed for it and when the last of them was made.
+export const TIMELINE_INTERVIEWS_SQL = `
+    SELECT iv.id, iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName", iv."createdAt",
+           COUNT(c.id) FILTER (WHERE c."proposedBy" = 'model')::int AS extracted,
+           MAX(c."createdAt") FILTER (WHERE c."proposedBy" = 'model') AS "extractedAt"
+      FROM "ContextInterviews" iv
+      LEFT JOIN "ContextClaims" c ON c."interviewId" = iv.id
+     WHERE iv."contextId" = $1 AND iv."createdAt" > now() - ($2::int || ' days')::interval
+     GROUP BY iv.id`;
+
+// The claims decided in the window, in the given statuses, with the role a
+// confirmed role claim set (its holder by name) and the interview it came from.
+export const TIMELINE_DECISIONS_SQL = `
+    SELECT c.id, c."interviewId", c."claimKind", c.attribute, c.value, c."claimStatus" AS status, c."decidedAt", c."decidedBy",
+           c."principalId", c."identityId", c."subjectName", COALESCE(p."displayName", i."displayName") AS "subjectDisplayName",
+           iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt",
+           r.role AS "appliedRole", COALESCE(rp."displayName", ri."displayName") AS "roleHolderName",
+           COALESCE(r."principalId", r."identityId") AS "roleHolderId", (r."principalId" IS NOT NULL) AS "roleHolderIsAccount",
+           o.overrides AS "overridesSource"
+      FROM "ContextClaims" c
+      JOIN "ContextInterviews" iv ON iv.id = c."interviewId"
+      LEFT JOIN "Principals" p ON p.id = c."principalId"
+      LEFT JOIN "Identities" i ON i.id = c."identityId"
+      LEFT JOIN LATERAL (SELECT x.role, x."principalId", x."identityId" FROM "ContextRoles" x
+                          WHERE x."sourceClaimId" = c.id LIMIT 1) r ON true
+      LEFT JOIN "Principals" rp ON rp.id = r."principalId"
+      LEFT JOIN "Identities" ri ON ri.id = r."identityId"
+      LEFT JOIN "ContextMemberOverrides" o ON o."claimId" = c.id
+     WHERE c."contextId" = $1 AND c."decidedAt" IS NOT NULL
+       AND c."decidedAt" > now() - ($2::int || ' days')::interval
+       AND c."claimStatus" = ANY($3::text[])
+     ORDER BY c."decidedAt" DESC
+     LIMIT $4`;
+
+/** What the interviews add to a context's timeline: { interviews, decisions }. Two statements. */
+export async function timelineRows(db, contextId, { sinceDays, statuses, limit, withInterviews }) {
+  const [interviews, decisions] = await Promise.all([
+    withInterviews ? db.query(TIMELINE_INTERVIEWS_SQL, [contextId, sinceDays]) : { rows: [] },
+    db.query(TIMELINE_DECISIONS_SQL, [contextId, sinceDays, statuses, limit]),
+  ]);
+  return { interviews: interviews.rows, decisions: decisions.rows };
+}

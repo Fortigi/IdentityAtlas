@@ -9,7 +9,7 @@
 // Output is deterministic (sorted) so the docs check can compare it byte for
 // byte with what is committed.
 
-import { columnsOf, isSubClassOf, relationshipTypesOf, tableClasses, valueSetFor } from './model.js';
+import { columnsOf, isSubClassOf, layerOf, relationshipTypesOf, tableClasses, valueSetFor } from './model.js';
 
 const SQL_SHORT = {
   'text': 'string',
@@ -19,6 +19,8 @@ const SQL_SHORT = {
   'jsonb': 'json',
   'timestamp with time zone': 'timestamptz',
   'bytea': 'bytes',
+  'date': 'date',
+  'numeric': 'decimal',
 };
 
 const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -118,8 +120,9 @@ function foreignKeyArrows(model, node) {
 
 export function coreOverviewDiagram(model) {
   const tables = tableClasses(model);
-  const nodes = tables.filter(c => !isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.local, b.local));
-  const edges = tables.filter(c => isSubClassOf(model, c.local, 'Edge')).sort((a, b) => byName(a.table, b.table));
+  // The graph itself: sources and their claims (ia:Knowledge) are not drawn here.
+  const nodes = tables.filter(c => layerOf(model, c.local) === 'Node').sort((a, b) => byName(a.local, b.local));
+  const edges = tables.filter(c => layerOf(model, c.local) === 'Edge').sort((a, b) => byName(a.table, b.table));
   const lines = ['flowchart LR', ...nodes.map(n => `    ${n.local}["${n.label}<br/><small>${n.table}</small>"]:::${n.local}`)];
   const seen = new Set();
   for (const line of [...edges.flatMap(e => edgeTableArrows(model, e)), ...nodes.flatMap(n => foreignKeyArrows(model, n))]) {

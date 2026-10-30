@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
+import InterviewMentions from './contexts/interviews/InterviewMentions';
 import RiskScoreSection from './RiskScoreSection';
 import { RISK_FIELDS } from './RiskScoreSection.constants.js';
 import DeletedBadge from './DeletedBadge';
@@ -156,7 +157,10 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
       getAttributeEntries={getUserAttributeEntries}
       renderHeader={(data) => <UserHeader data={data} />}
       renderAttributesExtra={() => (
-        <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+        <>
+          <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
+          <InterviewMentions holder={{ principalId: userId }} onOpenDetail={onOpenDetail} />
+        </>
       )}
       renderRisk={(data) => (
         <RiskScoreSection attributes={data.attributes} entityType="user" entityId={userId} authFetch={authFetch} />

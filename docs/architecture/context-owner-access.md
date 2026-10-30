@@ -84,7 +84,7 @@ sub-unit takes it out of the parent owner's scope immediately.
 | Request (GET only) | Allowed when |
 |---|---|
 | `/api/auth-me`, `/api/features`, `/api/version`, `/api/preferences`, `/api/attribute-labels` | always (the app shell) |
-| `/api/contexts/:id`, `…/members`, `…/roles`, `…/relationships`, `…/timeline` | `:id` is in scope |
+| `/api/contexts/:id`, `…/members`, `…/roles`, `…/relationships`, `…/claims` (confirmed claims only), `…/timeline` | `:id` is in scope |
 | `/api/contexts/:id/members/:memberId/references` | `:id` is in scope **and** `:memberId` is a member of `:id` itself (checked against `ContextMembers`; an id from another context, or from one of this context's sub-units, is refused) |
 | `/api/risk-scores/contexts/:id` | `:id` is in scope |
 | `/api/reports/application-access-review/export` | `contexts` lists only in-scope ids, and every context those values resolve to is in scope; the `applications` alias and names are refused |

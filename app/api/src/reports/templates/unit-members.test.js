@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
-import report, { MAX_ROWS, baseColumns, isTrue } from './unit-members.js';
+import report, { MAX_ROWS, baseColumns, isTrue, memberStatus } from './unit-members.js';
 import { fetchContextDetails } from '../contextDetails.js';
 
 const UNIT = '33333333-3333-3333-3333-333333333333';
@@ -75,17 +75,20 @@ describe('unit report — a unit of accounts', () => {
     stage({
       members: [
         account('a', { extendedAttributes: { costCenter: 'FIN-01', badge: 7 } }),
-        account('b', { accountEnabled: false, managerName: null, extendedAttributes: { badge: 9 } }),
+        account('b', { accountEnabled: false, managerName: null, markedFormer: true, extendedAttributes: { badge: 9 } }),
       ],
       counts: [{ id: 'a', entitlements: 12 }, { id: 'b', entitlements: 3 }],
     });
     const result = await run();
     expect(keys(result.columns)).toEqual([
-      'unit', 'displayName', 'email', 'employeeId', 'jobTitle', 'department', 'manager',
+      'unit', 'displayName', 'status', 'email', 'employeeId', 'jobTitle', 'department', 'manager',
       'accountType', 'accountEnabled', 'system', 'entitlements', 'member.ext.badge', 'member.ext.costCenter',
     ]);
+    // A member a decision marked former stays a row, with its status: the source still lists them.
+    expect(result.rows.map(r => r.status)).toEqual(['current', 'marked former (decision)']);
+    expect(memberStatus({ markedFormer: false })).toBe('current');
     expect(result.rows[0]).toEqual({
-      unit: 'Finance accounts', displayName: 'Account a', email: 'a@example.com', employeeId: 'E-a',
+      unit: 'Finance accounts', displayName: 'Account a', status: 'current', email: 'a@example.com', employeeId: 'E-a',
       jobTitle: 'Clerk', department: 'Finance', manager: 'Ada Lovelace', accountType: 'User',
       accountEnabled: true, system: 'Entra', entitlements: 12, 'member.ext.badge': 7, 'member.ext.costCenter': 'FIN-01',
       _entity: { kind: 'user', id: 'a' },

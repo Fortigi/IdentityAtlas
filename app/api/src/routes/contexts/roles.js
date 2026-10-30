@@ -30,15 +30,20 @@ export const HOLDER_TABLE = { principalId: 'Principals', identityId: 'Identities
 const HOLDER_NOT_FOUND = { principalId: 'Principal not found', identityId: 'Identity not found' };
 
 // Every role of one context, the Accountable first, with the holder's name
-// resolved. Shared with GET /contexts/:id (read.js) so the detail page paints
+// resolved — and, for a role confirmed from an interview, where it came from
+// (sourceClaimId, the interviewee, the date and the quote; migration 099). Shared with GET /contexts/:id (read.js) so the detail page paints
 // the People block without a second round trip.
 export async function loadContextRoles(contextId) {
   const r = await db.query(`
     SELECT r.id, r.role, r."principalId", r."identityId", r."addedBy",
-           COALESCE(p."displayName", i."displayName") AS "displayName"
+           COALESCE(p."displayName", i."displayName") AS "displayName",
+           r."sourceClaimId", iv."intervieweeName" AS "sourceIntervieweeName",
+           iv."interviewedAt"::text AS "sourceInterviewedAt", cl.quote AS "sourceQuote"
       FROM "ContextRoles" r
       LEFT JOIN "Principals" p ON p.id = r."principalId"
       LEFT JOIN "Identities" i ON i.id = r."identityId"
+      LEFT JOIN "ContextClaims" cl ON cl.id = r."sourceClaimId"
+      LEFT JOIN "ContextInterviews" iv ON iv.id = cl."interviewId"
      WHERE r."contextId" = $1
      ORDER BY (r.role = 'Accountable') DESC, "displayName"
   `, [contextId]);

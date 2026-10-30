@@ -40,6 +40,7 @@ describe('contextOwnerVerdict — one context', () => {
     (id) => `/api/contexts/${id}/members`,
     (id) => `/api/contexts/${id}/roles`,
     (id) => `/api/contexts/${id}/relationships`,
+    (id) => `/api/contexts/${id}/claims`,
     (id) => `/api/contexts/${id}/timeline`,
     (id) => `/api/risk-scores/contexts/${id}`,
   ];
@@ -59,6 +60,8 @@ describe('contextOwnerVerdict — one context', () => {
   it.each([
     [`/api/contexts/${MINE}/`, 'trailing slash'],
     [`/api/contexts/${MINE}/roles/suggestion`, 'a deeper path (the best-guess read)'],
+    [`/api/contexts/${MINE}/interviews`, 'the interviews, whose transcripts are the analyst\'s'],
+    ['/api/contexts/claims/mentions', 'mentions across contexts'],
     [`/api/contexts/${MINE}/members/${OTHER}`, 'a member sub-resource'],
     [`/api/contexts/${MINE}x`, 'an id with a suffix'],
     [`/x/api/contexts/${MINE}`, 'a prefix'],

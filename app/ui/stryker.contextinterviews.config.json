@@ -1,0 +1,57 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Context interviews on a context page (docs/architecture/context-interviews.md): grouping and wording claims, the role timeline axis and the manual-claim body (claims.helpers.js), the shared claims state with its Accountable-replacement question and polling (ClaimsProvider.jsx), the People block suggestions (InterviewSuggestions.jsx), the review list with its relevance fold and bulk rejects (ClaimReviewList.jsx), the transcript view with its highlight segmentation over turns and overlaps, click-to-claim and focus-and-pulse (transcript.helpers.js, TranscriptPanel.jsx), and the members lists' interview role, left flag and previous members with their live entitlements (memberInterview.helpers.js, MemberInterviewFacts.jsx, PreviousMembers.jsx). WHY: a grouping that shows a proposed claim as known, a replacement confirmed without asking, or a suggestion shown to a reader puts unreviewed interview words in front of a business reader as fact. TEST INCLUDE: the helpers unit tests and the mount tests that drive the page through ContextProfile and the members tab. MUTATOR SET: StringLiteral and ObjectLiteral excluded, matching the sibling configs. NOT YET MEASURED: break is deliberately absent until a first run measures a score.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.contextinterviews.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-contextinterviews.json"
+  },
+  "mutate": [
+    "src/components/contexts/interviews/claims.helpers.js",
+    "src/components/contexts/interviews/ClaimsProvider.jsx",
+    "src/components/contexts/interviews/InterviewSuggestions.jsx",
+    "src/components/contexts/interviews/ClaimReviewList.jsx",
+    "src/components/contexts/interviews/transcript.helpers.js",
+    "src/components/contexts/interviews/memberInterview.helpers.js",
+    "src/components/contexts/interviews/TranscriptPanel.jsx",
+    "src/components/contexts/interviews/PreviousMembers.jsx",
+    "src/components/contexts/interviews/MemberInterviewFacts.jsx",
+    "src/components/contexts/interviews/AlsoKnownAs.jsx",
+    "src/components/contexts/interviews/contradiction.helpers.js",
+    "src/components/contexts/interviews/Contradictions.jsx",
+    "src/components/contexts/interviews/OverriddenMembers.jsx"
+  ],
+  "mutationExclusions": {
+    "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the WorkflowsArea and ContextPeople mount tests, which mount without one.",
+    "src/components/contexts/interviews/ChoosePersonModal.jsx": "Presentational modal around the shared PersonSearch; it closes when onPick resolves true. Both callers (suggestions, review list) are mutated here and the pick-and-confirm path is asserted by interviews.mount.test.jsx.",
+    "src/components/contexts/interviews/ManualClaimForm.jsx": "A form over manualClaimBody / manualClaimReady in claims.helpers.js, which are mutated here; the selection-to-quote and the posted body are asserted by interviewForms.mount.test.jsx.",
+    "src/components/contexts/interviews/InterviewList.jsx": "Presentational list of interviews with three buttons calling fixed API paths; retry and delete (with its confirmation) are asserted by interviews.mount.test.jsx, the status wording comes from EXTRACTION_LABELS in the mutated helpers.",
+    "src/components/contexts/interviews/UploadInterviewModal.jsx": "A form that builds one FormData and posts it; the fields sent and the refusal path are asserted by interviewForms.mount.test.jsx. The only gate (all three fields filled) is a disabled attribute asserted there too.",
+    "src/components/contexts/interviews/UploadInterviewCard.jsx": "Presentational card: opens the modal and refreshes the provider after an upload; hidden for a reader (asserted both ways in the two mount tests).",
+    "src/components/contexts/interviews/WhatWeKnow.jsx": "Layout over groupConfirmed / proposedClaims / timelines / whatWeKnowSummary in claims.helpers.js (mutated here); the fold (closed by default, opened on click, remembered per context in sessionStorage, and a refusing sessionStorage) and which groups show for a writer and for a reader are asserted by interviews.mount.test.jsx and interviewKnowledge.mount.test.jsx.",
+    "src/components/contexts/interviews/RoleTimeline.jsx": "Draws segmentBars() from claims.helpers.js (mutated here, with discriminating dates); the bar placement and the no-axis case are asserted by interviewForms.mount.test.jsx.",
+    "src/components/contexts/interviews/InterviewMentions.jsx": "Presentational list of what GET /api/contexts/claims/mentions returns; the link target and the empty case are asserted by interviewForms.mount.test.jsx. The narrowing for readers is the API route, mutated in app/api.",
+    "src/hooks/useOrgKnowledge.js": "One strict-equality read of the orgKnowledge flag; its truth table (true only for boolean true, a string or a missing flag is off, other flags do not count) is asserted by useOrgKnowledge.test.js, and the off path through ClaimsProvider by orgKnowledgeOff.mount.test.jsx.",
+    "src/components/contexts/SuggestionRow.jsx": "Presentational row shared by the best guess and the interview suggestions: markup and three buttons forwarding to callbacks. Its exact text is asserted by ContextBestGuess.mount.test.jsx and interviews.mount.test.jsx."
+  },
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
+}

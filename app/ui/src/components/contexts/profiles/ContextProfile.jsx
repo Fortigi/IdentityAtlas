@@ -2,6 +2,9 @@ import { memberKindLabel } from '@ui/utils/contextStyles';
 import ContextPeople from '@ui/components/contexts/ContextPeople';
 import WorkflowsArea from '@ui/components/contexts/workflows/WorkflowsArea';
 import ContextDetails from '@ui/components/contexts/ContextDetails';
+import ClaimsProvider from '@ui/components/contexts/interviews/ClaimsProvider';
+import WhatWeKnow from '@ui/components/contexts/interviews/WhatWeKnow';
+import AlsoKnownAs from '@ui/components/contexts/interviews/AlsoKnownAs';
 import UnitVariants from './UnitVariants';
 import { useUnitVariants } from './useUnitVariants';
 import { memberCountText } from './variants.helpers';
@@ -13,12 +16,15 @@ import { memberCountText } from './variants.helpers';
 // entry of profiles.js; it supplies the vocabulary. `analyst`: the reader can
 // edit contexts (More details then carries the raw classification).
 // onShowMembers / onShowSubUnits make the counts links to the lists below.
+// Its interviews' claims (ClaimsProvider) are shared by the People block's
+// suggestions, its "Also known as" fact (proposed names with Confirm / Reject),
+// What we know and the Upload interview card.
 export default function ContextProfile({ profile, attrs, subContexts = [], onOpenDetail, analyst = false, onShowMembers, onShowSubUnits }) {
   const { variants, loading } = useUnitVariants(attrs);
   const membersLabel = profile.membersWithKind ? memberKindLabel(attrs.targetType) : profile.membersLabel;
 
   return (
-    <>
+    <ClaimsProvider contextId={attrs.id}>
       <section aria-label={profile.title} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{profile.title}</h3>
         <ContextPeople attrs={attrs} onOpenDetail={onOpenDetail} heading={null} accountableLabel={profile.accountableLabel} noun={profile.noun} suggest />
@@ -33,12 +39,14 @@ export default function ContextProfile({ profile, attrs, subContexts = [], onOpe
               </dd>
             </>
           )}
+          <AlsoKnownAs attrs={attrs} />
         </dl>
         <UnitVariants variants={variants} onOpenDetail={onOpenDetail} label={profile.variantsLabel} />
         <ContextDetails attrs={attrs} hasProfile analyst={analyst} />
       </section>
+      <WhatWeKnow />
       <WorkflowsArea attrs={attrs} variants={variants} variantsLoading={loading} onOpenDetail={onOpenDetail} />
-    </>
+    </ClaimsProvider>
   );
 }
 

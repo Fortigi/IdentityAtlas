@@ -19,6 +19,7 @@
 
 import MatrixCard from './MatrixCard';
 import DownloadReportCard from './DownloadReportCard';
+import UploadInterviewCard from '@ui/components/contexts/interviews/UploadInterviewCard';
 
 // inApp: the card opens a page of the app, which a read-only shell cannot reach.
 const VIEW_IN_MATRIX = { key: 'view-in-matrix', Card: MatrixCard, inApp: true };
@@ -35,9 +36,13 @@ const DOWNLOAD_UNIT_REPORT = {
   },
 };
 
+// Uploading an interview is an analyst's move: a reader never sees transcripts
+// or unreviewed claims (docs/architecture/context-interviews.md).
+const UPLOAD_INTERVIEW = { key: 'upload-interview', Card: UploadInterviewCard, analystOnly: true };
+
 const ACTIONS = {
-  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT],
-  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT],
+  OrganizationalUnit: [VIEW_IN_MATRIX, DOWNLOAD_UNIT_REPORT, UPLOAD_INTERVIEW],
+  LogicalApplication: [VIEW_IN_MATRIX, DOWNLOAD_REPORT, UPLOAD_INTERVIEW],
 };
 
 /** The action cards this context shows, in order; `sharedView` drops the analyst-only and in-app ones. */

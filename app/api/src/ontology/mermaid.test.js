@@ -95,6 +95,13 @@ describe('coreOverviewDiagram', () => {
     expect(coreOverviewDiagram(modelOf(ttl))).not.toContain('ResourceAssignments');
   });
 
+  it('leaves the knowledge tables (sources and claims) out of the graph overview', () => {
+    const out = coreOverviewDiagram(modelOf(`${MINI_TTL}\nia:Knowledge a owl:Class ; rdfs:label "Knowledge" ; rdfs:comment "Statements." .
+ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ; rdfs:label "Claim" ; rdfs:comment "A statement." ; ia:table "Claims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .`));
+    expect(out).not.toContain('Claim');
+    expect(out).toContain('    System["System<br/><small>Systems</small>"]:::System');
+  });
+
   it('leaves a node without a known colour unstyled', () => {
     const ttl = `${MINI_TTL}\nia:Thing a owl:Class ; rdfs:subClassOf ia:Node ; rdfs:label "Thing" ; ia:table "Things" .`;
     const out = coreOverviewDiagram(modelOf(ttl));

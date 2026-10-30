@@ -51,6 +51,20 @@ export function detailLabel(key) {
   return DETAIL_LABELS[key] || friendlyLabel(key);
 }
 
+// Extended attributes keep their own names, except the ones the app itself
+// writes: `aliases` (other names of the context — a confirmed interview alias
+// claim adds to it) reads as "Also known as", its names as one line.
+const EXTENDED_LABELS = { aliases: 'Also known as' };
+
+export function extendedLabel(key) {
+  return EXTENDED_LABELS[key] || key;
+}
+
+/** A value as the details list shows it: a list of names as "A, B"; anything else as given. */
+export function detailValue(value) {
+  return Array.isArray(value) && value.every(v => typeof v === 'string') ? value.join(', ') : value;
+}
+
 /**
  * The keys the details list leaves out for this context: the fixed set above,
  * plus what this particular page happens to show elsewhere — the access
@@ -65,10 +79,15 @@ export function hiddenDetailKeys(attrs, { hasProfile = false, analyst = false } 
   return hidden;
 }
 
+// Extended attributes a templated context's profile shows itself: the aliases
+// are its "Also known as" fact (interviews/AlsoKnownAs.jsx), with the proposed ones.
+const PROFILE_EXTENDED = ['aliases'];
+
 /** [key, value, meta?] rows for the details list — core attributes, then extendedAttributes. */
 export function detailEntries(attrs, opts) {
   if (!attrs) return [];
-  const ext = attrs.extendedAttributes && typeof attrs.extendedAttributes === 'object' ? attrs.extendedAttributes : null;
+  let ext = attrs.extendedAttributes && typeof attrs.extendedAttributes === 'object' ? attrs.extendedAttributes : null;
+  if (ext && opts?.hasProfile) ext = Object.fromEntries(Object.entries(ext).filter(([k]) => !PROFILE_EXTENDED.includes(k)));
   return buildAttributeEntries(attrs, ext, hiddenDetailKeys(attrs, opts));
 }
 

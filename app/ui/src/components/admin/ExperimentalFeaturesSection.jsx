@@ -9,6 +9,7 @@
 //   • Custom reports — whether analysts can build, save and run their own reports,
 //     and describe them in plain language to the local model (a separate container).
 //   • Context assistant — the "Describe it" context builder.
+//   • Organisation knowledge — interviews and other sources, their claims and decisions.
 // Below them, the context settings that change what a sync writes on its own
 // (not experimental, but switched the same way): Accountables from source owners.
 //
@@ -114,6 +115,23 @@ function ContextAssistantCard({ features }) {
   );
 }
 
+// Organisation knowledge: what people say about a unit or an application, read from
+// interviews and other sources into claims an analyst decides on. Off hides all of
+// it — the unit page is a plain unit page — and the API refuses those endpoints;
+// nothing is deleted.
+function OrgKnowledgeCard({ features }) {
+  return (
+    <FlagCard features={features} name="orgKnowledge" title="Organisation knowledge" what="organisation knowledge">
+      Adds, on an organisational unit or a logical application, <B>Upload interview</B> and <B>What we know</B>:
+      what people say about who belongs, who left and who answers for it — read from a transcript or another source
+      into claims an analyst confirms or rejects, each with the quote it rests on, and the contradictions with what
+      the source systems say. When a model is configured (<B>Admin → LLM</B>), the text of what is uploaded is sent
+      to it. Turning this off hides all of it and shows plain membership; the sources and decisions are kept, so
+      turning it back on restores them.
+    </FlagCard>
+  );
+}
+
 // What a sync writes on its own: the owner a source names for a synced context
 // becomes its Accountable. On by default; off leaves every Accountable alone.
 function SourceOwnerSettings({ features }) {
@@ -169,6 +187,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <MatrixSharingCard features={features} />
       <CustomReportsCard features={features} />
       <ContextAssistantCard features={features} />
+      <OrgKnowledgeCard features={features} />
       <SourceOwnerSettings features={features} />
     </div>
   );

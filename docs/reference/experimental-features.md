@@ -176,6 +176,40 @@ profile, or an Azure parameter), and it is shared with custom reports.
 
 ---
 
+## Organisation knowledge
+
+What people say about an organisational unit or a logical application — who belongs, who
+left, who answers for it — read from an interview transcript or another source into
+**claims**, each with the quote it rests on, that an analyst confirms or rejects; and the
+**contradictions** between those claims and what the source systems say. See
+[Context interviews](../architecture/context-interviews.md). It is experimental because it is
+new, because the reading is done by a model, and because what a decision changes (a member
+marked former, a role set from a claim) is a new kind of fact on a unit.
+
+Environment variable: `FEATURE_ORG_KNOWLEDGE=true`.
+
+### What the switch does, precisely
+
+**On** — a unit's or an application's page shows **Upload interview** and **What we know**
+(claims to review, contradictions, previous members), the People block shows roles the
+interviews suggest, the members list marks who the interviews say left, a person's page
+shows **Mentioned in interviews**, and the context timeline carries the interview events.
+When a model is configured (`NL_REPORTS_LLM_URL`), **the text of what is uploaded is sent
+to it**.
+
+**Off** — all of that is hidden, and the API answers `404` on `/api/contexts/{id}/interviews…`,
+`/api/contexts/{id}/claims…`, `/api/contexts/{id}/previous-members` and
+`/api/contexts/claims/…`. Member lists show plain membership: a member a decision marked
+former is listed like any other, and no claim facts are attached.
+
+### What the switch does *not* do
+
+Turning it off **deletes nothing**: the sources, the claims and every decision are kept, and
+turning it back on restores them. A role an analyst confirmed from a claim stays the role it
+became — it is an ordinary Accountable or Responsible.
+
+---
+
 ## Accountables from source owners (a setting, not experimental)
 
 Shown on the same tab, under **Contexts — what a sync sets on its own**, because it is
