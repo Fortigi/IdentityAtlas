@@ -32,7 +32,7 @@ Nothing in the workbench changes access or is saved. The candidate lives in the 
 | Capability | Reused | Extended | New |
 |---|---|---|---|
 | Relations person → activity / expertise / duty | Claims store (`ContextClaims`, `ContextInterviews`): status, quote, source, who proposed / decided, history trigger | Three claim kinds `activity`, `expertise`, `duty`; column `objectContextId` (migration 106) | — |
-| Canonical objects | `Contexts` (manual, template Tag, people as members) | Context types `Activity`, `Expertise`, `Duty` under one root each (ontology 2.3.0) | `contexts/orgKnowledge/objects.js` (find by name or alias, else create) |
+| Canonical objects | `Contexts` (manual, template Tag, people as members) | Context types `Activity`, `Expertise`, `Duty` under one root each (ontology 2.4.0) | `contexts/orgKnowledge/objects.js` (find by name or alias, else create) |
 | Extraction | "Add information" pipeline (rule layer + model) | Prompt asks for the three kinds; `claims.js` checks them; relevance always high | — |
 | Decide | `PATCH /contexts/claims/:id` (`decide.js`) | Confirming a knowledge claim names its object; undo allowed | — |
 | Analyst's own link | — | — | `POST /contexts/:id/knowledge` (source: the unit's "Analyst notes") |
