@@ -7,13 +7,15 @@
 //     account of the same person all make them an owner;
 //   - a role held by somebody else does not;
 //   - SameUnitAs is found from either end of the stored pair;
-//   - the report-resolution check sees a context whose NAME is a held id.
+//   - the report-resolution check sees a context whose NAME is a held id;
+//   - sub-units below a held context are found, except a sub-unit with its own
+//     Accountable or Responsible and everything below it.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { randomUUID } from 'crypto';
 import {
-  findHeldContexts, findSameUnitVariants, resolveReportContexts,
+  findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts,
 } from '../src/auth/contextOwner.js';
 
 let pool;
@@ -23,13 +25,15 @@ const id = {
   person: randomUUID(),
   ctxAccount: randomUUID(), ctxPerson: randomUUID(), ctxAdmin: randomUUID(), ctxStranger: randomUUID(),
   variantOut: randomUUID(), variantIn: randomUUID(), unrelated: randomUUID(), namedLikeId: randomUUID(),
+  subFree: randomUUID(), subFreeChild: randomUUID(), subOwned: randomUUID(), subOwnedChild: randomUUID(),
+  subMine: randomUUID(), subMineChild: randomUUID(), strangerChild: randomUUID(),
 };
 
-async function context(ctxId, name, targetType = 'Identity') {
+async function context(ctxId, name, targetType = 'Identity', parentId = null) {
   await pool.query(
-    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","contextCategory","scopeSystemId")
-     VALUES ($1,'manual',$2,'Department',$3,'OrganizationalUnit',$4)`,
-    [ctxId, targetType, name, systemId],
+    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","contextCategory","scopeSystemId","parentContextId")
+     VALUES ($1,'manual',$2,'Department',$3,'OrganizationalUnit',$4,$5)`,
+    [ctxId, targetType, name, systemId, parentId],
   );
 }
 
@@ -66,6 +70,19 @@ beforeAll(async () => {
   await context(id.unrelated, 'E unrelated', 'Resource');
   await context(id.namedLikeId, id.ctxAccount, 'Resource');
 
+  // Below ctxAccount: a free branch (two levels), a branch somebody else is
+  // Responsible for (its child must go too), and a branch the same owner holds
+  // again. Below the stranger's context: a sub-unit that is not ours.
+  await context(id.subFree, 'Sub free', 'Identity', id.ctxAccount);
+  await context(id.subFreeChild, 'Sub free child', 'Identity', id.subFree);
+  await context(id.subOwned, 'Sub owned', 'Identity', id.ctxAccount);
+  await context(id.subOwnedChild, 'Sub owned child', 'Identity', id.subOwned);
+  await context(id.subMine, 'Sub mine', 'Identity', id.ctxAccount);
+  await context(id.subMineChild, 'Sub mine child', 'Identity', id.subMine);
+  await context(id.strangerChild, 'Stranger child', 'Identity', id.ctxStranger);
+  await role(id.subOwned, { principalId: id.stranger }, 'Responsible');
+  await role(id.subMine, { principalId: id.me }, 'Responsible');
+
   await role(id.ctxAccount, { principalId: id.me }, 'Responsible');
   await role(id.ctxAccount, { principalId: id.me }, 'Accountable');
   await role(id.ctxPerson, { identityId: id.person }, 'Responsible');
@@ -96,13 +113,14 @@ describe('findHeldContexts', () => {
       [id.ctxAdmin, 'Responsible'],
       [id.ctxAccount, 'Accountable'],
       [id.ctxPerson, 'Responsible'],
+      [id.subMine, 'Responsible'],
     ]);
     expect(held[1]).toMatchObject({ displayName: 'B account-held', contextCategory: 'OrganizationalUnit', targetType: 'Identity' });
   });
 
   it('without a linked person, finds only the account\'s own roles', async () => {
     const held = await findHeldContexts(pool, id.me, null);
-    expect(held.map(c => c.id)).toEqual([id.ctxAccount]);
+    expect(held.map(c => c.id)).toEqual([id.ctxAccount, id.subMine]);
   });
 
   it('finds nothing for an account that holds no role', async () => {
@@ -115,6 +133,22 @@ describe('findSameUnitVariants', () => {
   it('finds the other end whichever way the pair was stored, and nothing else', async () => {
     const variants = await findSameUnitVariants(pool, [id.ctxAccount, id.ctxPerson]);
     expect(variants.sort()).toEqual([id.variantOut, id.variantIn].sort());
+  });
+});
+
+describe('findOwnedSubUnits', () => {
+  it('finds the free branch to any depth, and stops at a sub-unit with an owner of its own', async () => {
+    const subs = await findOwnedSubUnits(pool, [id.ctxAccount]);
+    expect(subs.sort()).toEqual([id.subFree, id.subFreeChild].sort());
+  });
+
+  it('finds the children of a held sub-unit from that held sub-unit', async () => {
+    const subs = await findOwnedSubUnits(pool, [id.ctxAccount, id.subMine]);
+    expect(subs.sort()).toEqual([id.subFree, id.subFreeChild, id.subMineChild].sort());
+  });
+
+  it('finds nothing below a leaf', async () => {
+    expect(await findOwnedSubUnits(pool, [id.subFreeChild])).toEqual([]);
   });
 });
 
