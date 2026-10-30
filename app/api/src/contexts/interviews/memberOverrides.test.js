@@ -4,6 +4,9 @@ import {
   overrideAction, applyMemberOverride, clearClaimOverride, overriddenMemberCount,
   OVERRIDE_CONTEXT_SQL, UPSERT_OVERRIDE_SQL, DELETE_MEMBER_OVERRIDE_SQL, DELETE_CLAIM_OVERRIDE_SQL, OVERRIDDEN_MEMBER_COUNT_SQL,
 } from './memberOverrides.js';
+import {
+  RAISE_CONTEXT_SQL, FIND_OPEN_SQL, INSERT_SQL, WITHDRAW_MEMBER_SQL, WITHDRAW_CLAIM_SQL, REASONS,
+} from '../changeRequests.js';
 import { decisionOf, withOverride, OVERRIDE_JOIN, OVERRIDE_COLUMNS } from './overrideRows.js';
 
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
@@ -39,31 +42,49 @@ describe('overrideAction', () => {
 });
 
 // A transaction client: the context row it is asked for, and every statement.
-function client(context) {
+// A fake transaction client. The change request it raises reads the context
+// again (RAISE_CONTEXT_SQL): synced from a system unless the case says otherwise.
+const REQUEST = { id: 'cr-1', summary: 'Remove Led Ledeboer from Klanten', targetName: 'Klanten (upload)', raisedBy: 'x' };
+function client(context, raiseContext = { displayName: 'Klanten', variant: 'synced', scopeSystemId: 7, systemName: 'Klanten (upload)', memberName: 'Led Ledeboer' }) {
   const calls = [];
+  const answers = new Map([
+    [OVERRIDE_CONTEXT_SQL, { rows: context ? [context] : [] }],
+    [UPSERT_OVERRIDE_SQL, { rows: [{ id: 'ovr-1' }], rowCount: 1 }],
+    [RAISE_CONTEXT_SQL, { rows: raiseContext ? [raiseContext] : [] }],
+    [INSERT_SQL, { rows: [REQUEST], rowCount: 1 }],
+    [DELETE_CLAIM_OVERRIDE_SQL, { rows: [], rowCount: 2 }],
+    [WITHDRAW_CLAIM_SQL, { rows: [], rowCount: 5 }],
+  ]);
   return {
     calls,
     query: vi.fn(async (sql, params) => {
       calls.push([sql, params]);
-      return sql === OVERRIDE_CONTEXT_SQL ? { rows: context ? [context] : [] } : { rows: [], rowCount: 2 };
+      return answers.get(sql) ?? { rows: [], rowCount: 0 };
     }),
   };
 }
+const RAISED = { id: 'cr-1', summary: 'Remove Led Ledeboer from Klanten', targetName: 'Klanten (upload)' };
 const UNIT = { targetType: 'Principal', variant: 'synced', systemName: 'Klanten (upload)', isListed: true };
 const holder = { col: 'principalId', id: LED };
 
 describe('applyMemberOverride', () => {
-  it('marks a listed member former, naming the source; asks the context with the member as a uuid', async () => {
+  it('marks a listed member former, naming the source, and asks the source to remove them; asks the context with the member as a uuid', async () => {
     const c = client(UNIT);
     expect(await applyMemberOverride(c, membership('former'), { status: 'confirmed', merged: {}, holder }, 'analyst@example.test'))
-      .toEqual({ overrides: 'Klanten (upload)' });
-    expect(c.calls).toEqual([[OVERRIDE_CONTEXT_SQL, [CTX, LED]], [UPSERT_OVERRIDE_SQL, [CTX, LED, CLAIM, 'Klanten (upload)', 'analyst@example.test']]]);
+      .toEqual({ overrides: 'Klanten (upload)', changeRequest: RAISED });
+    expect(c.calls.map(([sql]) => sql)).toEqual([OVERRIDE_CONTEXT_SQL, UPSERT_OVERRIDE_SQL, RAISE_CONTEXT_SQL, FIND_OPEN_SQL, INSERT_SQL]);
+    expect(c.calls[1][1]).toEqual([CTX, LED, CLAIM, 'Klanten (upload)', 'analyst@example.test']);
+    // The request rests on this claim and on the override row just written.
+    expect(c.calls[4][1].slice(8)).toEqual([CLAIM, 'ovr-1', 'analyst@example.test']);
+    expect(UPSERT_OVERRIDE_SQL).toMatch(/RETURNING id$/);
     expect(OVERRIDE_CONTEXT_SQL).toContain('cm."memberId" = $2::uuid');
   });
 
   it('names a generated list after its rule, a list without a system "The source", and no user as null', async () => {
-    const c = client({ ...UNIT, variant: 'generated', systemName: null });
-    expect(await applyMemberOverride(c, membership('left'), { status: 'confirmed', merged: {}, holder })).toEqual({ overrides: 'The rule that derives it' });
+    // A rule's output owes no change request: the fix is in the rule's input.
+    const c = client({ ...UNIT, variant: 'generated', systemName: null }, { variant: 'generated', scopeSystemId: null });
+    expect(await applyMemberOverride(c, membership('left'), { status: 'confirmed', merged: {}, holder })).toEqual({ overrides: 'The rule that derives it', changeRequest: null });
+    expect(c.calls.map(([sql]) => sql)).toEqual([OVERRIDE_CONTEXT_SQL, UPSERT_OVERRIDE_SQL, RAISE_CONTEXT_SQL]);
     expect(c.calls[1][1][4]).toBeNull();
     expect((await applyMemberOverride(client({ ...UNIT, systemName: null }), membership('left'), { status: 'confirmed', merged: {}, holder })).overrides).toBe('The source');
   });
@@ -86,21 +107,24 @@ describe('applyMemberOverride', () => {
   it('a person of a unit of people is keyed by identityId', async () => {
     const c = client({ ...UNIT, targetType: 'Identity' });
     expect(await applyMemberOverride(c, { ...membership('former'), principalId: null, identityId: LED }, { status: 'confirmed', merged: {}, holder: { col: 'identityId', id: LED } }))
-      .toEqual({ overrides: 'Klanten (upload)' });
+      .toEqual({ overrides: 'Klanten (upload)', changeRequest: RAISED });
   });
 
   it('clears the mark of a person confirmed to be in it — listed or not', async () => {
     const c = client({ ...UNIT, isListed: false });
     expect(await applyMemberOverride(c, membership('rejoined'), { status: 'confirmed', merged: {}, holder })).toBeNull();
     expect(c.calls[1]).toEqual([DELETE_MEMBER_OVERRIDE_SQL, [CTX, LED]]);
+    // ... and withdraws what was asked of the source about them.
+    expect(c.calls[2]).toEqual([WITHDRAW_MEMBER_SQL, [CTX, LED, REASONS.backInUnit]]);
+    expect(c.calls).toHaveLength(3);
   });
 });
 
 describe('clearClaimOverride / overriddenMemberCount', () => {
-  it('removes the marks of one claim and says how many', async () => {
+  it('removes the marks of one claim and says how many, withdrawing what the claim asked of the source', async () => {
     const c = client(UNIT);
     expect(await clearClaimOverride(c, CLAIM)).toBe(2);
-    expect(c.calls).toEqual([[DELETE_CLAIM_OVERRIDE_SQL, [CLAIM]]]);
+    expect(c.calls).toEqual([[DELETE_CLAIM_OVERRIDE_SQL, [CLAIM]], [WITHDRAW_CLAIM_SQL, [CLAIM, REASONS.undone]]]);
     expect(await clearClaimOverride({ query: async () => ({}) }, CLAIM)).toBe(0);
   });
 

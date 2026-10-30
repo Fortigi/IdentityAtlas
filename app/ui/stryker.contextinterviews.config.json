@@ -26,7 +26,9 @@
     "src/components/contexts/interviews/AlsoKnownAs.jsx",
     "src/components/contexts/interviews/contradiction.helpers.js",
     "src/components/contexts/interviews/Contradictions.jsx",
-    "src/components/contexts/interviews/OverriddenMembers.jsx"
+    "src/components/contexts/interviews/OverriddenMembers.jsx",
+    "src/components/contexts/changeRequests/changeRequests.helpers.js",
+    "src/components/contexts/changeRequests/ChangeRequestsPanel.jsx"
   ],
   "mutationExclusions": {
     "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the WorkflowsArea and ContextPeople mount tests, which mount without one.",

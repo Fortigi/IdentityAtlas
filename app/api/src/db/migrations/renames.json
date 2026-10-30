@@ -7,6 +7,7 @@
     "097_context_uploads.sql": "095_context_uploads.sql",
     "099_context_interviews.sql": "097_context_interviews.sql",
     "100_context_claims_membership_alias.sql": "098_context_claims_membership_alias.sql",
-    "101_context_member_overrides.sql": "099_context_member_overrides.sql"
+    "101_context_member_overrides.sql": "099_context_member_overrides.sql",
+    "103_change_requests.sql": "101_change_requests.sql"
   }
 }

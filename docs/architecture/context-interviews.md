@@ -403,6 +403,10 @@ What reads the mark:
 - **Matrix and access**: unchanged, deliberately. The matrix shows access, and the access is
   still there — that is the point of Previous members' *still has access*. The decision never
   removes an assignment or a membership.
+- **Change request**: when the source is a system or an uploaded list, the mark also raises a
+  change request: *"Remove Led Ledeboer from Klanten"*, for that source, resting on the claim and
+  the mark. Clearing the mark or undoing the decision withdraws it, and the source dropping the
+  person resolves it. A list kept by hand raises none. See [Change requests](change-requests.md).
 
 On the page: a **Contradictions (n)** panel at the top of *What we know*, never folded — each
 item the two statements side by side (*View in transcript* on a claim, for an analyst) with the
