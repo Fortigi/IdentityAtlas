@@ -104,6 +104,8 @@ const CLAIM_SELECT = `
            c.attribute, c.value, c."periodFrom"::text AS "periodFrom", c."periodTo"::text AS "periodTo", c."periodText",
            c.quote, c."quoteStart", c."quoteEnd", c.confidence::float8 AS confidence, c.relevance,
            c."roleSuggestion", c."claimStatus" AS status, c."proposedBy", c."objectContextId",
+           (SELECT o."displayName" FROM "Contexts" o WHERE o.id = c."objectContextId") AS "objectName",
+           (SELECT f."displayName" FROM "Contexts" f WHERE f.id = c."contextId") AS "filedUnderName",
            c."decidedBy", c."decidedAt", c."createdAt",
            (SELECT r.id FROM "ContextRoles" r WHERE r."sourceClaimId" = c.id LIMIT 1) AS "appliedRoleId",
            iv."intervieweeName", iv."interviewedAt"::text AS "interviewedAt", iv."fileName",
@@ -128,11 +130,21 @@ const CONTEXT_PEOPLE_CTE = `
     SELECT "memberId" AS id FROM m WHERE "memberType" = 'Principal'
     UNION SELECT im."principalId" FROM "IdentityMembers" im JOIN ids ON im."identityId" = ids.id)`;
 
-/** The claims of a context in the given statuses, newest interview first. */
-export async function listClaims(db, contextId, statuses) {
-  const r = await db.query(`${CLAIM_SELECT}
-     WHERE c."contextId" = $1 AND c."claimStatus" = ANY($2::text[])
-     ORDER BY iv."interviewedAt" DESC, c."createdAt", c.id`, [contextId, statuses]);
+/**
+ * The claims of a context in the given statuses, newest interview first: the
+ * claims filed on it, and what its people do, know and hold (`knowledgeKinds`:
+ * activity, expertise, duty) wherever the source was added — an interview on
+ * the parent unit often names what the people of a sub-unit do. Such a claim
+ * carries the context it was filed on (`filedUnderName`).
+ */
+export async function listClaims(db, contextId, statuses, knowledgeKinds = []) {
+  const r = await db.query(`${CONTEXT_PEOPLE_CTE}
+    ${CLAIM_SELECT}
+     WHERE c."claimStatus" = ANY($2::text[])
+       AND (c."contextId" = $1
+            OR (c."claimKind" = ANY($3::text[])
+                AND (c."identityId" IN (SELECT id FROM ids) OR c."principalId" IN (SELECT id FROM pids))))
+     ORDER BY iv."interviewedAt" DESC, c."createdAt", c.id`, [contextId, statuses, knowledgeKinds]);
   return r.rows;
 }
 

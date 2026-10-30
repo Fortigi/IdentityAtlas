@@ -3,6 +3,7 @@ import { useContextClaims } from '@ui/components/contexts/interviews/claimsConte
 import { openContradictions, isPersonContradiction } from '@ui/components/contexts/interviews/contradiction.helpers';
 import { proposedClaims } from '@ui/components/contexts/interviews/claims.helpers';
 import WhatWeKnow from '@ui/components/contexts/interviews/WhatWeKnow';
+import ProposedRolesSection from './ProposedRolesSection';
 import ReviewDrawer from '@ui/components/contexts/interviews/ReviewDrawer';
 import SourcesSection from '@ui/components/contexts/interviews/SourcesSection';
 import ChangeRequestsPanel from '@ui/components/contexts/changeRequests/ChangeRequestsPanel';
@@ -26,7 +27,7 @@ function scrollTo(id) {
   requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
 }
 
-export default function ProfileBody({ contextId, attrs, profile, subContexts, analyst, membersEditable, openEntity, openContext, onOpenDetail, peopleVersion, onMembersChanged, members }) {
+export default function ProfileBody({ contextId, attrs, profile, subContexts, analyst, membersEditable, openEntity, openContext, onOpenDetail, peopleVersion, onMembersChanged, members, proposals, onOpenRole }) {
   const ctx = useContextClaims();
   const [peopleFilter, setPeopleFilter] = useState('current');
   const [opened, setOpened] = useState({});
@@ -52,6 +53,7 @@ export default function ProfileBody({ contextId, attrs, profile, subContexts, an
         canEditMembers={peopleMembers && membersEditable} onOpenDetail={openEntity} onMembersChanged={onMembersChanged} hideWhenEmpty={!peopleMembers} />
       {!peopleMembers && <MembersPanel {...members} title={profile.membersLabel} />}
       <WhatWeKnow id={ids.know} attrs={attrs} profile={profile} analyst={analyst} onOpenDetail={onOpenDetail} {...fold('know')} />
+      {onOpenRole && <ProposedRolesSection id={`proposed-roles-${contextId}`} contextId={contextId} list={proposals} onOpenRole={onOpenRole} />}
       {analyst && <SourcesSection id={ids.sources} contextId={contextId} {...fold('sources')} />}
       {analyst && <ChangeRequestsPanel id={ids.changes} requests={requests} {...fold('changes')} />}
       {subContexts.length > 0 && <SubUnitsList subContexts={subContexts} attrs={attrs} openContext={openContext} />}

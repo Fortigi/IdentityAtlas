@@ -59,8 +59,12 @@ function pruneUnassignedPackages(apMap, managedApMap, visibleGroupIds, visibleUs
   }
 }
 
-// AP order: by category name, then total assignments desc; uncategorized last.
+// AP order: by category name, then total assignments desc; uncategorized after
+// the categories; the proposed roles "+ Proposed roles" adds come last of all, after
+// every real business role.
 function compareAccessPackages(a, b) {
+  const aProposed = a.categoryName === PROPOSED_CATEGORY;
+  if (aProposed !== (b.categoryName === PROPOSED_CATEGORY)) return aProposed ? 1 : -1;
   const aCat = a.categoryName;
   const bCat = b.categoryName;
   if (aCat && !bCat) return -1;
@@ -133,4 +137,30 @@ export function buildApSortedGroups(groups, accessPackages, apGroupMap, managedF
     groupApBucket.set(g.id, selfBucket ?? apBucketFor(g, accessPackages, apGroupMap));
   }
   return [...groups].sort((a, b) => compareByBucket(a, b, groupApBucket, roleRowIds));
+}
+
+// The category the matrix's "+ Proposed roles" toggle puts the saved workbench
+// proposals under (matrix/proposedLens.js): drafts, not business roles.
+export const PROPOSED_CATEGORY = 'Proposed';
+
+/**
+ * Cell key ("resource|member", lower case) → the roles covering it, lower case:
+ * the server's business-role coverage, plus `extra` — the proposed roles' cells
+ * when "+ Proposed roles" is on. The lens filters (Governed / Non-governed) never
+ * read `extra`: only the colouring does. Pure.
+ */
+export function buildManagedApMap(managedByPackages, extra = null) {
+  const map = new Map();
+  for (const r of [...(managedByPackages || []), ...(extra || [])]) {
+    const rid = (r.resourceId || r.groupId || '').toLowerCase();
+    const key = `${rid}|${(r.memberId || '').toLowerCase()}`;
+    const ids = (r.accessPackageIds || []).map(id => id.toLowerCase());
+    map.set(key, [...new Set([...(map.get(key) || []), ...ids])]);
+  }
+  return map;
+}
+
+/** The role bands a lens shows: none of the business roles in Non-governed, but the proposed ones in every lens. Pure. */
+export function bandsForLens(accessPackages, managedFilter) {
+  return managedFilter === 'unmanaged' ? accessPackages.filter(ap => ap.categoryName === PROPOSED_CATEGORY) : accessPackages;
 }

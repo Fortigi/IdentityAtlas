@@ -4,6 +4,7 @@ import { cellKey, rangeKeys } from './workbench.model';
 import { cellProps, roleCellProps, cellLabel } from './workbench.roles';
 import { MARK_LEGEND } from './workbench.cells';
 import { PeopleHeader, PersonCells } from './PeopleCells';
+import PageStickyTable from './PageStickyTable';
 
 // ─── The workbench matrix ────────────────────────────────────────────────
 // Rows: the unit's people, in the groups of the chosen dimension (a person with
@@ -15,11 +16,12 @@ import { PeopleHeader, PersonCells } from './PeopleCells';
 // maps the candidate onto it); the analyst's marks sit on top. Click a cell to
 // select it, Shift-click for the rectangle from the last one, Ctrl/⌘-click to add
 // or remove one; click a column header, a person or a group to select their held
-// cells. The grid never edits access.
+// cells. The page scrolls, not the grid; its header row stays at the top of the
+// window (PageStickyTable). The grid never edits access.
 
 const MARK_SIGN = Object.fromEntries(MARK_LEGEND.map(m => [m.key, m]));
 
-function MarkSign({ mark }) {
+export function MarkSign({ mark }) {
   if (!mark) return null;
   const s = MARK_SIGN[mark];
   return (
@@ -53,16 +55,14 @@ export default function WorkbenchGrid({ groups, columns, roles, color, isDark, c
   // Where each group's rows start in the flat row order (for Shift-click ranges).
   const starts = groups.reduce((acc, g, i) => [...acc, i === 0 ? 0 : acc[i - 1] + groups[i - 1].rows.length], []);
   return (
-    <div className="overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800" style={{ maxHeight: 'calc(100vh - 260px)' }}>
-      <table className="border-separate border-spacing-0 text-xs" aria-label="Access of the unit's people">
-        <thead>
+    <PageStickyTable label="Access of the unit's people" widths={[...peopleColumns.map(c => c.width), ...columns.map(() => 24), ...roles.map(() => 24)]}
+      head={(
           <tr>
             <PeopleHeader columns={peopleColumns} offsets={offsets} people={allPeople} filters={filters} sort={sort} onSort={onSort} onFilter={onFilter} />
             {columns.map(col => <ColumnHeader key={col.id} col={col} inCandidate={candidate.entitlements.has(col.id)} onClick={(e) => onColumn(col, e)} />)}
             {roles.map((r, i) => <MatrixApLabelCell key={r.id} accessPackages={roles} idx={i} isDark={isDark} onOpenDetail={openRole} />)}
           </tr>
-        </thead>
-        <tbody>
+      )}>
           {groups.map((group, gi) => [
             grouped && <GroupRow key={`g:${group.key}`} group={group} span={peopleColumns.length + columns.length + roles.length - 1} onSelect={(e) => onGroup(group, e)} />,
             ...group.rows.map(({ person, repeat }, ri) => {
@@ -89,16 +89,14 @@ export default function WorkbenchGrid({ groups, columns, roles, color, isDark, c
               );
             }),
           ])}
-        </tbody>
-      </table>
-    </div>
+    </PageStickyTable>
   );
 }
 
 // A person in a role's own column: holding it (the role's colour), or — for the
 // draft — about to (its provisioning gap). An existing role's cell can be selected
 // like any held access; the draft's cannot (it is no access yet).
-function RoleCell({ role, personKey, cellIndex, color, selection, marks, pick }) {
+export function RoleCell({ role, personKey, cellIndex, color, selection, marks, pick }) {
   const props = roleCellProps({ role, personKey, cellIndex, color });
   const k = cellKey(personKey, role.id);
   const selectable = !role.draft;
@@ -114,10 +112,10 @@ function ColumnHeader({ col, inCandidate, onClick }) {
   const title = [col.displayName, col.resourceType, col.systemName, `${col.holders} ${col.holders === 1 ? 'person' : 'people'}`]
     .filter(Boolean).join(' · ');
   return (
-    <th scope="col" className={`sticky top-0 z-20 h-48 w-6 min-w-[1.5rem] border-b border-r border-gray-100 px-0 align-bottom dark:border-gray-700 ${inCandidate ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-gray-50 dark:bg-gray-900'}`}>
+    <th scope="col" className={`z-20 h-36 w-6 min-w-[1.5rem] border-b border-r border-gray-100 px-0 align-bottom dark:border-gray-700 ${inCandidate ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-gray-50 dark:bg-gray-900'}`}>
       <button type="button" onClick={onClick} title={title} aria-label={`Select the column ${title}`}
-        className="flex h-48 w-6 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-        <span className="max-h-44 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-gray-700 dark:text-gray-200" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+        className="flex h-36 w-6 items-end justify-center pb-1 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+        <span className="max-h-32 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-gray-700 dark:text-gray-200" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
           {col.displayName}
         </span>
       </button>

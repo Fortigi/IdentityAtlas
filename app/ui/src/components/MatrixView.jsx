@@ -21,7 +21,7 @@ import { buildResourceContextMap } from '@ui/utils/resourceContexts';
 import { AGG_SENTINEL, collapseKey, buildColumns } from './matrix/columnModel';
 import { toggleCollapsedGroups, columnFoldState } from './matrix/foldState';
 import { buildMatrixModel } from './matrix/matrixModel';
-import { buildAccessPackages, buildApSortedGroups } from './matrix/accessPackageModel';
+import { buildAccessPackages, buildApSortedGroups, buildManagedApMap, bandsForLens } from './matrix/accessPackageModel';
 import { buildDisplayGroups } from './matrix/nestedRows';
 import { cellDeviation } from './matrix/coverageDeviation';
 import InheritancePathModal from './matrix/InheritancePathModal';
@@ -66,6 +66,10 @@ export default function MatrixView({
   onLoadSaved,
   hasData,
   onShareView,
+  // The Proposed lens in the view switch (the workbench's saved proposals) — offered by the plain matrix.
+  showProposed,
+  // "+ Proposed roles": whether it is on, how to switch it, and the proposals' cells to colour (app/MatrixArea).
+  proposedOn, onToggleProposed, extraCoverage,
 }) {
   // ─── Nested group expansion ─────────────────────────────────────
   const { authFetch } = useAuth();
@@ -273,16 +277,9 @@ export default function MatrixView({
 
   // Build managed-by-AP map: cellKey (lowercase) -> accessPackageId[] (lowercase)
   // All keys and values normalized to lowercase for case-insensitive matching
-  const managedApMap = useMemo(() => {
-    const map = new Map();
-    if (!managedByPackages || managedByPackages.length === 0) return map;
-    for (const r of managedByPackages) {
-      const rid = (r.resourceId || r.groupId || '').toLowerCase();
-      const key = `${rid}|${(r.memberId || '').toLowerCase()}`;
-      map.set(key, (r.accessPackageIds || []).map(id => id.toLowerCase()));
-    }
-    return map;
-  }, [managedByPackages]);
+  // With "+ Proposed roles" on, the proposals' cells (extraCoverage) take their colour
+  // too; the lens filters above read managedByPackages alone.
+  const managedApMap = useMemo(() => buildManagedApMap(managedByPackages, extraCoverage), [managedByPackages, extraCoverage]);
 
   // Build access package data (SOLL matrix): which groups are in which access packages
   // Only include APs where at least one visible user actually has an assignment through that AP.
@@ -407,7 +404,8 @@ export default function MatrixView({
   // The access-package (SOLL) columns represent governance, so they're hidden in
   // the Non-governed view — there they'd only show governed memberships, which is
   // what that view is meant to exclude. Kept for All / Governed / Gaps.
-  const visibleAccessPackages = managedFilter === 'unmanaged' ? [] : accessPackages;
+  // (Proposed roles, when added on top, show in every lens.)
+  const visibleAccessPackages = bandsForLens(accessPackages, managedFilter);
 
   // Columns rendered = identity/principal subjects with per-account sub-columns
   // spliced in after any expanded identity, AND collapsed attribute groups
@@ -584,6 +582,9 @@ export default function MatrixView({
         managedFilter={managedFilter}
         setManagedFilter={setManagedFilter}
         onExportExcel={handleExportExcel}
+        showProposed={showProposed}
+        proposedOn={proposedOn}
+        onToggleProposed={onToggleProposed}
       />}
 
       {!filterIsApplied ? (

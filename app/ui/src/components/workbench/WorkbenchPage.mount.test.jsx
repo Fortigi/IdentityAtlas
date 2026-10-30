@@ -6,77 +6,18 @@ import WorkbenchPage from './WorkbenchPage';
 // Organisation knowledge on (the workbench is part of it); the off case is its own test below.
 const knowledge = vi.hoisted(() => ({ on: true }));
 vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => knowledge.on }));
-import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, makeAuthFetch } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, screen, within, waitFor, userEvent, jsonResponse, makeAuthFetch, fireEvent } from '@ui/test-utils/renderWithProviders';
 
-const UNIT = 'u-1';
-const claim = (id, status, extra = {}) => ({
-  id, status, value: 'x', quote: 'they handle the claims', proposedBy: 'model', decidedBy: status === 'proposed' ? null : 'ann@x.test',
-  contextName: 'Claims', source: { kind: 'interview', name: 'Marieke', fileName: 'i.txt', date: '2026-10-20' }, ...extra,
-});
-const knows = (kind, name, state, claims) => ({ kind, objectId: null, name, state, claims });
-const person = (key, displayName, knowledge, extra = {}) => ({
-  key, identityId: key.slice(2), principalId: null, displayName, email: null, jobTitle: 'Handler', direct: true, units: ['Claims'],
-  accounts: [{ id: `acc-${key}`, displayName, systemName: 'Dir' }], knowledge, ...extra,
-});
+import { UNIT, claim, knows, payload, api, mount } from '@ui/test-utils/workbenchFixture';
 
-function payload() {
-  return {
-    unit: { id: UNIT, displayName: 'Claims Handling', contextType: 'Department', targetType: 'Identity', accountable: 'Marieke Jansen' },
-    scope: { includeChildren: true, units: 3, truncatedPeople: false, maxPeople: 400 },
-    kinds: [],
-    people: [
-      person('i:a', 'Anna Vos', [knows('activity', 'Handle claims', 'confirmed', [claim('c1', 'confirmed')])], {
-        accounts: [{ id: 'acc-a', displayName: 'Anna Vos', systemName: 'Dir' }, { id: 'acc-a2', displayName: 'adm-anna', systemName: 'AD' }],
-      }),
-      person('i:b', 'Bram Smit', [
-        knows('activity', 'Handle claims', 'proposed', [claim('c2', 'proposed')]),
-        knows('duty', 'Works council member', 'confirmed', [claim('c3', 'confirmed')]),
-      ]),
-      person('i:c', 'Cleo Kok', []),
-    ],
-    columns: [
-      { id: 'r1', displayName: 'ClaimsSuite Read', resourceType: 'AppRole', systemName: 'CS', isRole: false, holders: 3, contains: [] },
-      { id: 'br', displayName: 'Claims handler', resourceType: 'BusinessRole', systemName: 'CS', isRole: true, holders: 1, contains: ['r1', 'r2'] },
-      { id: 'r2', displayName: 'Motor handler', resourceType: 'AppRole', systemName: 'CS', isRole: false, holders: 2, contains: [] },
-      { id: 'or', displayName: 'WorksCouncil site', resourceType: 'Group', systemName: 'Dir', isRole: false, holders: 1, contains: [] },
-    ],
-    truncatedColumns: 0,
-    cells: [
-      { person: 'i:a', resourceId: 'r1', type: 'Direct', accounts: ['acc-a'], viaRoles: ['br'] },
-      { person: 'i:a', resourceId: 'br', type: 'Direct', accounts: ['acc-a'], viaRoles: [] },
-      { person: 'i:a', resourceId: 'r2', type: 'Indirect', accounts: ['acc-a2'], viaRoles: [] },
-      { person: 'i:b', resourceId: 'r1', type: 'Direct', accounts: ['acc-b'], viaRoles: [] },
-      { person: 'i:b', resourceId: 'or', type: 'Direct', accounts: ['acc-b'], viaRoles: [] },
-      { person: 'i:c', resourceId: 'r1', type: 'Eligible', accounts: ['acc-c'], viaRoles: [] },
-      { person: 'i:c', resourceId: 'r2', type: 'Direct', accounts: ['acc-c'], viaRoles: [] },
-    ],
-    generatedAt: '2026-10-27T09:00:00.000Z',
-  };
-}
-
-function api({ fail = null } = {}) {
-  const calls = [];
-  const fetch = makeAuthFetch((url, opts = {}) => {
-    const method = opts.method || 'GET';
-    calls.push({ url, method, body: opts.body ? JSON.parse(opts.body) : null });
-    if (method !== 'GET') return fail ? jsonResponse({ error: fail }, { ok: false, status: 400 }) : { ok: true };
-    if (url.startsWith(`/api/contexts/${UNIT}/workbench`)) return payload();
-    return undefined;
-  });
-  return { fetch, calls };
-}
-
-function mount(opts = {}) {
-  const user = userEvent.setup();
-  const a = api(opts);
-  const onCacheData = vi.fn();
-  renderWithProviders(h(WorkbenchPage, { contextId: UNIT, onCacheData, onClose: () => {} }), { auth: { authFetch: a.fetch } });
-  return { user, calls: a.calls, onCacheData };
-}
-
-const grid = () => screen.getByRole('table', { name: "Access of the unit's people" });
+const grid = () => screen.getByRole('region', { name: "Access of the unit's people" });
 // The first render of the grid is the slow one on a loaded CI runner.
-const opened = () => screen.findByRole('heading', { name: 'Claims Handling' }, { timeout: 5000 });
+// These tests read the people-as-rows grid; people as columns has its own (WorkbenchColumnsGrid tests).
+const opened = async () => {
+  const heading = await screen.findByRole('heading', { name: 'Claims Handling' }, { timeout: 5000 });
+  fireEvent.click(screen.getByRole('button', { name: 'People as rows' }));
+  return heading;
+};
 const candidate = () => screen.getByRole('complementary', { name: 'Candidate role' });
 const shownCount = () => within(screen.getByRole('region', { name: 'Filters' })).getByText(/people shown/).textContent;
 // Excel: open the column's filter, untick everything, tick these values, OK.

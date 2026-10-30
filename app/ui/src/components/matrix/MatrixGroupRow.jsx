@@ -7,6 +7,7 @@ import {
   cellDeviation, heldOutsideRole, holdsBusinessRole, NO_DEVIATION, NO_HELD_OUTSIDE,
 } from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
+import { isApCategoryBoundary, apLeftBorderClass, isProposedStart, PROPOSED_GAP_STYLE } from './MatrixColumnHeaders.helpers';
 import { getApRoleBadge } from '@ui/utils/accessPackageStyles';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -373,14 +374,13 @@ export default function MatrixGroupRow({
         const apKey = `${lookupGid}|${ap.id.toLowerCase()}`;
         const roleName = apGroupMap?.get(apKey);
         const hasMapping = !!roleName;
-        const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
-        const curCat = ap.categoryName || null;
-        const isCategoryBoundary = idx === 0 || prevCat !== curCat;
+        const proposedStart = isProposedStart(accessPackages, idx);
         return (
           <td
             key={ap.id}
-            className={`px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+            className={`px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700 ${apLeftBorderClass(idx, isApCategoryBoundary(accessPackages, idx), proposedStart)}`}
             style={{
+              ...(proposedStart ? PROPOSED_GAP_STYLE : {}),
               backgroundColor: hasMapping ? getAccessPackageColor(idx, isDark) : undefined,
               minWidth: '24px',
               width: '24px',

@@ -102,6 +102,8 @@
     "104_context_tree_adjustments.sql": "055185bc4e2846eb54a1d2366b05dfca7735f8ca8482a189548e6f014eb282df",
     "105_context_repairs.sql": "1493d0c9a071ee323e681cad8e8529ef86fca460dd270ba06a0cd473317b9103",
     "106_org_knowledge_claims.sql": "4579b7b063610556e7b95fd30297fbede21849c6ededed468f61488c9240681f",
+    "107_workbench_investigations.sql": "ef3955b1127b25b50d4742f805c50e1e1060e3366352c44d05eb387a3ce302a8",
+    "108_role_proposal_assignment.sql": "87f4fa6ba1887713015081942df0aa1dd33c2298c35e1241223b5b33861d0464",
     "109_context_member_history.sql": "127b63938bc4ff6d2addf6ae2a4923dccdc570c9a609447d84035f2405dbba8f"
   }
 }

@@ -3,6 +3,8 @@ import { DIMENSIONS, MARKS, selectionParts } from './workbench.model';
 import { PEOPLE_COLUMNS } from './workbench.columns';
 import { MARK_LEGEND } from './workbench.cells';
 import { MatrixLegendButton } from '@ui/components/matrix/GridCornerControls';
+import { ORIENTATIONS, orientationOf } from './workbench.transposed';
+import { PermissionsMenu } from './PermissionFilters';
 
 // ─── The workbench's controls ────────────────────────────────────────────
 // Toolbar: which people columns show, an optional grouping (off by default — one
@@ -13,28 +15,64 @@ import { MatrixLegendButton } from '@ui/components/matrix/GridCornerControls';
 const BTN = 'rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700';
 const FIELD = 'rounded border border-gray-300 bg-white px-1 py-0.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100';
 
-export function Toolbar({ view, setView }) {
+export function Toolbar({ view, setView, perms = null }) {
   const set = (field) => (value) => setView(v => ({ ...v, [field]: value }));
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
+      <OrientationSwitch view={view} onChange={set('orientation')} />
       <ColumnsChooser shown={view.columns} onChange={set('columns')} />
-      <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Group by
-        <select value={view.groupBy} onChange={e => set('groupBy')(e.target.value)} className={FIELD}>
-          {DIMENSIONS.map(d => <option key={d.key} value={d.key}>{d.key === 'none' ? 'No grouping' : d.label}</option>)}
-        </select>
-      </label>
+      {orientationOf(view) === 'rows' && (
+        <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+          Group by
+          <select value={view.groupBy} onChange={e => set('groupBy')(e.target.value)} className={FIELD}>
+            {DIMENSIONS.map(d => <option key={d.key} value={d.key}>{d.key === 'none' ? 'No grouping' : d.label}</option>)}
+          </select>
+        </label>
+      )}
       <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
         <input type="checkbox" checked={view.includeChildren} onChange={e => set('includeChildren')(e.target.checked)} />
         Include sub-units
       </label>
-      <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-        Access held by at least
-        <input type="number" min={1} value={view.minHolders} onChange={e => set('minHolders')(Math.max(1, Number(e.target.value) || 1))} className={`w-12 ${FIELD}`} />
-        people
-      </label>
+      <HeldBy view={view} set={set} />
       <input type="search" value={view.columnSearch} onChange={e => set('columnSearch')(e.target.value)} placeholder="Find access…" aria-label="Find a column"
         className={`w-40 px-2 text-xs ${FIELD}`} />
+      {perms && orientationOf(view) === 'rows' && <PermissionsMenu perms={perms} />}
+    </div>
+  );
+}
+
+// Access held by at least N people — and, to spot outliers, at most M (empty: no
+// limit). "Hide permissions only one person holds" is the at-least-2 preset.
+function HeldBy({ view, set }) {
+  const max = view.maxHolders ?? '';
+  return (
+    <span className="flex flex-wrap items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
+      <label className="flex items-center gap-1">
+        Access held by at least
+        <input type="number" min={1} value={view.minHolders} onChange={e => set('minHolders')(Math.max(1, Number(e.target.value) || 1))} className={`w-12 ${FIELD}`} />
+      </label>
+      <label className="flex items-center gap-1">
+        and at most
+        <input type="number" min={1} value={max} placeholder="any" aria-label="Access held by at most"
+          onChange={e => set('maxHolders')(e.target.value === '' ? null : Math.max(1, Number(e.target.value) || 1))} className={`w-14 ${FIELD}`} />
+        people
+      </label>
+      {view.minHolders < 2 && (
+        <button type="button" onClick={() => set('minHolders')(2)} className="text-blue-700 hover:underline dark:text-blue-300">Hide permissions only one person holds</button>
+      )}
+    </span>
+  );
+}
+
+// People as columns (the matrix's orientation, the default) or as rows. Saved with the view.
+function OrientationSwitch({ view, onChange }) {
+  const current = orientationOf(view);
+  return (
+    <div role="group" aria-label="Orientation" className="inline-flex overflow-hidden rounded border border-gray-300 text-xs dark:border-gray-600">
+      {ORIENTATIONS.map(o => (
+        <button key={o.key} type="button" onClick={() => onChange(o.key)} aria-pressed={current === o.key}
+          className={`px-2 py-0.5 ${current === o.key ? 'bg-blue-600 text-white dark:bg-blue-500' : 'text-gray-800 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700'}`}>{o.label}</button>
+      ))}
     </div>
   );
 }
@@ -62,7 +100,8 @@ function ColumnsChooser({ shown, onChange }) {
 
 // "8 of 26 people shown", the filters in words (each removable), and the Excel move:
 // take the people the filters leave.
-export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown, onUseAsRule }) {
+// `children`: more on the same line (the permission filters — PermissionStrip), so the two counts share one row.
+export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSelectShown, onAddShown, onUseAsRule, children }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs" role="region" aria-label="Filters">
       <span className="font-medium text-gray-900 dark:text-gray-100">{shown} of {total} people shown</span>
@@ -73,6 +112,7 @@ export function FilterStrip({ shown, total, summary, onClear, onClearAll, onSele
         </span>
       ))}
       {summary.length > 0 && <button type="button" onClick={onClearAll} className="text-blue-700 hover:underline dark:text-blue-300">Clear all filters</button>}
+      {children}
       <span className="ml-auto flex gap-2">
         <button type="button" onClick={onSelectShown} disabled={shown === 0} className={`${BTN} disabled:opacity-50`}>Select what they hold</button>
         {onUseAsRule && <button type="button" onClick={onUseAsRule} title="The role's members follow these filters (and the sub-units choice), now and as people join or leave" className={BTN}>Use these filters as the role's rule</button>}
@@ -91,9 +131,8 @@ function repeatedPeople(groups, people) {
 export function SelectionBar({ selection, dispatch, cellIndex, groups = [] }) {
   const { people, resources } = selectionParts(selection);
   const repeated = repeatedPeople(groups, people);
-  if (selection.size === 0) {
-    return <p className="text-xs text-gray-600 dark:text-gray-400">Click a cell, Shift-click for a rectangle, Ctrl/⌘-click to add; click a person, a group or a column header to select what they hold.</p>;
-  }
+  // Nothing selected: nothing here (how to select is in the legend under the grid).
+  if (selection.size === 0) return null;
   const btn = 'rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700';
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-800 dark:bg-blue-950/50" role="toolbar" aria-label="Selection">
@@ -118,6 +157,7 @@ export function Legend() {
   return (
     <div aria-label="Legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-700 dark:text-gray-300">
       <MatrixLegendButton />
+      <span>Click a cell, Shift-click for a rectangle, Ctrl/⌘-click to add; click a person, a group or a column header to select what they hold.</span>
       <span>Colour = covered by a business role · the candidate shows as <span className="font-medium">Draft</span> in the role band</span>
       <ul aria-label="Marks" className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {MARK_LEGEND.map(s => (

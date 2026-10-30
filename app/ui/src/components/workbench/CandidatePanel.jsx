@@ -14,14 +14,17 @@ import { roleProblems, roleNotes } from './workbench.rule';
 // never changed). The active one is edited here — members and entitlements chosen
 // separately — entitlements only as the analyst selects them in the grid (the
 // list shows how many members hold each) — its impact, and it can be removed when
-// it is not right. An existing role clicked in
-// the band shows here read-only, with "Propose update". Nothing is saved.
+// it is not right. An existing role clicked in the band shows here read-only, with
+// "Propose update". Saved only with the investigation (Save in the strip above;
+// saveLabel says which state it is in).
 
 export default function CandidatePanel({
   draft, dispatch, data, cellIndex, cellsByResource, peopleByKey, columnsById, roles = [], color = () => undefined,
-  candidate = null, unitName = '', onUseAsRule = () => {},
+  candidate = null, unitName = '', onUseAsRule = () => {}, saveLabel = 'Draft · not saved',
   // Optional: the actions at the end of the role (a screen that saves passes "Save role" here).
   roleActions = null,
+  // Optional: the resources the permission filters show — the impact counts only those.
+  visible = null,
 }) {
   const existing = data.columns.filter(c => c.isRole);
   const colorOf = (id) => { const r = roles.find(x => x.id === id); return r ? color(r.idx) : undefined; };
@@ -32,12 +35,12 @@ export default function CandidatePanel({
   const active = candidate ?? activeDraft(draft);
   return (
     <aside aria-label="Candidate role" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
-      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} countOf={countOf} />
+      <DraftList draft={draft} dispatch={dispatch} existing={existing} cellsByResource={cellsByResource} colorOf={colorOf} countOf={countOf} saveLabel={saveLabel} />
       {viewed && <ExistingRole role={viewed} dispatch={dispatch} cellsByResource={cellsByResource} peopleByKey={peopleByKey} columnsById={columnsById} color={colorOf(viewed.id)} />}
       {!viewed && active.id && (
         <DraftEditor candidate={active} draft={draft} dispatch={dispatch} data={data} cellIndex={cellIndex} peopleByKey={peopleByKey}
           columnsById={columnsById} draftColor={colorOf(active.id) ?? color(roles.length)}
-          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} roleActions={roleActions} />
+          rule={{ unitName, accountable: data.unit?.accountable ?? null, onUseAsRule }} roleActions={roleActions} visible={visible} />
       )}
       {!viewed && !active.id && (
         <p className="text-xs text-gray-600 dark:text-gray-400">No proposed role yet. Filter or select people and cells, then <span className="font-medium">Add to candidate</span> — or start one here.</p>
@@ -66,7 +69,7 @@ function ColorSwatch({ color }) {
   return <span aria-hidden="true" className="inline-block h-3 w-3 shrink-0 rounded-sm border border-gray-300 dark:border-gray-600" style={{ backgroundColor: color }} />;
 }
 
-function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, countOf }) {
+function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, countOf, saveLabel }) {
   const startFrom = (id) => {
     const role = existing.find(r => r.id === id);
     if (role) dispatch({ type: 'fromRole', role, cellsByResource });
@@ -75,7 +78,7 @@ function DraftList({ draft, dispatch, existing, cellsByResource, colorOf, countO
     <div>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Proposed roles</h3>
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Draft · not saved</span>
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">{saveLabel}</span>
       </div>
       <ul aria-label="Proposed roles" className="mt-1 space-y-0.5">
         {draft.drafts.map(d => (
@@ -135,10 +138,10 @@ function membersTitle(candidate) {
   return `Members chosen by hand (${n})`;
 }
 
-function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule, roleActions }) {
+function DraftEditor({ candidate, draft, dispatch, data, cellIndex, peopleByKey, columnsById, draftColor, rule, roleActions, visible }) {
   const dialog = useDialog();
   const baseRole = candidate.baseBusinessRoleId ? columnsById.get(candidate.baseBusinessRoleId) : null;
-  const impact = impactSummary(candidate, data.people, cellIndex, draft.marks);
+  const impact = impactSummary(candidate, data.people, cellIndex, draft.marks, visible);
   const share = new Map(frequencies(candidate.members, data.columns, cellIndex).map(f => [f.resourceId, f]));
   const n = candidate.members.size;
   const remove = async () => {
@@ -247,7 +250,7 @@ function Swatch({ kind, draftColor }) {
 }
 
 function ImpactBlock({ impact, peopleByKey, dispatch, draftColor }) {
-  const { counts, gainers, possibleMembers } = impact;
+  const { counts, gainers, hidden, possibleMembers } = impact;
   return (
     <div>
       <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Impact for the members</h4>
@@ -260,6 +263,7 @@ function ImpactBlock({ impact, peopleByKey, dispatch, draftColor }) {
           </li>
         ))}
       </ul>
+      {hidden > 0 && <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{hidden} {hidden === 1 ? 'permission' : 'permissions'} hidden by filters — not counted.</p>}
       {gainers > 0 && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">{gainers} {gainers === 1 ? 'person' : 'people'} would gain access they do not have today.</p>}
       {possibleMembers.length > 0 && (
         <div className="mt-1 text-xs text-gray-700 dark:text-gray-300">

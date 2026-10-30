@@ -5,7 +5,7 @@ import { usePopover } from './usePopover';
 // The toolbar row above the matrix grid ("a matrix is a document", #1202).
 //
 // It carries only what changes the view of the whole document: the lens —
-// All / Governed / Non-governed / Gaps — and Export. Controls that act on one
+// All / Governed / Non-governed / Gaps, the "+ Proposed roles" toggle where offered, and Export. Controls that act on one
 // axis of the grid (fold columns, expand/fold rows, reset row order, the
 // legend) live in the grid's own header corner (GridCornerControls). Saving,
 // loading and sharing live in the Load / Save / Share bar above. There is no
@@ -45,7 +45,10 @@ function ExportMenu({ onExportExcel }) {
   );
 }
 
-export default function MatrixToolbar({ managedFilter, setManagedFilter, onExportExcel, hideGaps = false }) {
+// showProposed: offer the "+ Proposed roles" toggle (an analyst, organisation
+// knowledge on, not a shared view — app/MatrixArea). It adds the saved workbench
+// proposals on top of whichever lens is chosen; it is not a lens of its own.
+export default function MatrixToolbar({ managedFilter, setManagedFilter, onExportExcel, hideGaps = false, showProposed = false, proposedOn = false, onToggleProposed }) {
   // A recipient of a share link gets the matrix, not the analyst's tooling: no
   // export (#1166).
   const isSharedView = useIsSharedView();
@@ -75,6 +78,15 @@ export default function MatrixToolbar({ managedFilter, setManagedFilter, onExpor
         ))}
       </div>
 
+      {showProposed && (
+        <button type="button" onClick={() => onToggleProposed?.(!proposedOn)} aria-pressed={proposedOn}
+          title="Add the proposed roles saved in workbench investigations on top of this view — nothing here changes access"
+          className={`mr-auto rounded border px-2 py-1 text-xs font-medium ${proposedOn
+            ? 'border-amber-500 bg-amber-100 text-amber-900 dark:border-amber-500 dark:bg-amber-900/40 dark:text-amber-100'
+            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+          + Proposed roles
+        </button>
+      )}
       {canExport && <ExportMenu onExportExcel={onExportExcel} />}
     </div>
   );
