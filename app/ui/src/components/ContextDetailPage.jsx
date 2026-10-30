@@ -14,6 +14,8 @@ import useTimeline from '@ui/hooks/useTimeline';
 import useFeatures from '@ui/hooks/useFeatures';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
+import { contextOpener } from './contexts/contextOpener';
 import { useDialog } from '@ui/components/dialogContext';
 import { promptAndAddSubUnit } from './contexts/addSubUnit';
 import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMembers';
@@ -43,6 +45,12 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const features = useFeatures();
   const dialog = useDialog();
   const analyst = useIsAnalyst();
+  const sharedView = useIsSharedView();
+  // What the page may link to: nothing but the shell's own handler when read-only
+  // (a context owner may open no member, person or sub-unit page).
+  const openEntity = linkTarget(sharedView, onOpenDetail);
+  // Sub-units and parents: on a context owner's page, those in their scope open in place.
+  const openContext = contextOpener({ sharedView, ownerScope: useContextOwnerScope(), onOpenDetail });
   const [editing, setEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('members');
   const [timelineDays, setTimelineDays] = useState(90);
@@ -105,7 +113,8 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         pageSize={MEMBER_PAGE_SIZE}
         authFetch={authFetch}
         onMembersChanged={refreshAll}
-        onOpenDetail={onOpenDetail}
+        onOpenDetail={openEntity}
+        openContext={openContext}
       />
     ),
 
@@ -115,7 +124,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         loading={timeline.loading}
         sinceDays={timelineDays}
         onSinceDaysChange={setTimelineDays}
-        onOpenDetail={onOpenDetail}
+        onOpenDetail={openEntity}
         hideFields={TIMELINE_HIDDEN_FIELDS}
       />
     ),
@@ -132,8 +141,10 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
         attrs={attrs}
         subContexts={subContexts}
         analyst={analyst}
-        {...headerActions({ analyst, editable, embedded, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
+        {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}
         onOpenDetail={onOpenDetail}
+        openEntity={openEntity}
+        openContext={openContext}
         onShowMembers={() => showSection(sectionIds.members)}
         onShowSubUnits={() => showSection(sectionIds.subUnits)}
       />
@@ -163,6 +174,11 @@ function useIsAnalyst() {
   const canWrite = useHasPermission('data.write.contexts');
   const sharedView = useIsSharedView();
   return canWrite && !sharedView;
+}
+
+// A read-only shell links nowhere; elsewhere the shell's own handler.
+function linkTarget(sharedView, onOpenDetail) {
+  return sharedView ? undefined : onOpenDetail;
 }
 
 // The standalone page carries the unit's name in the browser tab; embedded, none.
@@ -235,16 +251,18 @@ function DetailStatus({ loading, error, onRetry, onClose }) {
 // template's profile (facts, variants, workflows), with the remaining
 // attributes (More details) at the foot of its facts. Tags, segments and the
 // rest keep the generic page, with More details as a card of its own.
-function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, ...headerProps }) {
+// The header links only through `openEntity` (none when read-only); the profile
+// keeps the shell's handler, which a context owner's page limits to its scope.
+function DetailTop({ contextId, attrs, subContexts, analyst, onShowMembers, onShowSubUnits, onOpenDetail, openEntity, openContext, ...headerProps }) {
   const profile = profileFor(attrs.contextCategory);
   return (
     <>
-      <ContextDetailHeader attrs={attrs} {...headerProps} />
+      <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} openContext={openContext} {...headerProps} />
       {attrs.description && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{attrs.description}</div>
       )}
       {profile
-        ? <ContextProfile key={contextId} profile={profile} attrs={attrs} subContexts={subContexts} onOpenDetail={headerProps.onOpenDetail}
+        ? <ContextProfile key={contextId} profile={profile} attrs={attrs} subContexts={subContexts} onOpenDetail={onOpenDetail}
             analyst={analyst} onShowMembers={onShowMembers} onShowSubUnits={onShowSubUnits} />
         : <ContextDetails key={contextId} attrs={attrs} framed analyst={analyst} />}
     </>

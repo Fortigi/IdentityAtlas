@@ -93,6 +93,29 @@ permission, so you can't accidentally revoke your own ability to manage roles.
     can still read data — set `AUTH_REQUIRED_ROLES` if you need to stop roleless
     users from signing in at all.
 
+### Relative permissions: letting context owners in
+
+**Admin → Authentication → Authorization → Relative permissions** groups the
+access people get because of how they relate to the data, rather than an
+Identity Atlas role. It is always read-only and limited to the data they relate
+to. There are two kinds today:
+
+- **Context owners** — one checkbox. It lets the people who are **Accountable**
+  or **Responsible** for a context sign in without an Identity Atlas role. They
+  land directly on their own context page — read-only, with its report
+  download — and can also open its sub-units (except a sub-unit that has an
+  owner of its own) and, for each member, see the *names* of what that member
+  holds and which other contexts it is in. Every other screen and endpoint stays
+  closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do
+  hold a role are not affected. It is off by default and takes effect without a
+  restart.
+- **Matrix-share recipients** — someone a matrix is shared with can open that
+  matrix without a role (see [Sharing a matrix](../ui/sharing-a-matrix.md)).
+  That is decided per share; there is no setting for it on this page.
+
+See [Context-owner access](../architecture/context-owner-access.md) for exactly
+what a context owner can see and how it is enforced.
+
 ---
 
 ## Recovering from a lockout

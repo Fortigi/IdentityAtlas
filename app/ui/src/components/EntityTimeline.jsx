@@ -176,7 +176,7 @@ export default function EntityTimeline({ events, loading, sinceDays, onSinceDays
               {moments[selIdx].events.map((ev, i) => {
                 const style = OP_STYLES[ev.operation] || OP_STYLES.changed;
                 const target = KIND_TO_TAB[ev.counterpartyKind];
-                const linkable = ev.counterpartyLabel && target && ev.counterpartyId;
+                const linkable = onOpenDetail && ev.counterpartyLabel && target && ev.counterpartyId;
                 return (
                   <li key={i} className="flex items-start gap-2">
                     <span className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0 w-12" title={formatDate(ev.at)}>

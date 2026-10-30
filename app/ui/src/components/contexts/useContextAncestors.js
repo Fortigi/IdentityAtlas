@@ -6,7 +6,8 @@ import { useAuth } from '@ui/auth/AuthGate';
 // in turn for its own parent. A failed read ends the chain there (keeping the
 // name we already have), as does a cycle or MAX_DEPTH levels. Until the walk
 // finishes the known direct parent stands in, so the breadcrumb never flashes
-// empty.
+// empty. With walk=false only that direct parent is named and nothing is read
+// (a read-only shell whose reader may not open the parents).
 
 const MAX_DEPTH = 8;
 
@@ -36,19 +37,19 @@ export async function walkAncestors(authFetch, attrs) {
   return items;
 }
 
-export function useContextAncestors(attrs) {
+export function useContextAncestors(attrs, { walk = true } = {}) {
   const { authFetch } = useAuth();
   const [walked, setWalked] = useState({ key: null, items: [] });
   const key = `${attrs.id}|${attrs.parentContextId || ''}`;
 
   useEffect(() => {
-    if (!attrs.parentContextId) return undefined;
+    if (!attrs.parentContextId || !walk) return undefined;
     let cancelled = false;
     walkAncestors(authFetch, attrs).then(items => { if (!cancelled) setWalked({ key, items }); });
     return () => { cancelled = true; };
-  }, [authFetch, key, attrs]);
+  }, [authFetch, key, attrs, walk]);
 
   if (!attrs.parentContextId) return [];
-  if (walked.key === key) return walked.items;
+  if (walk && walked.key === key) return walked.items;
   return [{ id: attrs.parentContextId, displayName: attrs.parentDisplayName || attrs.parentContextId }];
 }

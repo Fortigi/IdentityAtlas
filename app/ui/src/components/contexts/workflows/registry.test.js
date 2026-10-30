@@ -27,9 +27,11 @@ describe('action registry', () => {
     for (const t of ['Resource', 'System']) expect(keysOf(unit(t)), t).toEqual(['view-in-matrix']);
   });
 
-  it('keeps every card on a read-only shared view (none of them is analyst-only)', () => {
-    expect(keysOf(APP, { sharedView: true })).toEqual(['view-in-matrix', 'download-report']);
-    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['view-in-matrix', 'download-unit-report']);
+  // A context owner's read-only page cannot open the matrix (an in-app page); the reports stay.
+  it('drops the in-app matrix card from a read-only shared view, keeping the reports', () => {
+    expect(keysOf(APP, { sharedView: true })).toEqual(['download-report']);
+    expect(keysOf(unit('Identity'), { sharedView: true })).toEqual(['download-unit-report']);
+    expect(keysOf(unit('Resource'), { sharedView: true })).toEqual([]);
   });
 
   it('gives other templates no actions', () => {
