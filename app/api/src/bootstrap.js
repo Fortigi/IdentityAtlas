@@ -27,6 +27,7 @@ import { migrateCrawlerSecretsToVault } from './secrets/migrateCrawlerSecrets.js
 import { purgeExpiredTombstones } from './ingest/tombstonePurge.js';
 import { revokeIdleTokens } from './auth/readTokens.js';
 import { capCrawlerAuditLog, resolveAuditLogCap } from './lib/crawlerAuditLogCap.js';
+import { TAG_ROOT_MARKER, IS_TAG_ROOT_SQL, NOT_TAG_ROOT_SQL } from './lib/tagRoot.js';
 import { startUpdateCheckJob } from './updates/job.js';
 
 const WORKER_KEY_FILE = process.env.WORKER_KEY_FILE || '/data/uploads/.builtin-worker-key';
@@ -225,38 +226,54 @@ function startHistoryPruneJob() {
 // same-targetType-throughout-a-tree invariant means we need one root per
 // targetType rather than a single shared root.
 //
+// The root is itself a Tag context (contextType='Tag', contextCategory='Tag')
+// carrying the extendedAttributes.tagRoot = true marker (lib/tagRoot.js) — a
+// root is a context without a parent, not a type of its own.
+//
 // Idempotent: creates the roots if missing, reparents any orphan tags
-// (parentContextId IS NULL) on every boot. Tags created via /api/tags
-// after this also attach under the right root.
+// (parentContextId IS NULL, the root itself excluded) on every boot. Tags
+// created via /api/tags after this also attach under the right root.
+async function findTagRoot(targetType) {
+  const row = await db.queryOne(
+    `SELECT id FROM "Contexts"
+      WHERE "contextType" = 'Tag'
+        AND ${IS_TAG_ROOT_SQL}
+        AND "targetType"  = $1
+        AND "parentContextId" IS NULL
+      LIMIT 1`,
+    [targetType]
+  );
+  return row ? row.id : null;
+}
+
+async function insertTagRoot(targetType, description) {
+  const id = crypto.randomUUID();
+  await db.query(
+    `INSERT INTO "Contexts"
+       (id, variant, "targetType", "contextType", "contextCategory", "displayName", description,
+        "createdByUser", "extendedAttributes")
+     VALUES ($1, 'manual', $2, 'Tag', 'Tag', 'Tags', $3, 'system-bootstrap', $4::jsonb)`,
+    [id, targetType, description, JSON.stringify(TAG_ROOT_MARKER)]
+  );
+  return id;
+}
+
 async function ensureTagRoots() {
   const TARGET_TYPES = ['Principal', 'Resource', 'Identity'];
   for (const targetType of TARGET_TYPES) {
-    let root = await db.queryOne(
-      `SELECT id FROM "Contexts"
-        WHERE "contextType" = 'TagGroup'
-          AND "targetType"  = $1
-          AND "parentContextId" IS NULL
-        LIMIT 1`,
-      [targetType]
-    );
-    if (!root) {
-      const id = crypto.randomUUID();
-      await db.query(
-        `INSERT INTO "Contexts"
-           (id, variant, "targetType", "contextType", "displayName", description, "createdByUser")
-         VALUES ($1, 'manual', $2, 'TagGroup', 'Tags', $3, 'system-bootstrap')`,
-        [id, targetType, `Synthetic root grouping all ${targetType} tags. Created by bootstrap.`]
-      );
-      root = { id };
+    let rootId = await findTagRoot(targetType);
+    if (!rootId) {
+      rootId = await insertTagRoot(targetType, `Synthetic root grouping all ${targetType} tags. Created by bootstrap.`);
       console.log(`Tag-root: created Tags root for ${targetType}`);
     }
     const r = await db.query(
       `UPDATE "Contexts"
           SET "parentContextId" = $1
         WHERE "contextType"     = 'Tag'
+          AND ${NOT_TAG_ROOT_SQL}
           AND "targetType"      = $2
           AND "parentContextId" IS NULL`,
-      [root.id, targetType]
+      [rootId, targetType]
     );
     if (r.rowCount > 0) {
       console.log(`Tag-root: reparented ${r.rowCount} orphan ${targetType} tag(s)`);
@@ -269,23 +286,9 @@ async function ensureTagRoots() {
 // is impossible because the SELECT-INSERT path runs inside one HTTP request
 // and ensureTagRoots() at boot has already created the rows in practice.
 export async function getOrCreateTagRoot(targetType) {
-  let row = await db.queryOne(
-    `SELECT id FROM "Contexts"
-      WHERE "contextType" = 'TagGroup'
-        AND "targetType"  = $1
-        AND "parentContextId" IS NULL
-      LIMIT 1`,
-    [targetType]
-  );
-  if (row) return row.id;
-  const id = crypto.randomUUID();
-  await db.query(
-    `INSERT INTO "Contexts"
-       (id, variant, "targetType", "contextType", "displayName", description, "createdByUser")
-     VALUES ($1, 'manual', $2, 'TagGroup', 'Tags', $3, 'system-bootstrap')`,
-    [id, targetType, `Synthetic root grouping all ${targetType} tags. Created on demand.`]
-  );
-  return id;
+  const existing = await findTagRoot(targetType);
+  if (existing) return existing;
+  return insertTagRoot(targetType, `Synthetic root grouping all ${targetType} tags. Created on demand.`);
 }
 
 // Run database migrations as a hard startup prerequisite. This MUST complete

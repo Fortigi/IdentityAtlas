@@ -9,7 +9,7 @@ const SYSTEM_COLS = new Set([
   'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo',
   // New-shape fields already surfaced in the header — don't repeat in the
   // attributes grid.
-  'id', 'variant', 'targetType', 'contextType', 'displayName', 'description',
+  'id', 'variant', 'targetType', 'contextType', 'contextCategory', 'displayName', 'description',
   'parentContextId', 'scopeSystemId', 'scopeSystemName', 'sourceAlgorithmId',
   'sourceAlgorithmName', 'sourceAlgorithmDisplayName', 'sourceRunId',
   'createdByUser', 'ownerUserId', 'externalId', 'parentDisplayName',

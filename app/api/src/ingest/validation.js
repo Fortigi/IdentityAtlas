@@ -44,10 +44,23 @@ export const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo', 'DelegatesScope
 // ingest REJECTS anything else.
 export const PRINCIPAL_RELATIONSHIP_TYPES = ['Owner', 'Sponsor'];
 // Contexts: how a context came to exist, which kind of node it groups (and a
-// member is), and who added a member. Mirrors the CHECKs in migration 018.
+// member is), and who added a member. Mirrors the CHECKs in migration 018 (and,
+// for addedBy, 105: one value scheme for members, roles and relationships —
+// 'sourceOwner' is the owner a synced context's source names, which only the
+// contexts ingest itself writes, on ContextRoles).
 export const CONTEXT_VARIANTS = ['synced', 'generated', 'manual'];
 export const CONTEXT_TARGET_TYPES = ['Identity', 'Resource', 'Principal', 'System'];
-export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst'];
+export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst', 'sourceOwner'];
+// The template a context falls under (ontology/core.ttl, the ia:template classes
+// below ia:Context; docs/architecture/context-templates-phase-b.md). Nullable in
+// the database: a synced value nobody has placed yet shows as "Other".
+export const CONTEXT_CATEGORIES = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment'];
+// Who answers for a context: at most one Accountable, any number Responsible.
+// A context→person link, never access (migration 094 CHECK).
+export const CONTEXT_ROLE_TYPES = ['Accountable', 'Responsible'];
+// Context→context links (migration 094 CHECK). SameUnitAs: two contexts are one unit
+// seen through a different kind of member (its people, its accounts, its resources).
+export const CONTEXT_RELATIONSHIP_TYPES = ['SameUnitAs'];
 
 // Schema definitions per entity type. Exported read-only for the core ontology
 // check, which verifies every field of the core entities is described there.
@@ -268,6 +281,7 @@ export const SCHEMAS = {
       variant: { type: 'string', enum: CONTEXT_VARIANTS },
       targetType: { type: 'string', enum: CONTEXT_TARGET_TYPES },
       contextType: { type: 'string', maxLength: 50 },
+      contextCategory: { type: 'string', enum: CONTEXT_CATEGORIES },
       displayName: { type: 'string', maxLength: 500 },
       description: { type: 'string' },
       parentContextId: { type: 'uuid' },

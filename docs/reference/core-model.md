@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.0.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `2.1.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -45,7 +45,6 @@ classDiagram
     class Entitlement
     class EntraDirectoryRole
     class EntraGroupCategoryContext
-    class EntraGroupRootContext
     class ExternalUser
     class Group
     class GroupOwnership
@@ -63,20 +62,17 @@ classDiagram
     class Person
     class Principal
     class PrincipalTypeContext
-    class PrincipalTypeRootContext
     class Resource
     class ResourceClusterContext
     class ResourceOwnership
     class ResourcePlaneContext
     class ResourceRoleContext
     class ResourceTypeContext
-    class ResourceTypeRootContext
     class RiskyAppConsentContext
     class RiskyConsentContext
     class SAPRole
     class Scope
     class ScopeContext
-    class ScopeHierarchyContext
     class Segment
     class Service
     class ServicePrincipal
@@ -85,9 +81,7 @@ classDiagram
     class Software
     class System
     class SystemMembershipContext
-    class SystemMembershipRootContext
     class TagContext
-    class TagGroupContext
     class TeamContext
     class TechnicalRole
     class UntypedResource
@@ -110,15 +104,14 @@ classDiagram
     Scope <|-- AzureSubscription
     Resource <|-- BusinessRole
     TechnicalRole <|-- CRMRole
-    Segment <|-- ContextRecipeContext
+    LogicalApplicationContext <|-- ContextRecipeContext
     Permission <|-- ControlPermission
-    Segment <|-- CostCenterContext
+    OrganizationalUnit <|-- CostCenterContext
     AccessPermission <|-- DelegatedPermission
     OrganizationalUnit <|-- DepartmentContext
     AccessPermission <|-- Entitlement
     TechnicalRole <|-- EntraDirectoryRole
     Segment <|-- EntraGroupCategoryContext
-    Segment <|-- EntraGroupRootContext
     Person <|-- ExternalUser
     Resource <|-- Group
     ControlPermission <|-- GroupOwnership
@@ -134,19 +127,16 @@ classDiagram
     Resource <|-- Permission
     Principal <|-- Person
     Segment <|-- PrincipalTypeContext
-    Segment <|-- PrincipalTypeRootContext
     Segment <|-- ResourceClusterContext
     ControlPermission <|-- ResourceOwnership
     Segment <|-- ResourcePlaneContext
     Segment <|-- ResourceRoleContext
     Segment <|-- ResourceTypeContext
-    Segment <|-- ResourceTypeRootContext
     Segment <|-- RiskyAppConsentContext
     Segment <|-- RiskyConsentContext
     TechnicalRole <|-- SAPRole
     Resource <|-- Scope
     Segment <|-- ScopeContext
-    Segment <|-- ScopeHierarchyContext
     Context <|-- Segment
     Application <|-- Service
     Software <|-- ServicePrincipal
@@ -154,9 +144,7 @@ classDiagram
     Person <|-- SharedMailbox
     Principal <|-- Software
     Segment <|-- SystemMembershipContext
-    Segment <|-- SystemMembershipRootContext
     Context <|-- TagContext
-    TagContext <|-- TagGroupContext
     OrganizationalUnit <|-- TeamContext
     Resource <|-- TechnicalRole
     AccessPermission <|-- UntypedResource
@@ -172,6 +160,7 @@ classDiagram
     Resource --> GroupOwnership : HasOwnership
     Resource --> ResourceOwnership : HasOwnership
     Principal --> Principal : Owner
+    Context --> Context : SameUnitAs
     Principal --> Principal : Sponsor
 ```
 <!-- END GENERATED: ontology core-classes -->
@@ -191,11 +180,10 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | Value | Class | Template | Groups | Made by | Meaning |
 |---|---|---|---|---|---|
 | `AdministrativeUnit` | `ia:AdministrativeUnitContext` | Organizational unit | Principal | crawler `demo` | An Entra administrative unit. Only the demo dataset emits it; the Entra crawler does not sync administrative units. |
-| `ContextRecipe` | `ia:ContextRecipeContext` | Segment | Resource | plugin `context-recipe` | Resources matched by a recipe built in the context assistant, plus the ones pinned by hand. |
-| `CostCenter` | `ia:CostCenterContext` | Segment | Identity | crawler `omada` | A cost center synced from Omada, grouping persons. |
+| `ContextRecipe` | `ia:ContextRecipeContext` | Logical application | Resource | plugin `context-recipe` | Resources matched by a recipe built in the context assistant, plus the ones pinned by hand. The type says how the context was built; its template (contextCategory) is chosen at save time, an application being the common case. |
+| `CostCenter` | `ia:CostCenterContext` | Organizational unit | Identity | crawler `omada` | A cost center synced from Omada, grouping persons: an org dimension a manager recognises, so an organizational unit. |
 | `Department` | `ia:DepartmentContext` | Organizational unit | Identity, Principal | plugin `department-from-principal`; crawlers `demo`, `omada` | One flat context per distinct Principals.department value (externalId 'dept:<value>'), without hierarchy. The Omada crawler syncs departments of persons under the same value, and the demo dataset writes a department tree of accounts. |
 | `EntraGroupCategory` | `ia:EntraGroupCategoryContext` | Segment | Resource | plugin `entra-group-category-tree` | The Entra groups of one category (security, Microsoft 365, dynamic …). |
-| `EntraGroupRoot` | `ia:EntraGroupRootContext` | Segment | Resource | plugin `entra-group-category-tree` | Root of the tree that groups Entra groups by category. |
 | `Location` | `ia:LocationContext` | Segment | Identity | crawler `omada` | A work location synced from Omada, grouping persons. |
 | `LogicalApplication` | `ia:LogicalApplicationContext` | Logical application | Resource | crawler `mssql` | An application as the business knows it, grouping the technical resources (entitlements, roles, groups) that belong to it. The SQL connector's IdentityIQ preset loads these from the application list. |
 | `ManagerHierarchy` | `ia:ManagerHierarchyContext` | Organizational unit | Principal | plugin `manager-hierarchy` | One generated context per manager of one system's accounts, plus a synthetic root (externalId 'root'). The manager is recorded only in externalId, which holds the manager's Principal id — there is no manager column or member role. Members are the manager's direct reports (Principals.managerId, overridden per account by ManagerHierarchyOverrides); the manager is a member of their own manager's node, not of their own. parentContextId is the node of the manager's own manager, else the root. Accounts with no manager that manage nobody are members of the root; a top-level manager is a member of no node. A managerId that points at no account of the system still becomes a node, named 'Unknown'. A reporting cycle, a self-reference included, leaves a node without a parent: the runner refuses the link that would close the cycle. |
@@ -203,26 +191,22 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `OrganisationalUnit` | `ia:OrganisationalUnitContext` | Organizational unit | Principal | plugin `ad-ou-from-dn` | An Active Directory OU derived from the accounts' distinguished names, nested like the directory. Crawlers that sync org units (Omada, CSV, midPoint) store 'OrgUnit' instead — a different value the ontology does not define. |
 | `OrphanedAccounts` | `ia:OrphanedAccountsContext` | Segment | Principal | plugin `orphaned-accounts` | Accounts that are not linked to any identity. |
 | `PrincipalType` | `ia:PrincipalTypeContext` | Segment | Principal | plugin `principal-type-tree` | The accounts of one principalType. |
-| `PrincipalTypeRoot` | `ia:PrincipalTypeRootContext` | Segment | Principal | plugin `principal-type-tree` | Root of the tree that groups accounts by principalType. |
 | `ResourceCluster` | `ia:ResourceClusterContext` | Segment | Resource | plugin `resource-cluster` | Resources whose names cluster together. |
 | `ResourcePlane` | `ia:ResourcePlaneContext` | Segment | Resource | plugin `resource-type-tree` | Control or data plane below a resource type group. |
 | `ResourceRole` | `ia:ResourceRoleContext` | Segment | Resource | plugin `resource-type-tree` | One role name below a resource plane. |
 | `ResourceType` | `ia:ResourceTypeContext` | Segment | Resource | plugin `resource-type-tree` | The resources of one resourceType. |
-| `ResourceTypeRoot` | `ia:ResourceTypeRootContext` | Segment | Resource | plugin `resource-type-tree` | Root of the tree that groups resources by resourceType. |
 | `RiskyAppConsent` | `ia:RiskyAppConsentContext` | Segment | Resource | plugin `risky-consent` | Applications flagged as malicious (threat feed) or suspicious (heuristics). |
 | `RiskyConsent` | `ia:RiskyConsentContext` | Segment | Resource | plugin `risky-consent` | Granted permissions of one risk tier (High, Medium, Low). |
-| `Scope` | `ia:ScopeContext` | Segment | Resource | plugin `scope-hierarchy` | A scope-hierarchy node whose resource has no resourceType. |
-| `ScopeHierarchy` | `ia:ScopeHierarchyContext` | Segment | Resource | plugin `scope-hierarchy` | Root of a tree that follows the Contains hierarchy of scope resources (Azure management groups, subscriptions, resource groups). Its nodes are typed after the resource each stands for, so below the root contextType repeats a resourceType value. |
+| `Scope` | `ia:ScopeContext` | Segment | Resource | plugin `scope-hierarchy` | A node of the scope-hierarchy tree, the root included: one Azure scope (management group, subscription, resource group). The resource's own type is in extendedAttributes.resourceType. |
 | `SystemMembership` | `ia:SystemMembershipContext` | Segment | Principal, Resource | plugin `system-membership-principals`, `system-membership-resources` | The accounts, or the resources, loaded from one system. |
-| `SystemMembershipRoot` | `ia:SystemMembershipRootContext` | Segment | Principal, Resource | plugin `system-membership-principals`, `system-membership-resources` | Root of a tree with one context per connected system. Two plugins emit it, one for accounts and one for resources; each tree holds one kind. |
-| `Tag` | `ia:TagContext` | Tag | Identity, Principal, Resource | application code | A manual label (variant 'manual') that the tags API reads and writes, placed under the TagGroup root of its targetType. |
-| `TagGroup` | `ia:TagGroupContext` | Tag | Identity, Principal, Resource | application code | The synthetic 'Tags' root, one per targetType, created at startup so the tags of one kind share a tree. |
+| `Tag` | `ia:TagContext` | Tag | Identity, Principal, Resource | application code | A manual label (variant 'manual') that the tags API reads and writes. One root per targetType holds them, itself a Tag marked extendedAttributes.tagRoot = true, which the tags API and the GraphTags view leave out. |
 | `Team` | `ia:TeamContext` | Organizational unit | Principal | crawler `demo` | A team below a department. Only the demo dataset emits it. |
 
 Other values arrive from the source data or configuration of: `csv`, `custom-connector`, `midpoint`, `mssql`, `omada`.
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
+| `contextCategory` | `ia:contextCategory` | text | `OrganizationalUnit`, `LogicalApplication`, `Tag`, `Segment` | The template this context falls under. NULL for a synced value nobody has placed yet. |
 | `contextType` | `ia:contextType` | text | open vocabulary | What kind of grouping this is (Department, OrgUnit, Tag, Cluster, LogicalApplication, …). An open vocabulary. |
 | `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
 | `createdByUser` | `ia:createdByUser` | text |  | The analyst who created a manual context. |
@@ -428,10 +412,50 @@ Edge: `contextId` → `memberId`.
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
 | `addedAt` | `ia:addedAt` | timestamp with time zone |  | When the member was added. |
-| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst` | Who added the member. |
+| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst`, `sourceOwner` | Who added the member. |
 | `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
 | `memberId` | `ia:memberId` | uuid | → Identities / Resources / Principals / Systems | The member; memberType names its table. Ingest alias: `memberExternalId`. |
 | `memberType` | `ia:memberType` | text | `Identity`, `Resource`, `Principal`, `System` | Which kind of node memberId is. |
+
+### ContextRelationships
+
+`ia:ContextRelationship` · Edge table · A typed link between two contexts: two variants of one unit (its people, its accounts, its resources).
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+Edge: `contextId` → `relatedContextId`.
+
+`relationshipType` accepts exactly these relationship types:
+
+| Value | Property | From → to | Meaning |
+|---|---|---|---|
+| `SameUnitAs` | `ia:sameUnitAs` | ia:Context → ia:Context | The two contexts are one unit seen through a different kind of member: Contoso as its people, its accounts, its resources. Symmetric; stored once per pair. Each side still holds one kind of member, and the two hold different kinds. |
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst`, `sourceOwner` | Who added the member. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
+| `relatedContextId` | `ia:relatedContextId` | uuid | → Contexts | The other context of the link. |
+| `relationshipType` | `ia:relationshipType` | text | `SameUnitAs` | The relationship type: one of the ia:typeValue of the properties stored in this edge table. |
+
+### ContextRoles
+
+`ia:ContextRole` · Edge table · Who answers for a context: one account (principalId) or one person (identityId) — exactly one — is Accountable (at most one per context) or Responsible for it. A context→person link, never access: it is not an assignment and grants nothing.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+Edge: `contextId` → `principalId` or `identityId`.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `addedBy` | `ia:addedBy` | text | `sync`, `algorithm`, `analyst`, `sourceOwner` | Who added the member. |
+| `contextId` | `ia:contextId` | uuid | → Contexts | The context. Ingest alias: `contextExternalId`. |
+| `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
+| `identityId` | `ia:identityId` | uuid | → Identities | The person. On ResourceAssignments set instead of principalId for person-level assignments. Ingest alias: `identityExternalId`. |
+| `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor. Ingest alias: `principalExternalId`, `userExternalId`. |
+| `role` | `ia:role` | text | `Accountable`, `Responsible` | Accountable or Responsible. |
+| `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
 ### IdentityMembers
 
@@ -579,6 +603,26 @@ Edge: `parentResourceId` → `childResourceId`.
 | `Indirect` | `ia:AssignmentType_Indirect` | Inherited through another resource (an app role held via a group, a nested group). Stored, not inferred. |
 | `Eligible` | `ia:AssignmentType_Eligible` | Granted but not active (PIM-eligible): can be activated. |
 
+### Context category
+
+`ia:ContextCategory` — The template a context falls under, stored per row (Contexts.contextCategory). Each value denotes the ia:template class of that name. Used by `Contexts.contextCategory`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `OrganizationalUnit` | `ia:ContextCategory_OrganizationalUnit` | Organisation structure. |
+| `LogicalApplication` | `ia:ContextCategory_LogicalApplication` | An application as the business knows it. |
+| `Tag` | `ia:ContextCategory_Tag` | A manual label. |
+| `Segment` | `ia:ContextCategory_Segment` | A grouping by an attribute or an analysis. |
+
+### Context role
+
+`ia:ContextRoleType` — What a person is to a context. Only an OrganizationalUnit or a LogicalApplication carries roles. Used by `ContextRoles.role`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `Accountable` | `ia:ContextRoleType_Accountable` | Answers for the unit or application: its manager or owner. At most one per context. |
+| `Responsible` | `ia:ContextRoleType_Responsible` | Does the work the accountable person delegated. Any number per context. |
+
 ### Context variant
 
 `ia:ContextVariant` — How a context came to exist. Used by `Contexts.variant`.
@@ -602,13 +646,14 @@ Edge: `parentResourceId` → `childResourceId`.
 
 ### Membership source
 
-`ia:MembershipSource` — Who put a member into a context. Used by `ContextMembers.addedBy`.
+`ia:MembershipSource` — Who put a member into a context. Used by `ContextMembers.addedBy`, `ContextRelationships.addedBy`, `ContextRoles.addedBy`.
 
 | Value | Individual | Meaning |
 |---|---|---|
 | `sync` | `ia:MembershipSource_sync` | A crawler. |
 | `algorithm` | `ia:MembershipSource_algorithm` | A context-algorithm plugin. |
 | `analyst` | `ia:MembershipSource_analyst` | An analyst, by hand. |
+| `sourceOwner` | `ia:MembershipSource_sourceOwner` | The owner a synced context's source names (ownerUserId), stated as its Accountable by the contexts ingest and kept in step on every sync. Only the ingest writes it, and it replaces or removes only these rows. |
 
 ### Propagation scope
 

@@ -45,6 +45,9 @@ flowchart LR
     Context -->|"ContextMembers"| Resource
     Context -->|"ContextMembers"| Principal
     Context -->|"ContextMembers"| System
+    Context -->|"ContextRelationships<br/><small>SameUnitAs</small>"| Context
+    Context -->|"ContextRoles"| Principal
+    Context -->|"ContextRoles"| Identity
     Identity -->|"IdentityMembers"| Principal
     Principal -->|"PrincipalRelationships<br/><small>Owner, Sponsor</small>"| Principal
     Principal -->|"ResourceAssignments"| Resource
@@ -204,10 +207,18 @@ flowchart LR
 
 ### Grouping types (Context)
 
-`contextType` is an open list too. A context groups one kind of node; the
+`contextType` is an open list too, and since 2.1.0 every row also carries its template in
+`contextCategory`. A context groups one kind of node; the
 [Core Model Reference](../reference/core-model.md#contexts) lists which kind each type groups.
 `OrgUnit` (synced from an IGA or HR source, grouping persons) and `OrganisationalUnit` (derived by a
-plugin from accounts' AD distinguished names) are two different values today.
+plugin from accounts' AD distinguished names) are two values under the same template. A tree's root
+is simply a context without a parent, not a type of its own.
+
+An organizational unit or a logical application can say **who answers for it**: one *Accountable*
+(its manager or owner) and any number of *Responsible* people, each an account or a person. That is a
+link from the grouping to the person (`ContextRoles`), never access: nobody gains anything by being
+accountable for a team. Two org units can be two sides of one unit, the persons and the resources
+that belong to them, linked as two variants of one unit by `SameUnitAs`.
 
 <!-- BEGIN GENERATED: ontology types-context -->
 ```mermaid
@@ -215,51 +226,43 @@ flowchart LR
     root["Context<br/><small>contextType</small>"]:::Context
     subgraph g_LogicalApplicationContext["Logical application"]
       direction LR
+      t_ContextRecipe["ContextRecipe<br/><small>context-recipe</small>"]:::Context
       t_LogicalApplication["LogicalApplication<br/><small>mssql</small>"]:::Context
+      t_ContextRecipe ~~~ t_LogicalApplication
     end
     subgraph g_OrganizationalUnit["Organizational unit"]
       direction LR
       t_AdministrativeUnit["AdministrativeUnit<br/><small>demo</small>"]:::Context
+      t_CostCenter["CostCenter<br/><small>omada</small>"]:::Context
       t_Department["Department<br/><small>department-from-principal, demo, omada</small>"]:::Context
       t_ManagerHierarchy["ManagerHierarchy<br/><small>manager-hierarchy</small>"]:::Context
       t_OrgUnit["OrgUnit<br/><small>csv, midpoint, omada</small>"]:::Context
       t_OrganisationalUnit["OrganisationalUnit<br/><small>ad-ou-from-dn</small>"]:::Context
       t_Team["Team<br/><small>demo</small>"]:::Context
-      t_AdministrativeUnit ~~~ t_Department ~~~ t_ManagerHierarchy ~~~ t_OrgUnit
-      t_OrganisationalUnit ~~~ t_Team
+      t_AdministrativeUnit ~~~ t_CostCenter ~~~ t_Department ~~~ t_ManagerHierarchy
+      t_OrgUnit ~~~ t_OrganisationalUnit ~~~ t_Team
     end
     subgraph g_Segment["Segment"]
       direction LR
-      t_ContextRecipe["ContextRecipe<br/><small>context-recipe</small>"]:::Context
-      t_CostCenter["CostCenter<br/><small>omada</small>"]:::Context
       t_EntraGroupCategory["EntraGroupCategory<br/><small>entra-group-category-tree</small>"]:::Context
-      t_EntraGroupRoot["EntraGroupRoot<br/><small>entra-group-category-tree</small>"]:::Context
       t_Location["Location<br/><small>omada</small>"]:::Context
       t_OrphanedAccounts["OrphanedAccounts<br/><small>orphaned-accounts</small>"]:::Context
       t_PrincipalType["PrincipalType<br/><small>principal-type-tree</small>"]:::Context
-      t_PrincipalTypeRoot["PrincipalTypeRoot<br/><small>principal-type-tree</small>"]:::Context
       t_ResourceCluster["ResourceCluster<br/><small>resource-cluster</small>"]:::Context
       t_ResourcePlane["ResourcePlane<br/><small>resource-type-tree</small>"]:::Context
       t_ResourceRole["ResourceRole<br/><small>resource-type-tree</small>"]:::Context
       t_ResourceType["ResourceType<br/><small>resource-type-tree</small>"]:::Context
-      t_ResourceTypeRoot["ResourceTypeRoot<br/><small>resource-type-tree</small>"]:::Context
       t_RiskyAppConsent["RiskyAppConsent<br/><small>risky-consent</small>"]:::Context
       t_RiskyConsent["RiskyConsent<br/><small>risky-consent</small>"]:::Context
       t_Scope["Scope<br/><small>scope-hierarchy</small>"]:::Context
-      t_ScopeHierarchy["ScopeHierarchy<br/><small>scope-hierarchy</small>"]:::Context
       t_SystemMembership["SystemMembership<br/><small>system-membership-principals, system-membership-resources</small>"]:::Context
-      t_SystemMembershipRoot["SystemMembershipRoot<br/><small>system-membership-principals, system-membership-resources</small>"]:::Context
-      t_ContextRecipe ~~~ t_CostCenter ~~~ t_EntraGroupCategory ~~~ t_EntraGroupRoot
-      t_Location ~~~ t_OrphanedAccounts ~~~ t_PrincipalType ~~~ t_PrincipalTypeRoot
+      t_EntraGroupCategory ~~~ t_Location ~~~ t_OrphanedAccounts ~~~ t_PrincipalType
       t_ResourceCluster ~~~ t_ResourcePlane ~~~ t_ResourceRole ~~~ t_ResourceType
-      t_ResourceTypeRoot ~~~ t_RiskyAppConsent ~~~ t_RiskyConsent ~~~ t_Scope
-      t_ScopeHierarchy ~~~ t_SystemMembership ~~~ t_SystemMembershipRoot
+      t_RiskyAppConsent ~~~ t_RiskyConsent ~~~ t_Scope ~~~ t_SystemMembership
     end
     subgraph g_TagContext["Tag"]
       direction LR
       t_Tag["Tag"]:::Context
-      t_TagGroup["TagGroup"]:::Context
-      t_Tag ~~~ t_TagGroup
     end
     root --> g_LogicalApplicationContext
     root --> g_OrganizationalUnit
@@ -302,6 +305,7 @@ flowchart LR
     pietsTeam -->|"context member"| annaAccount
     anna -->|"identity member"| annaAccount
     plannerBot -->|"Direct"| berthPlanner
+    pietsTeam -->|"Accountable"| pietAccount
     annaAccount -.->|"managerId"| pietAccount
     berthApp ==>|"HasAppRole"| berthPlanner
     pietsTeam -.->|"parentContextId"| orgRoot
@@ -328,9 +332,10 @@ How to read it:
   below the organisation root (`parentContextId`).
 - **Anna (the person) and anna.devries@example.org (the account) are two different things.** The
   person can have more accounts in other systems; the `identity member` arrow links them.
-- **The team does not point at Piet.** The manager-hierarchy plugin records a team's manager only in
-  the team's `externalId` field — there is no manager link. This is one of the facts the ontology
-  makes explicit; see [Contexts and the manager hierarchy](../architecture/core-ontology.md#contexts-and-the-manager-hierarchy-as-implemented).
+- **Piet answers for the team.** The `Accountable` arrow is a context role: the manager-hierarchy
+  plugin states who is accountable for each node, and an analyst can add who is responsible. It is a
+  link from the team to the person, not access; see
+  [Contexts and the manager hierarchy](../architecture/core-ontology.md#contexts-and-the-manager-hierarchy-as-implemented).
 
 ### The same team, as the file says it
 

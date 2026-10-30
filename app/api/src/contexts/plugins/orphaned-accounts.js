@@ -24,6 +24,7 @@ export default {
     'type (Admin/Guest/Service/Shared/Secondary). Accounts a sync has removed from their source system are ' +
     'left out. Refreshed automatically by the Account Linking run.',
   targetType: 'Principal',
+  contextCategory: 'Segment',
   contextTypes: ['OrphanedAccounts'],
   parametersSchema: { type: 'object', required: [], properties: {} },
 

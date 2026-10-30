@@ -12,13 +12,17 @@ import * as db from '../../db/connection.js';
 import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { enqueueRun } from '../../contexts/plugins/runner.js';
 import { useSql, UUID_RE, writeContexts } from './shared.js';
-import { validateCreateContextBody, checkCreateParent, buildContextUpdate } from './crudHelpers.js';
+import { userOf } from '../../lib/userOf.js';
+import { validateCreateContextBody, resolveCreateCategory, buildContextUpdate } from './crudHelpers.js';
 
 const router = Router();
 
 // ─── POST /api/contexts ──────────────────────────────────────────────
 // Create a manual context. Body: { targetType, contextType, displayName,
-// description?, parentContextId?, scopeSystemId?, ownerUserId?, externalId? }.
+// description?, parentContextId?, scopeSystemId?, ownerUserId?, externalId?,
+// contextCategory? }. The category (template) defaults to the parent's when a
+// parent is given, else null ("Other"). ownerUserId stays the creator — a
+// creator is not a responsible; those are roles (./roles.js).
 router.post('/contexts', writeContexts, async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const body = req.body || {};
@@ -27,20 +31,20 @@ router.post('/contexts', writeContexts, async (req, res) => {
   if (invalid) return res.status(invalid.status).json({ error: invalid.message });
 
   const id = randomUUID();
-  const createdBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'unknown';
+  const createdBy = userOf(req);
 
   try {
-    // If a parent is supplied, enforce the invariant: same targetType, exists.
-    if (body.parentContextId) {
-      const parentErr = await checkCreateParent(body);
-      if (parentErr) return res.status(parentErr.status).json({ error: parentErr.message });
-    }
+    // A supplied parent must exist and share the targetType; it also lends
+    // its template when the body names none.
+    const resolved = await resolveCreateCategory(body);
+    if (resolved.error) return res.status(resolved.error.status).json({ error: resolved.error.message });
 
     await db.query(`
       INSERT INTO "Contexts"
         (id, variant, "targetType", "contextType", "displayName", description,
-         "parentContextId", "scopeSystemId", "createdByUser", "ownerUserId", "externalId")
-      VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         "parentContextId", "scopeSystemId", "createdByUser", "ownerUserId", "externalId",
+         "contextCategory")
+      VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
       id,
       body.targetType,
@@ -52,6 +56,7 @@ router.post('/contexts', writeContexts, async (req, res) => {
       createdBy,
       body.ownerUserId || null,
       body.externalId || null,
+      resolved.contextCategory,
     ]);
 
     const row = await db.queryOne(`SELECT * FROM "Contexts" WHERE id = $1`, [id]);
@@ -64,7 +69,7 @@ router.post('/contexts', writeContexts, async (req, res) => {
 
 // ─── PATCH /api/contexts/:id ─────────────────────────────────────────
 // Update a manual or generated context. Body keys: displayName, description,
-// parentContextId, ownerUserId, extendedAttributes. Immutable fields (variant,
+// parentContextId, ownerUserId, extendedAttributes, contextCategory. Immutable fields (variant,
 // targetType, sourceAlgorithmId) are ignored; synced contexts are read-only.
 router.patch('/contexts/:id', writeContexts, async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });

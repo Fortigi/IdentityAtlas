@@ -225,7 +225,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                   onAddChild={addChild}
                   onLoadMembers={loadMembers}
                   onOpenMember={(id, name, kind) => onOpenDetail?.(kind || 'user', id, name)}
-                  onMoveMember={selectedRoot?.contextType === 'ManagerHierarchy' ? moveMember : undefined}
+                  onMoveMember={selectedRoot?.sourceAlgorithmName === 'manager-hierarchy' ? moveMember : undefined}
                 />
               ) : (
                 <ContextListView nodes={nodes} onOpenDetail={open} />

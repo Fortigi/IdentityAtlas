@@ -2,8 +2,8 @@
 //
 // contextType is an open vocabulary: a crawler or an analyst may store any
 // string. The values the CODE itself relies on are not open, though — a route
-// that filters `"contextType" = 'Tag'` or a screen that checks
-// `contextType === 'ManagerHierarchy'` gives that value a meaning, and the
+// that filters `"contextType" = 'Tag'` in SQL, or a screen that checks a
+// context's type against a literal, gives that value a meaning, and the
 // ontology must define it. Those comparisons are inline literals (mostly inside
 // SQL), so they are found by scanning the source, the same way
 // ingest/assignmentTypes.guard.test.js scans the crawlers. Plugins declare what

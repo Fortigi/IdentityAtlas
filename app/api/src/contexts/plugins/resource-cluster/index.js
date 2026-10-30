@@ -28,6 +28,7 @@ export const plugin = {
     'cluster per remaining token that appears in at least `minMembers` resources. ' +
     'A resource can belong to multiple clusters.',
   targetType: 'Resource',
+  contextCategory: 'Segment',
   contextTypes: ['ResourceCluster'],
   parametersSchema: {
     type: 'object',

@@ -9,6 +9,7 @@ import {
   buildManagerIds,
   buildManagerContexts,
   buildMemberRows,
+  buildManagerRoles,
 } from './manager-hierarchy.helpers.js';
 
 describe('manager-hierarchy helpers — compileExcludeRegexes', () => {
@@ -267,5 +268,20 @@ describe('manager-hierarchy helpers — irregular reporting lines', () => {
     expect(of('b')).toEqual(['a']);
     // Neither is a member of the root: the loop is detached from the tree.
     expect([...of('a'), ...of('b')]).not.toContain('root');
+  });
+});
+
+describe('manager-hierarchy helpers — buildManagerRoles', () => {
+  it('makes every manager that is an account of the system the Accountable of their own node', () => {
+    const byId = new Map([['ceo', { id: 'ceo' }], ['vp', { id: 'vp' }]]);
+    const roles = buildManagerRoles(new Set(['ceo', 'vp']), byId);
+    expect(roles).toEqual([
+      { contextExternalId: 'ceo', principalId: 'ceo', role: 'Accountable' },
+      { contextExternalId: 'vp', principalId: 'vp', role: 'Accountable' },
+    ]);
+  });
+
+  it('gives a ghost manager (no account to point at) no role', () => {
+    expect(buildManagerRoles(new Set(['gone']), new Map())).toEqual([]);
   });
 });

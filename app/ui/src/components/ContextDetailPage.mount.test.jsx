@@ -141,6 +141,32 @@ describe('ContextDetailPage — the owner in the header', () => {
   });
 });
 
+describe('ContextDetailPage — the template in the header', () => {
+  it('badges a context without a template as Other and asks for no roles', async () => {
+    const authFetch = routes();
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    expect(await screen.findByText('Other')).toHaveAttribute('title', expect.stringMatching(/No template/));
+    expect(screen.queryByText('People')).toBeNull();
+    expect(authFetch).not.toHaveBeenCalledWith(expect.stringContaining('/roles'));
+  });
+
+  it('badges an organisational unit and lists the people answering for it', async () => {
+    // The roles key must sit before the bare detail key (substring match), so
+    // it cannot go through routes()' overrides spread.
+    const authFetch = makeAuthFetch({
+      '/api/contexts/ctx-1/roles': [{ id: 'r1', role: 'Accountable', principalId: 'p-1', identityId: null, displayName: 'Mara Lindqvist', addedBy: 'algorithm' }],
+      '/api/risk-scores/contexts/ctx-1': riskData,
+      '/api/contexts/ctx-1/members': members,
+      '/api/contexts/ctx-1/timeline': timeline,
+      '/api/contexts/ctx-1': { ...generatedDetail, attributes: { ...generatedDetail.attributes, contextCategory: 'OrganizationalUnit' } },
+    });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    expect(await screen.findByText('Organisation')).toBeInTheDocument();
+    expect(await screen.findByText('Mara Lindqvist')).toBeInTheDocument();
+    expect(screen.getByText('People')).toBeInTheDocument();
+  });
+});
+
 describe('ContextDetailPage (mounted)', () => {
   it('shows the loading state before the detail fetch resolves', () => {
     // authFetch that never resolves keeps it in the loading branch.

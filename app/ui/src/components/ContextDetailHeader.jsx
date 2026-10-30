@@ -1,14 +1,17 @@
-import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { variantMeta, targetTypeMeta, categoryMeta } from '@ui/utils/contextStyles';
 import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
 import { isRecipeRoot } from './contexts/assistant/recipeDraft';
 import ContextOwner from './contexts/ContextOwner';
 import ContextAccessCounts from './contexts/ContextAccessCounts';
+import ContextPeople from './contexts/ContextPeople';
 
-// ─── Header — surfaces provenance (variant, target, system, owner) ────────
+// ─── Header — surfaces provenance (template, variant, target, system, owner)
+// and, for an organisational unit or application, the people answering for it.
 export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const v = variantMeta(attrs.variant);
   const t = targetTypeMeta(attrs.targetType);
+  const c = categoryMeta(attrs.contextCategory);
   const provenance = describeProvenance(attrs);
 
   return (
@@ -18,6 +21,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`w-1.5 h-8 ${v.dotClass} rounded`} aria-hidden="true" />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{attrs.displayName || attrs.id}</h2>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${c.badgeClass}`} title={c.description}>{c.label}</span>
             {attrs.contextType && (
               <span className="text-[10px] uppercase tracking-wide text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">
                 {attrs.contextType}
@@ -39,6 +43,7 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Parent: {attrs.parentDisplayName}</p>
           )}
           <ContextAccessCounts attrs={attrs} />
+          <ContextPeople attrs={attrs} onOpenDetail={onOpenDetail} />
         </div>
         <div className="flex items-start gap-2">
         {canEditRecipe && (

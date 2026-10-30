@@ -207,6 +207,10 @@ describe('NewContextWizard (mounted)', () => {
     // Step 2 — manual details form.
     expect(await screen.findByText('Target type')).toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue('Identity'), { target: { value: 'Resource' } });
+    // A new tree starts as a Segment; this one is an application.
+    const template = screen.getByRole('combobox', { name: 'Template' });
+    expect(template).toHaveValue('Segment');
+    await user.selectOptions(template, 'LogicalApplication');
     await user.type(screen.getByPlaceholderText('Application'), 'BusinessProcess');
     await user.type(screen.getByPlaceholderText('Procurement app'), 'My Tree');
 
@@ -217,6 +221,8 @@ describe('NewContextWizard (mounted)', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     );
+    const body = JSON.parse(authFetch.mock.calls.find(([u, o]) => u === '/api/contexts' && o?.method === 'POST')[1].body);
+    expect(body).toMatchObject({ targetType: 'Resource', contextCategory: 'LogicalApplication', contextType: 'BusinessProcess', displayName: 'My Tree' });
     await waitFor(() => expect(cb.onCreated).toHaveBeenCalled());
     expect(cb.onClose).toHaveBeenCalled();
   });

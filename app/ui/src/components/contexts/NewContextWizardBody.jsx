@@ -1,6 +1,7 @@
 import { Field } from './ModalPrimitives';
 import { targetTypeMeta } from '@ui/utils/contextStyles';
 import JsonSchemaForm from './NewContextSchemaForm';
+import ContextCategorySelect from './ContextCategorySelect';
 
 // ─── Step dispatcher ──────────────────────────────────────────────────────────
 // Picks the step body for the current (source, step). Kept flat with early
@@ -13,6 +14,7 @@ export default function WizardBody(props) {
     return (
       <ManualForm
         targetType={props.mTargetType} setTargetType={props.setMTargetType}
+        contextCategory={props.mContextCategory} setContextCategory={props.setMContextCategory}
         contextType={props.mContextType} setContextType={props.setMContextType}
         displayName={props.mDisplayName} setDisplayName={props.setMDisplayName}
         description={props.mDescription} setDescription={props.setMDescription}
@@ -252,7 +254,7 @@ function DryRunSamples({ samples }) {
 
 // ─── Manual details form ──────────────────────────────────────────────────────
 function ManualForm({
-  targetType, setTargetType, contextType, setContextType,
+  targetType, setTargetType, contextCategory, setContextCategory, contextType, setContextType,
   displayName, setDisplayName, description, setDescription,
   scopeSystemId, setScopeSystemId, systems,
 }) {
@@ -265,6 +267,9 @@ function ManualForm({
           <option value="Principal">Principal</option>
           <option value="System">System</option>
         </select>
+      </Field>
+      <Field label="Template" help="Which kind of context this is. An organisation or application can name the people who answer for it.">
+        <ContextCategorySelect value={contextCategory} onChange={setContextCategory} className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600" />
       </Field>
       <Field label="Context type" help="Free-form sub-classification (e.g. Application, BusinessProcess, Team).">
         <input value={contextType} onChange={e => setContextType(e.target.value)} placeholder="Application" className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600" />

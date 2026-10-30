@@ -8,8 +8,8 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
-import { useSql, UUID_RE, writeContexts } from './shared.js';
-import { MANAGER_HIERARCHY_CONTEXT_TYPE } from '../../contexts/plugins/manager-hierarchy.helpers.js';
+import { userOf } from '../../lib/userOf.js';
+import { useSql, UUID_RE, writeContexts, MANAGER_HIERARCHY_ALGORITHM } from './shared.js';
 
 const router = Router();
 
@@ -91,17 +91,15 @@ router.patch('/contexts/:id/members/:memberId/move', writeContexts, async (req, 
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   if (toContextId === id) return res.status(400).json({ error: 'Source and target are the same' });
 
-  const from = await db.queryOne(`SELECT "contextType", "targetType" FROM "Contexts" WHERE id = $1`, [id]);
-  const to   = await db.queryOne(`SELECT "contextType", "targetType", "externalId" FROM "Contexts" WHERE id = $1`, [toContextId]);
+  const from = await loadMoveNode(id);
+  const to   = await loadMoveNode(toContextId);
   if (!from || !to) return res.status(404).json({ error: 'Context not found' });
-  if (from.contextType !== MANAGER_HIERARCHY_CONTEXT_TYPE || to.contextType !== MANAGER_HIERARCHY_CONTEXT_TYPE) {
+  if (!isManagerNode(from) || !isManagerNode(to)) {
     return res.status(400).json({ error: 'Moving members is only supported in the Manager Hierarchy tree.' });
   }
 
-  // The target node's externalId is the new manager's principal id; the synthetic
-  // root ('root') means "report to no manager".
-  const managerPrincipalId = UUID_RE.test(to.externalId || '') ? to.externalId : null;
-  const setBy = (req.user && (req.user.email || req.user.upn || req.user.name)) || 'analyst';
+  const managerPrincipalId = managerIdOf(to);
+  const setBy = req.user ? userOf(req) : 'analyst';
 
   try {
     await applyManagerOverride(memberId, managerPrincipalId, setBy);
@@ -114,6 +112,25 @@ router.patch('/contexts/:id/members/:memberId/move', writeContexts, async (req, 
     res.status(500).json({ error: 'Failed to move member' });
   }
 });
+
+// A node belongs to the manager hierarchy by its source algorithm, not by its
+// contextType (a template choice that may change).
+const isManagerNode = (node) => node.sourceAlgorithmName === MANAGER_HIERARCHY_ALGORITHM;
+
+// The target node's externalId is the new manager's principal id; the synthetic
+// root ('root') means "report to no manager".
+const managerIdOf = (node) => (UUID_RE.test(node.externalId || '') ? node.externalId : null);
+
+// The node plus the name of the plugin that produced it; externalId is the
+// manager's principal id on a manager-hierarchy node.
+async function loadMoveNode(contextId) {
+  return db.queryOne(`
+    SELECT c."targetType", c."externalId", a.name AS "sourceAlgorithmName"
+      FROM "Contexts" c
+      LEFT JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
+     WHERE c.id = $1
+  `, [contextId]);
+}
 
 // Persist the reparent as a manager override so it survives plugin re-runs;
 // dropping the member back on their source manager clears the override.

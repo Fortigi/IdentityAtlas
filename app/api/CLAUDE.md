@@ -66,6 +66,8 @@ The mock exports the whole surface (`query`, `queryOne`, `tx`, `getPool`, `close
 
 Migration files are numbered sequentially (`001_core_schema.sql`, `002_governance.sql`, etc.). Add a new file for each schema change — never edit existing migration files.
 
+If a migration has to be **renumbered after it shipped** (two branches picked the same number), rename the `.sql` and its `.test.js`, move its key in `.ci/migration-hashes.json`, and add `"<new filename>": "<old filename>"` to `migrations/renames.json`. A database that recorded the old name then records the new one at boot instead of running the file again (`migrate.js` → `recordRenamedMigrations`); the old row is kept for traceability.
+
 **No runtime DDL.** Don't create/alter schema from route, ingest, or startup code — no `CREATE TABLE IF NOT EXISTS` "just in case" (this pattern was removed for `SavedMatrixFilters` in #794). The migration runner owns all schema; a table a route depends on must exist as a migration, not be lazily materialised on first request (which hides drift, races under concurrency, and needs write privileges at request time).
 
 **Describe it in the core ontology.** A migration that adds or changes a column on a core table (Systems, Principals, Resources, Identities, Contexts and the five edge tables), or a new closed value list / relationship type in `ingest/validation.js`, also updates `/ontology/core.ttl` — `npm run ontology:check` and `contract-tests/coreOntology.contract.test.js` fail otherwise. The type lists in `validation.js` are exported for that check; add values there, never to a second list. Tooling lives in `src/ontology/` (dev/CI only, never imported by the server). See `docs/contributing/maintaining-the-ontology.md`.

@@ -22,6 +22,9 @@ const roots = {
       variant: 'generated',
       targetType: 'Identity',
       contextType: 'ManagerHierarchy',
+      contextCategory: 'OrganizationalUnit',
+      sourceAlgorithmName: 'manager-hierarchy',
+      sourceAlgorithmDisplayName: 'Manager Hierarchy',
       directMemberCount: 1,
       totalMemberCount: 4,
     },
@@ -31,6 +34,9 @@ const roots = {
       variant: 'synced',
       targetType: 'Identity',
       contextType: 'OrgUnit',
+      contextCategory: 'OrganizationalUnit',
+      scopeSystemId: 3,
+      scopeSystemName: 'Active Directory',
       directMemberCount: 0,
       totalMemberCount: 9,
       // The owner as the read endpoint hands it over: the raw value the source
@@ -234,17 +240,24 @@ describe('ContextsPage (mounted)', () => {
     expect(screen.getByText(/Select a tree on the left/i)).toBeInTheDocument();
   });
 
-  it('runs the Sync flow on a generated tree', async () => {
-    // POST /sync returns no runId → the poll loop is skipped, refresh runs,
-    // and the "Synced" confirmation appears.
+  // Render the page over the generated tree, with one route answered by the
+  // test and everything else falling through to the shared fixtures.
+  function renderOverGenTree(answer) {
     const authFetch = makeAuthFetch((url, opts = {}) => {
-      if (String(url).includes('/sync') && opts.method === 'POST') return { ok: true };
+      const hit = answer(String(url), opts);
+      if (hit !== undefined) return hit;
       if (String(url).includes('/api/contexts/tree')) return genSubtree;
       if (String(url).includes('/api/contexts')) return roots;
       return jsonResponse({}, { ok: false, status: 404 });
     });
     renderWithProviders(h(ContextsPage, {}), { auth: { authFetch } });
-    const user = userEvent.setup();
+    return { authFetch, user: userEvent.setup() };
+  }
+
+  it('runs the Sync flow on a generated tree', async () => {
+    // POST /sync returns no runId → the poll loop is skipped, refresh runs,
+    // and the "Synced" confirmation appears.
+    const { authFetch, user } = renderOverGenTree((url, opts) => (url.includes('/sync') && opts.method === 'POST' ? { ok: true } : undefined));
 
     await screen.findByText('Backend Squad');
     await user.click(screen.getByRole('button', { name: /Sync/i }));
@@ -268,14 +281,7 @@ describe('ContextsPage (mounted)', () => {
       total: 1,
       data: [{ id: 'u-1', displayName: 'Ada Lovelace', principalType: 'User' }],
     };
-    const authFetch = makeAuthFetch((url) => {
-      if (String(url).includes('/members')) return memberData;
-      if (String(url).includes('/api/contexts/tree')) return genSubtree;
-      if (String(url).includes('/api/contexts')) return roots;
-      return jsonResponse({}, { ok: false, status: 404 });
-    });
-    renderWithProviders(h(ContextsPage, {}), { auth: { authFetch } });
-    const user = userEvent.setup();
+    const { authFetch, user } = renderOverGenTree((url) => (url.includes('/members') ? memberData : undefined));
 
     await screen.findByText('Backend Squad');
 
@@ -287,6 +293,42 @@ describe('ContextsPage (mounted)', () => {
     expect(authFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/contexts/root-gen/members'),
     );
+    // The tree is the manager-hierarchy plugin's, so a member can be dragged
+    // to another team.
+    expect(screen.getByTitle('Ada Lovelace — drag onto another team to move')).toBeInTheDocument();
+  });
+
+  it('enables member moves on the plugin that produced the tree, not on the type name', async () => {
+    // Same contextType as before, but produced by another plugin: the type
+    // no longer decides, the plugin does.
+    const otherPlugin = {
+      data: [{ ...roots.data[0], sourceAlgorithmName: 'department-tree', sourceAlgorithmDisplayName: 'Department tree' }],
+    };
+    const memberData = { total: 1, data: [{ id: 'u-1', displayName: 'Ada Lovelace', principalType: 'User' }] };
+    const authFetch = makeAuthFetch((url) => {
+      if (String(url).includes('/members')) return memberData;
+      if (String(url).includes('/api/contexts/tree')) return genSubtree;
+      if (String(url).includes('/api/contexts')) return otherPlugin;
+      return jsonResponse({}, { ok: false, status: 404 });
+    });
+    renderWithProviders(h(ContextsPage, {}), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    await screen.findByText('Backend Squad');
+    await user.click(screen.getAllByTitle(/Show the users directly in this context/i)[0]);
+    expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.queryByTitle(/drag onto another team to move/)).not.toBeInTheDocument();
+  });
+
+  it('groups the trees by template and captions them with their source', async () => {
+    renderWithProviders(h(ContextsPage, {}), { auth: { authFetch: routes() } });
+    await screen.findByText('Sales OUs');
+    // Both roots are organisational units → one group heading, no raw
+    // "ManagerHierarchy (Identity)" style heading.
+    expect(screen.getByText('Organisation')).toBeInTheDocument();
+    expect(screen.queryByText(/ManagerHierarchy \(Identity\)/)).not.toBeInTheDocument();
+    expect(screen.getByTitle('Generated by')).toHaveTextContent('Manager Hierarchy');
+    expect(screen.getByTitle('Scope system')).toHaveTextContent('Active Directory');
   });
 
   it('shows the empty state when there are no roots', async () => {

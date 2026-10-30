@@ -17,12 +17,16 @@
 //     node that is still produced survive.
 //   - Members with addedBy='algorithm' are fully replaced by the new set
 //     for contexts we own. Members with addedBy='analyst' or 'sync' survive.
+//   - Roles (who answers for a context) follow the same rule: the plugin's own
+//     (addedBy='algorithm') rows are replaced, an analyst's or a sync's survive.
+//   - Every node carries its template (contextCategory): the node's own, else
+//     the plugin's.
 
 import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
-import { buildNewIdMap, buildMemberInsertBatch } from './runner.helpers.js';
+import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys } from './runner.helpers.js';
 import { liveMemberSql } from '../memberCounts.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
@@ -270,6 +274,9 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
       newByExternalId, producedContextIds, targetType: plugin.targetType, counts,
     });
 
+    // 5b) Roles — same ownership rule as members.
+    await replaceOwnedRoles(client, result.roles || [], { newByExternalId, producedContextIds });
+
     // 6) Refresh direct + rolled-up member counts on every context we touched.
     await refreshMemberCounts(client, producedContextIds);
   });
@@ -318,22 +325,26 @@ async function updateContextRow(client, id, node, { plugin, runId }) {
        SET "displayName"         = CASE WHEN "userRenamed"    THEN "displayName"     ELSE $2 END,
            description           = $3,
            "contextType"         = $4,
+           "contextCategory"     = $7,
            "parentContextId"     = CASE WHEN "userReparented" THEN "parentContextId" ELSE NULL END,
            "extendedAttributes"  = $5,
            "sourceRunId"         = $6
      WHERE id = $1
-  `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId]);
+  `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId, categoryOf(node, plugin)]);
 }
 
 async function insertContextRow(client, id, node, { plugin, scopeSystemId, algorithmId, runId, instanceKey }) {
   await client.query(`
     INSERT INTO "Contexts"
       (id, variant, "targetType", "contextType", "displayName", description,
-       "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey")
-    VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11)
+       "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey", "contextCategory")
+    VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11, $12)
   `, [id, plugin.targetType, node.contextType || plugin.name, node.displayName, node.description || null,
-      scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey]);
+      scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey, categoryOf(node, plugin)]);
 }
+
+// The template a node is written under: its own, else the plugin's, else none.
+const categoryOf = (node, plugin) => node.contextCategory ?? plugin.contextCategory ?? null;
 
 // 4) Delete contexts that previously belonged to this (algorithm, scope) but are
 // no longer in the plugin's output.
@@ -372,6 +383,34 @@ async function replaceOwnedMembers(client, members, { newByExternalId, producedC
     insertedNow += r.rowCount || 0;
   }
   counts.membersAdded = insertedNow;
+}
+
+// 5b) Reconcile the algorithm-owned roles of the produced contexts. A role the
+// plugin still produces keeps its row (and its id, which a claim may point at);
+// only roles it no longer produces are removed, and new ones added. An analyst's
+// Accountable stays: the partial unique index refuses a second Accountable, and
+// ON CONFLICT DO NOTHING lets the plugin's row yield to it.
+async function replaceOwnedRoles(client, roles, { newByExternalId, producedContextIds }) {
+  if (producedContextIds.length === 0) return;
+  const keep = roleKeys(roles, newByExternalId);
+  await client.query(`
+    DELETE FROM "ContextRoles" r
+     WHERE r."contextId" = ANY($1::uuid[]) AND r."addedBy" = 'algorithm'
+       AND NOT EXISTS (
+         SELECT 1 FROM unnest($2::uuid[], $3::text[], $4::text[]) AS k(ctx, holder, role)
+          WHERE k.ctx = r."contextId" AND k.role = r."role"
+            AND k.holder = COALESCE(r."principalId", r."identityId")::text)
+  `, [producedContextIds, keep.ctx, keep.holder, keep.role]);
+  const BATCH = 500;
+  for (let i = 0; i < roles.length; i += BATCH) {
+    const { values, params } = buildRoleInsertBatch(roles.slice(i, i + BATCH), newByExternalId);
+    if (values.length === 0) continue;
+    await client.query(`
+      INSERT INTO "ContextRoles" ("contextId", "principalId", "identityId", "role", "addedBy")
+      VALUES ${values.join(', ')}
+      ON CONFLICT DO NOTHING
+    `, params);
+  }
 }
 
 // 6) Refresh directMemberCount on every touched context, then roll up
