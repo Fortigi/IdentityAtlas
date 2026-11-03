@@ -12,7 +12,7 @@ describe('teamMatrixFilter', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Identity' })).toEqual({
       rowType: 'identity',
       orientation: 'rows-as-subjects',
-      subject: { include: [{ kind: 'context', contextId: UNIT, includeChildren: false }], exclude: [] },
+      subject: { include: [{ kind: 'context', contextId: UNIT, includeChildren: true }], exclude: [] },
       resource: { include: [], exclude: [] },
     });
   });
@@ -26,7 +26,7 @@ describe('teamMatrixFilter', () => {
       rowType: 'principal',
       orientation: 'rows-as-subjects',
       subject: { include: [], exclude: [] },
-      resource: { include: [{ kind: 'context', contextId: UNIT, includeChildren: false }], exclude: [] },
+      resource: { include: [{ kind: 'context', contextId: UNIT, includeChildren: true }], exclude: [] },
     });
   });
 });

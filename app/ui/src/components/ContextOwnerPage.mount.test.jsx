@@ -290,7 +290,7 @@ describe('ContextOwnerPage — exploring the team', () => {
     expect(screen.getByTestId('owner-back')).toHaveTextContent('Back to Finance');
     await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u) === '/api/matrix/data')).toBe(true));
     const call = authFetch.mock.calls.find(([u]) => String(u) === '/api/matrix/data');
-    expect(JSON.parse(call[1].body).filter.subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: false }]);
+    expect(JSON.parse(call[1].body).filter.subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: true }]);
   });
 
   it('offers the application matrix on a context of resources, bounded on the resource axis', async () => {
@@ -301,7 +301,7 @@ describe('ContextOwnerPage — exploring the team', () => {
     expect(await screen.findByRole('region', { name: 'Application matrix' })).toBeInTheDocument();
     await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u) === '/api/matrix/data')).toBe(true));
     const { filter } = JSON.parse(authFetch.mock.calls.find(([u]) => String(u) === '/api/matrix/data')[1].body);
-    expect(filter.resource.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: false }]);
+    expect(filter.resource.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: true }]);
     expect(filter.subject.include).toEqual([]);
   });
 

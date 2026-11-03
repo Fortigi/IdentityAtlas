@@ -283,6 +283,6 @@ treated as a context owner.
   so adding or removing a role takes effect immediately; there is no cache to
   expire.
 - A member's references (the expandable row) are direct only (one hop), names only, and capped at 50 per group; the full lists are on the member's own page.
-- The team and application matrices open on one context without its sub-contexts; each sub-context has its own.
+- The team and application matrices open on one context with all its sub-contexts (an application often keeps its resources in child contexts); a variant's matrix is refused when the variant has sub-contexts outside the scope.
 - A variant's own sub-units are not in scope, so a report or matrix of a variant
   with its sub-units is refused.

@@ -50,7 +50,7 @@ export default function OwnerTeamMatrix({ contextId, onOpenDetail }) {
       <div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}{attrs?.displayName ? ` — ${attrs.displayName}` : ''}</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {app ? 'What is held here as columns, and everyone who holds it as a row.' : 'Everyone in this unit as a row, and what each of them holds.'}
+          {app ? 'What is held here as columns, and everyone who holds it as a row.' : 'Everyone in this unit and the units below it as a row, and what each of them holds.'}
           {' Open a person or a resource for its details.'}
         </p>
       </div>

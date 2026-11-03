@@ -34,7 +34,7 @@ export function offersMatrix(attrs, { sharedView = false } = {}) {
 }
 
 const OWNER_MATRICES = {
-  people: { label: 'Team matrix', title: 'Everyone in this unit as a row, and what each of them holds' },
+  people: { label: 'Team matrix', title: 'Everyone in this unit and the units below it as a row, and what each of them holds' },
   resources: { label: 'Application matrix', title: 'What is held here as columns, and everyone who holds it as a row' },
 };
 

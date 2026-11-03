@@ -235,14 +235,15 @@ export function matrixHrefForUnit(ctx) {
   return holdsResources(ctx) ? matrixHrefForResourceContext(ctx) : matrixHrefForContext(ctx);
 }
 
-// The matrix a context owner opens from their context's page, without its
-// sub-contexts (each has its own): on a unit of accounts or people
+// The matrix a context owner opens from their context's page, with all its
+// sub-contexts (an owner answers for everything below theirs — an application
+// often keeps its resources in child contexts): on a unit of accounts or people
 // its members as rows and everything they hold as columns; on a context of
 // resources (an application) its resources as columns and whoever holds one
 // as rows. The API refuses any wider filter from an owner
 // (app/api/src/auth/ownerAccess/matrixFilter.js); this is the one it runs.
 export function teamMatrixFilter(ctx) {
-  const own = { kind: 'context', contextId: ctx.id, includeChildren: false };
+  const own = { kind: 'context', contextId: ctx.id, includeChildren: true };
   if (ctx.targetType === 'Resource') return resourceAxisFilter(own);
   return {
     rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
