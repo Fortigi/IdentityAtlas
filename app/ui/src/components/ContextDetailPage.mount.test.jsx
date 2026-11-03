@@ -123,7 +123,9 @@ describe('ContextDetailPage — the template in the header', () => {
     });
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
     expect(await screen.findByRole('button', { name: 'Download report' })).toBeInTheDocument();
-    expect(await screen.findByRole('region', { name: 'Resources' })).toHaveTextContent('SG-Ledger');
+    // The section can render before its member list arrives: wait for the row, not just the region.
+    const resources = await screen.findByRole('region', { name: 'Resources' });
+    await waitFor(() => expect(resources).toHaveTextContent('SG-Ledger'));
     expect(screen.getByRole('region', { name: 'What we know' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
     // An application's members are resources: its People section waits for a source to name someone.
