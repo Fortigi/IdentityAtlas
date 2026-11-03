@@ -16,7 +16,7 @@
         <link rel="prev" href="../ask-assistant/">
       
       
-        <link rel="next" href="../sql-views/">
+        <link rel="next" href="../mcp-server/">
       
       
         
@@ -3160,6 +3160,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server (AI assistants)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../sql-views/" class="md-nav__link">
         
   
@@ -3288,10 +3316,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
         
           
-          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="">
             
   
   
@@ -3309,8 +3337,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5649,6 +5677,11 @@
 <td><code>data.read</code></td>
 <td>Read all data</td>
 <td>Effectively "can sign in at all." Enforced as authentication-required — any signed-in user can read; there is no per-route <code>requirePermission('data.read')</code> gate. <code>fgr_</code> read tokens are granted it implicitly. The Dashboard reads (<code>GET /api/admin/dashboard-stats</code>, <code>/dashboard-timeseries</code>), run history (<code>GET /api/risk-scoring/runs</code>, <code>/api/context-plugins/runs</code>, <code>/api/account-linking/runs</code>) <code>GET /api/updates/intent</code> and the Performance request log (<code>GET /api/perf*</code>, which also refuses <code>fgr_</code> read tokens) additionally require <strong>at least one</strong> mapped permission, so a signed-in user whose roles map to nothing is refused.</td>
+</tr>
+<tr>
+<td><code>mcp.use</code></td>
+<td>Use the MCP server</td>
+<td>Lets the holder connect an AI assistant (Claude, ChatGPT, Copilot) to <code>POST /mcp</code> and have it read data on their behalf. It is a gate, not a grant: each MCP tool also needs the permission the same data needs in the UI — reports need <strong>Read all data</strong>, <code>describe_data_model</code> and <code>run_query</code> need <strong>Ask questions in plain language</strong> — so an assistant never sees more than its user could. Only takes effect while sign-in is on and the experimental <strong>MCP server</strong> feature is switched on. Not in any seed role except <code>Admin</code> (<code>*</code>). See <a href="../mcp-server/">MCP server</a>.</td>
 </tr>
 </tbody>
 </table>

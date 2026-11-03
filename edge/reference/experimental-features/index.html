@@ -3084,6 +3084,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP server
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP server">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#leaving-experimental-behind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3174,6 +3213,34 @@
     
   
     Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server (AI assistants)
   
 
     
@@ -3322,10 +3389,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
         
           
-          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="">
             
   
   
@@ -3343,8 +3410,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -5598,6 +5665,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP server
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP server">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#leaving-experimental-behind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5813,6 +5919,25 @@ after every crawl from the terms it was saved with — that refresh is the <code
 plugin and needs no model. What stops is building and editing.</p>
 <p>It also does not stop or remove the model container: that is a deployment choice (a compose
 profile, or an Azure parameter), and it is shared with custom reports.</p>
+<hr />
+<h2 id="mcp-server">MCP server<a class="headerlink" href="#mcp-server" title="Permanent link">&para;</a></h2>
+<p>Lets people connect an AI assistant — Claude, ChatGPT or Copilot — to Identity Atlas and
+ask it questions. The assistant signs in as that person through Entra ID and reads only
+what their role allows. See <a href="../mcp-server/">MCP server</a> for the tools, the setup and the
+Entra app registration it needs. It is experimental because it is new, because the
+assistants' own sign-in support for Entra ID is still moving, and because what it reads
+leaves the deployment for the assistant's vendor.</p>
+<p>Environment variable: <code>FEATURE_MCP_SERVER=true</code>.</p>
+<h3 id="what-the-switch-does-precisely_4">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely_4" title="Permanent link">&para;</a></h3>
+<p><strong>On</strong> — <code>POST /mcp</code> and its discovery document
+(<code>/.well-known/oauth-protected-resource/mcp</code>) answer, for users whose role has <strong>Use the
+MCP server</strong> (<code>mcp.use</code>). The card shows the URL and scope to configure an assistant with,
+and the latest calls from the audit log.</p>
+<p><strong>Off</strong> — both answer <code>404</code>. The switch refuses to turn on while sign-in is off: with no
+signed-in user there is no one for the assistant to act for.</p>
+<h3 id="what-the-switch-does-not-do_4">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_4" title="Permanent link">&para;</a></h3>
+<p>Turning it off does not revoke tokens the assistants already hold — they simply stop
+working, because the endpoint is gone. It does not delete the audit log either.</p>
 <hr />
 <h2 id="leaving-experimental-behind">Leaving experimental behind<a class="headerlink" href="#leaving-experimental-behind" title="Permanent link">&para;</a></h2>
 <p>The label is temporary by design. Once a feature has run against enough real
