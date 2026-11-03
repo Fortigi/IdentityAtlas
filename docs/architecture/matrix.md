@@ -734,8 +734,11 @@ matrix. A direct-members column's group value is `<unit id>:direct`; the
 frontier marks it so the subtree walk stops at the unit (`frontierValues`,
 `withDirectMemberNodes` in `matrix/contextRollup.js`), and its members toggle
 drills into the unit's own members. A column nobody holds anything in is dropped
-like any other. The layered hierarchy carries the **business-role columns** too
-(as the zoom view does, `rollupContent` `resources-and-roles` by default).
+like any other. The view opens with the **root's direct-members column expanded**
+(its people as columns) and the sub-units collapsed — once per root, so
+collapsing it sticks. The layered hierarchy carries the **business-role columns**
+too (as the zoom view does, `rollupContent` `resources-and-roles` by default),
+headed under the last header row like the flat roll-up's.
 
 **Whole-axis fold level (attribute fold).** Clicking a header value folds or
 unfolds **one group**. That is not enough on an axis of hundreds of columns, and

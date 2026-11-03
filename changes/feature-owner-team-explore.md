@@ -9,3 +9,4 @@
 - The team matrix opens grouped by the unit's sub-units, which can be expanded and collapsed as in the analyst's hierarchy view; "Group by unit" switches to the flat matrix with the business roles.
 - The owner's list of contexts shows what kind each one is (organisation unit, application, tag, segment) with an icon and a label.
 - The matrix grouped by a unit's hierarchy (for analysts and owners) now shows the people directly in a unit as a "direct members" column beside its sub-units, so nobody drops out and the totals add up; a unit without sub-units no longer shows an empty matrix; and the business roles are shown in that view too.
+- The matrix grouped by hierarchy opens with the unit's own people shown individually and its sub-units collapsed, and its business-role columns are labelled again.
