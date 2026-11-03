@@ -8,7 +8,9 @@ const types = vi.hoisted(() => ({ map: new Map() }));
 vi.mock('../routes/matrix/shared.js', () => ({ resolveContextTypes: vi.fn(async () => types.map) }));
 vi.mock('../db/connection.js');
 
-const { annotateResponse, settleMatrix } = await import('./contextOwnerMode.js');
+const { shapeResponse, settleMatrix } = await import('./contextOwnerMode.js');
+const { annotateReferences } = await import('../auth/ownerAccess/annotate.js');
+const annotateResponse = (res, refs, acc) => shapeResponse(res, refs ? (body) => annotateReferences(body, refs, acc) : null);
 const { resolveContextTypes } = await import('../routes/matrix/shared.js');
 
 const TEAM = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -25,7 +27,7 @@ const access = (open) => ({ accessibleIds: vi.fn(async (_k, ids) => new Set(ids.
 const flush = () => new Promise(r => setTimeout(r, 0));
 const REFS = [{ at: '', kind: 'principal', key: 'principalId' }];
 
-describe('annotateResponse', () => {
+describe('shapeResponse (marking references)', () => {
   it('sends the body with every reference marked', async () => {
     const res = fakeRes();
     annotateResponse(res, REFS, access([TEAM]));

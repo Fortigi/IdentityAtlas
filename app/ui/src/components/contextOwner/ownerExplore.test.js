@@ -10,6 +10,7 @@ const UNIT = 'aaaaaaaa-0000-4000-8000-000000000001';
 describe('teamMatrixFilter', () => {
   it('a unit of people: identities as rows, the unit itself without its sub-units', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Identity' })).toEqual({
+      includeBusinessRoles: true,
       rowType: 'identity',
       orientation: 'rows-as-subjects',
       subject: { include: [{ kind: 'context', contextId: UNIT, includeChildren: true }], exclude: [] },
@@ -23,6 +24,7 @@ describe('teamMatrixFilter', () => {
 
   it('an application: its own resources as the column bound, every holder a row', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Resource' })).toEqual({
+      includeBusinessRoles: true,
       rowType: 'principal',
       orientation: 'rows-as-subjects',
       subject: { include: [], exclude: [] },

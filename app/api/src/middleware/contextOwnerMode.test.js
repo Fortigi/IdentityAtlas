@@ -478,7 +478,14 @@ describe('switch on — the team matrix', () => {
     for (const path of ['/api/matrix/preview', '/api/matrix/inheritance-path', '/api/matrix/hierarchy-paths']) {
       expect(denied(await request(app).post(path).set(as([])).send({}))).toBe(true);
     }
-    expect(denied(await ownerGet('/api/access-package-groups'))).toBe(true);
     expect(denied(await ownerGet('/api/user-columns'))).toBe(true);
+    expect(denied(await ownerGet('/api/access-package-resources'))).toBe(true);
+  });
+
+  it('reaches the business-role catalogue, cut to the roles they may open', async () => {
+    const res = await ownerGet('/api/access-package-groups');
+    expect(denied(res)).toBe(false);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
   });
 });

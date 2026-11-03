@@ -96,6 +96,7 @@ trip), so a change in the tree takes effect immediately.
 | `/api/reports/unit-members/export` | the same `contexts` check; with `includeSubUnits` (any value) also every descendant of what the contexts resolve to must be in scope — true below a held context, not below a variant |
 
 | One object's detail reads — `/api/user/:id` (and its memberships, contexts, activity, timeline, diff, …), `/api/identities/:id` (…), `/api/resources/:id`, `/api/group/:id`, `/api/access-package/:id` (…), `/api/org-chart/user/:id/manager|reports`, `/api/identities/by-user/:id`, `/api/risk-scores/{users,identities,groups,resources,business-roles}/:id` | the object opens in full for this owner (see [Exploring the team](#exploring-the-team)); the list is `auth/ownerAccess/endpoints.js` |
+| `/api/access-package-groups` — the business-role catalogue the matrix maps roles to their groups with | always, but the response is cut to the business roles the owner may open (`auth/ownerAccess/responses.js`): those their team holds, or that are themselves in scope — never the whole catalogue |
 | `POST /api/matrix/data` — the one POST, a read | the filter is bound to the owner's team (see [The team matrix](#the-team-matrix)) |
 
 Everything else — any other path, and every non-GET (but the team matrix) — answers
@@ -221,9 +222,12 @@ holders). `POST /api/matrix/data` runs for an owner only when
 - the aggregate modes (roll-ups, hierarchy sort, attribute fold, inherited
   access) are removed: the flat grid is run.
 
-Anything else is a 403. The matrix's other reads (tags, the access-package map,
-column labels, the default filter, the inheritance path, identity expansion)
-are not on the list; the views carry on without them.
+Both open with business roles as columns (`includeBusinessRoles`), as an
+analyst can choose, so the roles the people hold show beside their groups; the
+business-role catalogue the views map roles to groups with is answered, cut to
+the roles the owner may open. Anything else is a 403. The matrix's other reads
+(tags, column labels, the default filter, the inheritance path, identity
+expansion) are not on the list; the views carry on without them.
 
 ### Reusing this scope (MCP)
 

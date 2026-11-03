@@ -5,3 +5,4 @@
 - Application owners can now open an **Application matrix** from their application's page (its resources as columns, everyone who holds one as a row), and open the full page of each of those holders; what the holders have outside the application is shown by name only.
 - Someone who owns several contexts — for example a unit and an application — can switch between them and open each one's matrix, and may open everything any of their contexts gives access to.
 - Changed: a context owner now sees **every** unit below theirs, at any depth — also a sub-unit that has an owner of its own (that owner still sees only their own part). The unit report can now include those sub-units for an owner.
+- The team and application matrices now show the business roles the people hold, and those business roles can be opened; business roles nobody on the team holds stay out of view.

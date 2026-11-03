@@ -122,6 +122,15 @@ describe('contextOwnerVerdict — one object\'s detail page', () => {
   });
 });
 
+describe('contextOwnerVerdict — the business-role catalogue', () => {
+  it('allows GET /api/access-package-groups (the middleware cuts it to the owner\x27s roles), nothing else of it', () => {
+    expect(get('/api/access-package-groups')).toBe(ALLOW);
+    expect(get('/api/access-package-groups/')).toBe(DENY);
+    expect(get('/api/access-package-resources')).toBe(DENY);
+    expect(contextOwnerVerdict({ method: 'POST', path: '/api/access-package-groups' }, scope)).toBe(DENY);
+  });
+});
+
 describe('contextOwnerVerdict — the team matrix', () => {
   it('hands POST /api/matrix/data to the filter check', () => {
     expect(contextOwnerVerdict({ method: 'POST', path: '/api/matrix/data' }, scope)).toEqual({ allow: false, matrix: true });

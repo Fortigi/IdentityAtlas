@@ -244,8 +244,11 @@ export function matrixHrefForUnit(ctx) {
 // (app/api/src/auth/ownerAccess/matrixFilter.js); this is the one it runs.
 export function teamMatrixFilter(ctx) {
   const own = { kind: 'context', contextId: ctx.id, includeChildren: true };
-  if (ctx.targetType === 'Resource') return resourceAxisFilter(own);
+  // Business roles the people hold are columns too, as an analyst can choose
+  // (the matrix hides them from the resource axis by default).
+  if (ctx.targetType === 'Resource') return { ...resourceAxisFilter(own), includeBusinessRoles: true };
   return {
+    includeBusinessRoles: true,
     rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
     orientation: 'rows-as-subjects',
     subject: { include: [own], exclude: [] },

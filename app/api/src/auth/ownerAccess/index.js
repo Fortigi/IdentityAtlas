@@ -7,4 +7,5 @@ export { createOwnerAccess, normaliseKind, clearOwnerAccessCache, CACHE_TTL_MS }
 export { TEAM, HELD, HOLDER, KINDS, classifyTiers } from './tiers.js';
 export { entityEndpointFor, refsFor } from './endpoints.js';
 export { annotateReferences } from './annotate.js';
+export { responseShaperFor, scopedBusinessRoles, BUSINESS_ROLE_CATALOGUE_PATH } from './responses.js';
 export { MATRIX_DATA_PATH, ownerMatrixVerdict } from './matrixFilter.js';

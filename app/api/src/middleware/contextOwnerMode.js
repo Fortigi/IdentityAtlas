@@ -13,8 +13,9 @@
 //
 // An allowed response that names other objects (a group's members, a user's
 // groups, a timeline's counterparties) is marked per reference with whether the
-// owner may open it (auth/ownerAccess/annotate.js). Only in owner mode: an
-// ordinary caller's responses are untouched.
+// owner may open it, and the business-role catalogue is cut to the roles they
+// may open (auth/ownerAccess/responses.js). Only in owner mode: an ordinary
+// caller's responses are untouched.
 //
 // authMiddleware runs once per router mount, so one request passes through here
 // many times. The decision is computed once and kept on the request.
@@ -28,7 +29,7 @@ import { isContextOwnerAccessEnabled } from '../auth/contextOwnerSetting.js';
 import { resolveContextOwner, resolveReportContexts, descendantsInScope } from '../auth/contextOwner.js';
 import { CONTEXT_OWNER_DENIED, contextOwnerVerdict } from '../auth/contextOwnerScope.js';
 import { findContextMember } from '../contexts/memberReferences.js';
-import { createOwnerAccess, ownerMatrixVerdict, refsFor, annotateReferences } from '../auth/ownerAccess/index.js';
+import { createOwnerAccess, ownerMatrixVerdict, responseShaperFor } from '../auth/ownerAccess/index.js';
 import { resolveContextTypes } from '../routes/matrix/shared.js';
 
 const DECISION = Symbol('contextOwnerDecision');
@@ -81,16 +82,18 @@ async function settle(verdict, owner, req) {
   return verdict.allow;
 }
 
-// Mark the references in this response before it is sent. Once per request.
-export function annotateResponse(res, refs, access) {
-  if (!refs || res[ANNOTATED]) return;
+// Shape this response for the owner before it is sent (mark its references,
+// cut a catalogue to their scope — auth/ownerAccess/responses.js). Once per request.
+export function shapeResponse(res, shape) {
+  if (!shape || res[ANNOTATED]) return;
   res[ANNOTATED] = true;
   const send = res.json.bind(res);
   res.json = (body) => {
-    annotateReferences(body, refs, access)
+    Promise.resolve()
+      .then(() => shape(body))
       .then(send)
       .catch((err) => {
-        console.error('Context owner annotation failed:', err.message);
+        console.error('Context owner response shaping failed:', err.message);
         res.status(500);
         send({ error: 'Authentication service error' });
       });
@@ -104,7 +107,7 @@ export function applyContextOwnerMode(req, res, next, { path, otherwise }) {
     if (!owner) return otherwise();
     req.user.contextOwner = owner;
     if (!allow) return res.status(403).json({ error: CONTEXT_OWNER_DENIED });
-    annotateResponse(res, refsFor(path), owner.access);
+    shapeResponse(res, responseShaperFor(path, owner.access));
     return next();
   }).catch((err) => {
     console.error('Context owner check failed:', err.message);

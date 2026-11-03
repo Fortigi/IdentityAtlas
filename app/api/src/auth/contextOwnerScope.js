@@ -17,6 +17,7 @@
 
 import { entityEndpointFor } from './ownerAccess/endpoints.js';
 import { MATRIX_DATA_PATH } from './ownerAccess/matrixFilter.js';
+import { BUSINESS_ROLE_CATALOGUE_PATH } from './ownerAccess/responses.js';
 
 export const CONTEXT_OWNER_DENIED = 'Context owners can only open their own context';
 
@@ -125,6 +126,12 @@ export function entityVerdict(path) {
   return e ? { allow: false, entity: { kind: e.kind, id: e.id } } : null;
 }
 
+// Reads whose RESPONSE is cut to the owner's scope before it is sent
+// (auth/ownerAccess/responses.js): the business-role catalogue the matrix maps
+// roles to groups with, reduced to the roles this owner may open. Allowed only
+// because middleware/contextOwnerMode.js always applies that cut on this path.
+export const SCOPED_PATHS = new Set([BUSINESS_ROLE_CATALOGUE_PATH]);
+
 // The team matrix — the one POST an owner may send: a read, whose filter the
 // caller forces to the owner's team (auth/ownerAccess/matrixFilter.js).
 export const MATRIX_VERDICT = Object.freeze({ allow: false, matrix: true });
@@ -138,7 +145,7 @@ export const MATRIX_VERDICT = Object.freeze({ allow: false, matrix: true });
 export function contextOwnerVerdict({ method, path, query }, contextIds) {
   if (method === 'POST' && path === MATRIX_DATA_PATH) return MATRIX_VERDICT;
   if (method !== 'GET') return DENY;
-  if (SHELL_PATHS.has(path)) return ALLOW;
+  if (SHELL_PATHS.has(path) || SCOPED_PATHS.has(path)) return ALLOW;
   for (const shape of CONTEXT_PATHS) {
     const m = shape.exec(path);
     if (m) return contextIds.has(m[1]) ? ALLOW : DENY;
