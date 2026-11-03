@@ -4,7 +4,7 @@
 // See docs/architecture/context-owner-access.md → "Reusing this scope (MCP)".
 
 export { createOwnerAccess, normaliseKind, clearOwnerAccessCache, CACHE_TTL_MS } from './ownerAccess.js';
-export { TEAM, HELD, KINDS, classifyTiers } from './tiers.js';
+export { TEAM, HELD, HOLDER, KINDS, classifyTiers } from './tiers.js';
 export { entityEndpointFor, refsFor } from './endpoints.js';
 export { annotateReferences } from './annotate.js';
 export { MATRIX_DATA_PATH, ownerMatrixVerdict } from './matrixFilter.js';

@@ -8,14 +8,15 @@
 //   - a role held by somebody else does not;
 //   - SameUnitAs is found from either end of the stored pair;
 //   - the report-resolution check sees a context whose NAME is a held id;
-//   - sub-units below a held context are found, except a sub-unit with its own
-//     Accountable or Responsible and everything below it.
+//   - EVERY sub-unit below a held context is found, at any depth, also one with
+//     an Accountable or Responsible of its own (hierarchical accountability) —
+//     but that sub-unit's owner gets only their own subtree, never the parent.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { randomUUID } from 'crypto';
 import {
-  findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts,
+  findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts, descendantsInScope,
 } from '../src/auth/contextOwner.js';
 
 let pool;
@@ -82,6 +83,8 @@ beforeAll(async () => {
   await context(id.strangerChild, 'Stranger child', 'Identity', id.ctxStranger);
   await role(id.subOwned, { principalId: id.stranger }, 'Responsible');
   await role(id.subMine, { principalId: id.me }, 'Responsible');
+  // A grandchild with an owner of its own, below a sub-unit without one.
+  await role(id.subFreeChild, { principalId: id.stranger }, 'Accountable');
 
   await role(id.ctxAccount, { principalId: id.me }, 'Responsible');
   await role(id.ctxAccount, { principalId: id.me }, 'Accountable');
@@ -137,18 +140,33 @@ describe('findSameUnitVariants', () => {
 });
 
 describe('findOwnedSubUnits', () => {
-  it('finds the free branch to any depth, and stops at a sub-unit with an owner of its own', async () => {
+  it('finds every descendant to any depth — also a sub-unit, and a grandchild, with an owner of their own', async () => {
     const subs = await findOwnedSubUnits(pool, [id.ctxAccount]);
-    expect(subs.sort()).toEqual([id.subFree, id.subFreeChild].sort());
+    expect(subs.sort()).toEqual([id.subFree, id.subFreeChild, id.subOwned, id.subOwnedChild, id.subMine, id.subMineChild].sort());
   });
 
-  it('finds the children of a held sub-unit from that held sub-unit', async () => {
-    const subs = await findOwnedSubUnits(pool, [id.ctxAccount, id.subMine]);
-    expect(subs.sort()).toEqual([id.subFree, id.subFreeChild, id.subMineChild].sort());
+  it('a sub-unit owner gets their own subtree only — never the parent or a sibling', async () => {
+    expect(await findOwnedSubUnits(pool, [id.subOwned])).toEqual([id.subOwnedChild]);
+    expect(await findOwnedSubUnits(pool, [id.subFree])).toEqual([id.subFreeChild]);
+  });
+
+  it('does not climb into another owner tree', async () => {
+    const subs = await findOwnedSubUnits(pool, [id.ctxAccount]);
+    expect(subs).not.toContain(id.strangerChild);
+    expect(subs).not.toContain(id.ctxStranger);
   });
 
   it('finds nothing below a leaf', async () => {
     expect(await findOwnedSubUnits(pool, [id.subFreeChild])).toEqual([]);
+  });
+});
+
+describe('descendantsInScope', () => {
+  it('is true when every descendant is in the scope, false when one is missing', async () => {
+    const all = new Set([id.subFree, id.subFreeChild]);
+    expect(await descendantsInScope(pool, [id.subFree], all)).toBe(true);
+    expect(await descendantsInScope(pool, [id.subFree], new Set([id.subFree]))).toBe(false);
+    expect(await descendantsInScope(pool, [id.subFreeChild], new Set())).toBe(true);
   });
 });
 

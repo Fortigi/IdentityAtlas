@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { teamMatrixFilter } from '@ui/utils/matrixFilter';
 import { readOnlyMatrixProps } from '@ui/components/shared/readOnlyMatrixProps';
-import { offersTeamMatrix } from '@ui/components/contexts/header/headerActions';
+import { ownerMatrixFor } from '@ui/components/contexts/header/headerActions';
 import { fetchCategoryItems } from '@ui/components/entityGraphShape';
 import { OWNER_OPENABLE } from './ownerOpenable';
 
@@ -20,18 +20,29 @@ describe('teamMatrixFilter', () => {
   it('a unit of accounts: accounts as rows', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Principal' }).rowType).toBe('principal');
   });
+
+  it('an application: its own resources as the column bound, every holder a row', () => {
+    expect(teamMatrixFilter({ id: UNIT, targetType: 'Resource' })).toEqual({
+      rowType: 'principal',
+      orientation: 'rows-as-subjects',
+      subject: { include: [], exclude: [] },
+      resource: { include: [{ kind: 'context', contextId: UNIT, includeChildren: false }], exclude: [] },
+    });
+  });
 });
 
-describe('offersTeamMatrix', () => {
+describe('ownerMatrixFor', () => {
   const scope = new Set([UNIT]);
   it.each([
-    [{ id: UNIT, targetType: 'Identity' }, scope, true],
-    [{ id: UNIT.toUpperCase(), targetType: 'Principal' }, scope, true],
-    [{ id: UNIT, targetType: 'Resource' }, scope, false],
-    [{ id: 'aaaaaaaa-0000-4000-8000-000000000002', targetType: 'Identity' }, scope, false],
-    [{ id: UNIT, targetType: 'Identity' }, null, false],
-  ])('%o in %o → %s', (attrs, ownerScope, out) => {
-    expect(offersTeamMatrix(attrs, { ownerScope })).toBe(out);
+    [{ id: UNIT, targetType: 'Identity' }, scope, 'Team matrix'],
+    [{ id: UNIT.toUpperCase(), targetType: 'Principal' }, scope, 'Team matrix'],
+    [{ id: UNIT, targetType: 'Resource' }, scope, 'Application matrix'],
+    [{ id: UNIT, targetType: 'System' }, scope, null],
+    [{ id: 'aaaaaaaa-0000-4000-8000-000000000002', targetType: 'Identity' }, scope, null],
+    [{ id: UNIT, targetType: 'Identity' }, null, null],
+    [null, scope, null],
+  ])('%o in %o → %s', (attrs, ownerScope, label) => {
+    expect(ownerMatrixFor(attrs, { ownerScope })?.label ?? null).toBe(label);
   });
 });
 

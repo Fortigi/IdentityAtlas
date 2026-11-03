@@ -3,7 +3,7 @@
 // team").
 //
 // Given the owner's in-scope context ids (auth/contextOwner.js), every object is
-// in one of three tiers:
+// in one of four tiers:
 //
 //   'team'  a member of an in-scope context. For people that crosses the
 //           account/person link both ways: an account is on the team when it,
@@ -12,22 +12,35 @@
 //           member (a unit of resources, an application).
 //   'held'  a resource a team member holds — a live Direct, Indirect or Eligible
 //           assignment made to a team account or a team person.
+//   'holder' the mirror for a context of resources (an application): an account
+//           or a person holding — live Direct, Indirect or Eligible — a resource
+//           that is a member of an in-scope context. The same crossover as the
+//           team: an account is a holder when it, or its person, holds one; a
+//           person when they, or one of their accounts, do. What a holder holds
+//           OUTSIDE the application is not 'held' (held is the team's only),
+//           so it stays name-only: one step out, no further.
 //   null    everything else: the owner sees its name where it is referenced,
 //           never its own page.
 //
-// 'team' and 'held' objects open in full; the null tier is name-only.
+// 'team', 'held' and 'holder' objects open in full; the null tier is
+// name-only. An owner of several contexts gets the union over all of them (the
+// statements take every in-scope context id at once).
 //
 // Every statement takes the ids as a batch (one round trip per kind, whatever
 // the batch size) and is written for scale: the team side is reached through
 // the ContextMembers primary key (contextId, memberId) and the
-// IdentityMembers indexes, and "held" is an EXISTS per candidate resource
-// through ix_RA_resourceId — never a load of the team's assignments.
+// IdentityMembers indexes, "held" is an EXISTS per candidate resource through
+// ix_RA_resourceId, and "holder" an EXISTS per candidate account or person
+// through ix_RA_principalId / the identityId index (migration 036), each
+// assignment checked against the ContextMembers primary key — never a load of
+// the team's or the application's assignments.
 //
 // Every function takes the pool explicitly so the contract test can run the
 // exact statements against PostgreSQL (contract-tests/ownerAccess.contract.test.js).
 
 export const TEAM = 'team';
 export const HELD = 'held';
+export const HOLDER = 'holder';
 
 // The kinds the classifier knows. 'member' is "a direct member of an in-scope
 // context, whatever its type" — what a context's own member list holds.
@@ -50,22 +63,38 @@ const TEAM_IDENTITIES = `
     JOIN "IdentityMembers" im ON im."principalId" = cm."memberId"
    WHERE ${IN_SCOPE} AND cm."memberType" = 'Principal'`;
 
+// A live assignment, matched by `holderMatch` (a predicate on a."principalId"
+// or a."identityId"), on a resource that is a member of an in-scope context.
+const LIVE = `a."deletedAt" IS NULL AND a."assignmentType" IN ('Direct', 'Indirect', 'Eligible')`;
+const holdsScopedResource = (from, holderMatch) => `EXISTS (SELECT 1 FROM ${from}
+     JOIN "ContextMembers" cm ON cm."memberId" = a."resourceId" AND cm."memberType" = 'Resource' AND ${IN_SCOPE}
+    WHERE ${holderMatch} AND ${LIVE})`;
+
+// An account holds one itself, or through its person; a person holds one
+// itself, or through one of their accounts.
+const PRINCIPAL_HOLDS = `(${holdsScopedResource('"ResourceAssignments" a', 'a."principalId" = x.id')}
+        OR ${holdsScopedResource('"IdentityMembers" im JOIN "ResourceAssignments" a ON a."identityId" = im."identityId"', 'im."principalId" = x.id')})`;
+const IDENTITY_HOLDS = `(${holdsScopedResource('"ResourceAssignments" a', 'a."identityId" = x.id')}
+        OR ${holdsScopedResource('"IdentityMembers" im JOIN "ResourceAssignments" a ON a."principalId" = im."principalId"', 'im."identityId" = x.id')})`;
+
 const isMember = (memberType) => `EXISTS (SELECT 1 FROM "ContextMembers" cm
    WHERE ${IN_SCOPE} AND cm."memberId" = x.id${memberType ? ` AND cm."memberType" = '${memberType}'` : ''})`;
 
+// An account or a person: 'team' when `team` holds, else 'holder' when `holds` does.
+const tiered = (team, holds) => `
+    SELECT x.id, CASE WHEN ${team} THEN '${TEAM}' ELSE '${HOLDER}' END AS tier
+      FROM unnest($2::uuid[]) AS x(id)
+     WHERE ${team} OR ${holds}`;
+
 export const TIER_SQL = {
-  principal: `
-    SELECT x.id, '${TEAM}' AS tier FROM unnest($2::uuid[]) AS x(id)
-     WHERE ${isMember('Principal')}
+  principal: tiered(`(${isMember('Principal')}
         OR EXISTS (SELECT 1 FROM "IdentityMembers" im
                      JOIN "ContextMembers" cm ON cm."memberId" = im."identityId" AND cm."memberType" = 'Identity'
-                    WHERE im."principalId" = x.id AND ${IN_SCOPE})`,
-  identity: `
-    SELECT x.id, '${TEAM}' AS tier FROM unnest($2::uuid[]) AS x(id)
-     WHERE ${isMember('Identity')}
+                    WHERE im."principalId" = x.id AND ${IN_SCOPE}))`, PRINCIPAL_HOLDS),
+  identity: tiered(`(${isMember('Identity')}
         OR EXISTS (SELECT 1 FROM "IdentityMembers" im
                      JOIN "ContextMembers" cm ON cm."memberId" = im."principalId" AND cm."memberType" = 'Principal'
-                    WHERE im."identityId" = x.id AND ${IN_SCOPE})`,
+                    WHERE im."identityId" = x.id AND ${IN_SCOPE}))`, IDENTITY_HOLDS),
   resource: `
     SELECT x.id, CASE WHEN ${isMember('Resource')} THEN '${TEAM}' ELSE '${HELD}' END AS tier
       FROM unnest($2::uuid[]) AS x(id)

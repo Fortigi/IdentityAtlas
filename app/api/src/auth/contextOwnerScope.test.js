@@ -232,10 +232,15 @@ describe('the unit report download', () => {
     expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: 'Finance' })).toBe(DENY);
   });
 
-  // The sub-units below an owner's unit need not be theirs: refused in any form,
-  // even false, so no value reading of the flag can widen the report.
-  it.each([['true'], ['1'], ['false'], [''], [['true']]])('refuses includeSubUnits=%j beside an in-scope unit', (value) => {
-    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: MINE, includeSubUnits: value })).toBe(DENY);
+  // An owner answers for every unit below theirs, but a variant does not bring
+  // its sub-units along: with the flag present, in ANY form (even false), the
+  // caller checks the descendants — no value reading can skip that check.
+  it.each([['true'], ['1'], ['false'], [''], [['true']]])('hands includeSubUnits=%j to the descendant check', (value) => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: MINE, includeSubUnits: value })).toEqual({ allow: false, resolve: [MINE], descendants: true });
+  });
+
+  it('still refuses includeSubUnits beside an out-of-scope unit, before any check', () => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: OTHER, includeSubUnits: 'true' })).toBe(DENY);
   });
 
   it('keeps each report to its own refused parameters', () => {

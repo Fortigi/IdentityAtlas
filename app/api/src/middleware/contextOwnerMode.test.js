@@ -33,10 +33,11 @@ vi.mock('../config/authConfig.js', () => ({
   getAuthState: () => ({ enabled: cfg.enabled }),
 }));
 
-const owners = vi.hoisted(() => ({ resolveContextOwner: null, resolveReportContexts: null }));
+const owners = vi.hoisted(() => ({ resolveContextOwner: null, resolveReportContexts: null, descendantsInScope: null }));
 vi.mock('../auth/contextOwner.js', () => ({
   resolveContextOwner: (...a) => owners.resolveContextOwner(...a),
   resolveReportContexts: (...a) => owners.resolveReportContexts(...a),
+  descendantsInScope: (...a) => owners.descendantsInScope(...a),
 }));
 
 const members = vi.hoisted(() => ({ findContextMember: null }));
@@ -93,6 +94,10 @@ beforeEach(async () => {
   queryOne.mockResolvedValue(null);
   owners.resolveContextOwner = vi.fn(async (user) => (user.oid === OWNER_OID ? OWNER : null));
   owners.resolveReportContexts = vi.fn(async (_pool, wanted) => wanted);
+  // MINE's sub-units are all in scope; the VARIANT has one that is not (a
+  // variant does not bring its own sub-units into the scope).
+  owners.descendantsInScope = vi.fn(async (_pool, ids, contextIds) =>
+    ids.every(id => (id === VARIANT ? ['aaaaaaaa-0000-4000-8000-0000000000ff'] : []).every(c => contextIds.has(c))));
   members.findContextMember = vi.fn(async () => null);
 });
 
@@ -286,13 +291,21 @@ describe('switch on — the report download', () => {
     expect(owners.resolveReportContexts).not.toHaveBeenCalled();
   });
 
-  it('runs the unit report for their own unit, and refuses it with sub-units or for another unit', async () => {
+  it('runs the unit report for their own unit, with its sub-units too, and refuses another unit', async () => {
     const unitPath = (qs) => `/api/reports/unit-members/export?format=xlsx&${qs}`;
     expect(denied(await ownerGet(unitPath(`contexts=${MINE}`)))).toBe(false);
     expect(owners.resolveReportContexts.mock.calls[0][1]).toEqual([MINE]);
-    expect(denied(await ownerGet(unitPath(`contexts=${MINE}&includeSubUnits=true`)))).toBe(true);
+    expect(owners.descendantsInScope).not.toHaveBeenCalled();
+    expect(denied(await ownerGet(unitPath(`contexts=${MINE}&includeSubUnits=true`)))).toBe(false);
+    expect(owners.descendantsInScope.mock.calls[0][1]).toEqual([MINE]);
     expect(denied(await ownerGet(unitPath(`contexts=${OTHER}`)))).toBe(true);
-    expect(owners.resolveReportContexts).toHaveBeenCalledTimes(1);
+    expect(owners.resolveReportContexts).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses the unit report with sub-units of a variant whose sub-units are not in scope', async () => {
+    const unitPath = `/api/reports/unit-members/export?format=xlsx&contexts=${VARIANT}&includeSubUnits=true`;
+    expect(denied(await ownerGet(unitPath))).toBe(true);
+    expect(denied(await ownerGet(`/api/reports/unit-members/export?format=xlsx&contexts=${VARIANT}`))).toBe(false);
   });
 
   it('is refused for any other report, even with their own context', async () => {
@@ -440,6 +453,12 @@ describe('switch on — the team matrix', () => {
   const post = (filter) => request(app).post('/api/matrix/data').set(as([])).send({ filter });
   const unit = (id, extra = {}) => ({ kind: 'context', contextId: id, ...extra });
 
+  it('runs for their own unit with its sub-units (all in scope)', async () => {
+    const res = await post({ subject: { include: [unit(MINE, { includeChildren: true })] } });
+    expect(denied(res)).toBe(false);
+    expect(owners.descendantsInScope.mock.calls[0][1]).toEqual([MINE]);
+  });
+
   it('runs for their own unit of people', async () => {
     const res = await post({ rowType: 'principal', orientation: 'rows-as-subjects', subject: { include: [unit(MINE)], exclude: [] } });
     expect(denied(res)).toBe(false);
@@ -449,7 +468,7 @@ describe('switch on — the team matrix', () => {
   it.each([
     ['no subject at all', { subject: { include: [] } }],
     ['another unit', { subject: { include: [unit(OTHER_TEAM)] } }],
-    ['their unit with its children', { subject: { include: [unit(MINE, { includeChildren: true })] } }],
+    ['a variant with its children (its sub-units are not in scope)', { subject: { include: [unit(MINE), unit(VARIANT, { includeChildren: true })] } }],
     ['only their unit of resources', { subject: { include: [unit(VARIANT)] } }],
   ])('is refused: %s', async (_label, filter) => {
     expect(denied(await post(filter))).toBe(true);

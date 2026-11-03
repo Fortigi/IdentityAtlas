@@ -4,7 +4,7 @@
 // these mocks are SQL-blind.
 
 import { describe, it, expect, vi } from 'vitest';
-import { classifyTiers, cleanIds, TIER_SQL, KINDS, TEAM, HELD } from './tiers.js';
+import { classifyTiers, cleanIds, TIER_SQL, KINDS, TEAM, HELD, HOLDER } from './tiers.js';
 
 const A = 'aaaaaaaa-0000-4000-8000-000000000001';
 const B = 'bbbbbbbb-0000-4000-8000-000000000002';
@@ -27,10 +27,23 @@ describe('TIER_SQL', () => {
     expect(Object.keys(TIER_SQL).sort()).toEqual([...KINDS].sort());
   });
 
-  it('labels a resource team or held, and every other kind team only', () => {
+  it('labels a resource team or held, a person or account team or holder, a member team only', () => {
     expect(TIER_SQL.resource).toContain(`'${TEAM}'`);
     expect(TIER_SQL.resource).toContain(`'${HELD}'`);
-    for (const kind of ['principal', 'identity', 'member']) expect(TIER_SQL[kind]).not.toContain(`'${HELD}'`);
+    expect(TIER_SQL.resource).not.toContain(`'${HOLDER}'`);
+    for (const kind of ['principal', 'identity']) {
+      expect(TIER_SQL[kind]).toContain(`'${TEAM}'`);
+      expect(TIER_SQL[kind]).toContain(`'${HOLDER}'`);
+      expect(TIER_SQL[kind]).not.toContain(`'${HELD}'`);
+    }
+    expect(TIER_SQL.member).not.toMatch(/held|holder/);
+  });
+
+  it('a holder holds a resource that is a member of an in-scope context, through a live assignment', () => {
+    for (const kind of ['principal', 'identity']) {
+      expect(TIER_SQL[kind]).toContain(`cm."memberId" = a."resourceId" AND cm."memberType" = 'Resource'`);
+      expect(TIER_SQL[kind]).toContain(`a."deletedAt" IS NULL AND a."assignmentType" IN ('Direct', 'Indirect', 'Eligible')`);
+    }
   });
 
   it('only counts live Direct, Indirect and Eligible assignments as held', () => {

@@ -13,12 +13,13 @@ const TEAM_USER = 'aaaaaaaa-0000-4000-8000-000000000001';
 const OUTSIDER = 'aaaaaaaa-0000-4000-8000-000000000002';
 const HELD_GROUP = 'bbbbbbbb-0000-4000-8000-000000000001';
 const OUTSIDER_GROUP = 'bbbbbbbb-0000-4000-8000-000000000002';
+const APP_HOLDER = 'aaaaaaaa-0000-4000-8000-000000000003';
 
 // Rows per statement: the principal statement knows TEAM_USER, the resource
 // statement knows HELD_GROUP (held). Everything else is name-only.
 function fakePool() {
   const query = vi.fn(async (sql, [, ids]) => {
-    const known = sql === TIER_SQL.principal ? { [TEAM_USER]: 'team' }
+    const known = sql === TIER_SQL.principal ? { [TEAM_USER]: 'team', [APP_HOLDER]: 'holder' }
       : sql === TIER_SQL.resource ? { [HELD_GROUP]: 'held' } : {};
     return { rows: ids.filter(id => known[id]).map(id => ({ id, tier: known[id] })) };
   });
@@ -60,6 +61,13 @@ describe('the tiers', () => {
     const access = make();
     expect(await access.tierOf('group', HELD_GROUP)).toBe('held');
     expect(await access.tierOf('resource', OUTSIDER_GROUP)).toBeNull();
+  });
+
+  it('a holder of an application resource opens, as a holder', async () => {
+    const access = make();
+    expect(await access.tierOf('user', APP_HOLDER)).toBe('holder');
+    expect(await access.canOpen('principal', APP_HOLDER)).toBe(true);
+    expect([...(await access.accessibleIds('user', [APP_HOLDER, OUTSIDER, TEAM_USER]))].sort()).toEqual([TEAM_USER, APP_HOLDER].sort());
   });
 
   it('a principal id is not looked up as a resource (kinds never mix)', async () => {

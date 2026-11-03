@@ -7,7 +7,7 @@
 // See docs/architecture/context-owner-access.md.
 //
 // The API only answers this user for their own contexts, the sub-units below
-// them that have no owner of their own, and those contexts' variants
+// them (all of them, whoever else owns one), and those contexts' variants
 // (`contextOwner.contextIds` from /api/auth-me), so the page shows exactly
 // that: one context directly, or with several a slim list of them on the left.
 // The context itself is the ordinary context page, wrapped in SharedViewContext

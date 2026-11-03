@@ -6,7 +6,7 @@ import { useContextAncestors } from './contexts/useContextAncestors';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import DownloadReportButton from './contexts/header/DownloadReportButton';
 import MoreMenu from './contexts/header/MoreMenu';
-import { reportFor, offersMatrix, offersTeamMatrix } from './contexts/header/headerActions';
+import { reportFor, offersMatrix, ownerMatrixFor } from './contexts/header/headerActions';
 import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
 import AddInformation from './contexts/interviews/AddInformation';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
@@ -44,8 +44,9 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, open
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
   const report = reportFor(attrs);
-  // A context owner's page: the matrix of their team, opened in their shell.
-  const teamMatrix = offersTeamMatrix(attrs, { ownerScope: useContextOwnerScope() }) && !!onOpenDetail;
+  // A context owner's page: the matrix of their team or application, opened in their shell.
+  const ownerScope = useContextOwnerScope();
+  const ownerMatrix = onOpenDetail ? ownerMatrixFor(attrs, { ownerScope }) : null;
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
@@ -58,11 +59,11 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, open
         </div>
         <div className="flex flex-wrap items-start gap-2">
           {report && <DownloadReportButton attrs={attrs} report={report.report} title={report.title} />}
-          {teamMatrix && (
+          {ownerMatrix && (
             <button type="button" onClick={() => onOpenDetail('team-matrix', attrs.id, attrs.displayName)} data-testid="team-matrix"
-              title="Everyone in this unit as a row, and what each of them holds"
+              title={ownerMatrix.title}
               className="whitespace-nowrap rounded border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-900/30">
-              Team matrix
+              {ownerMatrix.label}
             </button>
           )}
           {onOpenWorkbench && (

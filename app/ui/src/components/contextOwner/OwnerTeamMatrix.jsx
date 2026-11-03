@@ -1,6 +1,7 @@
-// A context owner's team matrix: the members of one of their units as rows,
-// what each of them holds as columns. Opened from the unit's header ("Team
-// matrix") inside the owner's shell (ContextOwnerPage).
+// A context owner's matrix, opened from the context's header inside the
+// owner's shell (ContextOwnerPage): the team matrix of a unit (its members as
+// rows, what they hold as columns) or the application matrix of a context of
+// resources (its resources as columns, their holders as rows).
 //
 // The filter is the team filter (utils/matrixFilter.js teamMatrixFilter), but
 // the API is what bounds it: an owner's POST /api/matrix/data runs only when
@@ -42,11 +43,16 @@ export default function OwnerTeamMatrix({ contextId, onOpenDetail }) {
     );
   }
 
+  const app = attrs?.targetType === 'Resource';
+  const title = app ? 'Application matrix' : 'Team matrix';
   return (
-    <section aria-label="Team matrix" className="space-y-3">
+    <section aria-label={title} className="space-y-3">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Team matrix{attrs?.displayName ? ` — ${attrs.displayName}` : ''}</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Everyone in this unit as a row, and what each of them holds. Open a person or a resource for its details.</p>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}{attrs?.displayName ? ` — ${attrs.displayName}` : ''}</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {app ? 'What is held here as columns, and everyone who holds it as a row.' : 'Everyone in this unit as a row, and what each of them holds.'}
+          {' Open a person or a resource for its details.'}
+        </p>
       </div>
       {body}
     </section>

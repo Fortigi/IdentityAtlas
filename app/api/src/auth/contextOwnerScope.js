@@ -66,16 +66,19 @@ export const MEMBER_REFERENCES_PATH = new RegExp(`^/api/contexts/${UUID}/members
 // would widen what the report reads beyond the contexts named:
 //   - the Entitlement Pivot's older `applications` alias is read instead of
 //     `contexts` when present;
-//   - the unit report's `includeSubUnits` adds every unit BELOW the named ones,
-//     which need not be the owner's. Refused rather than checked against the
-//     subtree: the card never sends it, and the owner of a sub-unit downloads
-//     from that sub-unit's own page.
+//
+// And per path, the parameter that widens the report to every unit BELOW the
+// named ones (the unit report's `includeSubUnits`). An owner answers for every
+// descendant of what they hold, so it is allowed — but a variant in scope does
+// not bring its own sub-units with it, so the verdict asks the caller to check
+// that the named contexts' descendants are all in scope (`descendants`).
 export const REPORT_EXPORT_PATH = '/api/reports/application-access-review/export';
 export const UNIT_REPORT_EXPORT_PATH = '/api/reports/unit-members/export';
 export const REPORT_EXPORTS = new Map([
   [REPORT_EXPORT_PATH, ['applications']],
-  [UNIT_REPORT_EXPORT_PATH, ['includeSubUnits']],
+  [UNIT_REPORT_EXPORT_PATH, []],
 ]);
+export const SUB_UNIT_PARAMS = new Map([[UNIT_REPORT_EXPORT_PATH, 'includeSubUnits']]);
 
 export const ALLOW = Object.freeze({ allow: true });
 export const DENY = Object.freeze({ allow: false });
@@ -93,13 +96,15 @@ export function requestedContexts(value) {
 
 // A download: `contexts` only (any of the path's `refused` parameters present
 // denies outright), at least one value, and every value one of the owner's
-// context ids — a name never passes here.
-export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.get(REPORT_EXPORT_PATH)) {
+// context ids — a name never passes here. With the path's sub-unit parameter
+// present (any value), the caller also checks the named contexts' descendants.
+export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.get(REPORT_EXPORT_PATH), subUnitParam = null) {
   if (refused.some(param => query?.[param] !== undefined)) return DENY;
   const wanted = requestedContexts(query?.contexts);
   if (!wanted || wanted.length === 0) return DENY;
   if (!wanted.every(id => contextIds.has(id))) return DENY;
-  return { allow: false, resolve: wanted };
+  const descendants = !!subUnitParam && query?.[subUnitParam] !== undefined;
+  return descendants ? { allow: false, resolve: wanted, descendants: true } : { allow: false, resolve: wanted };
 }
 
 // A member's references: the context must be in scope; whether the member is
@@ -143,6 +148,6 @@ export function contextOwnerVerdict({ method, path, query }, contextIds) {
   const entity = entityVerdict(path);
   if (entity) return entity;
   const refused = REPORT_EXPORTS.get(path);
-  if (refused) return reportExportVerdict(query, contextIds, refused);
+  if (refused) return reportExportVerdict(query, contextIds, refused, SUB_UNIT_PARAMS.get(path));
   return DENY;
 }

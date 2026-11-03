@@ -53,10 +53,10 @@ export default function ContextOwnerAccessSection() {
         </span>
       </label>
       <p className="mt-2 ml-7 text-xs text-gray-600 dark:text-gray-400">
-        They land directly on their own context page, read-only. For each member they see the names of what
-        that member holds and which other contexts it is in — names only, nothing they can open. A sub-unit
-        with an owner of its own is that owner's. Everything else stays closed to them. People with an Identity
-        Atlas role keep their normal access.
+        They land directly on their own context page, read-only, with every sub-unit below it. They can open the
+        people in it and what those people hold (or, for an application, who holds it), and see the rest by name
+        only. A sub-unit's own owner sees only their part. Everything else stays closed to them. People with an
+        Identity Atlas role keep their normal access.
       </p>
       {message && <p role="alert" className="mt-2 ml-7 text-xs text-red-700 dark:text-red-400">{message}</p>}
     </div>

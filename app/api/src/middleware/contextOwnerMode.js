@@ -25,7 +25,7 @@
 
 import * as db from '../db/connection.js';
 import { isContextOwnerAccessEnabled } from '../auth/contextOwnerSetting.js';
-import { resolveContextOwner, resolveReportContexts } from '../auth/contextOwner.js';
+import { resolveContextOwner, resolveReportContexts, descendantsInScope } from '../auth/contextOwner.js';
 import { CONTEXT_OWNER_DENIED, contextOwnerVerdict } from '../auth/contextOwnerScope.js';
 import { findContextMember } from '../contexts/memberReferences.js';
 import { createOwnerAccess, ownerMatrixVerdict, refsFor, annotateReferences } from '../auth/ownerAccess/index.js';
@@ -51,8 +51,19 @@ export async function settleMatrix(req, contextIds) {
   const types = filter && typeof filter === 'object' ? await resolveContextTypes(filter) : new Map();
   const lowered = new Map([...types].map(([id, t]) => [String(id).toLowerCase(), t]));
   const verdict = ownerMatrixVerdict(req.body, contextIds, lowered);
-  if (verdict.ok) req.body = { filter: verdict.filter };
-  return verdict.ok;
+  if (!verdict.ok) return false;
+  if (!(await descendantsInScope(await db.getPool(), verdict.childrenOf, contextIds))) return false;
+  req.body = { filter: verdict.filter };
+  return true;
+}
+
+// A download: what its named contexts resolve to must be in scope — and, when
+// it reads their sub-units too, every descendant of those.
+async function settleReport(verdict, contextIds) {
+  const pool = await db.getPool();
+  const resolved = await resolveReportContexts(pool, verdict.resolve);
+  if (!resolved.every(id => contextIds.has(id))) return false;
+  return !verdict.descendants || descendantsInScope(pool, resolved, contextIds);
 }
 
 // The verdicts that need the database: a report's named contexts must all
@@ -60,10 +71,7 @@ export async function settleMatrix(req, contextIds) {
 // object must open in full for this owner; a matrix must be bound to the team.
 async function settle(verdict, owner, req) {
   const { contextIds } = owner;
-  if (verdict.resolve) {
-    const resolved = await resolveReportContexts(await db.getPool(), verdict.resolve);
-    return resolved.every(id => contextIds.has(id));
-  }
+  if (verdict.resolve) return settleReport(verdict, contextIds);
   if (verdict.member) {
     const { contextId, memberId } = verdict.member;
     return !!(await findContextMember(await db.getPool(), contextId, memberId));

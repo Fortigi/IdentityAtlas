@@ -13,7 +13,12 @@
 //     by the outsider;
 //   - a resource unit's member is team;
 //   - 'member' is direct membership only (Ann's account is not a direct member);
-//   - an owner of only the accounts unit does not get the people unit's team.
+//   - an owner of only the accounts unit does not get the people unit's team;
+//   - holder (an application's mirror tier): Hank holds the app resource, so he
+//     opens — and his person through him; Pia's person holds it, so Pia's
+//     account opens through her person; Dora's assignment is soft-deleted, so she
+//     does not; what Hank holds outside the app stays name-only;
+//   - an owner of a unit AND an application gets the union.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
@@ -24,6 +29,7 @@ let pool;
 let systemId;
 const id = Object.fromEntries([
   'ann', 'annAdmin', 'annPerson', 'carl', 'carlPerson', 'olga', 'olgaPerson',
+  'hank', 'hankPerson', 'pia', 'piaPerson', 'dora', 'groupHankOther',
   'groupTeam', 'groupViaPerson', 'roleEligible', 'groupDeleted', 'groupOutsider', 'groupShared', 'appResource',
   'peopleUnit', 'accountUnit', 'appUnit', 'otherUnit',
 ].map(k => [k, randomUUID()]));
@@ -63,15 +69,22 @@ beforeAll(async () => {
   systemId = (await pool.query(
     `INSERT INTO "Systems" ("systemType","displayName") VALUES ('test','contract-owner-access') RETURNING "id"`,
   )).rows[0].id;
-  for (const [pid, name] of [[id.ann, 'Ann'], [id.annAdmin, 'Ann (admin)'], [id.carl, 'Carl'], [id.olga, 'Olga']]) await principal(pid, name);
+  for (const [pid, name] of [[id.ann, 'Ann'], [id.annAdmin, 'Ann (admin)'], [id.carl, 'Carl'], [id.olga, 'Olga'],
+    [id.hank, 'Hank'], [id.pia, 'Pia'], [id.dora, 'Dora']]) await principal(pid, name);
+  await person(id.hankPerson, 'Hank the person', [id.hank]);
+  await person(id.piaPerson, 'Pia the person', [id.pia]);
   await person(id.annPerson, 'Ann the person', [id.ann, id.annAdmin]);
   await person(id.carlPerson, 'Carl the person', [id.carl]);
   await person(id.olgaPerson, 'Olga the person', [id.olga]);
   for (const [rid, name] of [
     [id.groupTeam, 'Team group'], [id.groupViaPerson, 'Person-assigned group'], [id.roleEligible, 'Eligible role'],
     [id.groupDeleted, 'Deleted assignment'], [id.groupOutsider, 'Outsider group'], [id.groupShared, 'Shared group'],
-    [id.appResource, 'App resource'],
+    [id.appResource, 'App resource'], [id.groupHankOther, 'Hank outside the app'],
   ]) await resource(rid, name);
+  await assign(id.appResource, { principalId: id.hank });
+  await assign(id.appResource, { identityId: id.piaPerson }, 'Eligible');
+  await assign(id.appResource, { principalId: id.dora }, 'Direct', true);
+  await assign(id.groupHankOther, { principalId: id.hank });
 
   await assign(id.groupTeam, { principalId: id.annAdmin });
   await assign(id.groupViaPerson, { identityId: id.annPerson });
@@ -90,7 +103,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool?.query(`DELETE FROM "Contexts" WHERE "scopeSystemId" = $1`, [systemId]);
   await pool?.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
-  await pool?.query(`DELETE FROM "Identities" WHERE "id" = ANY($1::uuid[])`, [[id.annPerson, id.carlPerson, id.olgaPerson]]);
+  await pool?.query(`DELETE FROM "Identities" WHERE "id" = ANY($1::uuid[])`, [[id.annPerson, id.carlPerson, id.olgaPerson, id.hankPerson, id.piaPerson]]);
   await pool?.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
   await pool?.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
   await pool?.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
@@ -145,5 +158,37 @@ describe('a narrower scope', () => {
     expect(await tiers('resource', [id.roleEligible, id.groupTeam, id.groupViaPerson], scope)).toEqual({
       [id.roleEligible]: 'held', [id.groupTeam]: null, [id.groupViaPerson]: null,
     });
+  });
+});
+
+describe('holder — the application mirror', () => {
+  const APP = () => [id.appUnit];
+
+  it('an account holding an app resource opens, and so does an account whose person holds one; not a soft-deleted holder', async () => {
+    expect(await tiers('principal', [id.hank, id.pia, id.dora, id.olga], APP())).toEqual({
+      [id.hank]: 'holder', [id.pia]: 'holder', [id.dora]: null, [id.olga]: null,
+    });
+  });
+
+  it('a person holding one, or one of whose accounts holds one, opens', async () => {
+    expect(await tiers('identity', [id.hankPerson, id.piaPerson, id.olgaPerson], APP())).toEqual({
+      [id.hankPerson]: 'holder', [id.piaPerson]: 'holder', [id.olgaPerson]: null,
+    });
+  });
+
+  it('what a holder holds outside the application stays name-only', async () => {
+    expect(await tiers('resource', [id.appResource, id.groupHankOther], APP())).toEqual({
+      [id.appResource]: 'team', [id.groupHankOther]: null,
+    });
+  });
+
+  it('an owner of a unit and an application gets the union — and team wins over holder', async () => {
+    await assign(id.appResource, { principalId: id.carl });
+    const both = [id.accountUnit, id.appUnit];
+    expect(await tiers('principal', [id.carl, id.hank, id.ann], both)).toEqual({ [id.carl]: 'team', [id.hank]: 'holder', [id.ann]: null });
+    expect(await tiers('resource', [id.roleEligible, id.appResource, id.groupHankOther], both)).toEqual({
+      [id.roleEligible]: 'held', [id.appResource]: 'team', [id.groupHankOther]: null,
+    });
+    expect(await tiers('principal', [id.hank], [id.accountUnit])).toEqual({ [id.hank]: null });
   });
 });

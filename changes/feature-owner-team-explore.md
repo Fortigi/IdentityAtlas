@@ -2,3 +2,6 @@
 - Context owners can open the full page — attributes, relationships, timeline, diff and (read-only) risk — of the people in their unit and of the groups and resources those people hold, and go back to their unit.
 - On those pages every reference is still listed (a group shows all its members); people and objects outside the owner's reach are shown in a lighter colour, marked "No access to details", instead of as links.
 - What a context owner may open is enforced by the API: any other detail page, a wider matrix filter, and every change are refused.
+- Application owners can now open an **Application matrix** from their application's page (its resources as columns, everyone who holds one as a row), and open the full page of each of those holders; what the holders have outside the application is shown by name only.
+- Someone who owns several contexts — for example a unit and an application — can switch between them and open each one's matrix, and may open everything any of their contexts gives access to.
+- Changed: a context owner now sees **every** unit below theirs, at any depth — also a sub-unit that has an owner of its own (that owner still sees only their own part). The unit report can now include those sub-units for an owner.

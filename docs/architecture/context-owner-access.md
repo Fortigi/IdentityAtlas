@@ -60,11 +60,11 @@ The contexts an owner may open are:
 
 1. **the contexts they hold a role on** — Accountable and Responsible count the
    same;
-2. **the sub-units below those** (descendants through `parentContextId`, to any
-   depth) — **except** a sub-unit that has an Accountable or Responsible of its
-   own. That sub-unit is somebody else's, and so is everything below it: the
-   walk stops there. If the same person also holds a role on that sub-unit, it
-   is in scope as one of their own contexts (point 1), with its own sub-units;
+2. **all the sub-units below those** (descendants through `parentContextId`, to
+   any depth) — **also** a sub-unit that has an Accountable or Responsible of
+   its own: accountability is hierarchical, whoever answers for a unit answers
+   for everything below it. That sub-unit's owner, in turn, gets only their own
+   subtree — nothing walks upward;
 3. **the variants of the contexts they hold** (`SameUnitAs` — the same unit as
    people, accounts or resources). A sub-unit's variants are not added.
 
@@ -73,12 +73,16 @@ The contexts an owner may open are:
 | Finance | (Ann) | yes — held |
 | ├ Accounts payable | no roles | yes — sub-unit |
 | │ └ AP team North | no roles | yes — sub-unit |
-| └ Treasury | Bob is Responsible | **no** — Bob's |
-| &nbsp;&nbsp;└ Treasury ops | no roles | **no** — below Bob's |
+| └ Treasury | Bob is Responsible | yes — sub-unit (Bob's too) |
+| &nbsp;&nbsp;└ Treasury ops | no roles | yes — sub-unit |
+
+Bob, Responsible for Treasury, gets Treasury and Treasury ops — not Finance, not
+Accounts payable.
 
 The scope is computed on every request (`auth/contextOwner.js`
-`findOwnedSubUnits`, a recursive walk with a cycle guard), so adding a role on a
-sub-unit takes it out of the parent owner's scope immediately.
+`findOwnedSubUnits`, one recursive statement over the indexed `parentContextId`
+with a cycle guard — a top-level owner with thousands of units costs one round
+trip), so a change in the tree takes effect immediately.
 
 ## What they can see
 
@@ -89,7 +93,7 @@ sub-unit takes it out of the parent owner's scope immediately.
 | `/api/contexts/:id/members/:memberId/references` | `:id` is in scope **and** `:memberId` is a member of `:id` itself (checked against `ContextMembers`; an id from another context, or from one of this context's sub-units, is refused) |
 | `/api/risk-scores/contexts/:id` | `:id` is in scope |
 | `/api/reports/application-access-review/export` | `contexts` lists only in-scope ids, and every context those values resolve to is in scope; the `applications` alias and names are refused |
-| `/api/reports/unit-members/export` | the same `contexts` check; `includeSubUnits` is refused in any form (even `false`) — the owner downloads per sub-unit, from that sub-unit's own page |
+| `/api/reports/unit-members/export` | the same `contexts` check; with `includeSubUnits` (any value) also every descendant of what the contexts resolve to must be in scope — true below a held context, not below a variant |
 
 | One object's detail reads — `/api/user/:id` (and its memberships, contexts, activity, timeline, diff, …), `/api/identities/:id` (…), `/api/resources/:id`, `/api/group/:id`, `/api/access-package/:id` (…), `/api/org-chart/user/:id/manager|reports`, `/api/identities/by-user/:id`, `/api/risk-scores/{users,identities,groups,resources,business-roles}/:id` | the object opens in full for this owner (see [Exploring the team](#exploring-the-team)); the list is `auth/ownerAccess/endpoints.js` |
 | `POST /api/matrix/data` — the one POST, a read | the filter is bound to the owner's team (see [The team matrix](#the-team-matrix)) |
@@ -133,8 +137,7 @@ People, members and role holders link to their page when the API marks them
 accessible (`components/EntityLink.jsx`); an opened page or the team matrix
 shows on top of the unit, with **Back** (`components/contextOwner/`).
 
-- **Sub-units** in scope open in place; a sub-unit with an owner of its own is
-  plain text. The **breadcrumb** names the direct parent without reading it, and
+- **Sub-units** open in place — all of them, whoever else owns them. The **breadcrumb** names the direct parent without reading it, and
   opens it in place when it is in scope (a sub-unit's way back up).
 - A **variant** opens in place only when it is in scope.
 - Each **member** expands to its references, grouped and as plain text: on a
@@ -147,8 +150,8 @@ shows on top of the unit, with **Back** (`components/contextOwner/`).
   "Coming soon" survey and review cards, which are the analyst's to start; it
   keeps the report downloads, which run on the context itself: **Download
   entitlement report** on an application and **Download unit report** on a unit
-  of accounts or people, next to **Team matrix**. A unit of resources therefore
-  shows no Actions to its owner.
+  of accounts or people, next to **Team matrix**; a context of resources offers
+  **Application matrix**.
 
 `contexts/ContextOwnerScopeContext.jsx` carries the scope into the page;
 `components/contexts/contextOpener.js` decides which sub-units and parents are
@@ -156,18 +159,25 @@ links.
 
 ## Exploring the team
 
-From their unit an owner can open the people in it and what those people hold —
-the full detail page with every tab (Attributes, Relationships, Timeline, Diff,
-and Risk read-only) — and no further. Whether an object opens is decided by the
-API from the data, in three tiers (`auth/ownerAccess/tiers.js`):
+From their unit an owner can open the people in it and what those people hold;
+from an application, the people who hold its resources — the full detail page
+with every tab (Attributes, Relationships, Timeline, Diff, and Risk read-only) —
+and no further. Whether an object opens is decided by the API from the data, in
+four tiers (`auth/ownerAccess/tiers.js`):
 
 | Tier | What | Opens |
 |---|---|---|
 | **team** | a member of an in-scope context. Accounts and people cross over both ways: an account whose person is a member, a person one of whose accounts is a member. A resource that is itself a member (a unit of resources, an application) | in full |
 | **held** | a resource a team member holds: a live `Direct`, `Indirect` or `Eligible` assignment made to a team account or a team person | in full |
+| **holder** | the mirror for a context of resources (an application): an account or person holding — live `Direct`, `Indirect` or `Eligible` — a resource that is a member of an in-scope context. Same crossover as the team: an account whose person holds one, a person one of whose accounts does | in full |
 | — | everything else | name only |
 
-A detail read about an object that is in neither tier answers the same 403 as
+One step out, no further: what a holder holds **outside** the application is not
+`held` (that is the team's only), so it is name-only. An owner of several
+contexts — say a unit and an application — gets the **union** of the tiers over
+all of them; an object that is both team and holder is reported as team.
+
+A detail read about an object that is in none of these tiers answers the same 403 as
 any other refused path. **Facts are never stripped**: a group's page lists all
 its members, people outside the unit included. Instead, in owner mode only,
 every referenced object in the response carries `accessible: true | false`
@@ -183,22 +193,31 @@ other non-GET answer 403.
 
 **Scale.** The tiers are checked per object, in one batch per kind for a
 response: `team` through the `ContextMembers` primary key and the
-`IdentityMembers` indexes, `held` as an `EXISTS` through `ix_RA_resourceId` —
-never a load of the team's assignments. Answers are cached for the request and,
+`IdentityMembers` indexes, `held` as an `EXISTS` through `ix_RA_resourceId`,
+`holder` as an `EXISTS` through `ix_RA_principalId` / the `identityId` index,
+each assignment checked against the `ContextMembers` primary key — never a load
+of the team's or the application's assignments. Answers are cached for the request and,
 across requests, for 60 seconds per (owner scope, kind, id); the scope itself is
 still resolved on every request.
 
-### The team matrix
+### The team and application matrices
 
-The unit header offers **Team matrix** on a unit of accounts or people: the
-unit's members as rows, what they hold as columns, opened inside the owner's
-page. `POST /api/matrix/data` runs for an owner only when
+Each context page in the owner's scope offers its own matrix, opened inside the
+owner's page: **Team matrix** on a unit of accounts or people (its members as
+rows, what they hold as columns) and **Application matrix** on a context of
+resources (its resources as columns, everyone holding one as a row — the
+holders). `POST /api/matrix/data` runs for an owner only when
 (`auth/ownerAccess/matrixFilter.js`):
 
-- every context condition anywhere in the filter names an in-scope context,
-  without `includeChildren` (a sub-unit may be somebody else's);
-- the subject include has at least one of them on a unit of accounts or people
-  (the subject conditions are ANDed, so that one bounds the rows);
+- every context condition anywhere in the filter names an in-scope context; with
+  `includeChildren`, every descendant of it must be in scope too (always true
+  below a held context; a variant does not bring its sub-units along);
+- an axis is anchored to one of them: the subject include on a unit of
+  accounts or people, or the resource include on a context of resources (the
+  include conditions of an axis are ANDed, so the anchor bounds it; the flat
+  grid lists only subjects with a cell in the columns, so a column bound also
+  bounds the rows to holders). A context of the wrong kind on an axis is
+  dropped by that axis's query and is never an anchor;
 - the aggregate modes (roll-ups, hierarchy sort, attribute fold, inherited
   access) are removed: the flat grid is run.
 
@@ -218,7 +237,7 @@ import { createOwnerAccess, ownerMatrixVerdict, annotateReferences, entityEndpoi
 const owner = await resolveContextOwner(user);              // auth/contextOwner.js — null for a non-owner
 const access = createOwnerAccess(owner.contextIds);         // one per request
 await access.canOpen('user', id);                          // may this object be opened in full?
-await access.tierOf('resource', id);                       // 'team' | 'held' | null
+await access.tierOf('resource', id);                       // 'team' | 'held' | null (people: 'team' | 'holder' | null)
 await access.accessibleIds('principal', ids);              // batch: the Set of ids that open
 ownerMatrixVerdict(body, owner.contextIds, contextTypes);   // { ok, filter } for a matrix query
 await annotateReferences(body, refs, access);               // mark references in a result
@@ -227,7 +246,10 @@ await annotateReferences(body, refs, access);               // mark references i
 Kinds accept the data model's words (`principal`, `identity`, `resource`,
 `context`, `member`) and the UI's (`user`, `group`, `access-package`,
 `business-role`). A tool that returns an object should check `canOpen` first
-and refuse otherwise; a tool that lists references should return them all and
+and refuse otherwise (the tiers are already the union over every context the
+owner holds — one access object covers a unit and an application alike); a tool
+that runs a matrix query should pass it through `ownerMatrixVerdict` and run
+only the filter it returns; a tool that lists references should return them all and
 mark each from `accessibleIds`, as the REST responses do.
 
 ## Enforcement
@@ -261,6 +283,6 @@ treated as a context owner.
   so adding or removing a role takes effect immediately; there is no cache to
   expire.
 - A member's references (the expandable row) are direct only (one hop), names only, and capped at 50 per group; the full lists are on the member's own page.
-- The team matrix shows one unit at a time, without its sub-units; each sub-unit in scope has its own.
-- The unit report never includes sub-units for an owner; they download it per
-  sub-unit.
+- The team and application matrices open on one context without its sub-contexts; each sub-context has its own.
+- A variant's own sub-units are not in scope, so a report or matrix of a variant
+  with its sub-units is refused.

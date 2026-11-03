@@ -218,13 +218,16 @@ export function matrixHrefForContext(ctx) {
 // are. The rotated view has no department fold (RotatedMatrixView.jsx), so a
 // large application opens as a long list until it gets one.
 export function matrixHrefForResourceContext(ctx) {
-  return matrixHref({
-    rowType: 'principal',
-    orientation: 'rows-as-subjects',
-    subject: { include: [], exclude: [] },
-    resource: { include: [contextCondition(ctx)], exclude: [] },
-  });
+  return matrixHref(resourceAxisFilter(contextCondition(ctx)));
 }
+
+// Columns bounded by one context-of-resources condition, every holder a row.
+const resourceAxisFilter = cond => ({
+  rowType: 'principal',
+  orientation: 'rows-as-subjects',
+  subject: { include: [], exclude: [] },
+  resource: { include: [cond], exclude: [] },
+});
 
 // The matrix a unit's page opens: an application or resource unit by its
 // resources, a unit of accounts or people by its members.
@@ -232,15 +235,19 @@ export function matrixHrefForUnit(ctx) {
   return holdsResources(ctx) ? matrixHrefForResourceContext(ctx) : matrixHrefForContext(ctx);
 }
 
-// The matrix a context owner opens from their unit's page: the unit's own
-// members as rows (no sub-units — those may be somebody else's), everything
-// they hold as columns. The API refuses any wider filter from an owner
+// The matrix a context owner opens from their context's page, without its
+// sub-contexts (each has its own): on a unit of accounts or people
+// its members as rows and everything they hold as columns; on a context of
+// resources (an application) its resources as columns and whoever holds one
+// as rows. The API refuses any wider filter from an owner
 // (app/api/src/auth/ownerAccess/matrixFilter.js); this is the one it runs.
 export function teamMatrixFilter(ctx) {
+  const own = { kind: 'context', contextId: ctx.id, includeChildren: false };
+  if (ctx.targetType === 'Resource') return resourceAxisFilter(own);
   return {
     rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
     orientation: 'rows-as-subjects',
-    subject: { include: [{ kind: 'context', contextId: ctx.id, includeChildren: false }], exclude: [] },
+    subject: { include: [own], exclude: [] },
     resource: { include: [], exclude: [] },
   };
 }

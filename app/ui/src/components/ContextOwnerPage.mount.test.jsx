@@ -293,9 +293,39 @@ describe('ContextOwnerPage — exploring the team', () => {
     expect(JSON.parse(call[1].body).filter.subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: false }]);
   });
 
-  it('offers no team matrix on a unit of resources', async () => {
-    mount([ctx(UNIT, 'Finance', 'Responsible')], undefined, { targetType: 'Resource' });
-    await screen.findByRole('region', { name: 'Members' });
-    expect(screen.queryByTestId('team-matrix')).toBeNull();
+  it('offers the application matrix on a context of resources, bounded on the resource axis', async () => {
+    const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')], undefined, { targetType: 'Resource' });
+    const button = await screen.findByTestId('team-matrix');
+    expect(button).toHaveTextContent('Application matrix');
+    await userEvent.click(button);
+    expect(await screen.findByRole('region', { name: 'Application matrix' })).toBeInTheDocument();
+    await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u) === '/api/matrix/data')).toBe(true));
+    const { filter } = JSON.parse(authFetch.mock.calls.find(([u]) => String(u) === '/api/matrix/data')[1].body);
+    expect(filter.resource.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: false }]);
+    expect(filter.subject.include).toEqual([]);
+  });
+
+  it('an owner of a unit and an application switches between them, each with its own matrix', async () => {
+    const authFetch = makeAuthFetch((url) => {
+      const u = String(url);
+      if (u.endsWith(`/api/contexts/${SECOND}`)) return unit(SECOND, 'Payroll app', { targetType: 'Resource', contextCategory: 'LogicalApplication' });
+      return api()(url);
+    });
+    renderWithProviders(<ContextOwnerPage />, {
+      auth: {
+        authFetch, logout: vi.fn(), authEnabled: true, hasWildcard: false, permissions: new Set(),
+        contextOwner: { contexts: [ctx(UNIT, 'Finance', 'Accountable'), { ...ctx(SECOND, 'Payroll app', 'Accountable'), targetType: 'Resource' }], contextIds: [UNIT, SECOND] },
+      },
+    });
+    expect(await screen.findByTestId('team-matrix')).toHaveTextContent('Team matrix');
+    const nav = screen.getByRole('navigation', { name: 'Your contexts' });
+    await userEvent.click(within(nav).getByRole('button', { name: /Payroll app/ }));
+    expect(await screen.findByRole('heading', { name: 'Payroll app', level: 2 })).toBeInTheDocument();
+    await userEvent.click(await screen.findByTestId('team-matrix'));
+    expect(await screen.findByRole('region', { name: 'Application matrix' })).toBeInTheDocument();
+    // Switching context from the list closes what was opened on the other one.
+    await userEvent.click(within(nav).getByRole('button', { name: /Finance/ }));
+    expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Application matrix' })).toBeNull();
   });
 });
