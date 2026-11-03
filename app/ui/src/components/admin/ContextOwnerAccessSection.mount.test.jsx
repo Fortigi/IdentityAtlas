@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 //
-// Admin → Authentication: the context-owner access checkbox.
+// Admin → Roles & Permissions → Relative permissions: the context-owner access checkbox.
 
 import { describe, it, expect } from 'vitest';
 import ContextOwnerAccessSection from './ContextOwnerAccessSection';
 import AuthSettingsPage from '@ui/components/AuthSettingsPage';
+import RolesPermissionsTab from './RolesPermissionsTab';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, userEvent, within } from '@ui/test-utils/renderWithProviders';
 
 const LABEL = /Context owners — people who are Accountable or Responsible/;
@@ -71,15 +72,31 @@ describe('ContextOwnerAccessSection', () => {
     expect(screen.getByRole('checkbox', { name: LABEL })).not.toBeChecked();
   });
 
-  it('sits on the Authentication admin page, under Relative permissions beside the matrix-share note', async () => {
+  it('sits on the Roles & Permissions tab, in its own Relative permissions section below the role table', async () => {
+    const { authFetch } = server({ enabled: true });
+    const all = makeAuthFetch((url, opts) => (String(url).includes('/api/admin/roles')
+      ? { isCustom: false, groups: [], catalog: [], mapping: { Admin: ['*'] }, currentUser: { roles: ['Admin'] } }
+      : authFetch(url, opts)));
+    renderWithProviders(<RolesPermissionsTab />, { auth: { authFetch: all } });
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: LABEL })).toBeChecked());
+    const section = screen.getByRole('region', { name: 'Relative permissions' });
+    expect(within(section).getByRole('checkbox', { name: LABEL })).toBeInTheDocument();
+    expect(within(section).getByText(/Matrix-share recipients are the other kind/)).toBeInTheDocument();
+    // Its own section, after the role table — not nested inside it.
+    const table = await screen.findByRole('heading', { name: 'Roles & Permissions' });
+    expect(section.contains(table)).toBe(false);
+    expect(table.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('is no longer on the Authentication page', async () => {
     const { authFetch } = server({ enabled: true });
     const all = makeAuthFetch((url, opts) => (String(url).includes('/api/admin/auth-settings')
       ? { enabled: true, tenantId: 't', clientId: 'c', requiredRoles: [] }
       : authFetch(url, opts)));
     renderWithProviders(<AuthSettingsPage />, { auth: { authFetch: all } });
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: LABEL })).toBeChecked());
-    const section = screen.getByRole('region', { name: 'Relative permissions' });
-    expect(within(section).getByRole('checkbox', { name: LABEL })).toBeInTheDocument();
-    expect(within(section).getByText(/Matrix-share recipients are the other kind/)).toBeInTheDocument();
+    expect(await screen.findByText('ENABLED')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Relative permissions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: LABEL })).not.toBeInTheDocument();
+    expect(all.mock.calls.some(([u]) => String(u).includes('/api/admin/context-owner-access'))).toBe(false);
   });
 });
