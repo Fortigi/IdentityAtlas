@@ -273,6 +273,26 @@ describe('ContextOwnerPage — several contexts', () => {
   });
 });
 
+describe('ContextOwnerPage — what kind each context is', () => {
+  it('marks a unit and an application by icon and label in the list', () => {
+    mount([ctx(UNIT, 'Finance', 'Accountable'), { ...ctx(SECOND, 'Azure', 'Accountable'), contextCategory: 'LogicalApplication', targetType: 'Resource' }]);
+    const nav = screen.getByRole('navigation', { name: 'Your contexts' });
+    const [unitKind, appKind] = within(nav).getAllByTestId('context-kind');
+    expect(unitKind).toHaveAttribute('title', 'Organisation');
+    expect(unitKind.querySelector('svg')).toHaveAttribute('data-template', 'OrganizationalUnit');
+    expect(appKind).toHaveAttribute('title', 'Application');
+    expect(appKind.querySelector('svg')).toHaveAttribute('data-template', 'LogicalApplication');
+    // The label is part of the button's accessible name.
+    expect(within(nav).getByRole('button', { name: /Application:\s*Azure/ })).toBeInTheDocument();
+  });
+
+  it('falls back to the neutral icon for a context without a template', () => {
+    mount([ctx(UNIT, 'Finance', 'Accountable'), { ...ctx(SECOND, 'Misc', 'Accountable'), contextCategory: null }]);
+    const kinds = within(screen.getByRole('navigation', { name: 'Your contexts' })).getAllByTestId('context-kind');
+    expect(kinds[1].querySelector('svg')).toHaveAttribute('data-template', 'Other');
+  });
+});
+
 describe('ContextOwnerPage — exploring the team', () => {
   it('opens a team member\x27s page from "Open", with every tab, and goes back to the unit', async () => {
     const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')]);

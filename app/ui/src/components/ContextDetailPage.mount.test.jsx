@@ -640,10 +640,12 @@ describe('ContextDetailPage — embedded in the Contexts page', () => {
     await screen.findByText('Engineering Cluster');
     const detailReads = () => authFetch.mock.calls.filter(([u]) => u === '/api/contexts/ctx-1').length;
     const memberReads = () => authFetch.mock.calls.filter(([u]) => String(u).startsWith('/api/contexts/ctx-1/members')).length;
+    // The first member read can land after the name renders (slow under coverage): wait for it before counting.
+    await waitFor(() => expect(memberReads()).toBeGreaterThan(0));
     const [detailBefore, membersBefore] = [detailReads(), memberReads()];
     fireEvent.click(screen.getByRole('button', { name: 'bump' }));
     await waitFor(() => expect(detailReads()).toBe(detailBefore + 1));
-    expect(memberReads()).toBe(membersBefore + 1);
+    await waitFor(() => expect(memberReads()).toBe(membersBefore + 1));
     expect(await screen.findByText('Engineering Cluster')).toBeInTheDocument();
     expect(onEdited).not.toHaveBeenCalled(); // a refresh from outside is not an edit here
   });

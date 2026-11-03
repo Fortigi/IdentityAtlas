@@ -25,6 +25,8 @@ import { ContextOwnerScopeContext } from '@ui/contexts/ContextOwnerScopeContext'
 import ErrorBoundary from './ErrorBoundary';
 import Brand from './app/Brand';
 import ContextDetailPage from './ContextDetailPage';
+import ContextTemplateIcon from './contexts/ContextTemplateIcon';
+import { categoryMeta } from '@ui/utils/contextStyles';
 import OwnerExplorePane from './contextOwner/OwnerExplorePane';
 import { OWNER_OPENABLE } from './contextOwner/ownerOpenable';
 
@@ -59,6 +61,19 @@ function OwnerHeader({ isDark, userName, onSignOut }) {
   );
 }
 
+// What kind of context this is — an organisational unit, an application, a tag,
+// a segment — by the same icon and label as the rest of the app (the Contexts
+// tree, the detail tabs).
+function KindIcon({ category }) {
+  const label = categoryMeta(category).label;
+  return (
+    <span className="shrink-0 text-gray-600 dark:text-gray-400" title={label} data-testid="context-kind">
+      <ContextTemplateIcon category={category} />
+      <span className="sr-only">{label}: </span>
+    </span>
+  );
+}
+
 function ContextList({ contexts, selectedId, onSelect }) {
   return (
     <nav aria-label="Your contexts" className="w-64 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 overflow-y-auto">
@@ -70,7 +85,10 @@ function ContextList({ contexts, selectedId, onSelect }) {
               className={`w-full text-left flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${c.id === selectedId
                 ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100'
                 : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
-              <span className="truncate">{c.displayName}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <KindIcon category={c.contextCategory} />
+                <span className="truncate">{c.displayName}</span>
+              </span>
               <RoleBadge role={c.role} />
             </button>
           </li>
