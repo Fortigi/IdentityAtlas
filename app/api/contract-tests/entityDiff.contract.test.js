@@ -57,6 +57,10 @@ beforeAll(async () => {
   await assign(keptRole);
   await assign(removedRole);
 
+  // T travels as a JavaScript Date, which keeps milliseconds only. Without the
+  // pause, the setup rows above can fall in T's own millisecond, land after the
+  // truncated T and so be missing from the "before" side.
+  await pool.query(`SELECT pg_sleep(0.002)`);
   at = (await pool.query(`SELECT clock_timestamp() AS t`)).rows[0].t;
 
   await pool.query(`UPDATE "Principals" SET "department" = 'Finance', "managerId" = $2 WHERE "id" = $1`, [userId, newMgr]);

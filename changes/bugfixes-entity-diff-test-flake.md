@@ -1,0 +1,1 @@
+- Fixed an intermittently failing automated test for the Diff section; no change to the product itself
