@@ -17,8 +17,20 @@ import {
 
 const router = Router();
 
+// `allRows` is the engine's own query parameter, as `format` is the download's:
+// it asks a template that caps its rows to lift that cap, and is never passed on
+// as one of the template's parameters.
+const ALL_ROWS_PARAM = 'allRows';
+
+function splitAllRows(query) {
+  const { [ALL_ROWS_PARAM]: allRows, ...params } = query || {};
+  return { params, allRows: allRows === 'true' };
+}
+
 // One run, one payload — shared by the rows endpoint and the download, so a
-// downloaded file can never contain something the screen didn't show.
+// downloaded file holds the same rows as the screen. The one difference is the
+// row cap: a download always asks for every row (`allRows`), the screen only
+// when the reader chose to wait for them. A capped screen says so (`truncated`).
 //
 // `notices` is whatever the template returned, passed through untouched: the
 // engine never reads a notice, exactly as it never reads a row.
@@ -27,8 +39,8 @@ const router = Router();
 // its own: a report whose columns are picked by the reader (a parameter) only
 // knows them once it has run. The screen, the CSV and the workbook all read the
 // payload, so they follow the run either way.
-async function runReport(report, params) {
-  const { rows, notices, truncated, constantColumns, columns, pivots } = await report.run(params, {});
+async function runReport(report, params, { allRows = false } = {}) {
+  const { rows, notices, truncated, canLoadAllRows, constantColumns, columns, pivots } = await report.run(params, { allRows });
   const metadata = reportMetadata(report);
   return {
     ...metadata,
@@ -44,6 +56,9 @@ async function runReport(report, params) {
     // A template that stops at a row cap says so; the screen and the download must
     // not present the first N rows as the whole answer.
     truncated: truncated === true,
+    // Whether running again with `allRows` would return more — so the screen can
+    // offer to, instead of only telling the reader to narrow the report.
+    canLoadAllRows: truncated === true && canLoadAllRows === true,
     generatedAt: new Date().toISOString(),
   };
 }
@@ -71,7 +86,8 @@ router.get('/reports/:name/rows', async (req, res) => {
   const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
   try {
-    res.json(await runReport(report, req.query || {}));
+    const { params, allRows } = splitAllRows(req.query);
+    res.json(await runReport(report, params, { allRows }));
   } catch (err) {
     reportFailed(res, report, 'rows', err);
   }
@@ -84,7 +100,8 @@ router.get('/reports/:name/export', async (req, res) => {
   const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
 
-  const { format = DEFAULT_EXPORT_FORMAT, ...params } = req.query || {};
+  const { format = DEFAULT_EXPORT_FORMAT, ...rest } = req.query || {};
+  const { params } = splitAllRows(rest);
   const exportFormat = resolveExportFormat(String(format));
   if (!exportFormat) {
     return res.status(400).json({
@@ -101,7 +118,7 @@ router.get('/reports/:name/export', async (req, res) => {
     // `carriesContext` and gets it, and every other format is served exactly the
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
-    const full = await runReport(report, params);
+    const full = await runReport(report, params, { allRows: true });
     const { notices: _screenOnly, constantColumns: _headerOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 

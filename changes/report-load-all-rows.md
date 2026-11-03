@@ -1,0 +1,2 @@
+- Custom reports are no longer cut off at 1,000 rows in downloads: the XLSX, CSV and JSON download now contains every row (up to 250,000).
+- A custom report that shows only its first 1,000 rows now offers a "Load all rows" button, so you can choose to wait for the complete list on screen.

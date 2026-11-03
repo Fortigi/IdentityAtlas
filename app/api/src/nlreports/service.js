@@ -7,7 +7,7 @@
 
 import { query, tx } from '../db/connection.js';
 import { ENTITIES, VALUE_QUERIES } from './catalog.js';
-import { PREVIOUS_SENTINEL, validateSpec } from './spec.js';
+import { PREVIOUS_SENTINEL, runLimit, validateSpec } from './spec.js';
 import { compileSpec } from './compile.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
@@ -28,6 +28,8 @@ import { createSharedCache } from '../db/valueCache.js';
 
 const MAX_CLARIFY_ROUNDS = 2;
 const STATEMENT_TIMEOUT = '15s';
+// A run that asked for every row waits longer: the reader chose to.
+const ALL_ROWS_TIMEOUT = '120s';
 
 // Shared and served stale-while-revalidate (db/valueCache.js): the Reports list
 // builds every custom report at once, and each build asks for these lists.
@@ -621,7 +623,9 @@ function buildRow(r, columns, kind, grouped) {
 // still carries it: a saved "my groups" report opened by someone else, or an
 // evaluation's expected answer. The bot and the Ask tab hand in definitions
 // with the ids already in (interpret() substitutes before validating).
-export async function runSpec(rawSpec, substitutions = new Map()) {
+// `allRows` lifts the definition's row cap (see runLimit); `canLoadAllRows` on the
+// result says whether doing so would return more than this run did.
+export async function runSpec(rawSpec, substitutions = new Map(), { allRows = false } = {}) {
   const values = await loadValues();
   const extFields = await loadExtFields();
   const { ok, spec, errors } = validateSpec(substituteValues(rawSpec, substitutions), values, extFields);
@@ -629,19 +633,21 @@ export async function runSpec(rawSpec, substitutions = new Map()) {
   const { confirm } = await resolveNamedObjects(spec, query);
   if (confirm) return { ok: false, errors: [confirm.message], confirm, spec };
 
-  const compiled = compileSpec(spec, extFields);
+  const limit = runLimit(spec, allRows);
+  const compiled = compileSpec({ ...spec, limit }, extFields);
+  const timeout = limit > spec.limit ? ALL_ROWS_TIMEOUT : STATEMENT_TIMEOUT;
 
   const started = Date.now();
   const result = await tx(async (client) => {
     await client.query('SET TRANSACTION READ ONLY');
-    await client.query(`SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT}'`);
+    await client.query(`SET LOCAL statement_timeout = '${timeout}'`);
     return client.query(compiled.text, compiled.params);
   });
   const elapsedMs = Date.now() - started;
 
-  const truncated = result.rows.length > spec.limit;
+  const truncated = result.rows.length > limit;
   const kind = ENTITIES[spec.entity].detailKind;
-  const rows = result.rows.slice(0, spec.limit).map(r => buildRow(r, compiled.columns, kind, !!spec.groupBy));
+  const rows = result.rows.slice(0, limit).map(r => buildRow(r, compiled.columns, kind, !!spec.groupBy));
 
   return {
     ok: true,
@@ -652,6 +658,7 @@ export async function runSpec(rawSpec, substitutions = new Map()) {
     rows,
     total: rows.length,
     truncated,
+    canLoadAllRows: truncated && runLimit(spec, true) > limit,
     sql: compiled.text,
     params: compiled.params,
     elapsedMs,

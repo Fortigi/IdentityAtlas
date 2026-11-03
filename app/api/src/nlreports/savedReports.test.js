@@ -84,12 +84,20 @@ describe('saved reports in the report registry', () => {
       columns: [{ key: 'displayName', label: 'Name' }], editable: { builderId: ID },
       source: 'custom',
     });
-    expect(await t.run()).toEqual({ rows: [{ displayName: 'Ann', _entity: { kind: 'user', id: 'u1' } }], truncated: false });
+    expect(await t.run()).toEqual({
+      rows: [{ displayName: 'Ann', _entity: { kind: 'user', id: 'u1' } }], truncated: false, canLoadAllRows: false,
+    });
     // A run that stopped at the definition's row limit says so, instead of passing
-    // the first rows off as the whole answer.
-    runSpec.mockResolvedValueOnce({ ok: true, rows: [{ displayName: 'Ann' }], truncated: true });
-    expect((await t.run()).truncated).toBe(true);
-    expect(runSpec).toHaveBeenCalledWith(DEFINITION);
+    // the first rows off as the whole answer — and says whether lifting it helps.
+    runSpec.mockResolvedValueOnce({ ok: true, rows: [{ displayName: 'Ann' }], truncated: true, canLoadAllRows: true });
+    expect(await t.run({}, {})).toMatchObject({ truncated: true, canLoadAllRows: true });
+    expect(runSpec).toHaveBeenLastCalledWith(DEFINITION, undefined, { allRows: false });
+  });
+
+  it('lifts the row cap when the engine asks for every row', async () => {
+    const t = await toReportTemplate(ROW);
+    await t.run({}, { allRows: true });
+    expect(runSpec).toHaveBeenLastCalledWith(DEFINITION, undefined, { allRows: true });
   });
 
   it('says who built a saved report and who changed it last, with the time as ISO text', async () => {
