@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { Section } from './DetailSection';
+import EntityLink from './EntityLink';
 import { formatDate, formatDateOnly, friendlyLabel } from '@ui/utils/formatters';
 
 // The aggregate row's core timestamp columns, in the order an auditor reads
@@ -101,13 +102,8 @@ function PerAppTable({ rows, onOpenDetail }) {
           {rows.map(row => (
             <tr key={row.resourceId}>
               <td className="py-1.5 pr-3 text-gray-900 dark:text-gray-100">
-                {onOpenDetail ? (
-                  <button type="button"
-                    onClick={() => onOpenDetail('user', row.resourceId, row.appDisplayName || row.resourceId)}
-                    className="text-left font-medium text-blue-700 hover:underline dark:text-blue-300">
-                    {row.appDisplayName || row.resourceId}
-                  </button>
-                ) : (row.appDisplayName || row.resourceId)}
+                <EntityLink kind="user" id={row.resourceId} label={row.appDisplayName || row.resourceId}
+                  accessible={row.accessible} onOpenDetail={onOpenDetail} />
               </td>
               <td className="py-1.5 pr-3 text-gray-700 dark:text-gray-300">
                 {formatDate(row.lastSignInDateTime || row.lastSuccessfulSignInDateTime) || '—'}

@@ -60,7 +60,8 @@ export default function useExpandableGraph({ rootEntityKind, rootEntityId, rootE
     }
 
     if (node.kind === 'item') {
-      if (!isExpandableItem(node.entityKind)) return;
+      // An object the API marked as not openable for this reader stays a leaf.
+      if (!isExpandableItem(node.entityKind) || node.accessible === false) return;
       setLoading(true);
       try {
         const core = await fetchEntityCore(node.entityKind, node.entityId, authFetch);

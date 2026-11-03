@@ -6,6 +6,7 @@ import InterviewMentions from './contexts/interviews/InterviewMentions';
 import RiskScoreSection from './RiskScoreSection';
 import LinkedAccountsPanel from './LinkedAccountsPanel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 const SYSTEM_COLS = new Set([
   'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo',
@@ -73,6 +74,8 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   const [riskData, setRiskData] = useState(null);
   const [busyMember, setBusyMember] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // A read-only view (a context owner, a shared matrix) cannot change an account link.
+  const readOnly = useIsSharedView();
 
   useEffect(() => {
     (async () => {
@@ -131,7 +134,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
           <LinkedAccountsPanel
             members={data.members || []}
             busyMember={busyMember}
-            onOverride={overrideMember}
+            onOverride={readOnly ? undefined : overrideMember}
             onOpenDetail={onOpenDetail}
           />
           <InterviewMentions holder={{ identityId }} onOpenDetail={onOpenDetail} />

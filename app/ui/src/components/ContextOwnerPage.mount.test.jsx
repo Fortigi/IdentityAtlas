@@ -36,7 +36,7 @@ function api(unitExtra = {}) {
     const u = String(url);
     if (u.includes('/people')) return PEOPLE;
     if (u.includes('/roles/suggestion')) return { principalId: 'p-guess', displayName: 'Guessed Person', reason: 'manages most members' };
-    if (u.includes('/roles')) return [{ id: 'role-1', role: 'Responsible', principalId: 'p-1', displayName: 'Rita Responsible', addedBy: 'analyst' }];
+    if (u.includes('/roles')) return [{ id: 'role-1', role: 'Responsible', principalId: 'p-1', displayName: 'Rita Responsible', addedBy: 'analyst', accessible: false }];
     if (u.includes(`${RESOURCES}/relationships`)) {
       return [{ id: 'r1', relationshipType: 'SameUnitAs', relatedContextId: UNIT, relatedDisplayName: 'Finance', relatedTargetType: 'Identity', relatedTotalMemberCount: 1 }];
     }
@@ -114,12 +114,14 @@ describe('ContextOwnerPage — one context', () => {
     expect(fetched(authFetch, '/roles/suggestion')).toBe(false);
   });
 
-  it('does not link to pages the owner cannot open: members, people, sub-contexts', async () => {
+  it('does not link to what the API marked out of reach, nor to a sub-context outside the scope', async () => {
     mount([ctx(UNIT, 'Finance', 'Responsible')]);
     await screen.findByText('Alice Member');
-    // The member's name is the references toggle (names only, in place), not a link to their page.
-    expect(screen.getByRole('button', { name: 'Alice Member' })).toHaveAttribute('aria-expanded', 'false');
+    // The member's name is the references toggle (names only, in place); "Open" beside it opens the page.
+    expect(screen.getAllByRole('button', { name: 'Alice Member' })[0]).toHaveAttribute('aria-expanded', 'false');
+    // The API marked this holder accessible: false — named, lighter, not a link.
     expect(screen.queryByRole('button', { name: 'Rita Responsible' })).not.toBeInTheDocument();
+    expect(screen.getByText('Rita Responsible').closest('[title]')).toHaveAttribute('title', 'No access to details');
     expect(screen.getByText('Payroll team')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Payroll team/ })).not.toBeInTheDocument();
   });
@@ -239,7 +241,7 @@ describe('ContextOwnerPage — the references of a member', () => {
   });
 
   it('offers no references for someone the member list does not hold (a former member)', async () => {
-    const former = { ...PEOPLE.data[0], key: 'identityId:m-2', identityId: 'm-2', displayName: 'Fred Former', status: 'left', former: true, sources: ['interview'] };
+    const former = { ...PEOPLE.data[0], key: 'identityId:m-2', identityId: 'm-2', displayName: 'Fred Former', status: 'left', former: true, sources: ['interview'], accessible: false };
     const authFetch = makeAuthFetch((url) => (String(url).includes('/people') ? { ...PEOPLE, data: [...PEOPLE.data, former] } : api()(url)));
     renderWithProviders(<ContextOwnerPage />, {
       auth: {
@@ -247,8 +249,9 @@ describe('ContextOwnerPage — the references of a member', () => {
         contextOwner: { contexts: [ctx(UNIT, 'Finance', 'Responsible')], contextIds: [UNIT] },
       },
     });
-    expect(await screen.findByRole('button', { name: 'Alice Member' })).toBeInTheDocument();
+    expect((await screen.findAllByRole('button', { name: 'Alice Member' }))[0]).toBeInTheDocument();
     expect(screen.getByText('Fred Former')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Fred Former' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Fred Former' })).toBeNull();
   });
 });
@@ -267,5 +270,32 @@ describe('ContextOwnerPage — several contexts', () => {
     expect(await screen.findByRole('heading', { name: 'Payroll', level: 2 })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: /Payroll/ })).toHaveAttribute('aria-current', 'true');
     expect(fetched(authFetch, `/api/contexts/${SECOND}/people`)).toBe(true);
+  });
+});
+
+describe('ContextOwnerPage — exploring the team', () => {
+  it('opens a team member\x27s page from "Open", with every tab, and goes back to the unit', async () => {
+    const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')]);
+    const openButtons = await screen.findAllByRole('button', { name: 'Open Alice Member' });
+    await userEvent.click(openButtons[0]);
+    await waitFor(() => expect(fetched(authFetch, '/api/identities/m-1')).toBe(true));
+    await userEvent.click(screen.getByTestId('owner-back'));
+    expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
+  });
+
+  it('offers the team matrix on a unit of people and opens it in place', async () => {
+    const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')]);
+    await userEvent.click(await screen.findByTestId('team-matrix'));
+    expect(await screen.findByRole('region', { name: 'Team matrix' })).toBeInTheDocument();
+    expect(screen.getByTestId('owner-back')).toHaveTextContent('Back to Finance');
+    await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u) === '/api/matrix/data')).toBe(true));
+    const call = authFetch.mock.calls.find(([u]) => String(u) === '/api/matrix/data');
+    expect(JSON.parse(call[1].body).filter.subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: false }]);
+  });
+
+  it('offers no team matrix on a unit of resources', async () => {
+    mount([ctx(UNIT, 'Finance', 'Responsible')], undefined, { targetType: 'Resource' });
+    await screen.findByRole('region', { name: 'Members' });
+    expect(screen.queryByTestId('team-matrix')).toBeNull();
   });
 });

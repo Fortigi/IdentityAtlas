@@ -231,3 +231,16 @@ export function matrixHrefForResourceContext(ctx) {
 export function matrixHrefForUnit(ctx) {
   return holdsResources(ctx) ? matrixHrefForResourceContext(ctx) : matrixHrefForContext(ctx);
 }
+
+// The matrix a context owner opens from their unit's page: the unit's own
+// members as rows (no sub-units — those may be somebody else's), everything
+// they hold as columns. The API refuses any wider filter from an owner
+// (app/api/src/auth/ownerAccess/matrixFilter.js); this is the one it runs.
+export function teamMatrixFilter(ctx) {
+  return {
+    rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
+    orientation: 'rows-as-subjects',
+    subject: { include: [{ kind: 'context', contextId: ctx.id, includeChildren: false }], exclude: [] },
+    resource: { include: [], exclude: [] },
+  };
+}

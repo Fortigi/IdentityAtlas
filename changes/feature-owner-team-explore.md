@@ -1,0 +1,4 @@
+- Context owners can now open a **Team matrix** from their unit's page: everyone in the unit as a row, and what each of them holds.
+- Context owners can open the full page — attributes, relationships, timeline, diff and (read-only) risk — of the people in their unit and of the groups and resources those people hold, and go back to their unit.
+- On those pages every reference is still listed (a group shows all its members); people and objects outside the owner's reach are shown in a lighter colour, marked "No access to details", instead of as links.
+- What a context owner may open is enforced by the API: any other detail page, a wider matrix filter, and every change are refused.

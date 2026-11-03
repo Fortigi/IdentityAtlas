@@ -32,3 +32,13 @@ export function reportFor(attrs) {
 export function offersMatrix(attrs, { sharedView = false } = {}) {
   return !sharedView && !!profileFor(attrs?.contextCategory);
 }
+
+/**
+ * Whether the header offers a context owner the matrix of their team: on their
+ * owner page (ownerScope), for a unit of accounts or people in that scope. The
+ * API forces the matrix to the unit's members whatever is asked
+ * (app/api/src/auth/ownerAccess/matrixFilter.js). Pure.
+ */
+export function offersTeamMatrix(attrs, { ownerScope = null } = {}) {
+  return !!ownerScope && PEOPLE_TARGETS.has(attrs?.targetType) && ownerScope.has(String(attrs.id).toLowerCase());
+}

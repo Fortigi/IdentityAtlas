@@ -6,13 +6,17 @@
 // keeping it a table: a route added to the API tomorrow is closed to them until
 // someone adds it here on purpose.
 //
-// Reads only. A context owner cannot change a role, a member or a setting.
+// Reads only. A context owner cannot change a role, a member or a setting. The
+// one POST is the team matrix, a read whose filter is forced to their team.
 //
 // Paths are compared as middleware/auth.js guardPath() hands them over: the
 // full /api/... path, without the query string, lower-cased. Context ids are
 // uuids, held lower-cased in `contextIds`. A path that differs in any way from
 // a listed shape (a trailing slash, an extra segment, an encoded character) is
 // simply not on the list.
+
+import { entityEndpointFor } from './ownerAccess/endpoints.js';
+import { MATRIX_DATA_PATH } from './ownerAccess/matrixFilter.js';
 
 export const CONTEXT_OWNER_DENIED = 'Context owners can only open their own context';
 
@@ -107,11 +111,27 @@ export function memberReferencesVerdict(path, contextIds) {
   return { allow: false, member: { contextId: m[1], memberId: m[2] } };
 }
 
+// One object's detail page (a team member, a resource the team holds): the
+// object must open in full for this owner — auth/ownerAccess decides from the
+// data, so the verdict hands the object to the caller as `entity`. The paths
+// are listed in auth/ownerAccess/endpoints.js. null when not such a path.
+export function entityVerdict(path) {
+  const e = entityEndpointFor(path);
+  return e ? { allow: false, entity: { kind: e.kind, id: e.id } } : null;
+}
+
+// The team matrix — the one POST an owner may send: a read, whose filter the
+// caller forces to the owner's team (auth/ownerAccess/matrixFilter.js).
+export const MATRIX_VERDICT = Object.freeze({ allow: false, matrix: true });
+
 // { method, path, query } + the owner's scope → ALLOW, DENY,
 // { allow: false, resolve: [...] } when the answer depends on what the named
-// contexts resolve to, or { allow: false, member: { contextId, memberId } }
-// when it depends on that member being in that context.
+// contexts resolve to, { allow: false, member: { contextId, memberId } }
+// when it depends on that member being in that context, { allow: false,
+// entity: { kind, id } } when it depends on that object being openable, or
+// MATRIX_VERDICT for the team matrix.
 export function contextOwnerVerdict({ method, path, query }, contextIds) {
+  if (method === 'POST' && path === MATRIX_DATA_PATH) return MATRIX_VERDICT;
   if (method !== 'GET') return DENY;
   if (SHELL_PATHS.has(path)) return ALLOW;
   for (const shape of CONTEXT_PATHS) {
@@ -120,6 +140,8 @@ export function contextOwnerVerdict({ method, path, query }, contextIds) {
   }
   const member = memberReferencesVerdict(path, contextIds);
   if (member) return member;
+  const entity = entityVerdict(path);
+  if (entity) return entity;
   const refused = REPORT_EXPORTS.get(path);
   if (refused) return reportExportVerdict(query, contextIds, refused);
   return DENY;

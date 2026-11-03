@@ -91,7 +91,10 @@ sub-unit takes it out of the parent owner's scope immediately.
 | `/api/reports/application-access-review/export` | `contexts` lists only in-scope ids, and every context those values resolve to is in scope; the `applications` alias and names are refused |
 | `/api/reports/unit-members/export` | the same `contexts` check; `includeSubUnits` is refused in any form (even `false`) — the owner downloads per sub-unit, from that sub-unit's own page |
 
-Everything else — any other path, and every non-GET — answers
+| One object's detail reads — `/api/user/:id` (and its memberships, contexts, activity, timeline, diff, …), `/api/identities/:id` (…), `/api/resources/:id`, `/api/group/:id`, `/api/access-package/:id` (…), `/api/org-chart/user/:id/manager|reports`, `/api/identities/by-user/:id`, `/api/risk-scores/{users,identities,groups,resources,business-roles}/:id` | the object opens in full for this owner (see [Exploring the team](#exploring-the-team)); the list is `auth/ownerAccess/endpoints.js` |
+| `POST /api/matrix/data` — the one POST, a read | the filter is bound to the owner's team (see [The team matrix](#the-team-matrix)) |
+
+Everything else — any other path, and every non-GET (but the team matrix) — answers
 `403 { "error": "Context owners can only open their own context" }`.
 
 ### A member's references — names only
@@ -110,7 +113,7 @@ The answer is a *reference projection*
 words needed to read it — resource type, system name, assignment type, holder
 type, context type. **It carries no ids.** There is nothing in it to follow, and
 the detail endpoints of the referenced objects stay off the allow-list: an owner
-sees that a member holds "Finance-Admins", not "Finance-Admins" itself.
+sees that a member holds "Finance-Admins" there. To open "Finance-Admins" itself they go through the member's own page ([Exploring the team](#exploring-the-team)), where every reference carries the API's access flag.
 
 Each group lists at most **50** names, alphabetically, with the true total
 (the page says "+ 1,234 more"). Everything is shown; nothing is held back by
@@ -125,8 +128,10 @@ shows it, as an expandable member row.
 In the UI an owner gets a bare page (no main navigation): their context
 directly, or a list on the left when they hold several. The page is the
 ordinary context page in its business (reading) view, read-only: no Edit, no
-role pencils, no suggestion, no member editing, people and member pages not
-linked, no Copy link or Open as page.
+role pencils, no suggestion, no member editing, no Copy link or Open as page.
+People, members and role holders link to their page when the API marks them
+accessible (`components/EntityLink.jsx`); an opened page or the team matrix
+shows on top of the unit, with **Back** (`components/contextOwner/`).
 
 - **Sub-units** in scope open in place; a sub-unit with an owner of its own is
   plain text. The **breadcrumb** names the direct parent without reading it, and
@@ -136,17 +141,94 @@ linked, no Copy link or Open as page.
   unit of people or accounts the name of each person in the **People** overview
   whom the member list holds (not a former member, nor someone only an interview
   names); elsewhere each row of the members list, but not while *Include
-  sub-units* is on. The API answers only for a context's own members.
+  sub-units* is on. The API answers only for a context's own members. Beside
+  the name, **Open** opens the member's full page.
 - The Actions area drops **View in matrix**, which the owner cannot open, and the
   "Coming soon" survey and review cards, which are the analyst's to start; it
   keeps the report downloads, which run on the context itself: **Download
   entitlement report** on an application and **Download unit report** on a unit
-  of accounts or people. A unit of resources therefore shows no Actions to its
-  owner.
+  of accounts or people, next to **Team matrix**. A unit of resources therefore
+  shows no Actions to its owner.
 
 `contexts/ContextOwnerScopeContext.jsx` carries the scope into the page;
 `components/contexts/contextOpener.js` decides which sub-units and parents are
 links.
+
+## Exploring the team
+
+From their unit an owner can open the people in it and what those people hold —
+the full detail page with every tab (Attributes, Relationships, Timeline, Diff,
+and Risk read-only) — and no further. Whether an object opens is decided by the
+API from the data, in three tiers (`auth/ownerAccess/tiers.js`):
+
+| Tier | What | Opens |
+|---|---|---|
+| **team** | a member of an in-scope context. Accounts and people cross over both ways: an account whose person is a member, a person one of whose accounts is a member. A resource that is itself a member (a unit of resources, an application) | in full |
+| **held** | a resource a team member holds: a live `Direct`, `Indirect` or `Eligible` assignment made to a team account or a team person | in full |
+| — | everything else | name only |
+
+A detail read about an object that is in neither tier answers the same 403 as
+any other refused path. **Facts are never stripped**: a group's page lists all
+its members, people outside the unit included. Instead, in owner mode only,
+every referenced object in the response carries `accessible: true | false`
+(`auth/ownerAccess/annotate.js`, driven by the per-path table in
+`auth/ownerAccess/endpoints.js`; a second reference on one row writes its own
+flag, such as `principalAccessible`). The UI shows an accessible object as a
+link and any other as lighter plain text with the hint "No access to details"
+(`components/EntityLink.jsx`); it never decides on its own. An ordinary
+caller's responses are unchanged and no classification runs for them.
+
+Writes stay refused: the risk override, a linked-account override and every
+other non-GET answer 403.
+
+**Scale.** The tiers are checked per object, in one batch per kind for a
+response: `team` through the `ContextMembers` primary key and the
+`IdentityMembers` indexes, `held` as an `EXISTS` through `ix_RA_resourceId` —
+never a load of the team's assignments. Answers are cached for the request and,
+across requests, for 60 seconds per (owner scope, kind, id); the scope itself is
+still resolved on every request.
+
+### The team matrix
+
+The unit header offers **Team matrix** on a unit of accounts or people: the
+unit's members as rows, what they hold as columns, opened inside the owner's
+page. `POST /api/matrix/data` runs for an owner only when
+(`auth/ownerAccess/matrixFilter.js`):
+
+- every context condition anywhere in the filter names an in-scope context,
+  without `includeChildren` (a sub-unit may be somebody else's);
+- the subject include has at least one of them on a unit of accounts or people
+  (the subject conditions are ANDed, so that one bounds the rows);
+- the aggregate modes (roll-ups, hierarchy sort, attribute fold, inherited
+  access) are removed: the flat grid is run.
+
+Anything else is a 403. The matrix's other reads (tags, the access-package map,
+column labels, the default filter, the inheritance path, identity expansion)
+are not on the list; the views carry on without them.
+
+### Reusing this scope (MCP)
+
+The MCP server (#1508) answers on behalf of the signed-in user and must apply
+exactly this scope. Everything it needs is exported from
+`app/api/src/auth/ownerAccess/index.js`:
+
+```js
+import { createOwnerAccess, ownerMatrixVerdict, annotateReferences, entityEndpointFor, refsFor } from '../auth/ownerAccess/index.js';
+
+const owner = await resolveContextOwner(user);              // auth/contextOwner.js — null for a non-owner
+const access = createOwnerAccess(owner.contextIds);         // one per request
+await access.canOpen('user', id);                          // may this object be opened in full?
+await access.tierOf('resource', id);                       // 'team' | 'held' | null
+await access.accessibleIds('principal', ids);              // batch: the Set of ids that open
+ownerMatrixVerdict(body, owner.contextIds, contextTypes);   // { ok, filter } for a matrix query
+await annotateReferences(body, refs, access);               // mark references in a result
+```
+
+Kinds accept the data model's words (`principal`, `identity`, `resource`,
+`context`, `member`) and the UI's (`user`, `group`, `access-package`,
+`business-role`). A tool that returns an object should check `canOpen` first
+and refuse otherwise; a tool that lists references should return them all and
+mark each from `accessibleIds`, as the REST responses do.
 
 ## Enforcement
 
@@ -178,6 +260,7 @@ treated as a context owner.
 - Whether someone is an owner, and of which sub-units, is read on every request,
   so adding or removing a role takes effect immediately; there is no cache to
   expire.
-- References are direct only (one hop), names only, and capped at 50 per group.
+- A member's references (the expandable row) are direct only (one hop), names only, and capped at 50 per group; the full lists are on the member's own page.
+- The team matrix shows one unit at a time, without its sub-units; each sub-unit in scope has its own.
 - The unit report never includes sub-units for an owner; they download it per
   sub-unit.

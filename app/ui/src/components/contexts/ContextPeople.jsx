@@ -4,6 +4,8 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { useHasPermission } from '@ui/auth/usePermissions';
 import { PencilIcon } from '@ui/components/admin/adminIcons';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
+import EntityLink from '@ui/components/EntityLink';
 import ContextBestGuess from './ContextBestGuess';
 import ContextRoleModal from './ContextRoleModal';
 import InterviewSuggestions from './interviews/InterviewSuggestions';
@@ -106,8 +108,11 @@ function useContextRoles(contextId, onChanged) {
 
 function PeopleBlocks({ contextId, sourceName, unmatchedOwner, onOpenDetail, heading, accountableLabel, noun, suggest, onRolesChanged }) {
   const readOnly = useIsSharedView();
+  const ownerScope = useContextOwnerScope();
   const canWrite = useHasPermission('data.write.contexts') && !readOnly;
-  const openPerson = readOnly ? undefined : onOpenDetail;
+  // A read-only view links no person — except a context owner's page, where the
+  // API marks each holder it may open (role.accessible).
+  const openPerson = readOnly && !ownerScope ? undefined : onOpenDetail;
   const { accountable, responsible, loading, error, actionError, clearActionError, add, remove } = useContextRoles(contextId, onRolesChanged);
   // Which role's modal is open: 'Accountable', 'Responsible' or null.
   const [editing, setEditing] = useState(null);
@@ -228,9 +233,8 @@ function Holder({ role, sourceName, onOpenDetail }) {
       <span aria-hidden="true" className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
         {initials(name)}
       </span>
-      {linkable
-        ? <button type="button" onClick={() => onOpenDetail(kind, role.principalId || role.identityId, name)} className="font-medium hover:underline hover:text-blue-700 dark:hover:text-blue-300">{name}</button>
-        : <span className="font-medium">{name}</span>}
+      <EntityLink kind={kind} id={role.principalId || role.identityId} label={name} accessible={role.accessible}
+        onOpenDetail={linkable ? onOpenDetail : undefined} className="font-medium hover:underline hover:text-blue-700 dark:hover:text-blue-300" plainClassName="font-medium" />
       {FROM_SOURCE.has(role.addedBy) && sourceName && <span className="text-xs text-gray-600 dark:text-gray-400">from {sourceName}</span>}
       {role.sourceClaimId && (
         <span className="text-xs text-gray-600 dark:text-gray-400" title={role.sourceQuote || undefined}>

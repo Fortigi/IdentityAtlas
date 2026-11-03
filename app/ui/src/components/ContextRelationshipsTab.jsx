@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import ContextMemberPicker from './contexts/ContextMemberPicker';
 import MemberReferences from './contexts/MemberReferences';
+import { NoAccessName, OpenDetailsButton } from './EntityLink';
 import { contextOpener } from './contexts/contextOpener';
 import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
@@ -192,16 +193,21 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
 // One member: its row and, when a context owner opened it, its references
 // under it. `references` is null where references are not offered.
 function MemberRow({ member: m, columns, span, contextId, attrs, editMode, includeDescendants, onOpenDetail, onRemove, references }) {
-  const rowLink = onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : '';
-  const nameClass = onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100';
+  const kind = memberDetailKind(attrs.targetType);
+  // The whole row opens the member — except where its name toggles the
+  // references (a context owner's page: an "Open" button beside it instead), or
+  // where the API marked the member as not openable for this reader.
+  const rowOpens = !!onOpenDetail && !references && m.accessible !== false;
+  const rowLink = rowOpens ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : '';
+  const nameClass = rowOpens ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100';
   return (
     <Fragment>
       <tr
         className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${rowLink}`}
-        onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
+        onClick={rowOpens ? () => onOpenDetail(kind, m.id, m.displayName) : undefined}
       >
         <td className={`w-full sm:w-auto sm:py-1.5 ${nameClass}`}>
-          {references ? <ReferencesToggle name={m.displayName} {...references} /> : m.displayName}
+          <MemberName member={m} kind={kind} references={references} onOpenDetail={onOpenDetail} />
         </td>
         {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
         {editMode && (
@@ -219,6 +225,23 @@ function MemberRow({ member: m, columns, span, contextId, attrs, editMode, inclu
       )}
     </Fragment>
   );
+}
+
+// The member's name: the references toggle (with "Open" beside it when the
+// member opens here), the lighter name of a member the reader may not open, or
+// the plain name.
+function MemberName({ member: m, kind, references, onOpenDetail }) {
+  if (references) {
+    return (
+      <>
+        <ReferencesToggle name={m.displayName} {...references} />
+        <OpenDetailsButton kind={kind} id={m.id} name={m.displayName} accessible={m.accessible}
+          onOpenDetail={kind === 'system' ? undefined : onOpenDetail} />
+      </>
+    );
+  }
+  if (m.accessible === false) return <NoAccessName label={m.displayName} />;
+  return m.displayName;
 }
 
 // The member's name as the button that shows or hides its references (also
