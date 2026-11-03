@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { teamMatrixFilter } from '@ui/utils/matrixFilter';
+import { teamMatrixFilter, matrixHrefForUnit } from '@ui/utils/matrixFilter';
 import { readOnlyMatrixProps } from '@ui/components/shared/readOnlyMatrixProps';
 import { ownerMatrixFor } from '@ui/components/contexts/header/headerActions';
 import { fetchCategoryItems } from '@ui/components/entityGraphShape';
@@ -8,28 +8,31 @@ import { OWNER_OPENABLE } from './ownerOpenable';
 const UNIT = 'aaaaaaaa-0000-4000-8000-000000000001';
 
 describe('teamMatrixFilter', () => {
-  it('a unit of people: identities as rows, the unit itself without its sub-units', () => {
+  it('a unit of people: the ordinary matrix (people as columns, so the business-role band and governed cells draw), with its sub-units', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Identity' })).toEqual({
-      includeBusinessRoles: true,
       rowType: 'identity',
-      orientation: 'rows-as-subjects',
       subject: { include: [{ kind: 'context', contextId: UNIT, includeChildren: true }], exclude: [] },
       resource: { include: [], exclude: [] },
     });
   });
 
-  it('a unit of accounts: accounts as rows', () => {
+  it('a unit of accounts: accounts', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Principal' }).rowType).toBe('principal');
   });
 
-  it('an application: its own resources as the column bound, every holder a row', () => {
+  it('an application: its resources (with its sub-contexts) as the column bound, every holder a row', () => {
     expect(teamMatrixFilter({ id: UNIT, targetType: 'Resource' })).toEqual({
-      includeBusinessRoles: true,
       rowType: 'principal',
       orientation: 'rows-as-subjects',
       subject: { include: [], exclude: [] },
       resource: { include: [{ kind: 'context', contextId: UNIT, includeChildren: true }], exclude: [] },
     });
+  });
+
+  it.each([['Identity'], ['Principal'], ['Resource']])('is exactly what an analyst opens from a %s context (View in matrix)', (targetType) => {
+    const ctx = { id: UNIT, targetType };
+    const analyst = JSON.parse(new URLSearchParams(matrixHrefForUnit(ctx).split('?')[1]).get('filter'));
+    expect(teamMatrixFilter(ctx)).toEqual(analyst);
   });
 });
 

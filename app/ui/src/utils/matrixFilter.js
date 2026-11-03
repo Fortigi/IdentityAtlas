@@ -201,15 +201,29 @@ const contextCondition = ctx => ({ kind: 'context', contextId: ctx.id, includeCh
 const holdsResources = ctx => ctx.targetType === 'Resource' || ctx.targetType === 'System';
 const matrixHref = filter => `#matrix?${new URLSearchParams({ filter: JSON.stringify(filter) })}`;
 
-export function matrixHrefForContext(ctx) {
+// The filter behind "View in matrix" on a context: a context of resources or
+// systems filters the resources, an identity or account context the subjects.
+function contextMatrixFilter(ctx) {
   const cond = contextCondition(ctx);
   const onResources = holdsResources(ctx);
-  return matrixHref({
+  return {
     rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
     subject: { include: onResources ? [] : [cond], exclude: [] },
     resource: { include: onResources ? [cond] : [], exclude: [] },
-  });
+  };
 }
+
+export function matrixHrefForContext(ctx) {
+  return matrixHref(contextMatrixFilter(ctx));
+}
+
+// Columns bounded by one context-of-resources condition, every holder a row.
+const resourceAxisFilter = cond => ({
+  rowType: 'principal',
+  orientation: 'rows-as-subjects',
+  subject: { include: [], exclude: [] },
+  resource: { include: [cond], exclude: [] },
+});
 
 // The matrix an application's owner reads: the context's resources (and its
 // sub-contexts') as COLUMNS, every account holding any of them as a row. The
@@ -221,37 +235,21 @@ export function matrixHrefForResourceContext(ctx) {
   return matrixHref(resourceAxisFilter(contextCondition(ctx)));
 }
 
-// Columns bounded by one context-of-resources condition, every holder a row.
-const resourceAxisFilter = cond => ({
-  rowType: 'principal',
-  orientation: 'rows-as-subjects',
-  subject: { include: [], exclude: [] },
-  resource: { include: [cond], exclude: [] },
-});
+// The filter a unit's page opens the matrix with: an application or resource
+// unit by its resources, a unit of accounts or people by its members.
+export function unitMatrixFilter(ctx) {
+  return holdsResources(ctx) ? resourceAxisFilter(contextCondition(ctx)) : contextMatrixFilter(ctx);
+}
 
-// The matrix a unit's page opens: an application or resource unit by its
-// resources, a unit of accounts or people by its members.
 export function matrixHrefForUnit(ctx) {
-  return holdsResources(ctx) ? matrixHrefForResourceContext(ctx) : matrixHrefForContext(ctx);
+  return matrixHref(unitMatrixFilter(ctx));
 }
 
-// The matrix a context owner opens from their context's page, with all its
-// sub-contexts (an owner answers for everything below theirs — an application
-// often keeps its resources in child contexts): on a unit of accounts or people
-// its members as rows and everything they hold as columns; on a context of
-// resources (an application) its resources as columns and whoever holds one
-// as rows. The API refuses any wider filter from an owner
-// (app/api/src/auth/ownerAccess/matrixFilter.js); this is the one it runs.
-export function teamMatrixFilter(ctx) {
-  const own = { kind: 'context', contextId: ctx.id, includeChildren: true };
-  // Business roles the people hold are columns too, as an analyst can choose
-  // (the matrix hides them from the resource axis by default).
-  if (ctx.targetType === 'Resource') return { ...resourceAxisFilter(own), includeBusinessRoles: true };
-  return {
-    includeBusinessRoles: true,
-    rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
-    orientation: 'rows-as-subjects',
-    subject: { include: [own], exclude: [] },
-    resource: { include: [], exclude: [] },
-  };
-}
+// The matrix a context owner opens from their context's page is EXACTLY the
+// one an analyst opens from it (unitMatrixFilter): the same rows, the same
+// views — the business-role band, governed cells and the groups a role
+// contains are drawn by the ordinary matrix (MatrixView), which a rotated
+// one-off grid did not do. With all sub-contexts: an owner answers for
+// everything below theirs. The API refuses any wider filter from an owner
+// (app/api/src/auth/ownerAccess/matrixFilter.js).
+export const teamMatrixFilter = unitMatrixFilter;

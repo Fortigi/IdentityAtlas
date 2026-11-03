@@ -222,12 +222,17 @@ holders). `POST /api/matrix/data` runs for an owner only when
 - the aggregate modes (roll-ups, hierarchy sort, attribute fold, inherited
   access) are removed: the flat grid is run.
 
-Both open with business roles as columns (`includeBusinessRoles`), as an
-analyst can choose, so the roles the people hold show beside their groups; the
-business-role catalogue the views map roles to groups with is answered, cut to
-the roles the owner may open. Anything else is a 403. The matrix's other reads
-(tags, column labels, the default filter, the inheritance path, identity
-expansion) are not on the list; the views carry on without them.
+Each is **exactly the matrix an analyst opens from that context** ("View in
+matrix", `utils/matrixFilter.js` `unitMatrixFilter`), rendered by the ordinary
+matrix views in their read-only mode — the owner never gets a reduced grid. On a
+unit that is the standard matrix, with the business-role band, governed cells,
+the groups a business role contains coloured by it, and the All / Governed /
+Non-governed / Gaps lenses; those come from the matrix data (`managedByPackages`)
+and the business-role catalogue, which is answered for an owner cut to the roles
+they may open. Anything else is a 403. The matrix's other reads (tags, column
+value lists, the default filter, nested-group expansion, the inheritance path)
+are not on the list; the views carry on without them (no tag chips, no expand
+arrow on a nested group).
 
 ### Reusing this scope (MCP)
 
