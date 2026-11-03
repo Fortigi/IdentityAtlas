@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const types = vi.hoisted(() => ({ map: new Map() }));
 vi.mock('../routes/matrix/shared.js', () => ({ resolveContextTypes: vi.fn(async () => types.map) }));
 vi.mock('../db/connection.js');
+const { query } = await import('../db/connection.js');
 
 const { shapeResponse, settleMatrix } = await import('./contextOwnerMode.js');
 const { annotateReferences } = await import('../auth/ownerAccess/annotate.js');
@@ -66,9 +67,10 @@ describe('shapeResponse (marking references)', () => {
 });
 
 describe('settleMatrix', () => {
-  beforeEach(() => { types.map = new Map(); resolveContextTypes.mockClear(); });
+  // No context has sub-units unless a test says so.
+  beforeEach(() => { types.map = new Map(); resolveContextTypes.mockClear(); query.mockReset(); query.mockResolvedValue({ rows: [] }); });
 
-  it('replaces the body with the forced filter — the aggregate modes and inherited access gone', async () => {
+  it('replaces the body with the forced filter — the attribute roll-up and inherited access gone, the org roll-up kept', async () => {
     types.map = new Map([[MINE, 'Identity']]);
     const req = { body: {
       includeInheritedAccess: true,
@@ -78,7 +80,15 @@ describe('settleMatrix', () => {
     expect(req.body).toEqual({ filter: {
       subject: { include: [{ kind: 'context', contextId: MINE, includeChildren: false }], exclude: [] },
       resource: { include: [], exclude: [] },
+      sortHierarchy: { contextId: MINE }, rollupPath: [], rollupExpanded: [],
     } });
+  });
+
+  it('refuses an org roll-up whose root has a sub-unit outside the scope', async () => {
+    types.map = new Map([[MINE, 'Identity']]);
+    query.mockResolvedValue({ rows: [{ id: OUT }] });
+    const req = { body: { filter: { subject: { include: [{ kind: 'context', contextId: MINE }] }, sortHierarchy: { contextId: MINE } } } };
+    expect(await settleMatrix(req, new Set([MINE]))).toBe(false);
   });
 
   it('matches the context types the database returns in any case', async () => {

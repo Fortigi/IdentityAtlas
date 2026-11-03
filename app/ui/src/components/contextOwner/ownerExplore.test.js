@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { teamMatrixFilter, matrixHrefForUnit } from '@ui/utils/matrixFilter';
+import { teamMatrixFilter, matrixHrefForUnit, withUnitHierarchy } from '@ui/utils/matrixFilter';
 import { readOnlyMatrixProps } from '@ui/components/shared/readOnlyMatrixProps';
 import { ownerMatrixFor } from '@ui/components/contexts/header/headerActions';
 import { fetchCategoryItems } from '@ui/components/entityGraphShape';
@@ -77,5 +77,16 @@ describe('the graph carries the API\'s flag', () => {
     const authFetch = vi.fn(async () => ({ ok: true, json: async () => rows }));
     const items = await fetchCategoryItems('resource', 'r1', 'members-direct', authFetch);
     expect(items.map(i => [i.label, i.accessible])).toEqual([['Tim', undefined], ['Olga', false]]);
+  });
+});
+
+describe('withUnitHierarchy', () => {
+  it.each([['Identity'], ['Principal']])('roots the org roll-up at a %s unit itself', (targetType) => {
+    expect(withUnitHierarchy({ rowType: 'x' }, { id: UNIT, targetType })).toEqual({ rowType: 'x', sortHierarchy: { contextId: UNIT } });
+  });
+
+  it.each([['Resource'], ['System']])('leaves a %s context alone (the roll-up groups people)', (targetType) => {
+    const f = { rowType: 'x' };
+    expect(withUnitHierarchy(f, { id: UNIT, targetType })).toBe(f);
   });
 });

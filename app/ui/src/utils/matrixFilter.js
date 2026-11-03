@@ -253,3 +253,13 @@ export function matrixHrefForUnit(ctx) {
 // everything below theirs. The API refuses any wider filter from an owner
 // (app/api/src/auth/ownerAccess/matrixFilter.js).
 export const teamMatrixFilter = unitMatrixFilter;
+
+// The org-unit roll-up of a unit's matrix: the unit's sub-units (at any depth)
+// as collapsible column groups above the people, rooted at the unit itself —
+// the "Sort by Manager Hierarchy" an analyst picks, on this unit's own tree.
+// Only for a unit of accounts or people (the roll-up groups the people axis);
+// any other context's filter comes back unchanged.
+export function withUnitHierarchy(filter, ctx) {
+  if (holdsResources(ctx)) return filter;
+  return { ...filter, sortHierarchy: { contextId: ctx.id } };
+}

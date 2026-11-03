@@ -2,7 +2,7 @@
 // past the owner's team; each allowed case shows what is run instead.
 
 import { describe, it, expect } from 'vitest';
-import { ownerMatrixVerdict, ownerContextIds, AGGREGATE_FIELDS } from './matrixFilter.js';
+import { ownerMatrixVerdict, ownerContextIds, contextRollup, AGGREGATE_FIELDS } from './matrixFilter.js';
 
 const MINE = 'aaaaaaaa-0000-4000-8000-000000000001';
 const MY_RESOURCES = 'aaaaaaaa-0000-4000-8000-000000000002';
@@ -43,12 +43,13 @@ describe('ownerMatrixVerdict — allowed', () => {
     expect(v.filter.resource).toEqual({ include: [], exclude: [] });
   });
 
-  it('the aggregate modes are removed rather than run', () => {
+  it('the other aggregate modes are removed rather than run', () => {
     const extra = Object.fromEntries(AGGREGATE_FIELDS.map(f => [f, f === 'rollupLevel' ? 3 : 'x']));
-    const v = verdict(team({ ...extra, rollupKind: 'context', rollupContextId: OTHER, sortHierarchy: { contextId: OTHER }, foldAttributes: true }));
+    const v = verdict(team({ ...extra, foldAttributes: true, rollupKind: 'attribute' }));
     expect(v.ok).toBe(true);
-    for (const f of AGGREGATE_FIELDS) expect(v.filter).not.toHaveProperty(f);
+    for (const f of [...AGGREGATE_FIELDS, 'rollupKind', 'rollupContextId', 'sortHierarchy']) expect(v.filter).not.toHaveProperty(f);
   });
+
 });
 
 describe('ownerMatrixVerdict — refused (attempts to widen the rows)', () => {
@@ -140,5 +141,49 @@ describe('ownerMatrixVerdict — with sub-contexts', () => {
 
   it('an out-of-scope unit with children is still refused outright', () => {
     expect(verdict(team({ subject: { include: [ctx(MINE), ctx(OTHER, { includeChildren: true })] } }))).toEqual({ ok: false });
+  });
+});
+
+describe('ownerMatrixVerdict — the org-unit roll-up (collapsible sub-units)', () => {
+  const SUB = 'aaaaaaaa-0000-4000-8000-000000000006';
+  const SCOPED = new Set([MINE, MY_RESOURCES, SUB]);
+  const v = (extra) => ownerMatrixVerdict(team(extra), SCOPED, TYPES);
+
+  it('keeps the hierarchy rooted at their unit, and names the root for the descendant check', () => {
+    const out = v({ sortHierarchy: { contextId: MINE.toUpperCase() }, rollupExpanded: [SUB], rollupContent: 'resources-only' });
+    expect(out.ok).toBe(true);
+    expect(out.filter.sortHierarchy).toEqual({ contextId: MINE });
+    expect(out.filter.rollupExpanded).toEqual([SUB]);
+    expect(out.filter.rollupContent).toBe('resources-only');
+    expect(out.childrenOf).toEqual([MINE]);
+  });
+
+  it('keeps the zoom form (rollupKind context, a path inside their tree)', () => {
+    const out = v({ rollupKind: 'context', rollupContextId: MINE, rollupPath: [SUB] });
+    expect(out.ok).toBe(true);
+    expect(out.filter).toMatchObject({ rollupKind: 'context', rollupContextId: MINE, rollupPath: [SUB], rollupExpanded: [] });
+  });
+
+  it.each([
+    ['a root outside their scope (rollupContextId)', { rollupKind: 'context', rollupContextId: OTHER }],
+    ['a root outside their scope (sortHierarchy)', { sortHierarchy: { contextId: OTHER } }],
+    ['their root but an out-of-scope node expanded', { sortHierarchy: { contextId: MINE }, rollupExpanded: [OTHER] }],
+    ['their root but an out-of-scope node on the path', { rollupKind: 'context', rollupContextId: MINE, rollupPath: [SUB, OTHER] }],
+    ['a path without a root', { rollupPath: [SUB] }],
+    ['an expanded list that is not a list', { sortHierarchy: { contextId: MINE }, rollupExpanded: SUB }],
+    ['a root that is not an id', { sortHierarchy: { contextId: 42 } }],
+  ])('refuses %s', (_label, extra) => {
+    expect(v(extra)).toEqual({ ok: false });
+  });
+});
+
+describe('contextRollup', () => {
+  it('is null when nothing is asked, and ignores an attribute roll-up kind', () => {
+    expect(contextRollup({}, SCOPE)).toBeNull();
+    expect(contextRollup({ rollupKind: 'attribute', rollupPath: [], rollupExpanded: null }, SCOPE)).toBeNull();
+  });
+
+  it('names both roots once when both forms name the same unit', () => {
+    expect(contextRollup({ rollupKind: 'context', rollupContextId: MINE, sortHierarchy: { contextId: MINE.toUpperCase() } }, SCOPE).roots).toEqual([MINE]);
   });
 });

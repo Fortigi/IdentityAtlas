@@ -289,8 +289,14 @@ describe('ContextOwnerPage — exploring the team', () => {
     expect(await screen.findByRole('region', { name: 'Team matrix' })).toBeInTheDocument();
     expect(screen.getByTestId('owner-back')).toHaveTextContent('Back to Finance');
     await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u) === '/api/matrix/data')).toBe(true));
-    const call = authFetch.mock.calls.find(([u]) => String(u) === '/api/matrix/data');
-    expect(JSON.parse(call[1].body).filter.subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: true }]);
+    const posted = () => authFetch.mock.calls.filter(([u]) => String(u) === '/api/matrix/data').map(([, init]) => JSON.parse(init.body).filter);
+    expect(posted()[0].subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: true }]);
+    // Grouped by the unit's own tree by default …
+    expect(posted()[0].sortHierarchy).toEqual({ contextId: UNIT });
+    // … and flat (with the business-role band) with "Group by unit" off.
+    await userEvent.click(screen.getByTestId('group-by-unit'));
+    await waitFor(() => expect(posted().at(-1).sortHierarchy).toBeUndefined());
+    expect(posted().at(-1).subject.include).toEqual([{ kind: 'context', contextId: UNIT, includeChildren: true }]);
   });
 
   it('offers the application matrix on a context of resources, bounded on the resource axis', async () => {

@@ -14,7 +14,7 @@ import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 import { useMatrix } from '@ui/hooks/useMatrix';
-import { teamMatrixFilter } from '@ui/utils/matrixFilter';
+import { teamMatrixFilter, withUnitHierarchy } from '@ui/utils/matrixFilter';
 import MatrixArea from '@ui/components/app/MatrixArea';
 import { readOnlyMatrixProps } from '@ui/components/shared/readOnlyMatrixProps';
 
@@ -26,7 +26,19 @@ export default function OwnerTeamMatrix({ contextId, onOpenDetail }) {
   const { authFetch } = useAuth();
   const { data, error } = useFetch(`/api/contexts/${encodeURIComponent(contextId)}`, { authFetch });
   const attrs = data?.attributes || null;
-  const filter = useMemo(() => (attrs ? teamMatrixFilter(attrs) : null), [attrs]);
+  // A unit opens grouped by its sub-units (collapsible, as an analyst's
+  // hierarchy sort); "Group by unit" off gives the flat matrix, which also
+  // draws the business-role band. Expanding or zooming a group edits the filter
+  // (the API checks every unit it names is in scope).
+  const [grouped, setGrouped] = useState(true);
+  const [edited, setEdited] = useState(null);
+  const filter = useMemo(() => {
+    if (!attrs) return null;
+    const base = teamMatrixFilter(attrs);
+    return grouped ? (edited || withUnitHierarchy(base, attrs)) : base;
+  }, [attrs, grouped, edited]);
+  const groupable = !!attrs && withUnitHierarchy({}, attrs).sortHierarchy !== undefined;
+  const toggleGrouped = () => { setGrouped(g => !g); setEdited(null); };
   const matrix = useMatrix(filter);
   const [managedFilter, setManagedFilter] = useState('all');
   const noop = useCallback(() => {}, []);
@@ -38,7 +50,7 @@ export default function OwnerTeamMatrix({ contextId, onOpenDetail }) {
   else {
     body = (
       <Suspense fallback={<Status>Loading the team matrix…</Status>}>
-        <MatrixArea {...readOnlyMatrixProps({ matrix, filter, managedFilter, setManagedFilter, onOpenDetail, noop })} />
+        <MatrixArea {...readOnlyMatrixProps({ matrix, filter, managedFilter, setManagedFilter, onOpenDetail, noop })} setMatrixFilter={setEdited} />
       </Suspense>
     );
   }
@@ -53,6 +65,14 @@ export default function OwnerTeamMatrix({ contextId, onOpenDetail }) {
           {app ? 'What is held here as columns, and everyone who holds it as a row.' : 'Everyone in this unit and the units below it as a row, and what each of them holds.'}
           {' Open a person or a resource for its details.'}
         </p>
+        {groupable && (
+          <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input type="checkbox" checked={grouped} onChange={toggleGrouped} data-testid="group-by-unit"
+              className="rounded border-gray-300 dark:border-gray-600" />
+            Group by unit
+            <span className="text-xs text-gray-600 dark:text-gray-400">(off: one flat matrix, with the business roles)</span>
+          </label>
+        )}
       </div>
       {body}
     </section>

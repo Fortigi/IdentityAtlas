@@ -23,9 +23,14 @@
 //     context of the other kind on an axis is dropped by that axis's query
 //     (it has no clause for it), which would leave the axis unbounded — so it
 //     never counts as an anchor;
-//   - the modes that aggregate over a context tree or an attribute (roll-ups,
-//     the hierarchy sort, the attribute fold, inherited access) are removed:
-//     the flat grid is the one mode whose rows are exactly the subjects.
+//   - the context roll-up (the org-unit tree as collapsible column groups:
+//     sortHierarchy / rollupKind 'context' with rollupContextId, rollupPath,
+//     rollupExpanded) is kept when its root is an in-scope context — its whole
+//     subtree must be in scope, the caller checks that through `childrenOf` —
+//     and every node it names is in scope. Its cells and member counts run
+//     through the same subject filter, so the anchor still bounds them;
+//   - the other aggregate modes (the attribute roll-up and fold, roles-only
+//     drill, inherited access) are removed.
 //
 // Anything else is refused. The verdict carries the filter to run, with the
 // context ids lower-cased (the subject query looks them up by exact id).
@@ -38,8 +43,11 @@ const RESOURCE_TARGETS = new Set(['Resource']);
 const SIDES = ['include', 'exclude'];
 
 export const AGGREGATE_FIELDS = Object.freeze([
-  'rollup', 'rollupKind', 'rollupContextId', 'rollupPath', 'rollupExpanded', 'rollupCollapsed',
-  'rollupLevel', 'rollupContent', 'sortHierarchy', 'foldAttributes', 'drill', 'includeInheritedAccess',
+  'rollup', 'rollupCollapsed', 'rollupLevel', 'foldAttributes', 'drill', 'includeInheritedAccess',
+]);
+// The context roll-up's fields, kept only when they pass contextRollup().
+export const CONTEXT_ROLLUP_FIELDS = Object.freeze([
+  'rollupKind', 'rollupContextId', 'rollupPath', 'rollupExpanded', 'rollupContent', 'sortHierarchy',
 ]);
 
 const DENIED = Object.freeze({ ok: false });
@@ -85,6 +93,27 @@ function normalisedBlock(block) {
   return { include: (block.include || []).map(lowerContext), exclude: (block.exclude || []).map(lowerContext) };
 }
 
+const isScopedId = (v, contextIds) => typeof v === 'string' && UUID_RE.test(v) && contextIds.has(v.toLowerCase());
+const idList = (v) => (v === undefined || v === null ? [] : v);
+
+// The context roll-up a filter asks for: null when it asks for none,
+// { root, fields } when every id it names is in scope (root lower-cased; its
+// descendants are for the caller to check), or false when it names anything
+// else — an out-of-scope root, path or expanded node, or a malformed one.
+export function contextRollup(f, contextIds) {
+  const roots = [f.rollupKind === 'context' ? f.rollupContextId : null, f.sortHierarchy?.contextId].filter(v => v !== null && v !== undefined);
+  const nodes = [idList(f.rollupPath), idList(f.rollupExpanded)];
+  if (roots.length === 0) return nodes.every(n => Array.isArray(n) && n.length === 0) ? null : false;
+  if (!roots.every(r => isScopedId(r, contextIds))) return false;
+  if (!nodes.every(n => Array.isArray(n) && n.every(id => isScopedId(id, contextIds)))) return false;
+  const lower = (v) => v.toLowerCase();
+  const fields = { rollupPath: nodes[0].map(lower), rollupExpanded: nodes[1].map(lower) };
+  if (f.rollupKind === 'context') Object.assign(fields, { rollupKind: 'context', rollupContextId: lower(f.rollupContextId) });
+  if (f.sortHierarchy) fields.sortHierarchy = { contextId: lower(f.sortHierarchy.contextId) };
+  if (typeof f.rollupContent === 'string') fields.rollupContent = f.rollupContent;
+  return { roots: [...new Set(roots.map(lower))], fields };
+}
+
 /**
  * { ok: true, filter, childrenOf } — the filter to run, and the context ids
  * whose descendants it reads (all must be in scope) — or { ok: false }.
@@ -98,8 +127,11 @@ export function ownerMatrixVerdict(body, contextIds, contextTypes) {
   const resource = normalisedBlock(f.resource);
   const anchoredBy = (conds, targets) => conds.some(c => c?.kind === 'context' && targets.has(contextTypes.get(c.contextId)));
   if (!anchoredBy(subject.include, PEOPLE_TARGETS) && !anchoredBy(resource.include, RESOURCE_TARGETS)) return DENIED;
+  const rollup = contextRollup(f, contextIds);
+  if (rollup === false) return DENIED;
   const filter = { ...f, subject, resource };
-  for (const field of AGGREGATE_FIELDS) delete filter[field];
-  const childrenOf = [...new Set([...withChildren(subject), ...withChildren(resource)])];
+  for (const field of [...AGGREGATE_FIELDS, ...CONTEXT_ROLLUP_FIELDS]) delete filter[field];
+  if (rollup) Object.assign(filter, rollup.fields);
+  const childrenOf = [...new Set([...withChildren(subject), ...withChildren(resource), ...(rollup?.roots || [])])];
   return { ok: true, filter, childrenOf };
 }

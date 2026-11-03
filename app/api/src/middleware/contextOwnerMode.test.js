@@ -453,6 +453,12 @@ describe('switch on — the team matrix', () => {
   const post = (filter) => request(app).post('/api/matrix/data').set(as([])).send({ filter });
   const unit = (id, extra = {}) => ({ kind: 'context', contextId: id, ...extra });
 
+  it('runs the org roll-up rooted at their own unit, checking its subtree', async () => {
+    const res = await post({ subject: { include: [unit(MINE, { includeChildren: true })] }, sortHierarchy: { contextId: MINE }, rollupExpanded: [] });
+    expect(denied(res)).toBe(false);
+    expect(owners.descendantsInScope.mock.calls[0][1]).toEqual([MINE]);
+  });
+
   it('runs for their own unit with its sub-units (all in scope)', async () => {
     const res = await post({ subject: { include: [unit(MINE, { includeChildren: true })] } });
     expect(denied(res)).toBe(false);
@@ -468,6 +474,9 @@ describe('switch on — the team matrix', () => {
   it.each([
     ['no subject at all', { subject: { include: [] } }],
     ['another unit', { subject: { include: [unit(OTHER_TEAM)] } }],
+    ['an org roll-up rooted at another unit', { subject: { include: [unit(MINE)] }, rollupKind: 'context', rollupContextId: OTHER_TEAM }],
+    ['the hierarchy sort rooted at another unit', { subject: { include: [unit(MINE)] }, sortHierarchy: { contextId: OTHER_TEAM } }],
+    ['an org roll-up rooted at a variant whose sub-units are not in scope', { subject: { include: [unit(MINE)] }, sortHierarchy: { contextId: VARIANT } }],
     ['a variant with its children (its sub-units are not in scope)', { subject: { include: [unit(MINE), unit(VARIANT, { includeChildren: true })] } }],
     ['only their unit of resources', { subject: { include: [unit(VARIANT)] } }],
   ])('is refused: %s', async (_label, filter) => {

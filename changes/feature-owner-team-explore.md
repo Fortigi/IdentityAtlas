@@ -6,3 +6,4 @@
 - Someone who owns several contexts — for example a unit and an application — can switch between them and open each one's matrix, and may open everything any of their contexts gives access to.
 - Changed: a context owner now sees **every** unit below theirs, at any depth — also a sub-unit that has an owner of its own (that owner still sees only their own part). The unit report can now include those sub-units for an owner.
 - The team and application matrices are now the same matrix an analyst sees for that unit or application — including the business-role band, governed cells and the Governed / Non-governed / Gaps views — and the business roles can be opened; business roles nobody on the team holds stay out of view.
+- The team matrix opens grouped by the unit's sub-units, which can be expanded and collapsed as in the analyst's hierarchy view; "Group by unit" switches to the flat matrix with the business roles.

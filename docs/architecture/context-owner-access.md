@@ -219,20 +219,29 @@ holders). `POST /api/matrix/data` runs for an owner only when
   grid lists only subjects with a cell in the columns, so a column bound also
   bounds the rows to holders). A context of the wrong kind on an axis is
   dropped by that axis's query and is never an anchor;
-- the aggregate modes (roll-ups, hierarchy sort, attribute fold, inherited
-  access) are removed: the flat grid is run.
+- the **org-unit roll-up** (`sortHierarchy`, or `rollupKind: 'context'` with
+  `rollupContextId` / `rollupPath` / `rollupExpanded`) is kept when its root is
+  an in-scope context whose whole subtree is in scope and every node it names
+  is in scope — a root or node elsewhere is refused; its cells and member counts
+  run through the same subject filter, so the anchor still bounds them;
+- the other aggregate modes (attribute roll-up and fold, roles-only drill,
+  inherited access) are removed.
 
 Each is **exactly the matrix an analyst opens from that context** ("View in
 matrix", `utils/matrixFilter.js` `unitMatrixFilter`), rendered by the ordinary
 matrix views in their read-only mode — the owner never gets a reduced grid. On a
-unit that is the standard matrix, with the business-role band, governed cells,
+unit it opens **grouped by its sub-units** — the unit's own tree as collapsible
+column groups, as an analyst's hierarchy sort, expanded and zoomed the same
+way; **Group by unit** off gives the flat standard matrix, with the business-role band, governed cells,
 the groups a business role contains coloured by it, and the All / Governed /
 Non-governed / Gaps lenses; those come from the matrix data (`managedByPackages`)
 and the business-role catalogue, which is answered for an owner cut to the roles
 they may open. Anything else is a 403. The matrix's other reads (tags, column
 value lists, the default filter, nested-group expansion, the inheritance path)
 are not on the list; the views carry on without them (no tag chips, no expand
-arrow on a nested group).
+arrow on a nested group). The application matrix has no org roll-up: the
+roll-up groups people by their unit tree, and an application's tree is one of
+resources.
 
 ### Reusing this scope (MCP)
 
