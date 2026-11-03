@@ -197,7 +197,7 @@ describe('run_report end to end', () => {
     expect(out.rowCount).toBe(3);
     expect(out.truncated).toBe(true);
     expect(out.notices).toEqual(['computed for the test']);
-    expect(out.rows[0]).toEqual({ displayName: 'p-0', link: `${BASE}/#user:u0` });
+    expect(out.rows[0]).toEqual({ id: 'u0', displayName: 'p-0', link: `${BASE}/#user:u0` });
     expect(JSON.parse(res.body.result.content[0].text)).toEqual(out);
 
     const audit = query.mock.calls.find(([sql]) => sql.includes('"McpToolCalls"'))[1];

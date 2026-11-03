@@ -19,7 +19,7 @@ Everything is read-only.
 | `list_reports` | The ready-made reports (built-in and saved), with their parameters | Read all data |
 | `run_report` | Run one of them | Read all data |
 | `search` | Find people, accounts, groups, roles, applications or contexts by name | Read all data |
-| `describe_data_model` | The vocabulary for free-form questions: entities, fields, relations, rules, examples, and the values that exist in this deployment | Ask questions in plain language |
+| `describe_data_model` | The vocabulary for free-form questions: entities (contexts included), fields, relations, rules, examples, and the values that exist in this deployment. The deployment's own extra attributes are listed on request, per entity | Ask questions in plain language |
 | `run_query` | Answer a free-form question with a report definition | Ask questions in plain language |
 
 `run_query` uses the same engine as **Reports → Ask**: the assistant writes a JSON report
@@ -28,8 +28,14 @@ parameterised SQL and runs it in a read-only transaction with a 15-second timeou
 "I" work: the server substitutes the signed-in user's own account.
 
 Answers are capped at 100 rows by default (the assistant may ask for up to 500). A capped
-answer says `"truncated": true`, and every record carries a link back to its page in
-Identity Atlas.
+answer says `"truncated": true` and gives the full count as `total` (or `totalAtLeast`
+past 5,000), so the assistant can say "119 groups" rather than "100". Every record
+carries its id, which the assistant uses to chain one query into the next, and a link
+back to its page in Identity Atlas.
+
+A group that is "empty" or "without members" is read as fully empty: no accounts,
+devices, nested groups or eligible members. When groups exist that hold no accounts but
+do hold devices or nested groups, the assistant says how many and offers to list them.
 
 ## Who may use it
 

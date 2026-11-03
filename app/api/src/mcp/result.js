@@ -24,9 +24,11 @@ export function detailLink(baseUrl, entity) {
   return `${baseUrl}/#${entity.kind}:${encodeURIComponent(entity.id)}`;
 }
 
-// Strip the UI-only row properties (_entity, _links) and add the link.
+// Strip the UI-only row properties (_entity, _links) and add the record's id and
+// link: the id is what a follow-up query filters on ("in"), the link what a
+// person clicks.
 export function cleanRow(row, baseUrl) {
-  const out = {};
+  const out = row._entity?.id != null ? { id: row._entity.id } : {};
   for (const [k, v] of Object.entries(row)) {
     if (!k.startsWith('_')) out[k] = v;
   }

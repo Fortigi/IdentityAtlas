@@ -18,7 +18,7 @@ vi.mock('../nlreports/references.js', () => ({ searchNames: vi.fn() }));
 import { query } from '../db/connection.js';
 import { runSpec } from '../nlreports/service.js';
 import { searchNames } from '../nlreports/references.js';
-import { describeDataModel, runQuery, lazyCaller, attributesBlock } from './tools/query.js';
+import { describeDataModel, runQuery, lazyCaller, attributesBlock, attributesSummary, contextBlock } from './tools/query.js';
 import { search, whoAmI } from './tools/identity.js';
 import { asQueryParams, runReportTool, listReports } from './tools/reports.js';
 import { rowLimit, cleanRow, tableResult, errorResult, DEFAULT_ROWS, MAX_ROWS } from './result.js';
@@ -52,7 +52,7 @@ describe('rowLimit', () => {
 describe('cleanRow / tableResult', () => {
   it('drops UI-only keys, keeps the rest, and links rows that have a record', () => {
     expect(cleanRow({ a: 1, _entity: { kind: 'resource', id: 'g/1' }, _links: { a: [] } }, BASE))
-      .toEqual({ a: 1, link: `${BASE}/#resource:g%2F1` });
+      .toEqual({ id: 'g/1', a: 1, link: `${BASE}/#resource:g%2F1` });
     expect(cleanRow({ a: 1, count: 3 }, BASE)).toEqual({ a: 1, count: 3 });
   });
 
@@ -85,8 +85,10 @@ describe('run_query', () => {
     const [spec, subs] = vi.mocked(runSpec).mock.calls[0];
     expect(spec).toEqual({ ...definition, limit: 3 });
     expect(subs.get('@me')).toBe('p-ada');
-    expect(r.structuredContent).toMatchObject({ explanation: 'Groups Ada is a member of', rowCount: 2, truncated: true });
-    expect(r.structuredContent.rows[0]).toEqual({ displayName: 'G1', link: `${BASE}/#resource:g1` });
+    expect(r.structuredContent).toMatchObject({ explanation: 'Groups Ada is a member of', rowCount: 2, truncated: true, total: 3 });
+    expect(r.structuredContent.rows[0]).toEqual({ id: 'g1', displayName: 'G1', link: `${BASE}/#resource:g1` });
+    // The cut-off answer is counted by a second run up to the engine's limit.
+    expect(vi.mocked(runSpec).mock.calls[1][0]).toEqual({ ...definition, limit: 5000 });
   });
 
   it('has no @me without a linked account', async () => {
@@ -106,6 +108,41 @@ describe('run_query', () => {
     expect(JSON.parse(r.content[0].text)).toMatchObject({ error: 'Did you mean one of these?', choices: [{ id: 'g1', name: 'Finance' }] });
   });
 
+  it('does not count again when everything fit', async () => {
+    vi.mocked(runSpec).mockResolvedValue({ ok: true, explanation: '', columns: [], rows: [{ a: 1 }, { a: 2 }] });
+    const r = await runQuery.run({ definition: { entity: 'user' }, maxRows: 2 }, ctxWith());
+    expect(runSpec).toHaveBeenCalledTimes(1);
+    expect(r.structuredContent).toMatchObject({ truncated: false });
+    expect(r.structuredContent).not.toHaveProperty('total');
+  });
+
+  it('says "at least" when even the count run hits the engine limit, and nothing when it fails', async () => {
+    const page = { ok: true, explanation: '', columns: [], rows: [{ a: 1 }, { a: 2 }] };
+    vi.mocked(runSpec).mockResolvedValueOnce(page).mockResolvedValueOnce({ ...page, truncated: true });
+    let r = await runQuery.run({ definition: { entity: 'user' }, maxRows: 1 }, ctxWith());
+    expect(r.structuredContent).toMatchObject({ truncated: true, totalAtLeast: 5000 });
+    expect(r.structuredContent).not.toHaveProperty('total');
+
+    vi.mocked(runSpec).mockResolvedValueOnce(page).mockResolvedValueOnce({ ok: false, errors: ['timeout'] });
+    r = await runQuery.run({ definition: { entity: 'user' }, maxRows: 1 }, ctxWith());
+    expect(r.structuredContent.truncated).toBe(true);
+    expect(r.structuredContent).not.toHaveProperty('total');
+    expect(r.structuredContent).not.toHaveProperty('totalAtLeast');
+  });
+
+  it('refuses a sort it cannot read instead of leaving the rows silently unsorted', async () => {
+    for (const sort of [[{ field: 'displayName' }], 'displayName', null, { direction: 'desc' }]) {
+      const r = await runQuery.run({ definition: { entity: 'group', sort } }, ctxWith());
+      expect(r.isError).toBe(true);
+      expect(JSON.parse(r.content[0].text).error).toContain('sort must be one object');
+    }
+    expect(runSpec).not.toHaveBeenCalled();
+
+    vi.mocked(runSpec).mockResolvedValue({ ok: true, explanation: '', columns: [], rows: [] });
+    const ok = await runQuery.run({ definition: { entity: 'group', sort: { field: 'memberCount', direction: 'desc' } } }, ctxWith());
+    expect(ok.isError).toBeUndefined();
+  });
+
   it('refuses a definition that is not an object without running anything', async () => {
     for (const definition of [undefined, 'SELECT 1', [1], null]) {
       expect((await runQuery.run({ definition }, ctxWith())).isError).toBe(true);
@@ -115,18 +152,41 @@ describe('run_query', () => {
 });
 
 describe('describe_data_model', () => {
-  it('gives the MCP preface, the model reference, this deployment\'s values and its own attributes', async () => {
+  it('gives the MCP preface, the model reference, contexts, this deployment\'s values and how to get its attributes', async () => {
     const r = await describeDataModel.run({}, ctxWith());
     const text = r.content[0].text;
     expect(text.indexOf('How to use this with Identity Atlas over MCP')).toBe(0);
     expect(text).toContain('# Entities');
+    expect(text).toContain('# Contexts (also an entity for run_query)');
     expect(text).toContain('User | ServicePrincipal');
-    expect(text).toContain('ext.costCenter (Cost center, text)');
+    // The attribute names themselves only on request.
+    expect(text).not.toContain('ext.costCenter');
+    expect(text).toContain('own attributes ("ext." fields): user 1.');
   });
 
-  it('leaves the attribute block out when there are none', () => {
+  it('lists only the attributes of the entities asked for', async () => {
+    const r = await describeDataModel.run({ attributes: ['user'] }, ctxWith());
+    expect(r.content[0].text).toBe('Attributes from this deployment\'s own data (use the "ext." field names exactly as written):\n'
+      + '- user: ext.costCenter (Cost center, text)');
+    expect((await describeDataModel.run({ attributes: ['group'] }, ctxWith())).content[0].text).toBe('No extra attributes for group.');
+    // An unknown entity is ignored, which leaves nothing asked for: the reference.
+    expect((await describeDataModel.run({ attributes: ['nope'] }, ctxWith())).content[0].text).toContain('# Entities');
+  });
+
+  it('leaves the attribute block and summary out when there are none', () => {
     expect(attributesBlock({ user: {} })).toBe('');
     expect(attributesBlock(undefined)).toBe('');
+    expect(attributesBlock({ user: { 'ext.a': { label: 'A', type: 'text' } } }, ['group'])).toBe('');
+    expect(attributesSummary({ user: {} })).toBe('');
+    expect(attributesSummary(undefined)).toBe('');
+    expect(attributesSummary({ user: { a: {}, b: {} }, group: { c: {} } })).toContain('user 2, group 1.');
+  });
+
+  it('describes contexts from the catalog, fields and relations', () => {
+    const text = contextBlock();
+    expect(text).toContain('## context');
+    expect(text).toContain('- contextType (enum)');
+    expect(text).toContain('- resources (many → resource)');
   });
 });
 
