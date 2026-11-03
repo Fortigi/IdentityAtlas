@@ -60,12 +60,16 @@ function orgShort(displayName) {
   return segs[segs.length - 1] || noMgr || dn;
 }
 
+// The suffix the API gives a unit's direct-members column (matrix/contextRollup.js).
+export const DIRECT_SUFFIX = ':direct';
+
 // Build the /matrix/data filter that drills into one rolled-up group to fetch
 // its direct members (context nodes match on membership; attribute/roles groups
 // on the attribute value).
 function buildDrillFilter(group, { filter, attribute, rolesOnly, contextMode }) {
   const scopeCond = contextMode
-    ? { kind: 'context', contextId: group, includeChildren: false }
+    // A unit's direct-members column ('<id>:direct') drills into that unit's own members.
+    ? { kind: 'context', contextId: String(group).replace(DIRECT_SUFFIX, ''), includeChildren: false }
     : { kind: 'attribute', field: attribute, values: [group] };
   const scopedSubject = {
     include: [...(filter.subject?.include || []), scopeCond],

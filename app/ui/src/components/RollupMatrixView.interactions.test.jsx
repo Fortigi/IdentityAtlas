@@ -486,6 +486,25 @@ describe('RollupMatrixView — layered context hierarchy', () => {
     expect(screen.getByTitle(/Click to split EMEA into its 2 sub-teams/i)).toBeInTheDocument();
   });
 
+  it('a direct-members column drills into its unit own members (the unit id, without sub-units)', async () => {
+    const UNIT = 'aaaaaaaa-0000-4000-8000-000000000001';
+    const rollup = makeRollup({
+      rollupKind: 'context', layered: true, maxDepth: 1,
+      groupValues: [`${UNIT}:direct`],
+      counts: [{ resourceId: 'res-1', groupValue: `${UNIT}:direct`, directCount: 3, governedCount: 0 }],
+      nodes: [{ id: `${UNIT}:direct`, displayName: 'CTO — direct members', depth: 1, pathIds: [`${UNIT}:direct`], pathNames: ['CTO — direct members'], total: 3, directMembers: 3, childCount: 0 }],
+    });
+    const authFetch = makeFetch({
+      '/api/matrix/data': jsonResponse({ data: [{ memberId: 'u1', memberDisplayName: 'Zelma', resourceId: 'res-1', membershipType: 'Direct' }] }),
+    });
+    renderView({ rollup }, authFetch);
+    fireEvent.click(screen.getByTitle(/Show the 3 users directly in this team/i));
+    expect(await screen.findByText('Zelma')).toBeInTheDocument();
+    const call = authFetch.mock.calls.find(([u]) => String(u) === '/api/matrix/data');
+    const drill = JSON.parse(call[1].body).filter;
+    expect(drill.subject.include.at(-1)).toEqual({ kind: 'context', contextId: UNIT, includeChildren: false });
+  });
+
   it('describes the layered org-chart reading rules', () => {
     renderView({ rollup: layeredRollup });
     expect(screen.getByText(/Manager Hierarchy/)).toBeInTheDocument();

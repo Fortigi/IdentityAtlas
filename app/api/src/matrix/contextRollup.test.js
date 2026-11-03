@@ -4,6 +4,7 @@ import {
   buildContextNodesSql, buildContextChildrenSql, buildRootChildrenSql,
   buildContextRolesSql, buildContextRolesAsRowsSql,
   buildContextCutSql, buildContextScopedMemberCountsSql,
+  withDirectMemberNodes, frontierOf, directGroupValue, contextIdOfGroup,
 } from './contextRollup.js';
 
 const A = '11111111-1111-1111-1111-111111111111';
@@ -16,8 +17,18 @@ describe('isUuid / frontierValues', () => {
     expect(isUuid("a'); DROP TABLE x;--")).toBe(false);
   });
 
-  it('builds a typed VALUES body from validated ids', () => {
-    expect(frontierValues([A, B])).toBe(`('${A}'::uuid), ('${B}'::uuid)`);
+  it('builds a typed VALUES body from validated ids: (id, group value, walk the subtree?)', () => {
+    expect(frontierValues([A, B])).toBe(`('${A}'::uuid, '${A}', true), ('${B}'::uuid, '${B}', true)`);
+  });
+
+  it('a direct-members entry counts only its unit: its own group value, no walk', () => {
+    expect(frontierValues([{ id: A.toUpperCase(), direct: true }, B])).toBe(
+      `('${A.toUpperCase()}'::uuid, '${A}:direct', false), ('${B}'::uuid, '${B}', true)`);
+  });
+
+  it('validates the id of a direct-members entry too', () => {
+    expect(() => frontierValues([{ id: "x')--", direct: true }])).toThrow('invalid context id');
+    expect(() => frontierValues([null])).toThrow();
   });
 
   it('throws on a non-UUID id (injection guard)', () => {
@@ -57,7 +68,8 @@ describe('buildContextScopedMemberCountsSql', () => {
   it('splits scoped members into direct (at the node) vs total (whole subtree)', () => {
     const sql = buildContextScopedMemberCountsSql(base);
     expect(sql).toContain('member_dir');
-    expect(sql).toContain('bool_or(s.ctx_id = s.frontier_id) AS is_direct');
+    expect(sql).toContain('bool_or(s.lvl = 0) AS is_direct');
+    expect(sql).toContain('WHERE s.deep');
     expect(sql).toContain('COUNT(DISTINCT nm.pid)::int AS "total"');
     expect(sql).toContain('FILTER (WHERE nm.is_direct)::int AS "direct"');
     expect(sql).toContain(`p."membershipType" = 'Direct'`);
@@ -82,7 +94,8 @@ describe('buildContextRollupSql', () => {
 
   it('walks the subtree and counts distinct Direct subjects per frontier node', () => {
     const sql = buildContextRollupSql(base);
-    expect(sql).toContain('WITH RECURSIVE frontier(fid) AS');
+    expect(sql).toContain('WITH RECURSIVE frontier(fid, gv, deep) AS');
+    expect(sql).toContain('WHERE s.deep');
     expect(sql).toContain('JOIN subtree s ON c."parentContextId" = s.ctx_id');
     expect(sql).toContain(`cm."memberType" = 'Principal'`);
     expect(sql).toContain(`p."membershipType" = 'Direct'`);
@@ -117,7 +130,7 @@ describe('buildContextRolesSql (business-role columns)', () => {
   const base = { values: frontierValues([A]), subjectId: 'nm.pid', subjectScope: 'nm.pid', subjectSql: null, resourceSql: null };
   it('counts distinct subjects per (resource, business role) over the frontier', () => {
     const sql = buildContextRolesSql(base);
-    expect(sql).toContain('WITH RECURSIVE frontier(fid) AS');
+    expect(sql).toContain('WITH RECURSIVE frontier(fid, gv, deep) AS');
     expect(sql).toContain('"vw_UserPermissionAssignmentViaBusinessRole"');
     expect(sql).toContain('br."resourceId"      AS "resourceId"');
     expect(sql).toContain('br."businessRoleId"  AS "roleId"');
@@ -158,5 +171,42 @@ describe('node + children + root-children queries', () => {
   it('builds the default-frontier (root children) query', () => {
     expect(buildRootChildrenSql(A)).toContain(`"parentContextId" = '${A}'::uuid`);
     expect(() => buildRootChildrenSql('bad')).toThrow();
+  });
+});
+
+describe('withDirectMemberNodes — a unit\'s own members beside its sub-units', () => {
+  const C = '33333333-3333-3333-3333-333333333333';
+  const D = '44444444-4444-4444-4444-444444444444';
+  const root = { id: A, displayName: 'CTO' };
+
+  it('a leaf root: only its direct-members column', () => {
+    expect(withDirectMemberNodes([], root)).toEqual([{
+      id: `${A}:direct`, directOf: A, displayName: 'CTO — direct members',
+      depth: 1, pathIds: [`${A}:direct`], pathNames: ['CTO — direct members'], childCount: 0,
+    }]);
+  });
+
+  it('the root column first, then the sub-units; an expanded unit column before its own sub-units', () => {
+    const cut = [
+      { id: C, depth: 2, pathIds: [B, C], pathNames: ['Dev', 'Dev team'] },
+      { id: D, depth: 2, pathIds: [B, D], pathNames: ['Dev', 'Dev ops'] },
+    ];
+    const out = withDirectMemberNodes(cut, root, [B.toUpperCase()]);
+    expect(out.map(n => n.id)).toEqual([`${A}:direct`, `${B}:direct`, C, D]);
+    expect(out[1]).toMatchObject({ directOf: B, depth: 2, pathIds: [B, `${B}:direct`], pathNames: ['Dev', 'Dev — direct members'] });
+  });
+
+  it('no column for a unit that is not expanded', () => {
+    const out = withDirectMemberNodes([{ id: C, depth: 2, pathIds: [B, C], pathNames: ['Dev', 'Dev team'] }], root, []);
+    expect(out.map(n => n.id)).toEqual([`${A}:direct`, C]);
+  });
+
+  it('frontierOf: a direct-members column counts its unit only, the rest their subtree', () => {
+    expect(frontierOf(withDirectMemberNodes([{ id: C, pathIds: [C] }], root))).toEqual([{ id: A, direct: true }, C]);
+  });
+
+  it('a group value names its unit back', () => {
+    expect(contextIdOfGroup(directGroupValue(A.toUpperCase()))).toBe(A);
+    expect(contextIdOfGroup(B)).toBe(B);
   });
 });

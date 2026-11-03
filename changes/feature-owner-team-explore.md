@@ -8,3 +8,4 @@
 - The team and application matrices are now the same matrix an analyst sees for that unit or application — including the business-role band, governed cells and the Governed / Non-governed / Gaps views — and the business roles can be opened; business roles nobody on the team holds stay out of view.
 - The team matrix opens grouped by the unit's sub-units, which can be expanded and collapsed as in the analyst's hierarchy view; "Group by unit" switches to the flat matrix with the business roles.
 - The owner's list of contexts shows what kind each one is (organisation unit, application, tag, segment) with an icon and a label.
+- The matrix grouped by a unit's hierarchy (for analysts and owners) now shows the people directly in a unit as a "direct members" column beside its sub-units, so nobody drops out and the totals add up; a unit without sub-units no longer shows an empty matrix; and the business roles are shown in that view too.

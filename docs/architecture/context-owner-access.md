@@ -231,8 +231,10 @@ Each is **exactly the matrix an analyst opens from that context** ("View in
 matrix", `utils/matrixFilter.js` `unitMatrixFilter`), rendered by the ordinary
 matrix views in their read-only mode — the owner never gets a reduced grid. On a
 unit it opens **grouped by its sub-units** — the unit's own tree as collapsible
-column groups, as an analyst's hierarchy sort, expanded and zoomed the same
-way; **Group by unit** off gives the flat standard matrix, with the business-role band, governed cells,
+column groups, as an analyst's hierarchy sort, expanded the same way, with the
+unit's own people as a "direct members" column beside its sub-units (a unit
+without sub-units is just that column) and the business-role columns; **Group
+by unit** off gives the flat standard matrix, with the business-role band, governed cells,
 the groups a business role contains coloured by it, and the All / Governed /
 Non-governed / Gaps lenses; those come from the matrix data (`managedByPackages`)
 and the business-role catalogue, which is answered for an owner cut to the roles
