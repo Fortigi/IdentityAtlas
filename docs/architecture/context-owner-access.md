@@ -19,7 +19,8 @@ relates to:
 | Context owner | Accountable or Responsible for a context | The admin switch below, then the `ContextRoles` rows |
 | Matrix-share recipient | A saved matrix was shared with them | Whoever shares the matrix, per share ([Sharing a matrix](../ui/sharing-a-matrix.md)) |
 
-The admin page groups them under **Relative permissions**. Matrix sharing has
+The **Roles & Permissions** admin tab groups them in a **Relative permissions**
+section below the role table. Matrix sharing has
 no setting there and its behaviour is unchanged. Today the two are enforced
 separately: a context owner by the allow-list on this page, a share recipient
 by the share itself. A single data-level scope that matrix shares and the MCP
@@ -29,7 +30,7 @@ resources" rather than "these endpoints" — is a later, separate track
 
 ## Turning it on
 
-**Admin → Authentication → Authorization → Relative permissions → Context
+**Admin → Roles & Permissions → Relative permissions → Context
 owners** (needs `admin.auth`). Off by default. The setting is stored in
 `WorkerConfig` as `CONTEXT_OWNER_ACCESS` and takes effect on the next request;
 no restart.
