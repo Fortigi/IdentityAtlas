@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
 
-// Admin → Authentication → Authorization → Relative permissions: the
+// Admin → Roles & Permissions → Relative permissions: the
 // context-owner access switch (RelativePermissionsSection holds it).
 // GET/PUT /api/admin/context-owner-access ({ enabled }). When on, people who are
 // Accountable or Responsible for a context can sign in without an Identity

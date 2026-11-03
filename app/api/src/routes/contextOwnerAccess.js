@@ -1,4 +1,4 @@
-// Admin → Authentication: the context-owner access switch.
+// Admin → Roles & Permissions → Relative permissions: the context-owner access switch.
 //
 // GET /api/admin/context-owner-access  → { enabled }
 // PUT /api/admin/context-owner-access  body { enabled: boolean } → { enabled }
@@ -6,8 +6,8 @@
 // When on, a person who is Accountable or Responsible for a context can sign in
 // without an Identity Atlas role and see that context, its report and its
 // workflows — nothing else (docs/architecture/context-owner-access.md). Both
-// routes need admin.auth: the switch decides who may sign in, which is the
-// Authentication page's business.
+// routes need admin.auth: the switch decides who may sign in, the same gate as
+// the role mapping it sits beside.
 
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
