@@ -46,11 +46,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports and contextAssistant follow matrixSharing for the same reason.
+// customReports, contextAssistant and mcpServer follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, mcpServer: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -64,7 +64,7 @@ describe('ExperimentalFeaturesSection', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     // Four cards: experimental crawlers off; matrix sharing, custom reports and the context assistant on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(3);
+    expect(screen.getAllByText('Enabled')).toHaveLength(4);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -72,7 +72,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(3);
+    expect(screen.getAllByText('Disabled')).toHaveLength(4);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {

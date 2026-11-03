@@ -36,6 +36,7 @@ async function withMyPhoto(me) {
 }
 import { resolveModuleVersion } from './version.js';
 import { readFeatures } from './featureFlags.js';
+import { createMcpRouter } from './mcp/router.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { createRequestOriginGuard } from './middleware/requestOriginGuard.js';
 import { resolveTrustProxy, principalRateLimitKey } from './middleware/rateLimitKeys.js';
@@ -359,6 +360,11 @@ export function createApp() {
       me: await withMyPhoto(await resolveMe(req.user)),
     });
   });
+
+  // MCP endpoint for AI assistants (Claude, ChatGPT, Copilot) acting for the
+  // signed-in user, plus its OAuth discovery document. 404 unless sign-in and
+  // the mcpServer feature are both on — see mcp/router.js and mcp/auth.js.
+  app.use(createMcpRouter({ limiter: authedApiLimiter, version: moduleVersion }));
 
   // Everything below reads/writes the DB schema, so gate it while migrations run
   // (#696). Placed after the bootstrap endpoints above (which must stay 200) and

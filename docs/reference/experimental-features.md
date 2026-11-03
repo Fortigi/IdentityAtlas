@@ -176,6 +176,34 @@ profile, or an Azure parameter), and it is shared with custom reports.
 
 ---
 
+## MCP server
+
+Lets people connect an AI assistant — Claude, ChatGPT or Copilot — to Identity Atlas and
+ask it questions. The assistant signs in as that person through Entra ID and reads only
+what their role allows. See [MCP server](mcp-server.md) for the tools, the setup and the
+Entra app registration it needs. It is experimental because it is new, because the
+assistants' own sign-in support for Entra ID is still moving, and because what it reads
+leaves the deployment for the assistant's vendor.
+
+Environment variable: `FEATURE_MCP_SERVER=true`.
+
+### What the switch does, precisely
+
+**On** — `POST /mcp` and its discovery document
+(`/.well-known/oauth-protected-resource/mcp`) answer, for users whose role has **Use the
+MCP server** (`mcp.use`). The card shows the URL and scope to configure an assistant with,
+and the latest calls from the audit log.
+
+**Off** — both answer `404`. The switch refuses to turn on while sign-in is off: with no
+signed-in user there is no one for the assistant to act for.
+
+### What the switch does *not* do
+
+Turning it off does not revoke tokens the assistants already hold — they simply stop
+working, because the endpoint is gone. It does not delete the audit log either.
+
+---
+
 ## Leaving experimental behind
 
 The label is temporary by design. Once a feature has run against enough real
