@@ -595,6 +595,13 @@ export default function RollupMatrixView({
       </div>
     </th>
   );
+  // The business-role columns in a layered header: their names under the last
+  // header row, one spanning cell above them on the upper rows.
+  const layeredRoleCells = (L, isLast, stick) => {
+    if (visibleRoles.length === 0) return [];
+    if (isLast) return visibleRoles.map((role, idx) => roleHeaderCell(role, idx, stick));
+    return [<th key={`roles-${L}`} colSpan={visibleRoles.length} className="bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-left align-bottom text-[10px] font-medium text-gray-600 dark:text-gray-400">{L === 0 ? 'Business roles' : ''}</th>];
+  };
   // Build one header row's cells: corner, the per-column group/user headers, then
   // the trailing # + Description columns.
   const layeredHeaderRow = (L, isLast, indexed) => {
@@ -611,10 +618,7 @@ export default function RollupMatrixView({
       cells.push(th);
       i += span;
     }
-    if (visibleRoles.length > 0) {
-      if (isLast) cells.push(...visibleRoles.map((role, idx) => roleHeaderCell(role, idx, stick)));
-      else cells.push(<th key={`roles-${L}`} colSpan={visibleRoles.length} className="bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-left align-bottom text-[10px] font-medium text-gray-600 dark:text-gray-400">{L === 0 ? 'Business roles' : ''}</th>);
-    }
+    cells.push(...layeredRoleCells(L, isLast, stick));
     cells.push(<th key={`num-${L}`} className={`border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ minWidth: '40px' }} title="Total count for this resource">{isLast ? <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># ▼</div> : null}</th>);
     cells.push(<th key={`desc-${L}`} className={`border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 align-bottom text-xs text-gray-600 dark:text-gray-400 font-medium text-left${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ minWidth: '420px' }}>{isLast ? 'Description' : ''}</th>);
     return cells;
