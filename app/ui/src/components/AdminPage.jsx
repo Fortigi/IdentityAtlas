@@ -9,7 +9,7 @@ import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './admin/adminTabs'
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
 const PluginsPage = lazy(() => import('./PluginsPage'));
 const AuthSettingsPage = lazy(() => import('./AuthSettingsPage'));
-const RolesPermissionsSection = lazy(() => import('./RolesPermissionsSection'));
+const RolesPermissionsTab = lazy(() => import('./admin/RolesPermissionsTab'));
 const PerfPage = lazy(() => import('./PerfPage'));
 const AboutPage = lazy(() => import('./AboutPage'));
 const AccountLinkingSettings = lazy(() => import('./AccountLinkingSettings'));
@@ -128,7 +128,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
     'account-linking': AccountLinkingSettings,
     performance: PerfPage,
     auth: AuthSettingsPage,
-    roles: RolesPermissionsSection,
+    roles: RolesPermissionsTab,
     updates: UpdatesSettings,
     shares: SharedMatricesPage,
     experimental: ExperimentalFeaturesSection,
