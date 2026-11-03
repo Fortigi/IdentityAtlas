@@ -72,8 +72,8 @@ security boundary.
 
 ## Step 4 — Manage roles & permissions in the UI
 
-Once you're in as an admin, edit the live mapping under **Admin → Authentication →
-Roles & Permissions**. This maps each Entra ID app role to a set of permissions
+Once you're in as an admin, edit the live mapping under **Admin → Roles &
+Permissions** (its own tab, next to Authentication). This maps each Entra ID app role to a set of permissions
 from the fixed catalog, so "who can do what" changes without a code change.
 
 The seed mapping a fresh install ships with:
@@ -95,9 +95,9 @@ permission, so you can't accidentally revoke your own ability to manage roles.
 
 ### Relative permissions: letting context owners in
 
-**Admin → Authentication → Authorization → Relative permissions** groups the
-access people get because of how they relate to the data, rather than an
-Identity Atlas role. It is always read-only and limited to the data they relate
+The same **Admin → Roles & Permissions** tab has a second section below the
+role table, **Relative permissions**. It groups the access people get because of
+how they relate to the data, rather than a role in that table. It is always read-only and limited to the data they relate
 to. There are two kinds today:
 
 - **Context owners** — one checkbox. It lets the people who are **Accountable**
@@ -111,7 +111,7 @@ to. There are two kinds today:
   restart.
 - **Matrix-share recipients** — someone a matrix is shared with can open that
   matrix without a role (see [Sharing a matrix](../ui/sharing-a-matrix.md)).
-  That is decided per share; there is no setting for it on this page.
+  That is decided per share; there is no setting for it in this section.
 
 See [Context-owner access](../architecture/context-owner-access.md) for exactly
 what a context owner can see and how it is enforced.
