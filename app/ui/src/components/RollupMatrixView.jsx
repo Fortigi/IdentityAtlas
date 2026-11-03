@@ -163,6 +163,20 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
   );
 }
 
+// The hierarchy opens with the root unit's own people shown as columns (its
+// "direct members" column expanded) and its sub-units collapsed — once per
+// root, so collapsing it again sticks. Only in the hierarchy view (a layered
+// context roll-up with a root).
+function useOpenRootMembers({ contextMode, layered, rollupContextId, nodeMap, toggleGroup }) {
+  const rootDirect = contextMode && layered && rollupContextId ? `${String(rollupContextId).toLowerCase()}${DIRECT_SUFFIX}` : null;
+  const openedRoots = useRef(new Set());
+  useEffect(() => {
+    if (!rootDirect || openedRoots.current.has(rootDirect) || !nodeMap.has(rootDirect)) return;
+    openedRoots.current.add(rootDirect);
+    toggleGroup(rootDirect);
+  }, [rootDirect, nodeMap, toggleGroup]);
+}
+
 export default function RollupMatrixView({
   rollup, filter, counts, managedFilter, setManagedFilter, resourceContexts,
   refreshing, onOpenDetail, onAdjustFilter, onLoadSaved, onFilterChange, onShareView,
@@ -173,7 +187,7 @@ export default function RollupMatrixView({
     attribute, rollupContent = 'resources-and-roles', resources, groupValues,
     counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
     groupTotals = [], rollupKind = 'attribute', nodes = [], breadcrumb = [],
-    layered = false, layeredAttributes = false, maxDepth = 1, rollupContextId = null,
+    layered = false, layeredAttributes = false, maxDepth = 1, rollupContextId,
   } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
   const contextMode = rollupKind === 'context';
@@ -299,16 +313,7 @@ export default function RollupMatrixView({
     setExpanded(prev => new Set(prev).add(group));
   }, [expanded, cache, filter, attribute, authFetch, rolesOnly, contextMode]);
 
-  // The hierarchy opens with the root unit's own people shown as columns (its
-  // "direct members" column expanded) and its sub-units collapsed — once per
-  // root, so collapsing it again sticks.
-  const rootDirect = contextMode && layered && rollupContextId ? `${String(rollupContextId).toLowerCase()}${DIRECT_SUFFIX}` : null;
-  const openedRoots = useRef(new Set());
-  useEffect(() => {
-    if (!rootDirect || openedRoots.current.has(rootDirect) || !nodeMap.has(rootDirect)) return;
-    openedRoots.current.add(rootDirect);
-    toggleGroup(rootDirect);
-  }, [rootDirect, nodeMap, toggleGroup]);
+  useOpenRootMembers({ contextMode, layered, rollupContextId, nodeMap, toggleGroup });
 
   // ── Context zoom: drill INTO a node (push it onto the drill path → the view
   // shows that node's children). Zooming OUT is via the breadcrumb. Expanding a
