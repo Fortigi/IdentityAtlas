@@ -711,16 +711,62 @@ describe('matrix/data — layered hierarchy (sortHierarchy)', () => {
     expect(res.body.error).toBe('Invalid hierarchy');
   });
 
-  it('empty cut falls back to the root as a single leaf column', async () => {
+  it('a leaf root (no sub-units) shows its own members as one column — never an empty matrix', async () => {
     parseFilterImpl = () => baseFilter({ sortHierarchy: { contextId: UUID } });
     labelHandlers = {
       'matrix-ctx-cut': [],                         // root is a leaf
-      'matrix-ctx-layered[': [{ resourceId: 'r1', groupValue: UUID, directCount: 1, governedCount: 0 }],
-      'matrix-ctx-scoped-members[': [{ groupValue: UUID, total: 1, direct: 1 }],
+      'matrix-ctx-root': [{ id: UUID, displayName: 'Engineering' }],
+      'matrix-ctx-layered[': [{ resourceId: 'r1', groupValue: `${UUID}:direct`, directCount: 1, governedCount: 0 }],
+      'matrix-ctx-scoped-members[': [{ groupValue: `${UUID}:direct`, total: 3, direct: 3 }],
     };
     const res = await post({ filter: {} });
     expect(res.status).toBe(200);
-    expect(res.body.layered).toBe(true);
+    expect(res.body.groupValues).toEqual([`${UUID}:direct`]);
+    expect(res.body.nodes[0]).toMatchObject({ displayName: 'Engineering — direct members', total: 3, directMembers: 3, childCount: 0 });
+    // The walk counts the leaf root's own members, not a subtree.
+    expect(lastSql['matrix-ctx-layered[principal]']).toContain(`('${UUID}'::uuid, '${UUID}:direct', false)`);
+  });
+
+  it('a root with sub-units shows its direct members first, beside the sub-units — so the totals add up', async () => {
+    parseFilterImpl = () => baseFilter({ sortHierarchy: { contextId: UUID } });
+    labelHandlers = {
+      'matrix-ctx-cut': [{ id: UUID2, depth: 1, pathIds: [UUID2], pathNames: ['Development'], displayName: 'Development', childCount: 0 }],
+      'matrix-ctx-root': [{ id: UUID, displayName: 'CTO' }],
+      'matrix-ctx-layered[': [
+        { resourceId: 'r1', groupValue: `${UUID}:direct`, directCount: 3, governedCount: 0 },
+        { resourceId: 'r1', groupValue: UUID2, directCount: 5, governedCount: 0 },
+      ],
+      'matrix-ctx-scoped-members[': [{ groupValue: `${UUID}:direct`, total: 3, direct: 3 }, { groupValue: UUID2, total: 5, direct: 5 }],
+    };
+    const res = await post({ filter: {} });
+    expect(res.body.groupValues).toEqual([`${UUID}:direct`, UUID2]);
+    expect(res.body.nodes.map(n => n.total)).toEqual([3, 5]);
+    expect(lastSql['matrix-ctx-layered[principal]']).toContain(`('${UUID2}'::uuid, '${UUID2}', true)`);
+  });
+
+  it('an empty unit shows no column at all (a column with nobody in it is dropped)', async () => {
+    parseFilterImpl = () => baseFilter({ sortHierarchy: { contextId: UUID } });
+    labelHandlers = { 'matrix-ctx-cut': [], 'matrix-ctx-root': [{ id: UUID, displayName: 'Empty' }] };
+    const res = await post({ filter: {} });
+    expect(res.status).toBe(200);
+    expect(res.body.groupValues).toEqual([]);
+  });
+
+  it('carries the business-role columns, unless the matrix asks for resources only', async () => {
+    labelHandlers = {
+      'matrix-ctx-cut': [{ id: UUID2, depth: 1, pathIds: [UUID2], pathNames: ['Development'] }],
+      'matrix-ctx-root': [{ id: UUID, displayName: 'CTO' }],
+      'matrix-ctx-layered[': [{ resourceId: 'r1', groupValue: UUID2, directCount: 1, governedCount: 1 }],
+      'matrix-ctx-roles[': [{ resourceId: 'r1', roleId: 'br1', roleName: 'Sales rep', count: 1 }],
+    };
+    parseFilterImpl = () => baseFilter({ sortHierarchy: { contextId: UUID } });
+    const withRoles = await post({ filter: {} });
+    expect(withRoles.body.rollupContent).toBe('resources-and-roles');
+    expect(withRoles.body.businessRoles).toEqual([{ id: 'br1', displayName: 'Sales rep' }]);
+    expect(withRoles.body.roleCounts).toEqual([{ resourceId: 'r1', roleId: 'br1', count: 1 }]);
+    parseFilterImpl = () => baseFilter({ sortHierarchy: { contextId: UUID }, rollupContent: 'resources-only' });
+    const without = await post({ filter: {} });
+    expect(without.body.businessRoles).toEqual([]);
   });
 
   it('layered hierarchy folds inherited context counts with a failure warning', async () => {

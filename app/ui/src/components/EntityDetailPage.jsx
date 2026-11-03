@@ -8,12 +8,16 @@ import EntityDiff from './EntityDiff';
 import useExpandableGraph from '@ui/hooks/useExpandableGraph';
 import useTimeline from '@ui/hooks/useTimeline';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
 import { getRootNodes } from './entityGraphShape';
 
 // Tabs a recipient of a share link sees (#1166). The analyst-only tabs — the
 // change Timeline, the Diff and the Risk panel with its override controls — are dropped:
 // a business user who followed a link to one matrix has no use for them, and
 // the override actions inside Risk would 403 for a roleless recipient anyway.
+// A context owner exploring their team keeps every tab: the API scopes what each
+// one reads (docs/architecture/context-owner-access.md), and the Risk panel is
+// read-only in their view (RiskScoreSection).
 const SHARED_VIEW_TABS = new Set(['attributes', 'relationships']);
 
 // Error guard — shown when the detail fetch rejects. Retry/Close only when onRetry.
@@ -167,7 +171,10 @@ export default function EntityDetailPage({
   const [error, setError] = useReducer((_, v) => v, null);
   const [activeTab, setActiveTab] = useState('attributes');
   const [timelineDays, setTimelineDays] = useState(90);
-  const isSharedView = useIsSharedView();
+  // The share recipient's narrowed tabs; not on a context owner's page.
+  const sharedView = useIsSharedView();
+  const ownerScope = useContextOwnerScope();
+  const narrowTabs = sharedView && !ownerScope;
 
   useEffect(() => {
     if (!refreshKey && cachedData?.core) return;
@@ -221,7 +228,7 @@ export default function EntityDetailPage({
   const allTabs = getTabs(data, attributeEntries);
   // getTabs callers emit `false`/`undefined` entries for feature-gated tabs;
   // filter those out before narrowing, so the shared view can't keep one.
-  const tabs = isSharedView
+  const tabs = narrowTabs
     ? allTabs.filter(t => t && SHARED_VIEW_TABS.has(t.key))
     : allTabs;
 

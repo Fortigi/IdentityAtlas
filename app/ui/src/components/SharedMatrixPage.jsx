@@ -23,6 +23,7 @@ import AppMain from './app/AppMain';
 import SharedMatrixHeader from './shared/SharedMatrixHeader';
 import SharedMatrixUnavailable from './shared/SharedMatrixUnavailable';
 import { applyDisplayMode } from './shared/sharedSnapshot';
+import { readOnlyMatrixProps } from './shared/readOnlyMatrixProps';
 
 // Resolve state: 'loading' | 'ready' | 'revoked' | 'missing' | 'forbidden' | 'error'
 //
@@ -97,26 +98,7 @@ export default function SharedMatrixPage({ token }) {
     }
     return {
       isDetail: false,
-      matrixProps: {
-        rollup: matrix.rollup,
-        data: matrix.data,
-        matrixFilter: filter,
-        counts: matrix.counts,
-        managedFilter,
-        setManagedFilter,
-        refreshing: matrix.refreshing,
-        onOpenDetail: openDetailTab,
-        setMatrixFilter: noop,
-        accessPackageGroups: matrix.accessPackageGroups,
-        managedByPackages: matrix.managedByPackages,
-        resourceContexts: matrix.resourceContexts,
-        groupTagMap: matrix.groupTagMap,
-        hasData: matrix.hasData,
-        wizardOpen: false,
-        onAdjustFilter: noop,
-        onWizardApply: noop,
-        onWizardClose: noop,
-      },
+      matrixProps: readOnlyMatrixProps({ matrix, filter, managedFilter, setManagedFilter, onOpenDetail: openDetailTab, noop }),
     };
   }, [detail, matrix, filter, managedFilter, openDetailTab, closeDetailTab, noop]);
 

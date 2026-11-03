@@ -7,7 +7,7 @@
 // See docs/architecture/context-owner-access.md.
 //
 // The API only answers this user for their own contexts, the sub-units below
-// them that have no owner of their own, and those contexts' variants
+// them (all of them, whoever else owns one), and those contexts' variants
 // (`contextOwner.contextIds` from /api/auth-me), so the page shows exactly
 // that: one context directly, or with several a slim list of them on the left.
 // The context itself is the ordinary context page, wrapped in SharedViewContext
@@ -25,6 +25,10 @@ import { ContextOwnerScopeContext } from '@ui/contexts/ContextOwnerScopeContext'
 import ErrorBoundary from './ErrorBoundary';
 import Brand from './app/Brand';
 import ContextDetailPage from './ContextDetailPage';
+import ContextTemplateIcon from './contexts/ContextTemplateIcon';
+import { categoryMeta } from '@ui/utils/contextStyles';
+import OwnerExplorePane from './contextOwner/OwnerExplorePane';
+import { OWNER_OPENABLE } from './contextOwner/ownerOpenable';
 
 const ROLE_BADGE = {
   Accountable: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700',
@@ -57,6 +61,19 @@ function OwnerHeader({ isDark, userName, onSignOut }) {
   );
 }
 
+// What kind of context this is — an organisational unit, an application, a tag,
+// a segment — by the same icon and label as the rest of the app (the Contexts
+// tree, the detail tabs).
+function KindIcon({ category }) {
+  const label = categoryMeta(category).label;
+  return (
+    <span className="shrink-0 text-gray-600 dark:text-gray-400" title={label} data-testid="context-kind">
+      <ContextTemplateIcon category={category} />
+      <span className="sr-only">{label}: </span>
+    </span>
+  );
+}
+
 function ContextList({ contexts, selectedId, onSelect }) {
   return (
     <nav aria-label="Your contexts" className="w-64 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 overflow-y-auto">
@@ -68,7 +85,10 @@ function ContextList({ contexts, selectedId, onSelect }) {
               className={`w-full text-left flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${c.id === selectedId
                 ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100'
                 : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
-              <span className="truncate">{c.displayName}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <KindIcon category={c.contextCategory} />
+                <span className="truncate">{c.displayName}</span>
+              </span>
               <RoleBadge role={c.role} />
             </button>
           </li>
@@ -87,14 +107,26 @@ export default function ContextOwnerPage() {
     () => new Set([...(contextOwner?.contextIds || []), ...contexts.map(c => c.id)].map(id => String(id).toLowerCase())),
     [contextOwner, contexts],
   );
-  const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? null);
+  const [selectedId, setSelectedIdState] = useState(contexts[0]?.id ?? null);
+  // What the owner opened from the unit, newest last: the team matrix, a team
+  // member's page, a page of something the team holds. Back pops one.
+  const [opened, setOpened] = useState([]);
+  const selectContext = useCallback((id) => { setSelectedIdState(id); setOpened([]); }, []);
 
-  // The context page asks to open things; only another context in scope (a
-  // variant of this unit, a sub-unit, a parent) opens, in place. Anything else
-  // would be a 403.
-  const openDetail = useCallback((type, id) => {
-    if (type === 'context' && scope.has(String(id).toLowerCase())) setSelectedId(id);
-  }, [scope]);
+  // The pages ask to open things. Another context in scope (a variant of this
+  // unit, a sub-unit, a parent) opens in place; the team matrix and an object's
+  // page open on top of it. The links only offer what the API marked openable,
+  // and the API refuses the rest.
+  const openDetail = useCallback((type, id, name) => {
+    if (type === 'context') {
+      if (scope.has(String(id).toLowerCase())) selectContext(id);
+      return;
+    }
+    if (OWNER_OPENABLE.has(type) && id) setOpened(prev => [...prev, { type, id, name: name || id }]);
+  }, [scope, selectContext]);
+  const back = useCallback(() => setOpened(prev => prev.slice(0, -1)), []);
+  const current = opened[opened.length - 1] || null;
+  const backLabel = opened.length > 1 ? opened[opened.length - 2].name : (contexts.find(c => c.id === selectedId)?.displayName || 'your unit');
 
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
@@ -104,9 +136,10 @@ export default function ContextOwnerPage() {
             <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
               <OwnerHeader isDark={isDark} userName={account?.name || account?.username} onSignOut={logout} />
               <div className="flex-1 min-h-0 flex">
-                {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={setSelectedId} />}
+                {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={selectContext} />}
                 <main className="flex-1 min-w-0 overflow-y-auto p-6">
-                  {selectedId && (
+                  {current && <OwnerExplorePane item={current} backLabel={backLabel} onBack={back} onOpenDetail={openDetail} />}
+                  {selectedId && !current && (
                     <ContextDetailPage key={selectedId} contextId={selectedId} embedded onOpenDetail={openDetail} />
                   )}
                 </main>

@@ -57,11 +57,13 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const analyst = useIsAnalyst();
   const knowledge = useOrgKnowledge();
   const sharedView = useIsSharedView();
-  // What the page may link to: nothing but the shell's own handler when read-only
-  // (a context owner may open no member, person or sub-unit page).
-  const openEntity = linkTarget(sharedView, onOpenDetail);
+  // What the page may link to: nothing when read-only (a shared matrix), except
+  // on a context owner's page, where the API marks what the owner may open (their
+  // team and what it holds) and the owner's shell opens it in place.
+  const ownerScope = useContextOwnerScope();
+  const openEntity = linkTarget(sharedView, onOpenDetail, ownerScope);
   // Sub-units and parents: on a context owner's page, those in their scope open in place.
-  const openContext = contextOpener({ sharedView, ownerScope: useContextOwnerScope(), onOpenDetail });
+  const openContext = contextOpener({ sharedView, ownerScope, onOpenDetail });
   const [editing, setEditing] = useState(false);
   // Goes up whenever something on the page may have changed who is in it or what is said about them.
   const [peopleVersion, bumpPeople] = useReducer(n => n + 1, 0);
@@ -185,9 +187,10 @@ function useIsAnalyst() {
   return canWrite && !sharedView;
 }
 
-// A read-only shell links nowhere; elsewhere the shell's own handler.
-function linkTarget(sharedView, onOpenDetail) {
-  return sharedView ? undefined : onOpenDetail;
+// A read-only shell links nowhere — but a context owner's does (the API decides
+// per object, the links honour its flag); elsewhere the shell's own handler.
+function linkTarget(sharedView, onOpenDetail, ownerScope) {
+  return sharedView && !ownerScope ? undefined : onOpenDetail;
 }
 
 // The standalone page carries the unit's name in the browser tab; embedded, none.

@@ -16,10 +16,12 @@
 // between those views, and a people unit's report lives on its accounts view (the
 // report itself always runs on the context it is opened from).
 //
-// And it takes in the held contexts' sub-units (descendants through
-// parentContextId) — except a sub-unit that has an Accountable or Responsible of
-// its own: that one, and everything below it, is somebody else's subtree. A
-// sub-unit's variants are not added (only a held context's are).
+// And it takes in ALL the held contexts' sub-units, at any depth (descendants
+// through parentContextId) — hierarchical accountability: whoever answers for a
+// unit answers for everything below it, also a sub-unit that has an Accountable
+// or Responsible of its own. That sub-unit's owner, in turn, gets only their own
+// subtree (nothing walks upward). A sub-unit's variants are not added (only a
+// held context's are).
 //
 // Every function takes the pool explicitly so the contract test can run the
 // exact statements against PostgreSQL (contract-tests/contextOwner.contract.test.js).
@@ -78,27 +80,32 @@ export async function findSameUnitVariants(pool, ids) {
   return rows.map(r => lower(r.id));
 }
 
-// The sub-units below `ids` that answer to the holder of `ids`: every
-// descendant, stopping at (and leaving out) a sub-unit that has its own
-// Accountable or Responsible. A sub-unit that is itself in `ids` is a held
-// context, found from its own row. CYCLE guards a corrupt parent chain.
+// The sub-units below `ids`: every descendant at any depth, whoever else
+// answers for it. One recursive statement over parentContextId (indexed), so a
+// top-level owner with thousands of units costs one round trip. CYCLE guards a
+// corrupt parent chain.
 export async function findOwnedSubUnits(pool, ids) {
   if (ids.length === 0) return [];
   const { rows } = await pool.query(
     `WITH RECURSIVE sub AS (
-       SELECT c.id FROM "Contexts" c
-        WHERE c."parentContextId" = ANY($1::uuid[])
-          AND NOT EXISTS (SELECT 1 FROM "ContextRoles" r
-                           WHERE r."contextId" = c.id AND r.role IN ('Accountable','Responsible'))
+       SELECT c.id FROM "Contexts" c WHERE c."parentContextId" = ANY($1::uuid[])
        UNION ALL
        SELECT c.id FROM "Contexts" c JOIN sub s ON c."parentContextId" = s.id
-        WHERE NOT EXISTS (SELECT 1 FROM "ContextRoles" r
-                           WHERE r."contextId" = c.id AND r.role IN ('Accountable','Responsible'))
      ) CYCLE id SET "isCycle" USING "cyclePath"
      SELECT DISTINCT id FROM sub WHERE NOT "isCycle"`,
     [ids],
   );
   return rows.map(r => lower(r.id));
+}
+
+// Whether every descendant of `ids` is in `contextIds` — for a request that
+// reads a context with its sub-units (the unit report's includeSubUnits, a
+// matrix condition's includeChildren). Held contexts' descendants always are;
+// a variant's need not be.
+export async function descendantsInScope(pool, ids, contextIds) {
+  if (ids.length === 0) return true;
+  const below = await findOwnedSubUnits(pool, ids);
+  return below.every(id => contextIds.has(id));
 }
 
 // The contexts the Entitlement Pivot would run on for these `contexts` values.

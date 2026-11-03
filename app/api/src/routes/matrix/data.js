@@ -16,7 +16,7 @@ import {
   isUuid, frontierValues, buildContextRollupSql, buildContextTotalsSql,
   buildContextNodesSql, buildRootChildrenSql, buildContextCutSql,
   buildContextScopedMemberCountsSql,
-  buildContextRolesSql, buildContextRolesAsRowsSql,
+  buildContextRolesSql, buildContextRolesAsRowsSql, withDirectMemberNodes, frontierOf,
 } from '../../matrix/contextRollup.js';
 import { buildAttrCutCellsSql, buildAttrCutNodesSql, tupleToNode } from '../../matrix/attributeCut.js';
 import { fetchResourceContexts } from '../../matrix/resourceContexts.js';
@@ -275,11 +275,13 @@ async function handleContextLayered(res, ctx) {
     cutNodes = (await timedQuery(p, 'matrix-ctx-cut', res, buildContextCutSql(filter.rollupContextId, expandedIds), [])).rows;
   } catch { return res.status(400).json({ error: 'Invalid hierarchy' }); }
 
-  let frontier = cutNodes.map(n => n.id);
-  if (frontier.length === 0) frontier = [filter.rollupContextId]; // root is a leaf
+  // The units' own members as columns too: the root's (the whole view when the
+  // root has no sub-units) and every expanded unit's, beside their sub-units.
+  const rootRow = (await timedQuery(p, 'matrix-ctx-root', res, buildContextNodesSql([filter.rollupContextId]), [])).rows[0];
+  cutNodes = withDirectMemberNodes(cutNodes, { id: filter.rollupContextId, displayName: rootRow?.displayName || filter.rollupContextId }, expandedIds);
 
   let cutValues;
-  try { cutValues = frontierValues(frontier); }
+  try { cutValues = frontierValues(frontierOf(cutNodes)); }
   catch { return res.status(400).json({ error: 'Invalid frontier' }); }
 
   const { join: idJoin, subjectId: cutSubjectId } = buildIdentityJoinExprs(rowType);
@@ -304,7 +306,7 @@ async function handleContextLayered(res, ctx) {
   // branches with no in-scope assignments (a column only shows if some resource
   // has a Direct or inherited count for that node's subtree).
   const { inhTotByNode, cellNodeIds, counts: inhCounts } =
-    await inheritedLayerFold(ctx, cutNodes.map(n => n.id), layerCells, layerResMap);
+    await inheritedLayerFold(ctx, cutNodes.filter(n => !n.directOf).map(n => n.id), layerCells, layerResMap);
   const visibleNodes = cutNodes
     .filter(n => cellNodeIds.has(n.id))
     .map(n => {
@@ -318,9 +320,14 @@ async function handleContextLayered(res, ctx) {
   const layerCounts = await scopeCounts(p, res, rowType, built);
   const maxDepth = visibleNodes.reduce((m, n) => Math.max(m, n.depth || 1), 1);
   const layerResources = [...layerResMap.values()];
+  // Business-role columns beside the resources, as in the zoom view.
+  const roles = filter.rollupContent === 'resources-only'
+    ? { businessRoles: [], roleCounts: [] }
+    : await contextZoomBusinessRoles(res, ctx, { values: cutValues, identityJoin: idJoin, ctxSubjectId: cutSubjectId });
   return res.json({
     rollup: 'context', rollupKind: 'context', layered: true,
-    rollupContextId: filter.rollupContextId, rollupContent: 'resources-only',
+    rollupContextId: filter.rollupContextId, rollupContent: filter.rollupContent,
+    ...roles,
     rollupMetric: filter.rollupMetric, rowType, maxDepth,
     nodes: visibleNodes,
     groupValues: visibleNodes.map(n => n.id),
@@ -848,7 +855,6 @@ router.post('/matrix/data', async (req, res) => {
   if (filter.sortHierarchy && filter.rollupKind !== 'context' && !filter.rollup) {
     filter.rollupKind = 'context';
     filter.rollupContextId = filter.sortHierarchy.contextId;
-    filter.rollupContent = 'resources-only';
   }
 
   try {

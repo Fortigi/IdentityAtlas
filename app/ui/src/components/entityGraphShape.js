@@ -370,8 +370,12 @@ async function fetchContextItems(_contextId, categoryKey, _authFetch, extras = {
 // History fields from an API row. A relationship endpoint marks a row that no
 // longer exists in the source with `deleted` + `deletedAt`; a principal/member
 // row may carry only its own `deletedAt`. Either way toItem gets a boolean.
+// Also carries the API's access flag: a context owner's responses mark a row
+// they may not open with `accessible: false` (app/api/src/auth/ownerAccess).
 function hist(row) {
-  return { deleted: !!(row?.deleted || row?.deletedAt), deletedAt: row?.deletedAt || null };
+  const out = { deleted: !!(row?.deleted || row?.deletedAt), deletedAt: row?.deletedAt || null };
+  if (row?.accessible === false) out.accessible = false;
+  return out;
 }
 
 function toItem(row, entityKind, resourceType = null) {
@@ -393,6 +397,8 @@ function toItem(row, entityKind, resourceType = null) {
     item.deleted = true;
     item.deletedAt = row.deletedAt || null;
   }
+  // The API said this reader may not open it (a context owner): listed, not linked.
+  if (row?.accessible === false) item.accessible = false;
   return item;
 }
 
@@ -425,6 +431,7 @@ export async function fetchCategoryItems(entityKind, entityId, categoryKey, auth
       entityKind: evt.counterpartyKind || 'leaf',
       entityId: evt.counterpartyId,
       recent: categoryKey === 'recently-added' ? 'added' : 'removed',
+      ...(evt.accessible === false ? { accessible: false } : {}),
     }));
     return items;
   }
