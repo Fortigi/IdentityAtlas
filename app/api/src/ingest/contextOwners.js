@@ -3,7 +3,7 @@
  *
  * "Contexts"."ownerUserId" is free text: whatever the source calls the owner of
  * a grouping — an account key, an employee number. The context page shows who
- * answers for a context from "ContextRoles" (migration 094), so an owner that
+ * answers for a context from "ContextRoles" (migration 095), so an owner that
  * stays a string there reads as "Nobody is accountable yet" on every logical
  * application a source delivered with an owner. This turns the string into the
  * role, at the end of every contexts ingest.
@@ -36,7 +36,7 @@
  *      shows each match in its preview before anything is written.
  * The first three joins are index lookups: ix_Principals_externalId (migration
  * 076), ix_Principals_employeeId (migration 001) and ix_Principals_email_lower
- * (migration 097). The name step looks up, per still-unresolved owner, the
+ * (migration 098). The name step looks up, per still-unresolved owner, the
  * accounts whose display name holds its words (word similarity, the
  * ix_Principals_displayName_trgm index of migration 013) and compares only
  * those by normalised name — no expression over every principal. A near miss
@@ -62,7 +62,7 @@
  *
  * Runs after the batch's own upsert, in the same place and the same way
  * managerLinks.js runs: after a single-batch load and inside a sync session's
- * transaction at its end. Migration 096 did the insert-only half once for
+ * transaction at its end. Migration 097 did the insert-only half once for
  * databases that held synced owners before this existed.
  */
 

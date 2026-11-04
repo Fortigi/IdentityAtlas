@@ -4,7 +4,7 @@
 // trusting a reverse proxy.
 
 import { describe, it, expect } from 'vitest';
-import { resolveExportBaseUrl } from './exportBaseUrl.js';
+import { resolveExportBaseUrl, resolvePublicBaseUrl } from './exportBaseUrl.js';
 
 // Minimal Express-request stub. `headers` keys must be lowercase.
 function fakeReq({ protocol = 'http', headers = {} } = {}) {
@@ -79,5 +79,20 @@ describe('resolveExportBaseUrl', () => {
   it('rejects when no host is available', () => {
     const req = fakeReq({ headers: {} });
     expect(() => resolveExportBaseUrl(req, {})).toThrow();
+  });
+});
+
+// The MCP resource URL (mcp/resource.js) is built from this: a token's audience
+// is checked against it, so it follows exactly the same trust order.
+describe('resolvePublicBaseUrl', () => {
+  it('is the export base without /api, from PUBLIC_BASE_URL first', () => {
+    const req = fakeReq({ headers: { host: 'evil.example.com' } });
+    expect(resolvePublicBaseUrl(req, { PUBLIC_BASE_URL: 'https://atlas.example.com//' })).toBe('https://atlas.example.com');
+  });
+
+  it('ignores a forwarded host unless the proxy is trusted', () => {
+    const req = fakeReq({ headers: { host: 'atlas.internal', 'x-forwarded-host': 'evil.example.com' } });
+    expect(resolvePublicBaseUrl(req, {})).toBe('http://atlas.internal');
+    expect(resolvePublicBaseUrl(req, { TRUST_PROXY: 'true' })).toBe('http://evil.example.com');
   });
 });
