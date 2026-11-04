@@ -27,10 +27,14 @@ export const MAX_CELL_TEXT = 32767;
 export const MAX_SUGGESTIONS = 20;
 
 // The context's columns left out of its block: internal bookkeeping (temporal
-// columns, ids that only point at something shown by name) and what the block
-// shows in its own rows.
+// and row timestamps, Identity Atlas's own id and how it stores the context —
+// variant, target type, the sync's instance key, the rename/move-by-hand flags),
+// ids that only point at something shown by name, and what the block shows in
+// its own rows. What the source says about the context stays: its own reference
+// (External Id) and the owner it names.
 const HIDDEN = new Set([
-  'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo',
+  'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo', 'createdAt', 'updatedAt',
+  'id', 'variant', 'targetType', 'sourceInstanceKey', 'userRenamed', 'userReparented',
   'parentContextId', 'scopeSystemId', 'sourceAlgorithmId', 'sourceRunId',
   'extendedAttributes',
 ]);
@@ -38,7 +42,6 @@ const HIDDEN = new Set([
 // Labels that read better than the split column name — the same words the
 // context page uses.
 const LABELS = {
-  id: 'Id',
   displayName: 'Name',
   scopeSystemName: 'Source system',
   sourceAlgorithmName: 'Derived by rule',

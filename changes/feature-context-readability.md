@@ -10,3 +10,5 @@
 - Who joins and leaves a unit is now recorded from this version on; earlier joins are read from when each member was added. A refreshed rule no longer rewrites unchanged members, so its counts say what actually changed.
 - **Sources** on a unit now also lists an interview or list added on another unit (usually the parent) that says something about this unit's people, marked "added on <that unit>"; you can view it there, and manage it on the unit it was added to.
 - The People overview, Add information, Sources and the unit report's organisational-claim columns are part of the experimental "Organisation knowledge" feature: while it is off a unit's People overview lists its members as the source lists them, and the unit report has no claim columns
+- Fixed: with Organisation knowledge off, a unit's or an application's page no longer shows a **What we know** section.
+- Fixed: when someone leaves a unit, the history no longer stores their membership twice; earlier leaves are tidied up the same way.

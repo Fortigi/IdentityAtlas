@@ -10,6 +10,7 @@ import { useChangeRequests } from '@ui/components/contexts/changeRequests/useCha
 import PeopleSection from '@ui/components/contexts/people/PeopleSection';
 import AttentionLine from '@ui/components/contexts/AttentionLine';
 import { SubUnitsList, MembersPanel } from '@ui/components/ContextRelationshipsTab';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 
 // ─── The body of a unit's or an application's page ───────────────────────
 // In reading order: the analyst's attention line, People, the members as their
@@ -18,7 +19,8 @@ import { SubUnitsList, MembersPanel } from '@ui/components/ContextRelationshipsT
 // Risk follow (the page adds them). What we know, Sources and Change requests
 // start folded to one line; the attention line opens the one its work is in and
 // scrolls to it. A reader (business view, context owner) gets People, What we
-// know and the sub-units: no attention line, no sources, no review.
+// know and the sub-units: no attention line, no sources, no review. With
+// organisation knowledge off (useOrgKnowledge) there is no What we know at all.
 
 const PEOPLE_TARGETS = new Set(['Principal', 'Identity']);
 
@@ -28,6 +30,7 @@ function scrollTo(id) {
 
 export default function ProfileBody({ contextId, attrs, profile, subContexts, analyst, membersEditable, openEntity, openContext, onOpenDetail, peopleVersion, onMembersChanged, members }) {
   const ctx = useContextClaims();
+  const knowledge = useOrgKnowledge();
   const [peopleFilter, setPeopleFilter] = useState('current');
   const [opened, setOpened] = useState({});
   const [reviewing, setReviewing] = useState(false);
@@ -51,7 +54,7 @@ export default function ProfileBody({ contextId, attrs, profile, subContexts, an
       <PeopleSection id={ids.people} attrs={attrs} filter={peopleFilter} onFilterChange={setPeopleFilter} version={peopleVersion}
         canEditMembers={peopleMembers && membersEditable} onOpenDetail={openEntity} onMembersChanged={onMembersChanged} hideWhenEmpty={!peopleMembers} />
       {!peopleMembers && <MembersPanel {...members} title={profile.membersLabel} />}
-      <WhatWeKnow id={ids.know} attrs={attrs} profile={profile} analyst={analyst} onOpenDetail={onOpenDetail} {...fold('know')} />
+      {knowledge && <WhatWeKnow id={ids.know} attrs={attrs} profile={profile} analyst={analyst} onOpenDetail={onOpenDetail} {...fold('know')} />}
       {analyst && <SourcesSection id={ids.sources} contextId={contextId} {...fold('sources')} />}
       {analyst && <ChangeRequestsPanel id={ids.changes} requests={requests} {...fold('changes')} />}
       {subContexts.length > 0 && <SubUnitsList subContexts={subContexts} attrs={attrs} openContext={openContext} />}
