@@ -114,7 +114,7 @@ describe('ContextDetailPage — the template in the header', () => {
     }
   });
 
-  it('gives an application its sections: Download report, its resources, What we know — no Actions grid', async () => {
+  it('gives an application its sections: Download report, its resources, Details (What we know while organisation knowledge is on) — no Actions grid', async () => {
     const authFetch = makeAuthFetch({
       '/api/contexts/ctx-1/people': PEOPLE_EMPTY,
       '/api/contexts/ctx-1/members': { total: 1, data: [{ id: 'r-1', displayName: 'SG-Ledger', resourceType: 'Group' }] },
@@ -124,7 +124,8 @@ describe('ContextDetailPage — the template in the header', () => {
     renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
     expect(await screen.findByRole('button', { name: 'Download report' })).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: 'Resources' })).toHaveTextContent('SG-Ledger');
-    expect(screen.getByRole('region', { name: 'What we know' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Details' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'What we know' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Actions' })).toBeNull();
     // An application's members are resources: its People section waits for a source to name someone.
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('/api/contexts/ctx-1/people?filter=current')));

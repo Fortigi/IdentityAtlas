@@ -99,12 +99,13 @@ describe('a business reader', () => {
 });
 
 describe('organisation knowledge off', () => {
-  it('shows no What we know — for an analyst or a reader — and asks for no claims', async () => {
+  it('shows no What we know: the own facts of the unit are headed Details, and no claims are asked for', async () => {
     knowledge.on = false;
-    const { urls } = mount();
+    const { urls } = mount({ attrs: { ...UNIT, description: 'Handles the harbour office.' } });
     await waitFor(() => expect(urls.some(u => u.startsWith('/api/contexts/c-unit/people'))).toBe(true));
-    expect(screen.getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['People', 'Sub-units']);
+    expect(screen.getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['People', 'Details', 'Sub-units']);
     expect(screen.queryByText('What we know')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Details' })).toHaveTextContent('Handles the harbour office.');
     expect(urls.some(u => u.includes('/claims'))).toBe(false);
   });
 });

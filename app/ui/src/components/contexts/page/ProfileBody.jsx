@@ -20,7 +20,9 @@ import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 // start folded to one line; the attention line opens the one its work is in and
 // scrolls to it. A reader (business view, context owner) gets People, What we
 // know and the sub-units: no attention line, no sources, no review. With
-// organisation knowledge off (useOrgKnowledge) there is no What we know at all.
+// organisation knowledge off (useOrgKnowledge) there are no claims, and the
+// unit's own facts (description, variants, More details) are headed "Details"
+// instead of "What we know".
 
 const PEOPLE_TARGETS = new Set(['Principal', 'Identity']);
 
@@ -54,7 +56,7 @@ export default function ProfileBody({ contextId, attrs, profile, subContexts, an
       <PeopleSection id={ids.people} attrs={attrs} filter={peopleFilter} onFilterChange={setPeopleFilter} version={peopleVersion}
         canEditMembers={peopleMembers && membersEditable} onOpenDetail={openEntity} onMembersChanged={onMembersChanged} hideWhenEmpty={!peopleMembers} />
       {!peopleMembers && <MembersPanel {...members} title={profile.membersLabel} />}
-      {knowledge && <WhatWeKnow id={ids.know} attrs={attrs} profile={profile} analyst={analyst} onOpenDetail={onOpenDetail} {...fold('know')} />}
+      <WhatWeKnow id={ids.know} title={knowledge ? 'What we know' : 'Details'} attrs={attrs} profile={profile} analyst={analyst} onOpenDetail={onOpenDetail} {...fold('know')} />
       {analyst && <SourcesSection id={ids.sources} contextId={contextId} {...fold('sources')} />}
       {analyst && <ChangeRequestsPanel id={ids.changes} requests={requests} {...fold('changes')} />}
       {subContexts.length > 0 && <SubUnitsList subContexts={subContexts} attrs={attrs} openContext={openContext} />}
