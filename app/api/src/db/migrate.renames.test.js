@@ -23,7 +23,20 @@ const { loadRenames, renamedToRecord, canonicalApplied, runMigrations, getMigrat
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
 const shipped = readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort();
 const renames = loadRenames();
-const [firstNew, firstOld] = Object.entries(renames)[0];
+// A name renamed twice (092 → 094 → 095) is a key AND a value: only the last
+// name in a chain ships. finalNames are those; olderNames(n) its earlier names,
+// newest first.
+const finalNames = Object.keys(renames).filter(n => shipped.includes(n));
+const olderNames = (name) => {
+  const out = [];
+  for (let n = renames[name]; n && !out.includes(n); n = renames[n]) out.push(n);
+  return out;
+};
+// A database that ran every renamed migration under one of its earlier names:
+// step 0 = the name just before the latest renumber, a high step = the oldest.
+const dbAtStep = (step) => shipped.filter(f => !finalNames.includes(f))
+  .concat(finalNames.map(n => { const c = olderNames(n); return c[Math.min(step, c.length - 1)]; }));
+const firstNew = finalNames[0];
 
 // An insert of a renamed name into _migrations, as opposed to a migration body run.
 const recordedNames = () => state.txQueries
@@ -42,11 +55,13 @@ beforeEach(() => {
 });
 
 describe('migrations/renames.json', () => {
-  it('maps shipped new names to old names that are no longer shipped', () => {
-    expect(Object.keys(renames).length).toBeGreaterThan(0);
+  it('maps new names to old names that are no longer shipped; every chain ends in a shipped file', () => {
+    expect(finalNames.length).toBeGreaterThan(0);
+    const olds = new Set(Object.values(renames));
     for (const [newName, oldName] of Object.entries(renames)) {
-      expect(shipped).toContain(newName);
       expect(shipped).not.toContain(oldName);
+      // Not shipped any more only because it was renamed again.
+      if (!shipped.includes(newName)) expect(olds.has(newName)).toBe(true);
     }
   });
 
@@ -101,24 +116,50 @@ describe('canonicalApplied', () => {
 });
 
 describe('runMigrations with renamed migrations', () => {
-  const oldNameDb = () => shipped.filter(f => !(f in renames)).concat(Object.values(renames));
-
-  it('a database that ran the old names records the new names and runs no file', async () => {
-    state.applied = oldNameDb();
+  it('a database that ran the previous names records the new names and runs no file', async () => {
+    state.applied = dbAtStep(0);
     await runMigrations();
-    expect(recordedNames().sort()).toEqual(Object.keys(renames).sort());
+    expect(recordedNames().sort()).toEqual([...finalNames].sort());
     expect(ranFiles()).toEqual([]);
     expect(state.txCount).toBe(1); // all renames in one transaction
   });
 
+  it('a database that ran the oldest names follows each chain to the shipped name and runs no file', async () => {
+    state.applied = dbAtStep(99);
+    await runMigrations();
+    expect(recordedNames()).toEqual(expect.arrayContaining(finalNames));
+    expect(ranFiles()).toEqual([]);
+  });
+
+  // The stack's 094–097 were renumbered to 095–098 when main took 094 for the
+  // MCP audit log. A database that ran them under 094–097 (and never saw main's
+  // 094) must run main's 094 and nothing else.
+  it('a database from before the 094 renumber runs only the main 094_mcp_tool_calls', async () => {
+    const before = [
+      ['095_context_templates.sql', '094_context_templates.sql'],
+      ['096_context_role_suggestion_rejections.sql', '095_context_role_suggestion_rejections.sql'],
+      ['097_synced_context_accountables.sql', '096_synced_context_accountables.sql'],
+      ['098_context_uploads.sql', '097_context_uploads.sql'],
+    ].filter(([n]) => shipped.includes(n));
+    expect(before.length).toBeGreaterThanOrEqual(3);
+    for (const [n, o] of before) expect(renames[n]).toBe(o);
+    const renumbered = new Set(before.map(([n]) => n));
+    state.applied = shipped.filter(f => !renumbered.has(f) && f !== '094_mcp_tool_calls.sql')
+      .concat(before.map(([, o]) => o));
+    await runMigrations();
+    expect(ranFiles()).toEqual(['094_mcp_tool_calls.sql']);
+    expect(recordedNames().sort()).toEqual([...renumbered].sort());
+  });
+
   it('is idempotent: a second boot (old and new names recorded) records and runs nothing', async () => {
-    state.applied = oldNameDb().concat(Object.keys(renames));
+    state.applied = dbAtStep(0).concat(Object.keys(renames));
     await runMigrations();
     expect(state.txQueries).toEqual([]);
   });
 
-  it('a renamed migration recorded under neither name runs', async () => {
-    state.applied = oldNameDb().filter(f => f !== firstOld);
+  it('a renamed migration recorded under none of its names runs', async () => {
+    const names = new Set(olderNames(firstNew));
+    state.applied = dbAtStep(0).filter(f => !names.has(f));
     await runMigrations();
     expect(ranFiles()).toEqual([firstNew]);
     expect(recordedNames()).not.toContain(firstNew);
@@ -140,8 +181,10 @@ describe('getMigrationStatus with renamed migrations', () => {
   });
 
   it('an old-name row alone already counts as the renamed migration (not pending)', async () => {
-    const rows = shipped.filter(f => !(f in renames)).concat(Object.values(renames)).map(filename => ({ filename }));
-    const s = await getMigrationStatus({ query: async () => ({ rows }) });
-    expect(s).toMatchObject({ ahead: false, pending: false });
+    for (const step of [0, 99]) {
+      const rows = dbAtStep(step).map(filename => ({ filename }));
+      const s = await getMigrationStatus({ query: async () => ({ rows }) });
+      expect(s).toMatchObject({ ahead: false, pending: false });
+    }
   });
 });

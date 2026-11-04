@@ -181,7 +181,7 @@ export const RESPONSE_SCHEMA = DEFAULT_SCHEMAS.response;
 export const REPORT_ONLY_SCHEMA = DEFAULT_SCHEMAS.reportOnly;
 
 
-function describeEntity(name, entity) {
+export function describeEntity(name, entity) {
   const lines = [`## ${name}`, entity.description, 'fields:'];
   for (const [fname, f] of Object.entries(entity.fields)) {
     lines.push(`- ${fname} (${f.type})${f.description ? ` — ${f.description}` : ''}`);

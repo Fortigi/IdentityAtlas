@@ -190,7 +190,7 @@ describe('readFeatures', () => {
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
     expect(payload).toEqual({
       riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false,
-      customReports: false, contextAssistant: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false,
+      customReports: false, contextAssistant: false, mcpServer: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false,
     });
   });
 });

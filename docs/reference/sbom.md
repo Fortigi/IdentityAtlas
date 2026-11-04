@@ -70,7 +70,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.3.1 | UI framework | MIT |
 | react-dom | ^19.3.1 | React DOM renderer | MIT |
-| vite | ^8.3.4 | Build tool and dev server | MIT |
+| vite | ^8.3.5 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.25.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.26.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -93,7 +93,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.15 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.22 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -110,7 +110,7 @@ This document lists all major software components, dependencies, and infrastruct
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
 | globals | ^17.13.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.64.0 | End-to-end testing framework | Apache 2.0 |
+| @playwright/test | ^1.64.1 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |
