@@ -46,7 +46,7 @@ function mount({ attrs = UNIT, analyst = true, contradictions = [PERSON_CON, UNI
   return { urls, user: userEvent.setup() };
 }
 
-beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); });
+beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); knowledge.on = true; });
 
 const line = () => screen.findByTestId('attention-line');
 
@@ -95,6 +95,17 @@ describe('a business reader', () => {
     expect(screen.getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['People', 'What we know', 'Sub-units']);
     expect(screen.queryByTestId('attention-line')).toBeNull();
     expect(urls.some(u => u.startsWith('/api/change-requests'))).toBe(false);
+  });
+});
+
+describe('organisation knowledge off', () => {
+  it('shows no What we know — for an analyst or a reader — and asks for no claims', async () => {
+    knowledge.on = false;
+    const { urls } = mount();
+    await waitFor(() => expect(urls.some(u => u.startsWith('/api/contexts/c-unit/people'))).toBe(true));
+    expect(screen.getAllByRole('region').map(r => r.getAttribute('aria-label'))).toEqual(['People', 'Sub-units']);
+    expect(screen.queryByText('What we know')).toBeNull();
+    expect(urls.some(u => u.includes('/claims'))).toBe(false);
   });
 });
 
