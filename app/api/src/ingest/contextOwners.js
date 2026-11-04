@@ -36,7 +36,7 @@
  *      shows each match in its preview before anything is written.
  * The first three joins are index lookups: ix_Principals_externalId (migration
  * 076), ix_Principals_employeeId (migration 001) and ix_Principals_email_lower
- * (migration 097). The name step looks up, per still-unresolved owner, the
+ * (migration 098). The name step looks up, per still-unresolved owner, the
  * accounts whose display name holds its words (word similarity, the
  * ix_Principals_displayName_trgm index of migration 013) and compares only
  * those by normalised name — no expression over every principal. A near miss
