@@ -206,7 +206,6 @@ export function accessFromClaims(decoded) {
   }
   return { roles, permissions };
 }
-}
 
 // Per-route permission gate. Use at the mount line (most routers) or as a
 // per-handler middleware (mixed routers with read GETs + admin POSTs).
