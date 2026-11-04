@@ -12,7 +12,10 @@ export const PERMISSIONS = Object.freeze({
   'data.read.reports':         { label: 'Ask questions in plain language', group: 'Read',
     description: 'Ask the local model a question and read the answer — in the Teams bot, or anywhere else that only asks. Does not allow creating, editing or deleting saved reports; that is Build custom reports, which does not imply this one either.' },
 
-  'data.export.ui':            { label: 'Export to Excel/CSV',     group: 'Export',
+  'mcp.use':                   { label: 'Use the MCP server',      group: 'Read',
+    description: 'Connect an AI assistant (Claude, ChatGPT, Copilot) to Identity Atlas over MCP and let it read data on your behalf. The assistant can only do what your other permissions allow: reports need Read all data, questions need Ask questions in plain language.' },
+
+  'data.export.ui':          { label: 'Export to Excel/CSV',     group: 'Export',
     description: 'Show Excel / CSV export buttons in the UI and allow calls to /api/data-export/*.' },
   'data.export.apikey':        { label: 'Generate read-only API keys', group: 'Export',
     description: 'Mint fgr_ tokens for PowerQuery / BI tools to pull data on a schedule.' },

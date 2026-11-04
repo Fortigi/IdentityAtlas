@@ -58,6 +58,16 @@ export const FEATURE_FLAGS = {
     key: 'CONTEXT_ASSISTANT',
     envDefault: env => env.FEATURE_CONTEXT_ASSISTANT === 'true',
   },
+  // MCP server: AI assistants (Claude, ChatGPT, Copilot) read data on behalf of
+  // the signed-in user at /mcp. Data leaves for the assistant's vendor, so it is
+  // off until an operator switches it on — and it only works while sign-in is
+  // on: with auth off there is no user to act for (mcp/auth.js answers 404, and
+  // the admin toggle refuses to switch it on).
+  mcpServer: {
+    key: 'MCP_SERVER',
+    envDefault: env => env.FEATURE_MCP_SERVER === 'true',
+    requiresAuth: true,
+  },
 };
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.

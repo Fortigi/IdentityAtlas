@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { requirePermission } from '../../middleware/auth.js';
-import { getAuthState } from '../../config/authConfig.js';
+import { getAuthState, isAuthEnabled } from '../../config/authConfig.js';
 import { FEATURE_FLAGS, workerConfigKey } from '../../featureFlags.js';
 
 const router = Router();
@@ -29,6 +29,11 @@ router.post('/admin/features/toggle', writeFeatures, async (req, res) => {
   const key = workerConfigKey(feature);
   if (!key) return res.status(400).json({ error: `feature must be one of: ${Object.keys(FEATURE_FLAGS).join(', ')}` });
   if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be boolean' });
+  // A feature that acts on behalf of a signed-in user (the MCP server) has no one
+  // to act for while sign-in is off. Switching it OFF is always allowed.
+  if (enabled && FEATURE_FLAGS[feature].requiresAuth && !isAuthEnabled()) {
+    return res.status(409).json({ error: 'Turn on authentication first: this feature acts on behalf of the signed-in user.' });
+  }
 
   try {
     await db.query(
