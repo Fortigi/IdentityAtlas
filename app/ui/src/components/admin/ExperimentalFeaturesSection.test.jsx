@@ -46,11 +46,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports, contextAssistant and sourceOwnerAccountables follow matrixSharing for the same reason.
+// customReports, contextAssistant, mcpServer and sourceOwnerAccountables follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, sourceOwnerAccountables: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, mcpServer: matrixSharing, sourceOwnerAccountables: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
