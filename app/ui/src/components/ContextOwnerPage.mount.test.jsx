@@ -162,8 +162,8 @@ describe('ContextOwnerPage — one context', () => {
 
   it('opens an in-scope variant in place, and ignores one outside the scope', async () => {
     const { authFetch } = mount([ctx(UNIT, 'Finance', 'Responsible')]);
-    // The variants are a fact about the unit: in What we know, folded.
-    await userEvent.click(await screen.findByRole('button', { name: /What we know/ }));
+    // The variants are a fact about the unit: in Details (What we know while organisation knowledge is on), folded.
+    await userEvent.click(await screen.findByRole('button', { name: /^Details/ }));
     const variants = await screen.findByRole('group', { name: 'This unit as' });
 
     await userEvent.click(within(variants).getByRole('button', { name: 'Accounts 9' }));
@@ -173,8 +173,8 @@ describe('ContextOwnerPage — one context', () => {
 
     await userEvent.click(within(variants).getByRole('button', { name: 'Resources 4' }));
     await waitFor(() => expect(fetched(authFetch, `/api/contexts/${RESOURCES}/members`)).toBe(true));
-    // The resources variant is its own page: its What we know starts folded again.
-    const know = await screen.findByRole('button', { name: /What we know/ });
+    // The resources variant is its own page: its Details start folded again.
+    const know = await screen.findByRole('button', { name: /^Details/ });
     if (know.getAttribute('aria-expanded') !== 'true') await userEvent.click(know);
     const group = await screen.findByRole('group', { name: 'This unit as' });
     expect(within(group).getByRole('button', { name: /^Resources/ })).toHaveAttribute('aria-pressed', 'true');
