@@ -1587,6 +1587,27 @@
             ]
           }
         ]
+      },
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "ACME - Algemeen - Partners"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
+              }
+            ]
+          }
+        ]
       }
     ]
   },
@@ -1632,6 +1653,27 @@
                 "field": "displayName",
                 "op": "contains",
                 "value": "ACME - Algemeen - Partners"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "entity": "resource",
+        "conditions": [
+          {
+            "field": "displayName",
+            "op": "contains",
+            "value": "ACME - Algemeen - Partners"
+          },
+          {
+            "relation": "members",
+            "quantifier": "some",
+            "conditions": [
+              {
+                "field": "displayName",
+                "op": "eq",
+                "value": "Bram de Groot"
               }
             ]
           }
