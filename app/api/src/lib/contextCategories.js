@@ -43,7 +43,7 @@ export function categoryForContextType(contextType) {
 }
 
 // The templates whose contexts have people who answer for them (ContextRoles,
-// migration 094): an organizational unit and a logical application. A Segment
+// migration 095): an organizational unit and a logical application. A Segment
 // or a Tag carries no roles. Shared by the roles API and the ingest, which
 // states a synced owner as the Accountable (ingest/contextOwners.js).
 export const ROLE_BEARING_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);

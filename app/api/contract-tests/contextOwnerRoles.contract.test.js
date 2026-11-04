@@ -1,5 +1,5 @@
 // Contract test — the owner a source names for a synced context becomes its
-// Accountable (ingest/contextOwners.js), and migration 096 does the same once,
+// Accountable (ingest/contextOwners.js), and migration 097 does the same once,
 // insert-only. Against real PostgreSQL, because everything that matters here is
 // what the SQL selects: which principal a tie resolves to, that an ambiguous
 // employee number resolves to nobody, that an analyst's Accountable survives.
@@ -19,7 +19,7 @@ const { reconcileBatchAccountables, reconcileSessionAccountables } = await impor
 const { OWNER_JOIN, OWNER_COLUMNS } = await import('../src/routes/contexts/read.js');
 
 const MIGRATION_094 = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'db', 'migrations', '096_synced_context_accountables.sql'), 'utf8');
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'db', 'migrations', '097_synced_context_accountables.sql'), 'utf8');
 
 let pool;
 let sys;
@@ -182,7 +182,7 @@ describe('synced owner → Accountable at ingest', () => {
   });
 });
 
-describe('migration 096 — catch-up, insert-only', () => {
+describe('migration 097 — catch-up, insert-only', () => {
   beforeEach(seed);
 
   // The migration is not scoped to this file's systems, so it runs in a
