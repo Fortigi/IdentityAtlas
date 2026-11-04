@@ -401,7 +401,12 @@
           "value": "Group"
         },
         {
-          "relation": "members",
+          "field": "memberCount",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "relation": "eligibleMembers",
           "quantifier": "none",
           "conditions": []
         }

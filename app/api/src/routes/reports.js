@@ -11,6 +11,7 @@
 
 import { Router } from 'express';
 import { listAllReports, reportMetadata, resolveReport } from '../reports/registry.js';
+import { runReport } from '../reports/run.js';
 import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, contentDisposition, exportFilename, resolveExportFormat,
   singleSubject,
@@ -18,39 +19,8 @@ import {
 
 const router = Router();
 
-// One run, one payload — shared by the rows endpoint and the download, so a
-// downloaded file can never contain something the screen didn't show.
-//
-// `notices` is whatever the template returned, passed through untouched: the
-// engine never reads a notice, exactly as it never reads a row.
-//
-// `columns` and `pivots` are the template's declaration unless the run returned
-// its own: a report whose columns are picked by the reader (a parameter) only
-// knows them once it has run. The screen, the CSV and the workbook all read the
-// payload, so they follow the run either way.
-async function runReport(report, params) {
-  const { rows, notices, truncated, constantColumns, columns, pivots, details } = await report.run(params, {});
-  const metadata = reportMetadata(report);
-  return {
-    ...metadata,
-    columns: Array.isArray(columns) ? columns : metadata.columns,
-    pivots: Array.isArray(pivots) ? pivots : metadata.pivots,
-    rows,
-    notices: Array.isArray(notices) ? notices : [],
-    // Column keys THIS run holds one value for. `columns` above is the report's
-    // and does not change: the screen shows every column whatever the run said,
-    // and only a format with room for a header acts on this.
-    constantColumns: Array.isArray(constantColumns) ? constantColumns : [],
-    // Blocks of label/value facts about what the run covers (the contexts of an
-    // Entitlement Pivot): context, like the notices, for a format with room for it.
-    details: Array.isArray(details) ? details : [],
-    total: rows.length,
-    // A template that stops at a row cap says so; the screen and the download must
-    // not present the first N rows as the whole answer.
-    truncated: truncated === true,
-    generatedAt: new Date().toISOString(),
-  };
-}
+// One run, one payload (reports/run.js) — shared by the rows endpoint, the
+// download and the MCP server, so none of them can show what the others don't.
 
 // Use the registry's name, not the raw URL param, so nothing user-controlled
 // reaches the log; the client gets a generic message.
