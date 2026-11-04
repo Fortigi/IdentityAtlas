@@ -62,9 +62,9 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Five cards: experimental crawlers off; matrix sharing, custom reports, the context assistant and source-owner Accountables on.
+    // Six cards: experimental crawlers off; matrix sharing, custom reports, the context assistant, the MCP server and source-owner Accountables on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(4);
+    expect(screen.getAllByText('Enabled')).toHaveLength(5);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -72,7 +72,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(4);
+    expect(screen.getAllByText('Disabled')).toHaveLength(5);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
