@@ -49,7 +49,7 @@ afterAll(async () => {
 
 const timeline = async () => (await agent.get(`/api/contexts/${id.unit}/timeline?sinceDays=30`)).body;
 
-describe('migration 109 — membership history', () => {
+describe('migrations 109 + 110 — membership history', () => {
   it('records a join and a leave in _history, keyed by the context; an update records nothing', async () => {
     await member(id.lisa, 'Identity', 'sync');
     await member(id.max, 'Principal', 'sync');
@@ -62,6 +62,10 @@ describe('migration 109 — membership history', () => {
       { operation: 'I', memberId: id.max },
       { operation: 'D', memberId: id.max },
     ]);
+    // Migration 110: the member who left is stored once — in rowData, with no copy in prevData.
+    const leaves = (await q(`SELECT "rowData"->>'memberType' AS "memberType", "prevData" FROM "_history"
+                              WHERE "tableName" = 'ContextMembers' AND "rowId" = $1 AND operation = 'D'`, [id.unit])).rows;
+    expect(leaves).toEqual([{ memberType: 'Principal', prevData: null }]);
   });
 });
 
