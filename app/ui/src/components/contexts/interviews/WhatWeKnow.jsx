@@ -17,7 +17,8 @@ import { aliasFacts, groupConfirmed, isPersonClaim, proposedClaims, sourceLabel,
 // own claims to review and the contradictions about it (a property against the
 // value the context holds); a reader is sent confirmed claims only and sees no
 // review. Open or closed is the page's (`open`, `onOpenChange`): the attention
-// line opens it when the work waiting is about the unit.
+// line opens it when the work waiting is about the unit. `title` lets the page
+// call it "Details" while organisation knowledge is off (ProfileBody.jsx).
 
 function Quote({ claim }) {
   return (
@@ -37,7 +38,7 @@ function Group({ title, children }) {
   );
 }
 
-export default function WhatWeKnow({ id, attrs, profile, analyst = false, onOpenDetail, open, onOpenChange }) {
+export default function WhatWeKnow({ id, title = 'What we know', attrs, profile, analyst = false, onOpenDetail, open, onOpenChange }) {
   const ctx = useContextClaims();
   const { variants } = useUnitVariants(attrs);
   const claims = ctx?.claims || [];
@@ -46,7 +47,7 @@ export default function WhatWeKnow({ id, attrs, profile, analyst = false, onOpen
   const aliases = aliasFacts(attrs, claims, false).map(a => a.name);
   const toReview = canWrite ? proposedClaims(claims).filter(c => !isPersonClaim(c)) : [];
   return (
-    <FoldSection id={id} title="What we know" testId="what-we-know" open={open} onOpenChange={onOpenChange}
+    <FoldSection id={id} title={title} testId="what-we-know" open={open} onOpenChange={onOpenChange}
       summary={whatWeKnowSummary({ description: attrs.description, claims, aliases, canWrite })}>
       {attrs.description && (
         <Group title="Description">
