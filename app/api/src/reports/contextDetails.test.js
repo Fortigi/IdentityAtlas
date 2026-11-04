@@ -31,6 +31,11 @@ const row = over => ({
   lastSyncedAt: new Date('2026-10-01T06:00:00Z'),
   totalMemberCount: 3,
   SysStartTime: new Date('2026-01-01T00:00:00Z'),
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-10-01T06:00:00Z'),
+  sourceInstanceKey: 'iiq:APP-0006',
+  userRenamed: false,
+  userReparented: true,
   description: '',
   extendedAttributes: { cmdbReference: 'CI5505557', zoning: { tier: 2, zones: ['dmz'] }, empty: '' },
   ...over,
@@ -78,13 +83,20 @@ describe('attributeEntries', () => {
   it('lists the context\'s own columns, then every stored attribute by name, nested ones as JSON', () => {
     const entries = attributeEntries(row());
     expect(labels(entries)).toEqual([
-      'Id', 'Name', 'Variant', 'Target Type', 'Context Type', 'Context Category', 'External Id',
+      'Name', 'Context Type', 'Context Category', 'External Id',
       'Source system', 'Owner (as the source names it)', 'Last Synced At', 'Total Member Count',
       'cmdbReference', 'zoning',
     ]);
     expect(valueOf(entries, 'Last Synced At')).toBe('2026-10-01T06:00:00.000Z');
     expect(valueOf(entries, 'Total Member Count')).toBe(3);
     expect(valueOf(entries, 'zoning')).toBe('{"tier":2,"zones":["dmz"]}');
+  });
+
+  it('leaves out the bookkeeping of Identity Atlas: its id, variant, target type, instance key, edit flags and row timestamps', () => {
+    const shown = labels(attributeEntries(row()));
+    for (const internal of ['Id', 'Variant', 'Target Type', 'Source Instance Key', 'User Renamed', 'User Reparented', 'Created At', 'Updated At', 'Sys Start Time']) {
+      expect(shown).not.toContain(internal);
+    }
   });
 
   it('copes with a context without attributes', () => {
@@ -131,7 +143,7 @@ describe('the people', () => {
   it('titles a block after its context and puts the people first', () => {
     const block = detailBlock(row({ extendedAttributes: {} }));
     expect(block.title).toBe('Context: Ledger');
-    expect(labels(block.entries).slice(0, 3)).toEqual(['Accountable', 'Responsible', 'Id']);
+    expect(labels(block.entries).slice(0, 3)).toEqual(['Accountable', 'Responsible', 'Name']);
     expect(block.contextId).toBe(APP);
   });
 
@@ -139,7 +151,7 @@ describe('the people', () => {
     const add = [{ label: 'Note', value: 'n' }];
     const block = detailBlock(row({ extendedAttributes: { Responsible: 'not a person' } }),
       [{ role: 'Accountable', displayName: 'Ada' }, { role: 'Responsible', displayName: 'Bo' }, { role: 'Responsible', displayName: 'Cy' }]);
-    expect(labels(withAfterPeople(block, add).entries).slice(0, 5)).toEqual(['Accountable', 'Responsible', 'Responsible', 'Note', 'Id']);
+    expect(labels(withAfterPeople(block, add).entries).slice(0, 5)).toEqual(['Accountable', 'Responsible', 'Responsible', 'Note', 'Name']);
     const suggested = detailBlock(row(), [], { displayName: 'Ada', reason: 'manages 2' });
     expect(labels(withAfterPeople(suggested, add).entries).slice(0, 4)).toEqual(['Accountable', 'Suggested Accountable', 'Responsible', 'Note']);
     // A block of people only gets them at the end.

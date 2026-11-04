@@ -50,3 +50,4 @@
 - Upgrade note: the Contexts List mode and the Attributes and Relationships tabs are gone; their information is on the unit page itself
 - The context assistant ("Describe it") now asks what the context is (application, organisation, tag or segment), starting from the Contexts tab it was opened from; the model suggests one from your description without ever overriding your own choice
 - The context assistant shows the suggested owner of what its search terms find before you save
+- The Entitlement Pivot's summary block no longer lists Identity Atlas's internal fields (its own id, variant, target type, sync instance key, edit flags and row timestamps); the source's reference, the owner it names and every other fact stay.
