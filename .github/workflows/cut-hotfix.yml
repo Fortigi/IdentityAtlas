@@ -166,7 +166,7 @@ jobs:
         # continue-on-error: this step only polishes wording — release-notes.md already has valid,
         # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
         # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1
+        uses: anthropics/claude-code-action@8041f1d17e0e7d2f2cfe35002962e9f26237c0bb # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--allowedTools Read,Write"
