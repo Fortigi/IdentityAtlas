@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { classifyAccount, emailLocalPart, normalizeName, stripKnownPrefixes, nameVariants, nameMatchLevel, bestNameMatch, compileAccountTypeRules, loginToken, unnumberedLoginToken, loginSpellings, numberedAwayFrom, loginNameForms, loginFormMatch } from './classifier.js';
+import { nameInitials } from './initials.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 
 describe('classifyAccount', () => {
@@ -696,7 +697,7 @@ describe('loginNameForms - the surname a convention shortened (#1468)', () => {
     const { full, initial, loose } = loginNameForms({
       displayName: 'Daniëlle van Dongen', givenName: 'Daniëlle', surname: 'van Dongen',
     });
-    expect([...full.keys()]).toEqual(['danillevandongen']);
+    expect([...full.keys()]).toEqual(['daniellevandongen']); // the ë folded, not dropped (#1480)
     expect([...initial.keys()]).toEqual(['dvandongen']);
     expect([...loose.keys()]).toEqual(['ddongen']);
   });
@@ -835,5 +836,97 @@ describe('numberedAwayFrom', () => {
     // separators and the login does not, which is the whole reason forms are normalised.
     const sophie = { displayName: 'Sophie van Kleef', surname: 'van Kleef', email: 's.kleef@x.com' };
     expect(numberedAwayFrom(sophie, { form: 'skleef', numbered: true })).toBe(true);
+  });
+});
+
+// ── Letters with diacritics fold, they do not vanish (#1480) ─────────────────
+//
+// Both normalisers reduce a name by *deleting* every character outside
+// [a-z0-9], so "Doğan" comes out as `doan` and "Daniëlle" as `danille`. One
+// side of a comparison is routinely ASCII — a login (`adm-sdogan`), an email
+// local part, an ERP export — and a deleted letter is a letter the two
+// spellings can never agree on, so the account stays an orphan. Folding each
+// letter to its ASCII base is what lets the two meet; the [a-z0-9] strip stays
+// as the final guard. Display name against display name hid this, because both
+// sides lost the same letters.
+//
+// The letters come in two kinds and the tests keep them apart: the ones NFKD
+// decomposes into a base letter plus a combining mark, and the ones it leaves
+// alone (ı, ł, ø, đ, ß, æ, œ, þ, ð), which need naming one by one — so there is
+// one discriminating input per mapped letter rather than one name standing in
+// for all of them.
+describe('diacritic folding (#1480)', () => {
+  it('normalizeName folds the letters NFKD decomposes', () => {
+    expect(normalizeName('Doğan')).toBe('dogan');       // today: 'doan'
+    expect(normalizeName('Daniëlle')).toBe('danielle'); // today: 'danille'
+    expect(normalizeName('Ömer')).toBe('omer');         // today: 'mer'
+    // Turkish dotted İ: its JS lowercase is 'i' + a combining dot, so the mark
+    // has to go while the 'i' it sits on stays.
+    expect(normalizeName('İnönü')).toBe('inonu');       // today: 'inn'
+  });
+
+  it('normalizeName folds the letters NFKD alone does not decompose', () => {
+    expect(normalizeName('Yıldırım')).toBe('yildirim');       // dotless ı — today: 'yldrm'
+    expect(normalizeName('Łukasz')).toBe('lukasz');           // ł — today: 'ukasz'
+    expect(normalizeName('Møller')).toBe('moller');           // ø — today: 'mller'
+    expect(normalizeName('Đorđević')).toBe('dordevic');       // đ — today: 'orevi'
+    expect(normalizeName('Großmann')).toBe('grossmann');      // ß → ss — today: 'gromann'
+    expect(normalizeName('Æblegaard')).toBe('aeblegaard');    // æ → ae — today: 'blegaard'
+    expect(normalizeName('Œuvre')).toBe('oeuvre');            // œ → oe — today: 'uvre'
+    expect(normalizeName('Þórsdóttir')).toBe('thorsdottir');  // þ → th — today: 'rsdttir'
+    expect(normalizeName('Guðrún')).toBe('gudrun');           // ð → d — today: 'gurun'
+  });
+
+  it('normalizeName keeps the separator, digit and suffix rules it always had', () => {
+    // Folding is inserted between the lowercase and the [a-z0-9] strip, so
+    // everything the strip was there for still happens.
+    expect(normalizeName('Sevgi  Doğan-Yıldırım 2')).toBe('sevgidoganyildirim2');
+    expect(normalizeName('Sevgi Doğan (Admin)', ['(admin)'])).toBe('sevgidogan');
+  });
+
+  it('an ASCII admin login matches the diacritic name it spells', () => {
+    // The acceptance criterion. No email on the identity, so nothing but the
+    // (folded) name forms can answer for the login.
+    const identity = { displayName: 'Furkan Doğan', givenName: 'Furkan', surname: 'Doğan', email: null };
+    expect(loginFormMatch(loginToken('adm-fdogan@contoso.com', ['adm-']), identity)).toBe('initial'); // today: 'none'
+    expect(loginFormMatch(loginToken('adm-furkandogan@contoso.com', ['adm-']), identity)).toBe('full'); // today: 'none'
+  });
+
+  it('folds the login side too, so a diacritic login still reaches its own name', () => {
+    // A directory that does spell the login with the letter must keep matching:
+    // both sides fold, so the forms meet in the middle rather than one of them
+    // moving away from the other.
+    const identity = { displayName: 'Furkan Doğan', givenName: 'Furkan', surname: 'Doğan', email: null };
+    expect(loginToken('adm-fdoğan@contoso.com', ['adm-'])).toBe('fdogan'); // today: 'fdoan'
+    expect(loginFormMatch(loginToken('adm-fdoğan@contoso.com', ['adm-']), identity)).toBe('initial');
+  });
+
+  it('an ASCII-spelled account name fully matches the diacritic identity name', () => {
+    const level = bestNameMatch(
+      nameVariants('Danielle Dongen', '', ''),               // ERP/CSV spelling, no diacritics
+      nameVariants('Daniëlle Dongen', 'Daniëlle', 'Dongen'), // HR spelling
+    );
+    // today: 'surnameInitial' — 45 points, below the 50-point threshold on its own.
+    expect(level).toBe('full');
+  });
+
+  it('initials fold the same way, so both paths agree on the initial of Ömer', () => {
+    // initials.js carries its own copy of the ASCII strip. Left unfolded it
+    // contradicts the folded classifier: the name side matches Ömer while the
+    // initials signal reads his initial as 'm' and rules him out.
+    expect(nameInitials(['Ömer'], 'omer')).toEqual(['o']);           // today: ['m']
+    expect(nameVariants('Ömer Doğan', '', '')[0].initial).toBe('o'); // today: 'm'
+  });
+
+  it('reads a dotted diacritic initial as the initial it is', () => {
+    // 'Ö.R.' is an initials half like 'L.R.' is, and the ERP that writes it
+    // carries nothing else to match on (#1455). Unfolded, the dotted-initials
+    // test rejects it and the half collapses to a single wrong letter.
+    expect(nameInitials(['Ö.R.'], 'or')).toEqual(['o', 'r']); // today: ['r']
+    const level = bestNameMatch(
+      nameVariants('Doğan, Ö.R.', '', ''),                            // the ERP export
+      nameVariants('Ömer Rüstem Doğan', 'Ömer Rüstem', 'Doğan'),      // the identity
+    );
+    expect(level).toBe('surnameInitials'); // today: 'none'
   });
 });

@@ -5,6 +5,7 @@
     "app/api/src/accountlinking/defaultRules.js": 99,
     "app/api/src/accountlinking/engine.helpers.js": 100,
     "app/api/src/accountlinking/engine.js": 93,
+    "app/api/src/accountlinking/fold.js": 99,
     "app/api/src/accountlinking/guardEvidence.js": 99,
     "app/api/src/accountlinking/initials.js": 99,
     "app/api/src/accountlinking/nameClaim.js": 99,
