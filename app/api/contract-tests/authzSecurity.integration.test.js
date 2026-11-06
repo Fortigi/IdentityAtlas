@@ -28,19 +28,12 @@ import { resetContextOwnerSettingForTests } from '../src/auth/contextOwnerSettin
 import { clearOwnerAccessCache } from '../src/auth/ownerAccess/index.js';
 import { registerReport } from '../src/reports/registry.js';
 
-vi.mock('../src/config/authConfig.js', async (importOriginal) => ({
-  ...(await importOriginal()),
-  isAuthEnabled: () => true,
-  getTenantId: () => 'test-tenant',
-  getClientId: () => 'test-client',
-  getJwksClient: () => ({}),
-  getRequiredRoles: () => null,
-  getRolePermissions: () => ({
+vi.mock('../src/config/authConfig.js', async (importOriginal) =>
+  (await import('../test-utils/authConfigMock.js')).signInOnConfig(await importOriginal(), {
     'role-admin': ['*'],
     'role-asker': ['mcp.use', 'data.read', 'data.read.reports'],
     'role-nomcp': ['data.read', 'data.read.reports'],
-  }),
-}));
+  }));
 // The bearer token IS the claims, base64url-encoded JSON. Signature checking is
 // covered by middleware/jwtValidation.test.js; here the subject is what a
 // verified caller may see.
