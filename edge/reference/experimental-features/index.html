@@ -3635,6 +3635,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-upload/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/ownership-survey/" class="md-nav__link">
         
   
@@ -6216,13 +6244,19 @@ working, because the endpoint is gone. It does not delete the audit log either.<
 <h2 id="accountables-from-source-owners-a-setting-not-experimental">Accountables from source owners (a setting, not experimental)<a class="headerlink" href="#accountables-from-source-owners-a-setting-not-experimental" title="Permanent link">&para;</a></h2>
 <p>Shown on the same tab, under <strong>Contexts — what a sync sets on its own</strong>, because it is
 switched the same way. When a source names the owner of a synced unit or application
-(<code>ownerUserId</code>: an account key or an employee number), that account becomes the context's
+(<code>ownerUserId</code>: an account key, an employee number or an e-mail address), that account becomes the context's
 <strong>Accountable</strong> on every sync and follows the source when the owner changes. An Accountable
 an analyst chose, or one a crawler states directly, is never overwritten.</p>
 <p>Environment variable: <code>FEATURE_SOURCE_OWNER_ACCOUNTABLES=false</code> turns it off by default.
 It is <strong>on</strong> unless switched off.</p>
 <p><strong>Off</strong> — a sync sets, replaces and removes no Accountable at all; the ones already there
 stay as they are.</p>
+<p><strong>…also match owners by name</strong> (<code>FEATURE_SOURCE_OWNER_NAME_MATCH=true</code>, <strong>off</strong> by default):
+an owner the source names only by display name is matched to the one account with that
+name (accents, case and "Last, First" ignored). A name is a guess, so it is opt-in. While it
+is off, an Accountable an earlier sync set by name is removed at the next sync of that
+context. An uploaded list (Contexts → New context → Upload a list) matches its own owners by
+name either way, and shows each match in its preview before anything is written.</p>
 <hr />
 <h2 id="leaving-experimental-behind">Leaving experimental behind<a class="headerlink" href="#leaving-experimental-behind" title="Permanent link">&para;</a></h2>
 <p>The label is temporary by design. Once a feature has run against enough real
