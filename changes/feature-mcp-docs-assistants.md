@@ -1,1 +1,0 @@
-- Expanded the MCP server documentation with step-by-step setup for Claude, ChatGPT and Microsoft 365 Copilot (federated connector and Copilot Studio), including which plan or licence each needs, the redirect URI per assistant, and new troubleshooting entries.

@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Expanded the MCP server documentation with step-by-step setup for Claude, ChatGPT and Microsoft 365 Copilot (federated connector and Copilot Studio), including which plan or licence each needs, the redirect URI per assistant, and new troubleshooting entries.
+
+## Changes in this PR
+
 - Fixed an intermittently failing automated test for the Diff section; no change to the product itself
 
 ## Changes in this PR
