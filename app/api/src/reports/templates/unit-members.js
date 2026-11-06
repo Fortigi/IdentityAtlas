@@ -13,12 +13,20 @@
 // A unit of PEOPLE lists the people; their entitlement count is across every
 // account linked to them, which the first tab says. The reads are in
 // ../unitMembers.js.
+//
+// Beside what the source lists, three "Org claim" columns say what the People
+// overview says about each person — status, role, and where that came from —
+// and the people the sources name whom the list does not list (not confirmed,
+// left) follow the members as rows of their own, with what they still hold.
+// Those are ../unitClaims.js, built on the overview's own rules.
 
 import * as db from '../../db/connection.js';
 import { MAX_LIST, parseList } from '../accessReviewFields.js';
 import { MEMBER_ATTRIBUTES, attributeColumns, omittedAttributeNotices } from '../attributeColumns.js';
-import { fetchContextDetails } from '../contextDetails.js';
+import { fetchContextDetails, withAfterPeople } from '../contextDetails.js';
 import { fetchEntitlementCounts, fetchUnitMembers } from '../unitMembers.js';
+import { CLAIM_COLUMNS, claimCells, fetchUnitClaims, summaryEntries } from '../unitClaims.js';
+import { READER_STATUSES } from '../../contexts/interviews/claims.js';
 
 // A unit of 120,000 accounts is a whole directory, not a team; the cap says so
 // rather than building a file nobody can open.
@@ -48,17 +56,33 @@ const KIND_COLUMNS = {
 };
 const ENTITLEMENTS_COLUMN = { key: 'entitlements', label: 'Entitlements' };
 
-/** "current", or "marked former (decision)" when a decision says an interview is right that they left. */
-export const memberStatus = m => (m.markedFormer ? 'marked former (decision)' : 'current');
+export const NOT_LISTED = 'not listed by the source';
+
+/**
+ * "current"; "marked former (decision)" when a decision says an interview is
+ * right that they left; NOT_LISTED for a person only the added sources name.
+ */
+export function memberStatus(m) {
+  if (m.listed === false) return NOT_LISTED;
+  return m.markedFormer ? 'marked former (decision)' : 'current';
+}
 
 /** The fixed columns for a kind of unit (Principal or Identity). */
 export function baseColumns(kind) {
   return [...COMMON_LEADING, ...(KIND_COLUMNS[kind] || KIND_COLUMNS.Principal)];
 }
 
-const columnsOf = fields => fields.map(({ key, label }) => ({ key, label }));
+const columnsOf = fields => fields.map(({ key, label, headerFill }) => (headerFill ? { key, label, headerFill } : { key, label }));
 
-const DECLARED_COLUMNS = columnsOf([...baseColumns('Principal'), ENTITLEMENTS_COLUMN]);
+const DECLARED_COLUMNS = columnsOf([...baseColumns('Principal'), ...CLAIM_COLUMNS, ENTITLEMENTS_COLUMN]);
+
+// The claim statuses this run may show: the route's answer for the reader, and
+// confirmed only when nobody said (a caller that is not a request).
+const claimStatusesOf = ctx => (Array.isArray(ctx?.claimStatuses) ? ctx.claimStatuses : [...READER_STATUSES]);
+
+// While organisation knowledge is off (the route says so: ctx.orgKnowledge false) a run
+// reads no claims and the report has no organisational-claim columns.
+const NO_CLAIMS = Object.freeze({ personOf: () => null, others: [], summaries: new Map() });
 
 const COUNT_NOTE = {
   Principal: 'Entitlements counts the distinct resources each account holds (live assignments; business roles '
@@ -101,7 +125,7 @@ export default {
   },
   columns: DECLARED_COLUMNS,
 
-  async run(params) {
+  async run(params, ctx) {
     const wanted = parseList(params?.contexts, MAX_LIST);
     if (wanted.length === 0) return { rows: [], notices: [PICK_NOTICE] };
     const units = await resolveUnits(wanted);
@@ -118,36 +142,58 @@ export default {
     const truncated = found.length > MAX_ROWS;
     const members = truncated ? found.slice(0, MAX_ROWS) : found;
 
-    const result = await memberRows(kind, members);
+    const statuses = claimStatusesOf(ctx);
+    const withClaims = ctx?.orgKnowledge !== false;
+    const claims = withClaims ? await fetchUnitClaims(kind, units, members, statuses) : NO_CLAIMS;
+    const result = await memberRows(kind, [...members, ...claims.others], claims.personOf, { withClaims });
     notices.push(...result.notices);
     if (truncated) notices.push(truncationNotice());
+    const withProposed = statuses.includes('proposed');
+    const details = about.details.map(block => (claims.summaries.has(block.contextId)
+      ? withAfterPeople(block, summaryEntries(claims.summaries.get(block.contextId), { withProposed }))
+      : block));
     return {
-      rows: result.rows, columns: result.columns, notices, truncated, details: about.details,
+      rows: result.rows, columns: result.columns, notices, truncated, details,
       // One unit and no sub-units: the Unit column holds one value, stated once on the first tab.
       constantColumns: units.length === 1 && !includeSubUnits ? ['unit'] : [],
     };
   },
 };
 
-/** The rows, their columns and what is said about them, for members of one kind. */
-export async function memberRows(kind, members) {
+/**
+ * The rows, their columns and what is said about them, for members of one kind:
+ * the members the source lists, then the people only the added sources name
+ * (`listed: false`). `personOf(member)`: the People overview's person for the
+ * row (unitClaims.js), or nothing for a run without claims. `withClaims` false: no
+ * organisational-claim columns (organisation knowledge is off).
+ */
+export async function memberRows(kind, members, personOf = () => null, { withClaims = true } = {}) {
   const base = baseColumns(kind);
-  const extra = attributeColumns(members, [], base.map(c => c.label).concat(ENTITLEMENTS_COLUMN.label), { kind: MEMBER_ATTRIBUTES });
-  const counts = await fetchEntitlementCounts(kind, [...new Set(members.map(m => m.id))]);
+  const fixed = [...base, ...(withClaims ? CLAIM_COLUMNS : []), ENTITLEMENTS_COLUMN];
+  const extra = attributeColumns(members, [], fixed.map(c => c.label), { kind: MEMBER_ATTRIBUTES });
+  const counts = await fetchEntitlementCounts(kind, [...new Set(members.map(m => m.id).filter(Boolean))]);
   const rows = members.map((member) => {
     const row = {};
     for (const c of base) row[c.key] = blankToNull(c.read(member));
-    row.entitlements = counts.get(member.id) ?? 0;
+    if (withClaims) Object.assign(row, claimCells(personOf(member)));
+    // A name no source matched to anyone holds nothing we can count.
+    row.entitlements = member.id ? counts.get(member.id) ?? 0 : null;
     for (const f of extra.fields) row[f.key] = f.read({ member });
-    row._entity = { kind: kind === 'Identity' ? 'identity' : 'user', id: member.id };
+    if (member.id) row._entity = { kind: kind === 'Identity' ? 'identity' : 'user', id: member.id };
     return row;
   });
+  const others = members.filter(m => m.listed === false).length;
   const notices = [
-    { severity: 'info', text: `${rows.length.toLocaleString('en-US')} member(s) listed.` },
+    { severity: 'info', text: `${(rows.length - others).toLocaleString('en-US')} member(s) listed.` },
+    ...(others ? [{ severity: 'info', text: othersNotice(others) }] : []),
     ...omittedAttributeNotices(extra.omitted, { kind: MEMBER_ATTRIBUTES }),
   ];
-  return { rows, columns: columnsOf([...base, ENTITLEMENTS_COLUMN, ...extra.fields]), notices };
+  return { rows, columns: columnsOf([...fixed, ...extra.fields]), notices };
 }
+
+const othersNotice = n => `${n.toLocaleString('en-US')} more person(s) follow the members: named by an added `
+  + 'source (an interview, a file or notes) but not listed by the source — not confirmed, or left. Their '
+  + 'entitlements are counted too: do they still have access?';
 
 const blankToNull = value => (value === undefined || value === '' ? null : value);
 

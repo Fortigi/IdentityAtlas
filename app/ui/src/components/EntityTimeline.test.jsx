@@ -31,6 +31,28 @@ describe('EntityTimeline (horizontal)', () => {
     expect(html).toContain('1 rel'); // a review counts as a relationship-kind event
   });
 
+  it('a unit\'s timeline: a People / Roles filter, the day counted by category, a burst folded to one line', () => {
+    const at = '2026-10-27T10:00:00Z';
+    const person = (n) => ({ at, operation: 'added', eventKind: 'unit', category: 'people', summary: `${n} joined (list upload)`,
+      burst: { key: 'people:joined:list upload', one: 'person joined', many: 'people joined', actor: 'list upload' } });
+    const unitEvents = [
+      person('Ann'), person('Bo'), person('Cy'), person('Di'),
+      { at, operation: 'changed', eventKind: 'unit', category: 'roles', summary: 'Accountable changed: Tom → Lisa (analyst)' },
+    ];
+    const html = renderToStaticMarkup(h(EntityTimeline, { events: unitEvents, loading: false, sinceDays: 90 }));
+    expect(html).toContain('aria-label="Show"');
+    expect(html).toContain('>People</button>');
+    expect(html).toContain('>Roles</button>');
+    expect(html).toContain('4 people · 1 role');
+    expect(html).toContain('4 people joined (list upload)</summary>');
+    expect(html).toContain('Accountable changed: Tom → Lisa (analyst)');
+  });
+
+  it('no filter for an entity whose events carry no category', () => {
+    const html = renderToStaticMarkup(h(EntityTimeline, { events, loading: false, sinceDays: 90 }));
+    expect(html).not.toContain('aria-label="Show"');
+  });
+
   it('shows an empty state when there are no events', () => {
     const html = renderToStaticMarkup(h(EntityTimeline, { events: [], loading: false, sinceDays: 90 }));
     expect(html).toContain('No changes recorded');

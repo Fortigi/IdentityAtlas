@@ -13,10 +13,13 @@
 
 import { reportMetadata } from './registry.js';
 
-// `allRows` asks a template that caps its rows to lift that cap. Off by default:
+// `ctx` says who is asking (routes/reports.js runContext); a caller without one
+// (the MCP server) gets each template's most restrictive reading.
+// `ctx.allRows` asks a template that caps its rows to lift that cap. Off by default:
 // only a download or a reader who chose to wait asks for every row.
-export async function runReport(report, params, { allRows = false } = {}) {
-  const { rows, notices, truncated, canLoadAllRows, constantColumns, columns, pivots, details } = await report.run(params, { allRows });
+export async function runReport(report, params, ctx = {}) {
+  const runCtx = { ...ctx, allRows: ctx.allRows === true };
+  const { rows, notices, truncated, canLoadAllRows, constantColumns, columns, pivots, details } = await report.run(params, runCtx);
   const metadata = reportMetadata(report);
   return {
     ...metadata,

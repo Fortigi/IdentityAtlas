@@ -192,12 +192,13 @@ describe('context interviews against PostgreSQL', () => {
     expect(await store.otherContextNames(db, ctxId, [])).toEqual([]);
   });
 
-  it('reads the person claims set-based for a page of members, and the previous members with their live entitlements', async () => {
-    const page = await store.memberClaims(db, ctxId, 'Principal', [P.piet, P.yara], ['proposed', 'confirmed', 'edited']);
-    expect(page.map(c => `${c.memberId === P.piet ? 'piet' : 'yara'}:${c.claimKind}`).sort()).toEqual(['piet:role', 'piet:roleHistory', 'yara:membership', 'yara:role']);
-    const people = await store.peopleClaims(db, ctxId, ['proposed']);
-    expect(people.find(c => c.claimKind === 'membership')).toMatchObject({ principalId: P.yara, isMember: false, accountDeleted: false, subjectDisplayName: 'Yara Testpersoon' });
-    expect(people.filter(c => c.principalId === P.piet).every(c => c.isMember)).toBe(true);
+  it('reads the person claims with their holder, the holders, and their live entitlements (the People overview)', async () => {
+    const claims = await store.personClaims(db, ctxId, 'Principal', ['proposed', 'confirmed', 'edited']);
+    expect(claims.map(c => `${c.holderId === P.piet ? 'piet' : 'yara'}:${c.claimKind}`).sort()).toEqual(['piet:role', 'piet:roleHistory', 'yara:membership', 'yara:role']);
+    expect(claims.find(c => c.claimKind === 'membership')).toMatchObject({ principalId: P.yara, accountDeleted: false, subjectDisplayName: 'Yara Testpersoon', sourceKind: 'interview', fileName: 'gesprek.vtt' });
+    expect((await store.personClaims(db, ctxId, 'Identity', ['proposed'])).every(c => c.holderId === null)).toBe(true);
+    const holders = await store.holderRows(db, ctxId, 'Principal', [P.piet, P.yara]);
+    expect(holders.map(h => [h.displayName, h.listed, h.overrideClaimId]).sort()).toEqual([['Piet Proefpersoon', true, null], ['Yara Testpersoon', false, null]]);
 
     const resource = async (name) => (await pool.query(
       `INSERT INTO "Resources" (id, "systemId", "displayName", "resourceType") VALUES (gen_random_uuid(), $1, $2, 'Group') RETURNING id`, [sysId, name])).rows[0].id;
@@ -250,10 +251,10 @@ describe('context interviews against PostgreSQL', () => {
     let body;
     const res = { json: (b) => { body = b; }, status: () => res };
     await timelineHandler('context')({ params: { id: ctxId }, query: { sinceDays: '30' } }, res);
-    const attrs = body.events.filter(e => e.eventKind === 'attribute').map(e => e.attribute?.field);
-    expect(attrs).toContain('displayName');
-    expect(attrs).not.toContain('lastCalculatedAt');
-    expect(body.events.some(e => e.eventKind === 'interview')).toBe(true);
+    const structure = body.events.filter(e => e.category === 'structure').map(e => e.summary);
+    expect(structure).toContainEqual(expect.stringMatching(/^Renamed: .+ → ivw-Planner 2$/));
+    expect(structure.some(s => /last calculated/i.test(s))).toBe(false);
+    expect(body.events.some(e => e.eventKind === 'interview' && e.category === 'knowledge')).toBe(true);
     delete process.env.FEATURE_ORG_KNOWLEDGE;
   });
 

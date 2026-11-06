@@ -1,76 +1,192 @@
 // @vitest-environment jsdom
-// The forms around context interviews: uploading a transcript (the card and its
-// modal), adding a claim by hand with a quote taken from the transcript, the
-// "Mentioned in interviews" section of a person's page and the role timeline.
+// The forms around added sources: "Add information" (a file — a transcript, a
+// csv or xlsx list — or pasted text, from someone or nobody in particular),
+// adding a claim by hand with a quote taken from the text, the Sources list,
+// and the "Mentioned in interviews" section of a person's page.
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
-import UploadInterviewCard from './UploadInterviewCard';
+import AddInformation from './AddInformation';
+import { ACCEPT, INTRO } from './AddInformationModal';
 import ManualClaimForm from './ManualClaimForm';
+import SourcesList from './SourcesList';
 import InterviewMentions from './InterviewMentions';
-import RoleTimeline from './RoleTimeline';
 import { ClaimsContext } from './claimsContext';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 // Organisation knowledge is behind a flag (off by default); these tests are about it.
 vi.mock('@ui/hooks/useOrgKnowledge', () => ({ useOrgKnowledge: () => true }));
 
-const APP = { id: 'c-app', contextCategory: 'LogicalApplication' };
 const TRANSCRIPT = 'Anna Voorbeeld: Yes, I am the owner of this app, but Piet does the day-to-day.';
+const POST = '/api/contexts/c-app/interviews';
 
-describe('UploadInterviewCard', () => {
-  function mountCard({ answer = { id: 'iv-1', llmConfigured: true } } = {}) {
+describe('Add information', () => {
+  function mountButton({ answer = { id: 'iv-1', llmConfigured: true } } = {}) {
     const reload = vi.fn();
     const authFetch = makeAuthFetch((url, opts = {}) => {
-      if (url === '/api/contexts/c-app/interviews' && opts.method === 'POST') return answer;
+      if (url === POST && opts.method === 'POST') return answer;
       if (String(url).startsWith('/api/users?search=ann')) return { data: [{ id: 'p-anna', displayName: 'Anna Voorbeeld' }] };
       if (String(url).startsWith('/api/users?')) return { data: [] };
       return undefined;
     });
-    const ctx = { canWrite: true, reload };
-    renderWithProviders(h(ClaimsContext.Provider, { value: ctx }, h(UploadInterviewCard, { attrs: APP })), { auth: { authFetch } });
+    renderWithProviders(h(ClaimsContext.Provider, { value: { canWrite: true, reload } }, h(AddInformation, { contextId: 'c-app' })), { auth: { authFetch } });
     return { authFetch, reload, user: userEvent.setup() };
   }
+  const posted = (authFetch) => authFetch.mock.calls.find(([u, o]) => u === POST && o?.method === 'POST')[1].body;
 
-  it('uploads the file with the interviewee and the date, then refreshes the claims', async () => {
-    const { authFetch, reload, user } = mountCard();
-    await user.click(screen.getByRole('button', { name: 'Upload transcript' }));
-    const upload = screen.getByRole('button', { name: 'Upload' });
-    expect(upload).toBeDisabled();
-    await user.upload(screen.getByLabelText('Transcript (.txt, .docx, .vtt or .srt)'), new File([TRANSCRIPT], 'gesprek.vtt', { type: 'text/vtt' }));
-    await user.type(screen.getByRole('textbox', { name: 'Who was interviewed' }), 'ann');
-    await user.click(await screen.findByRole('button', { name: 'Anna Voorbeeld' }));
-    expect(screen.getByText(/Interviewed:/)).toHaveTextContent('Interviewed: Anna Voorbeeld change');
-    const date = screen.getByLabelText('Interviewed on');
+  it('opens "Add information" with what may be added, and takes transcripts, notes, Word, csv and xlsx files', async () => {
+    const { user } = mountButton();
+    await user.click(screen.getByRole('button', { name: 'Add information' }));
+    expect(screen.getByRole('heading', { name: 'Add information' })).toBeInTheDocument();
+    expect(screen.getByText(INTRO)).toBeInTheDocument();
+    expect(INTRO).toBe('A transcript, notes, an Excel or CSV list, a Word document — anything that says something about this unit.');
+    expect(screen.getByLabelText('File (.txt, .md, .docx, .vtt, .srt, .csv or .xlsx)')).toHaveAttribute('accept', ACCEPT);
+    expect(ACCEPT.split(',')).toEqual(['.txt', '.md', '.docx', '.vtt', '.srt', '.csv', '.xlsx']);
+  });
+
+  it('a list from nobody in particular: the file and the date, no principalId; then refreshes and says so', async () => {
+    const { authFetch, reload, user } = mountButton();
+    await user.click(screen.getByRole('button', { name: 'Add information' }));
+    const add = screen.getByRole('button', { name: 'Add' });
+    expect(add).toBeDisabled();
+    await user.upload(screen.getByLabelText(/^File/), new File(['Name;Role\nAnn;Architect'], 'team.csv', { type: 'text/csv' }));
+    const date = screen.getByLabelText('Date');
     await user.clear(date);
-    await user.type(date, '2026-10-01');
-    await user.click(upload);
+    await user.type(date, '2026-10-02');
+    await user.click(add);
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
-    const [, init] = authFetch.mock.calls.find(([u, o]) => u === '/api/contexts/c-app/interviews' && o?.method === 'POST');
-    expect(init.body.get('principalId')).toBe('p-anna');
-    expect(init.body.get('interviewedAt')).toBe('2026-10-01');
-    expect(init.body.get('file').name).toBe('gesprek.vtt');
-    expect(await screen.findByText(/its claims appear under What we know once it is read/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
+    const body = posted(authFetch);
+    expect([...body.keys()]).toEqual(['file', 'interviewedAt']);
+    expect(body.get('file').name).toBe('team.csv');
+    expect(body.get('interviewedAt')).toBe('2026-10-02');
+    expect(await screen.findByText('Added. What it says appears for review once it is read.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Add information' })).toBeNull();
   });
 
-  it('without a model, says claims are added by hand; a refusal stays in the modal', async () => {
-    const { user } = mountCard({ answer: jsonResponse({ error: 'The transcript holds no text.' }, { ok: false, status: 400 }) });
-    await user.click(screen.getByRole('button', { name: 'Upload transcript' }));
-    await user.upload(screen.getByLabelText('Transcript (.txt, .docx, .vtt or .srt)'), new File([' '], 'empty.txt'));
-    await user.type(screen.getByRole('textbox', { name: 'Who was interviewed' }), 'ann');
+  it('an xlsx from someone: "Who is this from?" sends that account', async () => {
+    const { authFetch, user } = mountButton();
+    await user.click(screen.getByRole('button', { name: 'Add information' }));
+    await user.upload(screen.getByLabelText(/^File/), new File(['PK'], 'team.xlsx'));
+    await user.type(screen.getByRole('textbox', { name: 'Who is this from? (optional)' }), 'ann');
     await user.click(await screen.findByRole('button', { name: 'Anna Voorbeeld' }));
-    await user.click(screen.getByRole('button', { name: 'Upload' }));
-    expect(await screen.findByText('The transcript holds no text.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Upload' })).toBeInTheDocument();
+    expect(screen.getByText(/^From:/)).toHaveTextContent('From: Anna Voorbeeld change');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(POST, expect.objectContaining({ method: 'POST' })));
+    const body = posted(authFetch);
+    expect([body.get('file').name, body.get('principalId')]).toEqual(['team.xlsx', 'p-anna']);
   });
 
-  it('is not there for a reader', () => {
-    renderWithProviders(h(ClaimsContext.Provider, { value: { canWrite: false } }, h(UploadInterviewCard, { attrs: APP })));
-    expect(screen.queryByTestId('action-upload-interview')).toBeNull();
+  it('Paste text sends the text, never a file; blank text cannot be added', async () => {
+    const { authFetch, user } = mountButton({ answer: { id: 'iv-2', llmConfigured: false } });
+    await user.click(screen.getByRole('button', { name: 'Add information' }));
+    await user.upload(screen.getByLabelText(/^File/), new File(['x'], 'ignored.txt'));
+    await user.click(screen.getByRole('button', { name: 'Paste text' }));
+    expect(screen.getByRole('button', { name: 'Paste text' })).toHaveAttribute('aria-pressed', 'true');
+    const add = screen.getByRole('button', { name: 'Add' });
+    await user.type(screen.getByRole('textbox', { name: 'Text' }), '   ');
+    expect(add).toBeDisabled();
+    await user.type(screen.getByRole('textbox', { name: 'Text' }), 'Piet left in May.');
+    await user.click(add);
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(POST, expect.objectContaining({ method: 'POST' })));
+    const body = posted(authFetch);
+    expect(body.get('file')).toBeNull();
+    expect(body.get('text')).toBe('   Piet left in May.');
+    expect(await screen.findByText('Added. No model is configured: add claims by hand under Sources.')).toBeInTheDocument();
+  });
+
+  it('without a date it cannot be added; a refusal stays in the modal', async () => {
+    const { user } = mountButton({ answer: jsonResponse({ error: 'The transcript holds no text.' }, { ok: false, status: 400 }) });
+    await user.click(screen.getByRole('button', { name: 'Add information' }));
+    await user.upload(screen.getByLabelText(/^File/), new File([' '], 'empty.txt'));
+    await user.clear(screen.getByLabelText('Date'));
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
+    await user.type(screen.getByLabelText('Date'), '2026-10-01');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(await screen.findByText('The transcript holds no text.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Add information' })).toBeInTheDocument();
+  });
+
+  it('is not there for a reader, nor outside a ClaimsProvider', () => {
+    renderWithProviders(h(ClaimsContext.Provider, { value: { canWrite: false } }, h(AddInformation, { contextId: 'c-app' })));
+    renderWithProviders(h(AddInformation, { contextId: 'c-app' }));
+    expect(screen.queryByRole('button', { name: 'Add information' })).toBeNull();
+  });
+});
+
+describe('SourcesList', () => {
+  const SOURCES = [
+    { id: 'iv-1', sourceKind: 'interview', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', fileName: 'gesprek.vtt', extractionStatus: 'done', proposed: 4, confirmed: 2, extractionMessage: '1 claim was left out because the quote is not in the transcript.' },
+    { id: 'iv-2', sourceKind: 'file', intervieweeName: 'analyst@example.test', interviewedAt: '2026-10-02', fileName: 'team.xlsx', extractionStatus: 'running', proposed: 0, confirmed: 0 },
+    { id: 'iv-3', sourceKind: 'text', intervieweeName: 'analyst@example.test', interviewedAt: '2026-10-03', fileName: 'Pasted text', extractionStatus: 'notConfigured' },
+  ];
+  function mountList({ refuse = false } = {}) {
+    const onChanged = vi.fn();
+    const onViewTranscript = vi.fn();
+    const authFetch = makeAuthFetch((url, opts = {}) => {
+      if (opts.method === 'POST') return refuse ? jsonResponse({ error: 'This interview is being read right now.' }, { ok: false, status: 409 }) : jsonResponse({}, { status: 202 });
+      if (opts.method === 'DELETE') return jsonResponse(undefined, { status: 204 });
+      return undefined;
+    });
+    renderWithProviders(h(SourcesList, { contextId: 'c-app', interviews: SOURCES, onChanged, onViewTranscript }), { auth: { authFetch } });
+    return { authFetch, onChanged, onViewTranscript, user: userEvent.setup(), rows: screen.getAllByTestId('source-row') };
+  }
+
+  it('one row per source: its kind, who it is from (or who added it), when, the file, how far it got, its counts', () => {
+    const { rows } = mountList();
+    expect(rows.map(r => r.firstChild.textContent)).toEqual(['Interview', 'File', 'Pasted text']);
+    expect(rows[0]).toHaveTextContent('InterviewAnna Voorbeeld · 2026-10-01 · gesprek.vttRead4 to review · 2 confirmed');
+    expect(rows[0]).toHaveTextContent('1 claim was left out because the quote is not in the transcript.');
+    expect(rows[1]).toHaveTextContent('Fileadded by analyst@example.test · 2026-10-02 · team.xlsxReading…0 to review · 0 confirmed');
+    // Pasted text has no file to name; no Read again without a model, nor while one reads.
+    expect(rows[2]).toHaveTextContent('Pasted textadded by analyst@example.test · 2026-10-03No model configured — add claims by hand0 to review · 0 confirmed');
+    expect(rows.map(r => !!within(r).queryByRole('button', { name: 'Read again' }))).toEqual([true, false, false]);
+  });
+
+  it('View opens the text; Read again asks the model and refreshes', async () => {
+    const { authFetch, onChanged, onViewTranscript, user, rows } = mountList();
+    await user.click(within(rows[1]).getByRole('button', { name: 'View the team.xlsx, 2026-10-02' }));
+    expect(onViewTranscript).toHaveBeenCalledWith('iv-2');
+    await user.click(within(rows[0]).getByRole('button', { name: 'Read again' }));
+    expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews/iv-1/extract', { method: 'POST' });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+
+  it('a refused Read again shows the API sentence and changes nothing', async () => {
+    const { onChanged, user, rows } = mountList({ refuse: true });
+    await user.click(within(rows[0]).getByRole('button', { name: 'Read again' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This interview is being read right now.');
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it('Delete asks first, naming the source, then deletes it', async () => {
+    const { authFetch, onChanged, user, rows } = mountList();
+    await user.click(within(rows[2]).getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByText('Delete the notes added by analyst@example.test, 2026-10-03 and the claims it made? What confirmed claims already changed stays.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1));
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/contexts/c-app/interviews/iv-3', { method: 'DELETE' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+
+  it('says so when nothing was added', () => {
+    renderWithProviders(h(SourcesList, { contextId: 'c-app', interviews: [], onChanged: vi.fn() }));
+    expect(screen.getByText('Nothing added yet.')).toBeInTheDocument();
+  });
+
+  it('a source added on another unit says where, counts its claims about this unit\'s people, and can only be viewed', async () => {
+    const onViewTranscript = vi.fn();
+    const parent = { id: 'iv-9', sourceKind: 'interview', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-05', fileName: 'gesprek.txt',
+      extractionStatus: 'done', proposed: 3, confirmed: 1, filedUnderId: 'c-parent', filedUnderName: 'Claims Handling' };
+    renderWithProviders(h(SourcesList, { contextId: 'c-app', interviews: [SOURCES[0], parent], onChanged: vi.fn(), onViewTranscript }));
+    const rows = screen.getAllByTestId('source-row');
+    expect(within(rows[1]).getByTestId('filed-under')).toHaveTextContent('added on Claims Handling');
+    expect(rows[1]).toHaveTextContent('3 to review · 1 confirmed about this unit’s people');
+    expect(within(rows[0]).queryByTestId('filed-under')).toBeNull();
+    for (const name of ['Read again', 'Add claim', 'Delete']) expect(within(rows[1]).queryByRole('button', { name })).toBeNull();
+    await userEvent.setup().click(within(rows[1]).getByRole('button', { name: /^View the/ }));
+    expect(onViewTranscript).toHaveBeenCalledWith('iv-9');
   });
 });
 
 describe('ManualClaimForm', () => {
-  function mountForm() {
+  function mountForm(interview = { id: 'iv-1', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01' }) {
     const onAdded = vi.fn();
     const onClose = vi.fn();
     const authFetch = makeAuthFetch((url, opts = {}) => {
@@ -78,9 +194,19 @@ describe('ManualClaimForm', () => {
       if (url === '/api/contexts/c-app/interviews/iv-1') return { id: 'iv-1', transcript: TRANSCRIPT };
       return undefined;
     });
-    renderWithProviders(h(ManualClaimForm, { contextId: 'c-app', interview: { id: 'iv-1', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01' }, onAdded, onClose }), { auth: { authFetch } });
+    renderWithProviders(h(ManualClaimForm, { contextId: 'c-app', interview, onAdded, onClose }), { auth: { authFetch } });
     return { authFetch, onAdded, onClose, user: userEvent.setup() };
   }
+
+  it('names its source: an interview by who and when', () => {
+    mountForm();
+    expect(screen.getByText('From the interview with Anna Voorbeeld, 2026-10-01')).toBeInTheDocument();
+  });
+
+  it('a list source is named by its file', () => {
+    mountForm({ id: 'iv-1', sourceKind: 'file', fileName: 'team.xlsx', intervieweeName: 'u', interviewedAt: '2026-10-02' });
+    expect(screen.getByText('From the team.xlsx, 2026-10-02')).toBeInTheDocument();
+  });
 
   it('takes the selected words of the transcript as the quote and posts a role claim', async () => {
     const { authFetch, onAdded, onClose, user } = mountForm();
@@ -98,7 +224,7 @@ describe('ManualClaimForm', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'What they are to it' }), 'dayToDay');
     await user.click(add);
     await waitFor(() => expect(onAdded).toHaveBeenCalled());
-    const [, init] = authFetch.mock.calls.find(([u, o]) => o?.method === 'POST');
+    const [, init] = authFetch.mock.calls.find(([, o]) => o?.method === 'POST');
     expect(JSON.parse(init.body)).toEqual({ kind: 'role', value: 'does the day-to-day', subject: 'Piet', relation: 'dayToDay', quote: 'Piet does the day-to-day' });
     expect(onClose).toHaveBeenCalled();
   });
@@ -145,23 +271,5 @@ describe('InterviewMentions', () => {
     const none = makeAuthFetch({});
     renderWithProviders(h(InterviewMentions, { holder: {} }), { auth: { authFetch: none } });
     expect(none).not.toHaveBeenCalled();
-  });
-});
-
-describe('RoleTimeline', () => {
-  it('draws a bar per dated role and none for a vague one', () => {
-    const person = { key: 'p', name: 'Bram Test', segments: [
-      { id: 'a', label: 'junior', period: '2015–2019', from: '2015-01-01', to: '2019-12-31' },
-      { id: 'b', label: 'left', period: 'for a while' },
-    ] };
-    const { container } = renderWithProviders(h('ul', null, h(RoleTimeline, { person, today: Date.parse('2026-01-01T00:00:00Z') })));
-    expect(screen.getByTestId('role-timeline')).toHaveTextContent('Bram Test: junior (2015–2019) → left (for a while)');
-    const bars = container.querySelectorAll('span[style]');
-    expect([...bars].map(b => [b.style.left, b.style.width])).toEqual([['0%', '100%']]);
-  });
-
-  it('draws no axis when no role is dated', () => {
-    const { container } = renderWithProviders(h('ul', null, h(RoleTimeline, { person: { key: 'p', name: 'X', segments: [{ id: 'a', label: 'architect', period: 'now' }] } })));
-    expect(container.querySelector('span[style]')).toBeNull();
   });
 });

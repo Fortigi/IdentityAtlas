@@ -4,10 +4,19 @@
 
 An analyst talks to people about a customer, a team or an application. What they say
 is often the only source for facts no crawler has: what the unit does, since when it is
-a customer, who really does the work. *Upload interview* on a context's page takes the
-transcript of such a conversation, with who was interviewed and when, and turns what it
-says into **claims** — each a statement with the verbatim words it rests on — for an
-analyst to review. Nothing is written to the context until someone confirms it.
+a customer, who really does the work. *Add information* on a context's page takes any
+**source** that says something about it — the transcript of such a conversation, notes, an
+Excel or CSV list, a Word document, or pasted text — with who it is from (optional) and
+when, and turns what it says into **claims** — each a statement with the verbatim words it
+rests on — for an analyst to review. Nothing is written to the context until someone
+confirms it.
+
+> **"Interview" in the API and the tables means any added source.** The records are
+> `ContextInterviews` rows and the paths are `/contexts/:id/interviews…`, kept as they
+> were; the page calls them *Sources*. A row's kind (`sourceKind`) is read from its
+> columns, not stored: `interview` (it names who said it), `file` (nobody in particular:
+> a list, a document — `intervieweeName` then holds who added it) or `text` (pasted,
+> stored under the file name *Pasted text*). See [Sources and Add information](#sources-and-add-information).
 
 Example: *"Yes, I'm the owner of this app, but it's mostly Piet who does the
 day-to-day"* suggests the interviewee as the application's Accountable (its Owner) and
@@ -28,7 +37,7 @@ access (the holding rule is untouched).
 | `property` | `extendedAttributes[attribute] = value` |
 | `role` with a `roleSuggestion` | the `ContextRole` — `addedBy = 'analyst'` (a person decided), `sourceClaimId` = the claim |
 | `alias` | added to `extendedAttributes.aliases` (an array; a spelling already there — case, accents, dots aside — is not added twice), shown as *Also known as* |
-| `role` without one, `roleHistory`, `membership` | nothing beyond the claim: confirmed knowledge, shown under *What we know*, on the role timeline and in the members lists. A membership claim **never changes `ContextMembers`** — members come from their source |
+| `role` without one, `roleHistory`, `membership` | nothing beyond the claim: confirmed knowledge, shown on the person's row in the *People* overview. A membership claim **never changes `ContextMembers`** — members come from their source |
 
 **Accountable.** Set only when the context has none, or the same person already holds
 it. Otherwise the API answers 409 with the current holder and the page asks *"X is the
@@ -238,7 +247,7 @@ from its relation unless the analyst picks one.
 All writes need `data.write.contexts`; OpenAPI documents each.
 
 ```
-POST   /api/contexts/:id/interviews                       multipart file + principalId|identityId + interviewedAt
+POST   /api/contexts/:id/interviews                       multipart file (or text) + principalId|identityId (optional) + interviewedAt
 GET    /api/contexts/:id/interviews                       the interviews, with claim counts (writers)
 GET    /api/contexts/:id/interviews/:interviewId          one, with its transcript and highlights [{ claimId, start, end }] (writers)
 POST   /api/contexts/:id/interviews/:interviewId/extract  read again (409 while a run of < 30 min is going; 503 without a model)
@@ -246,8 +255,8 @@ POST   /api/contexts/:id/interviews/:interviewId/claims   an analyst's own claim
 DELETE /api/contexts/:id/interviews/:interviewId          the interview and its claims
 GET    /api/contexts/:id/claims?status=…                  the claims + accountableDoubt
 POST   /api/contexts/:id/claims/reject                    { kind?, relevance? }: reject the proposed claims of a kind / tier, one statement
-GET    /api/contexts/:id/previous-members                 who the interviews say left, with live entitlements (every reader)
-GET    /api/contexts/:id/members                          (existing) each account / person also carries interview: { role, left }
+GET    /api/contexts/:id/people?filter=&search=&limit=&offset=   the People overview: one row per person (every reader)
+GET    /api/contexts/:id/members                          (existing) the members as their source lists them
 PATCH  /api/contexts/claims/:claimId                      { status: confirmed|edited|rejected, value?, period?, principalId|identityId?, replace? }
 GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts whose interviews mention a person
 ```
@@ -256,52 +265,79 @@ GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts who
 — a description section, an attribute, a role — **stays**; a role only loses its link
 (`sourceClaimId` → NULL).
 
-## Membership over time — the members lists
+## Sources and Add information
 
-A membership claim is knowledge about a person and the context; members still come from
-their source. Two places show it, both set-based (`contexts/interviews/memberFacts.js`):
+*Add information* (in the page header and on the *Sources* section, analysts only) opens
+one dialog — *"A transcript, notes, an Excel or CSV list, a Word document — anything that
+says something about this unit."* — with two ways in:
 
-- **The members list.** `GET /contexts/:id/members` adds, on a unit or an application whose
-  members are accounts or persons, `interview: { role, left }` to every row: one more
-  statement for the whole page (the claims about the page's ids — for persons also those
-  about their accounts, via `IdentityMembers`), never a query per row. `role` is the latest
-  role there — a `role` claim (said in the present) or a roleHistory whose period is open or
-  "now" first, then the latest period, then the newest interview — with the whole
-  `history`; the table shows it in a **Role** column, the history on hover. `left` is the
-  person's latest word on being in it (newest interview first) — a membership claim, or a
-  role / roleHistory claim that says they left — when it says so (`former` / `left`; a
-  role claim reads `former`); the row
-  then carries *"Interview: left (last month)"*, the quote as tooltip, which opens the
-  transcript at the claim for an analyst.
-- **Who left** (`contexts/interviews/leftSignal.js`, one shared rule): a membership claim with
-  status `former` or `left`, or a role / roleHistory claim (not `notOwner`) whose value or
-  period says it — *left, no longer, former(ly), quit, departed, moved on*; *uitgestroomd,
-  vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…* — whole words only. So claims
-  stored before the membership kind existed, or a model that answers *roleHistory "left"*,
-  still count.
-- **Who came back** (`memberFacts.js` `rejoinOf`): a person whose latest word does not say
-  they left, and for whom a claim says they returned — a membership `rejoined`; the return
-  words above in a role claim's value or period, or in the clause of its quote about them
-  (*"Joris begon als junior en is sinds een half jaar terug, nu als architect"*: the model
-  put the return in neither value nor period); or a present membership (current, joined,
-  rejoined) said in a later interview than one that said they left. Their **earlier stint** is
-  every role before the latest one. A promotion without a word for coming back is no second
-  stint. The members list adds `interview.rejoined` (the claim that says it, with
-  `earlier`): the row's Role cell carries *"rejoined · earlier: Junior developer"*, the
-  quote and the earlier periods as tooltip.
-- **Previous members**, below the members: everyone whose latest such claim says they
-  left and who is not a direct member now (`stint: 'left'`) — and everyone who came back,
-  for the EARLIER stint (`stint: 'earlier'`, `role` = the roles they had then,
-  `nowMember`): *"Joris Jansen — Junior developer (earlier period)"*, with *now a member
-  again* scrolling to their current row. A person is one row at most. Matched to an account or a person, they come with
-  their **live entitlements** (ResourceAssignments not deleted — a person's own and their
-  accounts') and how many of those are on **this context's resources**: its own resource
-  members, or those of a `SameUnitAs` variant that holds resources (*"3 on this
-  application"*, highlighted). A name nobody matched is listed as said, with *no account found* and no counts.
-  Three statements in all: the claims, the counts for every matched person at once, and the
-  size of the linked resource set. The question it answers: *does this person still have
-  access?*
+- **Upload a file**: `.txt`, `.md`, `.docx`, `.vtt`, `.srt` are read as a transcript
+  (above). `.csv` and `.xlsx` are read with the list upload's own reader
+  (`contexts/upload/parse.js` `parseList`) and each row becomes one readable line,
+  *"Name: Ann Example; Role: Architect"* (empty cells left out), so the model reads a list
+  like text and a quote can be a row (`contexts/interviews/sourceText.js`). The original
+  file name stays on the source.
+- **Paste text**: notes, an e-mail; stored under the file name *Pasted text*.
 
+*Who is this from?* is optional. With someone, the source is an interview and *"I"* in
+it is that person; without, the source is the file (or the text) and whoever added it —
+the model is told nobody in particular is speaking, and *"I"* names nobody. The date is the
+date of the source.
+
+**Sources** (folded to *"2 sources · latest 2026-10-23"*) lists every added source: its
+kind (*Interview*, *File*, *Pasted text*), who it is from or who added it, when, the file,
+how far the model got, its claim counts, and *View* (the text with its quotes
+highlighted), *Read again*, *Add claim* (by hand) and *Delete*.
+
+## The People overview
+
+One section for everyone in a unit and everyone who was — the members its source lists
+merged with what the added sources say about people. **Each person appears once**:
+`GET /contexts/:id/people` (`contexts/interviews/people.js` has the rules,
+`peopleLoad.js` the reads) keys a person by their holder in the context's own kind of
+member — the account for a unit of accounts, the person for a unit of people; a claim that
+names the other kind is mapped through `IdentityMembers` — and a name nobody matched by
+the name as said. Every row carries one **status**:
+
+| Status | When |
+|---|---|
+| Current | the source lists them |
+| Came back | the source lists them, and a source says they left once and came back (`rejoinOf`); the row says *"earlier: Junior developer"* |
+| Not confirmed | a source says they are in it, but the member list does not list them |
+| Left (decided) | the source still lists them, but a decision marked them former (below) |
+| Left | a source says they left, and the list does not list them (any more) |
+
+Accountable and Responsible are badges on the row (from `ContextRoles`). The columns are
+compact: the name (opening their page), the status, their latest role here, where it comes
+from (*list*, *interview*, *file*, *notes*), what they still hold (live entitlements — a
+person's own and their accounts' — and how many of those are on this context's resources,
+*"3 here"*), and the claims about them as **icons**, one per kind (role, membership,
+history): outlined and dashed while a claim of that kind is proposed, solid once confirmed.
+Hovering or focusing an icon shows the claim in one line, the quote (cut at about 200
+characters), its source and its status; an analyst gets *Confirm* / *Reject* there and
+*Show in the source*, and clicking the icon opens the source at that quote. A person in an
+open contradiction gets a warning icon whose popover shows both statements and the
+decision buttons (the Contradictions panel's own). Escape closes a popover.
+
+Filters: **Current** (current, came back, not confirmed) · **Former** (left (decided),
+left) · **All**, each with its count, and **To decide** while there are open
+contradictions about people. Sorted: the listed current members by name, then the rest by
+status, each by name. Paged at 100. The read is set-based — a fixed number of statements
+whatever the size of the unit: the listed current members are the only group read a page at
+a time (the members endpoint's own read); everyone the claims and decisions name is few and
+merged in memory. An application's members are resources: its page keeps the resources list
+and shows People only when a source named someone.
+
+**Who left** (`contexts/interviews/leftSignal.js`, one shared rule): a membership claim with
+status `former` or `left`, or a role / roleHistory claim (not `notOwner`) whose value or
+period says it — *left, no longer, former(ly), quit, departed, moved on*; *uitgestroomd,
+vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…* — whole words only.
+**Who came back** (`memberFacts.js` `rejoinOf`): a person whose latest word does not say
+they left, and for whom a claim says they returned — a membership `rejoined`; the return
+words in a role claim's value or period, or in the clause of its quote about them; or a
+present membership said in a later interview than one that said they left. Their **earlier
+stint** is every role before the latest one. A promotion without a word for coming back is
+no second stint.
 Proposed claims read **dashed and italic**, confirmed ones plain. The reader rule is the
 claims list's: a reader gets confirmed claims only.
 
@@ -375,7 +411,7 @@ deletes the mark), the source it overrides by name (`overrides`), `decidedBy`, `
 |---|---|---|
 | The interview is right | confirmed (or edited without a period) | set — when the source lists the person, by the context's own kind (an account of a unit of accounts, a person of a unit of people) |
 | The list is right | rejected | none: the member stays current |
-| Both true, at different times | edited with the period | none: the member stays current; the period is the earlier stint in the claim (members list, role timeline) |
+| Both true, at different times | edited with the period | none: the member stays current; the period is the earlier stint in the claim (the person's history icon in People) |
 | a claim that they are in it (current, joined, rejoined) confirmed | confirmed | cleared |
 | **Undo decision** (`POST /contexts/claims/:id/undo`) | back to proposed | removed; the contradiction is open again |
 
@@ -387,55 +423,57 @@ What reads the mark:
 
 - **Members list** (`GET …/members`): a marked member is left out of the current members and of
   `total`; `overriddenCount` says how many were left out; `?includeOverridden=true` lists them
-  too, each with `overridden: { by, at, overrides, claimId }`. The page says *"1 marked as former
-  by a decision — show"* and shows them struck through with the decision. The facts block says
-  *"12 in this unit (1 marked former)"* (`GET /contexts/:id` → `overriddenMemberCount`; the
-  counts stay the source's).
-- **Previous members** (`GET …/previous-members`): lists them with `decision` and `stillListed`,
-  and the live entitlements they still hold — *"Decided by <who>, <date>: the interview is right —
-  Klanten (upload) still lists them"*, the hint *"Still listed in the source — remove it there or
-  re-import without them"*, and *Undo decision* for an analyst.
+  too, each with `overridden: { by, at, overrides, claimId }` (`GET /contexts/:id` →
+  `overriddenMemberCount`; the counts stay the source's).
+- **People overview** (`GET …/people`): the person is **Left (decided)**, under *Former*, with
+  `decision` and `stillListed` and the live entitlements they still hold — the status says
+  *"Decided by <who>, <date>: the interview is right — Klanten (upload) still lists them. Still
+  listed in the source — remove it there or re-import without them."*, and the popover of the
+  claim it was decided on offers *Undo decision* to an analyst.
 - **Timeline**: *"Decided: Led Ledeboer is a former member (overrides Klanten (upload))"*.
 - **Unit report**: keeps the row and adds a **Status** column — *current* or *marked former
   (decision)* — so the report shows both what the source lists and what was decided.
-- **Context owner (read-only view)**: the same members list (current members, the note, the
-  toggle); Previous members stays an analyst read, as before.
+- **Context owner (read-only view)**: the same People overview, from confirmed claims only —
+  *Former* included: who left but can still get in is the most useful thing the page tells them.
 - **Matrix and access**: unchanged, deliberately. The matrix shows access, and the access is
-  still there — that is the point of Previous members' *still has access*. The decision never
+  still there — that is the point of the People overview's *Access* column. The decision never
   removes an assignment or a membership.
 - **Change request**: when the source is a system or an uploaded list, the mark also raises a
   change request: *"Remove Led Ledeboer from Klanten"*, for that source, resting on the claim and
   the mark. Clearing the mark or undoing the decision withdraws it, and the source dropping the
   person resolves it. A list kept by hand raises none. See [Change requests](change-requests.md).
 
-On the page: a **Contradictions (n)** panel at the top of *What we know*, never folded — each
-item the two statements side by side (*View in transcript* on a claim, for an analyst) with the
-choices; a *"n contradictions to decide"* badge under the page header and beside *To review*,
-jumping to the panel. A reader sees the open ones without choices.
+On the page: a contradiction about a person is decided on that person's row in *People* (the
+warning icon's popover: both statements, *View in transcript* on a claim for an analyst, and
+the choices); one about the unit itself (a property against the value it holds) sits in a
+**Contradictions (n)** panel inside *What we know*. The analyst's attention line under the
+header counts them all (*"2 to decide"*) and jumps to them: People filtered to *To decide*, or
+What we know opened. A reader sees the open ones without choices.
 
 ## The review list and What we know
 
-- **What we know** is folded by default to one line — *"7 facts · 3 people · 2 proposed to
-  review"* (facts: the confirmed claims; people: the distinct persons they name; the review
-  count only for an analyst) — and opens on click. Open or folded is remembered per context
-  for the browser session (`sessionStorage`, inside try/catch: a browser that refuses it
-  starts folded).
-- **To review** lists the `high` tier first; the `low` tier waits folded under *Less
-  relevant (n)*. *Reject all less relevant* and *Reject all descriptions* each send one
-  request.
+- **What we know** holds facts about the unit only — its description, the properties the
+  sources established, its other names, the same unit as other kinds of member, and More
+  details — folded by default to one line: the start of the description, then *"3 properties ·
+  also known as HA · 2 to review"* (the review count only for an analyst, and only the unit's
+  own claims; a person's are on their row).
+- **To review**: the attention line's *"13 to review"* opens one drawer with every proposed
+  claim — about the unit and its people — in the review list; the same claim can also be
+  decided where it shows (a person's row, What we know). The list shows the `high` tier first;
+  the `low` tier waits folded under *Less relevant (n)*. *Reject all less relevant* and *Reject
+  all descriptions* each send one request.
 
 ## The transcript view
 
-*View transcript* (in the What we know header, and per interview in the list) opens a side
-panel: the transcript as a dialogue — a speaker column (*"Name:"* at the start of a line; a
+*View* (per source in the Sources list) opens a side panel, *Source*: the text as a dialogue — a speaker column (*"Name:"* at the start of a line; a
 .vtt / .srt transcript arrives as such lines) beside their words — with every claim's quote
 highlighted. A colour per kind (role, role history, membership, alias, property,
 description); the fill for the status: a light fill with a dashed underline while proposed,
 a solid fill once confirmed, grey and struck through when rejected; a legend says which is
 which. A highlight is a keyboard-focusable button with an aria label naming its claims; it
 opens the claim card (kind, person, value, period, status, Confirm / Reject while
-proposed). *In transcript* next to a claim in the review list — and the *left* flag in the
-members list — opens the panel scrolled to the quote, which pulses. Escape closes it.
+proposed). *In transcript* next to a claim in the review list — and a claim icon on a
+person's row in People — opens the panel scrolled to the quote, which pulses. Escape closes it.
 
 The spans come from the API: stored at extraction (and for an analyst's claim), found from
 the verbatim quote when the transcript is opened for a claim from before 100. A quote may
@@ -465,15 +503,13 @@ of 50 rows; the page hid those, and the Timeline came up empty.
 
 ## Who sees what
 
-- **Analyst** (`data.write.contexts`): everything — the card, the review list, the
-  interviews, the suggestions.
+- **Analyst** (`data.write.contexts`): everything — Add information, the attention line, the
+  review, the sources, the suggestions.
 - **Business reader** (no `data.write.contexts`) and **context owner** (the read-only
-  shared page; `…/claims` is on the owner allow-list): **confirmed claims only**, under
-  *What we know* — the API narrows the list, the page does not filter it. No card, no
-  review, no transcripts. In the members lists the role, the *left* flag and Previous
-  members are read from confirmed claims only, and are plain text. `…/previous-members` is
-  not on the context owner's allow-list, so the owner's shared page shows no Previous
-  members (it would name people outside the owner's members, with their entitlements).
+  shared page; `…/claims` and `…/people` are on the owner allow-list): **confirmed claims
+  only** — the API narrows the lists, the page does not filter them. No Add information, no
+  review buttons, no sources, no transcripts. The People overview, *Former* included, is
+  theirs too: who left and what they still hold is read from confirmed claims and decisions.
 - **The transcript stays analyst-only.** Showing it to a reader would show the words behind
   proposed and rejected claims too, and deciding which parts a reader may read is not cheap;
   the view is offered only with `data.write.contexts` (the transcript GET already required
@@ -481,13 +517,15 @@ of 50 rows; the page hid those, and the Timeline came up empty.
 
 ## On the page
 
-- **What we know** (below the template's facts, folded to one line): Description,
-  Properties, Also known as, People & roles — each with its source, the quote on expand —
-  and per person a **role timeline**
-  (*"junior (early years) → left → architect CCoE (now)"*, with bars where the interviews
-  gave dates). For an analyst also *To review* and *Interviews*.
-- **People block**: interview suggestions under Accountable and Responsible, next to the
-  best guess, with Confirm / Not this person / Choose someone else.
+- The page structure is in [Template UI](template-ui.md#4-the-page-of-a-unit-or-an-application):
+  People → What we know → Sources → Change requests → Sub-units → Timeline.
+- **People overview**: each person once, with their status, role, sources, access and the
+  claims as icons (above).
+- **What we know** (folded to one line): the unit's own facts, with each source and the
+  quote on expand; for an analyst also its own claims to review.
+- **Who answers for it** (under the name in the header): interview suggestions under
+  Accountable and Responsible, next to the best guess, with Confirm / Not this person /
+  Choose someone else.
 - **Account and person pages**: *Mentioned in interviews*, linking each context.
 
 ## Known limits

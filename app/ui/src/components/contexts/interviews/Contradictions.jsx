@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useContextClaims } from './claimsContext';
-import { contradictionCount, decisionsFor, openContradictions, panelId, RULE_TITLES, withPeriod } from './contradiction.helpers';
+import { decisionsFor, isPersonContradiction, openContradictions, panelId, RULE_TITLES, withPeriod } from './contradiction.helpers';
 import { periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Contradictions — what an interview says against what we hold ────────
@@ -15,15 +15,16 @@ import { periodLabel, sourceLabel } from './claims.helpers';
 // reader sees the open ones, without buttons. The API finds them
 // (GET …/claims → contradictions); this only shows and decides.
 //
-// ContradictionsBadge: "2 contradictions to decide" under the page header,
-// jumping to the panel.
+// On a unit's page a contradiction about a person is decided on that person's
+// row in People (Side and Choices are shared with its popover); this panel, in
+// What we know, keeps the ones about the unit itself (`unitOnly`).
 
 const BTN = 'rounded px-2 py-0.5 text-xs disabled:opacity-50';
 const PRIMARY = `${BTN} bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600`;
 const SECONDARY = `${BTN} bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600`;
 const INPUT = 'rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 
-function Side({ side, label, openTranscript }) {
+export function Side({ side, label, openTranscript }) {
   const c = side.kind === 'claim' ? side.claim : null;
   const period = c ? periodLabel(c) : '';
   return (
@@ -45,7 +46,7 @@ function Side({ side, label, openTranscript }) {
   );
 }
 
-function Choices({ con, decide }) {
+export function Choices({ con, decide }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [askPeriod, setAskPeriod] = useState(null);
@@ -85,9 +86,9 @@ function Choices({ con, decide }) {
   );
 }
 
-export default function Contradictions() {
+export default function Contradictions({ unitOnly = false }) {
   const ctx = useContextClaims();
-  const open = openContradictions(ctx?.contradictions);
+  const open = openContradictions(ctx?.contradictions).filter(c => !unitOnly || !isPersonContradiction(c));
   if (!ctx || open.length === 0) return null;
   return (
     <section id={panelId(ctx.contextId)} aria-label="Contradictions" className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
@@ -106,18 +107,5 @@ export default function Contradictions() {
         ))}
       </ul>
     </section>
-  );
-}
-
-export function ContradictionsBadge() {
-  const ctx = useContextClaims();
-  const n = openContradictions(ctx?.contradictions).length;
-  if (!ctx || n === 0) return null;
-  const show = () => document.getElementById(panelId(ctx.contextId))?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  return (
-    <button type="button" onClick={show} data-testid="contradictions-badge"
-      className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-900/60">
-      {contradictionCount(n)} to decide
-    </button>
   );
 }

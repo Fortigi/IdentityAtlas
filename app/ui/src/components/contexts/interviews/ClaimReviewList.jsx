@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import ChoosePersonModal from './ChoosePersonModal';
-import { ContradictionsBadge } from './Contradictions';
-import { KIND_LABELS, byRelevance, claimLine, isLowConfidence, isUncertainMatch, periodLabel, sourceLabel } from './claims.helpers';
+import { KIND_LABELS, byRelevance, claimLine, isLowConfidence, isUncertainMatch, needsPerson, periodLabel, sourceLabel } from './claims.helpers';
 
 // ─── Claims waiting for review ───────────────────────────────────────────
 // One row per proposed claim: its kind, who it is about (flagged when the match
@@ -22,10 +21,6 @@ const INPUT = 'rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tex
 const PRIMARY = `${BTN} bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600`;
 const SECONDARY = `${BTN} bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600`;
 const LINK = 'text-xs text-blue-700 underline hover:text-blue-800 disabled:opacity-50 dark:text-blue-300 dark:hover:text-blue-200';
-
-function needsPerson(claim) {
-  return claim.claimKind === 'role' && !!claim.roleSuggestion && !claim.principalId && !claim.identityId;
-}
 
 function ClaimRow({ claim, decide, openTranscript }) {
   const [editing, setEditing] = useState(false);
@@ -122,7 +117,6 @@ export default function ClaimReviewList({ claims, decide, rejectMany, openTransc
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
         <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300">To review ({claims.length})</h4>
-        <ContradictionsBadge />
       </div>
       <BulkActions low={low.length} descriptions={descriptions} rejectMany={rejectMany} />
       {high.length > 0 && <ul aria-label="Claims to review" className="divide-y divide-gray-100 dark:divide-gray-700">{high.map(row)}</ul>}

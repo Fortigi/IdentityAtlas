@@ -7,9 +7,9 @@
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import ClaimsProvider from './ClaimsProvider';
-import WhatWeKnow from './WhatWeKnow';
 import InterviewMentions from './InterviewMentions';
-import UploadInterviewCard from './UploadInterviewCard';
+import AddInformation from './AddInformation';
+import SourcesSection from './SourcesSection';
 import { useContextClaims } from './claimsContext';
 import { renderWithProviders, makeAuthFetch, screen, waitFor } from '@ui/test-utils/renderWithProviders';
 
@@ -24,18 +24,18 @@ function Probe() {
 function page(features) {
   const authFetch = makeAuthFetch({ [`/api/contexts/${CTX}/claims`]: { data: [], contradictions: [] }, [`/api/contexts/${CTX}/interviews`]: { data: [] } });
   renderWithProviders(
-    h(ClaimsProvider, { contextId: CTX }, h(Probe), h(WhatWeKnow), h(UploadInterviewCard, { attrs: { id: CTX } })),
+    h(ClaimsProvider, { contextId: CTX }, h(Probe), h(AddInformation, { contextId: CTX }), h(SourcesSection, { id: 'src', contextId: CTX })),
     { auth: { authFetch }, features },
   );
   return authFetch;
 }
 
 describe('organisation knowledge switched off', () => {
-  it('the unit page gets no claims: no provider, no What we know, no Upload interview — and no request', async () => {
+  it('the unit page gets no claims: no provider, no Add information, no Sources — and no request', async () => {
     const authFetch = page({});
     expect(screen.getByTestId('probe')).toHaveTextContent('no provider');
-    expect(screen.queryByRole('region', { name: /What we know/ })).toBeNull();
-    expect(screen.queryByTestId('action-upload-interview')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Add information/ })).toBeNull();
+    expect(screen.queryByTestId('sources')).toBeNull();
     expect(authFetch).not.toHaveBeenCalled();
   });
 

@@ -30,3 +30,12 @@ export function moreText(group) {
   const more = group.total - group.items.length;
   return more > 0 ? `+ ${formatCount(more)} more` : null;
 }
+
+// The member id a People row stands for in its context, or null when the row is
+// not one of the context's own members (the member list does not list them —
+// a former member, or someone only an interview names). An Identity context
+// lists people, any other accounts.
+export function listedMemberId(person, targetType) {
+  if (!(person.sources || []).includes('list')) return null;
+  return (targetType === 'Identity' ? person.identityId : person.principalId) || null;
+}

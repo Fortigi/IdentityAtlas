@@ -5,7 +5,8 @@ import path from 'path';
 // Vitest config used only by the context-interviews mutation run
 // (stryker.contextinterviews.config.json). Standalone for the same sandbox reason as
 // vitest.stryker.roles.config.js. The include is the helpers tests and the mount
-// tests that drive the interviews UI through ContextProfile and the members tab.
+// tests that drive the People overview, What we know, Sources, the review drawer
+// and the unit page body.
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -19,11 +20,17 @@ export default defineConfig({
       'src/components/contexts/interviews/interviewKnowledge.mount.test.jsx',
       'src/components/contexts/interviews/transcript.helpers.test.js',
       'src/components/contexts/interviews/memberInterview.helpers.test.js',
-      'src/components/contexts/interviews/interviewHistory.mount.test.jsx',
+      'src/components/contexts/interviews/whatWeKnowFacts.mount.test.jsx',
       'src/components/contexts/interviews/contradictions.mount.test.jsx',
       'src/components/contexts/changeRequests/changeRequests.mount.test.jsx',
-      'src/components/contexts/interviews/memberOverrides.mount.test.jsx',
+      'src/components/contexts/people/people.helpers.test.js',
+      'src/components/contexts/people/PeopleSection.mount.test.jsx',
+      'src/components/contexts/people/PersonClaims.mount.test.jsx',
+      'src/components/contexts/page/ProfileBody.mount.test.jsx',
       'src/components/contexts/interviews/orgKnowledgeOff.mount.test.jsx',
+      'src/components/EntityTimeline.helpers.test.js',
+      'src/components/EntityTimeline.test.jsx',
+      'src/components/EntityTimeline.filter.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

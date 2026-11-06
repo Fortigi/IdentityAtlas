@@ -34,7 +34,11 @@ describe('GET /api/reports', () => {
     for (const entry of res.body.data) {
       expect(entry.form).toBe('list');
       expect(entry.columns.length).toBeGreaterThan(0);
-      for (const col of entry.columns) expect(col).toEqual({ key: expect.any(String), label: expect.any(String) });
+      for (const { headerFill, ...col } of entry.columns) {
+        expect(col).toEqual({ key: expect.any(String), label: expect.any(String) });
+        // A column's own header colour, when it has one, is an ARGB string the workbook can use.
+        if (headerFill !== undefined) expect(headerFill).toMatch(/^[0-9A-F]{8}$/);
+      }
       expect(entry.parametersSchema).toBeTruthy();
       // The client offers the formats the server actually serves, rather than
       // assuming them.
@@ -81,15 +85,15 @@ describe('GET /api/reports/:name/rows', () => {
     try {
       const capped = (await request(app).get('/api/reports/zz-liftable/rows?x=1').expect(200)).body;
       expect(capped).toMatchObject({ total: 1, truncated: true, canLoadAllRows: true });
-      expect(run).toHaveBeenLastCalledWith({ x: '1' }, { allRows: false });
+      expect(run).toHaveBeenLastCalledWith({ x: '1' }, expect.objectContaining({ allRows: false }));
 
       const all = (await request(app).get('/api/reports/zz-liftable/rows?x=1&allRows=true').expect(200)).body;
       expect(all).toMatchObject({ total: 2, truncated: false, canLoadAllRows: false });
-      expect(run).toHaveBeenLastCalledWith({ x: '1' }, { allRows: true });
+      expect(run).toHaveBeenLastCalledWith({ x: '1' }, expect.objectContaining({ allRows: true }));
 
       // Anything but the literal "true" is no request to wait.
       await request(app).get('/api/reports/zz-liftable/rows?allRows=1').expect(200);
-      expect(run).toHaveBeenLastCalledWith({}, { allRows: false });
+      expect(run).toHaveBeenLastCalledWith({}, expect.objectContaining({ allRows: false }));
     } finally {
       unregister();
     }
@@ -129,6 +133,48 @@ describe('GET /api/reports/:name/rows', () => {
   it('404s rather than dispatching on an inherited Object.prototype key', async () => {
     await request(app).get('/api/reports/constructor/rows').expect(404);
     await request(app).get('/api/reports/toString/rows').expect(404);
+  });
+});
+
+describe('what a run is told about its reader', () => {
+  it('passes the claim statuses the reader may see — in open mode every non-rejected one — to rows and downloads alike', async () => {
+    const seen = [];
+    const unregister = registerReport({
+      name: 'reader-aware-report', displayName: 'Reader Aware', description: 'Records its context.', form: 'list',
+      parametersSchema: { type: 'object', required: [], properties: {} },
+      columns: [{ key: 'a', label: 'A' }],
+      run: async (params, ctx) => { seen.push(ctx); return { rows: [] }; },
+    });
+    try {
+      await request(app).get('/api/reports/reader-aware-report/rows').expect(200);
+      await request(app).get('/api/reports/reader-aware-report/export?format=csv').expect(200);
+    } finally {
+      unregister();
+    }
+    // And whether organisation knowledge is on: off by default, so the unit report drops its claim columns.
+    // The row-cap choice travels in the same context: the screen did not ask, the download always does.
+    expect(seen).toEqual([
+      { claimStatuses: ['proposed', 'confirmed', 'edited'], orgKnowledge: false, allRows: false },
+      { claimStatuses: ['proposed', 'confirmed', 'edited'], orgKnowledge: false, allRows: true },
+    ]);
+  });
+
+  it('tells the run when organisation knowledge is on', async () => {
+    const seen = [];
+    const unregister = registerReport({
+      name: 'knowledge-aware-report', displayName: 'Knowledge Aware', description: 'Records its context.', form: 'list',
+      parametersSchema: { type: 'object', required: [], properties: {} },
+      columns: [{ key: 'a', label: 'A' }],
+      run: async (params, ctx) => { seen.push(ctx.orgKnowledge); return { rows: [] }; },
+    });
+    process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    try {
+      await request(app).get('/api/reports/knowledge-aware-report/rows').expect(200);
+    } finally {
+      delete process.env.FEATURE_ORG_KNOWLEDGE;
+      unregister();
+    }
+    expect(seen).toEqual([true]);
   });
 });
 
@@ -175,7 +221,7 @@ describe('GET /api/reports/:name/export', () => {
     try {
       const res = await request(app).get('/api/reports/zz-capped-download/export?format=csv&allRows=false&x=1').expect(200);
       expect(res.text).toBe('"A"\r\n"1"\r\n"2"');
-      expect(run).toHaveBeenCalledWith({ x: '1' }, { allRows: true });
+      expect(run).toHaveBeenCalledWith({ x: '1' }, expect.objectContaining({ allRows: true }));
     } finally {
       unregisterCapped();
     }

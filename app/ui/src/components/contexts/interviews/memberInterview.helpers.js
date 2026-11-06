@@ -1,17 +1,9 @@
-// Context interviews — how the members lists word what the interviews say about
-// a person (the API's `interview: { role, left }` per member, and the previous
-// members). Pure; the data comes ready from the API (contexts/interviews/
-// memberFacts.js) — these only word it.
+// Context interviews — how the People overview words what the sources say about
+// a person (the API's role / left / rejoined facts and the decision on a person,
+// GET /api/contexts/:id/people). Pure; the data comes ready from the API
+// (contexts/interviews/people.js, memberFacts.js) — these only word it.
 
 import { periodLabel, sourceLabel, CONFIRMED } from './claims.helpers';
-
-export const LEFT_WORDS = { left: 'left', former: 'former member' };
-
-/** "Interview: left (last month)" — the status, and when as said, else the period, else when it was said. */
-export function leftFlagText(left) {
-  const when = periodLabel(left) || `said ${left.interviewedAt}`;
-  return `Interview: ${LEFT_WORDS[left.membershipStatus] || left.membershipStatus} (${when})`;
-}
 
 /** The tooltip of a claim fact: the quote and its source. */
 export function factTitle(fact) {
@@ -19,29 +11,9 @@ export function factTitle(fact) {
   return fact.quote ? `“${fact.quote}” — ${source}` : source;
 }
 
-/** "junior (early years) → Lead architect (now)": a person's roles there, oldest first. */
-export function roleHistoryText(role) {
-  return (role?.history || []).map(h => {
-    const period = periodLabel(h);
-    return period ? `${h.value} (${period})` : h.value;
-  }).join(' → ');
-}
-
-/** The tooltip of the role cell: the history when there is more than one role, else the quote and source. */
-export function roleTitle(role) {
-  return (role.history?.length ?? 0) > 1 ? roleHistoryText(role) : factTitle(role);
-}
-
 /** A proposed claim reads as not yet known: dashed and italic; a confirmed one is plain. */
 export function factClass(status) {
   return CONFIRMED.has(status) ? '' : 'italic border-b border-dashed border-gray-400 dark:border-gray-500';
-}
-
-/** "12 entitlements" | "none" — what an account or person still holds; null when not matched. */
-export function entitlementText(n) {
-  if (n === null || n === undefined) return null;
-  if (n === 0) return 'none';
-  return `${n.toLocaleString('en-US')} ${n === 1 ? 'entitlement' : 'entitlements'}`;
 }
 
 const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -51,13 +23,7 @@ export function earlierRolesText(rejoined) {
   return (rejoined?.earlier || []).map(e => capitalize(e.value)).join(' → ');
 }
 
-/** "rejoined · earlier: Junior developer" — the marker on a current member who came back. */
-export function rejoinedText(rejoined) {
-  const earlier = earlierRolesText(rejoined);
-  return earlier ? `rejoined · earlier: ${earlier}` : 'rejoined';
-}
-
-/** The marker's tooltip: what was said, by whom, and the earlier roles with their periods. */
+/** What was said about coming back, by whom, and the earlier roles with their periods. */
 export function rejoinedTitle(rejoined) {
   const periods = (rejoined.earlier || []).map(e => {
     const period = periodLabel(e);
@@ -66,27 +32,12 @@ export function rejoinedTitle(rejoined) {
   return [factTitle(rejoined), periods.length ? `Earlier: ${periods.join(' → ')}` : null].filter(Boolean).join('\n');
 }
 
-/** "Junior developer (earlier period)" — a previous-members row for the earlier stint. */
-export function earlierStintText(person) {
-  const role = earlierRolesText(person.rejoined);
-  return role ? `${role} (earlier period)` : 'earlier period';
-}
-
-/** The DOM id of a member's row, so another list can point at it. */
-export const memberRowId = (id) => `context-member-${id}`;
-
-// ─── Marked former by a decision (the API's `overridden` / `decision`) ────
-// An interview said the person left, an analyst decided "the interview is
-// right", and the source still lists them: the members list leaves them out of
-// the current members, Previous members lists them. The source is not changed.
+// ─── Marked former by a decision (the API's `decision`) ───────────────────
+// A source said the person left, an analyst decided "the source is right", and
+// the member list still lists them: the People overview shows them as Left
+// (decided). The member list is not changed.
 
 const day = (at) => (at ? String(at).slice(0, 10) : null);
-
-/** "1 marked as former by a decision" — the note under the members; '' for none. */
-export function overriddenNoteText(n) {
-  if (!n) return '';
-  return `${n.toLocaleString('en-US')} marked as former by a decision`;
-}
 
 /** "Decided by Ann, 2026-10-23: the interview is right — Klanten (upload) still lists them". */
 export function decisionText(decision, stillListed = true) {
@@ -97,9 +48,3 @@ export function decisionText(decision, stillListed = true) {
 
 /** The hint beside a decision while the source still lists the person. */
 export const STILL_LISTED_HINT = 'Still listed in the source — remove it there or re-import without them.';
-
-/** "Marked former by a decision (overrides Klanten (upload))" — on a revealed row in the members list. */
-export const overriddenRowText = (decision) => `Marked former by a decision (overrides ${decision.overrides})`;
-
-/** The classes of a revealed row's name: struck through and greyed. */
-export const overriddenNameClass = (decision) => (decision ? ' line-through text-gray-500 dark:text-gray-400' : '');

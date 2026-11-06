@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
-// Change requests on the context page: what the source still has to change,
-// open first, closed folded away; nothing at all while the unit has none.
+// Change requests on the context page: what the source still has to change, in
+// a section folded to its count, open first, closed folded away; nothing at all
+// while the unit has none. The page reads them once (useChangeRequests) for the
+// section and the attention line.
 // Invented names.
 import { describe, it, expect } from 'vitest';
 import { createElement as h } from 'react';
 import ChangeRequestsPanel from './ChangeRequestsPanel';
+import { useChangeRequests } from './useChangeRequests';
 import { ClaimsContext } from '@ui/components/contexts/interviews/claimsContext';
 import { closedLine, countLabel, raisedLine, splitRequests } from './changeRequests.helpers';
 import { render as rtlRender } from '@testing-library/react';
@@ -48,22 +51,30 @@ describe('changeRequests.helpers', () => {
   });
 });
 
-function render(items, seen = [], features = ON) {
+// The section as the page wires it: the hook reads, the panel shows.
+function Section({ enabled = true }) {
+  const requests = useChangeRequests('c-unit', { enabled });
+  return h(ChangeRequestsPanel, { id: 'cr', requests });
+}
+
+function render(items, seen = [], props = {}, features = ON) {
   const authFetch = makeAuthFetch((url) => {
     seen.push(url);
     if (url === '/api/change-requests?contextId=c-unit') return jsonResponse({ items, counts: {} });
     return undefined;
   });
-  return renderWithProviders(h(ChangeRequestsPanel, { contextId: 'c-unit' }), { auth: { authFetch, ...READER }, features });
+  return renderWithProviders(h(Section, props), { auth: { authFetch, ...READER }, features });
 }
 
 describe('ChangeRequestsPanel', () => {
-  it('lists the open requests with their source, and folds the closed ones away', async () => {
+  it('folds to its count; open, it lists the open requests with their source and folds the closed ones away', async () => {
     const seen = [];
     render([OPEN, RESOLVED, WITHDRAWN], seen);
-    expect(await screen.findByText('Remove Lotte Lindeboom from Harbour Office')).toBeTruthy();
+    expect(await screen.findByTestId('change-requests-summary')).toHaveTextContent(/^1 open · 2 closed$/);
+    expect(screen.queryByText('Remove Lotte Lindeboom from Harbour Office')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /^Change requests/ }));
+    expect(screen.getByText('Remove Lotte Lindeboom from Harbour Office')).toBeTruthy();
     expect(screen.getByText('HR export (upload) · raised by analyst@example.test on 2026-10-23')).toBeTruthy();
-    expect(screen.getByTestId('change-requests-count').textContent).toBe('1 open · 2 closed');
     expect(screen.queryByText('Remove Jan Smit from Harbour Office')).toBeNull();
     expect(seen).toEqual(['/api/change-requests?contextId=c-unit']);
 
@@ -77,39 +88,46 @@ describe('ChangeRequestsPanel', () => {
 
   it('shows only the closed toggle when nothing is open', async () => {
     render([RESOLVED]);
-    expect(await screen.findByRole('button', { name: 'Show closed (1)' })).toBeTruthy();
-    expect(screen.getByTestId('change-requests-count').textContent).toBe('1 closed');
+    expect(await screen.findByTestId('change-requests-summary')).toHaveTextContent(/^1 closed$/);
+    await userEvent.click(screen.getByRole('button', { name: /^Change requests/ }));
+    expect(screen.getByRole('button', { name: 'Show closed (1)' })).toBeTruthy();
     expect(screen.queryByRole('list')).toBeNull();
   });
 
-  it('reads again when the unit\'s claims change (a decision), and not before', async () => {
-    const seen = [];
-    const authFetch = makeAuthFetch((url) => { seen.push(url); return jsonResponse({ items: [OPEN], counts: {} }); });
-    const { wrapper: Wrapper } = makeWrapper({ auth: { authFetch, ...READER }, features: ON });
-    const panel = (claims) => h(Wrapper, null, h(ClaimsContext.Provider, { value: { claims } }, h(ChangeRequestsPanel, { contextId: 'c-unit' })));
-    const claims = [{ id: 'm-1' }];
-    const { rerender } = rtlRender(panel(claims));
-    await screen.findByText('Remove Lotte Lindeboom from Harbour Office');
-    expect(seen).toHaveLength(1);
-    rerender(panel(claims));
-    expect(seen).toHaveLength(1);
-    rerender(panel([{ id: 'm-1', status: 'confirmed' }]));
-    await waitFor(() => expect(seen).toHaveLength(2));
-    expect(seen).toEqual(['/api/change-requests?contextId=c-unit', '/api/change-requests?contextId=c-unit']);
-  });
-
-  it('asks nothing and shows nothing while organisation knowledge is off', async () => {
-    const seen = [];
-    const { container } = render([OPEN], seen, {});
-    await new Promise(r => setTimeout(r, 20));
-    expect(seen).toEqual([]);
-    expect(container.querySelector('section')).toBeNull();
-  });
-
-  it('shows nothing while the unit has no request', async () => {
+  it('shows nothing while the unit has no request, and reads nothing for a reader the page leaves it out for', async () => {
     const seen = [];
     const { container } = render([], seen);
     await waitFor(() => expect(seen).toHaveLength(1));
     expect(container.querySelector('section')).toBeNull();
+    const none = [];
+    render([OPEN], none, { enabled: false });
+    await new Promise(r => setTimeout(r, 0));
+    expect(none).toEqual([]);
+  });
+
+  it('asks nothing and shows nothing while organisation knowledge is off', async () => {
+    const seen = [];
+    const { container } = render([OPEN], seen, {}, {});
+    await new Promise(r => setTimeout(r, 20));
+    expect(seen).toEqual([]);
+    expect(container.querySelector('section')).toBeNull();
+  });
+});
+
+describe('useChangeRequests', () => {
+  it('reads again when the unit\'s claims change (a decision), and not before', async () => {
+    const seen = [];
+    const authFetch = makeAuthFetch((url) => { seen.push(url); return jsonResponse({ items: [OPEN], counts: {} }); });
+    const { wrapper: Wrapper } = makeWrapper({ auth: { authFetch, ...READER }, features: ON });
+    const page = (claims) => h(Wrapper, null, h(ClaimsContext.Provider, { value: { claims } }, h(Section)));
+    const claims = [{ id: 'm-1' }];
+    const { rerender } = rtlRender(page(claims));
+    expect(await screen.findByTestId('change-requests-summary')).toHaveTextContent('1 open');
+    expect(seen).toHaveLength(1);
+    rerender(page(claims));
+    expect(seen).toHaveLength(1);
+    rerender(page([{ id: 'm-1', status: 'confirmed' }]));
+    await waitFor(() => expect(seen).toHaveLength(2));
+    expect(seen).toEqual(['/api/change-requests?contextId=c-unit', '/api/change-requests?contextId=c-unit']);
   });
 });

@@ -69,6 +69,21 @@ export function buildMemberInsertBatch(slice, newByExternalId, targetType) {
   return { values, params };
 }
 
+// The (context, member) pairs a run produces, resolved to final context ids, as
+// two parallel arrays for unnest(). Dangling references are skipped, as in
+// buildMemberInsertBatch.
+export function producedMemberPairs(members, newByExternalId) {
+  const contextIds = [];
+  const memberIds = [];
+  for (const m of members) {
+    const ctxId = newByExternalId.get(m.contextExternalId);
+    if (!ctxId) continue;
+    contextIds.push(ctxId);
+    memberIds.push(m.memberId);
+  }
+  return { contextIds, memberIds };
+}
+
 // The externalId of the root a run is wrapped under (see withPluginRoot). Fixed,
 // so every re-run of a tree matches the same row and reuses its id.
 export const PLUGIN_ROOT_EXTERNAL_ID = '__plugin-root__';

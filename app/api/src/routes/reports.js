@@ -16,6 +16,8 @@ import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, contentDisposition, exportFilename, resolveExportFormat,
   singleSubject,
 } from '../reports/export.js';
+import { claimStatusesFor } from './contexts/interviews.js';
+import { orgKnowledgeEnabled } from '../featureFlags.js';
 
 const router = Router();
 
@@ -33,6 +35,14 @@ function splitAllRows(query) {
 // download and the MCP server, so none of them can show what the others don't.
 // The one difference is the row cap: a download always asks for every row
 // (`allRows`), the screen only when the reader chose to wait for them.
+//
+// The run's second argument says who is asking, in the one way a template may
+// care: `claimStatuses`, the claim statuses this reader may see (a context owner
+// and any reader without data.write.contexts: confirmed only) — the unit
+// report's organisational-claim columns follow the same rule as the People overview —
+// and orgKnowledge, whether organisation knowledge is on (featureFlags.js): off,
+// the unit report has no organisational-claim columns at all.
+export const runContext = async req => ({ claimStatuses: claimStatusesFor(req), orgKnowledge: await orgKnowledgeEnabled() });
 
 // Use the registry's name, not the raw URL param, so nothing user-controlled
 // reaches the log; the client gets a generic message.
@@ -58,7 +68,7 @@ router.get('/reports/:name/rows', async (req, res) => {
   if (!report) return res.status(404).json({ error: 'Report not found' });
   try {
     const { params, allRows } = splitAllRows(req.query);
-    res.json(await runReport(report, params, { allRows }));
+    res.json(await runReport(report, params, { ...(await runContext(req)), allRows }));
   } catch (err) {
     reportFailed(res, report, 'rows', err);
   }
@@ -89,7 +99,7 @@ router.get('/reports/:name/export', async (req, res) => {
     // `carriesContext` and gets it, and every other format is served exactly the
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
-    const full = await runReport(report, params, { allRows: true });
+    const full = await runReport(report, params, { ...(await runContext(req)), allRows: true });
     const { notices: _screenOnly, constantColumns: _headerOnly, details: _aboutOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 

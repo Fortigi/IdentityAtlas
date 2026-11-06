@@ -11,7 +11,7 @@ import ExcelJS from 'exceljs';
 import {
   DEFAULT_EXPORT_FORMAT, EXPORT_FORMATS, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
   contentDisposition, singleSubject, subjectFileName,
-  splitConstantColumns,
+  splitConstantColumns, headerFill,
 } from './export.js';
 
 const csv = (report) => EXPORT_FORMATS.csv.serialize(report);
@@ -123,6 +123,24 @@ async function workbookOf(report) {
   await workbook.xlsx.load(buffer);
   return workbook;
 }
+describe("xlsx — a column's own header colour", () => {
+  it('fills a header with the colour its column asks for, and every other header with the default', async () => {
+    const sheet = await sheetOf({
+      ...REPORT,
+      columns: [{ key: 'displayName', label: 'Account' }, { key: 'email', label: 'Email', headerFill: 'fffef3c7' }],
+    });
+    expect(sheet.getRow(1).getCell(1).fill.fgColor.argb).toBe('FFF3F4F6');
+    expect(sheet.getRow(1).getCell(2).fill.fgColor.argb).toBe('FFFEF3C7');
+  });
+
+  it('ignores a colour that is not eight hex digits', () => {
+    for (const bad of ['amber', 'FEF3C7', 'FFFEF3C7X', 42, null]) {
+      expect(headerFill({ headerFill: bad }).fgColor.argb, String(bad)).toBe('FFF3F4F6');
+    }
+    expect(headerFill(undefined).fgColor.argb).toBe('FFF3F4F6');
+  });
+});
+
 /** The Data tab: the table and nothing else. */
 const sheetOf = async report => (await workbookOf(report)).getWorksheet('Data');
 /** The Summary tab: what the table is, and everything said about it. */

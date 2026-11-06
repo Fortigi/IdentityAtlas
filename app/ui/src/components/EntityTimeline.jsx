@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { formatDate, formatDateOnly, friendlyLabel } from '@ui/utils/formatters';
 import { OP_STYLES, KIND_TO_TAB, renderSummaryWithLink } from './RecentChangesSection.helpers.jsx';
+import { CATEGORY_LABELS, categoriesIn, categoryDayLabel, foldBursts, withoutHidden } from './EntityTimeline.helpers';
 
 // ─── EntityTimeline ────────────────────────────────────────────────────
 // Horizontal timeline for the user-detail Timeline tab. Each "moment" (a
@@ -48,6 +49,8 @@ function dotBorder(moment) {
 }
 
 function contextLabel(moment) {
+  const byCategory = categoryDayLabel(moment.events);
+  if (byCategory) return byCategory;
   const { attr, rel, interview, created } = summarize(moment);
   if (created) return 'Created';
   return [attr && `${attr} attr`, rel && `${rel} rel`, interview && `${interview} interview`].filter(Boolean).join(' · ');
@@ -79,12 +82,78 @@ function AttributeDiff({ attribute }) {
   );
 }
 
+// One line of a day's detail: the time, what kind of change, and what happened.
+function EventLine({ ev, onOpenDetail }) {
+  const style = OP_STYLES[ev.operation] || OP_STYLES.changed;
+  const target = KIND_TO_TAB[ev.counterpartyKind];
+  const linkable = onOpenDetail && ev.counterpartyLabel && target && ev.counterpartyId;
+  let body = <span>{ev.summary}</span>;
+  if (ev.eventKind === 'attribute' && ev.attribute) body = <AttributeDiff attribute={ev.attribute} />;
+  else if (linkable) body = renderSummaryWithLink(ev, target, onOpenDetail);
+  return (
+    <li className="flex items-start gap-2">
+      <span className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0 w-12" title={formatDate(ev.at)}>
+        {new Date(ev.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+      </span>
+      <span className={`mt-0.5 inline-block px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${style.badge}`}>
+        {style.label}
+      </span>
+      <div className="text-sm text-gray-900 dark:text-gray-100">
+        {body}
+        {ev.detail && <span className="block text-xs italic text-gray-600 dark:text-gray-400">{ev.detail}</span>}
+      </div>
+    </li>
+  );
+}
+
+// A burst of like events (a list upload adding 40 people), folded to one line.
+function BurstLine({ line, onOpenDetail }) {
+  return (
+    <li data-testid="timeline-burst">
+      <details>
+        <summary className="cursor-pointer text-sm text-gray-900 dark:text-gray-100">{line.label}</summary>
+        <ul className="mt-1 space-y-1 pl-4">
+          {line.events.map((ev, i) => <EventLine key={i} ev={ev} onOpenDetail={onOpenDetail} />)}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
+// People · Roles · Structure · Knowledge — shown when the events carry a category (a unit's timeline).
+function CategoryFilter({ categories, hidden, onToggle }) {
+  if (categories.length < 2) return null;
+  return (
+    <div className="flex flex-wrap gap-1 px-4 pt-2" role="group" aria-label="Show">
+      {categories.map(c => {
+        const on = !hidden.has(c);
+        return (
+          <button key={c} type="button" aria-pressed={on} onClick={() => onToggle(c)}
+            className={`px-2 py-0.5 rounded-full text-xs border ${on
+              ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+              : 'border-gray-200 text-gray-500 dark:border-gray-700 dark:text-gray-400'}`}>
+            {CATEGORY_LABELS[c]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EntityTimeline({ events, loading, sinceDays, onSinceDaysChange, onOpenDetail, hideFields }) {
+  const [hidden, setHidden] = useState(() => new Set());
+  const categories = useMemo(() => categoriesIn(events), [events]);
+  const toggleCategory = (c) => setHidden(prev => {
+    const next = new Set(prev);
+    if (next.has(c)) next.delete(c); else next.add(c);
+    return next;
+  });
+
   // Group events into one dot per DAY, oldest → newest (left → right). A day's
   // dot bundles everything that changed that day; clicking it lists them all.
   const moments = useMemo(() => {
     const byDay = new Map();
-    for (const ev of visibleEvents(events, hideFields)) {
+    for (const ev of withoutHidden(visibleEvents(events, hideFields), hidden)) {
       const d = new Date(ev.at);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!byDay.has(key)) byDay.set(key, { at: ev.at, events: [] });
@@ -96,7 +165,7 @@ export default function EntityTimeline({ events, loading, sinceDays, onSinceDays
     for (const m of arr) m.events.sort((a, b) => new Date(a.at) - new Date(b.at));
     arr.sort((a, b) => new Date(a.at) - new Date(b.at));
     return arr;
-  }, [events, hideFields]);
+  }, [events, hideFields, hidden]);
 
   // Default selection = the most recent moment (no effect needed, so it also
   // renders correctly server-side). Clicking a dot overrides it.
@@ -132,6 +201,7 @@ export default function EntityTimeline({ events, loading, sinceDays, onSinceDays
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Timeline</h3>
         {RangeSelector}
       </div>
+      <CategoryFilter categories={categories} hidden={hidden} onToggle={toggleCategory} />
 
       {loading ? (
         <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">Loading timeline…</div>
@@ -177,31 +247,9 @@ export default function EntityTimeline({ events, loading, sinceDays, onSinceDays
               <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">{contextLabel(moments[selIdx])}</span>
             </h4>
             <ul className="space-y-2">
-              {moments[selIdx].events.map((ev, i) => {
-                const style = OP_STYLES[ev.operation] || OP_STYLES.changed;
-                const target = KIND_TO_TAB[ev.counterpartyKind];
-                const linkable = onOpenDetail && ev.counterpartyLabel && target && ev.counterpartyId;
-                return (
-                  <li key={i} className="flex items-start gap-2">
-                    <span className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0 w-12" title={formatDate(ev.at)}>
-                      {new Date(ev.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className={`mt-0.5 inline-block px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${style.badge}`}>
-                      {style.label}
-                    </span>
-                    <div className="text-sm text-gray-900 dark:text-gray-100">
-                      {ev.eventKind === 'attribute' && ev.attribute ? (
-                        <AttributeDiff attribute={ev.attribute} />
-                      ) : linkable ? (
-                        renderSummaryWithLink(ev, target, onOpenDetail)
-                      ) : (
-                        <span>{ev.summary}</span>
-                      )}
-                      {ev.detail && <span className="block text-xs italic text-gray-600 dark:text-gray-400">{ev.detail}</span>}
-                    </div>
-                  </li>
-                );
-              })}
+              {foldBursts(moments[selIdx].events).map((line, i) => (line.kind === 'burst'
+                ? <BurstLine key={line.key} line={line} onOpenDetail={onOpenDetail} />
+                : <EventLine key={i} ev={line.event} onOpenDetail={onOpenDetail} />))}
             </ul>
           </div>
         </>

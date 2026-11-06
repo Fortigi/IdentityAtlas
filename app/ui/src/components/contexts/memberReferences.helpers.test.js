@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { REFERENCE_LABELS, referenceDetail, moreText, formatCount } from './memberReferences.helpers';
+import { REFERENCE_LABELS, referenceDetail, moreText, formatCount, listedMemberId } from './memberReferences.helpers';
 
 describe('referenceDetail', () => {
   it('reads a held resource as type · system · assignment type', () => {
@@ -48,5 +48,23 @@ describe('moreText', () => {
 it('labels the four groups', () => {
   expect(REFERENCE_LABELS).toEqual({
     resources: 'Groups & resources', businessRoles: 'Business roles', contexts: 'Other contexts', holders: 'Held by',
+  });
+});
+
+describe('listedMemberId', () => {
+  const person = { principalId: 'p-1', identityId: 'i-1', sources: ['interview', 'list'] };
+
+  it('is the person in a context of people, the account in any other', () => {
+    expect(listedMemberId(person, 'Identity')).toBe('i-1');
+    expect(listedMemberId(person, 'Principal')).toBe('p-1');
+  });
+
+  it('is null for a row the member list does not hold, whatever ids it carries', () => {
+    expect(listedMemberId({ ...person, sources: ['interview'] }, 'Identity')).toBeNull();
+    expect(listedMemberId({ principalId: 'p-1' }, 'Principal')).toBeNull();
+  });
+
+  it('is null when the row lacks the id its context lists by', () => {
+    expect(listedMemberId({ principalId: 'p-1', identityId: null, sources: ['list'] }, 'Identity')).toBeNull();
   });
 });

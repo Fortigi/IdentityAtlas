@@ -64,6 +64,34 @@ const rootCount = async () =>
     [PLUGIN_NAME],
   )).rows[0].n;
 
+// The membership history rows (migration 109) of the plugin's tree.
+const memberHistory = async () =>
+  (await pool.query(
+    `SELECT h.operation, h."rowData"->>'memberId' AS "memberId" FROM "_history" h
+      WHERE h."tableName" = 'ContextMembers'
+        AND h."rowId" IN (SELECT c.id::text FROM "Contexts" c JOIN "ContextAlgorithms" a ON a.id = c."sourceAlgorithmId" WHERE a.name = $1)
+      ORDER BY h.id`,
+    [PLUGIN_NAME],
+  )).rows;
+
+describe('refreshGeneratedContexts — membership history', () => {
+  it('records each member joining once; a refresh that changes nothing records nothing, a new member one join', async () => {
+    await seed();
+    await enqueueRun(PLUGIN_NAME, { systemId, values: ['ServicePrincipal'] }, 'initial', { awaitCompletion: true });
+    const first = await memberHistory();
+    expect(first.map(r => r.operation)).toEqual(['I', 'I', 'I']);
+
+    await refreshGeneratedContexts('crawl-refresh', { awaitCompletion: true });
+    expect(await memberHistory()).toEqual(first);
+
+    const added = await pool.query(
+      `INSERT INTO "Principals" ("systemId", "displayName", "principalType") VALUES ($1, 'refresh-ct-new', 'ServicePrincipal') RETURNING id`, [systemId]);
+    await refreshGeneratedContexts('crawl-refresh', { awaitCompletion: true });
+    const after = await memberHistory();
+    expect(after.slice(first.length)).toEqual([{ operation: 'I', memberId: added.rows[0].id }]);
+  });
+});
+
 describe('refreshGeneratedContexts — legacy NULL-key tree', () => {
   it('updates the existing tree in place across repeated crawls (never duplicates)', async () => {
     await seed();

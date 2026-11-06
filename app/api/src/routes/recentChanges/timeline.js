@@ -12,6 +12,9 @@ import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounte
 import { loadInterviewTimeline } from '../../contexts/interviews/timelineEvents.js';
 import { canWriteContexts } from '../contexts/interviews.js';
 import { orgKnowledgeEnabled } from '../../featureFlags.js';
+import { loadUnitTimeline } from '../../contexts/timeline/unitTimeline.js';
+
+export { CONTEXT_NOISE_FIELDS } from '../../contexts/timeline/unitTimeline.js';
 
 const router = Router();
 
@@ -301,7 +304,7 @@ export function timelineSql(entityKind) {
   `;
 }
 
-async function runTimeline(res, { entityKind, id, sinceDays, limit, extraEvents }) {
+async function runTimeline(res, { entityKind, id, sinceDays, limit }) {
   const r = await db.query(timelineSql(entityKind), [sinceDays, id, limit * 2]);
   const labels = await resolveTimelineLabels(r.rows);
   const built = buildEntityTimeline(entityKind, id, r.rows, labels);
@@ -318,18 +321,20 @@ async function runTimeline(res, { entityKind, id, sinceDays, limit, extraEvents 
     }
   }
 
-  // A context's interviews: uploads, extraction, claim decisions and what they changed.
-  if (extraEvents) {
-    const more = await extraEvents();
-    if (more.length) {
-      built.events.push(...more);
-      built.changedCount += more.length;
-      built.events.sort((a, b) => new Date(b.at) - new Date(a.at));
-    }
-  }
-
   built.events = built.events.slice(0, limit);
   res.json({ sinceDays, ...built });
+}
+
+// A unit's timeline says what happened in words — people joining and leaving,
+// roles, the tree, the members' own changes, what the interviews decided
+// (contexts/timeline/unitTimeline.js). Not cut at `limit`: a list upload adds
+// people in bursts, which the page folds; the reads are capped instead.
+async function runUnitTimeline(req, res, { id, sinceDays, limit }) {
+  const { events, truncated } = await loadUnitTimeline(db, id, {
+    sinceDays, interviewEvents: () => contextInterviewEvents(req, id, sinceDays, limit),
+  });
+  const count = (op) => events.filter(e => e.operation === op).length;
+  res.json({ sinceDays, events, addedCount: count('added'), removedCount: count('removed'), changedCount: count('changed'), truncated });
 }
 
 // Synthesize "Access review started / ended" timeline events from a resource's
@@ -362,10 +367,6 @@ async function reviewInstanceEvents(id) {
   } catch { /* CertificationDecisions may not exist */ }
   return out;
 }
-
-// Context columns that change without anything happening to the context.
-export const CONTEXT_NOISE_FIELDS = Object.freeze(['lastCalculatedAt', 'updatedAt', 'directMemberCount', 'totalMemberCount', 'ValidFrom', 'ValidTo']);
-const CONTEXT_NOISE_SQL = `ARRAY[${CONTEXT_NOISE_FIELDS.map(f => `'${f}'`).join(', ')}]::text[]`;
 
 // The interview events of a context for this reader; a failure leaves the rest of the timeline.
 // None while organisation knowledge is off (featureFlags.js).
@@ -403,13 +404,7 @@ const TIMELINE_WHERE = {
       OR ("tableName" = 'Resources' AND "rowId" = $2)`,
   identity: `("tableName" = 'IdentityMembers' AND "rowData"->>'identityId' = $2)
       OR ("tableName" = 'Identities' AND "rowId" = $2)`,
-  // ContextMembers isn't history-tracked (it's owned by its parent context),
-  // so a context timeline reflects the context row's own changes — minus the
-  // updates that only moved bookkeeping (CONTEXT_NOISE_FIELDS: the plugin runner
-  // re-stamps lastCalculatedAt every few minutes, which filled the whole LIMIT
-  // and left the page nothing to show once it hid those).
-  context: `("tableName" = 'Contexts' AND "rowId" = $2
-      AND NOT (operation = 'U' AND ("rowData" - ${CONTEXT_NOISE_SQL}) IS NOT DISTINCT FROM ("prevData" - ${CONTEXT_NOISE_SQL})))`,
+  // A context's timeline is runUnitTimeline's (contexts/timeline/unitTimeline.js).
 };
 
 export function timelineHandler(entityKind) {
@@ -420,8 +415,8 @@ export function timelineHandler(entityKind) {
     const sinceDays = clampTimelineDays(req.query.sinceDays);
     const limit = clampLimit(req.query.limit);
     try {
-      const extraEvents = entityKind === 'context' ? () => contextInterviewEvents(req, id, sinceDays, limit) : null;
-      await runTimeline(res, { entityKind, id, sinceDays, limit, extraEvents });
+      if (entityKind === 'context') await runUnitTimeline(req, res, { id, sinceDays, limit });
+      else await runTimeline(res, { entityKind, id, sinceDays, limit });
     } catch (err) {
       console.error(`${entityKind} timeline failed:`, err.message);
       res.status(500).json({ error: 'Failed to load timeline' });

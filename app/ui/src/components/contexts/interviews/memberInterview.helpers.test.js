@@ -1,38 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { leftFlagText, factTitle, roleHistoryText, roleTitle, factClass, entitlementText } from './memberInterview.helpers';
+import { factTitle, factClass, earlierRolesText, rejoinedTitle, decisionText, STILL_LISTED_HINT } from './memberInterview.helpers';
 
 const SRC = { intervieweeName: 'Piet de Vries', interviewedAt: '2026-10-01' };
 const left = (over) => ({ membershipStatus: 'left', status: 'proposed', quote: 'Jan Smit just left the account', ...SRC, ...over });
 
-describe('leftFlagText', () => {
-  it('the status, then when: as said, else the period, else when it was said', () => {
-    expect(leftFlagText(left({ periodText: 'last month' }))).toBe('Interview: left (last month)');
-    expect(leftFlagText(left({ periodTo: '2026-09-30' }))).toBe('Interview: left (until 2026)');
-    expect(leftFlagText(left({ membershipStatus: 'former' }))).toBe('Interview: former member (said 2026-10-01)');
-  });
-});
-
 describe('factTitle', () => {
-  it('the quote with its source, or the source alone', () => {
+  it('the quote with its source, or the source alone; a file names the file', () => {
     expect(factTitle(left({}))).toBe('“Jan Smit just left the account” — interview with Piet de Vries, 2026-10-01');
     expect(factTitle(left({ quote: null }))).toBe('interview with Piet de Vries, 2026-10-01');
-  });
-});
-
-describe('roles', () => {
-  const role = {
-    value: 'Lead architect', status: 'confirmed', quote: 'I lead it', ...SRC,
-    history: [{ value: 'Junior', periodText: 'early years' }, { value: 'Lead architect', periodFrom: '2021-01-01', periodText: 'now' }],
-  };
-
-  it('the history oldest first, each with its period', () => {
-    expect(roleHistoryText(role)).toBe('Junior (early years) → Lead architect (since 2021 (now))');
-    expect(roleHistoryText(null)).toBe('');
-  });
-
-  it('the tooltip is the history when there is one, else the quote', () => {
-    expect(roleTitle(role)).toBe(roleHistoryText(role));
-    expect(roleTitle({ ...role, history: [role.history[1]] })).toBe('“I lead it” — interview with Piet de Vries, 2026-10-01');
+    expect(factTitle(left({ quote: null, sourceKind: 'file', fileName: 'team.xlsx' }))).toBe('team.xlsx, 2026-10-01');
   });
 });
 
@@ -45,12 +21,28 @@ describe('factClass', () => {
   });
 });
 
-describe('entitlementText', () => {
-  it('counts what is still held; none at zero; nothing for an unmatched name', () => {
-    expect(entitlementText(1)).toBe('1 entitlement');
-    expect(entitlementText(1234)).toBe('1,234 entitlements');
-    expect(entitlementText(0)).toBe('none');
-    expect(entitlementText(null)).toBeNull();
-    expect(entitlementText(undefined)).toBeNull();
+describe('the earlier stint of someone who came back', () => {
+  const back = { quote: 'Joris is back, now as architect', ...SRC, earlier: [{ value: 'junior developer', periodTo: '2020-12-31' }, { value: 'tester' }] };
+
+  it('names the earlier roles, capitalised, oldest first; none is empty', () => {
+    expect(earlierRolesText(back)).toBe('Junior developer → Tester');
+    expect(earlierRolesText({ earlier: [] })).toBe('');
+    expect(earlierRolesText(null)).toBe('');
+  });
+
+  it('the tooltip: what was said, then the earlier roles with their periods', () => {
+    expect(rejoinedTitle(back)).toBe('“Joris is back, now as architect” — interview with Piet de Vries, 2026-10-01\nEarlier: Junior developer (until 2020) → Tester');
+    expect(rejoinedTitle({ ...back, earlier: [] })).toBe('“Joris is back, now as architect” — interview with Piet de Vries, 2026-10-01');
+  });
+});
+
+describe('decisionText', () => {
+  const decision = { by: 'analyst@example.test', at: '2026-10-23T10:00:00Z', overrides: 'Klanten (upload)' };
+
+  it('who decided and when, and the list that still has them', () => {
+    expect(decisionText(decision)).toBe('Decided by analyst@example.test, 2026-10-23: the interview is right — Klanten (upload) still lists them');
+    expect(decisionText(decision, false)).toBe('Decided by analyst@example.test, 2026-10-23: the interview is right');
+    expect(decisionText({ ...decision, by: null, at: null })).toBe('Decided: the interview is right — Klanten (upload) still lists them');
+    expect(STILL_LISTED_HINT).toMatch(/remove it there/);
   });
 });

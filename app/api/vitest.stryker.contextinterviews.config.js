@@ -17,6 +17,7 @@ export default defineConfig({
       'src/lib/contextNameMatch.test.js',
       'src/contexts/changeRequests.test.js',
       'src/routes/contexts/changeRequests.test.js',
+      'src/contexts/timeline/*.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

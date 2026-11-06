@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, waitFor } from '@ui/test-utils/renderWithProviders';
-import { AdjustTreeMenuItem, AdjustTreeButton } from './AdjustTreeAction';
+import { AdjustTreeMenuItem } from './AdjustTreeAction';
 import { resolveState, adjustTabTitle } from './useTreeResolve';
 
 const RESOLVE = '/api/context-trees/resolve?contextId=c-1';
@@ -52,29 +52,5 @@ describe('AdjustTreeMenuItem', () => {
   it('says the check failed when the API does not answer', async () => {
     mount(AdjustTreeMenuItem, jsonResponse({ error: 'boom' }, { ok: false, status: 500 }));
     expect(await screen.findByText('Could not check whether this tree can be adjusted.')).toBeInTheDocument();
-  });
-});
-
-describe('AdjustTreeButton', () => {
-  it('opens the tree when it can be adjusted', async () => {
-    const { onOpen, user } = mount(AdjustTreeButton, READY);
-    await user.click(await screen.findByRole('button', { name: 'Adjust tree' }));
-    expect(onOpen).toHaveBeenCalledWith('org:1', 'Adjust: Organisation');
-  });
-
-  it('shows the reason beside a disabled button', async () => {
-    const { onOpen, user } = mount(AdjustTreeButton, BLOCKED);
-    const button = await screen.findByRole('button', { name: 'Adjust tree' });
-    expect(button).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByText('This tree is maintained in its source')).toBeInTheDocument();
-    await user.click(button);
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it('shows nothing when the check fails', async () => {
-    const { authFetch } = mount(AdjustTreeButton, jsonResponse({}, { ok: false, status: 404 }));
-    await waitFor(() => expect(authFetch).toHaveBeenCalled());
-    await new Promise(r => setTimeout(r, 0));
-    expect(screen.queryByRole('button', { name: 'Adjust tree' })).not.toBeInTheDocument();
   });
 });

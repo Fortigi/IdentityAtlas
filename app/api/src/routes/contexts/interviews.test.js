@@ -14,7 +14,7 @@ vi.mock('../../db/connection.js');
 vi.mock('../../contexts/interviews/service.js', async (orig) => ({
   ...(await orig()),
   createInterview: vi.fn(), retryExtraction: vi.fn(), addManualClaim: vi.fn(), claimsOf: vi.fn(),
-  interviewWithTranscript: vi.fn(), rejectMany: vi.fn(), previousMembers: vi.fn(),
+  interviewWithTranscript: vi.fn(), rejectMany: vi.fn(),
 }));
 vi.mock('../../contexts/interviews/decide.js', async (orig) => ({ ...(await orig()), decideClaim: vi.fn(), undoClaim: vi.fn() }));
 vi.mock('../../contexts/interviews/store.js', async (orig) => ({
@@ -25,7 +25,7 @@ process.env.USE_SQL = 'true';
 // (the describe at the end switches it off).
 process.env.FEATURE_ORG_KNOWLEDGE = 'true';
 
-const { default: router, canWriteContexts, statusesFor, MAX_TRANSCRIPT_BYTES } = await import('./interviews.js');
+const { default: router, canWriteContexts, claimStatusesFor, statusesFor, MAX_TRANSCRIPT_BYTES } = await import('./interviews.js');
 const service = await import('../../contexts/interviews/service.js');
 const { decideClaim, undoClaim, ClaimError } = await import('../../contexts/interviews/decide.js');
 const store = await import('../../contexts/interviews/store.js');
@@ -45,7 +45,7 @@ beforeEach(() => {
   authOn = true;
   for (const f of [service.createInterview, service.retryExtraction, service.addManualClaim, service.claimsOf, decideClaim, undoClaim,
     store.listInterviews, store.getInterview, store.deleteInterview, store.mentionsOf,
-    service.interviewWithTranscript, service.rejectMany, service.previousMembers]) vi.mocked(f).mockReset();
+    service.interviewWithTranscript, service.rejectMany]) vi.mocked(f).mockReset();
 });
 
 describe('canWriteContexts', () => {
@@ -60,6 +60,15 @@ describe('canWriteContexts', () => {
     expect(canWriteContexts({ readToken: true, user: { permissions: new Set(['*']) } })).toBe(false);
     expect(canWriteContexts({ user: { contextOwner: { contextIds: new Set() }, permissions: new Set(['*']) } })).toBe(false);
     expect(canWriteContexts({ user: {} })).toBe(false);
+  });
+});
+
+describe('claimStatusesFor', () => {
+  it('a writer sees proposed claims too; a context owner and a reader confirmed and edited ones only', () => {
+    authOn = true;
+    expect(claimStatusesFor({ user: { permissions: ['data.write.contexts'] } })).toEqual(['proposed', 'confirmed', 'edited']);
+    expect(claimStatusesFor({ user: { contextOwner: { contextIds: new Set() }, permissions: ['*'] } })).toEqual(['confirmed', 'edited']);
+    expect(claimStatusesFor({ user: { permissions: ['data.read'] } })).toEqual(['confirmed', 'edited']);
   });
 });
 
@@ -101,14 +110,13 @@ describe('while organisation knowledge is off', () => {
     ['get', `/api/contexts/${CTX}/interviews`],
     ['get', `/api/contexts/${CTX}/claims`],
     ['post', `/api/contexts/${CTX}/claims/reject`],
-    ['get', `/api/contexts/${CTX}/previous-members`],
     ['patch', `/api/contexts/claims/${CLAIM}`],
     ['get', `/api/contexts/claims/mentions?principalId=${ANNA}`],
   ])('%s %s answers 404 — for an analyst too — and reaches nothing', async (method, path) => {
     const res = await request(app)[method](path).send({});
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'This feature is not enabled' });
-    for (const f of [service.createInterview, service.claimsOf, service.rejectMany, service.previousMembers, decideClaim, store.listInterviews, store.mentionsOf]) {
+    for (const f of [service.createInterview, service.claimsOf, service.rejectMany, decideClaim, store.listInterviews, store.mentionsOf]) {
       expect(f).not.toHaveBeenCalled();
     }
   });
@@ -133,11 +141,25 @@ describe('POST /contexts/:id/interviews', () => {
     expect(arg.file.buffer.toString()).toBe('Anna: hello');
   });
 
-  it('refuses a file type it cannot read, a missing file and a bad id before the service', async () => {
+  it('takes a list (csv, xlsx) as a file, and pasted text without a file', async () => {
+    vi.mocked(service.createInterview).mockResolvedValue({ id: IV });
+    expect((await request(app).post(`/api/contexts/${CTX}/interviews`).field('interviewedAt', '2026-10-01')
+      .attach('file', Buffer.from('Name;Role'), 'team.csv')).status).toBe(201);
+    expect((await request(app).post(`/api/contexts/${CTX}/interviews`).attach('file', Buffer.from('PK'), 'team.xlsx')).status).toBe(201);
+    const pasted = await request(app).post(`/api/contexts/${CTX}/interviews`).field('interviewedAt', '2026-10-01').field('text', 'Piet left in May.');
+    expect(pasted.status).toBe(201);
+    const [arg] = vi.mocked(service.createInterview).mock.calls[2];
+    expect(arg.file).toBeUndefined();
+    expect(arg.body).toEqual({ interviewedAt: '2026-10-01', text: 'Piet left in May.' });
+  });
+
+  it('refuses a file type it cannot read, no file and no text, blank text, and a bad id before the service', async () => {
     const pdf = await request(app).post(`/api/contexts/${CTX}/interviews`).attach('file', Buffer.from('%PDF'), 'gesprek.pdf');
-    expect([pdf.status, pdf.body.error]).toEqual([400, 'Upload a transcript as .txt, .docx, .vtt or .srt.']);
+    expect([pdf.status, pdf.body.error]).toEqual([400, 'Add a file as .txt, .md, .docx, .vtt, .srt, .csv or .xlsx.']);
     const none = await request(app).post(`/api/contexts/${CTX}/interviews`).field('principalId', ANNA);
-    expect([none.status, none.body.error]).toEqual([400, 'Choose a transcript to upload (field "file").']);
+    expect([none.status, none.body.error]).toEqual([400, 'Add a file (field "file") or paste the text (field "text").']);
+    const blank = await request(app).post(`/api/contexts/${CTX}/interviews`).field('text', '   ');
+    expect(blank.status).toBe(400);
     expect((await request(app).post('/api/contexts/nope/interviews').attach('file', Buffer.from('x'), 'a.txt')).status).toBe(400);
     expect(service.createInterview).not.toHaveBeenCalled();
   });
@@ -258,19 +280,5 @@ describe('POST /contexts/:id/claims/reject', () => {
     vi.mocked(service.rejectMany).mockRejectedValueOnce(new InterviewError(400, 'Say which claims to reject: a kind, a relevance, or both.'));
     const bad = await request(app).post(`/api/contexts/${CTX}/claims/reject`).send({});
     expect([bad.status, bad.body.error]).toEqual([400, 'Say which claims to reject: a kind, a relevance, or both.']);
-  });
-});
-
-describe('GET /contexts/:id/previous-members', () => {
-  it('a writer reads proposed claims too; a reader confirmed ones only', async () => {
-    vi.mocked(service.previousMembers).mockResolvedValue({ data: [], linkedResources: 0 });
-    expect((await request(app).get(`/api/contexts/${CTX}/previous-members`)).body).toEqual({ data: [], linkedResources: 0 });
-    caller = reader;
-    expect((await request(app).get(`/api/contexts/${CTX}/previous-members`)).status).toBe(200);
-    expect(vi.mocked(service.previousMembers).mock.calls.map(c => c.slice(0, 2))).toEqual([
-      [CTX, { statuses: ['proposed', 'confirmed', 'edited'] }],
-      [CTX, { statuses: ['confirmed', 'edited'] }],
-    ]);
-    expect((await request(app).get('/api/contexts/nope/previous-members')).status).toBe(400);
   });
 });

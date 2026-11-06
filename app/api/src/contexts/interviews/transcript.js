@@ -174,10 +174,15 @@ export async function parseTranscript(buffer, { fileName = '' } = {}) {
   else if (format === 'vtt') raw = vttToText(decodeText(buffer));
   else if (format === 'srt') raw = srtToText(decodeText(buffer));
   else raw = decodeText(buffer);
+  return { text: finishText(raw), format };
+}
+
+/** The text as stored: tidied, and refused when empty or longer than MAX_TRANSCRIPT_CHARS. */
+export function finishText(raw) {
   const text = tidyText(raw);
   if (!text) throw new TranscriptError('The transcript holds no text.');
   if (text.length > MAX_TRANSCRIPT_CHARS) {
     throw new TranscriptError(`The transcript is longer than ${MAX_TRANSCRIPT_CHARS.toLocaleString('en')} characters; split it and upload the parts.`);
   }
-  return { text, format };
+  return text;
 }

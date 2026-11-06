@@ -6,21 +6,19 @@ import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { memberKindNoun } from '@ui/utils/contextStyles';
 import { visibleMemberColumns, memberRowAction } from './ContextRelationshipsTab.helpers';
-import { InterviewLeftFlag } from './contexts/interviews/MemberInterviewFacts';
-import PreviousMembers from './contexts/interviews/PreviousMembers';
-import { memberRowId, overriddenNameClass } from './contexts/interviews/memberInterview.helpers';
-import { OverriddenFlag, OverriddenNote } from './contexts/interviews/OverriddenMembers';
+import { removeContextMember } from './contexts/memberEdits';
 
 // ─── Sub-units and members ─────────────────────────────────────────────────
 // Two plain sections: the sub-units (each opening its own page) and the
-// paginated, searchable members. Reading by default; `canEditMembers` (the
-// reader can edit contexts, and the context was created here — the only kind
-// whose member edits last) adds an "Edit members" button, and only in that mode
-// the add box and the per-row Remove appear. On a unit or an application (inside
-// a ClaimsProvider) a member an interview says left is flagged on its row, and
-// the people the interviews say left come below, under Previous members. A
-// member a decision marked former is left out of the members (a note says how
-// many, and shows them struck through on request).
+// paginated, searchable members as their source lists them. Reading by default;
+// `canEditMembers` (the reader can edit contexts, and the context was created
+// here — the only kind whose member edits last) adds an "Edit members" button,
+// and only in that mode the add box and the per-row Remove appear.
+//
+// A unit's or an application's people are not here: the People overview
+// (contexts/people/PeopleSection.jsx) shows each person once, with what the
+// added sources say about them. An application's members (its resources) still
+// use the members list below.
 //
 // On a context owner's page each member can be expanded to its direct
 // references — names only, plain text (MemberReferences) — and a sub-unit opens
@@ -34,7 +32,6 @@ export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, 
         <SubUnitsList id={sectionIds.subUnits} subContexts={subContexts} attrs={panelProps.attrs} openContext={opener} />
       )}
       <MembersPanel id={sectionIds.members} {...panelProps} />
-      <PreviousMembers contextId={panelProps.contextId} onOpenDetail={panelProps.onOpenDetail} />
     </>
   );
 }
@@ -42,7 +39,7 @@ export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, 
 const CARD = 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 scroll-mt-4';
 
 // ─── Sub-units ─────────────────────────────────────────────────────────────
-function SubUnitsList({ id, subContexts, attrs, openContext }) {
+export function SubUnitsList({ id, subContexts, attrs, openContext = () => undefined }) {
   return (
     <section id={id} aria-label="Sub-units" className={CARD}>
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Sub-units ({subContexts.length})</h3>
@@ -82,12 +79,11 @@ function SubUnitsList({ id, subContexts, attrs, openContext }) {
 }
 
 // ─── Members ───────────────────────────────────────────────────────────────
-function MembersPanel({
-  id, contextId, attrs, canEditMembers,
+export function MembersPanel({
+  id, contextId, attrs, canEditMembers, title = 'Members',
   includeDescendants, onIncludeDescendantsChange,
   memberSearch, onMemberSearchChange,
   members, memberTotal, membersLoading, membersError,
-  overriddenCount = 0, includeOverridden = false, onIncludeOverriddenChange,
   memberPage, onMemberPageChange, pageSize,
   authFetch, onMembersChanged, onOpenDetail,
 }) {
@@ -97,23 +93,14 @@ function MembersPanel({
   const hasSubUnitMembers = attrs.totalMemberCount > (attrs.directMemberCount || 0);
 
   async function removeMember(memberId) {
-    try {
-      const r = await authFetch(`/api/contexts/${contextId}/members/${memberId}`, { method: 'DELETE' });
-      if (!r.ok && r.status !== 204) {
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${r.status}`);
-      }
-      onMembersChanged();
-    } catch (err) {
-      console.error('Remove member failed:', err);
-    }
+    if (await removeContextMember(authFetch, contextId, memberId)) onMembersChanged();
   }
 
   return (
-    <section id={id} aria-label="Members" className={CARD}>
+    <section id={id} aria-label={title} className={CARD}>
       <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          Members ({memberTotal})
+          {title} ({memberTotal})
           {hasSubUnitMembers && !includeDescendants && (
             <span className="ml-2 text-xs font-normal text-gray-600 dark:text-gray-400">in this unit only</span>
           )}
@@ -140,9 +127,11 @@ function MembersPanel({
         </div>
       </div>
 
-      <OverriddenNote count={overriddenCount} shown={includeOverridden} onToggle={onIncludeOverriddenChange} />
-
-      {editMode && <MemberEditBox contextId={contextId} attrs={attrs} members={members} onAdded={onMembersChanged} />}
+      {editMode && (
+        <div className="mb-4">
+          <ContextMemberPicker contextId={contextId} targetType={attrs.targetType} existingMemberIds={members.map(m => m.id)} onAdded={onMembersChanged} />
+        </div>
+      )}
 
       <MembersBody
         loading={membersLoading} error={membersError} members={members} attrs={attrs} editMode={editMode} contextId={contextId}
@@ -152,15 +141,6 @@ function MembersPanel({
         <MembersPagination memberPage={memberPage} totalPages={totalPages} onMemberPageChange={onMemberPageChange} />
       )}
     </section>
-  );
-}
-
-// Edit mode: the box to add a member.
-function MemberEditBox({ contextId, attrs, members, onAdded }) {
-  return (
-    <div className="mb-4">
-      <ContextMemberPicker contextId={contextId} targetType={attrs.targetType} existingMemberIds={members.map(m => m.id)} onAdded={onAdded} />
-    </div>
   );
 }
 
@@ -214,17 +194,14 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
 function MemberRow({ member: m, columns, span, contextId, attrs, editMode, includeDescendants, onOpenDetail, onRemove, references }) {
   const rowLink = onOpenDetail ? ' hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer' : '';
   const nameClass = onOpenDetail ? 'text-blue-700 dark:text-blue-300 hover:underline' : 'text-gray-900 dark:text-gray-100';
-  const name = <span className={overriddenNameClass(m.overridden)}>{m.displayName}</span>;
   return (
     <Fragment>
       <tr
-        id={memberRowId(m.id)}
         className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${rowLink}`}
         onClick={onOpenDetail ? () => onOpenDetail(memberDetailKind(attrs.targetType), m.id, m.displayName) : undefined}
       >
         <td className={`w-full sm:w-auto sm:py-1.5 ${nameClass}`}>
-          {references ? <ReferencesToggle name={name} {...references} /> : name}
-          {m.overridden ? <OverriddenFlag decision={m.overridden} /> : <InterviewLeftFlag left={m.interview?.left} />}
+          {references ? <ReferencesToggle name={m.displayName} {...references} /> : m.displayName}
         </td>
         {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
         {editMode && (
@@ -244,8 +221,9 @@ function MemberRow({ member: m, columns, span, contextId, attrs, editMode, inclu
   );
 }
 
-// The member's name as the button that shows or hides its references.
-function ReferencesToggle({ name, open, onToggle }) {
+// The member's name as the button that shows or hides its references (also
+// on the People overview, contexts/people/PersonRow.jsx).
+export function ReferencesToggle({ name, open, onToggle }) {
   return (
     <button type="button" onClick={onToggle} aria-expanded={open} title={open ? 'Hide references' : 'Show references'}
       className="inline-flex items-center gap-1.5 text-left hover:underline">
@@ -277,7 +255,8 @@ function memberDetailKind(targetType) {
 }
 
 // ─── Pagination ────────────────────────────────────────────────────────────
-function MembersPagination({ memberPage, totalPages, onMemberPageChange }) {
+// `onMemberPageChange` takes an updater (a state setter). Shared with the People overview.
+export function MembersPagination({ memberPage, totalPages, onMemberPageChange }) {
   const btn = 'text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed border border-gray-200 dark:border-gray-700 rounded px-2 py-1';
   return (
     <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">

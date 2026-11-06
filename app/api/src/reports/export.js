@@ -76,6 +76,12 @@ const MAX_WIDTH = 60;
 const WIDTH_SAMPLE = 200;
 
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+// A column may ask for its own header colour (an ARGB string), to set a group of
+// columns apart — the unit report's organisational claims. Anything else gets the default.
+const ARGB = /^[0-9A-F]{8}$/i;
+export const headerFill = column => (ARGB.test(column?.headerFill ?? '')
+  ? { type: 'pattern', pattern: 'solid', fgColor: { argb: column.headerFill.toUpperCase() } }
+  : HEADER_FILL);
 const HEADER_FONT = { bold: true, size: 11, color: { argb: 'FF374151' } };
 const MUTED_FONT = { size: 10, color: { argb: 'FF6B7280' } };
 
@@ -256,7 +262,7 @@ async function toXlsx({
     const cell = labelRow.getCell(i + 1);
     cell.value = column.label;
     cell.font = HEADER_FONT;
-    cell.fill = HEADER_FILL;
+    cell.fill = headerFill(column);
   });
   labelRow.commit?.();
 

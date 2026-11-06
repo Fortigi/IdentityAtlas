@@ -33,7 +33,7 @@ import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
 import { refreshMemberCounts } from '../memberCounts.js';
-import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
+import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, producedMemberPairs, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
 import { reapplyTree } from '../adjustments/service.js';
 import { generatedTreeKey } from '../adjustments/treeKey.js';
 
@@ -383,16 +383,21 @@ async function deleteStaleContexts(client, existingRows, contexts, counts) {
   }
 }
 
-// 5) Replace the algorithm-owned members of the produced contexts: wipe our
-// (addedBy='algorithm') rows, then re-insert in batches to avoid absurd parameter
-// counts on huge runs. Analyst/sync-added members are left untouched.
+// 5) Reconcile the algorithm-owned members of the produced contexts: remove our
+// (addedBy='algorithm') rows the run no longer produces, then insert the new ones
+// in batches (ON CONFLICT keeps the rows that stay). A refresh that changes
+// nothing writes nothing, so the membership history (migration 109) records only
+// real joins and leaves. Analyst/sync-added members are left untouched.
 async function replaceOwnedMembers(client, members, { newByExternalId, producedContextIds, targetType, counts }) {
   if (producedContextIds.length === 0) return;
 
+  const produced = producedMemberPairs(members, newByExternalId);
   const del = await client.query(`
-    DELETE FROM "ContextMembers"
-     WHERE "contextId" = ANY($1::uuid[]) AND "addedBy" = 'algorithm'
-  `, [producedContextIds]);
+    DELETE FROM "ContextMembers" cm
+     WHERE cm."contextId" = ANY($1::uuid[]) AND cm."addedBy" = 'algorithm'
+       AND NOT EXISTS (SELECT 1 FROM unnest($2::uuid[], $3::uuid[]) AS k("contextId", "memberId")
+                        WHERE k."contextId" = cm."contextId" AND k."memberId" = cm."memberId")
+  `, [producedContextIds, produced.contextIds, produced.memberIds]);
   counts.membersRemoved = del.rowCount || 0;
 
   let insertedNow = 0;

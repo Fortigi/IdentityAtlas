@@ -11,7 +11,7 @@ vi.mock('./store.js', async (orig) => ({
 const store = await import('./store.js');
 const {
   createInterview, retryExtraction, addManualClaim, claimsOf, validDate, parseInterviewee, InterviewError, STALE_RUN_MS,
-  parseRejectMany, rejectMany, interviewWithTranscript, previousMembers,
+  parseRejectMany, rejectMany, interviewWithTranscript,
 } = await import('./service.js');
 
 const CTX = 'dddddddd-0000-4000-8000-000000000001';
@@ -42,10 +42,12 @@ describe('validDate / parseInterviewee', () => {
     for (const bad of ['2026-02-30', '2026-2-3', '28-02-2026', '', null]) expect(validDate(bad)).toBeNull();
   });
 
-  it('wants exactly one interviewee, as a uuid', () => {
+  it('takes at most one person the source is from, as a uuid; none is a source from nobody in particular', () => {
     expect(parseInterviewee({ identityId: ANNA.toUpperCase() })).toEqual({ col: 'identityId', id: ANNA });
-    expect(() => parseInterviewee({})).toThrow(/exactly one/);
-    expect(() => parseInterviewee({ principalId: ANNA, identityId: PIET })).toThrow(/exactly one/);
+    expect(parseInterviewee({ principalId: ANNA })).toEqual({ col: 'principalId', id: ANNA });
+    expect(parseInterviewee({})).toBeNull();
+    expect(parseInterviewee({ principalId: '' })).toBeNull();
+    expect(() => parseInterviewee({ principalId: ANNA, identityId: PIET })).toThrow(/not both/);
     expect(() => parseInterviewee({ principalId: 'x' })).toThrow('principalId must be a uuid');
   });
 });
@@ -78,13 +80,42 @@ describe('createInterview', () => {
     const run = (db, over = {}) => createInterview({ contextId: CTX, file: file(), body, user: 'u', ...over }, { ...opts, db });
     await expect(run(fakeDb({ context: null }))).rejects.toMatchObject({ status: 404, message: 'Context not found' });
     await expect(run(fakeDb({ context: { id: CTX, contextCategory: 'Tag' } }))).rejects.toMatchObject({ status: 400 });
-    await expect(run(fakeDb(), { body: { principalId: ANNA } })).rejects.toMatchObject({ status: 400, message: /when the interview/ });
+    await expect(run(fakeDb(), { body: { principalId: ANNA } })).rejects.toMatchObject({ status: 400, message: /when it is from/ });
     await expect(run(fakeDb({ person: null }))).rejects.toMatchObject({ status: 404, message: 'Principal not found' });
     await expect(run(fakeDb({ person: null }), { body: { identityId: ANNA, interviewedAt: '2026-10-01' } })).rejects.toMatchObject({ status: 404, message: 'Identity not found' });
     await expect(run(fakeDb(), { file: file('   ') })).rejects.toThrow('The transcript holds no text.');
     await expect(run(fakeDb(), { contextId: 'nope' })).rejects.toBeInstanceOf(InterviewError);
     expect(store.insertInterview).not.toHaveBeenCalled();
     expect(opts.start).not.toHaveBeenCalled();
+  });
+
+  it('a file from nobody in particular: no person read, the uploader names the source', async () => {
+    const db = fakeDb();
+    await createInterview({ contextId: CTX, file: file('Notes about the unit.', 'notes.md'), body: { interviewedAt: '2026-10-02' }, user: 'analyst@example.test' },
+      { db, enabled: () => false, start: vi.fn() });
+    const row = store.insertInterview.mock.calls[0][1];
+    expect(row).toMatchObject({ intervieweeName: 'analyst@example.test', fileName: 'notes.md', transcript: 'Notes about the unit.' });
+    expect(row).not.toHaveProperty('principalId');
+    expect(row).not.toHaveProperty('identityId');
+    // Only the context was looked up, never a person.
+    expect(db.queryOne.mock.calls.map(c => c[0].includes('"Contexts"'))).toEqual([true]);
+  });
+
+  it('without a signed-in user the file name names the source', async () => {
+    await createInterview({ contextId: CTX, file: file('Notes.', 'notes.txt'), body: { interviewedAt: '2026-10-02' }, user: null },
+      { db: fakeDb(), enabled: () => false, start: vi.fn() });
+    expect(store.insertInterview.mock.calls[0][1].intervieweeName).toBe('notes.txt');
+  });
+
+  it('pasted text is stored under "Pasted text"; a csv list becomes one readable line per row', async () => {
+    const deps = { db: fakeDb(), enabled: () => false, start: vi.fn() };
+    await createInterview({ contextId: CTX, file: null, body: { interviewedAt: '2026-10-02', text: '  Piet left in May.  ' }, user: 'u' }, deps);
+    expect(store.insertInterview.mock.calls[0][1]).toMatchObject({ fileName: 'Pasted text', transcript: 'Piet left in May.', intervieweeName: 'u' });
+    await createInterview({ contextId: CTX, file: file('Name;Role\nAnn Example;Architect\nBob Sample;', 'team.csv'), body: { ...body }, user: 'u' }, deps);
+    expect(store.insertInterview.mock.calls[1][1]).toMatchObject({
+      fileName: 'team.csv', principalId: ANNA, intervieweeName: 'Anna Voorbeeld',
+      transcript: 'Name: Ann Example; Role: Architect\nName: Bob Sample',
+    });
   });
 });
 
@@ -235,15 +266,5 @@ describe('interviewWithTranscript', () => {
   it('is 404 for an interview of another context', async () => {
     store.getInterview.mockResolvedValue(null);
     await expect(interviewWithTranscript(CTX, IV, { db: fakeDb() })).rejects.toMatchObject({ status: 404, message: 'Interview not found' });
-  });
-});
-
-describe('previousMembers', () => {
-  it('checks the context, then reads with the statuses it is given', async () => {
-    const db = fakeDb();
-    const r = await previousMembers(CTX, { statuses: ['confirmed'] }, { db });
-    expect(r).toEqual({ data: [], linkedResources: 0 });
-    expect(db.query.mock.calls[0][1]).toEqual([CTX, ['role', 'roleHistory', 'membership'], ['confirmed']]);
-    await expect(previousMembers(CTX, { statuses: ['confirmed'] }, { db: fakeDb({ context: null }) })).rejects.toMatchObject({ status: 404 });
   });
 });

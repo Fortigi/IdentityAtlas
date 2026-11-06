@@ -188,11 +188,17 @@ async function withAliasHints(db, claims, interview, aliases) {
   return [...claims, ...aliasHintClaims(candidates, other)];
 }
 
+/** Who is speaking in the text: the interviewee of an interview, nobody for a file or pasted text. Pure. */
+export function speakerName(interview) {
+  return (interview.sourceKind ?? 'interview') === 'interview' ? interview.intervieweeName : null;
+}
+
 /** Holder + match for every claim about a person (and the full name, when the quote gave it). */
 async function withSubjects(db, claims, interview) {
   const resolved = await resolveClaimSubjects(db, claims, {
     contextId: interview.contextId,
-    interviewee: { principalId: interview.principalId, identityId: interview.identityId, name: interview.intervieweeName },
+    // A file or pasted text has no speaker: "I" in it names nobody we know.
+    interviewee: { principalId: interview.principalId, identityId: interview.identityId, name: speakerName(interview) },
   });
   return claims.map((c, i) => {
     const r = resolved[i];
@@ -227,8 +233,8 @@ async function runParts(interview, { ask, timeoutMs }) {
   for (let i = 0; i < parts.length; i++) {
     const user = buildUserMessage({
       contextName: interview.contextName, aliases: aliasesOf({ aliases: interview.contextAliases }),
-      template: interview.contextCategory, intervieweeName: interview.intervieweeName,
-      interviewedAt: interview.interviewedAt, part: i + 1, parts: parts.length, text: parts[i],
+      template: interview.contextCategory, intervieweeName: interview.intervieweeName, sourceKind: interview.sourceKind,
+      fileName: interview.fileName, interviewedAt: interview.interviewedAt, part: i + 1, parts: parts.length, text: parts[i],
     });
     const answer = await askPart([{ role: 'system', content: system }, { role: 'user', content: user }], folded, { ask, timeoutMs });
     claims.push(...answer.claims);

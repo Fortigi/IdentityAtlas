@@ -1,6 +1,16 @@
 // The one check every claim passes — a model's and an analyst's.
 import { describe, it, expect } from 'vitest';
-import { checkClaim, stripQuoteMarks, foldForQuote, verbatimQuote, nearVerbatim, repairClaim, periodDate, MIN_QUOTE, MAX_ATTRIBUTE } from './claims.js';
+import { checkClaim, stripQuoteMarks, foldForQuote, verbatimQuote, nearVerbatim, repairClaim, periodDate, MIN_QUOTE, MAX_ATTRIBUTE, visibleClaimStatuses } from './claims.js';
+
+describe('visibleClaimStatuses', () => {
+  it('a writer sees the proposed claims too; a reader the decided-true ones only, as a fresh list each time', () => {
+    expect(visibleClaimStatuses(true)).toEqual(['proposed', 'confirmed', 'edited']);
+    expect(visibleClaimStatuses(false)).toEqual(['confirmed', 'edited']);
+    const a = visibleClaimStatuses(false);
+    a.push('rejected');
+    expect(visibleClaimStatuses(false)).toEqual(['confirmed', 'edited']);
+  });
+});
 
 const TRANSCRIPT = `Interviewer: Who owns the planning tool?
 Anna Voorbeeld: Yes, I’m the owner of this app,   but it's mostly Piet who does the day-to-day.
