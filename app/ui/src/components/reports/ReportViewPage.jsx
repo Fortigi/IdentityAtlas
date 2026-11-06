@@ -38,8 +38,11 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
   // What the user set, not what the report ran with: an untouched parameter
   // stays out of the query string so the server's declared default applies.
   const [params, setParams] = useState({});
+  // The reader asked to wait for every row instead of the first ones. Kept for
+  // Refresh and parameter changes; the download always holds every row anyway.
+  const [allRows, setAllRows] = useState(false);
 
-  const query = paramsQueryString(params);
+  const query = paramsQueryString(allRows ? { ...params, allRows: true } : params);
   const { data: report, loading, error, reload } = useFetch(
     `/api/reports/${encodeURIComponent(reportName)}/rows${query}`, { authFetch },
   );
@@ -97,7 +100,7 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
   return (
     <section className="mx-auto max-w-6xl" aria-label={report.displayName}>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <ReportHeading report={report} />
+        <ReportHeading report={report} loading={loading} onLoadAll={() => setAllRows(true)} />
 
         <div className="flex flex-wrap items-center gap-2">
           {report.editable && canBuild && onOpenDetail && (
@@ -159,7 +162,7 @@ export default function ReportViewPage({ reportName, onClose, onOpenDetail, onCa
 }
 
 // What the report is, what it is a view of, and how much it returned.
-function ReportHeading({ report }) {
+function ReportHeading({ report, loading, onLoadAll }) {
   return (
     <div>
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{report.displayName}</h2>
@@ -173,12 +176,38 @@ function ReportHeading({ report }) {
         {report.truncated ? 'First ' : ''}{report.total} {report.total === 1 ? 'row' : 'rows'}
         {report.generatedAt && <> · generated {formatDate(report.generatedAt)}</>}
       </p>
-      {report.truncated && (
-        <p role="status" className="mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-          This report stopped at {report.total} rows, so there are more than shown here — and more than
-          the download contains. Narrow it with another condition to see all of them.
-        </p>
-      )}
+      {report.truncated && <TruncatedNotice report={report} loading={loading} onLoadAll={onLoadAll} />}
+    </div>
+  );
+}
+
+const NOTICE_CLASS = 'mt-2 max-w-3xl rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200';
+
+// A capped run either can be run again without its cap — then the reader may
+// choose to wait for it — or it hit the ceiling, and only narrowing helps.
+function TruncatedNotice({ report, loading, onLoadAll }) {
+  if (!report.canLoadAllRows) {
+    return (
+      <p role="status" className={NOTICE_CLASS}>
+        This report stopped at {report.total} rows, so there are more than shown here — and more than
+        the download contains. Narrow it with another condition to see all of them.
+      </p>
+    );
+  }
+  return (
+    <div role="status" className={`${NOTICE_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2`}>
+      <span>
+        Showing the first {report.total} rows — there are more. The download includes all of them.
+        Loading every row here can take a minute on a large tenant.
+      </span>
+      <button
+        type="button"
+        onClick={onLoadAll}
+        disabled={loading}
+        className="rounded bg-amber-700 px-3 py-1 text-sm font-medium text-white hover:bg-amber-800 disabled:opacity-60"
+      >
+        {loading ? 'Loading all rows…' : 'Load all rows'}
+      </button>
     </div>
   );
 }

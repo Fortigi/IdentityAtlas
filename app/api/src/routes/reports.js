@@ -18,8 +18,20 @@ import {
 
 const router = Router();
 
+// `allRows` is the engine's own query parameter, as `format` is the download's:
+// it asks a template that caps its rows to lift that cap, and is never passed on
+// as one of the template's parameters.
+const ALL_ROWS_PARAM = 'allRows';
+
+function splitAllRows(query) {
+  const { [ALL_ROWS_PARAM]: allRows, ...params } = query || {};
+  return { params, allRows: allRows === 'true' };
+}
+
 // One run, one payload (reports/run.js) — shared by the rows endpoint, the
 // download and the MCP server, so none of them can show what the others don't.
+// The one difference is the row cap: a download always asks for every row
+// (`allRows`), the screen only when the reader chose to wait for them.
 
 // Use the registry's name, not the raw URL param, so nothing user-controlled
 // reaches the log; the client gets a generic message.
@@ -44,7 +56,8 @@ router.get('/reports/:name/rows', async (req, res) => {
   const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
   try {
-    res.json(await runReport(report, req.query || {}));
+    const { params, allRows } = splitAllRows(req.query);
+    res.json(await runReport(report, params, { allRows }));
   } catch (err) {
     reportFailed(res, report, 'rows', err);
   }
@@ -57,7 +70,8 @@ router.get('/reports/:name/export', async (req, res) => {
   const report = await resolveReport(req.params.name);
   if (!report) return res.status(404).json({ error: 'Report not found' });
 
-  const { format = DEFAULT_EXPORT_FORMAT, ...params } = req.query || {};
+  const { format = DEFAULT_EXPORT_FORMAT, ...rest } = req.query || {};
+  const { params } = splitAllRows(rest);
   const exportFormat = resolveExportFormat(String(format));
   if (!exportFormat) {
     return res.status(400).json({
@@ -74,7 +88,7 @@ router.get('/reports/:name/export', async (req, res) => {
     // `carriesContext` and gets it, and every other format is served exactly the
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
-    const full = await runReport(report, params);
+    const full = await runReport(report, params, { allRows: true });
     const { notices: _screenOnly, constantColumns: _headerOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 

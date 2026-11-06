@@ -121,10 +121,10 @@ export async function toReportTemplate(row, lookups) {
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt || null,
     },
     editable: { builderId: row.id },
-    async run() {
-      const result = await runSpec(row.definition);
+    async run(_params, ctx = {}) {
+      const result = await runSpec(row.definition, undefined, { allRows: ctx.allRows === true });
       if (!result.ok) throw new Error(`saved report ${row.id} no longer validates: ${result.errors.join('; ')}`);
-      return { rows: result.rows, truncated: result.truncated === true };
+      return { rows: result.rows, truncated: result.truncated === true, canLoadAllRows: result.canLoadAllRows === true };
     },
   };
 }
