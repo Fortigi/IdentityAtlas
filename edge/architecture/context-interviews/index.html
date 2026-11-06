@@ -3516,10 +3516,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#membership-over-time-the-members-lists" class="md-nav__link">
+  <a href="#sources-and-add-information" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Membership over time — the members lists
+        Sources and Add information
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-people-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The People overview
       
     </span>
   </a>
@@ -5895,10 +5906,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#membership-over-time-the-members-lists" class="md-nav__link">
+  <a href="#sources-and-add-information" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Membership over time — the members lists
+        Sources and Add information
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-people-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The People overview
       
     </span>
   </a>
@@ -6108,10 +6130,20 @@
 <p><strong>Status:</strong> built (first slice), on organisational units and logical applications.</p>
 <p>An analyst talks to people about a customer, a team or an application. What they say
 is often the only source for facts no crawler has: what the unit does, since when it is
-a customer, who really does the work. <em>Upload interview</em> on a context's page takes the
-transcript of such a conversation, with who was interviewed and when, and turns what it
-says into <strong>claims</strong> — each a statement with the verbatim words it rests on — for an
-analyst to review. Nothing is written to the context until someone confirms it.</p>
+a customer, who really does the work. <em>Add information</em> on a context's page takes any
+<strong>source</strong> that says something about it — the transcript of such a conversation, notes, an
+Excel or CSV list, a Word document, or pasted text — with who it is from (optional) and
+when, and turns what it says into <strong>claims</strong> — each a statement with the verbatim words it
+rests on — for an analyst to review. Nothing is written to the context until someone
+confirms it.</p>
+<blockquote>
+<p><strong>"Interview" in the API and the tables means any added source.</strong> The records are
+<code>ContextInterviews</code> rows and the paths are <code>/contexts/:id/interviews…</code>, kept as they
+were; the page calls them <em>Sources</em>. A row's kind (<code>sourceKind</code>) is read from its
+columns, not stored: <code>interview</code> (it names who said it), <code>file</code> (nobody in particular:
+a list, a document — <code>intervieweeName</code> then holds who added it) or <code>text</code> (pasted,
+stored under the file name <em>Pasted text</em>). See <a href="#sources-and-add-information">Sources and Add information</a>.</p>
+</blockquote>
 <p>Example: <em>"Yes, I'm the owner of this app, but it's mostly Piet who does the
 day-to-day"</em> suggests the interviewee as the application's Accountable (its Owner) and
 Piet as Responsible, in the People block next to the existing best guess.</p>
@@ -6148,7 +6180,7 @@ access (the holding rule is untouched).</p>
 </tr>
 <tr>
 <td><code>role</code> without one, <code>roleHistory</code>, <code>membership</code></td>
-<td>nothing beyond the claim: confirmed knowledge, shown under <em>What we know</em>, on the role timeline and in the members lists. A membership claim <strong>never changes <code>ContextMembers</code></strong> — members come from their source</td>
+<td>nothing beyond the claim: confirmed knowledge, shown on the person's row in the <em>People</em> overview. A membership claim <strong>never changes <code>ContextMembers</code></strong> — members come from their source</td>
 </tr>
 </tbody>
 </table>
@@ -6339,7 +6371,7 @@ a model's, its person is matched the same way, and a role claim's suggestion is 
 from its relation unless the analyst picks one.</p>
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
 <p>All writes need <code>data.write.contexts</code>; OpenAPI documents each.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>POST   /api/contexts/:id/interviews                       multipart file + principalId|identityId + interviewedAt
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>POST   /api/contexts/:id/interviews                       multipart file (or text) + principalId|identityId (optional) + interviewedAt
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>GET    /api/contexts/:id/interviews                       the interviews, with claim counts (writers)
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>GET    /api/contexts/:id/interviews/:interviewId          one, with its transcript and highlights [{ claimId, start, end }] (writers)
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>POST   /api/contexts/:id/interviews/:interviewId/extract  read again (409 while a run of &lt; 30 min is going; 503 without a model)
@@ -6347,60 +6379,103 @@ from its relation unless the analyst picks one.</p>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>DELETE /api/contexts/:id/interviews/:interviewId          the interview and its claims
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>GET    /api/contexts/:id/claims?status=…                  the claims + accountableDoubt
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>POST   /api/contexts/:id/claims/reject                    { kind?, relevance? }: reject the proposed claims of a kind / tier, one statement
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>GET    /api/contexts/:id/previous-members                 who the interviews say left, with live entitlements (every reader)
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>GET    /api/contexts/:id/members                          (existing) each account / person also carries interview: { role, left }
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>GET    /api/contexts/:id/people?filter=&amp;search=&amp;limit=&amp;offset=   the People overview: one row per person (every reader)
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>GET    /api/contexts/:id/members                          (existing) the members as their source lists them
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>PATCH  /api/contexts/claims/:claimId                      { status: confirmed|edited|rejected, value?, period?, principalId|identityId?, replace? }
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>GET    /api/contexts/claims/mentions?principalId=|identityId=   the contexts whose interviews mention a person
 </code></pre></div>
 <p><strong>Deleting an interview</strong> removes its claims. What its confirmed claims already changed
 — a description section, an attribute, a role — <strong>stays</strong>; a role only loses its link
 (<code>sourceClaimId</code> → NULL).</p>
-<h2 id="membership-over-time-the-members-lists">Membership over time — the members lists<a class="headerlink" href="#membership-over-time-the-members-lists" title="Permanent link">&para;</a></h2>
-<p>A membership claim is knowledge about a person and the context; members still come from
-their source. Two places show it, both set-based (<code>contexts/interviews/memberFacts.js</code>):</p>
+<h2 id="sources-and-add-information">Sources and Add information<a class="headerlink" href="#sources-and-add-information" title="Permanent link">&para;</a></h2>
+<p><em>Add information</em> (in the page header and on the <em>Sources</em> section, analysts only) opens
+one dialog — <em>"A transcript, notes, an Excel or CSV list, a Word document — anything that
+says something about this unit."</em> — with two ways in:</p>
 <ul>
-<li><strong>The members list.</strong> <code>GET /contexts/:id/members</code> adds, on a unit or an application whose
-  members are accounts or persons, <code>interview: { role, left }</code> to every row: one more
-  statement for the whole page (the claims about the page's ids — for persons also those
-  about their accounts, via <code>IdentityMembers</code>), never a query per row. <code>role</code> is the latest
-  role there — a <code>role</code> claim (said in the present) or a roleHistory whose period is open or
-  "now" first, then the latest period, then the newest interview — with the whole
-  <code>history</code>; the table shows it in a <strong>Role</strong> column, the history on hover. <code>left</code> is the
-  person's latest word on being in it (newest interview first) — a membership claim, or a
-  role / roleHistory claim that says they left — when it says so (<code>former</code> / <code>left</code>; a
-  role claim reads <code>former</code>); the row
-  then carries <em>"Interview: left (last month)"</em>, the quote as tooltip, which opens the
-  transcript at the claim for an analyst.</li>
-<li><strong>Who left</strong> (<code>contexts/interviews/leftSignal.js</code>, one shared rule): a membership claim with
-  status <code>former</code> or <code>left</code>, or a role / roleHistory claim (not <code>notOwner</code>) whose value or
-  period says it — <em>left, no longer, former(ly), quit, departed, moved on</em>; <em>uitgestroomd,
-  vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…</em> — whole words only. So claims
-  stored before the membership kind existed, or a model that answers <em>roleHistory "left"</em>,
-  still count.</li>
-<li><strong>Who came back</strong> (<code>memberFacts.js</code> <code>rejoinOf</code>): a person whose latest word does not say
-  they left, and for whom a claim says they returned — a membership <code>rejoined</code>; the return
-  words above in a role claim's value or period, or in the clause of its quote about them
-  (<em>"Joris begon als junior en is sinds een half jaar terug, nu als architect"</em>: the model
-  put the return in neither value nor period); or a present membership (current, joined,
-  rejoined) said in a later interview than one that said they left. Their <strong>earlier stint</strong> is
-  every role before the latest one. A promotion without a word for coming back is no second
-  stint. The members list adds <code>interview.rejoined</code> (the claim that says it, with
-  <code>earlier</code>): the row's Role cell carries <em>"rejoined · earlier: Junior developer"</em>, the
-  quote and the earlier periods as tooltip.</li>
-<li><strong>Previous members</strong>, below the members: everyone whose latest such claim says they
-  left and who is not a direct member now (<code>stint: 'left'</code>) — and everyone who came back,
-  for the EARLIER stint (<code>stint: 'earlier'</code>, <code>role</code> = the roles they had then,
-  <code>nowMember</code>): <em>"Joris Jansen — Junior developer (earlier period)"</em>, with <em>now a member
-  again</em> scrolling to their current row. A person is one row at most. Matched to an account or a person, they come with
-  their <strong>live entitlements</strong> (ResourceAssignments not deleted — a person's own and their
-  accounts') and how many of those are on <strong>this context's resources</strong>: its own resource
-  members, or those of a <code>SameUnitAs</code> variant that holds resources (<em>"3 on this
-  application"</em>, highlighted). A name nobody matched is listed as said, with <em>no account found</em> and no counts.
-  Three statements in all: the claims, the counts for every matched person at once, and the
-  size of the linked resource set. The question it answers: <em>does this person still have
-  access?</em></li>
+<li><strong>Upload a file</strong>: <code>.txt</code>, <code>.md</code>, <code>.docx</code>, <code>.vtt</code>, <code>.srt</code> are read as a transcript
+  (above). <code>.csv</code> and <code>.xlsx</code> are read with the list upload's own reader
+  (<code>contexts/upload/parse.js</code> <code>parseList</code>) and each row becomes one readable line,
+  <em>"Name: Ann Example; Role: Architect"</em> (empty cells left out), so the model reads a list
+  like text and a quote can be a row (<code>contexts/interviews/sourceText.js</code>). The original
+  file name stays on the source.</li>
+<li><strong>Paste text</strong>: notes, an e-mail; stored under the file name <em>Pasted text</em>.</li>
 </ul>
-<p>Proposed claims read <strong>dashed and italic</strong>, confirmed ones plain. The reader rule is the
+<p><em>Who is this from?</em> is optional. With someone, the source is an interview and <em>"I"</em> in
+it is that person; without, the source is the file (or the text) and whoever added it —
+the model is told nobody in particular is speaking, and <em>"I"</em> names nobody. The date is the
+date of the source.</p>
+<p><strong>Sources</strong> (folded to <em>"2 sources · latest 2026-10-23"</em>) lists every added source: its
+kind (<em>Interview</em>, <em>File</em>, <em>Pasted text</em>), who it is from or who added it, when, the file,
+how far the model got, its claim counts, and <em>View</em> (the text with its quotes
+highlighted), <em>Read again</em>, <em>Add claim</em> (by hand) and <em>Delete</em>.</p>
+<h2 id="the-people-overview">The People overview<a class="headerlink" href="#the-people-overview" title="Permanent link">&para;</a></h2>
+<p>One section for everyone in a unit and everyone who was — the members its source lists
+merged with what the added sources say about people. <strong>Each person appears once</strong>:
+<code>GET /contexts/:id/people</code> (<code>contexts/interviews/people.js</code> has the rules,
+<code>peopleLoad.js</code> the reads) keys a person by their holder in the context's own kind of
+member — the account for a unit of accounts, the person for a unit of people; a claim that
+names the other kind is mapped through <code>IdentityMembers</code> — and a name nobody matched by
+the name as said. Every row carries one <strong>status</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Current</td>
+<td>the source lists them</td>
+</tr>
+<tr>
+<td>Came back</td>
+<td>the source lists them, and a source says they left once and came back (<code>rejoinOf</code>); the row says <em>"earlier: Junior developer"</em></td>
+</tr>
+<tr>
+<td>Not confirmed</td>
+<td>a source says they are in it, but the member list does not list them</td>
+</tr>
+<tr>
+<td>Left (decided)</td>
+<td>the source still lists them, but a decision marked them former (below)</td>
+</tr>
+<tr>
+<td>Left</td>
+<td>a source says they left, and the list does not list them (any more)</td>
+</tr>
+</tbody>
+</table>
+<p>Accountable and Responsible are badges on the row (from <code>ContextRoles</code>). The columns are
+compact: the name (opening their page), the status, their latest role here, where it comes
+from (<em>list</em>, <em>interview</em>, <em>file</em>, <em>notes</em>), what they still hold (live entitlements — a
+person's own and their accounts' — and how many of those are on this context's resources,
+<em>"3 here"</em>), and the claims about them as <strong>icons</strong>, one per kind (role, membership,
+history): outlined and dashed while a claim of that kind is proposed, solid once confirmed.
+Hovering or focusing an icon shows the claim in one line, the quote (cut at about 200
+characters), its source and its status; an analyst gets <em>Confirm</em> / <em>Reject</em> there and
+<em>Show in the source</em>, and clicking the icon opens the source at that quote. A person in an
+open contradiction gets a warning icon whose popover shows both statements and the
+decision buttons (the Contradictions panel's own). Escape closes a popover.</p>
+<p>Filters: <strong>Current</strong> (current, came back, not confirmed) · <strong>Former</strong> (left (decided),
+left) · <strong>All</strong>, each with its count, and <strong>To decide</strong> while there are open
+contradictions about people. Sorted: the listed current members by name, then the rest by
+status, each by name. Paged at 100. The read is set-based — a fixed number of statements
+whatever the size of the unit: the listed current members are the only group read a page at
+a time (the members endpoint's own read); everyone the claims and decisions name is few and
+merged in memory. An application's members are resources: its page keeps the resources list
+and shows People only when a source named someone.</p>
+<p><strong>Who left</strong> (<code>contexts/interviews/leftSignal.js</code>, one shared rule): a membership claim with
+status <code>former</code> or <code>left</code>, or a role / roleHistory claim (not <code>notOwner</code>) whose value or
+period says it — <em>left, no longer, former(ly), quit, departed, moved on</em>; <em>uitgestroomd,
+vertrokken, weg, niet meer, gestopt, voormalig(e), oud-…</em> — whole words only.
+<strong>Who came back</strong> (<code>memberFacts.js</code> <code>rejoinOf</code>): a person whose latest word does not say
+they left, and for whom a claim says they returned — a membership <code>rejoined</code>; the return
+words in a role claim's value or period, or in the clause of its quote about them; or a
+present membership said in a later interview than one that said they left. Their <strong>earlier
+stint</strong> is every role before the latest one. A promotion without a word for coming back is
+no second stint.
+Proposed claims read <strong>dashed and italic</strong>, confirmed ones plain. The reader rule is the
 claims list's: a reader gets confirmed claims only.</p>
 <h2 id="aliases">Aliases<a class="headerlink" href="#aliases" title="Permanent link">&para;</a></h2>
 <p>A confirmed alias claim adds to <code>extendedAttributes.aliases</code> (<code>lib/contextNameMatch.js</code>,
@@ -6513,7 +6588,7 @@ deletes the mark), the source it overrides by name (<code>overrides</code>), <co
 <tr>
 <td>Both true, at different times</td>
 <td>edited with the period</td>
-<td>none: the member stays current; the period is the earlier stint in the claim (members list, role timeline)</td>
+<td>none: the member stays current; the period is the earlier stint in the claim (the person's history icon in People)</td>
 </tr>
 <tr>
 <td>a claim that they are in it (current, joined, rejoined) confirmed</td>
@@ -6534,53 +6609,55 @@ alias or role is changed back where it was changed).</p>
 <ul>
 <li><strong>Members list</strong> (<code>GET …/members</code>): a marked member is left out of the current members and of
   <code>total</code>; <code>overriddenCount</code> says how many were left out; <code>?includeOverridden=true</code> lists them
-  too, each with <code>overridden: { by, at, overrides, claimId }</code>. The page says <em>"1 marked as former
-  by a decision — show"</em> and shows them struck through with the decision. The facts block says
-  <em>"12 in this unit (1 marked former)"</em> (<code>GET /contexts/:id</code> → <code>overriddenMemberCount</code>; the
-  counts stay the source's).</li>
-<li><strong>Previous members</strong> (<code>GET …/previous-members</code>): lists them with <code>decision</code> and <code>stillListed</code>,
-  and the live entitlements they still hold — <em>"Decided by <who>, <date>: the interview is right —
-  Klanten (upload) still lists them"</em>, the hint <em>"Still listed in the source — remove it there or
-  re-import without them"</em>, and <em>Undo decision</em> for an analyst.</li>
+  too, each with <code>overridden: { by, at, overrides, claimId }</code> (<code>GET /contexts/:id</code> →
+  <code>overriddenMemberCount</code>; the counts stay the source's).</li>
+<li><strong>People overview</strong> (<code>GET …/people</code>): the person is <strong>Left (decided)</strong>, under <em>Former</em>, with
+  <code>decision</code> and <code>stillListed</code> and the live entitlements they still hold — the status says
+  <em>"Decided by <who>, <date>: the interview is right — Klanten (upload) still lists them. Still
+  listed in the source — remove it there or re-import without them."</em>, and the popover of the
+  claim it was decided on offers <em>Undo decision</em> to an analyst.</li>
 <li><strong>Timeline</strong>: <em>"Decided: Led Ledeboer is a former member (overrides Klanten (upload))"</em>.</li>
 <li><strong>Unit report</strong>: keeps the row and adds a <strong>Status</strong> column — <em>current</em> or <em>marked former
   (decision)</em> — so the report shows both what the source lists and what was decided.</li>
-<li><strong>Context owner (read-only view)</strong>: the same members list (current members, the note, the
-  toggle); Previous members stays an analyst read, as before.</li>
+<li><strong>Context owner (read-only view)</strong>: the same People overview, from confirmed claims only —
+  <em>Former</em> included: who left but can still get in is the most useful thing the page tells them.</li>
 <li><strong>Matrix and access</strong>: unchanged, deliberately. The matrix shows access, and the access is
-  still there — that is the point of Previous members' <em>still has access</em>. The decision never
+  still there — that is the point of the People overview's <em>Access</em> column. The decision never
   removes an assignment or a membership.</li>
 <li><strong>Change request</strong>: when the source is a system or an uploaded list, the mark also raises a
   change request: <em>"Remove Led Ledeboer from Klanten"</em>, for that source, resting on the claim and
   the mark. Clearing the mark or undoing the decision withdraws it, and the source dropping the
   person resolves it. A list kept by hand raises none. See <a href="../change-requests/">Change requests</a>.</li>
 </ul>
-<p>On the page: a <strong>Contradictions (n)</strong> panel at the top of <em>What we know</em>, never folded — each
-item the two statements side by side (<em>View in transcript</em> on a claim, for an analyst) with the
-choices; a <em>"n contradictions to decide"</em> badge under the page header and beside <em>To review</em>,
-jumping to the panel. A reader sees the open ones without choices.</p>
+<p>On the page: a contradiction about a person is decided on that person's row in <em>People</em> (the
+warning icon's popover: both statements, <em>View in transcript</em> on a claim for an analyst, and
+the choices); one about the unit itself (a property against the value it holds) sits in a
+<strong>Contradictions (n)</strong> panel inside <em>What we know</em>. The analyst's attention line under the
+header counts them all (<em>"2 to decide"</em>) and jumps to them: People filtered to <em>To decide</em>, or
+What we know opened. A reader sees the open ones without choices.</p>
 <h2 id="the-review-list-and-what-we-know">The review list and What we know<a class="headerlink" href="#the-review-list-and-what-we-know" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>What we know</strong> is folded by default to one line — <em>"7 facts · 3 people · 2 proposed to
-  review"</em> (facts: the confirmed claims; people: the distinct persons they name; the review
-  count only for an analyst) — and opens on click. Open or folded is remembered per context
-  for the browser session (<code>sessionStorage</code>, inside try/catch: a browser that refuses it
-  starts folded).</li>
-<li><strong>To review</strong> lists the <code>high</code> tier first; the <code>low</code> tier waits folded under <em>Less
-  relevant (n)</em>. <em>Reject all less relevant</em> and <em>Reject all descriptions</em> each send one
-  request.</li>
+<li><strong>What we know</strong> holds facts about the unit only — its description, the properties the
+  sources established, its other names, the same unit as other kinds of member, and More
+  details — folded by default to one line: the start of the description, then <em>"3 properties ·
+  also known as HA · 2 to review"</em> (the review count only for an analyst, and only the unit's
+  own claims; a person's are on their row).</li>
+<li><strong>To review</strong>: the attention line's <em>"13 to review"</em> opens one drawer with every proposed
+  claim — about the unit and its people — in the review list; the same claim can also be
+  decided where it shows (a person's row, What we know). The list shows the <code>high</code> tier first;
+  the <code>low</code> tier waits folded under <em>Less relevant (n)</em>. <em>Reject all less relevant</em> and <em>Reject
+  all descriptions</em> each send one request.</li>
 </ul>
 <h2 id="the-transcript-view">The transcript view<a class="headerlink" href="#the-transcript-view" title="Permanent link">&para;</a></h2>
-<p><em>View transcript</em> (in the What we know header, and per interview in the list) opens a side
-panel: the transcript as a dialogue — a speaker column (<em>"Name:"</em> at the start of a line; a
+<p><em>View</em> (per source in the Sources list) opens a side panel, <em>Source</em>: the text as a dialogue — a speaker column (<em>"Name:"</em> at the start of a line; a
 .vtt / .srt transcript arrives as such lines) beside their words — with every claim's quote
 highlighted. A colour per kind (role, role history, membership, alias, property,
 description); the fill for the status: a light fill with a dashed underline while proposed,
 a solid fill once confirmed, grey and struck through when rejected; a legend says which is
 which. A highlight is a keyboard-focusable button with an aria label naming its claims; it
 opens the claim card (kind, person, value, period, status, Confirm / Reject while
-proposed). <em>In transcript</em> next to a claim in the review list — and the <em>left</em> flag in the
-members list — opens the panel scrolled to the quote, which pulses. Escape closes it.</p>
+proposed). <em>In transcript</em> next to a claim in the review list — and a claim icon on a
+person's row in People — opens the panel scrolled to the quote, which pulses. Escape closes it.</p>
 <p>The spans come from the API: stored at extraction (and for an analyst's claim), found from
 the verbatim quote when the transcript is opened for a claim from before 100. A quote may
 run over a line break into the next turn (highlighted in both, never in the speaker column)
@@ -6605,15 +6682,13 @@ plugin runner re-stamps <code>lastCalculatedAt</code> every few minutes, which h
 of 50 rows; the page hid those, and the Timeline came up empty.</p>
 <h2 id="who-sees-what">Who sees what<a class="headerlink" href="#who-sees-what" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Analyst</strong> (<code>data.write.contexts</code>): everything — the card, the review list, the
-  interviews, the suggestions.</li>
+<li><strong>Analyst</strong> (<code>data.write.contexts</code>): everything — Add information, the attention line, the
+  review, the sources, the suggestions.</li>
 <li><strong>Business reader</strong> (no <code>data.write.contexts</code>) and <strong>context owner</strong> (the read-only
-  shared page; <code>…/claims</code> is on the owner allow-list): <strong>confirmed claims only</strong>, under
-  <em>What we know</em> — the API narrows the list, the page does not filter it. No card, no
-  review, no transcripts. In the members lists the role, the <em>left</em> flag and Previous
-  members are read from confirmed claims only, and are plain text. <code>…/previous-members</code> is
-  not on the context owner's allow-list, so the owner's shared page shows no Previous
-  members (it would name people outside the owner's members, with their entitlements).</li>
+  shared page; <code>…/claims</code> and <code>…/people</code> are on the owner allow-list): <strong>confirmed claims
+  only</strong> — the API narrows the lists, the page does not filter them. No Add information, no
+  review buttons, no sources, no transcripts. The People overview, <em>Former</em> included, is
+  theirs too: who left and what they still hold is read from confirmed claims and decisions.</li>
 <li><strong>The transcript stays analyst-only.</strong> Showing it to a reader would show the words behind
   proposed and rejected claims too, and deciding which parts a reader may read is not cheap;
   the view is offered only with <code>data.write.contexts</code> (the transcript GET already required
@@ -6621,13 +6696,15 @@ of 50 rows; the page hid those, and the Timeline came up empty.</p>
 </ul>
 <h2 id="on-the-page">On the page<a class="headerlink" href="#on-the-page" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>What we know</strong> (below the template's facts, folded to one line): Description,
-  Properties, Also known as, People &amp; roles — each with its source, the quote on expand —
-  and per person a <strong>role timeline</strong>
-  (<em>"junior (early years) → left → architect CCoE (now)"</em>, with bars where the interviews
-  gave dates). For an analyst also <em>To review</em> and <em>Interviews</em>.</li>
-<li><strong>People block</strong>: interview suggestions under Accountable and Responsible, next to the
-  best guess, with Confirm / Not this person / Choose someone else.</li>
+<li>The page structure is in <a href="../template-ui/#4-the-page-of-a-unit-or-an-application">Template UI</a>:
+  People → What we know → Sources → Change requests → Sub-units → Timeline.</li>
+<li><strong>People overview</strong>: each person once, with their status, role, sources, access and the
+  claims as icons (above).</li>
+<li><strong>What we know</strong> (folded to one line): the unit's own facts, with each source and the
+  quote on expand; for an analyst also its own claims to review.</li>
+<li><strong>Who answers for it</strong> (under the name in the header): interview suggestions under
+  Accountable and Responsible, next to the best guess, with Confirm / Not this person /
+  Choose someone else.</li>
 <li><strong>Account and person pages</strong>: <em>Mentioned in interviews</em>, linking each context.</li>
 </ul>
 <h2 id="known-limits">Known limits<a class="headerlink" href="#known-limits" title="Permanent link">&para;</a></h2>

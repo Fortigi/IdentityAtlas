@@ -6633,7 +6633,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.3.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.3.1</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -9172,7 +9172,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </tbody>
 </table>
 <h3 id="contextmemberoverrides">ContextMemberOverrides<a class="headerlink" href="#contextmemberoverrides" title="Permanent link">&para;</a></h3>
-<p><code>ia:MemberOverride</code> · Knowledge table · An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access.</p>
+<p><code>ia:MemberOverride</code> · Knowledge table · An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, the People overview shows them as left (decided) with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access.</p>
 <p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
 <table>
 <thead>

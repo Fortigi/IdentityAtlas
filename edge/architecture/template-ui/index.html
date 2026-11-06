@@ -3426,6 +3426,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#4-the-page-of-a-unit-or-an-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The page of a unit or an application
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5712,6 +5723,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#4-the-page-of-a-unit-or-an-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. The page of a unit or an application
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5838,11 +5860,11 @@ for the workflows that start from a context, with one of them built now.</p>
 </tr>
 <tr>
 <td>Workflow cards</td>
-<td>The page has a workflows area built from a small registry (template → cards). <strong>One card is built: "Download report".</strong> Room for the role interview and owner survey later; not shown until built.</td>
+<td><em>Superseded 2026-10-26 (readability):</em> no card grid. The actions moved to the page header — see <a href="#4-the-page-of-a-unit-or-an-application">§4</a>.</td>
 </tr>
 <tr>
 <td>Actions</td>
-<td>Two cards. <strong>View in matrix</strong> (every kind): an application or resource unit opens the matrix with its resources as columns and their holders as rows, grouped by department and folded when large; a unit of accounts or people opens it with its members as rows. <strong>Download entitlement report</strong> is on <strong>applications only</strong>: it runs the <strong>Entitlement Pivot</strong> (<code>application-access-review</code>) on the application itself. An organisational unit (of people, accounts or resources) gets View in matrix only — the report over a unit made no sense to readers there (decided 2026-10-20). The API still runs the Entitlement Pivot on a unit of accounts, from the report form.</td>
+<td><em>Superseded 2026-10-26:</em> the cards became the header's <strong>Download report</strong> and the ⋯ menu's <strong>View in matrix</strong> (§4); a unit of accounts or people got its unit report since. The original decision: two cards. <strong>View in matrix</strong> (every kind): an application or resource unit opens the matrix with its resources as columns and their holders as rows, grouped by department and folded when large; a unit of accounts or people opens it with its members as rows. <strong>Download entitlement report</strong> is on <strong>applications only</strong>: it runs the <strong>Entitlement Pivot</strong> (<code>application-access-review</code>) on the application itself. An organisational unit (of people, accounts or resources) gets View in matrix only — the report over a unit made no sense to readers there (decided 2026-10-20). The API still runs the Entitlement Pivot on a unit of accounts, from the report form.</td>
 </tr>
 <tr>
 <td>Readiness dots</td>
@@ -5872,11 +5894,49 @@ for the workflows that start from a context, with one of them built now.</p>
 <h2 id="3-ui">3. UI<a class="headerlink" href="#3-ui" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>ContextsPage</code>: sub-tabs per template (counts from the roots list); Organisation tab gets the kind switch and shows only roots of that targetType; Applications lists LogicalApplication roots; Tags and Segments render today's tree unchanged.</li>
-<li>Profiles (<code>contexts/profiles/</code>): per template, the facts shown first and the vocabulary. Organisational unit: Accountable (with best guess), Responsible, Members, Sub-units, <strong>Variants of this unit</strong>. Application: Owner (Accountable, with best guess), Responsible, Resources, Variants (rare). Tag and Segment: today's detail.</li>
-<li>Workflows area: <code>contexts/workflows/registry.js</code> maps a template to cards; the only card besides View in matrix is <code>DownloadReportCard</code> (see §1), registered for LogicalApplication only. It opens the report the way the Reports page does (reuse its run/download code), with <code>contexts = [the application]</code>.</li>
+<li>Profiles (<code>contexts/profiles/</code>): per template, the vocabulary (<code>profiles.js</code>: the Accountable's name — an application's is its Owner —, the noun, the label of its members) and the variants of the unit.</li>
 <li>Best guess: shown inside the Accountable fact when there is no Accountable — name, reason, <strong>Confirm</strong>, <strong>Reject</strong>, <strong>Choose someone else</strong>.</li>
 <li>No readiness dots.</li>
 </ul>
+<h2 id="4-the-page-of-a-unit-or-an-application">4. The page of a unit or an application<a class="headerlink" href="#4-the-page-of-a-unit-or-an-application" title="Permanent link">&para;</a></h2>
+<p>Decided 2026-10-26 (readability review): one column of sections, each person once, the
+actions in the header. <code>ContextDetailPage.jsx</code> → <code>contexts/page/ProfileBody.jsx</code>.</p>
+<ol>
+<li><strong>Header</strong> (<code>ContextDetailHeader.jsx</code>): the breadcrumb, the name, one sentence on what it
+   is, and <strong>who answers for it</strong> inline under it — Accountable and Responsible
+   (<code>ContextPeople.jsx</code>, with the best guess and the interview suggestions; the role's meaning
+   on hover). No Owner chip: an owner the source names but nobody matches reads <em>"The source
+   names “…” as the owner; no account found."</em> while no Accountable is set. Actions:
+   <strong>Download report</strong> (the main button, for everyone — an application's entitlement report,
+   a unit of accounts or people's unit report; <code>contexts/header/headerActions.js</code>), <strong>Add
+   information</strong> (an analyst; see <a href="../context-interviews/#sources-and-add-information">Context interviews</a>),
+   and <strong>⋯</strong> (<code>contexts/header/MoreMenu.jsx</code>): View in matrix ↗, Adjust tree, Edit search
+   terms, Edit, Add sub-unit, Copy link, Open as page, Back to Contexts — each where it
+   applies.</li>
+<li><strong>Attention line</strong> (analysts): <em>"2 to decide · 13 to review · 1 to correct in the source"</em> —
+   to decide filters People to <em>To decide</em> (or opens What we know for a contradiction about the
+   unit), to review opens the review drawer, to correct opens Change requests.</li>
+<li><strong>People</strong> (<code>contexts/people/PeopleSection.jsx</code>): the People overview — each person once,
+   with status, role, sources, access and the claims as icons; filters Current · Former · All
+   (and To decide). See <a href="../context-interviews/#the-people-overview">Context interviews → The People overview</a>.
+   An application keeps its <strong>Resources</strong> list (the members table) and shows People only when a
+   source named someone.</li>
+<li><strong>What we know</strong> (folded to one line): the unit's own facts — description, properties, also
+   known as, the unit as other kinds of member, More details — and, for an analyst, its own
+   claims to review.</li>
+<li><strong>Sources</strong> (analysts, folded): everything added, with <em>Add information</em>.</li>
+<li><strong>Change requests</strong> (analysts, folded, only when there are any).</li>
+<li><strong>Sub-units</strong>.</li>
+<li><strong>Timeline</strong> and <strong>Risk</strong> (analysts, folded, at the foot).</li>
+</ol>
+<p>The <strong>business view</strong> (no <code>data.write.contexts</code>, or a context owner's read-only page) gets the
+header with Download report, who answers for it, People (Former included), What we know and the
+sub-units: no Add information, no attention line, no review buttons, no Sources, no Timeline;
+confirmed claims only. A read-only shell has no ⋯ menu (nothing in it is theirs to open).
+On a narrow screen a person's row is a two-line card: the name, the roles and the status, then
+the role, the sources, the access and the claim icons.</p>
+<p>Contexts without a template (Tags, Segments) keep the generic page: the header, the
+description, More details, the sub-units and the members table, and the Timeline for an analyst.</p>
 
 
 

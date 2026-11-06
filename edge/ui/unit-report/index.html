@@ -1500,6 +1500,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#organisational-claims" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organisational claims
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#sub-units" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5676,6 +5687,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#organisational-claims" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organisational claims
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#sub-units" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5776,7 +5798,7 @@ unit's page lists under <em>More details</em>. It also says how the entitlement 
 </thead>
 <tbody>
 <tr>
-<td>Unit, Name, Email, Employee ID, Job title, Department, Manager</td>
+<td>Unit, Name, Status, Email, Employee ID, Job title, Department, Manager</td>
 <td>yes</td>
 <td>yes</td>
 </tr>
@@ -5788,6 +5810,11 @@ unit's page lists under <em>More details</em>. It also says how the entitlement 
 <tr>
 <td>Linked accounts</td>
 <td>—</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><strong>Org claim — Status</strong>, <strong>Org claim — Role</strong>, <strong>Org claim — Source</strong></td>
+<td>yes</td>
 <td>yes</td>
 </tr>
 <tr>
@@ -5806,6 +5833,26 @@ unit's page lists under <em>More details</em>. It also says how the entitlement 
 are. After the fixed columns comes a column for every attribute the source stored on the members, sorted
 by name — at most 60; if there are more, the ones most members carry are kept and the rest are named on
 the Summary tab.</p>
+<h2 id="organisational-claims">Organisational claims<a class="headerlink" href="#organisational-claims" title="Permanent link">&para;</a></h2>
+<p>Three columns, with a light amber header, say what people told us about each person — in interviews,
+notes, files and other information added on the unit's page — rather than what a connected system says:</p>
+<ul>
+<li><strong>Org claim — Status</strong>: the status the unit's <strong>People</strong> overview shows — <em>Current</em>, <em>Came back</em>,
+  <em>Not confirmed</em>, <em>Left (decided)</em> or <em>Left</em>.</li>
+<li><strong>Org claim — Role</strong>: their latest role there, and for someone who came back the roles of their
+  earlier stint ("Analyst · earlier: Junior analyst").</li>
+<li><strong>Org claim — Source</strong>: where that comes from, short: "interview with …, date", "file …, date" or
+  "notes added by …, date".</li>
+</ul>
+<p>A claim nobody has reviewed yet is marked <strong>(proposed)</strong> — "Data mining (proposed)"; a confirmed one is
+plain. The columns are empty for a person nobody said anything about. A context owner, and anyone who
+cannot edit contexts, sees confirmed claims only — the same rule as the People overview.</p>
+<p>After the members follow the people the added information names but the member list does <strong>not</strong> list —
+<em>Not confirmed</em> first, then <em>Left</em>. Their <strong>Status</strong> column says "not listed by the source", and their
+entitlements are still counted, so the sheet answers "do they still have access?". With sub-units
+included, these rows are added for the picked unit only.</p>
+<p>On the Summary tab, under the people block of each unit, a note explains the Org claim columns, followed
+by the number of current members, former people and (for analysts) claims still proposed.</p>
 <h2 id="sub-units">Sub-units<a class="headerlink" href="#sub-units" title="Permanent link">&para;</a></h2>
 <p>By default the report lists the unit's <strong>direct</strong> members. Tick <strong>Include sub-units</strong> (parameter
 <code>includeSubUnits=true</code>) to also list the members of every unit below it; each row then says which unit
