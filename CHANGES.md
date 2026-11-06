@@ -1,5 +1,40 @@
 ## Changes in this PR
 
+- Context owners can now open a **Team matrix** from their unit's page: everyone in the unit as a row, and what each of them holds.
+- Context owners can open the full page — attributes, relationships, timeline, diff and (read-only) risk — of the people in their unit and of the groups and resources those people hold, and go back to their unit.
+- On those pages every reference is still listed (a group shows all its members); people and objects outside the owner's reach are shown in a lighter colour, marked "No access to details", instead of as links.
+- What a context owner may open is enforced by the API: any other detail page, a wider matrix filter, and every change are refused.
+- Application owners can now open an **Application matrix** from their application's page (its resources as columns, everyone who holds one as a row), and open the full page of each of those holders; what the holders have outside the application is shown by name only.
+- Someone who owns several contexts — for example a unit and an application — can switch between them and open each one's matrix, and may open everything any of their contexts gives access to.
+- Changed: a context owner now sees **every** unit below theirs, at any depth — also a sub-unit that has an owner of its own (that owner still sees only their own part). The unit report can now include those sub-units for an owner.
+- The team and application matrices are now the same matrix an analyst sees for that unit or application — including the business-role band, governed cells and the Governed / Non-governed / Gaps views — and the business roles can be opened; business roles nobody on the team holds stay out of view.
+- The team matrix opens grouped by the unit's sub-units, which can be expanded and collapsed as in the analyst's hierarchy view; "Group by unit" switches to the flat matrix with the business roles.
+- The owner's list of contexts shows what kind each one is (organisation unit, application, tag, segment) with an icon and a label.
+- The matrix grouped by a unit's hierarchy (for analysts and owners) now shows the people directly in a unit as a "direct members" column beside its sub-units, so nobody drops out and the totals add up; a unit without sub-units no longer shows an empty matrix; and the business roles are shown in that view too.
+- The matrix grouped by hierarchy opens with the unit's own people shown individually and its sub-units collapsed, and its business-role columns are labelled again.
+- The Authorization workbench now opens in the matrix's orientation: people as columns, access as rows. Business roles and proposed roles are rows with their entitlements nested under them in their colours, then "Other access". What is known of people (job title, activity, expertise, duty, …) sits in header rows above their columns, with the same filter and sort. A unit whose people hold hundreds of groups no longer scrolls sideways. **People as rows** is one click away, and the choice is saved with the investigation.
+- Filter the permissions in the Authorization workbench the way you filter the people: Resource name, Contexts, Type, System and Held by each have an Excel-like filter and sort.
+  - Contexts can show **only** the chosen tags or logical applications, or **hide** what is in them (e.g. hide everything tagged "Default access"). Choosing an application includes its sub-contexts.
+  - Held by now also takes **at most** (to spot outliers), and **Hide permissions only one person holds** is one click.
+  - A business role shows only the entitlements left by the filters, and says "(all hidden by filters)" when none are. A proposed role always keeps its own entitlements, marked "hidden by filter", so nothing is silently dropped from a proposal.
+  - The impact counts only what is shown, and says how many permissions the filters leave out.
+  - The filters are saved with the investigation. With people as rows they sit behind a **Permissions** menu.
+- The Authorization workbench has one vertical scrollbar, the page's. Its header rows stay at the top of the window as you scroll, and the proposed-role panel stays beside the grid. The header rows about people are compact (full values on hover), so many more permission rows fit on screen.
+- Added saving to the Authorization workbench: save your work on a unit as a named investigation (the columns and filters, the marks on cells and every proposed role) and open it again later from **Open…**.
+- The workbench now says whether your work is saved, and warns before opening another investigation over unsaved changes.
+- When you reopen an investigation, the workbench says how many cells of access changed since you saved it; your marks and proposed roles stay as saved.
+- A save is refused when someone else saved the same investigation after you opened it, naming who did, so nobody's work is silently overwritten.
+- Proposed roles are stored apart from real business roles: saving never creates a role, an assignment or access.
+- Saving an investigation also keeps how each proposed role is assigned: rule-based or requestable, its assignment rule, always-include / always-exclude, joiner and leaver choices, the approver and the "why" — all back on Open.
+- "Save role" and "Save and start the next role" at the end of the proposed role: it says what the role still needs (a name, its kind, an entitlement), asks the investigation's name the first time, and starts the next role with its kind to choose.
+- New **+ Proposed roles** toggle in the Matrix, next to All, Governed, Non-governed and Gaps. It adds the proposed roles saved in workbench investigations to whichever view you have, as "Draft: …" business roles in their own colours, with the real business roles still shown, so overlaps stand out. Pick one investigation or see them all. Off, the Matrix is exactly as before. The toggle is not saved with a matrix or a share link, and nothing here changes access.
+- A unit's page now has a **Proposed roles** section ("3 in 2 investigations") listing the roles saved in its Authorization workbench investigations: colour, name, kind, the rule in one sentence (or "chosen by hand"), how many people and entitlements, and where and by whom it was saved. Clicking one opens the workbench on that investigation with that role in the panel. The **Authorization workbench** button shows how many are proposed.
+- A unit's **What we know** now includes what its people do, know and hold (activities, expertise, duties), also when the interview was added on another unit (usually the parent), so the unit page and the workbench agree. Proposed ones can be reviewed there.
+- The Authorization workbench, saved investigations, the unit page's **Proposed roles** and the Matrix's **Proposed** view are part of **Organisation knowledge** (Admin → Experimental), which is off by default. With it off, the Matrix and the unit page look as before.
+- With **+ Proposed roles** on, the Draft roles come after the real business roles in the Matrix, set apart by a small gap under a "Proposed" label.
+
+## Changes in this PR
+
 - Added the Authorization workbench to organizational units: see the unit's people and what they hold, grouped by the activities they perform, their expertise or the duties they hold beside their work, select clusters of access and compose a candidate role (new, or an update to an existing business role) with its impact shown in the grid — covered, potential gain, outside the candidate, other context. Nothing in it changes access or is saved.
 - "Add information" now also proposes what people do, know and hold (activities, expertise, duties); confirming one links it to a shared, named object you can find again under Contexts.
 - Analysts can state a person's activity, expertise or duty by hand from the workbench, and confirm or reject proposed ones with their source and quote.
