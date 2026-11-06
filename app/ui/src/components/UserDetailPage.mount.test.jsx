@@ -30,7 +30,7 @@ const user = (over = {}) => ({
 });
 
 // The page fires two side fetches of its own (identity link, manager) alongside the entity fetch.
-function renderPage({ body = user(), identity = null, manager = null, userOk = true } = {}) {
+function renderPage({ body = user(), identity = null, manager = null, userOk = true, onOpenDetail = () => {} } = {}) {
   const seen = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
@@ -43,11 +43,20 @@ function renderPage({ body = user(), identity = null, manager = null, userOk = t
     return undefined;
   });
   const r = renderWithProviders(
-    <UserDetailPage userId="u1" onClose={() => {}} onOpenDetail={() => {}} />,
+    <UserDetailPage userId="u1" onClose={() => {}} onOpenDetail={onOpenDetail} />,
     { auth: { authFetch } },
   );
   return { ...r, seen };
 }
+
+describe('UserDetailPage — compare', () => {
+  it('opens the compare tab with this user from the header', async () => {
+    const onOpenDetail = vi.fn();
+    renderPage({ onOpenDetail });
+    (await screen.findByRole('button', { name: 'Compare with…' })).click();
+    expect(onOpenDetail).toHaveBeenCalledWith('compare', 'u1');
+  });
+});
 
 describe('UserDetailPage header', () => {
   it('renders the name, principal type, UPN, system and the job/department/company line', async () => {

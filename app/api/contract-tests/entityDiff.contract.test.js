@@ -106,6 +106,35 @@ describe('GET /user/:id/diff', () => {
   });
 });
 
+describe('GET /user/:id/snapshot — the Compare view', () => {
+  it('shows each user as it is now, with a shared role under the same key for both', async () => {
+    const daveId = await insertPrincipal('Dave Compare', oldMgr);
+    await pool.query(
+      `INSERT INTO "ResourceAssignments" ("resourceId", "principalId", "assignmentType", "principalType", "systemId", "resourceType")
+       VALUES ($1, $2, 'Direct', 'User', $3, 'BusinessRole')`,
+      [keptRole, daveId, systemId],
+    );
+    const [carol, dave] = await Promise.all([
+      agent.get(`/api/user/${userId}/snapshot`),
+      agent.get(`/api/user/${daveId}/snapshot`),
+    ]);
+    expect(carol.status).toBe(200);
+    expect(carol.body.snapshot.attributes.department).toBe('Finance');
+    // Now: the removed role is gone, the added one is there.
+    expect(labels(carol.body.snapshot)).toEqual([
+      'Business roles:Diff Added Role', 'Business roles:Diff Kept Role', 'Manager:Bob New',
+    ]);
+    const keyOf = (body, label) => body.snapshot.relationships.find(i => i.label === label)?.key;
+    expect(keyOf(dave.body, 'Diff Kept Role')).toBe(keyOf(carol.body, 'Diff Kept Role'));
+    expect(keyOf(carol.body, 'Diff Kept Role')).toBe(`heldResources:${keptRole}|Direct`);
+  });
+
+  it('404 for a user that does not exist', async () => {
+    const res = await agent.get('/api/user/00000000-0000-4000-8000-000000000000/snapshot');
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('GET /access-package/:id/diff', () => {
   it('shows the member who left on the left only', async () => {
     const res = await agent.get(`/api/access-package/${removedRole}/diff`).query({ at: new Date(at).toISOString() });

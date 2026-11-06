@@ -16,6 +16,10 @@ describe('entityEndpointFor — which object a detail path is about', () => {
     [`/api/identities/${ID}`, 'identity'],
     [`/api/identities/${ID}/assignments`, 'identity'],
     [`/api/identities/${ID}/diff`, 'identity'],
+    [`/api/user/${ID}/snapshot`, 'principal'],
+    [`/api/identities/${ID}/snapshot`, 'identity'],
+    [`/api/resources/${ID}/snapshot`, 'resource'],
+    [`/api/access-package/${ID}/snapshot`, 'resource'],
     [`/api/resources/${ID}`, 'resource'],
     [`/api/resources/${ID}/assignments`, 'resource'],
     [`/api/access-package/${ID}/timeline`, 'resource'],
@@ -56,6 +60,10 @@ describe('refsFor — where a response names other objects', () => {
 
   it('a diff marks both snapshots', () => {
     expect(refsFor(`/api/resources/${ID}/diff`).map(r => r.at)).toEqual(['before.relationships', 'after.relationships']);
+  });
+
+  it('a snapshot marks its one list of relationships', () => {
+    expect(refsFor(`/api/user/${ID}/snapshot`)).toEqual([{ at: 'snapshot.relationships', kindKey: 'kind', key: 'id' }]);
   });
 
   it('a second ref on the same rows writes its own flag', () => {

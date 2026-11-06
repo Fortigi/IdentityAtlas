@@ -88,7 +88,9 @@ export function AttributeDiffTable({ rows, beforeLabel, afterLabel }) {
   );
 }
 
-function ItemCell({ item, onOpenDetail }) {
+// One relationship item: a link to its page (or a no-access name), plus how it
+// is held. Shared with the Compare view.
+export function ItemCell({ item, onOpenDetail }) {
   const target = KIND_TO_TAB[item.kind];
   const linkable = target && item.id && onOpenDetail;
   return (

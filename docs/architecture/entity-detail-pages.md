@@ -208,6 +208,24 @@ The UI never assumes the left side is the past. `diffSnapshots(before, after)` (
 
 ---
 
+## Compare tab
+
+The Compare tab shows two or three users side by side, as they are now, with one column each. Where the Diff tab compares one entity at two moments, Compare looks at different entities at the same moment. It answers "these users look alike, so where do they differ?" It opens from **Compare with…** on a user's page, or from **Compare** on the Users list once 2–3 rows are selected. The ids live in the tab's address (`#compare:<id>,<id>[,<id>]`), so a comparison can be bookmarked or shared. Adding or removing a user gives the open tab a new address in place (`replaceTabId` in `App.helpers.js`).
+
+```
+GET /api/<user|resources|access-package|identities>/:id/snapshot
+
+{ "id": "…", "omitted": 0, "snapshot": { "exists", "deleted", "attributes", "relationships": [item] } }
+```
+
+The snapshot has the same shape as one side of the diff, and it is built by the same code (`buildCurrentSnapshot` in `snapshot.js`). The UI fetches **one snapshot per entity**, so each is access-checked like any other detail read: the `/snapshot` paths are listed in `auth/ownerAccess/endpoints.js`. A multi-id endpoint would have needed its own owner-access rule.
+
+**Item keys never contain the viewed entity's own id.** The key names the relationship from the entity's side only, for example `heldResources:<resourceId>|<assignmentType>`. So the same group held the same way by two users gets the same key, and the two land on one row. Within one entity the key is still unique, so the Diff tab is unaffected.
+
+`compareSnapshots(snapshots)` (`components/compare/entityCompare.helpers.js`) marks each row `same` or `differs`. A relationship differs when one entity lacks it or holds it differently (`detail`). By default the view shows only the rows that differ, and it hides naming fields such as display name, UPN, e-mail and object ids, which differ between any two accounts by definition.
+
+---
+
 ## Adding a new entity kind
 
 To give a new entity kind its own detail page with the graph + recent-changes treatment:

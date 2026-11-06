@@ -29,6 +29,7 @@ const DIFF = [
   { at: 'before.relationships', kindKey: 'kind', key: 'id' },
   { at: 'after.relationships', kindKey: 'kind', key: 'id' },
 ];
+const SNAPSHOT = [{ at: 'snapshot.relationships', kindKey: 'kind', key: 'id' }];
 // A person row names an account, else a person — the same preference the UI
 // links by (contexts/people/people.helpers.js personLink).
 const HOLDERS = (path) => [at(path, 'principal', 'principalId'), at(path, 'identity', 'identityId')];
@@ -45,6 +46,7 @@ const USER = [
   [`user/${UUID}/history`, []],
   [`user/${UUID}/(?:timeline|recent-changes)`, EVENTS],
   [`user/${UUID}/diff`, DIFF],
+  [`user/${UUID}/snapshot`, SNAPSHOT],
   [`identities/by-user/${UUID}`, [at('identity', 'identity', 'id'), at('otherMembers', 'principal', 'userId')]],
   [`org-chart/user/${UUID}/manager`, [at('manager', 'principal', 'id')]],
   [`org-chart/user/${UUID}/reports`, [at('reports', 'principal', 'id')]],
@@ -57,6 +59,7 @@ const IDENTITY = [
   [`identities/${UUID}/account-matrix`, [at('accounts', 'principal', 'id')]],
   [`identities/${UUID}/(?:timeline|recent-changes)`, EVENTS],
   [`identities/${UUID}/diff`, DIFF],
+  [`identities/${UUID}/snapshot`, SNAPSHOT],
 ];
 
 const RESOURCE = [
@@ -69,6 +72,7 @@ const RESOURCE = [
   [`resources/${UUID}/history`, []],
   [`(?:resources|access-package)/${UUID}/(?:timeline|recent-changes)`, EVENTS],
   [`(?:resources|access-package)/${UUID}/diff`, DIFF],
+  [`(?:resources|access-package)/${UUID}/snapshot`, SNAPSHOT],
   [`group/${UUID}`, []],
   [`group/${UUID}/members`, [at('', 'principal', 'memberId')]],
   [`group/${UUID}/access-packages`, [at('', 'resource', 'resourceId')]],
