@@ -3764,6 +3764,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/m1-discovery-and-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/m1-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 brief)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/crawler-architecture/" class="md-nav__link">
         
   
@@ -6224,11 +6280,12 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     }
     ContextClaims {
         uuid id PK
-        string claimKind "description, property, role, roleHistory, membership, alias"
+        string claimKind "description, property, role, roleHistory, membership, alias, activity, expertise, duty"
         string claimStatus "proposed, confirmed, edited, rejected"
         uuid contextId FK
         uuid identityId FK
         uuid interviewId FK
+        uuid objectContextId FK
         uuid principalId FK
         string proposedBy "model, analyst"
         string relevance "high, low"
@@ -6344,6 +6401,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     Contexts |o--o{ ContextClaims : "contextId"
     Identities |o--o{ ContextClaims : "identityId"
     ContextInterviews |o--o{ ContextClaims : "interviewId"
+    Contexts |o--o{ ContextClaims : "objectContextId"
     Principals |o--o{ ContextClaims : "principalId"
     Contexts |o--o{ ContextInterviews : "contextId"
     Identities |o--o{ ContextInterviews : "identityId"

@@ -4000,6 +4000,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/m1-discovery-and-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/m1-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 brief)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/crawler-architecture/" class="md-nav__link">
         
   
@@ -6633,7 +6689,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.3.1</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.4.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -6645,6 +6701,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     direction LR
     class AIAgent
     class AccessPermission
+    class ActivityContext
     class AdministrativeUnitContext
     class Agent
     class AppRegistration
@@ -6666,9 +6723,11 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     class CostCenterContext
     class DelegatedPermission
     class DepartmentContext
+    class DutyContext
     class Entitlement
     class EntraDirectoryRole
     class EntraGroupCategoryContext
+    class ExpertiseContext
     class ExternalUser
     class Group
     class GroupOwnership
@@ -6713,6 +6772,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     class WorkloadIdentity
     Agent &lt;|-- AIAgent
     Permission &lt;|-- AccessPermission
+    TagContext &lt;|-- ActivityContext
     OrganizationalUnit &lt;|-- AdministrativeUnitContext
     Principal &lt;|-- Agent
     Application &lt;|-- AppRegistration
@@ -6733,9 +6793,11 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     OrganizationalUnit &lt;|-- CostCenterContext
     AccessPermission &lt;|-- DelegatedPermission
     OrganizationalUnit &lt;|-- DepartmentContext
+    TagContext &lt;|-- DutyContext
     AccessPermission &lt;|-- Entitlement
     TechnicalRole &lt;|-- EntraDirectoryRole
     Segment &lt;|-- EntraGroupCategoryContext
+    TagContext &lt;|-- ExpertiseContext
     Person &lt;|-- ExternalUser
     Resource &lt;|-- Group
     ControlPermission &lt;|-- GroupOwnership
@@ -6807,6 +6869,14 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>Activity</code></td>
+<td><code>ia:ActivityContext</code></td>
+<td>Tag</td>
+<td>Identity</td>
+<td>application code</td>
+<td>A business activity people perform (performsActivity), the object of an activity claim. Manual, under one root Activities (extendedAttributes.knowledgeRoot); created when a claim naming it is confirmed (Authorization workbench).</td>
+</tr>
+<tr>
 <td><code>AdministrativeUnit</code></td>
 <td><code>ia:AdministrativeUnitContext</code></td>
 <td>Organizational unit</td>
@@ -6839,12 +6909,28 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>One flat context per distinct Principals.department value (externalId 'dept:<value>'), without hierarchy. The Omada crawler syncs departments of persons under the same value, and the demo dataset writes a department tree of accounts.</td>
 </tr>
 <tr>
+<td><code>Duty</code></td>
+<td><code>ia:DutyContext</code></td>
+<td>Tag</td>
+<td>Identity</td>
+<td>application code</td>
+<td>A duty people hold beside their daily work (holdsResponsibility: works council, fire warden, a project role), the object of a duty claim. Manual, under one root Duties.</td>
+</tr>
+<tr>
 <td><code>EntraGroupCategory</code></td>
 <td><code>ia:EntraGroupCategoryContext</code></td>
 <td>Segment</td>
 <td>Resource</td>
 <td>plugin <code>entra-group-category-tree</code></td>
 <td>The Entra groups of one category (security, Microsoft 365, dynamic …).</td>
+</tr>
+<tr>
+<td><code>Expertise</code></td>
+<td><code>ia:ExpertiseContext</code></td>
+<td>Tag</td>
+<td>Identity</td>
+<td>application code</td>
+<td>A domain people know (hasExpertise), the object of an expertise claim. Manual, under one root Expertise.</td>
 </tr>
 <tr>
 <td><code>Location</code></td>
@@ -8874,7 +8960,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </tbody>
 </table>
 <h3 id="contextclaims">ContextClaims<a class="headerlink" href="#contextclaims" title="Permanent link">&para;</a></h3>
-<p><code>ia:Claim</code> · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.</p>
+<p><code>ia:Claim</code> · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias, activity, expertise, duty), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.</p>
 <p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
 <table>
 <thead>
@@ -8898,7 +8984,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>claimKind</code></td>
 <td><code>ia:claimKind</code></td>
 <td>text</td>
-<td><code>description</code>, <code>property</code>, <code>role</code>, <code>roleHistory</code>, <code>membership</code>, <code>alias</code></td>
+<td><code>description</code>, <code>property</code>, <code>role</code>, <code>roleHistory</code>, <code>membership</code>, <code>alias</code>, <code>activity</code>, <code>expertise</code>, <code>duty</code></td>
 <td>What the claim states.</td>
 </tr>
 <tr>
@@ -8956,6 +9042,13 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>uuid</td>
 <td>→ ContextInterviews</td>
 <td>The interview that makes the claim.</td>
+</tr>
+<tr>
+<td><code>objectContextId</code></td>
+<td><code>ia:objectContextId</code></td>
+<td>uuid</td>
+<td>→ Contexts</td>
+<td>What an activity, expertise or duty claim is about: an Activity, Expertise or Duty context. Set when the claim is confirmed (found by name, or created); NULL for every other claim and when the object is deleted.</td>
 </tr>
 <tr>
 <td><code>periodFrom</code></td>
@@ -9425,6 +9518,21 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>alias</code></td>
 <td><code>ia:ClaimKind_alias</code></td>
 <td>Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases.</td>
+</tr>
+<tr>
+<td><code>activity</code></td>
+<td><code>ia:ClaimKind_activity</code></td>
+<td>performsActivity: a person performs a business activity (value: its name). Confirmed, the claim names its object, an ia:ActivityContext (objectContextId). Knowledge only: it informs role engineering and never grants access.</td>
+</tr>
+<tr>
+<td><code>expertise</code></td>
+<td><code>ia:ClaimKind_expertise</code></td>
+<td>hasExpertise: a person has knowledge of a domain (value: its name). Confirmed, the claim names its object, an ia:ExpertiseContext. Knowledge only.</td>
+</tr>
+<tr>
+<td><code>duty</code></td>
+<td><code>ia:ClaimKind_duty</code></td>
+<td>holdsResponsibility: a person holds a duty outside or across their daily work — works council, fire warden, a project role (value: its name). Called duty so it is never read as the ContextRole Responsible. Confirmed, the claim names its object, an ia:DutyContext. Knowledge only.</td>
 </tr>
 </tbody>
 </table>

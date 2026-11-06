@@ -3682,6 +3682,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/m1-discovery-and-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/m1-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 brief)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/crawler-architecture/" class="md-nav__link">
         
   
@@ -6261,7 +6317,11 @@ that belong to them, linked as two variants of one unit by <code>SameUnitAs</cod
     end
     subgraph g_TagContext["Tag"]
       direction LR
+      t_Activity["Activity"]:::Context
+      t_Duty["Duty"]:::Context
+      t_Expertise["Expertise"]:::Context
       t_Tag["Tag"]:::Context
+      t_Activity ~~~ t_Duty ~~~ t_Expertise ~~~ t_Tag
     end
     root --&gt; g_LogicalApplicationContext
     root --&gt; g_OrganizationalUnit
