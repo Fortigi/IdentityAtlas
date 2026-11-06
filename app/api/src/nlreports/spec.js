@@ -41,6 +41,19 @@ export const MAX_CONDITIONS = 25;
 export const MAX_COLUMNS = 15;
 export const DEFAULT_LIMIT = 1000;
 export const MAX_LIMIT = 5000;
+// The ceiling of a run where the reader asked for every row (a download, or
+// "Load all rows" on screen). High enough for a 200k-user tenant, low enough that
+// one response still fits in memory — and well under Excel's ~1M rows per sheet.
+export const ALL_ROWS_LIMIT = 250000;
+
+/**
+ * The row limit one run of this spec uses. A limit of DEFAULT_LIMIT or more is a
+ * cap ("stop somewhere"), which asking for every row lifts; a smaller one is the
+ * question itself ("the top 10") and stays.
+ */
+export function runLimit(spec, allRows) {
+  return allRows && spec.limit >= DEFAULT_LIMIT ? ALL_ROWS_LIMIT : spec.limit;
+}
 
 const ENTITY_ALIASES = {
   user: 'user', users: 'user',
