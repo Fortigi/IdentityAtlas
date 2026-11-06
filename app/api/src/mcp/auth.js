@@ -14,13 +14,22 @@
 //     switch per role, Admin → Authentication & roles).
 // API keys (fgr_ / fgc_) are refused: they act for no one.
 //
+// Or, for a caller whose roles give them no access at all (or who misses a role
+// in AUTH_REQUIRED_ROLES) — exactly the callers the REST API hands to
+// context-owner mode — a CONTEXT OWNER, when both relative-permission switches
+// are on (mcp/ownerScope.js). They get req.user.contextOwner and no
+// permissions: only the tools marked owner: 'scoped' are listed, and those run
+// under the owner's scope. Someone who holds any real permission is never an
+// owner here, as in REST: without mcp.use they are refused.
+//
 // What the assistant may then READ is decided per tool by the same permissions
-// the UI uses (mcp/tools.js) — MCP adds a gate, it never widens one.
+// the UI uses (mcp/server.js) — MCP adds a gate, it never widens one.
 
 import { isAuthEnabled, getClientId } from '../config/authConfig.js';
 import { isFeatureEnabled } from '../featureFlags.js';
-import { verifyEntraAccessToken, accessFromClaims } from '../middleware/auth.js';
+import { verifyEntraAccessToken, resolveAccess } from '../middleware/auth.js';
 import { MCP_SCOPE, challengeHeader, mcpResourceUrl } from './resource.js';
+import { resolveMcpContextOwner } from './ownerScope.js';
 
 export const MCP_PERMISSION = 'mcp.use';
 
@@ -60,16 +69,33 @@ export async function mcpAuth(req, res, next) {
     return refuse(req, res, 403, 'insufficient_scope', `The token does not carry the ${MCP_SCOPE} scope`);
   }
 
-  const access = accessFromClaims(decoded);
-  if (!access || !hasPermission(access.permissions, MCP_PERMISSION)) {
-    return res.status(403).json({
-      error: 'Your Identity Atlas role does not include "Use the MCP server". Ask an administrator to add it to your role.',
-      required: [MCP_PERMISSION],
-    });
-  }
-
+  const access = resolveAccess(decoded);
   req.user = decoded;
   req.user.roles = access.roles;
-  req.user.permissions = access.permissions;
+  if (!access.missesRequiredRole && access.permissions.size > 0) {
+    if (!hasPermission(access.permissions, MCP_PERMISSION)) return refuseRole(res);
+    req.user.permissions = access.permissions;
+    return next();
+  }
+
+  // No access through a role: perhaps a context owner. A failed lookup answers
+  // 500 — never the roleless path, never a guess.
+  let owner;
+  try {
+    owner = await resolveMcpContextOwner(decoded);
+  } catch (err) {
+    console.error('MCP context-owner check failed:', err.message);
+    return res.status(500).json({ error: 'Authentication service error' });
+  }
+  if (!owner) return refuseRole(res);
+  req.user.permissions = new Set();
+  req.user.contextOwner = owner;
   next();
+}
+
+function refuseRole(res) {
+  return res.status(403).json({
+    error: 'Your Identity Atlas role does not include "Use the MCP server". Ask an administrator to add it to your role.',
+    required: [MCP_PERMISSION],
+  });
 }

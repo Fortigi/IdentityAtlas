@@ -18,6 +18,20 @@ vi.mock('../config/authConfig.js', () => ({
   getRolePermissions: () => state.mapping,
 }));
 vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: async (name) => name === 'mcpServer' && state.featureOn }));
+// Context owners: both switches and who answers for what are test state here;
+// their real behaviour is covered by contextOwnerSetting.test.js and the
+// contract tests.
+const ownerState = vi.hoisted(() => ({ mcpSwitch: false, owner: null, fail: false, lookups: 0 }));
+vi.mock('../auth/contextOwnerSetting.js', () => ({ isContextOwnerMcpEnabled: async () => ownerState.mcpSwitch }));
+vi.mock('../auth/contextOwner.js', () => ({
+  resolveContextOwner: async () => {
+    ownerState.lookups += 1;
+    if (ownerState.fail) throw new Error('db down');
+    return ownerState.owner;
+  },
+  resolveReportContexts: async (_p, wanted) => wanted,
+  descendantsInScope: async () => true,
+}));
 vi.mock('../middleware/auth.js', async (importOriginal) => ({
   ...(await importOriginal()),
   verifyEntraAccessToken: vi.fn(),
@@ -55,6 +69,7 @@ beforeEach(() => {
     Asker: ['mcp.use', 'data.read', 'data.read.reports'],
     NoMcp: ['data.read', 'data.read.reports'],
   };
+  Object.assign(ownerState, { mcpSwitch: false, owner: null, fail: false, lookups: 0 });
   verifyEntraAccessToken.mockReset();
   query.mockReset();
   queryOne.mockReset();
@@ -205,6 +220,72 @@ describe('run_report end to end', () => {
       '11111111-1111-1111-1111-111111111111', 'ada@example.com', 'Claude-User', 'run_report',
       JSON.stringify({ name: 'mcp-test-report', parameters: { prefix: 'p' }, maxRows: 3 }), 'ok', 3,
     ]);
+  });
+});
+
+describe('a context owner (no Identity Atlas role)', () => {
+  const MINE = 'a0000000-0000-4000-8000-000000000001';
+  const CARLA = { contexts: [{ id: MINE, displayName: 'CTO (Carla Cash)', role: 'Accountable' }], contextIds: new Set([MINE]) };
+
+  it('is refused while the MCP switch for owners is off, like any roleless caller', async () => {
+    ownerState.owner = CARLA;
+    verifyEntraAccessToken.mockResolvedValue(claims([]));
+    const res = await rpc('tools/list').expect(403);
+    expect(res.body.required).toEqual(['mcp.use']);
+    expect(ownerState.lookups).toBe(0);
+  });
+
+  it('is refused when they answer for no context', async () => {
+    ownerState.mcpSwitch = true;
+    verifyEntraAccessToken.mockResolvedValue(claims([]));
+    await rpc('tools/list').expect(403);
+    expect(ownerState.lookups).toBe(1);
+  });
+
+  it('with the switch on, gets the owner-scoped tools and instructions that say whom the assistant acts for', async () => {
+    ownerState.mcpSwitch = true;
+    ownerState.owner = CARLA;
+    verifyEntraAccessToken.mockResolvedValue(claims([]));
+    const list = await rpc('tools/list').expect(200);
+    expect(list.body.result.tools.map(t => t.name).sort()).toEqual(['describe_data_model', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
+    const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } }).expect(200);
+    expect(init.body.result.instructions).toContain('You are acting for a context owner');
+    const me = await rpc('tools/call', { name: 'whoami', arguments: {} }).expect(200);
+    expect(me.body.result.structuredContent.scope).toMatchObject({ restricted: true, contexts: [{ id: MINE, name: 'CTO (Carla Cash)' }] });
+  });
+
+  it('cannot run a report outside their list, even one the analyst tools would run', async () => {
+    ownerState.mcpSwitch = true;
+    ownerState.owner = CARLA;
+    verifyEntraAccessToken.mockResolvedValue(claims([]));
+    const res = await rpc('tools/call', { name: 'run_report', arguments: { name: 'mcp-test-report' } }).expect(200);
+    expect(res.body.result.isError).toBe(true);
+    expect(res.body.result.content[0].text).toContain('No report with that name');
+  });
+
+  it('is never an owner while they hold a real permission: without mcp.use they are refused, unlooked-up', async () => {
+    ownerState.mcpSwitch = true;
+    ownerState.owner = CARLA;
+    verifyEntraAccessToken.mockResolvedValue(claims(['NoMcp']));
+    await rpc('tools/list').expect(403);
+    expect(ownerState.lookups).toBe(0);
+  });
+
+  it('fails closed with 500 when the owner lookup fails', async () => {
+    ownerState.mcpSwitch = true;
+    ownerState.fail = true;
+    verifyEntraAccessToken.mockResolvedValue(claims([]));
+    const res = await rpc('tools/list').expect(500);
+    expect(res.body.error).toBe('Authentication service error');
+  });
+
+  it('an analyst with mcp.use keeps the unscoped tools and the plain instructions', async () => {
+    ownerState.mcpSwitch = true;
+    ownerState.owner = CARLA;
+    verifyEntraAccessToken.mockResolvedValue(claims(['Admin']));
+    const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } }).expect(200);
+    expect(init.body.result.instructions).not.toContain('context owner');
+    expect(ownerState.lookups).toBe(0);
   });
 });
 

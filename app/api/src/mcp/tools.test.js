@@ -250,6 +250,7 @@ describe('whoami', () => {
     expect(r.structuredContent).toEqual({
       name: 'Ada', username: 'ada@x', roles: ['Reader'],
       account: { principalId: 'p1', displayName: 'Ada', link: `${BASE}/#user:p1` },
+      scope: { restricted: false, basis: 'role', description: 'Everything your Identity Atlas role allows you to read.' },
     });
   });
 

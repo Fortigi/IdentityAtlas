@@ -103,24 +103,24 @@ beforeEach(async () => {
 
 describe('the admin switch', () => {
   it('is off by default, and an admin can turn it on and read it back', async () => {
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false });
     const put = await setSwitch(true);
     expect(put.status).toBe(200);
-    expect(put.body).toEqual({ enabled: true });
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: true });
+    expect(put.body).toEqual({ enabled: true, mcp: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: true, mcp: false });
   });
 
   it('needs admin.auth — a data.read user cannot read or change it', async () => {
     const reader = as(['Reader'], '44444444-4444-4444-8444-444444444444');
     expect((await request(app).get('/api/admin/context-owner-access').set(reader)).status).toBe(403);
     expect((await request(app).put('/api/admin/context-owner-access').set(reader).send({ enabled: true })).status).toBe(403);
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false });
   });
 
   it('refuses a value that is not a boolean', async () => {
     const res = await request(app).put('/api/admin/context-owner-access').set(admin).send({ enabled: 'true' });
     expect(res.status).toBe(400);
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false });
   });
 
   it('a context owner cannot reach it either (it is not on their list)', async () => {

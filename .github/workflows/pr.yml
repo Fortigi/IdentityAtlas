@@ -29,6 +29,7 @@
 #  15. docs-build — MkDocs --strict, so a PR can't break the nav or a cross-link
 #  16. migration-immutability — migration hashes vs .ci/migration-hashes.json
 #  17. node-version — .nvmrc is the single source of truth for the Node major
+#  18. security-authz — authorization regression across REST and MCP (real PostgreSQL)
 #
 # All of the above feed ci-passed, so none needs to be an individual required
 # check — mark only ci-passed required, and it self-skips per the filter scopes.
@@ -527,6 +528,41 @@ jobs:
       - name: Run contract tests
         working-directory: app/api
         run: npm run test:contract
+
+  # ── Stage 4b+: Authorization security regression ────────────────────────
+  # Who may see what, across REST and MCP — its own named check so a security
+  # regression is unmistakable on the PR page (docs/architecture/mcp-authorization.md).
+  # The unit half (scope rules, every MCP tool's owner policy, the sign-in gate)
+  # and the PostgreSQL half (contract-tests/authzSecurity.integration.test.js:
+  # eight personas, REST and MCP compared object by object, adversarial probes
+  # with admin positive controls). No external LLM: every MCP tool is called
+  # directly with fixed inputs. Some of these also run in unit-js / contract-tests;
+  # the duplication is the price of a check that cannot be mistaken for another.
+  security-authz:
+    name: 'Security: authorization regression'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.api == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Run the authorization security suite
+        working-directory: app/api
+        run: npm run test:security
 
   # ── Stage 4c: UI unit tests (Vitest) ────────────────────────────────────
   unit-ui:
@@ -1151,6 +1187,7 @@ jobs:
       - unit-tests
       - unit-js
       - contract-tests
+      - security-authz
       - unit-ui
       - node-launcher-ui-build
       - openapi

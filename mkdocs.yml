@@ -154,6 +154,7 @@ nav:
       - Administer:
           - Authentication & SSO: admin/authentication.md
           - Context-Owner Access: architecture/context-owner-access.md
+          - MCP and Relative Permissions: architecture/mcp-authorization.md
           - Data & Maintenance: admin/data-tab.md
           - Automatic Updates: admin/auto-updates.md
           - Nightly Review: operations/nightly-review.md

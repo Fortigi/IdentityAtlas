@@ -16,6 +16,7 @@
   "mutate": [
     "src/mcp/audit.js",
     "src/mcp/auth.js",
+    "src/mcp/ownerScope.js",
     "src/mcp/resource.js",
     "src/mcp/result.js",
     "src/mcp/router.js",

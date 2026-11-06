@@ -1,0 +1,50 @@
+# ─── Authorization security regression — main and weekly ─────────────────────
+# The same suite as the PR job "Security: authorization regression" (pr.yml
+# security-authz), run again where no PR is involved:
+#   - on every push to main, so the merged result — not only each branch on its
+#     own — is proven to keep REST and MCP inside each caller's scope;
+#   - weekly, so a dependency or a data-model change that slipped in through a
+#     path the PR filter scoped out is still caught within days;
+#   - on demand.
+# Not a PR gate (no pull_request trigger), so test/ci-scripts/test-gate-wiring.sh
+# leaves it alone; the PR gate is the job in pr.yml. No external LLM is called.
+# What it checks: docs/architecture/mcp-authorization.md.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Security regression (authorization)
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  security-authz:
+    name: 'Security: authorization regression'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Run the authorization security suite
+        working-directory: app/api
+        run: npm run test:security

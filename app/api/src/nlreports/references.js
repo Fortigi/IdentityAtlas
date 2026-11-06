@@ -27,6 +27,17 @@
 import { ENTITIES } from './catalog.js';
 import { baseEntityOf, humanType } from './compare.js';
 import { likeContains } from '../db/sqlParams.js';
+import { scopePredicate } from './scope.js';
+
+// With a row scope (scope.js) every lookup below sees only records in it: a name
+// outside the scope is "not found" and is never offered as a choice, so a lookup
+// cannot confirm that something exists where the caller may not look.
+// ` AND <predicate>` with the scope's parameter appended to `params`, or ''.
+function scopeClause(entityName, t, scope, params) {
+  if (!scope) return '';
+  params.push(scope.contextIds);
+  return ` AND ${scopePredicate(ENTITIES[entityName].table, t, `$${params.length}::uuid[]`)}`;
+}
 
 const TYPE_COLUMN = { Resources: 'resourceType', Principals: 'principalType' };
 const MIN_SIMILARITY = 0.25;
@@ -43,40 +54,44 @@ const entityWord = (entityName) => ENTITIES[entityName].label.toLowerCase();
 const PERSON_TABLES = new Set(['Principals', 'Identities']);
 const isPerson = (entityName) => PERSON_TABLES.has(ENTITIES[entityName].table);
 
-async function exactMatches(query, entityName, name) {
+async function exactMatches(query, entityName, name, scope = null) {
   const entity = ENTITIES[entityName];
   const t = 'n0';
+  const params = [name, normalizeName(name)];
+  const scopeSql = scopeClause(entityName, t, scope, params);
   const { rows } = await query(
     `SELECT ${t}."id", ${t}."displayName", ${typeSelect(entity, t)} AS type, lower(${t}."displayName") = lower($1) AS exact
      FROM "${entity.table}" ${t}
-     WHERE ${entity.where(t)} AND (lower(${t}."displayName") = lower($1)
+     WHERE ${entity.where(t)}${scopeSql} AND (lower(${t}."displayName") = lower($1)
        OR regexp_replace(lower(${t}."displayName"), '[^[:alnum:]]+', '', 'g') = $2)
      ORDER BY exact DESC, ${t}."displayName" LIMIT 6`,
-    [name, normalizeName(name)],
+    params,
   );
   return rows;
 }
 
-async function fuzzyMatches(query, entityName, name) {
+async function fuzzyMatches(query, entityName, name, scope = null) {
   const entity = ENTITIES[entityName];
   const t = 'n0';
   const dn = `lower(${t}."displayName")`;
+  const params = [name, likeContains(name)];
+  const scopeSql = scopeClause(entityName, t, scope, params);
   const { rows } = await query(
     `SELECT ${t}."id", ${t}."displayName", ${typeSelect(entity, t)} AS type,
        round((similarity(${dn}, lower($1)) * 0.6 + word_similarity(lower($1), ${dn}) * 0.4)::numeric, 2) AS score
      FROM "${entity.table}" ${t}
-     WHERE ${entity.where(t)} AND (${t}."displayName" ILIKE $2 ESCAPE '\\'
+     WHERE ${entity.where(t)}${scopeSql} AND (${t}."displayName" ILIKE $2 ESCAPE '\\'
        OR similarity(${dn}, lower($1)) >= ${MIN_SIMILARITY}
        OR word_similarity(lower($1), ${dn}) >= ${MIN_WORD_SIMILARITY})
      ORDER BY score DESC, ${t}."displayName" LIMIT ${MAX_CHOICES}`,
-    [name, likeContains(name)],
+    params,
   );
   return rows.map(r => ({ id: r.id, name: r.displayName, type: r.type, score: Number(r.score) }));
 }
 
-/** Names for the reference picker in the editor. */
-export async function searchNames(query, entityName, text) {
-  return fuzzyMatches(query, entityName, text);
+/** Names for the reference picker in the editor (and the MCP search tool, scoped for a context owner). */
+export async function searchNames(query, entityName, text, scope = null) {
+  return fuzzyMatches(query, entityName, text, scope);
 }
 
 /** Every named object in a spec, with the path to its condition and the entity it names. */
@@ -100,19 +115,21 @@ function confirmation(kind, path, name, entityName, choices) {
   return { kind, path, name, label, choices, message };
 }
 
-async function resolveReference(query, c, path) {
+async function resolveReference(query, c, path, scope) {
   const ref = c.reference;
   if (ref.id) {
     const entity = ENTITIES[ref.entity];
+    const params = [ref.id];
+    const scopeSql = scopeClause(ref.entity, 'n0', scope, params);
     const { rows } = await query(
-      `SELECT n0."id", n0."displayName", ${typeSelect(entity, 'n0')} AS type FROM "${entity.table}" n0 WHERE n0."id" = $1`, [ref.id]);
+      `SELECT n0."id", n0."displayName", ${typeSelect(entity, 'n0')} AS type FROM "${entity.table}" n0 WHERE n0."id" = $1${scopeSql}`, params);
     if (rows.length === 1) { Object.assign(ref, { name: rows[0].displayName, type: rows[0].type }); return null; }
     delete ref.id;
     delete ref.type;
   }
   // A business role named as a "group" is still found: try the base entity too.
   for (const entityName of new Set([ref.entity, baseEntityOf(ref.entity)])) {
-    const rows = await exactMatches(query, entityName, ref.name);
+    const rows = await exactMatches(query, entityName, ref.name, scope);
     const exact = rows.filter(r => r.exact);
     const pick = exact.length === 1 ? exact[0] : (exact.length === 0 && rows.length === 1 ? rows[0] : null);
     if (pick) {
@@ -124,41 +141,43 @@ async function resolveReference(query, c, path) {
     }
   }
   const base = baseEntityOf(ref.entity);
-  return confirmation('reference', path, ref.name, base, await fuzzyMatches(query, base, ref.name));
+  return confirmation('reference', path, ref.name, base, await fuzzyMatches(query, base, ref.name, scope));
 }
 
-async function resolveValue(query, c, path, entityName) {
-  const rows = await exactMatches(query, entityName, c.value);
+async function resolveValue(query, c, path, entityName, scope) {
+  const rows = await exactMatches(query, entityName, c.value, scope);
   if (rows.some(r => r.exact)) return null;
   if (rows.length === 1) { c.value = rows[0].displayName; return null; }
   const choices = rows.length > 1
     ? rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }))
-    : await fuzzyMatches(query, entityName, c.value);
+    : await fuzzyMatches(query, entityName, c.value, scope);
   return confirmation('value', path, c.value, entityName, choices);
 }
 
 /** The persons whose name contains the text, a page of them plus how many there are in all. */
-async function personMatches(query, entityName, text) {
+async function personMatches(query, entityName, text, scope) {
   const entity = ENTITIES[entityName];
   const t = 'n0';
+  const params = [likeContains(text)];
+  const scopeSql = scopeClause(entityName, t, scope, params);
   const { rows } = await query(
     `SELECT ${t}."id", ${t}."displayName", ${typeSelect(entity, t)} AS type, count(*) OVER() AS total
      FROM "${entity.table}" ${t}
-     WHERE ${entity.where(t)} AND ${t}."displayName" ILIKE $1 ESCAPE '\\'
+     WHERE ${entity.where(t)}${scopeSql} AND ${t}."displayName" ILIKE $1 ESCAPE '\\'
      ORDER BY ${t}."displayName" LIMIT ${MAX_CHOICES}`,
-    [likeContains(text)],
+    params,
   );
   return { rows, total: rows.length ? Number(rows[0].total) : 0 };
 }
 
-async function resolvePerson(query, c, path, entityName) {
-  const { rows, total } = await personMatches(query, entityName, c.value);
+async function resolvePerson(query, c, path, entityName, scope) {
+  const { rows, total } = await personMatches(query, entityName, c.value, scope);
   if (total === 1) {
     // One person: the report is about them, and its explanation says so by name.
     Object.assign(c, { op: 'eq', value: rows[0].displayName, checked: true });
     return null;
   }
-  if (total === 0) return confirmation('value', path, c.value, entityName, await fuzzyMatches(query, entityName, c.value));
+  if (total === 0) return confirmation('value', path, c.value, entityName, await fuzzyMatches(query, entityName, c.value, scope));
   const label = entityWord(entityName);
   const choices = rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }));
   // Last, so it is never the "first suggestion" a hurried answer picks.
@@ -170,18 +189,20 @@ async function resolvePerson(query, c, path, entityName) {
 }
 
 const RESOLVERS = {
-  reference: (query, item) => resolveReference(query, item.c, item.path),
-  value: (query, item) => resolveValue(query, item.c, item.path, item.entityName),
-  person: (query, item) => resolvePerson(query, item.c, item.path, item.entityName),
+  reference: (query, item, scope) => resolveReference(query, item.c, item.path, scope),
+  value: (query, item, scope) => resolveValue(query, item.c, item.path, item.entityName, scope),
+  person: (query, item, scope) => resolvePerson(query, item.c, item.path, item.entityName, scope),
 };
 
 /**
  * Look up every named object in a validated spec, in place.
+ * @param {object} [options]
+ * @param {object} [options.scope]  a row scope (scope.js): only records in it are found or offered
  * @returns {Promise<{ confirm: object|null }>} the first object the analyst has to confirm, if any
  */
-export async function resolveNamedObjects(spec, query) {
+export async function resolveNamedObjects(spec, query, { scope = null } = {}) {
   for (const item of namedObjects(spec.conditions, spec.entity)) {
-    const confirm = await RESOLVERS[item.kind](query, item);
+    const confirm = await RESOLVERS[item.kind](query, item, scope);
     if (confirm) return { confirm };
   }
   return { confirm: null };

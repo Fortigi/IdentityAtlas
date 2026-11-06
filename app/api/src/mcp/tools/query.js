@@ -15,6 +15,13 @@ import { ENTITIES } from '../../nlreports/catalog.js';
 import { MAX_LIMIT } from '../../nlreports/spec.js';
 import { callerSubstitutions, resolveCaller, ME } from '../../nlreports/caller.js';
 import { errorResult, rowLimit, tableResult, MAX_ROWS, DEFAULT_ROWS } from '../result.js';
+import { OWNER_SCOPE_DESCRIPTION, rowScopeOf, scopeOf } from '../ownerScope.js';
+
+// Prepended to the reference for a context owner, so the assistant reads every
+// answer in the right frame before it writes its first query.
+export const OWNER_PREFACE = `Your scope: ${OWNER_SCOPE_DESCRIPTION} Every run_query answer is limited to it — `
+  + 'a related record (a member, a group, an owner) is shown only when it lies inside it too. Comparing with a reference '
+  + 'record ("compare") is not available in this scope.';
 
 // What an assistant needs on top of the reference the local model works from.
 // Each line answers a mistake seen when Claude was evaluated on the Ask question
@@ -72,6 +79,10 @@ export const describeDataModel = {
     + 'and worked examples. Call this once before your first run_query. With "attributes" (entity names) it '
     + 'returns only the deployment\'s own extra attributes of those entities.',
   permission: 'data.read.reports',
+  // Scoped: the reference describes the schema, not records. Its value lists
+  // are deployment metadata (type names, system names, context types), the
+  // same for every caller; a context owner is told their scope on top.
+  owner: 'scoped',
   inputSchema: {
     type: 'object',
     properties: {
@@ -83,14 +94,15 @@ export const describeDataModel = {
     },
     additionalProperties: false,
   },
-  async run(args) {
+  async run(args, ctx) {
     const wanted = Array.isArray(args?.attributes) ? args.attributes.filter(e => ENTITIES[e]) : null;
     if (wanted?.length) {
       const block = attributesBlock(await loadExtFields(), wanted);
       return { content: [{ type: 'text', text: block || `No extra attributes for ${wanted.join(', ')}.` }], rowCount: null };
     }
     const [values, extFields] = await Promise.all([loadValues(), loadExtFields()]);
-    const guide = [PREFACE, buildSystemPrompt(), contextBlock(), buildValuesBlock(values), attributesSummary(extFields)]
+    const ownerPreface = rowScopeOf(ctx) ? OWNER_PREFACE : '';
+    const guide = [ownerPreface, PREFACE, buildSystemPrompt(), contextBlock(), buildValuesBlock(values), attributesSummary(extFields)]
       .filter(Boolean).join('\n\n');
     return { content: [{ type: 'text', text: guide }], rowCount: null };
   },
@@ -103,9 +115,10 @@ function badSort(sort) {
 }
 
 // A cut-off answer says how many there are: counted by running the definition
-// again up to the engine's own limit, only when the first run was cut off.
-async function countAll(definition, substitutions) {
-  const all = await runSpec({ ...definition, limit: MAX_LIMIT }, substitutions);
+// again up to the engine's own limit, only when the first run was cut off —
+// under the same scope, so the total is never a figure from outside it.
+async function countAll(definition, substitutions, scope) {
+  const all = await runSpec({ ...definition, limit: MAX_LIMIT }, substitutions, { scope });
   if (!all.ok) return {};
   return all.truncated ? { totalAtLeast: MAX_LIMIT } : { total: all.rows.length };
 }
@@ -119,6 +132,10 @@ export const runQuery = {
     + `the rows (capped at maxRows, default ${DEFAULT_ROWS}, max ${MAX_ROWS}) each with its id and link, the columns, a `
     + 'plain-language explanation of what was run, and "truncated": true with the full "total" when there are more rows.',
   permission: 'data.read.reports',
+  // Scoped: for a context owner the definition is compiled under their row
+  // scope (nlreports/scope.js) — the report's own table, every relation and
+  // every relation column — before anything is filtered, counted or grouped.
+  owner: 'scoped',
   inputSchema: {
     type: 'object',
     properties: {
@@ -142,16 +159,18 @@ export const runQuery = {
     }
     const limit = rowLimit(args.maxRows);
     const substitutions = callerSubstitutions(await ctx.caller());
+    const scope = rowScopeOf(ctx);
     // Ask for one row more than we show, so a cut-off answer is reported as one.
-    const result = await runSpec({ ...definition, limit: limit + 1 }, substitutions);
+    const result = await runSpec({ ...definition, limit: limit + 1 }, substitutions, { scope });
     if (!result.ok) {
       return errorResult(result.confirm ? 'Did you mean one of these?' : 'The definition is not valid.', {
         errors: result.errors,
         choices: result.confirm?.choices,
       });
     }
-    const counted = result.rows.length > limit ? await countAll(definition, substitutions) : {};
+    const counted = result.rows.length > limit ? await countAll(definition, substitutions, scope) : {};
     return tableResult({
+      scope: scopeOf(ctx),
       explanation: result.explanation,
       columns: result.columns,
       ...counted,

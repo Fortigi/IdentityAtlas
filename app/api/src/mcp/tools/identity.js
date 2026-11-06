@@ -5,14 +5,17 @@ import { query } from '../../db/connection.js';
 import { ENTITIES } from '../../nlreports/catalog.js';
 import { searchNames } from '../../nlreports/references.js';
 import { detailLink, jsonResult, errorResult } from '../result.js';
+import { rowScopeOf, scopeOf } from '../ownerScope.js';
 
 export const whoAmI = {
   name: 'whoami',
   title: 'Who am I',
   description:
     'The signed-in user this assistant acts for: name, their account in Identity Atlas (if the directory has '
-    + 'it), and their roles. Use it to answer questions about "me" / "my", or to explain why something is not allowed.',
+    + 'it), their roles, and what they may see ("scope" — for a context owner, the contexts they answer for). Use it '
+    + 'to answer questions about "me" / "my", or to explain why something is not allowed.',
   permission: null,
+  owner: 'scoped',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   async run(_args, ctx) {
     const caller = await ctx.caller();
@@ -24,6 +27,7 @@ export const whoAmI = {
       account: caller
         ? { ...caller, link: detailLink(ctx.baseUrl, { kind: 'user', id: caller.principalId }) }
         : null,
+      scope: scopeOf(ctx),
       note: caller ? undefined : 'Your sign-in is not linked to an account in the crawled directory, so "my …" questions cannot be answered.',
     });
   },
@@ -41,6 +45,9 @@ export const search = {
     + 'Use it to resolve a name the user mentions to the exact record before querying, or when a query said '
     + '"Did you mean". Returns id, exact name, type and a link per match.',
   permission: 'data.read',
+  // Scoped: for a context owner only records they may open are found (the
+  // lookup runs under their row scope, nlreports/scope.js).
+  owner: 'scoped',
   inputSchema: {
     type: 'object',
     properties: {
@@ -62,15 +69,16 @@ export const search = {
       : DEFAULT_KINDS;
     // A record can be found twice — a group is also a resource, a user also an
     // account — so the first (= best-scoring, after the sort) entry per id wins.
+    const scope = rowScopeOf(ctx);
     const found = [];
     for (const kind of kinds) {
-      for (const m of await searchNames(query, kind, text)) {
+      for (const m of await searchNames(query, kind, text, scope)) {
         found.push({ ...m, entity: kind, link: detailLink(ctx.baseUrl, { kind: ENTITIES[kind].detailKind, id: m.id }) });
       }
     }
     found.sort((a, b) => b.score - a.score);
     const seen = new Set();
     const matches = found.filter(m => !seen.has(m.id) && seen.add(m.id));
-    return jsonResult({ matches }, matches.length);
+    return jsonResult({ scope: scopeOf(ctx), matches }, matches.length);
   },
 };
