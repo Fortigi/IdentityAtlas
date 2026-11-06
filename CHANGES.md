@@ -1,5 +1,16 @@
 ## Changes in this PR
 
+- Added the Adjust tree screen: correct a generated or imported tree (manager hierarchy, uploaded lists, logical applications) by dragging units and people, renaming, adding a grouping level, splitting a unit, and setting an (interim) manager
+- Corrections are kept as adjustments with who, when and why, survive every refresh and sync of the source, and can be undone one by one
+- When the source renames or re-keys a unit or a department, the adjustment asks for a decision and proposes where it went, instead of silently dropping or following it
+- Added a Needs attention list: split candidates, people that could not be placed, interim managers whose end date passed, and adjustments the source now agrees with
+- The manager hierarchy can now start from a chosen top (by job title or by person), name units after their people instead of their manager, split a manager's people by department, collect what does not fit in a Not placed unit, and leave out disabled accounts
+- Running a tree now opens it in the Adjust tree screen instead of a "done" message
+- Fixed: a unit added or moved by hand under a generated unit was deleted when the source dropped that unit; it is now kept at the top level
+- Adjust tree is part of the experimental "Organisation knowledge" feature: while it is off the option is hidden and its API answers 404; adjustments made earlier keep being applied after each sync
+
+## Changes in this PR
+
 - Added change requests: when you decide that a source is wrong ("the interview is right: Led left, even though the uploaded list still has him"), Identity Atlas now also records what should change in that source, such as "Remove Led from Klanten", for the uploaded list or system it came from.
 - Change requests close themselves: a request is resolved when the source no longer shows the old fact (for example, after a re-import without the person), and withdrawn when you undo the decision. A unit kept by hand in Identity Atlas raises none, because Identity Atlas is its own source.
 - Added a "Change requests" panel to the unit page, listing what the source still has to change (open first, with closed ones folded away), and a `GET /api/change-requests` endpoint with status, system and unit filters.
