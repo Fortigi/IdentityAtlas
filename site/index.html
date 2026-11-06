@@ -18,73 +18,19 @@
   <meta property="og:video:height" content="1080" />
   <meta name="twitter:card" content="summary_large_image" />
 
-  <!-- Set theme before paint to avoid flash -->
-  <script>
-    (function () {
-      try {
-        var t = localStorage.getItem('ia-theme') || 'auto';
-        var dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.setAttribute('data-theme', t);
-        document.documentElement.classList.toggle('dark', dark);
-        document.documentElement.classList.add('js'); // enables scroll-reveal; no-JS shows everything
-      } catch (e) {
-        document.documentElement.classList.add('js');
-      }
-    })();
-  </script>
+  <!-- Set theme before paint to avoid flash (shared with every page) -->
+  <script src="assets/theme-init.js"></script>
 
   <link rel="stylesheet" href="assets/base.css" />
+  <link rel="stylesheet" href="assets/site.css" />
 
   <style>
-    /* Page-specific styles. Shared brand tokens, base reset, .wrap/.eyebrow
-       and buttons live in assets/base.css (linked above). */
-
-    /* skip link */
-    .skip { position: absolute; left: -999px; top: 8px; background: var(--accent); color:#fff; padding: 8px 14px; border-radius: 8px; z-index: 200; }
-    .skip:focus { left: 12px; }
-
-    /* ── Nav ───────────────────────────────────────────────── */
-    header.nav {
-      position: sticky; top: 0; z-index: 100;
-      backdrop-filter: saturate(180%) blur(12px);
-      background: color-mix(in srgb, var(--bg) 82%, transparent);
-      border-bottom: 1px solid transparent;
-      transition: border-color .3s ease, background-color .3s ease;
-    }
-    header.nav.scrolled { border-bottom-color: var(--border); }
-    .nav-inner { display: flex; align-items: center; gap: 20px; height: 66px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 1.15rem; letter-spacing: -0.02em; color: var(--fg); }
-    .brand:hover { color: var(--fg); }
-    .brand img { width: 30px; height: 30px; }
-    .brand .b-atlas { color: var(--brand); }
-    .nav-links { display: flex; gap: 6px; margin-left: auto; align-items: center; }
-    .nav-links a.nlink { color: var(--fg-muted); font-weight: 550; font-size: .93rem; padding: 8px 12px; border-radius: 8px; }
-    .nav-links a.nlink:hover { color: var(--fg); background: var(--bg-soft); }
-    .icon-btn {
-      display: inline-grid; place-items: center; width: 40px; height: 40px;
-      border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev);
-      color: var(--fg-muted); cursor: pointer; transition: border-color .2s, color .2s;
-    }
-    .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
-    .icon-btn svg { width: 19px; height: 19px; }
-    .nav-cta { display: flex; align-items: center; gap: 8px; }
-    .sun { display: none; } .moon { display: block; }
-    html.dark .sun { display: block; } html.dark .moon { display: none; }
-    .menu-toggle { display: none; }
+    /* Page-specific styles. Shared brand tokens, base reset, .wrap/.eyebrow and
+       buttons live in assets/base.css; the nav, footer, icon buttons and
+       scroll-reveal in assets/site.css (both linked above). */
 
     /* ── Hero ──────────────────────────────────────────────── */
-    .hero { position: relative; overflow: hidden; padding: 96px 0 84px; }
-    .hero::before {
-      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-      background:
-        radial-gradient(720px 420px at 78% -8%, rgba(132,204,22,.20), transparent 60%),
-        radial-gradient(680px 460px at 12% 8%, rgba(37,99,235,.16), transparent 62%);
-    }
-    html.dark .hero::before {
-      background:
-        radial-gradient(760px 460px at 80% -10%, rgba(132,204,22,.16), transparent 60%),
-        radial-gradient(720px 480px at 10% 6%, rgba(96,165,250,.16), transparent 62%);
-    }
+    .hero { padding: 96px 0 84px; }   /* backdrop glow comes from site.css */
     .hero::after {
       content:""; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.5;
       background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
@@ -209,41 +155,15 @@
     .cta-band p { margin: 16px auto 0; max-width: 52ch; color: var(--fg-muted); font-size: 1.08rem; }
     .cta-band .hero-cta { justify-content: center; }
 
-    /* ── Footer ────────────────────────────────────────────── */
-    footer.ft { border-top: 1px solid var(--border); background: var(--bg-soft); padding: 56px 0 40px; }
-    .ft-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
-    .ft .brand img { width: 34px; height: 34px; }
-    .ft-about { margin-top: 16px; color: var(--fg-muted); font-size: .93rem; max-width: 42ch; }
-    .ft-col h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-subtle); margin-bottom: 14px; }
-    .ft-col a { display: block; color: var(--fg-muted); font-size: .95rem; padding: 5px 0; }
-    .ft-col a:hover { color: var(--accent); }
-    .ft-bottom { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--fg-subtle); font-size: .88rem; }
-    .ft-bottom .badges { display: flex; gap: 10px; flex-wrap: wrap; }
-    .ft-bottom .badge { border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; }
-
-    /* reveal on scroll — hidden state only applies when JS is active (html.js) */
-    html.js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
-    html.js .reveal.in { opacity: 1; transform: none; }
-    @media (prefers-reduced-motion: reduce) { html.js .reveal { opacity: 1; transform: none; transition: none; } }
-
     /* ── Responsive ────────────────────────────────────────── */
     @media (max-width: 960px) {
       .hero-inner { grid-template-columns: 1fr; }
       .hero-art { order: -1; }
       .hero-art img { width: 200px; }
-      .g-3, .channels, .trust-grid, .runs, .promises, .ft-top { grid-template-columns: 1fr; }
+      .g-3, .channels, .trust-grid, .runs, .promises { grid-template-columns: 1fr; }
       .g-2 { grid-template-columns: 1fr; }
     }
     @media (max-width: 720px) {
-      .nav-links { display: none; }
-      .menu-toggle { display: inline-grid; }
-      .nav-links.open {
-        display: flex; flex-direction: column; align-items: stretch;
-        position: absolute; top: 66px; left: 0; right: 0; padding: 14px 24px 20px;
-        background: var(--bg-elev); border-bottom: 1px solid var(--border); box-shadow: var(--shadow-lg);
-      }
-      .nav-links.open a.nlink { padding: 12px; }
-      .nav-links.open .nav-cta { margin-top: 8px; }
       .hero { padding: 64px 0 56px; }
       section.band, .cta-band { padding: 60px 0; }
     }
@@ -645,36 +565,9 @@
     </div>
   </footer>
 
+  <!-- Theme toggle, nav shadow, mobile menu, scroll-reveal and footer year: shared -->
+  <script src="assets/site.js"></script>
   <script>
-    // Theme toggle (light ⇄ dark; respects prior 'auto' by resolving current)
-    (function () {
-      var root = document.documentElement;
-      var btn = document.getElementById('theme');
-      btn.addEventListener('click', function () {
-        var isDark = root.classList.contains('dark');
-        var next = isDark ? 'light' : 'dark';
-        root.classList.toggle('dark', next === 'dark');
-        root.setAttribute('data-theme', next);
-        try { localStorage.setItem('ia-theme', next); } catch (e) {}
-      });
-    })();
-
-    // Nav shadow on scroll
-    var nav = document.getElementById('nav');
-    var onScroll = function () { nav.classList.toggle('scrolled', window.scrollY > 8); };
-    onScroll(); window.addEventListener('scroll', onScroll, { passive: true });
-
-    // Mobile menu
-    var menu = document.getElementById('menu');
-    var links = document.getElementById('navlinks');
-    menu.addEventListener('click', function () {
-      var open = links.classList.toggle('open');
-      menu.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-    links.addEventListener('click', function (e) {
-      if (e.target.closest('a')) { links.classList.remove('open'); menu.setAttribute('aria-expanded', 'false'); }
-    });
-
     // Copy snippet
     var copyBtn = document.getElementById('copybtn');
     copyBtn.addEventListener('click', function () {
@@ -699,24 +592,6 @@
         fallback();
       }
     });
-
-    // Reveal on scroll — enhancement only. Content must never stay hidden.
-    var revealEls = document.querySelectorAll('.reveal');
-    var revealAll = function () { revealEls.forEach(function (el) { el.classList.add('in'); }); };
-    var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!reduce && 'IntersectionObserver' in window) {
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
-      }, { threshold: 0, rootMargin: '0px 0px -8% 0px' });
-      revealEls.forEach(function (el) { io.observe(el); });
-      // Safety net: never let a missed observer callback leave content invisible.
-      setTimeout(revealAll, 2500);
-    } else {
-      revealAll();
-    }
-
-    // Year
-    document.getElementById('year').textContent = new Date().getFullYear();
   </script>
 </body>
 </html>
