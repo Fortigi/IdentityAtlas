@@ -842,6 +842,14 @@ paths:
           required: true
           description: Report template name, as returned by `GET /reports`.
           schema: { type: string }
+        - name: allRows
+          in: query
+          required: false
+          description: >
+            `true` lifts the report's row cap (custom reports then return up to 250,000 rows, with a
+            longer query timeout). Offered when a capped run returns `canLoadAllRows: true`. Not
+            passed to the template as a parameter.
+          schema: { type: string, enum: ['true', 'false'], default: 'false' }
       responses:
         '200':
           description: Report content
@@ -886,6 +894,9 @@ paths:
                                 properties:
                                   label: { type: string }
                                   value: {}
+                      canLoadAllRows:
+                        type: boolean
+                        description: True when the run was capped and a run with `allRows=true` would return more.
                       generatedAt:
                         type: string
                         format: date-time
@@ -903,8 +914,9 @@ paths:
         Runs the named report template and returns the result as a downloadable file, with a
         `Content-Disposition: attachment` filename of `identity-atlas-<report>-<date>.<ext>`.
         The content is computed for this request, exactly as `/reports/{name}/rows` computes it,
-        so a download always matches what the page shows. Any query parameter other than
-        `format` is passed to the template as its parameters.
+        except that a download always lifts the row cap (as `allRows=true` does), so it holds every
+        row even when the page shows only the first ones. Any query parameter other than `format`
+        and `allRows` is passed to the template as its parameters.
       security:
         - EntraIdBearer: []
       parameters:
