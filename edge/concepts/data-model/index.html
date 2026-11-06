@@ -3652,6 +3652,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-interviews/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Interviews
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/ownership-survey/" class="md-nav__link">
         
   
@@ -6128,6 +6156,33 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <p>The diagram below is <strong>generated from the <a href="../../reference/core-model/">core ontology</a></strong> — the formal, version-controlled description of these tables. It shows each core table's identifier, foreign keys and type columns; every column is listed in the <a href="../../reference/core-model/">Core Model Reference</a>.</p>
 <!-- BEGIN GENERATED: ontology core-erd -->
 <pre class="mermaid"><code>erDiagram
+    ContextClaims {
+        uuid id PK
+        string claimKind "description, property, role, roleHistory, membership, alias"
+        string claimStatus "proposed, confirmed, edited, rejected"
+        uuid contextId FK
+        uuid identityId FK
+        uuid interviewId FK
+        uuid principalId FK
+        string proposedBy "model, analyst"
+        string relevance "high, low"
+        string roleSuggestion "Accountable, Responsible"
+        string subjectKind "Context, Person"
+        string subjectMatch "interviewee, key, name, fuzzy, firstName"
+    }
+    ContextInterviews {
+        uuid id PK
+        uuid contextId FK
+        string extractionStatus "pending, running, done, failed, notConfigured"
+        uuid identityId FK
+        uuid principalId FK
+    }
+    ContextMemberOverrides {
+        uuid id PK
+        uuid claimId FK
+        uuid contextId FK
+        uuid memberId FK
+    }
     ContextMembers {
         string addedBy "sync, algorithm, analyst, sourceOwner"
         uuid contextId FK
@@ -6148,6 +6203,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         uuid identityId FK
         uuid principalId FK
         string role "Accountable, Responsible"
+        uuid sourceClaimId FK
     }
     Contexts {
         uuid id PK
@@ -6211,6 +6267,19 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         string displayName
     }
 
+    Contexts |o--o{ ContextClaims : "contextId"
+    Identities |o--o{ ContextClaims : "identityId"
+    ContextInterviews |o--o{ ContextClaims : "interviewId"
+    Principals |o--o{ ContextClaims : "principalId"
+    Contexts |o--o{ ContextInterviews : "contextId"
+    Identities |o--o{ ContextInterviews : "identityId"
+    Principals |o--o{ ContextInterviews : "principalId"
+    ContextClaims |o--o{ ContextMemberOverrides : "claimId"
+    Contexts |o--o{ ContextMemberOverrides : "contextId"
+    Identities |o--o{ ContextMemberOverrides : "memberId"
+    Resources |o--o{ ContextMemberOverrides : "memberId"
+    Principals |o--o{ ContextMemberOverrides : "memberId"
+    Systems |o--o{ ContextMemberOverrides : "memberId"
     Contexts |o--o{ ContextMembers : "contextId"
     Identities |o--o{ ContextMembers : "memberId"
     Resources |o--o{ ContextMembers : "memberId"
@@ -6221,6 +6290,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     Contexts |o--o{ ContextRoles : "contextId"
     Identities |o--o{ ContextRoles : "identityId"
     Principals |o--o{ ContextRoles : "principalId"
+    ContextClaims |o--o{ ContextRoles : "sourceClaimId"
     Contexts |o--o{ Contexts : "parentContextId"
     Systems |o--o{ Contexts : "scopeSystemId"
     Identities |o--o{ Identities : "managerIdentityId"

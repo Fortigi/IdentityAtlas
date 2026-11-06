@@ -3207,6 +3207,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#organisation-knowledge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organisation knowledge
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Organisation knowledge">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3643,6 +3682,34 @@
     
   
     Context Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-interviews/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Interviews
   
 
     
@@ -5995,6 +6062,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#organisation-knowledge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organisation knowledge
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Organisation knowledge">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6240,6 +6346,31 @@ signed-in user there is no one for the assistant to act for.</p>
 <h3 id="what-the-switch-does-not-do_4">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_4" title="Permanent link">&para;</a></h3>
 <p>Turning it off does not revoke tokens the assistants already hold — they simply stop
 working, because the endpoint is gone. It does not delete the audit log either.</p>
+<hr />
+<h2 id="organisation-knowledge">Organisation knowledge<a class="headerlink" href="#organisation-knowledge" title="Permanent link">&para;</a></h2>
+<p>What people say about an organisational unit or a logical application — who belongs, who
+left, who answers for it — read from an interview transcript or another source into
+<strong>claims</strong>, each with the quote it rests on, that an analyst confirms or rejects; and the
+<strong>contradictions</strong> between those claims and what the source systems say. See
+<a href="../../architecture/context-interviews/">Context interviews</a>. It is experimental because it is
+new, because the reading is done by a model, and because what a decision changes (a member
+marked former, a role set from a claim) is a new kind of fact on a unit.</p>
+<p>Environment variable: <code>FEATURE_ORG_KNOWLEDGE=true</code>.</p>
+<h3 id="what-the-switch-does-precisely_5">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely_5" title="Permanent link">&para;</a></h3>
+<p><strong>On</strong> — a unit's or an application's page shows <strong>Upload interview</strong> and <strong>What we know</strong>
+(claims to review, contradictions, previous members), the People block shows roles the
+interviews suggest, the members list marks who the interviews say left, a person's page
+shows <strong>Mentioned in interviews</strong>, and the context timeline carries the interview events.
+When a model is configured (<code>NL_REPORTS_LLM_URL</code>), <strong>the text of what is uploaded is sent
+to it</strong>.</p>
+<p><strong>Off</strong> — all of that is hidden, and the API answers <code>404</code> on <code>/api/contexts/{id}/interviews…</code>,
+<code>/api/contexts/{id}/claims…</code>, <code>/api/contexts/{id}/previous-members</code> and
+<code>/api/contexts/claims/…</code>. Member lists show plain membership: a member a decision marked
+former is listed like any other, and no claim facts are attached.</p>
+<h3 id="what-the-switch-does-not-do_5">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_5" title="Permanent link">&para;</a></h3>
+<p>Turning it off <strong>deletes nothing</strong>: the sources, the claims and every decision are kept, and
+turning it back on restores them. A role an analyst confirmed from a claim stays the role it
+became — it is an ordinary Accountable or Responsible.</p>
 <hr />
 <h2 id="accountables-from-source-owners-a-setting-not-experimental">Accountables from source owners (a setting, not experimental)<a class="headerlink" href="#accountables-from-source-owners-a-setting-not-experimental" title="Permanent link">&para;</a></h2>
 <p>Shown on the same tab, under <strong>Contexts — what a sync sets on its own</strong>, because it is
