@@ -3358,6 +3358,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#changerequests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChangeRequests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#contextclaims" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3434,6 +3445,28 @@
     <span class="md-ellipsis">
       
         Assignment type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change kind
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-request-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change request status
       
     </span>
   </a>
@@ -3863,6 +3896,34 @@
     
   
     Context Interviews
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/change-requests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Change Requests
   
 
     
@@ -6198,6 +6259,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#changerequests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChangeRequests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#contextclaims" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6274,6 +6346,28 @@
     <span class="md-ellipsis">
       
         Assignment type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change kind
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-request-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change request status
       
     </span>
   </a>
@@ -6511,7 +6605,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.2.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.3.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -8609,6 +8703,148 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </table>
 <h2 id="knowledge-tables">Knowledge tables<a class="headerlink" href="#knowledge-tables" title="Permanent link">&para;</a></h2>
 <p>What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.</p>
+<h3 id="changerequests">ChangeRequests<a class="headerlink" href="#changerequests" title="Permanent link">&para;</a></h3>
+<p><code>ia:ChangeRequest</code> · Knowledge table · What should change in a source that an analyst's decision overrides: which source (targetSystemId, its name when raised), which kind of change (changeKind), about what (a context, a member, an attribute, with their names when raised), resting on which claim and override. The override acts in Identity Atlas at once; the request records the correction still owed to the source, because the source's next sync or re-import would bring the old fact back. Raised only where a source can be corrected (a context synced from a system or an uploaded list), never for a context Identity Atlas owns. Nobody closes it by hand: it is resolved when the data shows the change, and withdrawn when the decision is undone. At most one open request per change.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>attribute</code></td>
+<td><code>ia:attribute</code></td>
+<td>text</td>
+<td></td>
+<td>A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source.</td>
+</tr>
+<tr>
+<td><code>basisClaimId</code></td>
+<td><code>ia:basisClaimId</code></td>
+<td>uuid</td>
+<td>→ ContextClaims</td>
+<td>The claim whose decision raised it. Cleared when its interview is deleted; the request stays.</td>
+</tr>
+<tr>
+<td><code>changeKind</code></td>
+<td><code>ia:changeKind</code></td>
+<td>text</td>
+<td><code>EntityCreate</code>, <code>EntityDelete</code>, <code>RelationshipAdd</code>, <code>RelationshipRemove</code>, <code>AttributeUpdate</code></td>
+<td>What kind of change the source should make.</td>
+</tr>
+<tr>
+<td><code>closedAt</code></td>
+<td><code>ia:closedAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>When it was resolved or withdrawn; empty exactly while it is open.</td>
+</tr>
+<tr>
+<td><code>closedReason</code></td>
+<td><code>ia:closedReason</code></td>
+<td>text</td>
+<td></td>
+<td>Why it was closed, in one sentence.</td>
+</tr>
+<tr>
+<td><code>contextId</code></td>
+<td><code>ia:contextId</code></td>
+<td>uuid</td>
+<td>→ Contexts</td>
+<td>The context. Ingest alias: <code>contextExternalId</code>.</td>
+</tr>
+<tr>
+<td><code>contextName</code></td>
+<td><code>ia:contextName</code></td>
+<td>text</td>
+<td></td>
+<td>The context's name when the request was raised.</td>
+</tr>
+<tr>
+<td><code>currentValue</code></td>
+<td><code>ia:currentValue</code></td>
+<td>text</td>
+<td></td>
+<td>For an AttributeUpdate: what the source says now.</td>
+</tr>
+<tr>
+<td><code>expectedValue</code></td>
+<td><code>ia:expectedValue</code></td>
+<td>text</td>
+<td></td>
+<td>For an AttributeUpdate: what the source should say.</td>
+</tr>
+<tr>
+<td><code>memberId</code></td>
+<td><code>ia:memberId</code></td>
+<td>uuid</td>
+<td>→ Identities / Resources / Principals / Systems</td>
+<td>The member; memberType names its table. Ingest alias: <code>memberExternalId</code>.</td>
+</tr>
+<tr>
+<td><code>memberName</code></td>
+<td><code>ia:memberName</code></td>
+<td>text</td>
+<td></td>
+<td>The member's name when the request was raised.</td>
+</tr>
+<tr>
+<td><code>overrideId</code></td>
+<td><code>ia:overrideId</code></td>
+<td>uuid</td>
+<td>→ ContextMemberOverrides</td>
+<td>The override that acts in Identity Atlas until the source is corrected.</td>
+</tr>
+<tr>
+<td><code>raisedAt</code></td>
+<td><code>ia:raisedAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>When it was raised, or last raised again.</td>
+</tr>
+<tr>
+<td><code>raisedBy</code></td>
+<td><code>ia:raisedBy</code></td>
+<td>text</td>
+<td></td>
+<td>Who made the decision that raised it.</td>
+</tr>
+<tr>
+<td><code>requestStatus</code></td>
+<td><code>ia:requestStatus</code></td>
+<td>text</td>
+<td><code>open</code>, <code>resolved</code>, <code>withdrawn</code></td>
+<td>Where the request stands.</td>
+</tr>
+<tr>
+<td><code>summary</code></td>
+<td><code>ia:summary</code></td>
+<td>text</td>
+<td></td>
+<td>One line a person can act on, such as: Remove Led from Klanten.</td>
+</tr>
+<tr>
+<td><code>targetName</code></td>
+<td><code>ia:targetName</code></td>
+<td>text</td>
+<td></td>
+<td>The source's name when the request was raised.</td>
+</tr>
+<tr>
+<td><code>targetSystemId</code></td>
+<td><code>ia:targetSystemId</code></td>
+<td>integer</td>
+<td>→ Systems</td>
+<td>The source to correct: the system or uploaded list the context is synced from. Cleared when the system is removed.</td>
+</tr>
+</tbody>
+</table>
 <h3 id="contextclaims">ContextClaims<a class="headerlink" href="#contextclaims" title="Permanent link">&para;</a></h3>
 <p><code>ia:Claim</code> · Knowledge table · A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access.</p>
 <p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
@@ -8628,7 +8864,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:attribute</code></td>
 <td>text</td>
 <td></td>
-<td>A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined).</td>
+<td>A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined). On a change request (AttributeUpdate): the attribute to change in the source.</td>
 </tr>
 <tr>
 <td><code>claimKind</code></td>
@@ -9052,6 +9288,72 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>Eligible</code></td>
 <td><code>ia:AssignmentType_Eligible</code></td>
 <td>Granted but not active (PIM-eligible): can be activated.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="change-kind">Change kind<a class="headerlink" href="#change-kind" title="Permanent link">&para;</a></h3>
+<p><code>ia:ChangeKind</code> — The kind of change a change request asks of its source: an entity, a relationship or an attribute. Used by <code>ChangeRequests.changeKind</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Individual</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EntityCreate</code></td>
+<td><code>ia:ChangeKind_EntityCreate</code></td>
+<td>The source misses something that exists.</td>
+</tr>
+<tr>
+<td><code>EntityDelete</code></td>
+<td><code>ia:ChangeKind_EntityDelete</code></td>
+<td>The source lists something that no longer exists.</td>
+</tr>
+<tr>
+<td><code>RelationshipAdd</code></td>
+<td><code>ia:ChangeKind_RelationshipAdd</code></td>
+<td>The source should link the member to the context.</td>
+</tr>
+<tr>
+<td><code>RelationshipRemove</code></td>
+<td><code>ia:ChangeKind_RelationshipRemove</code></td>
+<td>The source should no longer link the member to the context: a person marked former by a decision.</td>
+</tr>
+<tr>
+<td><code>AttributeUpdate</code></td>
+<td><code>ia:ChangeKind_AttributeUpdate</code></td>
+<td>An attribute in the source should read expectedValue instead of currentValue.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="change-request-status">Change request status<a class="headerlink" href="#change-request-status" title="Permanent link">&para;</a></h3>
+<p><code>ia:ChangeRequestStatus</code> — Where a change request stands. Set by the data and the decisions, not by hand. Used by <code>ChangeRequests.requestStatus</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Individual</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open</code></td>
+<td><code>ia:ChangeRequestStatus_open</code></td>
+<td>The source does not show the change yet.</td>
+</tr>
+<tr>
+<td><code>resolved</code></td>
+<td><code>ia:ChangeRequestStatus_resolved</code></td>
+<td>The source shows the change: the member is no longer listed, or the context is gone.</td>
+</tr>
+<tr>
+<td><code>withdrawn</code></td>
+<td><code>ia:ChangeRequestStatus_withdrawn</code></td>
+<td>The decision it rested on was undone, or a later decision contradicts it.</td>
 </tr>
 </tbody>
 </table>

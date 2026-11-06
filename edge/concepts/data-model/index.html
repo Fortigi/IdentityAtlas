@@ -3680,6 +3680,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/change-requests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Change Requests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/ownership-survey/" class="md-nav__link">
         
   
@@ -6156,6 +6184,16 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <p>The diagram below is <strong>generated from the <a href="../../reference/core-model/">core ontology</a></strong> — the formal, version-controlled description of these tables. It shows each core table's identifier, foreign keys and type columns; every column is listed in the <a href="../../reference/core-model/">Core Model Reference</a>.</p>
 <!-- BEGIN GENERATED: ontology core-erd -->
 <pre class="mermaid"><code>erDiagram
+    ChangeRequests {
+        uuid id PK
+        uuid basisClaimId FK
+        string changeKind "EntityCreate, EntityDelete, RelationshipAdd, RelationshipRemove, AttributeUpdate"
+        uuid contextId FK
+        uuid memberId FK
+        uuid overrideId FK
+        string requestStatus "open, resolved, withdrawn"
+        int targetSystemId FK
+    }
     ContextClaims {
         uuid id PK
         string claimKind "description, property, role, roleHistory, membership, alias"
@@ -6267,6 +6305,14 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         string displayName
     }
 
+    ContextClaims |o--o{ ChangeRequests : "basisClaimId"
+    Contexts |o--o{ ChangeRequests : "contextId"
+    Identities |o--o{ ChangeRequests : "memberId"
+    Resources |o--o{ ChangeRequests : "memberId"
+    Principals |o--o{ ChangeRequests : "memberId"
+    Systems |o--o{ ChangeRequests : "memberId"
+    ContextMemberOverrides |o--o{ ChangeRequests : "overrideId"
+    Systems |o--o{ ChangeRequests : "targetSystemId"
     Contexts |o--o{ ContextClaims : "contextId"
     Identities |o--o{ ContextClaims : "identityId"
     ContextInterviews |o--o{ ContextClaims : "interviewId"
