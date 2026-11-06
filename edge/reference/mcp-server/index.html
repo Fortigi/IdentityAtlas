@@ -3062,6 +3062,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#setting-it-up" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3103,6 +3114,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="3. Connect an assistant">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chatgpt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChatGPT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#microsoft-365-copilot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Microsoft 365 Copilot
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -5419,6 +5469,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before you start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#setting-it-up" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5460,6 +5521,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="3. Connect an assistant">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Claude
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#chatgpt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChatGPT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#microsoft-365-copilot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Microsoft 365 Copilot
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -5652,6 +5752,37 @@ and only give <strong>Use the MCP server</strong> to roles that may share that d
 tool with which arguments, whether it succeeded, and how many rows went out — never the
 rows themselves. The latest calls are listed on the <strong>MCP server</strong> card under <strong>Admin →
 Experimental</strong>.</p>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>You need</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>An address the assistant can reach</strong></td>
+<td>Claude (web, desktop, mobile), ChatGPT and Microsoft Copilot call the MCP server <strong>from their vendor's cloud</strong>, not from the user's PC. Identity Atlas must answer on a public HTTPS address (<code>https://&lt;your host&gt;/mcp</code>). An installation that is only reachable on the internal network or on one laptop works with local clients only (Claude Code, VS Code).</td>
+</tr>
+<tr>
+<td><strong><code>PUBLIC_BASE_URL</code></strong> set to that address</td>
+<td>The server tells the assistant where to sign in and which resource to ask for, built from this address. Behind a reverse proxy, set it (or <code>TRUST_PROXY</code>) so the address is the public one.</td>
+</tr>
+<tr>
+<td><strong>Sign-in on, the feature on, the permission on a role</strong></td>
+<td>See <a href="#who-may-use-it">Who may use it</a>.</td>
+</tr>
+<tr>
+<td><strong>A Microsoft Entra admin</strong> (Application Administrator or higher)</td>
+<td>For the two app-registration changes below.</td>
+</tr>
+<tr>
+<td><strong>The assistant's own plan or licence</strong></td>
+<td>Per assistant — see <a href="#3-connect-an-assistant">Connect an assistant</a>.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="setting-it-up">Setting it up<a class="headerlink" href="#setting-it-up" title="Permanent link">&para;</a></h2>
 <h3 id="1-the-entra-app-registration">1. The Entra app registration<a class="headerlink" href="#1-the-entra-app-registration" title="Permanent link">&para;</a></h3>
 <p>MCP clients sign in through the same Entra app registration Identity Atlas already uses
@@ -5664,40 +5795,244 @@ Experimental</strong>.</p>
    it Entra refuses the token request with <code>AADSTS9010010</code>. Entra only accepts it when the
    host is on a domain verified in your tenant.</li>
 </ol>
+<p>Both are additions: the existing sign-in of the web app keeps working.</p>
 <p>Your MCP URL and the exact scope to use are shown on the MCP server card once the feature
 is on. The scope is <code>https://&lt;your host&gt;/mcp/Mcp.Read</code>.</p>
 <h3 id="2-a-client-app-registration-for-the-assistants">2. A client app registration for the assistants<a class="headerlink" href="#2-a-client-app-registration-for-the-assistants" title="Permanent link">&para;</a></h3>
-<p>Create one more app registration — e.g. <em>Identity Atlas MCP clients</em> — that the assistants
-sign in with:</p>
+<p>Entra does not let an assistant register itself (no dynamic client registration), so an
+admin registers one app the assistants sign in <strong>as</strong> — e.g. <em>Identity Atlas MCP clients</em>.
+It identifies the assistant, not the user: every user still signs in with their own
+account, and the secret on its own gets no data.</p>
 <ul>
-<li><strong>Redirect URIs</strong><ul>
-<li><em>Web</em>: <code>https://claude.ai/api/mcp/auth_callback</code> (Claude on the web, desktop and mobile)</li>
-<li><em>Mobile and desktop applications</em>: <code>http://localhost</code> (Claude Code and other local clients; Entra accepts any port)</li>
-<li>add the redirect URI of each other assistant you allow (ChatGPT, Copilot Studio) as its own documentation gives it</li>
-</ul>
+<li><strong>Supported account types</strong>: <em>this organisational directory only</em>.</li>
+<li>
+<p><strong>Redirect URIs</strong> — only those of the assistants you allow:</p>
+<table>
+<thead>
+<tr>
+<th>Assistant</th>
+<th>Platform</th>
+<th>Redirect URI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude (web, desktop, mobile)</td>
+<td>Web</td>
+<td><code>https://claude.ai/api/mcp/auth_callback</code></td>
+</tr>
+<tr>
+<td>Claude Code, VS Code and other local clients</td>
+<td>Mobile and desktop applications</td>
+<td><code>http://localhost</code> and <code>http://127.0.0.1</code> (Entra accepts any port)</td>
+</tr>
+<tr>
+<td>ChatGPT</td>
+<td>Web</td>
+<td>the callback URL ChatGPT shows when you add the app (per app; older apps used <code>https://chatgpt.com/connector_platform_oauth_redirect</code>)</td>
+</tr>
+<tr>
+<td>Microsoft 365 Copilot (federated connector)</td>
+<td>Web</td>
+<td><code>https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect</code></td>
+</tr>
+<tr>
+<td>Copilot Studio agent</td>
+<td>Web</td>
+<td>the redirect URL Copilot Studio shows after you save the MCP tool</td>
+</tr>
+</tbody>
+</table>
 </li>
-<li><strong>API permissions</strong> → <em>My APIs</em> → your Identity Atlas app → delegated <code>Mcp.Read</code>, then
-  <strong>Grant admin consent</strong>.</li>
-<li><strong>Certificates &amp; secrets</strong> → a client secret, for the web clients.</li>
+<li>
+<p><strong>API permissions</strong> → <em>Add a permission</em> → <em>My APIs</em> → your Identity Atlas app →
+  delegated <code>Mcp.Read</code>, then <strong>Grant admin consent</strong>, so users get no consent prompt.</p>
+</li>
+<li><strong>Certificates &amp; secrets</strong> → a client secret. Note when it expires: the assistants stop
+  signing in on that date until you give them a new one.</li>
 </ul>
+<p>With the Azure CLI, as an Application Administrator (replace the two ids and the host):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">API_APP_ID</span><span class="o">=</span>&lt;client<span class="w"> </span>id<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Identity<span class="w"> </span>Atlas<span class="w"> </span>app&gt;
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">SCOPE_ID</span><span class="o">=</span>&lt;id<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Mcp.Read<span class="w"> </span>scope,<span class="w"> </span>from<span class="w"> </span>step<span class="w"> </span><span class="m">1</span>&gt;
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">CLIENT_APP_ID</span><span class="o">=</span><span class="k">$(</span>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>--display-name<span class="w"> </span><span class="s2">"Identity Atlas MCP clients"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--sign-in-audience<span class="w"> </span>AzureADMyOrg<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--web-redirect-uris<span class="w"> </span><span class="s2">"https://claude.ai/api/mcp/auth_callback"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span>--public-client-redirect-uris<span class="w"> </span><span class="s2">"http://localhost"</span><span class="w"> </span><span class="s2">"http://127.0.0.1"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--query<span class="w"> </span>appId<span class="w"> </span>-o<span class="w"> </span>tsv<span class="k">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span><span class="w"> </span>--required-resource-accesses<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="s2">"[{\"resourceAppId\":\"</span><span class="nv">$API_APP_ID</span><span class="s2">\",\"resourceAccess\":[{\"id\":\"</span><span class="nv">$SCOPE_ID</span><span class="s2">\",\"type\":\"Scope\"}]}]"</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>az<span class="w"> </span>ad<span class="w"> </span>sp<span class="w"> </span>create<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>permission<span class="w"> </span>admin-consent<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>credential<span class="w"> </span>reset<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span><span class="w"> </span>--append<span class="w"> </span>--display-name<span class="w"> </span>assistants<span class="w"> </span>--years<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span>--query<span class="w"> </span>password<span class="w"> </span>-o<span class="w"> </span>tsv<span class="w"> </span>&gt;<span class="w"> </span>client-secret.txt<span class="w">   </span><span class="c1"># keep this file safe</span>
+</code></pre></div>
 <h3 id="3-connect-an-assistant">3. Connect an assistant<a class="headerlink" href="#3-connect-an-assistant" title="Permanent link">&para;</a></h3>
-<p><strong>Claude (claude.ai, desktop, mobile)</strong> — <em>Settings → Connectors → Add custom connector</em>:
-URL <code>https://&lt;your host&gt;/mcp</code>; under <em>Advanced settings</em>, the client app's <strong>client ID</strong> and
-<strong>client secret</strong>. Click <strong>Connect</strong> and sign in.</p>
-<p><strong>Claude Code</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>identity-atlas<span class="w"> </span>https://&lt;your<span class="w"> </span>host&gt;/mcp<span class="w"> </span>--client-id<span class="w"> </span>&lt;client<span class="w"> </span>id&gt;<span class="w"> </span>--callback-port<span class="w"> </span><span class="m">33418</span>
+<p>Every assistant needs the same three values:</p>
+<ul>
+<li><strong>URL</strong>: <code>https://&lt;your host&gt;/mcp</code></li>
+<li><strong>Client ID</strong> and <strong>client secret</strong> of the client app from step 2</li>
+<li>if it asks for a <strong>scope</strong>: <code>https://&lt;your host&gt;/mcp/Mcp.Read</code></li>
+</ul>
+<p>It discovers the rest — the tenant and where to sign in — from
+<code>https://&lt;your host&gt;/.well-known/oauth-protected-resource/mcp</code>.</p>
+<h4 id="claude">Claude<a class="headerlink" href="#claude" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Plan</strong></td>
+<td>Any. Free accounts can add one custom connector.</td>
+</tr>
+<tr>
+<td><strong>Who adds it</strong></td>
+<td>Pro / Max: each user. Team / Enterprise: an <strong>Owner</strong> adds it once for the organisation; members then only click <strong>Connect</strong>.</td>
+</tr>
+</tbody>
+</table>
+<ol>
+<li>Pro / Max: <strong>Customize → Connectors</strong> (<code>https://claude.ai/customize/connectors</code>) →
+   <strong>+ Add</strong> → <strong>Add custom connector</strong>.
+   Team / Enterprise: <strong>Organization settings → Connectors</strong>
+   (<code>https://claude.ai/admin-settings/connectors</code>) → <strong>Add</strong> → <strong>Custom</strong> → <strong>Web</strong>.</li>
+<li>Name <em>Identity Atlas</em>, URL <code>https://&lt;your host&gt;/mcp</code> → <strong>Continue</strong>.</li>
+<li><strong>OAuth client</strong>: choose <strong>Use your own OAuth client</strong> and enter the client ID and secret.</li>
+<li><strong>Add</strong>, then <strong>Connect</strong>, and sign in with the work account.</li>
+</ol>
+<p>The connector belongs to the Claude account: once connected it works in the browser, the
+desktop app and on mobile. Charts and tables are drawn by Claude itself from the rows.</p>
+<p><strong>Claude Code</strong> (runs on the user's machine, so it also works for an installation that is
+only reachable internally):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>identity-atlas<span class="w"> </span>https://&lt;your<span class="w"> </span>host&gt;/mcp<span class="w"> </span>--client-id<span class="w"> </span>&lt;client<span class="w"> </span>id&gt;<span class="w"> </span>--callback-port<span class="w"> </span><span class="m">33418</span>
 </code></pre></div>
 <p>then run <code>/mcp</code> in Claude Code to sign in.</p>
-<p><strong>Other assistants</strong> (ChatGPT, Copilot Studio, VS Code): add a remote MCP server with the
-same URL and the client app's ID (and secret where asked). They discover the rest — the
-tenant and the scope — from <code>https://&lt;your host&gt;/.well-known/oauth-protected-resource/mcp</code>.</p>
+<h4 id="chatgpt">ChatGPT<a class="headerlink" href="#chatgpt" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Plan</strong></td>
+<td>Business, Enterprise or Edu — custom MCP apps with full tool use. OpenAI's plan list for Plus and Pro has changed over time; check its help article <em>Developer mode and MCP apps in ChatGPT</em>.</td>
+</tr>
+<tr>
+<td><strong>Who adds it</strong></td>
+<td>A workspace admin or owner turns on <strong>developer mode</strong> (Workspace settings → Permissions &amp; roles), creates the app and publishes it to the workspace.</td>
+</tr>
+</tbody>
+</table>
+<ol>
+<li>In ChatGPT, with developer mode on: <strong>Settings → Apps &amp; Connectors → Create</strong>.</li>
+<li>URL <code>https://&lt;your host&gt;/mcp</code>, authentication <strong>OAuth</strong>.</li>
+<li>Under the advanced OAuth settings, leave the registration URL empty, choose the
+   <strong>user-defined OAuth client</strong>, and enter the client ID and secret.</li>
+<li>Copy the <strong>callback URL</strong> ChatGPT shows and add it to the client app (step 2) as a
+   <em>Web</em> redirect URI.</li>
+<li>Save, sign in, and publish the app to the workspace.</li>
+</ol>
+<h4 id="microsoft-365-copilot">Microsoft 365 Copilot<a class="headerlink" href="#microsoft-365-copilot" title="Permanent link">&para;</a></h4>
+<p>There are two ways in, and which one fits depends on the licences the organisation has.
+The free <strong>Microsoft 365 Copilot Chat</strong> that comes with Office 365 is <em>not</em> the same as the
+paid <strong>Microsoft 365 Copilot</strong> add-on.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Federated connector</th>
+<th>Copilot Studio agent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Users need</strong></td>
+<td>A <strong>Microsoft 365 Copilot</strong> licence (the add-on, or E7). Microsoft's prerequisites rule out the free Copilot Chat and pay-as-you-go.</td>
+<td>Nothing extra: also works for users with only the free Copilot Chat.</td>
+</tr>
+<tr>
+<td><strong>The organisation needs</strong></td>
+<td>—</td>
+<td>Copilot Studio capacity; use is billed in <strong>Copilot Credits</strong>. The person who builds the agent needs a Copilot Studio or Microsoft 365 Copilot licence.</td>
+</tr>
+<tr>
+<td><strong>Who sets it up</strong></td>
+<td>A <strong>Global Administrator</strong> or <strong>AI Administrator</strong>.</td>
+<td>An agent maker in Copilot Studio.</td>
+</tr>
+<tr>
+<td><strong>Users find it</strong></td>
+<td>Copilot Chat → <strong>Settings → Sources</strong>.</td>
+<td>As an agent in Copilot Chat and Teams.</td>
+</tr>
+<tr>
+<td><strong>Redirect URI</strong> on the client app</td>
+<td><code>https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect</code></td>
+<td>the URL Copilot Studio generates</td>
+</tr>
+</tbody>
+</table>
+<p>You can see which licences users have in the Microsoft 365 admin center under
+<strong>Billing → Licenses</strong>.</p>
+<p><strong>Federated connector</strong></p>
+<ol>
+<li>
+<p><strong>Teams Developer Portal</strong> (<code>https://dev.teams.microsoft.com</code>) → <strong>Tools → OAuth client
+   registration</strong> → new registration:</p>
+<ul>
+<li>client ID and secret of the client app (step 2)</li>
+<li>authorization endpoint <code>https://login.microsoftonline.com/&lt;tenant id&gt;/oauth2/v2.0/authorize</code></li>
+<li>token endpoint <code>https://login.microsoftonline.com/&lt;tenant id&gt;/oauth2/v2.0/token</code></li>
+<li>scope <code>https://&lt;your host&gt;/mcp/Mcp.Read</code></li>
+<li>do not restrict it to a Teams app ID</li>
+</ul>
+<p>Save, and copy the <strong>OAuth registration ID</strong>.
+2. Add <code>https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect</code> to the client app as a
+   <em>Web</em> redirect URI.
+3. <strong>Microsoft 365 admin center → Copilot → Connectors → Connect to MCP server</strong>: URL
+   <code>https://&lt;your host&gt;/mcp</code>, authentication <strong>OAuth 2.0</strong>, and the OAuth registration ID.
+   Choose which users see it.</p>
+</li>
+</ol>
+<p><strong>Copilot Studio agent</strong></p>
+<ol>
+<li>In Copilot Studio, open or create an agent with <strong>generative orchestration</strong> on.</li>
+<li><strong>Tools → Add a tool → Model Context Protocol</strong>: server URL <code>https://&lt;your host&gt;/mcp</code>,
+   authentication <strong>OAuth 2.0 → Manual</strong>:<ul>
+<li>client ID and secret of the client app (step 2)</li>
+<li>authorization URL <code>https://login.microsoftonline.com/&lt;tenant id&gt;/oauth2/v2.0/authorize</code></li>
+<li>token URL <code>https://login.microsoftonline.com/&lt;tenant id&gt;/oauth2/v2.0/token</code></li>
+<li>refresh URL: the same as the token URL</li>
+<li>scope <code>https://&lt;your host&gt;/mcp/Mcp.Read</code></li>
+</ul>
+</li>
+<li>Save, copy the <strong>redirect URL</strong> Copilot Studio shows, and add it to the client app as a
+   <em>Web</em> redirect URI.</li>
+<li>Test the agent, then publish it to Microsoft 365 Copilot and Teams.</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The Claude connection is tested against a live deployment. The ChatGPT and Copilot steps
+follow the vendors' documentation; their menus change often, so if a label differs,
+the three values above (URL, client ID and secret, scope) are still all you need.</p>
+</div>
 <h2 id="how-sign-in-works">How sign-in works<a class="headerlink" href="#how-sign-in-works" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>assistant ──POST /mcp (no token)──────────────▶ Identity Atlas   401 + WWW-Authenticate: resource_metadata=…
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>assistant ──GET /.well-known/oauth-protected-resource/mcp──────▶ { authorization_servers: [Entra tenant], scopes_supported: [&lt;host&gt;/mcp/Mcp.Read] }
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>assistant ──sign the user in (OAuth + PKCE)───▶ Entra ID         access token for the user, scp = Mcp.Read
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>assistant ──POST /mcp (Bearer token)──────────▶ Identity Atlas   token checked: signature, tenant, issuer, audience,
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                                                                  scope Mcp.Read, role → mcp.use; then the tool runs
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>assistant ──POST /mcp (no token)──────────────▶ Identity Atlas   401 + WWW-Authenticate: resource_metadata=…
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>assistant ──GET /.well-known/oauth-protected-resource/mcp──────▶ { authorization_servers: [Entra tenant], scopes_supported: [&lt;host&gt;/mcp/Mcp.Read] }
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>assistant ──sign the user in (OAuth + PKCE)───▶ Entra ID         access token for the user, scp = Mcp.Read
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>assistant ──POST /mcp (Bearer token)──────────▶ Identity Atlas   token checked: signature, tenant, issuer, audience,
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>                                                                  scope Mcp.Read, role → mcp.use; then the tool runs
 </code></pre></div>
+<p>This is delegated access: the token belongs to the signed-in user, and every query runs
+with that user's rights and is logged under their name. It is not Entra's
+<em>on-behalf-of</em> token exchange — the MCP server reads its own database and calls no other
+API as the user.</p>
 <p>The token's audience must be the MCP URL, <code>api://&lt;client id&gt;</code> or the client id; the web
 app's own tokens (scope <code>access</code>) and app-only tokens are refused, because they do not carry
 <code>Mcp.Read</code>.</p>
@@ -5715,8 +6050,24 @@ app's own tokens (scope <code>access</code>) and app-only tokens are refused, be
 <td>Sign-in is off, or the feature is off.</td>
 </tr>
 <tr>
+<td>The assistant cannot reach the server</td>
+<td>Identity Atlas is not reachable from the internet; cloud assistants call it from their vendor's cloud. See <a href="#before-you-start">Before you start</a>.</td>
+</tr>
+<tr>
 <td>Sign-in fails with <code>AADSTS9010010</code> / <code>invalid_target</code></td>
 <td>The MCP URL is not an Application ID URI of the Identity Atlas app (step 1.2).</td>
+</tr>
+<tr>
+<td>Sign-in fails with <code>AADSTS50011</code> (redirect URI mismatch)</td>
+<td>The assistant's redirect URI is not on the client app (step 2), or differs in one character.</td>
+</tr>
+<tr>
+<td>Sign-in fails with <code>AADSTS700003</code> ("your organisation has deleted this device")</td>
+<td>Not Identity Atlas: Windows single sign-on sent a device registration that no longer exists in Entra. Sign in from a browser without the work profile, or remove and re-add the work account under Windows <em>Settings → Accounts → Access work or school</em>.</td>
+</tr>
+<tr>
+<td>Claude on the web never finishes signing in, Claude Code does</td>
+<td>A known claude.ai issue with Entra as the sign-in server (<a href="https://github.com/anthropics/claude-ai-mcp/issues/506">anthropics/claude-ai-mcp#506</a>). Try again later, or use Claude Code.</td>
 </tr>
 <tr>
 <td><code>403</code> with <code>insufficient_scope</code></td>
@@ -5733,6 +6084,10 @@ app's own tokens (scope <code>access</code>) and app-only tokens are refused, be
 <tr>
 <td><code>401 invalid_token</code></td>
 <td>Expired token, or one from another tenant; check that <code>PUBLIC_BASE_URL</code> is the address the assistant uses.</td>
+</tr>
+<tr>
+<td>Everyone stops signing in on the same day</td>
+<td>The client app's secret expired; create a new one and update each assistant.</td>
 </tr>
 </tbody>
 </table>
