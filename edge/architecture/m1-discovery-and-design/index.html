@@ -3639,6 +3639,78 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#m2a-save-and-reopen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M2a — save and reopen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-roles-in-the-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed roles in the matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#people-as-columns-the-matrixs-orientation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        People as columns (the matrix's orientation)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="People as columns (the matrix&#39;s orientation)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-scrollbar-the-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One scrollbar: the page's
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering-the-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering the permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-roles-on-the-unit-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed roles on the unit page
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deferred-milestone-2-3" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5868,6 +5940,78 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#m2a-save-and-reopen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        M2a — save and reopen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-roles-in-the-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed roles in the matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#people-as-columns-the-matrixs-orientation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        People as columns (the matrix's orientation)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="People as columns (the matrix&#39;s orientation)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-scrollbar-the-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One scrollbar: the page's
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filtering-the-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering the permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-roles-on-the-unit-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed roles on the unit page
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#deferred-milestone-2-3" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6155,6 +6299,9 @@ full-width tab (<code>#workbench:&lt;unit id&gt;</code>) with:</p>
   its crawled policies (<code>policyKind</code>: an auto-add rule → rule-based, a policy without one → requestable),
   else asks. Proposals never write to <code>AssignmentPolicies</code> (crawled data).</li>
 <li>Nothing is enforced anywhere; the impact overlay shows the active role's computed members.</li>
+<li><strong>Saved</strong> with the investigation (migration 108): <code>RoleProposals.assignmentKind</code>, <code>membershipRule</code>
+  (jsonb), <code>joinerPolicy</code>, <code>leaverPolicy</code>, <code>approver</code> (jsonb), <code>rationale</code>; "always exclude" people as
+  <code>RoleProposalMembers</code> with <code>kind = 'exclude'</code>.</li>
 </ul>
 <h2 id="impact-semantics">Impact semantics<a class="headerlink" href="#impact-semantics" title="Permanent link">&para;</a></h2>
 <table>
@@ -6212,10 +6359,217 @@ stay out of a claims role. Idempotent; it touches nothing else.</p>
 <li>Who may see the workbench: analysts only (now <code>data.write.contexts</code>), or also a unit's
    Accountable?</li>
 </ol>
+<h2 id="m2a-save-and-reopen">M2a — save and reopen<a class="headerlink" href="#m2a-save-and-reopen" title="Permanent link">&para;</a></h2>
+<p>The first slice of Milestone 2: an analyst saves the workbench as an <strong>investigation</strong> on the unit
+and opens it again later. No review, approval or versions yet (M2b), but the tables are shaped
+for them.</p>
+<p><strong>What is saved</strong> (migration 107):</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WorkbenchInvestigations</code></td>
+<td>One saved session on a unit: name, description, the view (people columns, filters, sort, sub-units in or out, column threshold), when the access data on screen was read, who saved it and when. Unique name per unit (case and spaces ignored). Org-wide, like saved matrices.</td>
+</tr>
+<tr>
+<td><code>WorkbenchAccessSnapshots</code></td>
+<td>The held cells on screen at the last save (<code>person\|resource\|type</code>), kept apart so the history trigger does not copy them on every save.</td>
+</tr>
+<tr>
+<td><code>WorkbenchMarks</code></td>
+<td>Person × resource × mark (<code>other</code> / <code>unrelated</code> / <code>investigate</code>), an optional note, who marked it and when.</td>
+</tr>
+<tr>
+<td><code>RoleProposals</code></td>
+<td>Each proposed role: name, description, the business role it updates (if any), its place in the list, <code>status</code> (<code>draft</code> only for now) and <code>version</code> (1 for now).</td>
+</tr>
+<tr>
+<td><code>RoleProposalMembers</code> / <code>RoleProposalEntitlements</code> / <code>RoleProposalEvidence</code></td>
+<td>The people it is for, what it would contain, and the claims it rests on.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Decisions</strong></p>
+<ul>
+<li><strong>A proposed role is never a <code>Resources</code> row.</strong> As a business role it would show up in the
+  matrix, reports and counts as if it existed. Updating an existing role only points at it
+  (<code>baseBusinessRoleId</code>, set to null if that role disappears).</li>
+<li><strong>People and resources carry no foreign key.</strong> A full sync can delete an identity (that is how the
+  demo unit once went empty); a saved investigation must then keep its rows and say "no longer
+  found", not silently lose them. A person is the workbench's own row key: an identity, or an
+  account linked to no identity.</li>
+<li><strong>A save holds the whole draft.</strong> A mark or proposed role the draft no longer holds is removed;
+  one proposed role can also be deleted on its own (<code>DELETE …/proposals/:id</code>). An unchanged mark
+  keeps who made it; an unchanged proposed role keeps its <code>updatedAt</code>; a proposed role keeps its id.</li>
+<li><strong>No silent overwrite.</strong> A save sends the <code>updatedAt</code> it opened; when someone saved since, it is
+  refused (409) with who did. The analyst can save under another name.</li>
+<li><strong>Reopening never blocks on changed data.</strong> The workbench compares the saved snapshot with the
+  access data on screen and says how many cells differ ("held then and not now", "held now and not
+  then", "held another way"); marks and proposed roles stay as saved.</li>
+</ul>
+<p><strong>API</strong> (needs <code>data.write.contexts</code>, like the workbench): <code>GET|POST
+/api/contexts/:id/workbench/investigations</code>, <code>GET|PUT|DELETE /api/workbench/investigations/:id</code>,
+<code>DELETE /api/workbench/investigations/:id/proposals/:proposalId</code>.</p>
+<p><strong>UI:</strong> a strip under the workbench header shows the state ("Nothing to save yet", "Not saved",
+"Saved as …", "Unsaved changes to …") with <strong>Save</strong>, <strong>Save as…</strong> and <strong>Open…</strong> (the unit's saved
+investigations with who saved them, when, and when their access data was read; opening one over
+unsaved work and deleting one ask first). The proposed-roles badge says <em>not saved</em>, <em>saved</em> or
+<em>unsaved changes</em>.</p>
+<h2 id="proposed-roles-in-the-matrix">Proposed roles in the matrix<a class="headerlink" href="#proposed-roles-in-the-matrix" title="Permanent link">&para;</a></h2>
+<p>Next to the lens switch (All / Governed / Non-governed / Gaps) the Matrix has a toggle, <strong>+ Proposed
+roles</strong>. It is not a lens: it adds the saved proposed roles <strong>on top of</strong> whichever lens is chosen,
+and that lens shows exactly what it shows without the toggle (decided 2026-10-29).</p>
+<ul>
+<li><strong>Who sees it:</strong> someone with <code>data.write.contexts</code>, outside a shared view, while organisation
+  knowledge is on.</li>
+<li><strong>Off:</strong> the Matrix is exactly as before.</li>
+<li><strong>Session only:</strong> the toggle is session state in <code>app/MatrixArea</code>. It is not part of the matrix
+  definition, so a saved or shared matrix never carries it.</li>
+</ul>
+<p>With it on (<code>matrix/ProposedMatrix</code>):</p>
+<ul>
+<li>Each saved proposed role is a band <strong>"Draft: <name>"</strong> under the category <em>Proposed</em>, in its own
+  colour. The cells it covers take that colour (the matrix's own <code>describeCell</code> / <code>MatrixCell</code>).
+  A member who lacks one of its entitlements shows as the matrix's provisioning gap.</li>
+<li><strong>The lens filters stay real.</strong> Governed and Non-governed still decide from the real
+  business-role coverage (<code>managedByPackages</code>). The proposals' cells reach only the colouring
+  (<code>extraCoverage</code>, merged into the colour map by <code>buildManagedApMap</code>).</li>
+<li>In Non-governed, where the business-role bands are hidden, the Draft bands still show
+  (<code>bandsForLens</code>). In Gaps, a proposed role's provisioning gaps show like a business role's.</li>
+<li><strong>The Draft columns come last,</strong> after every real business role (categorised or not), and the real
+  ones keep their order (<code>compareAccessPackages</code>). Where the drafts start there is a gap with a faint
+  dashed line, and "Proposed" in the band above them (<code>isProposedStart</code>, <code>PROPOSED_GAP_CLASS</code>), in
+  the band, names row and body cells alike so the columns line up.</li>
+<li>The real business roles keep their bands and colours, so an overlap with what is already governed
+  shows.</li>
+<li>The rows are the view's own; the toggle reads no rows. Members of a proposed role who are not in
+  the view are not added.</li>
+<li><strong>Who it reaches is computed now.</strong> A rule-based role's saved rule runs on the unit's current
+  people (the workbench's own <code>effectiveMembers</code>), plus always-include minus always-exclude. A
+  requestable role uses its saved members.</li>
+<li><strong>From investigation</strong> picks one saved investigation (unit, saved by, date) or all of them.</li>
+</ul>
+<p><strong>API</strong> (needs <code>data.write.contexts</code>): <code>GET /api/workbench/investigations</code> lists every saved
+investigation holding a proposed role, any unit. Read-only. The toggle adds to the view's own rows,
+so it needs no rows of its own. A "members outside this view" option would need an endpoint for
+those accounts' rows; it is not built.</p>
+<h2 id="people-as-columns-the-matrixs-orientation">People as columns (the matrix's orientation)<a class="headerlink" href="#people-as-columns-the-matrixs-orientation" title="Permanent link">&para;</a></h2>
+<p>With people as rows, someone holding 100+ groups means an endless horizontal scrollbar. That is
+why the global matrix puts resources on the rows and people on the columns. The workbench now
+opens that way too. <strong>People as rows</strong> stays one click away, and the choice is saved with the
+investigation's view as <code>orientation</code>.</p>
+<p>Only the layout changes (<code>workbench.transposed.js</code>, <code>WorkbenchColumnsGrid</code>). The cells are still
+person × resource, so the following work the same in both orientations: selection (click,
+Shift-click rectangle, Ctrl/⌘-click), marks, the candidate, rules, impact and save.</p>
+<ul>
+<li><strong>Rows:</strong> each business role of the band — the unit's roles, then the proposed ones as
+  "Draft: …" — in its matrix colour, with its entitlements nested under it, then "Other
+  access".</li>
+<li>A role row folds.</li>
+<li>A role lists every entitlement of it the unit knows. Even a rarely held one shows, so the
+    threshold and <em>Find access</em> narrow only "Other access".</li>
+<li>A resource two roles contain shows under each.</li>
+<li><strong>Columns:</strong> the people shown (filtered, sorted).</li>
+<li>The chosen people columns become header rows above them, the display name last, next to the
+    cells as in the matrix.</li>
+<li>Each header row's label has the same sort and Excel-like filter.</li>
+<li>A narrow cell shows the first value written upwards: knowledge with ✓/?/!, then "+N".
+    Hovering lists all values; a click opens their evidence, with Confirm / Reject.</li>
+<li>A header row nobody has a value in stays one line high.</li>
+<li><strong>Grouping</strong> (<em>Group by</em>) is a people-as-rows feature, so it is hidden with people as columns.</li>
+<li>The rows are virtualised with TanStack Virtual, as the matrix's are.</li>
+</ul>
+<p>The grid reuses the matrix's <code>MatrixCell</code> and colours. It does not reuse <code>MatrixGroupRow</code> or
+<code>SortableMatrixBody</code>. Those carry the global matrix's own state (nested-group expansion, drag
+order, fold tallies), and threading the workbench's selection and marks through them would put the
+global matrix at risk.</p>
+<h3 id="one-scrollbar-the-pages">One scrollbar: the page's<a class="headerlink" href="#one-scrollbar-the-pages" title="Permanent link">&para;</a></h3>
+<p>The page scrolls; the workbench grid has no vertical scrollbar of its own (decided with Wim
+2026-10-29, after a first version sized the grid to the window and left room for one row under the
+header rows).</p>
+<ul>
+<li><strong>Header:</strong> the grid's header rows stick to the top of the window as the page scrolls
+  (<code>PageStickyTable</code>).</li>
+<li><strong>Wide grids:</strong> a grid wider than its column scrolls sideways inside itself. A box that scrolls is
+  what a sticky header sticks to, so the header lives in a strip of its own above the body.</li>
+<li>The strip uses the same fixed column widths, clipped sideways (<code>overflow-x: clip</code>, so the
+    filter menus and popovers that open from it are not cut off).</li>
+<li>It moves with the body's horizontal scroll; its row labels move back, so they stay put.</li>
+<li>With people as columns, the five permission columns stay in place too.</li>
+<li><strong>Virtualisation:</strong> rows are virtualised against the page (<code>usePageVirtualRows</code>, TanStack's
+  window virtualiser).</li>
+<li><strong>The candidate panel</strong> sticks to the top of the window beside the grid, and scrolls within itself
+  only when it is taller than the window.</li>
+<li><strong>Header rows about people</strong> are as tall as their longest value needs, within tight limits
+  (<code>headerRowHeight</code>: values up to 44px — the ✓/? mark and the first few characters — names up to
+  88px); the whole value shows on hover. A row nobody has a value in is one line.</li>
+<li><strong>Measured</strong> (Fortigi <em>Members</em>, people as columns): 26 permission rows in view without scrolling
+  at 2254×1351, 16 at 1920×1080, 4 at 1366×768. Once scrolled the header sits at the top of the
+  window and 20+ rows show.</li>
+</ul>
+<h3 id="filtering-the-permissions">Filtering the permissions<a class="headerlink" href="#filtering-the-permissions" title="Permanent link">&para;</a></h3>
+<p>The permissions shown are filtered the way the people are (<code>workbench.permissions.js</code>): an
+Excel-like filter and sort on each of the matrix's row cells — Resource name, Contexts, Type,
+System, Held by — AND across columns.</p>
+<ul>
+<li><strong>Contexts</strong> are the tags and logical applications a resource belongs to (<code>ContextMembers</code>).</li>
+<li>The workbench API returns them per column (<code>columns[].contexts</code>, the matrix's own join,
+    <code>matrix/resourceContexts.js</code>), plus those contexts with every parent (<code>contexts</code>, recursive
+    on <code>parentContextId</code>).</li>
+<li>A context takes its sub-contexts: choosing a logical application also takes the resources in
+    its modules.</li>
+<li>The filter goes both ways: <strong>Only these</strong>, or <strong>Hide resources in these</strong> (e.g. everything
+    tagged "Default access").</li>
+<li><strong>Held by:</strong> "Access held by at least N" stays, plus <strong>at most</strong> (outliers), with <strong>Hide
+  permissions only one person holds</strong> as the at-least-2 preset.</li>
+<li><strong>Business roles:</strong></li>
+<li>An entitlement the filters hide is not under its role either. A role whose entitlements are
+    all hidden says "(all hidden by filters)".</li>
+<li>A <em>proposed</em> role keeps all of its own, the hidden ones last and marked "hidden by filter".
+    Nothing is silently dropped from a proposal.</li>
+<li><strong>Impact</strong> counts only what is shown, and says "N permissions hidden by filters — not counted".</li>
+<li>The filters, the permission sort and the held-by range are part of the saved view
+  (<code>permissionFilters</code>, <code>permissionSort</code>, <code>maxHolders</code>).</li>
+<li>With people as rows the permissions are columns, and the same filters sit behind a
+  <strong>Permissions</strong> menu in the toolbar.</li>
+</ul>
+<h2 id="proposed-roles-on-the-unit-page">Proposed roles on the unit page<a class="headerlink" href="#proposed-roles-on-the-unit-page" title="Permanent link">&para;</a></h2>
+<p>An analyst's unit page shows the same saved proposals. It reads them from the existing
+investigation endpoints, so no new API.</p>
+<ul>
+<li>The <strong>Authorization workbench</strong> button carries "N proposed".</li>
+<li>A <strong>Proposed roles</strong> fold ("3 in 2 investigations") lists each saved proposed role with:</li>
+<li>its colour (the workbench's band index: the unit's existing roles first);</li>
+<li>its name and kind;</li>
+<li>its rule as one sentence, or "chosen by hand";</li>
+<li>the people it reaches now and its entitlements;</li>
+<li>the investigation, who saved it and when.</li>
+</ul>
+<p>The rows are read only when the fold is opened. Only this unit's investigations are listed, not
+  a sub-unit's.
+- A row opens the workbench on <code>#workbench:&lt;unit&gt;:&lt;investigation&gt;:&lt;proposed role&gt;</code>
+  (<code>workbench.link.js</code>). The workbench opens that investigation once and puts that role in the
+  panel.</p>
+<p><strong>What we know agrees with the workbench.</strong> The workbench finds activity, expertise and duty claims
+by <em>person</em>. The unit page used to read only the claims filed <em>on the unit</em>. An interview held on
+the parent unit names what the people of a sub-unit do, so the sub-unit's page said "Nothing
+recorded yet". <code>GET /api/contexts/:id/claims</code> now also returns the knowledge claims about the
+unit's members, wherever filed:
+- the members' identities and accounts, each widened by the identity ↔ account links;
+- members removed by an override are left out;
+- each such claim names where it was filed (<code>filedUnderName</code>).</p>
+<p>What we know counts and lists them, and a proposed one is reviewable there. The People and
+Timeline loaders are unchanged.</p>
 <h2 id="deferred-milestone-2-3">Deferred (Milestone 2 / 3)<a class="headerlink" href="#deferred-milestone-2-3" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>M2:</strong> save, version and approve a candidate (a <code>RoleProposals</code> record holding name, members,
-  entitlements, the marks with their reasons, the evidence links and the snapshot time).</li>
+<li><strong>M2b:</strong> review, approve and version a proposed role (<code>status</code> beyond <code>draft</code>, <code>version</code> beyond
+  1, a compare between versions), export it, and optionally raise a change request to the IGA
+  system once approved.</li>
 <li><strong>M3:</strong> compare an approved proposal with a later snapshot (implemented as proposed? drift?).</li>
 <li>A computed first proposal of entitlements (e.g. what at least half of the members hold): tried and
   taken out — the analyst selects entitlements. Revisit with real analyst feedback.</li>

@@ -2629,6 +2629,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exploring-the-team" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exploring the team
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exploring the team">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-team-and-application-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The team and application matrices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reusing-this-scope-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusing this scope (MCP)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#enforcement" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5905,6 +5944,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exploring-the-team" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exploring the team
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exploring the team">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-team-and-application-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The team and application matrices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reusing-this-scope-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reusing this scope (MCP)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#enforcement" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6098,11 +6176,11 @@ context role gets exactly today's behaviour (the roleless read, or the
 <ol>
 <li><strong>the contexts they hold a role on</strong> — Accountable and Responsible count the
    same;</li>
-<li><strong>the sub-units below those</strong> (descendants through <code>parentContextId</code>, to any
-   depth) — <strong>except</strong> a sub-unit that has an Accountable or Responsible of its
-   own. That sub-unit is somebody else's, and so is everything below it: the
-   walk stops there. If the same person also holds a role on that sub-unit, it
-   is in scope as one of their own contexts (point 1), with its own sub-units;</li>
+<li><strong>all the sub-units below those</strong> (descendants through <code>parentContextId</code>, to
+   any depth) — <strong>also</strong> a sub-unit that has an Accountable or Responsible of
+   its own: accountability is hierarchical, whoever answers for a unit answers
+   for everything below it. That sub-unit's owner, in turn, gets only their own
+   subtree — nothing walks upward;</li>
 <li><strong>the variants of the contexts they hold</strong> (<code>SameUnitAs</code> — the same unit as
    people, accounts or resources). A sub-unit's variants are not added.</li>
 </ol>
@@ -6133,18 +6211,21 @@ context role gets exactly today's behaviour (the roleless read, or the
 <tr>
 <td>└ Treasury</td>
 <td>Bob is Responsible</td>
-<td><strong>no</strong> — Bob's</td>
+<td>yes — sub-unit (Bob's too)</td>
 </tr>
 <tr>
 <td>&nbsp;&nbsp;└ Treasury ops</td>
 <td>no roles</td>
-<td><strong>no</strong> — below Bob's</td>
+<td>yes — sub-unit</td>
 </tr>
 </tbody>
 </table>
+<p>Bob, Responsible for Treasury, gets Treasury and Treasury ops — not Finance, not
+Accounts payable.</p>
 <p>The scope is computed on every request (<code>auth/contextOwner.js</code>
-<code>findOwnedSubUnits</code>, a recursive walk with a cycle guard), so adding a role on a
-sub-unit takes it out of the parent owner's scope immediately.</p>
+<code>findOwnedSubUnits</code>, one recursive statement over the indexed <code>parentContextId</code>
+with a cycle guard — a top-level owner with thousands of units costs one round
+trip), so a change in the tree takes effect immediately.</p>
 <h2 id="what-they-can-see">What they can see<a class="headerlink" href="#what-they-can-see" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -6176,11 +6257,14 @@ sub-unit takes it out of the parent owner's scope immediately.</p>
 </tr>
 <tr>
 <td><code>/api/reports/unit-members/export</code></td>
-<td>the same <code>contexts</code> check; <code>includeSubUnits</code> is refused in any form (even <code>false</code>) — the owner downloads per sub-unit, from that sub-unit's own page</td>
+<td>the same <code>contexts</code> check; with <code>includeSubUnits</code> (any value) also every descendant of what the contexts resolve to must be in scope — true below a held context, not below a variant</td>
 </tr>
 </tbody>
 </table>
-<p>Everything else — any other path, and every non-GET — answers
+<p>| One object's detail reads — <code>/api/user/:id</code> (and its memberships, contexts, activity, timeline, diff, …), <code>/api/identities/:id</code> (…), <code>/api/resources/:id</code>, <code>/api/group/:id</code>, <code>/api/access-package/:id</code> (…), <code>/api/org-chart/user/:id/manager|reports</code>, <code>/api/identities/by-user/:id</code>, <code>/api/risk-scores/{users,identities,groups,resources,business-roles}/:id</code> | the object opens in full for this owner (see <a href="#exploring-the-team">Exploring the team</a>); the list is <code>auth/ownerAccess/endpoints.js</code> |
+| <code>/api/access-package-groups</code> — the business-role catalogue the matrix maps roles to their groups with | always, but the response is cut to the business roles the owner may open (<code>auth/ownerAccess/responses.js</code>): those their team holds, or that are themselves in scope — never the whole catalogue |
+| <code>POST /api/matrix/data</code> — the one POST, a read | the filter is bound to the owner's team (see <a href="#the-team-matrix">The team matrix</a>) |</p>
+<p>Everything else — any other path, and every non-GET (but the team matrix) — answers
 <code>403 { "error": "Context owners can only open their own context" }</code>.</p>
 <h3 id="a-members-references-names-only">A member's references — names only<a class="headerlink" href="#a-members-references-names-only" title="Permanent link">&para;</a></h3>
 <p>For each member of a context in scope, the owner can see what that member is
@@ -6212,7 +6296,7 @@ directly tied to:</p>
 words needed to read it — resource type, system name, assignment type, holder
 type, context type. <strong>It carries no ids.</strong> There is nothing in it to follow, and
 the detail endpoints of the referenced objects stay off the allow-list: an owner
-sees that a member holds "Finance-Admins", not "Finance-Admins" itself.</p>
+sees that a member holds "Finance-Admins" there. To open "Finance-Admins" itself they go through the member's own page (<a href="#exploring-the-team">Exploring the team</a>), where every reference carries the API's access flag.</p>
 <p>Each group lists at most <strong>50</strong> names, alphabetically, with the true total
 (the page says "+ 1,234 more"). Everything is shown; nothing is held back by
 sensitivity today. Leaving out references by tag (for example a "Sensitive" tag
@@ -6223,28 +6307,155 @@ shows it, as an expandable member row.</p>
 <p>In the UI an owner gets a bare page (no main navigation): their context
 directly, or a list on the left when they hold several. The page is the
 ordinary context page in its business (reading) view, read-only: no Edit, no
-role pencils, no suggestion, no member editing, people and member pages not
-linked, no Copy link or Open as page.</p>
+role pencils, no suggestion, no member editing, no Copy link or Open as page.
+People, members and role holders link to their page when the API marks them
+accessible (<code>components/EntityLink.jsx</code>); an opened page or the team matrix
+shows on top of the unit, with <strong>Back</strong> (<code>components/contextOwner/</code>).</p>
 <ul>
-<li><strong>Sub-units</strong> in scope open in place; a sub-unit with an owner of its own is
-  plain text. The <strong>breadcrumb</strong> names the direct parent without reading it, and
+<li><strong>Sub-units</strong> open in place — all of them, whoever else owns them. The <strong>breadcrumb</strong> names the direct parent without reading it, and
   opens it in place when it is in scope (a sub-unit's way back up).</li>
 <li>A <strong>variant</strong> opens in place only when it is in scope.</li>
 <li>Each <strong>member</strong> expands to its references, grouped and as plain text: on a
   unit of people or accounts the name of each person in the <strong>People</strong> overview
   whom the member list holds (not a former member, nor someone only an interview
   names); elsewhere each row of the members list, but not while <em>Include
-  sub-units</em> is on. The API answers only for a context's own members.</li>
+  sub-units</em> is on. The API answers only for a context's own members. Beside
+  the name, <strong>Open</strong> opens the member's full page.</li>
 <li>The Actions area drops <strong>View in matrix</strong>, which the owner cannot open, and the
   "Coming soon" survey and review cards, which are the analyst's to start; it
   keeps the report downloads, which run on the context itself: <strong>Download
   entitlement report</strong> on an application and <strong>Download unit report</strong> on a unit
-  of accounts or people. A unit of resources therefore shows no Actions to its
-  owner.</li>
+  of accounts or people, next to <strong>Team matrix</strong>; a context of resources offers
+  <strong>Application matrix</strong>.</li>
 </ul>
 <p><code>contexts/ContextOwnerScopeContext.jsx</code> carries the scope into the page;
 <code>components/contexts/contextOpener.js</code> decides which sub-units and parents are
 links.</p>
+<h2 id="exploring-the-team">Exploring the team<a class="headerlink" href="#exploring-the-team" title="Permanent link">&para;</a></h2>
+<p>From their unit an owner can open the people in it and what those people hold;
+from an application, the people who hold its resources — the full detail page
+with every tab (Attributes, Relationships, Timeline, Diff, and Risk read-only) —
+and no further. Whether an object opens is decided by the API from the data, in
+four tiers (<code>auth/ownerAccess/tiers.js</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>What</th>
+<th>Opens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>team</strong></td>
+<td>a member of an in-scope context. Accounts and people cross over both ways: an account whose person is a member, a person one of whose accounts is a member. A resource that is itself a member (a unit of resources, an application)</td>
+<td>in full</td>
+</tr>
+<tr>
+<td><strong>held</strong></td>
+<td>a resource a team member holds: a live <code>Direct</code>, <code>Indirect</code> or <code>Eligible</code> assignment made to a team account or a team person</td>
+<td>in full</td>
+</tr>
+<tr>
+<td><strong>holder</strong></td>
+<td>the mirror for a context of resources (an application): an account or person holding — live <code>Direct</code>, <code>Indirect</code> or <code>Eligible</code> — a resource that is a member of an in-scope context. Same crossover as the team: an account whose person holds one, a person one of whose accounts does</td>
+<td>in full</td>
+</tr>
+<tr>
+<td>—</td>
+<td>everything else</td>
+<td>name only</td>
+</tr>
+</tbody>
+</table>
+<p>One step out, no further: what a holder holds <strong>outside</strong> the application is not
+<code>held</code> (that is the team's only), so it is name-only. An owner of several
+contexts — say a unit and an application — gets the <strong>union</strong> of the tiers over
+all of them; an object that is both team and holder is reported as team.</p>
+<p>A detail read about an object that is in none of these tiers answers the same 403 as
+any other refused path. <strong>Facts are never stripped</strong>: a group's page lists all
+its members, people outside the unit included. Instead, in owner mode only,
+every referenced object in the response carries <code>accessible: true | false</code>
+(<code>auth/ownerAccess/annotate.js</code>, driven by the per-path table in
+<code>auth/ownerAccess/endpoints.js</code>; a second reference on one row writes its own
+flag, such as <code>principalAccessible</code>). The UI shows an accessible object as a
+link and any other as lighter plain text with the hint "No access to details"
+(<code>components/EntityLink.jsx</code>); it never decides on its own. An ordinary
+caller's responses are unchanged and no classification runs for them.</p>
+<p>Writes stay refused: the risk override, a linked-account override and every
+other non-GET answer 403.</p>
+<p><strong>Scale.</strong> The tiers are checked per object, in one batch per kind for a
+response: <code>team</code> through the <code>ContextMembers</code> primary key and the
+<code>IdentityMembers</code> indexes, <code>held</code> as an <code>EXISTS</code> through <code>ix_RA_resourceId</code>,
+<code>holder</code> as an <code>EXISTS</code> through <code>ix_RA_principalId</code> / the <code>identityId</code> index,
+each assignment checked against the <code>ContextMembers</code> primary key — never a load
+of the team's or the application's assignments. Answers are cached for the request and,
+across requests, for 60 seconds per (owner scope, kind, id); the scope itself is
+still resolved on every request.</p>
+<h3 id="the-team-and-application-matrices">The team and application matrices<a class="headerlink" href="#the-team-and-application-matrices" title="Permanent link">&para;</a></h3>
+<p>Each context page in the owner's scope offers its own matrix, opened inside the
+owner's page: <strong>Team matrix</strong> on a unit of accounts or people (its members as
+rows, what they hold as columns) and <strong>Application matrix</strong> on a context of
+resources (its resources as columns, everyone holding one as a row — the
+holders). <code>POST /api/matrix/data</code> runs for an owner only when
+(<code>auth/ownerAccess/matrixFilter.js</code>):</p>
+<ul>
+<li>every context condition anywhere in the filter names an in-scope context; with
+  <code>includeChildren</code>, every descendant of it must be in scope too (always true
+  below a held context; a variant does not bring its sub-units along);</li>
+<li>an axis is anchored to one of them: the subject include on a unit of
+  accounts or people, or the resource include on a context of resources (the
+  include conditions of an axis are ANDed, so the anchor bounds it; the flat
+  grid lists only subjects with a cell in the columns, so a column bound also
+  bounds the rows to holders). A context of the wrong kind on an axis is
+  dropped by that axis's query and is never an anchor;</li>
+<li>the <strong>org-unit roll-up</strong> (<code>sortHierarchy</code>, or <code>rollupKind: 'context'</code> with
+  <code>rollupContextId</code> / <code>rollupPath</code> / <code>rollupExpanded</code>) is kept when its root is
+  an in-scope context whose whole subtree is in scope and every node it names
+  is in scope — a root or node elsewhere is refused; its cells and member counts
+  run through the same subject filter, so the anchor still bounds them;</li>
+<li>the other aggregate modes (attribute roll-up and fold, roles-only drill,
+  inherited access) are removed.</li>
+</ul>
+<p>Each is <strong>exactly the matrix an analyst opens from that context</strong> ("View in
+matrix", <code>utils/matrixFilter.js</code> <code>unitMatrixFilter</code>), rendered by the ordinary
+matrix views in their read-only mode — the owner never gets a reduced grid. On a
+unit it opens <strong>grouped by its sub-units</strong> — the unit's own tree as collapsible
+column groups, as an analyst's hierarchy sort, expanded the same way, with the
+unit's own people as a "direct members" column beside its sub-units (a unit
+without sub-units is just that column) and the business-role columns; <strong>Group
+by unit</strong> off gives the flat standard matrix, with the business-role band, governed cells,
+the groups a business role contains coloured by it, and the All / Governed /
+Non-governed / Gaps lenses; those come from the matrix data (<code>managedByPackages</code>)
+and the business-role catalogue, which is answered for an owner cut to the roles
+they may open. Anything else is a 403. The matrix's other reads (tags, column
+value lists, the default filter, nested-group expansion, the inheritance path)
+are not on the list; the views carry on without them (no tag chips, no expand
+arrow on a nested group). The application matrix has no org roll-up: the
+roll-up groups people by their unit tree, and an application's tree is one of
+resources.</p>
+<h3 id="reusing-this-scope-mcp">Reusing this scope (MCP)<a class="headerlink" href="#reusing-this-scope-mcp" title="Permanent link">&para;</a></h3>
+<p>The MCP server (#1508) answers on behalf of the signed-in user and must apply
+exactly this scope. Everything it needs is exported from
+<code>app/api/src/auth/ownerAccess/index.js</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createOwnerAccess</span><span class="p">,</span><span class="w"> </span><span class="nx">ownerMatrixVerdict</span><span class="p">,</span><span class="w"> </span><span class="nx">annotateReferences</span><span class="p">,</span><span class="w"> </span><span class="nx">entityEndpointFor</span><span class="p">,</span><span class="w"> </span><span class="nx">refsFor</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../auth/ownerAccess/index.js'</span><span class="p">;</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kd">const</span><span class="w"> </span><span class="nx">owner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">resolveContextOwner</span><span class="p">(</span><span class="nx">user</span><span class="p">);</span><span class="w">              </span><span class="c1">// auth/contextOwner.js — null for a non-owner</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">access</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createOwnerAccess</span><span class="p">(</span><span class="nx">owner</span><span class="p">.</span><span class="nx">contextIds</span><span class="p">);</span><span class="w">         </span><span class="c1">// one per request</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">await</span><span class="w"> </span><span class="nx">access</span><span class="p">.</span><span class="nx">canOpen</span><span class="p">(</span><span class="s1">'user'</span><span class="p">,</span><span class="w"> </span><span class="nx">id</span><span class="p">);</span><span class="w">                          </span><span class="c1">// may this object be opened in full?</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">await</span><span class="w"> </span><span class="nx">access</span><span class="p">.</span><span class="nx">tierOf</span><span class="p">(</span><span class="s1">'resource'</span><span class="p">,</span><span class="w"> </span><span class="nx">id</span><span class="p">);</span><span class="w">                       </span><span class="c1">// 'team' | 'held' | null (people: 'team' | 'holder' | null)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">await</span><span class="w"> </span><span class="nx">access</span><span class="p">.</span><span class="nx">accessibleIds</span><span class="p">(</span><span class="s1">'principal'</span><span class="p">,</span><span class="w"> </span><span class="nx">ids</span><span class="p">);</span><span class="w">              </span><span class="c1">// batch: the Set of ids that open</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nx">ownerMatrixVerdict</span><span class="p">(</span><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">owner</span><span class="p">.</span><span class="nx">contextIds</span><span class="p">,</span><span class="w"> </span><span class="nx">contextTypes</span><span class="p">);</span><span class="w">   </span><span class="c1">// { ok, filter } for a matrix query</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">await</span><span class="w"> </span><span class="nx">annotateReferences</span><span class="p">(</span><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">refs</span><span class="p">,</span><span class="w"> </span><span class="nx">access</span><span class="p">);</span><span class="w">               </span><span class="c1">// mark references in a result</span>
+</code></pre></div>
+<p>Kinds accept the data model's words (<code>principal</code>, <code>identity</code>, <code>resource</code>,
+<code>context</code>, <code>member</code>) and the UI's (<code>user</code>, <code>group</code>, <code>access-package</code>,
+<code>business-role</code>). A tool that returns an object should check <code>canOpen</code> first
+and refuse otherwise (the tiers are already the union over every context the
+owner holds — one access object covers a unit and an application alike); a tool
+that runs a matrix query should pass it through <code>ownerMatrixVerdict</code> and run
+only the filter it returns; a tool that lists references should return them all and
+mark each from <code>accessibleIds</code>, as the REST responses do.</p>
 <h2 id="enforcement">Enforcement<a class="headerlink" href="#enforcement" title="Permanent link">&para;</a></h2>
 <p>Enforced by the API, not the UI:</p>
 <ul>
@@ -6272,9 +6483,10 @@ treated as a context owner.</p>
 <li>Whether someone is an owner, and of which sub-units, is read on every request,
   so adding or removing a role takes effect immediately; there is no cache to
   expire.</li>
-<li>References are direct only (one hop), names only, and capped at 50 per group.</li>
-<li>The unit report never includes sub-units for an owner; they download it per
-  sub-unit.</li>
+<li>A member's references (the expandable row) are direct only (one hop), names only, and capped at 50 per group; the full lists are on the member's own page.</li>
+<li>The team and application matrices open on one context with all its sub-contexts (an application often keeps its resources in child contexts); a variant's matrix is refused when the variant has sub-contexts outside the scope.</li>
+<li>A variant's own sub-units are not in scope, so a report or matrix of a variant
+  with its sub-units is refused.</li>
 </ul>
 
 
