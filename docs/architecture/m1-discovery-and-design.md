@@ -97,6 +97,9 @@ Every new proposed role first asks its **kind** (two cards; changeable later):
   its crawled policies (`policyKind`: an auto-add rule → rule-based, a policy without one → requestable),
   else asks. Proposals never write to `AssignmentPolicies` (crawled data).
 - Nothing is enforced anywhere; the impact overlay shows the active role's computed members.
+- **Saved** with the investigation (migration 108): `RoleProposals.assignmentKind`, `membershipRule`
+  (jsonb), `joinerPolicy`, `leaverPolicy`, `approver` (jsonb), `rationale`; "always exclude" people as
+  `RoleProposalMembers` with `kind = 'exclude'`.
 
 ## Impact semantics
 
@@ -130,10 +133,211 @@ stay out of a claims role. Idempotent; it touches nothing else.
 4. Who may see the workbench: analysts only (now `data.write.contexts`), or also a unit's
    Accountable?
 
+## M2a — save and reopen
+
+The first slice of Milestone 2: an analyst saves the workbench as an **investigation** on the unit
+and opens it again later. No review, approval or versions yet (M2b), but the tables are shaped
+for them.
+
+**What is saved** (migration 107):
+
+| Table | Holds |
+|---|---|
+| `WorkbenchInvestigations` | One saved session on a unit: name, description, the view (people columns, filters, sort, sub-units in or out, column threshold), when the access data on screen was read, who saved it and when. Unique name per unit (case and spaces ignored). Org-wide, like saved matrices. |
+| `WorkbenchAccessSnapshots` | The held cells on screen at the last save (`person\|resource\|type`), kept apart so the history trigger does not copy them on every save. |
+| `WorkbenchMarks` | Person × resource × mark (`other` / `unrelated` / `investigate`), an optional note, who marked it and when. |
+| `RoleProposals` | Each proposed role: name, description, the business role it updates (if any), its place in the list, `status` (`draft` only for now) and `version` (1 for now). |
+| `RoleProposalMembers` / `RoleProposalEntitlements` / `RoleProposalEvidence` | The people it is for, what it would contain, and the claims it rests on. |
+
+**Decisions**
+
+- **A proposed role is never a `Resources` row.** As a business role it would show up in the
+  matrix, reports and counts as if it existed. Updating an existing role only points at it
+  (`baseBusinessRoleId`, set to null if that role disappears).
+- **People and resources carry no foreign key.** A full sync can delete an identity (that is how the
+  demo unit once went empty); a saved investigation must then keep its rows and say "no longer
+  found", not silently lose them. A person is the workbench's own row key: an identity, or an
+  account linked to no identity.
+- **A save holds the whole draft.** A mark or proposed role the draft no longer holds is removed;
+  one proposed role can also be deleted on its own (`DELETE …/proposals/:id`). An unchanged mark
+  keeps who made it; an unchanged proposed role keeps its `updatedAt`; a proposed role keeps its id.
+- **No silent overwrite.** A save sends the `updatedAt` it opened; when someone saved since, it is
+  refused (409) with who did. The analyst can save under another name.
+- **Reopening never blocks on changed data.** The workbench compares the saved snapshot with the
+  access data on screen and says how many cells differ ("held then and not now", "held now and not
+  then", "held another way"); marks and proposed roles stay as saved.
+
+**API** (needs `data.write.contexts`, like the workbench): `GET|POST
+/api/contexts/:id/workbench/investigations`, `GET|PUT|DELETE /api/workbench/investigations/:id`,
+`DELETE /api/workbench/investigations/:id/proposals/:proposalId`.
+
+**UI:** a strip under the workbench header shows the state ("Nothing to save yet", "Not saved",
+"Saved as …", "Unsaved changes to …") with **Save**, **Save as…** and **Open…** (the unit's saved
+investigations with who saved them, when, and when their access data was read; opening one over
+unsaved work and deleting one ask first). The proposed-roles badge says *not saved*, *saved* or
+*unsaved changes*.
+
+## Proposed roles in the matrix
+
+Next to the lens switch (All / Governed / Non-governed / Gaps) the Matrix has a toggle, **+ Proposed
+roles**. It is not a lens: it adds the saved proposed roles **on top of** whichever lens is chosen,
+and that lens shows exactly what it shows without the toggle (decided 2026-10-29).
+
+- **Who sees it:** someone with `data.write.contexts`, outside a shared view, while organisation
+  knowledge is on.
+- **Off:** the Matrix is exactly as before.
+- **Session only:** the toggle is session state in `app/MatrixArea`. It is not part of the matrix
+  definition, so a saved or shared matrix never carries it.
+
+With it on (`matrix/ProposedMatrix`):
+
+- Each saved proposed role is a band **"Draft: <name>"** under the category *Proposed*, in its own
+  colour. The cells it covers take that colour (the matrix's own `describeCell` / `MatrixCell`).
+  A member who lacks one of its entitlements shows as the matrix's provisioning gap.
+- **The lens filters stay real.** Governed and Non-governed still decide from the real
+  business-role coverage (`managedByPackages`). The proposals' cells reach only the colouring
+  (`extraCoverage`, merged into the colour map by `buildManagedApMap`).
+- In Non-governed, where the business-role bands are hidden, the Draft bands still show
+  (`bandsForLens`). In Gaps, a proposed role's provisioning gaps show like a business role's.
+- **The Draft columns come last,** after every real business role (categorised or not), and the real
+  ones keep their order (`compareAccessPackages`). Where the drafts start there is a gap with a faint
+  dashed line, and "Proposed" in the band above them (`isProposedStart`, `PROPOSED_GAP_CLASS`), in
+  the band, names row and body cells alike so the columns line up.
+- The real business roles keep their bands and colours, so an overlap with what is already governed
+  shows.
+- The rows are the view's own; the toggle reads no rows. Members of a proposed role who are not in
+  the view are not added.
+- **Who it reaches is computed now.** A rule-based role's saved rule runs on the unit's current
+  people (the workbench's own `effectiveMembers`), plus always-include minus always-exclude. A
+  requestable role uses its saved members.
+- **From investigation** picks one saved investigation (unit, saved by, date) or all of them.
+
+**API** (needs `data.write.contexts`): `GET /api/workbench/investigations` lists every saved
+investigation holding a proposed role, any unit. Read-only. The toggle adds to the view's own rows,
+so it needs no rows of its own. A "members outside this view" option would need an endpoint for
+those accounts' rows; it is not built.
+
+## People as columns (the matrix's orientation)
+
+With people as rows, someone holding 100+ groups means an endless horizontal scrollbar. That is
+why the global matrix puts resources on the rows and people on the columns. The workbench now
+opens that way too. **People as rows** stays one click away, and the choice is saved with the
+investigation's view as `orientation`.
+
+Only the layout changes (`workbench.transposed.js`, `WorkbenchColumnsGrid`). The cells are still
+person × resource, so the following work the same in both orientations: selection (click,
+Shift-click rectangle, Ctrl/⌘-click), marks, the candidate, rules, impact and save.
+
+- **Rows:** each business role of the band — the unit's roles, then the proposed ones as
+  "Draft: …" — in its matrix colour, with its entitlements nested under it, then "Other
+  access".
+  - A role row folds.
+  - A role lists every entitlement of it the unit knows. Even a rarely held one shows, so the
+    threshold and *Find access* narrow only "Other access".
+  - A resource two roles contain shows under each.
+- **Columns:** the people shown (filtered, sorted).
+  - The chosen people columns become header rows above them, the display name last, next to the
+    cells as in the matrix.
+  - Each header row's label has the same sort and Excel-like filter.
+  - A narrow cell shows the first value written upwards: knowledge with ✓/?/!, then "+N".
+    Hovering lists all values; a click opens their evidence, with Confirm / Reject.
+  - A header row nobody has a value in stays one line high.
+- **Grouping** (*Group by*) is a people-as-rows feature, so it is hidden with people as columns.
+- The rows are virtualised with TanStack Virtual, as the matrix's are.
+
+The grid reuses the matrix's `MatrixCell` and colours. It does not reuse `MatrixGroupRow` or
+`SortableMatrixBody`. Those carry the global matrix's own state (nested-group expansion, drag
+order, fold tallies), and threading the workbench's selection and marks through them would put the
+global matrix at risk.
+
+### One scrollbar: the page's
+
+The page scrolls; the workbench grid has no vertical scrollbar of its own (decided with Wim
+2026-10-29, after a first version sized the grid to the window and left room for one row under the
+header rows).
+
+- **Header:** the grid's header rows stick to the top of the window as the page scrolls
+  (`PageStickyTable`).
+- **Wide grids:** a grid wider than its column scrolls sideways inside itself. A box that scrolls is
+  what a sticky header sticks to, so the header lives in a strip of its own above the body.
+  - The strip uses the same fixed column widths, clipped sideways (`overflow-x: clip`, so the
+    filter menus and popovers that open from it are not cut off).
+  - It moves with the body's horizontal scroll; its row labels move back, so they stay put.
+  - With people as columns, the five permission columns stay in place too.
+- **Virtualisation:** rows are virtualised against the page (`usePageVirtualRows`, TanStack's
+  window virtualiser).
+- **The candidate panel** sticks to the top of the window beside the grid, and scrolls within itself
+  only when it is taller than the window.
+- **Header rows about people** are as tall as their longest value needs, within tight limits
+  (`headerRowHeight`: values up to 44px — the ✓/? mark and the first few characters — names up to
+  88px); the whole value shows on hover. A row nobody has a value in is one line.
+- **Measured** (Fortigi *Members*, people as columns): 26 permission rows in view without scrolling
+  at 2254×1351, 16 at 1920×1080, 4 at 1366×768. Once scrolled the header sits at the top of the
+  window and 20+ rows show.
+
+### Filtering the permissions
+
+The permissions shown are filtered the way the people are (`workbench.permissions.js`): an
+Excel-like filter and sort on each of the matrix's row cells — Resource name, Contexts, Type,
+System, Held by — AND across columns.
+
+- **Contexts** are the tags and logical applications a resource belongs to (`ContextMembers`).
+  - The workbench API returns them per column (`columns[].contexts`, the matrix's own join,
+    `matrix/resourceContexts.js`), plus those contexts with every parent (`contexts`, recursive
+    on `parentContextId`).
+  - A context takes its sub-contexts: choosing a logical application also takes the resources in
+    its modules.
+  - The filter goes both ways: **Only these**, or **Hide resources in these** (e.g. everything
+    tagged "Default access").
+- **Held by:** "Access held by at least N" stays, plus **at most** (outliers), with **Hide
+  permissions only one person holds** as the at-least-2 preset.
+- **Business roles:**
+  - An entitlement the filters hide is not under its role either. A role whose entitlements are
+    all hidden says "(all hidden by filters)".
+  - A *proposed* role keeps all of its own, the hidden ones last and marked "hidden by filter".
+    Nothing is silently dropped from a proposal.
+- **Impact** counts only what is shown, and says "N permissions hidden by filters — not counted".
+- The filters, the permission sort and the held-by range are part of the saved view
+  (`permissionFilters`, `permissionSort`, `maxHolders`).
+- With people as rows the permissions are columns, and the same filters sit behind a
+  **Permissions** menu in the toolbar.
+
+## Proposed roles on the unit page
+
+An analyst's unit page shows the same saved proposals. It reads them from the existing
+investigation endpoints, so no new API.
+
+- The **Authorization workbench** button carries "N proposed".
+- A **Proposed roles** fold ("3 in 2 investigations") lists each saved proposed role with:
+  - its colour (the workbench's band index: the unit's existing roles first);
+  - its name and kind;
+  - its rule as one sentence, or "chosen by hand";
+  - the people it reaches now and its entitlements;
+  - the investigation, who saved it and when.
+
+  The rows are read only when the fold is opened. Only this unit's investigations are listed, not
+  a sub-unit's.
+- A row opens the workbench on `#workbench:<unit>:<investigation>:<proposed role>`
+  (`workbench.link.js`). The workbench opens that investigation once and puts that role in the
+  panel.
+
+**What we know agrees with the workbench.** The workbench finds activity, expertise and duty claims
+by *person*. The unit page used to read only the claims filed *on the unit*. An interview held on
+the parent unit names what the people of a sub-unit do, so the sub-unit's page said "Nothing
+recorded yet". `GET /api/contexts/:id/claims` now also returns the knowledge claims about the
+unit's members, wherever filed:
+- the members' identities and accounts, each widened by the identity ↔ account links;
+- members removed by an override are left out;
+- each such claim names where it was filed (`filedUnderName`).
+
+What we know counts and lists them, and a proposed one is reviewable there. The People and
+Timeline loaders are unchanged.
+
 ## Deferred (Milestone 2 / 3)
 
-- **M2:** save, version and approve a candidate (a `RoleProposals` record holding name, members,
-  entitlements, the marks with their reasons, the evidence links and the snapshot time).
+- **M2b:** review, approve and version a proposed role (`status` beyond `draft`, `version` beyond
+  1, a compare between versions), export it, and optionally raise a change request to the IGA
+  system once approved.
 - **M3:** compare an approved proposal with a later snapshot (implemented as proposed? drift?).
 - A computed first proposal of entitlements (e.g. what at least half of the members hold): tried and
   taken out — the analyst selects entitlements. Revisit with real analyst feedback.

@@ -132,6 +132,6 @@ describe('a decided contradiction on the timeline', () => {
     await loadInterviewTimeline(db, CTX, { sinceDays: 90, limit: 50, canWrite: false });
     const sqls = db.query.mock.calls.map(c => c[0]);
     expect(sqls.some(s => s.includes('FROM "ContextClaims" c') && s.includes('c."claimStatus" = ANY($2::text[])'))).toBe(true);
-    expect(db.query.mock.calls.find(c => c[0].includes('ORDER BY iv."interviewedAt" DESC, c."createdAt"'))[1]).toEqual([CTX, ['confirmed', 'edited']]);
+    expect(db.query.mock.calls.find(c => c[0].includes('ORDER BY iv."interviewedAt" DESC, c."createdAt"'))[1]).toEqual([CTX, ['confirmed', 'edited'], []]);
   });
 });

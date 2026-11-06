@@ -6,6 +6,7 @@ import {
   loadWorkbench, WorkbenchError, MAX_PEOPLE, UNIT_SQL, SCOPE_SQL, MEMBERS_SQL, LINKS_SQL, IDENTITIES_SQL, ACCOUNTS_SQL,
   PRINCIPALS_SQL, ACCESS_SQL, VIA_ROLE_SQL, RESOURCES_SQL, ROLE_PARTS_SQL, KNOWLEDGE_SQL,
 } from './load.js';
+import { COLUMN_CONTEXTS_SQL } from './resourceContexts.js';
 
 const UNIT = 'dddddddd-0000-4000-8000-000000000001';
 
@@ -53,8 +54,9 @@ describe('loadWorkbench', () => {
     const out = await loadWorkbench(db, UNIT, { includeChildren: true });
     expect(db.calls.map(c => c.sql)).toEqual([
       SCOPE_SQL, MEMBERS_SQL, LINKS_SQL, IDENTITIES_SQL, ACCOUNTS_SQL, PRINCIPALS_SQL,
-      ACCESS_SQL, VIA_ROLE_SQL, KNOWLEDGE_SQL, RESOURCES_SQL, ROLE_PARTS_SQL,
+      ACCESS_SQL, VIA_ROLE_SQL, KNOWLEDGE_SQL, RESOURCES_SQL, ROLE_PARTS_SQL, COLUMN_CONTEXTS_SQL,
     ]);
+    expect(db.calls[11].params).toEqual([["br", "r2", "r1"]]);
     expect(db.calls[0].params).toEqual([UNIT, true]);
     expect(db.calls[1].params).toEqual([[UNIT, 'sub'], UNIT, MAX_PEOPLE + 1]);
     // Only the account nobody linked is read as a principal of its own.
@@ -69,6 +71,9 @@ describe('loadWorkbench', () => {
     expect(out.people.map(p => [p.key, p.knowledge.length])).toEqual([['i:id-a', 0], ['i:id-b', 1], ['p:p-loose', 0]]);
     expect(out.columns.map(c => [c.id, c.isRole, c.contains, c.policyKind])).toEqual([['br', true, ['r1'], 'requestable'], ['r2', false, [], null], ['r1', false, [], null]]);
     expect(out.cells).toHaveLength(3);
+    // No context holds any of them here: no contexts, and none read above them.
+    expect(out.contexts).toEqual([]);
+    expect(out.columns.every(c => Array.isArray(c.contexts) && c.contexts.length === 0)).toBe(true);
     expect(out.kinds.map(k => k.predicate)).toEqual(['performsActivity', 'hasExpertise', 'holdsResponsibility']);
     expect(Date.parse(out.generatedAt)).not.toBeNaN();
   });

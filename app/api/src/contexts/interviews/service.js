@@ -25,6 +25,7 @@ import { deduceRoles, accountableDoubt } from './roles.js';
 import { loadContradictions } from './contradictions.js';
 import { locateQuote } from './quoteOffsets.js';
 import * as store from './store.js';
+import { KNOWLEDGE_KINDS } from '../../lib/orgKnowledge.js';
 
 export class InterviewError extends Error {
   constructor(status, message) {
@@ -167,7 +168,7 @@ async function withManualSubject(db, contextId, interview, claim) {
 export async function claimsOf(contextId, { statuses }, deps) {
   const { db } = defaults(deps);
   await existingContext(db, contextId);
-  const [claims, accountable] = await Promise.all([store.listClaims(db, contextId, statuses), store.currentAccountable(db, contextId)]);
+  const [claims, accountable] = await Promise.all([store.listClaims(db, contextId, statuses, KNOWLEDGE_KINDS), store.currentAccountable(db, contextId)]);
   const doubt = accountableDoubt(claims, accountable);
   const contradictions = await loadContradictions(db, contextId, claims, accountable);
   return {

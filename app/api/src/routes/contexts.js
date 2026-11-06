@@ -13,6 +13,7 @@
 //   contexts/changeRequests.js — GET /change-requests: what should change in the source a decision overrides
 //   contexts/trees.js   — /context-trees/...: adjust a generated or imported tree
 //   contexts/workbench.js — /contexts/:id/workbench, /contexts/:id/knowledge, /org-knowledge/…: the authorization workbench
+//   contexts/workbenchInvestigations.js — /contexts/:id/workbench/investigations, /workbench/investigations/…: save and reopen
 //   contexts/references.js — GET /contexts/:id/members/:memberId/references (names only)
 //   contexts/shared.js  — useSql / UUID_RE / TARGET_TYPES + the writeContexts gate
 //
@@ -32,6 +33,7 @@ import rolesRouter from './contexts/roles.js';
 import relationshipsRouter from './contexts/relationships.js';
 import treesRouter from './contexts/trees.js';
 import workbenchRouter from './contexts/workbench.js';
+import workbenchInvestigationsRouter from './contexts/workbenchInvestigations.js';
 import referencesRouter from './contexts/references.js';
 
 const router = Router();
@@ -41,6 +43,7 @@ router.use(uploadsRouter);
 router.use(interviewsRouter);
 router.use(changeRequestsRouter);
 router.use(workbenchRouter);
+router.use(workbenchInvestigationsRouter);
 router.use(readRouter);
 router.use(crudRouter);
 router.use(membersRouter);

@@ -20,6 +20,9 @@ import { useContextMembers, MEMBER_PAGE_SIZE } from './contexts/useContextMember
 import { useContextDetail, contextPageView, listsMembers } from './contexts/useContextDetail';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import ClaimsProvider from './contexts/interviews/ClaimsProvider';
+import { useUnitInvestigations } from './contexts/page/useUnitProposals';
+import { proposalCount } from './contexts/page/unitProposals';
+import { workbenchRouteId } from './workbench/workbench.link';
 
 // ─── Context Detail Page ──────────────────────────────────────────────────────
 // One page, two readers (decided 2026-10-20, permission-driven):
@@ -54,16 +57,20 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   const analyst = useIsAnalyst();
   const knowledge = useOrgKnowledge();
   const sharedView = useIsSharedView();
-  // What the page may link to: nothing but the shell's own handler when read-only
-  // (a context owner may open no member, person or sub-unit page).
-  const openEntity = linkTarget(sharedView, onOpenDetail);
+  // What the page may link to: nothing when read-only (a shared matrix), except
+  // on a context owner's page, where the API marks what the owner may open (their
+  // team and what it holds) and the owner's shell opens it in place.
+  const ownerScope = useContextOwnerScope();
+  const openEntity = linkTarget(sharedView, onOpenDetail, ownerScope);
   // Sub-units and parents: on a context owner's page, those in their scope open in place.
-  const openContext = contextOpener({ sharedView, ownerScope: useContextOwnerScope(), onOpenDetail });
+  const openContext = contextOpener({ sharedView, ownerScope, onOpenDetail });
   const [editing, setEditing] = useState(false);
   // Goes up whenever something on the page may have changed who is in it or what is said about them.
   const [peopleVersion, bumpPeople] = useReducer(n => n + 1, 0);
   const { detail, loading, error, fetchDetail, refreshDetail, riskData } = useContextDetail(authFetch, contextId, refreshKey, onCacheData);
   const m = useContextMembers(authFetch, contextId, refreshKey, { enabled: listsMembers(detail?.attributes) });
+  // The unit's saved workbench investigations: the count on the workbench button and the Proposed roles section.
+  const investigations = useUnitInvestigations(contextId, opensWorkbench(analyst, knowledge, detail?.attributes));
 
   // The standalone page carries the unit's name in the browser tab.
   usePageTitle(pageTitleOf(embedded, detail));
@@ -98,7 +105,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
     <WithClaims contextId={contextId} profile={profile} onDecided={afterDecision}>
       <div className="max-w-7xl mx-auto space-y-4">
         <ContextDetailHeader attrs={attrs} onOpenDetail={openEntity} openContext={openContext} addInformation={!!profile && analyst}
-          onOpenWorkbench={workbenchOpener({ analyst, knowledge, attrs, openEntity })}
+          onOpenWorkbench={workbenchOpener({ analyst, knowledge, attrs, openEntity })} proposedCount={proposalCount(investigations)}
           {...headerActions({ analyst, editable, embedded: embedded && !sharedView, attrs, onClose: close, onOpenAsPage, onEdit: () => setEditing(true), onAddSubUnit })}>
           <WhoAnswers profile={profile} attrs={attrs} onOpenDetail={openEntity} onRolesChanged={bumpPeople} />
         </ContextDetailHeader>
@@ -116,7 +123,8 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
 
         <PageBody profile={profile} contextId={contextId} attrs={attrs} subContexts={subContexts} analyst={analyst}
           membersEditable={membersEditable} openEntity={openEntity} openContext={openContext} onOpenDetail={onOpenDetail} peopleVersion={peopleVersion}
-          onMembersChanged={refreshAll} members={members} />
+          onMembersChanged={refreshAll} members={members}
+          proposals={investigations} onOpenRole={workbenchOpener({ analyst, knowledge, attrs, openEntity, role: true })} />
         <AnalystFoot analyst={analyst} contextId={contextId} authFetch={authFetch} onOpenDetail={openEntity}
           riskData={riskShown(features, riskData) ? riskData : null} />
       </div>
@@ -179,9 +187,10 @@ function useIsAnalyst() {
   return canWrite && !sharedView;
 }
 
-// A read-only shell links nowhere; elsewhere the shell's own handler.
-function linkTarget(sharedView, onOpenDetail) {
-  return sharedView ? undefined : onOpenDetail;
+// A read-only shell links nowhere — but a context owner's does (the API decides
+// per object, the links honour its flag); elsewhere the shell's own handler.
+function linkTarget(sharedView, onOpenDetail, ownerScope) {
+  return sharedView && !ownerScope ? undefined : onOpenDetail;
 }
 
 // The standalone page carries the unit's name in the browser tab; embedded, none.
@@ -189,11 +198,19 @@ function pageTitleOf(embedded, detail) {
   return embedded ? null : detail?.attributes?.displayName;
 }
 
-// An analyst opens an organizational unit's Authorization workbench as its own
-// tab — while organisation knowledge is on (useOrgKnowledge).
-function workbenchOpener({ analyst, knowledge, attrs, openEntity }) {
-  if (!analyst || !knowledge || !openEntity || attrs.contextCategory !== 'OrganizationalUnit') return undefined;
-  return () => openEntity('workbench', attrs.id, `Workbench: ${attrs.displayName}`);
+// An analyst on an organizational unit has its Authorization workbench — while
+// organisation knowledge is on (useOrgKnowledge).
+function opensWorkbench(analyst, knowledge, attrs) {
+  return !!analyst && !!knowledge && attrs?.contextCategory === 'OrganizationalUnit';
+}
+
+// An analyst opens an organizational unit's Authorization workbench as its own tab;
+// `role`: the opener takes (investigationId, proposalId) and opens on that saved proposed role.
+function workbenchOpener({ analyst, knowledge, attrs, openEntity, role = false }) {
+  if (!openEntity || !opensWorkbench(analyst, knowledge, attrs)) return undefined;
+  const title = `Workbench: ${attrs.displayName}`;
+  if (role) return (investigationId, proposalId) => openEntity('workbench', workbenchRouteId(attrs.id, investigationId, proposalId), title);
+  return () => openEntity('workbench', attrs.id, title);
 }
 
 // The Risk section shows when the feature is on and the context has a score.

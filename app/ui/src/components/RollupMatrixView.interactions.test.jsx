@@ -486,6 +486,51 @@ describe('RollupMatrixView — layered context hierarchy', () => {
     expect(screen.getByTitle(/Click to split EMEA into its 2 sub-teams/i)).toBeInTheDocument();
   });
 
+  describe('the root unit\'s own people', () => {
+    const UNIT = 'aaaaaaaa-0000-4000-8000-000000000001';
+    const SUB = 'aaaaaaaa-0000-4000-8000-000000000002';
+    const rollup = makeRollup({
+      rollupKind: 'context', layered: true, maxDepth: 1, rollupContextId: UNIT.toUpperCase(),
+      groupValues: [`${UNIT}:direct`, SUB],
+      counts: [
+        { resourceId: 'res-1', groupValue: `${UNIT}:direct`, directCount: 3, governedCount: 0 },
+        { resourceId: 'res-1', groupValue: SUB, directCount: 5, governedCount: 0 },
+      ],
+      nodes: [
+        { id: `${UNIT}:direct`, displayName: 'CTO — direct members', depth: 1, pathIds: [`${UNIT}:direct`], pathNames: ['CTO — direct members'], total: 3, directMembers: 3, childCount: 0 },
+        { id: SUB, displayName: 'Development', depth: 1, pathIds: [SUB], pathNames: ['Development'], total: 5, directMembers: 5, childCount: 0 },
+      ],
+    });
+    const drillFetch = () => makeFetch({
+      '/api/matrix/data': jsonResponse({ data: [{ memberId: 'u1', memberDisplayName: 'Zelma', resourceId: 'res-1', membershipType: 'Direct' }] }),
+    });
+    const drills = (authFetch) => authFetch.mock.calls.filter(([u]) => String(u) === '/api/matrix/data').map(([, init]) => JSON.parse(init.body).filter);
+
+    it('opens expanded — the people directly in the root as columns — and the sub-units stay collapsed', async () => {
+      const authFetch = drillFetch();
+      renderView({ rollup }, authFetch);
+      expect(await screen.findByText('Zelma')).toBeInTheDocument();
+      // One drill only: the root's own members, by the unit id itself.
+      expect(drills(authFetch)).toHaveLength(1);
+      expect(drills(authFetch)[0].subject.include.at(-1)).toEqual({ kind: 'context', contextId: UNIT, includeChildren: false });
+    });
+
+    it('stays collapsed once collapsed (opened once per root)', async () => {
+      const authFetch = drillFetch();
+      renderView({ rollup }, authFetch);
+      await screen.findByText('Zelma');
+      fireEvent.click(screen.getByTitle(/Hide the people directly in this team/i));
+      await waitFor(() => expect(screen.queryByText('Zelma')).toBeNull());
+      expect(drills(authFetch)).toHaveLength(1);
+    });
+
+    it('opens nothing by itself outside the hierarchy view (no root, or not layered)', () => {
+      const authFetch = drillFetch();
+      renderView({ rollup: { ...rollup, rollupContextId: null } }, authFetch);
+      expect(drills(authFetch)).toHaveLength(0);
+    });
+  });
+
   it('describes the layered org-chart reading rules', () => {
     renderView({ rollup: layeredRollup });
     expect(screen.getByText(/Manager Hierarchy/)).toBeInTheDocument();

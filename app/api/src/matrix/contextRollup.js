@@ -18,14 +18,28 @@ export function isUuid(v) {
   return typeof v === 'string' && UUID_RE.test(v);
 }
 
-// Turn a list of UUIDs into a Postgres VALUES body: ('a'::uuid),('b'::uuid).
-// Throws if any id isn't a UUID — callers should 400 on the thrown error.
-export function frontierValues(ids) {
-  if (!Array.isArray(ids) || ids.length === 0) throw new Error('empty frontier');
-  for (const id of ids) {
+// A frontier column that counts only the people DIRECTLY in a unit (not its
+// sub-units): the root's own members beside its sub-unit columns, or an
+// expanded unit's. Its group value is the unit id with this suffix.
+export const DIRECT_SUFFIX = ':direct';
+export const directGroupValue = (id) => `${String(id).toLowerCase()}${DIRECT_SUFFIX}`;
+// The unit id behind a group value (a direct-members column or a plain node).
+export const contextIdOfGroup = (gv) => String(gv).replace(DIRECT_SUFFIX, '');
+
+// Turn frontier entries into a Postgres VALUES body of (unit id, group value,
+// walk the subtree?) rows. An entry is a unit id (its whole subtree counts) or
+// { id, direct: true } (only its own members count). Throws if any id isn't a
+// UUID — callers should 400 on the thrown error. The ids are embedded as
+// literals, so this validation is the safety net.
+export function frontierValues(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) throw new Error('empty frontier');
+  return entries.map((e) => {
+    const direct = !!e && typeof e === 'object' && e.direct === true;
+    const id = e && typeof e === 'object' ? e.id : e;
     if (!isUuid(id)) throw new Error('invalid context id');
-  }
-  return ids.map(id => `('${id}'::uuid)`).join(', ');
+    const gv = direct ? directGroupValue(id) : id.toLowerCase();
+    return `('${id}'::uuid, '${gv}', ${direct ? 'false' : 'true'})`;
+  }).join(', ');
 }
 
 // Quoted, UUID-validated id list for `IN (...)` clauses.
@@ -33,21 +47,28 @@ function idList(ids) {
   return ids.map(id => `'${id}'::uuid`).join(', ');
 }
 
-// The recursive subtree CTE shared by the cell + denominator queries: for each
-// frontier node, every descendant context id (including the node itself), then
-// the distinct member principal of each subtree.
-function subtreeCte(values) {
+// The recursive subtree walk: for each frontier column (its group value), every
+// context it counts — the unit itself (lvl 0) and, unless it is a
+// direct-members column, every descendant.
+function subtreeWalk(values) {
   return `
-    WITH RECURSIVE frontier(fid) AS ( VALUES ${values} ),
-    subtree(frontier_id, ctx_id) AS (
-      SELECT fid, fid FROM frontier
+    WITH RECURSIVE frontier(fid, gv, deep) AS ( VALUES ${values} ),
+    subtree(frontier_id, ctx_id, lvl, deep) AS (
+      SELECT gv, fid, 0, deep FROM frontier
       UNION ALL
-      SELECT s.frontier_id, c.id
+      SELECT s.frontier_id, c.id, s.lvl + 1, s.deep
         FROM "Contexts" c
         JOIN subtree s ON c."parentContextId" = s.ctx_id
+       WHERE s.deep
     )
     -- CYCLE guard: corrupt parent chains must not recurse forever.
-    CYCLE ctx_id SET "isCycle" USING "cyclePath",
+    CYCLE ctx_id SET "isCycle" USING "cyclePath"`;
+}
+
+// The subtree walk shared by the cell + denominator queries, then the distinct
+// member principal of each column.
+function subtreeCte(values) {
+  return `${subtreeWalk(values)},
     node_members AS (
       SELECT DISTINCT s.frontier_id AS fid, cm."memberId" AS pid
         FROM subtree s
@@ -155,20 +176,10 @@ export function buildContextScopedMemberCountsSql({ values, identityJoin = '', s
   ];
   if (subjectSql)  where.push(`${subjectScope} IN ${subjectSql}`);
   if (resourceSql) where.push(`p."resourceId" IN ${resourceSql}`);
-  return `
-    WITH RECURSIVE frontier(fid) AS ( VALUES ${values} ),
-    subtree(frontier_id, ctx_id) AS (
-      SELECT fid, fid FROM frontier
-      UNION ALL
-      SELECT s.frontier_id, c.id
-        FROM "Contexts" c
-        JOIN subtree s ON c."parentContextId" = s.ctx_id
-    )
-    -- CYCLE guard: corrupt parent chains must not recurse forever.
-    CYCLE ctx_id SET "isCycle" USING "cyclePath",
+  return `${subtreeWalk(values)},
     member_dir AS (
       SELECT s.frontier_id AS fid, cm."memberId" AS pid,
-             bool_or(s.ctx_id = s.frontier_id) AS is_direct
+             bool_or(s.lvl = 0) AS is_direct
         FROM subtree s
         JOIN "ContextMembers" cm ON cm."contextId" = s.ctx_id
        WHERE cm."memberType" = 'Principal'
@@ -261,3 +272,38 @@ export function buildRootChildrenSql(rootId) {
   if (!isUuid(rootId)) throw new Error('invalid context id');
   return `SELECT id::text AS id FROM "Contexts" WHERE "parentContextId" = '${rootId}'::uuid ORDER BY "totalMemberCount" DESC`;
 }
+
+// The layered view's columns with the units' own members in them: the cut
+// (buildContextCutSql rows), plus a direct-members column for the root and for
+// every expanded unit — placed before that unit's sub-units and sharing its
+// header path, so a unit reads "its own people, then its sub-units". A column
+// that turns out to hold nobody is dropped later, like any empty column. With
+// no sub-units at all (a leaf root) the root's direct-members column is the
+// whole view. Pure.
+export function withDirectMemberNodes(cutNodes, root, expandedIds = []) {
+  const directNode = (unit, pathIds, pathNames) => ({
+    id: directGroupValue(unit.id), directOf: String(unit.id).toLowerCase(),
+    displayName: `${unit.displayName} — direct members`,
+    depth: pathIds.length, pathIds, pathNames, childCount: 0,
+  });
+  const out = [directNode(root, [directGroupValue(root.id)], [`${root.displayName} — direct members`])];
+  const placed = new Set();
+  const expanded = new Set(expandedIds.map(id => String(id).toLowerCase()));
+  for (const n of cutNodes) {
+    const ids = n.pathIds || [];
+    // Every expanded ancestor on this node's path gets its column before the first of its sub-units.
+    ids.slice(0, -1).forEach((anc, i) => {
+      const a = String(anc).toLowerCase();
+      if (!expanded.has(a) || placed.has(a)) return;
+      placed.add(a);
+      const name = (n.pathNames || [])[i] || a;
+      out.push(directNode({ id: a, displayName: name }, [...ids.slice(0, i + 1), directGroupValue(a)], [...(n.pathNames || []).slice(0, i + 1), `${name} — direct members`]));
+    });
+    out.push(n);
+  }
+  return out;
+}
+
+// The frontier entries for those columns: a plain node walks its subtree, a
+// direct-members column counts only its unit's own members.
+export const frontierOf = (nodes) => nodes.map(n => (n.directOf ? { id: n.directOf, direct: true } : n.id));

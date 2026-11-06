@@ -725,6 +725,21 @@ attributes you picked). Counts are computed only for the *visible frontier*
 regardless of subtree size. The `sortHierarchy → context roll-up` translation
 lives in the `/api/matrix/data` handler in `matrix.js`.
 
+**A unit's own members (hierarchy).** The people directly in a unit are a
+column of their own, so nothing drops out of the view and the totals add up (the
+root's people = its direct members + each sub-unit's): the root gets a
+**"<unit> — direct members"** column before its sub-units, and so does every
+expanded unit. A root with no sub-units is that one column, never an empty
+matrix. A direct-members column's group value is `<unit id>:direct`; the
+frontier marks it so the subtree walk stops at the unit (`frontierValues`,
+`withDirectMemberNodes` in `matrix/contextRollup.js`), and its members toggle
+drills into the unit's own members. A column nobody holds anything in is dropped
+like any other. The view opens with the **root's direct-members column expanded**
+(its people as columns) and the sub-units collapsed — once per root, so
+collapsing it sticks. The layered hierarchy carries the **business-role columns**
+too (as the zoom view does, `rollupContent` `resources-and-roles` by default),
+headed under the last header row like the flat roll-up's.
+
 **Whole-axis fold level (attribute fold).** Clicking a header value folds or
 unfolds **one group**. That is not enough on an axis of hundreds of columns, and
 unfolding a group drops it straight to the deepest attribute — so the attribute

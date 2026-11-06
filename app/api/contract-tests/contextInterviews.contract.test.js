@@ -92,6 +92,36 @@ describe('context interviews against PostgreSQL', () => {
     expect(claims.find(c => c.id === claimIds.description).confidence).toBe(0.8);
   });
 
+  it('a unit also lists what its people do, know and hold, filed on another unit, by account or by identity', async () => {
+    const sub = (await pool.query(
+      `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory", "scopeSystemId")
+       VALUES (gen_random_uuid(), 'manual', 'Principal', 'Department', 'ivw-Planning desk', 'OrganizationalUnit', $1) RETURNING id`, [sysId])).rows[0].id;
+    // Piet is a member as an account; Yara as an identity, while the claim names her account.
+    const yaraIdentity = (await pool.query(`INSERT INTO "Identities" (id, "displayName") VALUES (gen_random_uuid(), 'ivw Yara') RETURNING id`)).rows[0].id;
+    await pool.query(`INSERT INTO "IdentityMembers" ("identityId", "principalId") VALUES ($1, $2)`, [yaraIdentity, P.yara]);
+    await pool.query(`INSERT INTO "ContextMembers" ("contextId", "memberId", "memberType", "addedBy") VALUES ($1, $2, 'Principal', 'analyst'), ($1, $3, 'Identity', 'analyst')`, [sub, P.piet, yaraIdentity]);
+    const [activity, expertise, outsider, unitFact] = await store.insertClaims(db, { interviewId: interview.id, contextId: ctxId, proposedBy: 'model' }, [
+      { claimKind: 'activity', subjectKind: 'Person', principalId: P.piet, subjectName: 'Piet', value: 'Plan night shifts' },
+      { claimKind: 'expertise', subjectKind: 'Person', principalId: P.yara, subjectName: 'Yara', value: 'Rostering law' },
+      { claimKind: 'duty', subjectKind: 'Person', principalId: P.anna, subjectName: 'Anna', value: 'Fire warden' },
+      { claimKind: 'property', subjectKind: 'Context', attribute: 'shifts', value: 'three' },
+    ]);
+    try {
+      const listed = await store.listClaims(db, sub, ['proposed'], ['activity', 'expertise', 'duty']);
+      expect(listed.map(c => c.id).sort()).toEqual([activity, expertise].sort());
+      expect(listed.find(c => c.id === activity)).toMatchObject({ filedUnderName: 'ivw-Planner', value: 'Plan night shifts', subjectDisplayName: 'Piet Proefpersoon' });
+      expect(listed.some(c => c.id === outsider || c.id === unitFact)).toBe(false);
+      // Without the kinds asked for, only the unit's own claims (none here).
+      expect(await store.listClaims(db, sub, ['proposed'])).toEqual([]);
+      // A member taken out by an override is not one of its people.
+      await pool.query(`INSERT INTO "ContextMemberOverrides" ("contextId", "memberId", "claimId", overrides, "decidedBy") VALUES ($1, $2, $3, 'test', 'analyst')`, [sub, P.piet, activity]);
+      expect(await store.listClaims(db, sub, ['proposed'], ['activity'])).toEqual([]);
+    } finally {
+      await pool.query(`DELETE FROM "ContextClaims" WHERE id = ANY($1::uuid[])`, [[activity, expertise, outsider, unitFact]]);
+      await pool.query(`DELETE FROM "Identities" WHERE id = $1`, [yaraIdentity]);
+    }
+  });
+
   it('finds a first name among the context\'s own people', async () => {
     const out = await resolveSubjects(db, ['Piet'], { contextId: ctxId, interviewee: { principalId: P.anna, name: 'Anna Voorbeeldig' } });
     expect(out.get('Piet')).toEqual({ principalId: P.piet, match: 'firstName' });

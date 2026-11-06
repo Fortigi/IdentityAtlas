@@ -68,7 +68,6 @@ describe('contextOwnerVerdict — one context', () => {
     [`/api/contexts/${MINE}/previous-members`, 'the retired previous-members read'],
     [`/api/contexts/${MINE}x`, 'an id with a suffix'],
     [`/x/api/contexts/${MINE}`, 'a prefix'],
-    [`/api/risk-scores/identities/${MINE}`, 'another entity type'],
     ['/api/contexts', 'the context list'],
     ['/api/contexts/tree', 'the tree'],
   ])('refuses %s (%s)', (path) => {
@@ -96,6 +95,56 @@ describe('contextOwnerVerdict — everything else', () => {
     '/api/admin/roles', '/api/admin/context-owner-access', '/api/matrix/shares/resolve', '/api/permissions',
   ])('refuses GET %s', (path) => {
     expect(get(path, { contexts: MINE })).toBe(DENY);
+  });
+});
+
+describe('contextOwnerVerdict — one object\'s detail page', () => {
+  const OBJ = 'bbbbbbbb-0000-4000-8000-000000000009';
+
+  it.each([
+    [`/api/user/${OBJ}`, 'principal'],
+    [`/api/user/${OBJ}/timeline`, 'principal'],
+    [`/api/identities/${OBJ}/diff`, 'identity'],
+    [`/api/resources/${OBJ}/assignments`, 'resource'],
+    [`/api/risk-scores/business-roles/${OBJ}`, 'resource'],
+  ])('hands GET %s to the data check as a %s', (path, kind) => {
+    expect(get(path)).toEqual({ allow: false, entity: { kind, id: OBJ } });
+  });
+
+  it('never decides an object on its own — not even with an in-scope context id as the object', () => {
+    expect(get(`/api/user/${MINE}`)).toEqual({ allow: false, entity: { kind: 'principal', id: MINE } });
+  });
+
+  it.each(['PUT', 'DELETE', 'POST'])('refuses %s on a detail path (the risk override, a linked-account override)', (method) => {
+    expect(contextOwnerVerdict({ method, path: `/api/risk-scores/users/${OBJ}/override` }, scope)).toBe(DENY);
+    expect(contextOwnerVerdict({ method, path: `/api/identities/${OBJ}/members/${OBJ}/override` }, scope)).toBe(DENY);
+    expect(contextOwnerVerdict({ method, path: `/api/user/${OBJ}` }, scope)).toBe(DENY);
+  });
+});
+
+describe('contextOwnerVerdict — the business-role catalogue', () => {
+  it('allows GET /api/access-package-groups (the middleware cuts it to the owner\x27s roles), nothing else of it', () => {
+    expect(get('/api/access-package-groups')).toBe(ALLOW);
+    expect(get('/api/access-package-groups/')).toBe(DENY);
+    expect(get('/api/access-package-resources')).toBe(DENY);
+    expect(contextOwnerVerdict({ method: 'POST', path: '/api/access-package-groups' }, scope)).toBe(DENY);
+  });
+});
+
+describe('contextOwnerVerdict — the team matrix', () => {
+  it('hands POST /api/matrix/data to the filter check', () => {
+    expect(contextOwnerVerdict({ method: 'POST', path: '/api/matrix/data' }, scope)).toEqual({ allow: false, matrix: true });
+  });
+
+  it.each([
+    ['GET', '/api/matrix/data'],
+    ['POST', '/api/matrix/data/'],
+    ['POST', '/api/matrix/preview'],
+    ['POST', '/api/matrix/inheritance-path'],
+    ['POST', '/api/matrix/hierarchy-paths'],
+    ['PUT', '/api/matrix/data'],
+  ])('refuses %s %s', (method, path) => {
+    expect(contextOwnerVerdict({ method, path }, scope)).toBe(DENY);
   });
 });
 
@@ -192,10 +241,15 @@ describe('the unit report download', () => {
     expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: 'Finance' })).toBe(DENY);
   });
 
-  // The sub-units below an owner's unit need not be theirs: refused in any form,
-  // even false, so no value reading of the flag can widen the report.
-  it.each([['true'], ['1'], ['false'], [''], [['true']]])('refuses includeSubUnits=%j beside an in-scope unit', (value) => {
-    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: MINE, includeSubUnits: value })).toBe(DENY);
+  // An owner answers for every unit below theirs, but a variant does not bring
+  // its sub-units along: with the flag present, in ANY form (even false), the
+  // caller checks the descendants — no value reading can skip that check.
+  it.each([['true'], ['1'], ['false'], [''], [['true']]])('hands includeSubUnits=%j to the descendant check', (value) => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: MINE, includeSubUnits: value })).toEqual({ allow: false, resolve: [MINE], descendants: true });
+  });
+
+  it('still refuses includeSubUnits beside an out-of-scope unit, before any check', () => {
+    expect(get(UNIT_REPORT_EXPORT_PATH, { contexts: OTHER, includeSubUnits: 'true' })).toBe(DENY);
   });
 
   it('keeps each report to its own refused parameters', () => {

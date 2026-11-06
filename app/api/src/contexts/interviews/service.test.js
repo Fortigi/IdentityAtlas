@@ -194,7 +194,7 @@ describe('claimsOf', () => {
     store.listClaims.mockResolvedValue([{ id: 'c1', claimKind: 'description' }, doubt]);
     store.currentAccountable.mockResolvedValue({ id: 'r1', principalId: ANNA });
     const r = await claimsOf(CTX, { statuses: ['proposed'] }, { db: fakeDb() });
-    expect(store.listClaims.mock.calls[0].slice(1)).toEqual([CTX, ['proposed']]);
+    expect(store.listClaims.mock.calls[0].slice(1)).toEqual([CTX, ['proposed'], ['activity', 'expertise', 'duty']]);
     expect(r.accountableDoubt).toEqual({ claimId: 'c2', quote: 'Ik ben niet de eigenaar', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01' });
     expect(r.data).toHaveLength(2);
   });

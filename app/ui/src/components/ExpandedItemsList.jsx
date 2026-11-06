@@ -15,6 +15,7 @@
 import { useMemo, useState } from 'react';
 import { rowType, sortItems, itemsToCsv, splitHistorical } from './ExpandedItemsList.helpers';
 import DeletedBadge from './DeletedBadge';
+import { NoAccessName } from './EntityLink';
 
 const DETAIL_TARGET = {
   user:             'user',
@@ -61,7 +62,10 @@ function ItemRow({ it, onOpenDetail }) {
   return (
     <tr className="border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/40">
       <td className="px-4 py-2 align-top">
-        {clickable ? (
+        {/* A context owner may not open this one (the API's flag): named, not linked. */}
+        {it.accessible === false ? (
+          <NoAccessName label={it.label} className={it.deleted ? 'line-through' : ''} />
+        ) : clickable ? (
           <button onClick={() => onOpenDetail?.(target, it.entityId, it.label)} className={linkClass}>
             {it.label}
           </button>

@@ -103,9 +103,11 @@ to. There are two kinds today:
 - **Context owners** — one checkbox. It lets the people who are **Accountable**
   or **Responsible** for a context sign in without an Identity Atlas role. They
   land directly on their own context page — read-only, with its report
-  download — and can also open its sub-units (except a sub-unit that has an
-  owner of its own) and, for each member, see the *names* of what that member
-  holds and which other contexts it is in. Every other screen and endpoint stays
+  download — and can also open all its sub-units at any depth (also those with
+  an owner of their own; that owner sees only their own part), a team or
+  application matrix, the pages of the people in it and of what they hold, and
+  for each member the *names* of what that member holds and which other contexts
+  it is in. Every other screen and endpoint stays
   closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do
   hold a role are not affected. It is off by default and takes effect without a
   restart.

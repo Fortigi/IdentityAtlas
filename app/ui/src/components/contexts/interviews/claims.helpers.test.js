@@ -3,6 +3,7 @@ import {
   sourceLabel, subjectLabel, isUncertainMatch, periodLabel, groupConfirmed, proposedClaims, roleSuggestions,
   anyInProgress, aliasFacts, sourcesSummary, needsPerson, isPersonClaim, SOURCE_KIND_LABELS, manualClaimBody, manualClaimReady, extractionLabel, BUSY_AFTER_MS,
   byRelevance, whatWeKnowSummary, claimLine, isLowRelevance, isLowConfidence, LOW_CONFIDENCE,
+  groupKnowledge, knowledgeName, knowledgeCounts, reviewableHere, isKnowledgeClaim,
 } from './claims.helpers';
 
 const claim = (over) => ({ id: over.id ?? 'c', claimKind: 'role', status: 'proposed', intervieweeName: 'Anna Voorbeeld', interviewedAt: '2026-10-01', ...over });
@@ -203,5 +204,52 @@ describe('relevance, membership and aliases', () => {
     expect(manualClaimBody(form)).toEqual({ kind: 'membership', value: 'left', subject: 'Jan', membership: 'former' });
     expect(manualClaimReady({ ...form, subject: ' ' })).toBe(false);
     expect(manualClaimBody({ ...form, kind: 'role' }).membership).toBeUndefined();
+  });
+});
+
+describe('what the unit\'s people do, know and hold', () => {
+  const k = (over) => claim({ status: 'confirmed', subjectDisplayName: 'Piet', ...over });
+  const claims = [
+    k({ id: 'a2', claimKind: 'activity', subjectDisplayName: 'Yara', value: 'Plan shifts' }),
+    k({ id: 'a1', claimKind: 'activity', value: 'Plan shifts', objectName: 'Shift planning' }),
+    k({ id: 'a0', claimKind: 'activity', value: 'Audit rosters' }),
+    k({ id: 'e1', claimKind: 'expertise', status: 'edited', value: 'Rostering law' }),
+    k({ id: 'd1', claimKind: 'duty', status: 'proposed', value: 'Fire warden' }),
+    k({ id: 'd2', claimKind: 'duty', status: 'rejected', value: 'First aid' }),
+    k({ id: 'r1', claimKind: 'role', status: 'proposed' }),
+    k({ id: 'p1', claimKind: 'property', status: 'proposed' }),
+  ];
+
+  it('groups the confirmed and edited ones by kind, by person then name', () => {
+    const g = groupKnowledge(claims);
+    expect(g.activity.map(c => c.id)).toEqual(['a0', 'a1', 'a2']);
+    expect(g.expertise.map(c => c.id)).toEqual(['e1']);
+    expect(g.duty).toEqual([]);
+    expect(groupKnowledge(undefined)).toEqual({ activity: [], expertise: [], duty: [] });
+  });
+
+  it('names a claim by the object it was linked to, else its value', () => {
+    expect(knowledgeName(claims[1])).toBe('Shift planning');
+    expect(knowledgeName(claims[0])).toBe('Plan shifts');
+    expect(knowledgeName({})).toBe('');
+  });
+
+  it('counts the kinds that have any, singular and plural', () => {
+    expect(knowledgeCounts(groupKnowledge(claims))).toBe('3 activities · 1 expertise');
+    expect(knowledgeCounts(groupKnowledge([k({ id: 'x', claimKind: 'duty' }), k({ id: 'y', claimKind: 'activity' })]))).toBe('1 activity · 1 duty');
+    expect(knowledgeCounts(groupKnowledge([k({ id: 'x', claimKind: 'duty' }), k({ id: 'y', claimKind: 'duty' })]))).toBe('2 duties');
+    expect(knowledgeCounts(groupKnowledge([]))).toBe('');
+  });
+
+  it('reviews a knowledge claim here, a person\'s role on their row', () => {
+    expect(reviewableHere(claims).map(c => c.id)).toEqual(['d1', 'p1']);
+    expect(isKnowledgeClaim({ claimKind: 'expertise' })).toBe(true);
+    expect(isKnowledgeClaim({ claimKind: 'role' })).toBe(false);
+    expect(isKnowledgeClaim(null)).toBe(false);
+  });
+
+  it('puts the counts in the folded summary, before the review', () => {
+    expect(whatWeKnowSummary({ claims, canWrite: true })).toBe('3 activities · 1 expertise · 2 to review');
+    expect(whatWeKnowSummary({ claims, canWrite: false })).toBe('3 activities · 1 expertise');
   });
 });

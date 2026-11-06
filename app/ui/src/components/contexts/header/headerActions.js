@@ -32,3 +32,22 @@ export function reportFor(attrs) {
 export function offersMatrix(attrs, { sharedView = false } = {}) {
   return !sharedView && !!profileFor(attrs?.contextCategory);
 }
+
+const OWNER_MATRICES = {
+  people: { label: 'Team matrix', title: 'Everyone in this unit and the units below it as a row, and what each of them holds' },
+  resources: { label: 'Application matrix', title: 'What is held here as columns, and everyone who holds it as a row' },
+};
+
+/**
+ * The matrix the header offers a context owner on their owner page
+ * (ownerScope), for a context in that scope — { label, title } — or null: the
+ * team matrix on a unit of accounts or people, the application matrix on a
+ * context of resources. The API bounds either to the context whatever is asked
+ * (app/api/src/auth/ownerAccess/matrixFilter.js). Pure.
+ */
+export function ownerMatrixFor(attrs, { ownerScope = null } = {}) {
+  if (!ownerScope || !attrs || !ownerScope.has(String(attrs.id).toLowerCase())) return null;
+  if (PEOPLE_TARGETS.has(attrs.targetType)) return OWNER_MATRICES.people;
+  if (attrs.targetType === 'Resource') return OWNER_MATRICES.resources;
+  return null;
+}

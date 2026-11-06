@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { distinctValues } from './workbench.columns';
+import { CONTEXT_MODES } from './workbench.permissions';
 
 // ─── An Excel-like filter on one column ──────────────────────────────────
 // The column's distinct values with how many people have each, "(Not known)" /
@@ -11,19 +12,26 @@ import { distinctValues } from './workbench.columns';
 
 const splitTerms = (s) => s.split(',').map(t => t.trim()).filter(Boolean);
 
-export default function ColumnFilterMenu({ column, people, filter, onApply, onClose }) {
+// `values`: the list to tick, worked out by the caller (the permission columns,
+// workbench.permissions.js); otherwise the people's values in this column. A
+// context column also chooses "Only these" or "Hide resources in these" — hiding
+// starts with nothing ticked, and hides what is ticked.
+export default function ColumnFilterMenu({ column, people, values: given, filter, onApply, onClose }) {
   const [includeProposed, setIncludeProposed] = useState(filter?.includeProposed !== false);
-  const values = useMemo(() => distinctValues(people, column, includeProposed), [people, column, includeProposed]);
+  const values = useMemo(() => given ?? distinctValues(people, column, includeProposed), [given, people, column, includeProposed]);
+  const [mode, setMode] = useState(filter?.mode ?? 'only');
   const [ticked, setTicked] = useState(() => new Set(filter?.values ?? values.map(v => v.value)));
   const [contains, setContains] = useState((filter?.contains || []).join(', '));
   const [search, setSearch] = useState('');
   const needle = search.trim().toLowerCase();
   const shown = needle ? values.filter(v => v.label.toLowerCase().includes(needle)) : values;
-  const textColumn = column.type !== 'knowledge' && column.type !== 'count';
+  const textColumn = column.type === 'text' || column.type === 'name' || column.type === 'multi';
 
   const toggle = (v) => setTicked(prev => { const n = new Set(prev); if (n.has(v)) n.delete(v); else n.add(v); return n; });
   const setAll = (on) => setTicked(prev => { const n = new Set(prev); for (const v of shown) { if (on) n.add(v.value); else n.delete(v.value); } return n; });
+  const switchMode = (next) => { setMode(next); setTicked(new Set(next === 'hide' ? [] : values.map(v => v.value))); };
   const apply = () => {
+    if (mode === 'hide') { onApply(ticked.size === 0 ? null : { mode: 'hide', values: new Set(ticked), contains: [] }); return; }
     const terms = textColumn ? splitTerms(contains) : [];
     const everything = values.every(v => ticked.has(v.value)) && includeProposed && terms.length === 0;
     onApply(everything ? null : { values: new Set(ticked), includeProposed, contains: terms });
@@ -32,6 +40,15 @@ export default function ColumnFilterMenu({ column, people, filter, onApply, onCl
   return (
     <div role="dialog" aria-label={`Filter ${column.label}`} onClick={e => e.stopPropagation()}
       className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white p-2 text-left text-xs font-normal normal-case shadow-lg dark:border-gray-600 dark:bg-gray-800">
+      {column.type === 'context' && (
+        <div role="radiogroup" aria-label="Context filter" className="mb-1 flex flex-wrap gap-x-2 text-gray-800 dark:text-gray-100">
+          {CONTEXT_MODES.map(m => (
+            <label key={m.key} className="flex items-center gap-1">
+              <input type="radio" name={`mode-${column.key}`} checked={mode === m.key} onChange={() => switchMode(m.key)} className="h-3 w-3" />{m.label}
+            </label>
+          ))}
+        </div>
+      )}
       <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" aria-label={`Search ${column.label} values`}
         className="mb-1 w-full rounded border border-gray-300 bg-white px-2 py-0.5 text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
       <div className="mb-1 flex gap-2">

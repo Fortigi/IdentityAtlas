@@ -1,5 +1,6 @@
 import { formatValue } from '@ui/utils/formatters';
 import { KIND_TO_TAB } from './RecentChangesSection.helpers.jsx';
+import { NoAccessName } from './EntityLink';
 
 // ─── SnapshotDiffView ──────────────────────────────────────────────────
 // Side-by-side compare of two entity snapshots, like a two-file diff: the left
@@ -92,7 +93,9 @@ function ItemCell({ item, onOpenDetail }) {
   const linkable = target && item.id && onOpenDetail;
   return (
     <span className="min-w-0">
-      {linkable ? (
+      {item.accessible === false ? (
+        <NoAccessName label={item.label} className="break-words" />
+      ) : linkable ? (
         <button type="button" onClick={() => onOpenDetail(target, item.id, item.label)}
           className="underline decoration-dotted underline-offset-2 hover:decoration-solid text-left break-words">
           {item.label}

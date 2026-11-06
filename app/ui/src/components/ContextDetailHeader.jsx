@@ -6,7 +6,8 @@ import { useContextAncestors } from './contexts/useContextAncestors';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import DownloadReportButton from './contexts/header/DownloadReportButton';
 import MoreMenu from './contexts/header/MoreMenu';
-import { reportFor, offersMatrix } from './contexts/header/headerActions';
+import { reportFor, offersMatrix, ownerMatrixFor } from './contexts/header/headerActions';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
 import AddInformation from './contexts/interviews/AddInformation';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import { contextOpener } from './contexts/contextOpener';
@@ -20,7 +21,8 @@ import { contextOpener } from './contexts/contextOpener';
 // Actions: "Download report" (when the template has one — the reader's main
 // action, for everyone), "Authorization workbench" (an analyst, on an
 // organizational unit: onOpenWorkbench; the page offers it only while organisation
-// knowledge is on), "Add information" (an analyst, on a unit or an
+// knowledge is on; "3 proposed" on it when its saved investigations hold proposed
+// roles: proposedCount), "Add information" (an analyst, on a unit or an
 // application, while organisation knowledge is on), and a ⋯ menu with the rest (contexts/header/MoreMenu.jsx), each
 // only when its handler is given:
 //   onEdit        Edit (name, description, parent, template, delete)
@@ -36,12 +38,15 @@ import { contextOpener } from './contexts/contextOpener';
 // in the owner's scope (`openContext` decides). No owner chip: who answers for
 // the context is the Accountable, shown below the name.
 
-export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, children }) {
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, proposedCount = 0, children }) {
   const readOnly = useIsSharedView();
   const knowledge = useOrgKnowledge();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
   const report = reportFor(attrs);
+  // A context owner's page: the matrix of their team or application, opened in their shell.
+  const ownerScope = useContextOwnerScope();
+  const ownerMatrix = onOpenDetail ? ownerMatrixFor(attrs, { ownerScope }) : null;
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
@@ -54,10 +59,21 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, open
         </div>
         <div className="flex flex-wrap items-start gap-2">
           {report && <DownloadReportButton attrs={attrs} report={report.report} title={report.title} />}
+          {ownerMatrix && (
+            <button type="button" onClick={() => onOpenDetail('team-matrix', attrs.id, attrs.displayName)} data-testid="team-matrix"
+              title={ownerMatrix.title}
+              className="whitespace-nowrap rounded border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-900/30">
+              {ownerMatrix.label}
+            </button>
+          )}
           {onOpenWorkbench && (
             <button type="button" onClick={onOpenWorkbench} title="Group the people by what they do, see their access, and compose a candidate role"
               className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
               Authorization workbench
+              {proposedCount > 0 && ' '}
+              {proposedCount > 0 && (
+                <span className="ml-1rounded-full bg-emerald-200 px-1.5 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">{proposedCount} proposed</span>
+              )}
             </button>
           )}
           {addInformation && knowledge && <AddInformation contextId={attrs.id} />}

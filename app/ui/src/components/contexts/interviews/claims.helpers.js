@@ -135,11 +135,43 @@ const snippet = (text) => {
   return s.length > SNIPPET ? `${s.slice(0, SNIPPET - 1).trimEnd()}…` : s;
 };
 
+// What the people of a unit do, know and hold — the claims the Authorization
+// workbench shows as columns. The API sends them with the unit's claims wherever
+// the source was added (filedUnderName names that unit).
+export const KNOWLEDGE_KINDS = Object.freeze(['activity', 'expertise', 'duty']);
+const KNOWLEDGE_PLURALS = { activity: ['activity', 'activities'], expertise: ['expertise', 'expertise'], duty: ['duty', 'duties'] };
+
+/** An activity, expertise or duty claim. */
+export const isKnowledgeClaim = (c) => KNOWLEDGE_KINDS.includes(c?.claimKind);
+
+/** The confirmed activity / expertise / duty claims, by kind, ordered by person then name. Pure. */
+export function groupKnowledge(claims) {
+  const confirmed = (claims || []).filter(c => isKnowledgeClaim(c) && isConfirmed(c));
+  const byPerson = (a, b) => subjectLabel(a).localeCompare(subjectLabel(b)) || knowledgeName(a).localeCompare(knowledgeName(b));
+  return Object.fromEntries(KNOWLEDGE_KINDS.map(k => [k, confirmed.filter(c => c.claimKind === k).sort(byPerson)]));
+}
+
+/** What a knowledge claim names: the object it was linked to, else the value as said. */
+export const knowledgeName = (c) => c.objectName || c.value || '';
+
+/** "23 activities · 5 expertise · 5 duties" — the kinds that have any. Pure. */
+export function knowledgeCounts(grouped) {
+  return KNOWLEDGE_KINDS.filter(k => grouped[k].length > 0)
+    .map(k => plural(grouped[k].length, ...KNOWLEDGE_PLURALS[k])).join(' · ');
+}
+
 /**
- * The one line a folded "What we know" shows, about the unit only: the start of
- * its description, then "3 properties · also known as HA · 2 to review" — the
- * review count for a writer only, and only the unit's own claims (a person's are
- * on their row in People). Pure.
+ * The claims the unit's own review list takes: about the unit itself, and what
+ * its people do, know and hold. (A person's role or membership is decided on
+ * their row in People.) Pure.
+ */
+export const reviewableHere = (claims) => proposedClaims(claims).filter(c => !isPersonClaim(c) || isKnowledgeClaim(c));
+
+/**
+ * The one line a folded "What we know" shows: the start of its description, then
+ * "3 properties · also known as HA · 23 activities · 5 duties · 2 to review" — the
+ * review count for a writer only. A person's role or membership is on their row
+ * in People, not here. Pure.
  */
 export function whatWeKnowSummary({ description, claims, aliases = [], canWrite }) {
   const { properties } = groupConfirmed(claims);
@@ -147,7 +179,9 @@ export function whatWeKnowSummary({ description, claims, aliases = [], canWrite 
   if (description) parts.push(snippet(description));
   if (properties.length) parts.push(plural(properties.length, 'property', 'properties'));
   if (aliases.length) parts.push(`also known as ${aliases.join(', ')}`);
-  const toReview = canWrite ? proposedClaims(claims).filter(c => !isPersonClaim(c)).length : 0;
+  const knowledge = knowledgeCounts(groupKnowledge(claims));
+  if (knowledge) parts.push(knowledge);
+  const toReview = canWrite ? reviewableHere(claims).length : 0;
   if (toReview > 0) parts.push(`${toReview} to review`);
   return parts.join(' · ') || 'Nothing recorded yet';
 }

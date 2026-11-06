@@ -5,6 +5,7 @@ import MemberReferences from '@ui/components/contexts/MemberReferences';
 import { listedMemberId } from '@ui/components/contexts/memberReferences.helpers';
 import { factClass, earlierRolesText } from '@ui/components/contexts/interviews/memberInterview.helpers';
 import PersonClaims from './PersonClaims';
+import EntityLink, { OpenDetailsButton } from '@ui/components/EntityLink';
 import { STATUS_CHIP, STATUS_LABELS, SOURCE_CHIP_LABELS, accessText, personLink, sourceChipTitle, statusTitle } from './people.helpers';
 
 // ─── One person on the People overview ───────────────────────────────────
@@ -33,12 +34,25 @@ function RoleBadges({ roles }) {
   ));
 }
 
+// The person's name, opening their page when there is one to open — and named
+// without a link when the API marked them as not openable for this reader.
 function Name({ person, onOpenDetail }) {
   const link = personLink(person);
-  if (!link || !onOpenDetail) return <span className="font-medium text-gray-900 dark:text-gray-100">{person.displayName}</span>;
   return (
-    <button type="button" onClick={() => onOpenDetail(link.kind, link.id, person.displayName)}
-      className="text-left font-medium text-blue-700 hover:underline dark:text-blue-300">{person.displayName}</button>
+    <EntityLink kind={link?.kind} id={link?.id} label={person.displayName} accessible={person.accessible}
+      onOpenDetail={onOpenDetail} plainClassName="font-medium text-gray-900 dark:text-gray-100" />
+  );
+}
+
+// On a context owner's page: the references toggle, with "Open" beside it when
+// the person opens here.
+function OwnerName({ person, open, onToggle, onOpenDetail }) {
+  const link = personLink(person);
+  return (
+    <>
+      <ReferencesToggle name={person.displayName} open={open} onToggle={onToggle} />
+      <OpenDetailsButton kind={link?.kind} id={link?.id} name={person.displayName} accessible={person.accessible} onOpenDetail={onOpenDetail} />
+    </>
   );
 }
 
@@ -83,7 +97,7 @@ export default function PersonRow({ person, listName, linkedResources, onOpenDet
         <td className={`basis-full sm:basis-auto ${CELL}`}>
           <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1">
             {memberId
-              ? <ReferencesToggle name={person.displayName} open={open} onToggle={() => setOpen(o => !o)} />
+              ? <OwnerName person={person} open={open} onToggle={() => setOpen(o => !o)} onOpenDetail={onOpenDetail} />
               : <Name person={person} onOpenDetail={onOpenDetail} />}
             <RoleBadges roles={person.roles || []} />
             <span className="ml-1.5 sm:hidden"><StatusChip person={person} /></span>

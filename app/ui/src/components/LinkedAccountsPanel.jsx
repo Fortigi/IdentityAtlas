@@ -1,4 +1,5 @@
 import ConfidenceBar from './ConfidenceBar';
+import EntityLink from './EntityLink';
 import DeletedBadge from './DeletedBadge';
 import { isSourceLinkedMember, memberAccountEnabled } from '@ui/utils/linkedMembers';
 
@@ -33,7 +34,8 @@ function MemberActions({ member, busy, onOverride }) {
               : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'
         }`}>{ov}</span>
       )}
-      {ov ? (
+      {/* No override buttons in a read-only view (onOverride absent): a reader cannot change a link. */}
+      {onOverride && (ov ? (
         <button disabled={busy} onClick={() => onOverride(member.principalId, 'clear')}
           className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">Undo</button>
       ) : (
@@ -43,7 +45,7 @@ function MemberActions({ member, busy, onOverride }) {
           <button disabled={busy} onClick={() => onOverride(member.principalId, 'rejected')}
             className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50">Remove</button>
         </>
-      )}
+      ))}
     </>
   );
 }
@@ -53,10 +55,8 @@ function MemberRow({ member, busyMember, onOverride, onOpenDetail }) {
     <tr>
       <td className={TD}>{member.systemDisplayName || EM_DASH}</td>
       <td className={`${TD} min-w-0`}>
-        <button onClick={() => onOpenDetail?.('user', member.principalId, member.displayName)}
-          className="font-medium text-blue-700 dark:text-blue-300 hover:underline text-left truncate block max-w-full">
-          {member.displayName}
-        </button>
+        <EntityLink kind="user" id={member.principalId} label={member.displayName} accessible={member.accessible}
+          onOpenDetail={onOpenDetail} className="font-medium text-blue-700 dark:text-blue-300 hover:underline text-left truncate block max-w-full" />
         {member.deleted && <DeletedBadge at={member.deletedAt} label="Deleted in source" />}
         {(member.userPrincipalName || member.isPrimary) && (
           <div className="text-xs text-gray-600 dark:text-gray-400 truncate">

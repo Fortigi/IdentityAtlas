@@ -3,6 +3,8 @@
 // component (Vite fast-refresh requirement) while the user Timeline tab
 // (EntityTimeline.jsx / UserTimeline.jsx) still shares one source of truth.
 
+import { NoAccessName } from './EntityLink';
+
 // Exported so the timeline tabs share the exact same operation badges.
 export const OP_STYLES = {
   added:   { badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-700',       label: 'Added' },
@@ -21,29 +23,25 @@ export const KIND_TO_TAB = {
 // Split the summary around the counterparty label so the label renders
 // as a link. The summary format is consistent (backend controls it), so
 // a simple first-occurrence split is reliable and keeps the rest of the
-// phrasing intact.
+// phrasing intact. A counterparty the API marked as not openable for this
+// reader (a context owner, `accessible: false`) is named without a link.
 export function renderSummaryWithLink(ev, target, onOpenDetail) {
   const label = ev.counterpartyLabel;
   const summary = ev.summary;
-  const idx = summary.indexOf(label);
-  if (idx < 0) {
-    return (
-      <>
-        <span>{summary} — </span>
-        <button onClick={() => onOpenDetail?.(target, ev.counterpartyId, label)}
-                className="text-blue-700 dark:text-blue-300 hover:underline font-medium">
-          {label}
-        </button>
-      </>
-    );
-  }
-  return (
-    <>
-      <span>{summary.slice(0, idx)}</span>
+  const name = ev.accessible === false
+    ? <NoAccessName label={label} />
+    : (
       <button onClick={() => onOpenDetail?.(target, ev.counterpartyId, label)}
               className="text-blue-700 dark:text-blue-300 hover:underline font-medium">
         {label}
       </button>
+    );
+  const idx = summary.indexOf(label);
+  if (idx < 0) return <><span>{summary} — </span>{name}</>;
+  return (
+    <>
+      <span>{summary.slice(0, idx)}</span>
+      {name}
       <span>{summary.slice(idx + label.length)}</span>
     </>
   );

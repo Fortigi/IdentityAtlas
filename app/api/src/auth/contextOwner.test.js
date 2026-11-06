@@ -12,7 +12,7 @@ vi.mock('./resolveMe.js', () => ({ resolveMe: (...a) => resolveMeMock(...a) }));
 
 const { query } = await import('../db/connection.js');
 const {
-  collapseHeld, findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts, resolveContextOwner,
+  collapseHeld, findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts, resolveContextOwner, descendantsInScope,
 } = await import('./contextOwner.js');
 
 const A = 'AAAAAAAA-0000-4000-8000-000000000001';
@@ -77,6 +77,21 @@ describe('the reads', () => {
     query.mockResolvedValue({ rows: [{ id: S.toUpperCase() }] });
     expect(await findOwnedSubUnits({ query }, [B])).toEqual([S]);
     expect(query.mock.calls[0][1]).toEqual([[B]]);
+  });
+
+  it('findOwnedSubUnits walks every descendant: no role filter in the walk', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await findOwnedSubUnits({ query }, [B]);
+    expect(query.mock.calls[0][0]).not.toContain('ContextRoles');
+    expect(query.mock.calls[0][0]).toContain('CYCLE id');
+  });
+
+  it('descendantsInScope: true with nothing to check (no query), else every descendant must be in scope', async () => {
+    expect(await descendantsInScope({ query }, [], new Set())).toBe(true);
+    expect(query).not.toHaveBeenCalled();
+    query.mockResolvedValue({ rows: [{ id: S.toUpperCase() }] });
+    expect(await descendantsInScope({ query }, [B], new Set([S]))).toBe(true);
+    expect(await descendantsInScope({ query }, [B], new Set([B]))).toBe(false);
   });
 
   it('resolveReportContexts lower-cases what it asks for and what it returns', async () => {

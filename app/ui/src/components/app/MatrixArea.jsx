@@ -1,9 +1,13 @@
-import { lazy } from 'react';
+import { lazy, useState } from 'react';
+import { useHasPermission } from '@ui/auth/usePermissions';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 
 // Lazy-load the matrix views (route-based code splitting).
 const MatrixView = lazy(() => import('@ui/components/MatrixView'));
 const RotatedMatrixView = lazy(() => import('@ui/components/RotatedMatrixView'));
 const RollupMatrixView = lazy(() => import('@ui/components/RollupMatrixView'));
+const ProposedMatrix = lazy(() => import('@ui/components/matrix/ProposedMatrix'));
 
 // The matrix tab body: one of the three matrix orientations. Which view renders
 // is decided by the roll-up flag and the filter's orientation. (The wizard is
@@ -21,6 +25,21 @@ export default function MatrixArea({
   accessPackageGroups, managedByPackages, resourceContexts, groupTagMap, hasData,
   onWizardApply, onShareView,
 }) {
+  // "+ Proposed roles" reads saved workbench investigations: an analyst's, never a
+  // shared view's, and only while organisation knowledge (the workbench's flag) is
+  // on. It adds them on top of whichever lens is chosen. Its on/off lives here, for
+  // this session only: it is not part of the matrix definition, so a saved or shared
+  // matrix never carries it (decided 2026-10-29).
+  const canWrite = useHasPermission('data.write.contexts');
+  const sharedView = useIsSharedView();
+  const knowledge = useOrgKnowledge();
+  const showProposed = canWrite && !sharedView && knowledge;
+  const [proposedOn, setProposedOn] = useState(false);
+  // What the plain grid and the grid with proposals on top both take.
+  const gridProps = {
+    resourceContexts, filter: matrixFilter, counts, managedFilter, setManagedFilter, groupTagMap,
+    refreshing, shareUrl, onOpenDetail, onAdjustFilter, onLoadSaved: onWizardApply, hasData, onShareView,
+  };
   return (
     <>
       {rollup ? (
@@ -54,24 +73,18 @@ export default function MatrixArea({
           hasData={hasData}
           onShareView={onShareView}
         />
+      ) : proposedOn && showProposed ? (
+        // "+ Proposed roles": this same view, with the saved workbench proposals on top.
+        <ProposedMatrix data={data} accessPackageGroups={accessPackageGroups} managedByPackages={managedByPackages}
+          onToggleProposed={setProposedOn} {...gridProps} />
       ) : (
         <MatrixView
+          showProposed={showProposed}
+          onToggleProposed={setProposedOn}
           data={data}
           accessPackageGroups={accessPackageGroups}
           managedByPackages={managedByPackages}
-          resourceContexts={resourceContexts}
-          filter={matrixFilter}
-          counts={counts}
-          managedFilter={managedFilter}
-          setManagedFilter={setManagedFilter}
-          groupTagMap={groupTagMap}
-          refreshing={refreshing}
-          shareUrl={shareUrl}
-          onOpenDetail={onOpenDetail}
-          onAdjustFilter={onAdjustFilter}
-          onLoadSaved={onWizardApply}
-          hasData={hasData}
-          onShareView={onShareView}
+          {...gridProps}
         />
       )}
     </>
