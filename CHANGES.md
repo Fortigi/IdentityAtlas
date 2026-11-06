@@ -1,5 +1,14 @@
 ## Changes in this PR
 
+- Custom reports are no longer cut off at 1,000 rows in downloads: the XLSX, CSV and JSON download now contains every row (up to 250,000).
+- A custom report that shows only its first 1,000 rows now offers a "Load all rows" button, so you can choose to wait for the complete list on screen.
+
+## Changes in this PR
+
+- Expanded the MCP server documentation with step-by-step setup for Claude, ChatGPT and Microsoft 365 Copilot (federated connector and Copilot Studio), including which plan or licence each needs, the redirect URI per assistant, and new troubleshooting entries.
+
+## Changes in this PR
+
 - Fixed an intermittently failing automated test for the Diff section; no change to the product itself
 
 ## Changes in this PR
