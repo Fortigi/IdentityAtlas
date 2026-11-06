@@ -50,7 +50,7 @@ async function batchBoundaryError(req, body, allowed, ctx) {
   if (!allowed) return null;
   const denial = await systemBoundaryDenial({ ...ctx, records: ctx.normalized, syncMode: body.syncMode, allowed });
   if (!denial) return null;
-  console.warn('Ingest denied for crawler %s: %s', req.crawler?.id, oneLineForLog(denial));
+  console.warn('Ingest denied for crawler %s: %s', req?.crawler?.id, oneLineForLog(denial));
   return { status: 403, error: denial };
 }
 
@@ -75,118 +75,154 @@ function ingestNotices(entityType, body, { systemIds, managerLinks, accountable 
   };
 }
 
-function createIngestHandler(entityType) {
+// The checks before anything is written: the envelope, the caller's access to
+// the batch's system, the defaults, and every record. Returns { status, body }
+// to answer with, or null when the batch may be written. Applies the defaults
+// and the systems sync-mode coercion to `body` in place.
+function admitBatch(entityType, body, hasSystemAccess) {
+  const envErrors = envelopeErrors(body, entityType);
+  if (envErrors.length) {
+    console.warn(`Ingest validation failed [${entityType}]:`, envErrors);
+    return { status: 400, body: { error: 'Validation failed', details: envErrors } };
+  }
+  if (entityType !== 'systems' && !hasSystemAccess(body.systemId)) {
+    return { status: 403, body: { error: `Crawler does not have access to system ${body.systemId}` } };
+  }
+
+  applyIngestDefaults(entityType, body);
+
+  const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
+  if (!recResult.valid) {
+    // Both branches are hardcoded literals so syncMode is never tainted (log-injection fix).
+    const syncMode = body.syncMode === 'delta' ? 'delta' : 'full';
+    console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
+    return { status: 400, body: { error: 'Record validation failed', details: recResult.errors } };
+  }
+  coerceSystemsSyncMode(entityType, body);
+  return null;
+}
+
+/**
+ * Validate and write one ingest batch — everything POST /api/ingest/<entity>
+ * does after authenticating the crawler. Shared with in-process writers that
+ * hold their own permission (the context upload, routes/contexts/uploads.js),
+ * so a source that is not a crawler still goes through the one ingest path.
+ *
+ * @param {string} entityType  an ENTITY_TABLE_MAP key ('contexts', 'context-members', …)
+ * @param {object} body        the ingest envelope; defaults are applied to it in place
+ * @param {object} [ctx]
+ * @param {number[]|null} [ctx.allowed]  systems a restricted key may write (null = unrestricted)
+ * @param {(systemId:number)=>boolean} [ctx.hasSystemAccess]  defaults to allowing every system
+ * @param {object|null} [ctx.req]  the crawler request, for the per-crawler log and audit row
+ * @returns {Promise<{status:number, body:object}>}
+ */
+export async function runIngest(entityType, body, ctx = {}) {
+  const { allowed = null, hasSystemAccess = () => true, req = null } = ctx;
+  const refused = admitBatch(entityType, body, hasSystemAccess);
+  if (refused) return refused;
+
+  const startTime = new Date();
+  try {
+    return await writeBatch(entityType, body, { allowed, req, startTime });
+  } catch (err) {
+    const safeErrMessage = oneLineForLog(err?.message);
+    console.error('Ingest error (%s): %s', entityType, safeErrMessage);
+    await writeSyncLog(null, `API-${entityType}`, ENTITY_TABLE_MAP[entityType], startTime,
+                       body.records?.length || 0, 0, 0, 0, safeErrMessage).catch(() => {});
+    // 422 for a context-cycle rejection (migration 059's trigger), else 500.
+    return ingestErrorResponse(err);
+  }
+}
+
+async function writeBatch(entityType, body, { allowed, req, startTime }) {
   const tableName = ENTITY_TABLE_MAP[entityType];   // snake_case in v5
   const keyColumns = ENTITY_KEY_MAP[entityType];     // camelCase from caller; engine converts
   const scopeColumns = ENTITY_SCOPE_MAP[entityType] || [];
 
+  const coreColumns = writableCoreColumns(await discoverCoreColumns(tableName));
+  const { idPrefix, systemPrefix } = recoverSystemPrefix(entityType, body.idPrefix);
+  const normalized = normalizeRecords(body.records, coreColumns, {
+    idGeneration: body.idGeneration || 'native', idPrefix, systemPrefix, systemId: body.systemId,
+  });
+  const scope = buildScope(body.scope, scopeColumns);
+  const conflictFilter = conflictFilterFor(entityType);
+  const scopeDeleteFilter = conflictFilter;
+
+  const boundaryErr = await batchBoundaryError(req, body, allowed, { tableName, keyColumns, normalized, scope, conflictFilter });
+  if (boundaryErr) return { status: boundaryErr.status, body: { error: boundaryErr.error } };
+
+  // A system that declares a directorySystemId reads the directory's principals
+  // and resources; it does not own them. Resolved once per batch — one PK lookup
+  // on a table with a handful of rows — and applied to both write paths (#1247).
+  const preserveColumns = await preservedOwnerColumns(tableName, body.systemId);
+
+  // ── Session paths ─────────────────────────────────────────────
+  const sessionRes = await handleSessionPath(body, {
+    tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter, preserveColumns,
+    crawlerId: req?.crawler?.id, isWorker: !!req && crawlerHasPermission(req, 'admin'), restrictSystemIds: allowed,
+  });
+  if (sessionRes) return sessionRes;
+
+  // ── Single-batch path ─────────────────────────────────────────
+  // Called even for an empty batch: ingest() owns what "no records" means,
+  // and the answer differs by sync mode. An empty DELTA does nothing; an
+  // empty FULL says "this scope is empty now" and reconciles its rows away,
+  // which is how a crawler clears a source that no longer serves anything.
+  // Short-circuiting here meant that batch was accepted and silently ignored.
+  const result = await ingestBatch(entityType, tableName, keyColumns, normalized, {
+    syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
+    restrictSystemIds: allowed, preserveColumns,
+  });
+
+  const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
+  if (delErr) return delErr;
+
+  // A single batch IS the whole principals load (a crawler that needs more
+  // than one opens a session instead), so this is the point at which a
+  // manager link can be told apart from one whose manager had not arrived.
+  const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
+  // Contexts only: the owner a source names becomes the synced context's
+  // Accountable (ingest/contextOwners.js). Null for every other table.
+  const accountable = await reconcileBatchAccountables(db, tableName, normalized);
+
+  // Context-tree acyclicity is enforced at the database (migration 059's
+  // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
+  // handled in runIngest's catch. The old post-ingest breakCycles repair is gone:
+  // it silently NULLed an edge instead of surfacing the malformed input.
+
+  await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
+                     body.records.length, result.inserted, result.updated, result.deleted, null);
+  if (req) writeAuditLog(req, body);
+
+  const durationMs = Date.now() - startTime.getTime();
+  await linkSystemDirectories(entityType);
+  const systemIds = await lookupSystemIds(entityType, body.records);
+  const notices = ingestNotices(entityType, body, { systemIds, managerLinks, accountable });
+
+  return {
+    status: 201,
+    body: {
+      table: tableName,
+      inserted: result.inserted,
+      updated: result.updated,
+      deleted: result.deleted,
+      records: body.records.length,
+      durationMs,
+      ...notices,
+    },
+  };
+}
+
+function createIngestHandler(entityType) {
   return async (req, res) => {
     if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
     if (!crawlerHasPermission(req, 'ingest')) return res.status(403).json({ error: 'Insufficient permissions' });
-
-    const body = req.body;
-
-    const envErrors = envelopeErrors(body, entityType);
-    if (envErrors.length) {
-      console.warn(`Ingest validation failed [${entityType}]:`, envErrors);
-      return res.status(400).json({ error: 'Validation failed', details: envErrors });
-    }
-    if (entityType !== 'systems' && !crawlerHasSystemAccess(req, body.systemId)) {
-      return res.status(403).json({ error: `Crawler does not have access to system ${body.systemId}` });
-    }
-
-    applyIngestDefaults(entityType, body);
-
-    const recResult = validateRecords(body.records, entityType, body.idGeneration, body.syncMode);
-    if (!recResult.valid) {
-      // Both branches are hardcoded literals so syncMode is never tainted (log-injection fix).
-      const syncMode = body.syncMode === 'delta' ? 'delta' : 'full';
-      console.warn(`Ingest record validation failed (${syncMode} mode): ${recResult.errors.length} error(s)`);
-      return res.status(400).json({ error: 'Record validation failed', details: recResult.errors });
-    }
-    coerceSystemsSyncMode(entityType, body);
-    const allowed = restrictedSystemIds(req.crawler);
-
-    const startTime = new Date();
-    try {
-      const coreColumns = writableCoreColumns(await discoverCoreColumns(tableName));
-      const { idPrefix, systemPrefix } = recoverSystemPrefix(entityType, body.idPrefix);
-      const normalized = normalizeRecords(body.records, coreColumns, {
-        idGeneration: body.idGeneration || 'native', idPrefix, systemPrefix, systemId: body.systemId,
-      });
-      const scope = buildScope(body.scope, scopeColumns);
-      const conflictFilter = conflictFilterFor(entityType);
-      const scopeDeleteFilter = conflictFilter;
-
-      const boundaryErr = await batchBoundaryError(req, body, allowed, { tableName, keyColumns, normalized, scope, conflictFilter });
-      if (boundaryErr) return res.status(boundaryErr.status).json({ error: boundaryErr.error });
-
-      // A system that declares a directorySystemId reads the directory's principals
-      // and resources; it does not own them. Resolved once per batch — one PK lookup
-      // on a table with a handful of rows — and applied to both write paths (#1247).
-      const preserveColumns = await preservedOwnerColumns(tableName, body.systemId);
-
-      // ── Session paths ─────────────────────────────────────────────
-      const sessionRes = await handleSessionPath(body, {
-        tableName, keyColumns, normalized, scope, scopeDeleteFilter, conflictFilter, preserveColumns,
-        crawlerId: req.crawler?.id, isWorker: crawlerHasPermission(req, 'admin'), restrictSystemIds: allowed,
-      });
-      if (sessionRes) return res.status(sessionRes.status).json(sessionRes.body);
-
-      // ── Single-batch path ─────────────────────────────────────────
-      // Called even for an empty batch: ingest() owns what "no records" means,
-      // and the answer differs by sync mode. An empty DELTA does nothing; an
-      // empty FULL says "this scope is empty now" and reconciles its rows away,
-      // which is how a crawler clears a source that no longer serves anything.
-      // Short-circuiting here meant that batch was accepted and silently ignored.
-      const result = await ingestBatch(entityType, tableName, keyColumns, normalized, {
-        syncMode: body.syncMode || 'delta', systemId: body.systemId, scope, scopeDeleteFilter, conflictFilter,
-        restrictSystemIds: allowed, preserveColumns,
-      });
-
-      const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
-      if (delErr) return res.status(delErr.status).json(delErr.body);
-
-      // A single batch IS the whole principals load (a crawler that needs more
-      // than one opens a session instead), so this is the point at which a
-      // manager link can be told apart from one whose manager had not arrived.
-      const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
-      // Contexts only: the owner a source names becomes the synced context's
-      // Accountable (ingest/contextOwners.js). Null for every other table.
-      const accountable = await reconcileBatchAccountables(db, tableName, normalized);
-
-      // Context-tree acyclicity is enforced at the database (migration 059's
-      // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
-      // handled in catch. The old post-ingest breakCycles repair is gone: it
-      // silently NULLed an edge instead of surfacing the malformed input.
-
-      await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
-                         body.records.length, result.inserted, result.updated, result.deleted, null);
-      writeAuditLog(req, body);
-
-      const durationMs = Date.now() - startTime.getTime();
-      await linkSystemDirectories(entityType);
-      const systemIds = await lookupSystemIds(entityType, body.records);
-      const notices = ingestNotices(entityType, body, { systemIds, managerLinks, accountable });
-
-      return res.status(201).json({
-        table: tableName,
-        inserted: result.inserted,
-        updated: result.updated,
-        deleted: result.deleted,
-        records: body.records.length,
-        durationMs,
-        ...notices,
-      });
-    } catch (err) {
-      const safeErrMessage = oneLineForLog(err?.message);
-      console.error('Ingest error (%s): %s', entityType, safeErrMessage);
-      await writeSyncLog(null, `API-${entityType}`, tableName, startTime,
-                         body.records?.length || 0, 0, 0, 0, safeErrMessage).catch(() => {});
-      // 422 for a context-cycle rejection (migration 059's trigger), else 500.
-      const errRes = ingestErrorResponse(err);
-      return res.status(errRes.status).json(errRes.body);
-    }
+    const out = await runIngest(entityType, req.body, {
+      allowed: restrictedSystemIds(req.crawler),
+      hasSystemAccess: (systemId) => crawlerHasSystemAccess(req, systemId),
+      req,
+    });
+    return res.status(out.status).json(out.body);
   };
 }
 

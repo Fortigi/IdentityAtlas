@@ -1055,3 +1055,37 @@ describe('ingest handler — a dependent system may not take over ownership', ()
     expect(mockStart.mock.calls[0][4]).toMatchObject({ preserveColumns: ['systemId'] });
   });
 });
+
+describe('runIngest — the ingest path for an in-process writer', () => {
+  it('writes a batch with no crawler: unrestricted, every system allowed', async () => {
+    const { runIngest } = await import('./ingest/handlers.js');
+    const cols = ['id', 'displayName', 'variant', 'targetType', 'contextType', 'contextCategory', 'scopeSystemId'];
+    mockQuery.mockImplementation(async (sql) => (/information_schema.columns/.test(String(sql))
+      ? { rows: cols.map(c => ({ column_name: c })), rowCount: 0 } : { rows: [], rowCount: 0 }));
+    const out = await runIngest('contexts', {
+      systemId: 4, syncMode: 'full', scope: { variant: 'synced', scopeSystemId: 4 },
+      records: [{ id: UUID, displayName: 'Acme', variant: 'synced', targetType: 'Principal', contextType: 'OrgUnit', scopeSystemId: 4 }],
+    });
+    expect(out.status).toBe(201);
+    expect(mockIngest).toHaveBeenCalledTimes(1);
+    const [, table, keys, records, options] = mockIngest.mock.calls[0];
+    expect([table, keys]).toEqual(['Contexts', ['id']]);
+    // The ingest derives the template from the type, exactly as for a crawler.
+    expect(records[0]).toMatchObject({ id: UUID, contextCategory: 'OrganizationalUnit' });
+    expect(options).toMatchObject({ syncMode: 'full', systemId: 4, restrictSystemIds: null, scope: { variant: 'synced', scopeSystemId: 4 } });
+  });
+
+  it('refuses a system the caller may not write, before writing anything', async () => {
+    const { runIngest } = await import('./ingest/handlers.js');
+    const out = await runIngest('contexts', { systemId: 4, records: [{ displayName: 'x' }] }, { hasSystemAccess: () => false });
+    expect(out).toEqual({ status: 403, body: { error: 'Crawler does not have access to system 4' } });
+    expect(mockIngest).not.toHaveBeenCalled();
+  });
+
+  it('answers an invalid record with 400 and its details', async () => {
+    const { runIngest } = await import('./ingest/handlers.js');
+    const out = await runIngest('contexts', { systemId: 4, records: [{ displayName: 'x', variant: 'odd', targetType: 'Principal', contextType: 'T' }] });
+    expect(out.status).toBe(400);
+    expect(out.body.details.join(' ')).toMatch(/variant/);
+  });
+});

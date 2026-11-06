@@ -14,6 +14,7 @@ import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
 import { loadContextRoles } from './roles.js';
 import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
 import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
+import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
 import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 
 const router = Router();
@@ -131,7 +132,7 @@ router.get('/contexts', async (req, res) => {
              c."createdByUser", c."externalId", c."directMemberCount", c."totalMemberCount",
              c."userRenamed", c."userReparented", c."sourceInstanceKey",
              c."lastCalculatedAt", c."createdAt", c."updatedAt",
-             s."displayName" AS "scopeSystemName",
+             s."displayName" AS "scopeSystemName", s."systemType" AS "scopeSystemType",
              a.name AS "sourceAlgorithmName",
              a."displayName" AS "sourceAlgorithmDisplayName",
              ${search ? 'c."parentContextId", c."extendedAttributes",' : ''}
@@ -232,7 +233,7 @@ router.get('/contexts/:id', async (req, res) => {
 
   try {
     const attr = await db.queryOne(`
-      SELECT c.*, s."displayName" AS "scopeSystemName",
+      SELECT c.*, s."displayName" AS "scopeSystemName", s."systemType" AS "scopeSystemType",
              a.name AS "sourceAlgorithmName",
              a."displayName" AS "sourceAlgorithmDisplayName",
              parent."displayName" AS "parentDisplayName",
@@ -245,6 +246,9 @@ router.get('/contexts/:id', async (req, res) => {
     `, [req.params.id]);
 
     if (!attr) return res.status(404).json({ error: 'Context not found' });
+
+    // A context of an uploaded list says where it came from: its first and latest upload.
+    if (attr.scopeSystemType === UPLOAD_SYSTEM_TYPE) Object.assign(attr, await uploadProvenance(db, attr.scopeSystemId));
 
     const members = await loadMembers(req.params.id, attr.targetType, { limit: 50 });
 

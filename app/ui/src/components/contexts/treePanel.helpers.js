@@ -142,3 +142,9 @@ export function editedTitle(node) {
   if (!parts.length) return null;
   return `Changed here (${parts.join(' and ')}). Kept when the tree is refreshed.`;
 }
+
+// A tree that is a list uploaded here (its source system is of type Upload):
+// imported, so not edited in place, but re-imported from its ⋯ menu.
+export function isUploadedList(root) {
+  return root?.variant === 'synced' && root?.scopeSystemType === 'Upload';
+}

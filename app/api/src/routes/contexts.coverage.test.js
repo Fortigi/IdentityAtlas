@@ -245,6 +245,34 @@ describe('GET /contexts/:id', () => {
     const res = await request(app).get(`/api/contexts/${ID}`);
     expect(res.status).toBe(500);
   });
+
+  it('a context of an uploaded list carries where it came from: its first and latest upload', async () => {
+    queryOne.mockResolvedValueOnce({ id: ID, targetType: 'Mystery', scopeSystemId: 3, scopeSystemType: 'Upload' });
+    query.mockResolvedValueOnce({ rows: [
+      { which: 'first', fileName: 'klanten.xlsx', uploadedBy: 'a@x.nl', uploadedAt: '2026-10-01T10:00:00.000Z' },
+      { which: 'last', fileName: 'klanten-v2.xlsx', uploadedBy: 'b@x.nl', uploadedAt: '2026-10-20T10:00:00.000Z' },
+    ] });
+    query.mockResolvedValueOnce({ rows: [] }); // subs
+    query.mockResolvedValueOnce({ rows: [] }); // roles
+    const res = await request(app).get(`/api/contexts/${ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.attributes).toMatchObject({
+      uploadedFrom: 'klanten.xlsx', uploadedBy: 'a@x.nl', uploadedAt: '2026-10-01T10:00:00.000Z',
+      lastUploadFile: 'klanten-v2.xlsx', lastUploadBy: 'b@x.nl', lastUploadAt: '2026-10-20T10:00:00.000Z',
+    });
+    expect(query.mock.calls[0][0]).toContain('FROM "ContextUploads"');
+    expect(query.mock.calls[0][1]).toEqual([3]);
+    expect(queryOne.mock.calls[0][0]).toContain('s."systemType" AS "scopeSystemType"');
+  });
+
+  it('a context of any other source does not look for uploads', async () => {
+    queryOne.mockResolvedValueOnce({ id: ID, targetType: 'Mystery', scopeSystemId: 3, scopeSystemType: 'EntraID' });
+    query.mockResolvedValue({ rows: [] });
+    const res = await request(app).get(`/api/contexts/${ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.attributes.uploadedFrom).toBeUndefined();
+    expect(query.mock.calls.some(c => c[0].includes('ContextUploads'))).toBe(false);
+  });
 });
 
 // ─── GET /contexts/:id/members ───────────────────────────────────────

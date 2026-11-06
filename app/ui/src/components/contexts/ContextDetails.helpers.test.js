@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { hiddenDetailKeys, detailEntries, detailLabel } from './ContextDetails.helpers';
+import { hiddenDetailKeys, detailEntries, detailLabel, provenanceText } from './ContextDetails.helpers';
+import { formatDate } from '@ui/utils/formatters';
 
 const keys = (entries) => entries.map(([k]) => k);
 
@@ -62,5 +63,32 @@ describe('detailLabel', () => {
   it('says "Last updated" for the calculation stamp and splits other names', () => {
     expect(detailLabel('lastCalculatedAt')).toBe('Last updated');
     expect(detailLabel('externalId')).toBe('External Id');
+  });
+});
+
+describe('provenanceText (a unit of an uploaded list)', () => {
+  const base = { uploadedFrom: 'k.xlsx', uploadedAt: '2026-10-01T10:00:00.000Z', uploadedBy: 'a@x.nl' };
+
+  it('a list uploaded once: where from, when and by whom', () => {
+    expect(provenanceText({ ...base, lastUploadAt: base.uploadedAt, lastUploadFile: 'k.xlsx' }))
+      .toBe(`Uploaded from k.xlsx on ${formatDate(base.uploadedAt)} by a@x.nl.`);
+  });
+
+  it('a list uploaded again also says when it was last updated, and since when this unit exists', () => {
+    const text = provenanceText({ ...base, lastUploadFile: 'k2.xlsx', lastUploadAt: '2026-10-20T10:00:00.000Z', createdAt: '2026-10-05T10:00:00.000Z' });
+    expect(text).toBe(`Uploaded from k.xlsx on ${formatDate(base.uploadedAt)} by a@x.nl; last updated by an upload of k2.xlsx on ${formatDate('2026-10-20T10:00:00.000Z')}. This unit exists since ${formatDate('2026-10-05T10:00:00.000Z')}.`);
+  });
+
+  it('leaves out an unknown uploader (auth off), and is null for a context not uploaded', () => {
+    expect(provenanceText({ ...base, uploadedBy: 'unknown' })).toBe(`Uploaded from k.xlsx on ${formatDate(base.uploadedAt)}.`);
+    expect(provenanceText({ displayName: 'x' })).toBeNull();
+    expect(provenanceText(null)).toBeNull();
+  });
+
+  it('More details names the upload fields in words, and hides the source type from a business reader', () => {
+    expect(detailLabel('uploadedFrom')).toBe('Uploaded from');
+    expect(detailLabel('lastUploadAt')).toBe('Last upload on');
+    expect(hiddenDetailKeys({}).has('scopeSystemType')).toBe(true);
+    expect(hiddenDetailKeys({}, { analyst: true }).has('scopeSystemType')).toBe(false);
   });
 });

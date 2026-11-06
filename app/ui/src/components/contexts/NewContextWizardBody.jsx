@@ -70,11 +70,12 @@ function SourceStep({ source, onPick, canDescribe }) {
     { key: 'import', title: 'Import from a system', description: 'Bring in units from a source such as HR or Active Directory; set the import up under Admin › Crawlers.' },
     { key: 'plugin', title: 'Derive from data', description: 'Build units from data already here, such as who reports to whom or the department on each account.' },
     { key: 'manual', title: 'Create by hand', description: 'Start an empty tree and add the units yourself.' },
+    { key: 'upload', title: 'Upload a list', description: 'Your own list of units or applications (.csv or .xlsx), with owners, members and attributes. Upload it again to update it.' },
     // Experimental: only offered when the context assistant is on and the user may build contexts.
     ...(canDescribe ? [{ key: 'describe', title: 'Describe it', description: 'Describe a process, application or project; you pick the groups from suggested search terms.' }] : []),
   ];
   return (
-    <div className={`grid grid-cols-1 gap-3 ${cards.length === 4 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+    <div className={`grid grid-cols-1 gap-3 ${cards.length % 2 === 0 ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
       {cards.map(c => (
         <SourceCard key={c.key} {...c} active={source === c.key} onClick={() => onPick(c.key)} />
       ))}

@@ -9,6 +9,7 @@ import {
   reconcileBatchAccountables, reconcileSessionAccountables, buildAccountableReconcileSql,
   ownerResolutionCtes, OWNER_PRINCIPAL_ORDER, OWNER_ADDED_BY,
 } from './contextOwners.js';
+import { normalizedNameSql } from '../lib/nameMatch.js';
 
 const ID1 = '11111111-1111-1111-1111-111111111111';
 const ID2 = '22222222-2222-2222-2222-222222222222';
@@ -127,5 +128,75 @@ describe('the statement', () => {
     expect(added).toMatch(/SELECT res\."contextId", res\."principalId", 'Accountable', 'sourceOwner'/);
     expect(added).toMatch(/WHERE NOT EXISTS \(SELECT 1 FROM accountable a WHERE a\."contextId" = res\."contextId"\)/);
     expect(added).toContain('ON CONFLICT DO NOTHING');
+  });
+});
+
+describe('the statement — e-mail owners', () => {
+  const ctes = ownerResolutionCtes('TRUE');
+  const byEmail = ctes.slice(ctes.indexOf('by_email AS'), ctes.indexOf('name_owner AS'));
+
+  it('resolves an owner that is an address to the ONE live account with that address, any case', () => {
+    expect(byEmail).toMatch(/JOIN "Principals" p ON lower\(p\.email\) = lower\(c\.owner\) AND p\."deletedAt" IS NULL/);
+    expect(byEmail).toMatch(/WHERE position\('@' in c\.owner\) > 0/);
+    expect(byEmail).toMatch(/HAVING count\(\*\) = 1/);
+  });
+
+  it('comes after both keys: only where neither the externalId nor the employeeId resolved', () => {
+    expect(byEmail).toContain('NOT EXISTS (SELECT 1 FROM by_external_id x WHERE x."contextId" = c.id)');
+    expect(byEmail).toContain('NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)');
+    expect(ctes.indexOf('by_email AS')).toBeGreaterThan(ctes.indexOf('by_employee_id AS'));
+    expect(ctes).toMatch(/UNION ALL\s+SELECT "contextId", "principalId" FROM by_email\s+UNION ALL/);
+  });
+});
+
+describe('the statement — owners named by display name', () => {
+  const ctes = ownerResolutionCtes('TRUE');
+  const nameOwner = ctes.slice(ctes.indexOf('name_owner AS'), ctes.indexOf('by_name AS'));
+  const byName = ctes.slice(ctes.indexOf('by_name AS'), ctes.indexOf('resolved AS'));
+
+  it('is the last step: only an owner no key resolved, and never an address', () => {
+    expect(nameOwner).toContain('NOT EXISTS (SELECT 1 FROM by_external_id x WHERE x."contextId" = c.id)');
+    expect(nameOwner).toContain('NOT EXISTS (SELECT 1 FROM by_employee_id x WHERE x."contextId" = c.id)');
+    expect(nameOwner).toContain(`position('@' in c.owner) = 0`);
+    expect(ctes.indexOf('name_owner AS')).toBeGreaterThan(ctes.indexOf('by_email AS'));
+    expect(ctes).toMatch(/UNION ALL\s+SELECT "contextId", "principalId" FROM by_name\s+\)$/);
+  });
+
+  it('compares the shared normalised name on both sides, after a word-similarity index lookup', () => {
+    expect(nameOwner).toContain(`${normalizedNameSql('c.owner')} AS name`);
+    expect(byName).toContain('CROSS JOIN LATERAL');
+    expect(byName).toContain('o.name <% p."displayName"');
+    expect(byName).toContain(`${normalizedNameSql('p."displayName"')} = o.name`);
+    expect(byName).toMatch(/p\."deletedAt" IS NULL/);
+    // a one-word owner reads as an account key, not a name
+    expect(byName).toContain(`WHERE position(' ' in o.name) > 0`);
+  });
+
+  it('one user account with the name wins; without users, exactly one principal of any type', () => {
+    expect(byName).toContain(`coalesce((array_agg(p.id) FILTER (WHERE p."principalType" = 'User'))[1], (array_agg(p.id))[1])`);
+    expect(byName).toMatch(/HAVING count\(\*\) FILTER \(WHERE p\."principalType" = 'User'\) = 1\s+OR \(count\(\*\) FILTER \(WHERE p\."principalType" = 'User'\) = 0 AND count\(\*\) = 1\)/);
+  });
+
+  it('is part of the one reconcile statement, not a second query — when the name setting is on', async () => {
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'true';
+    try {
+      const r = runner(COUNTS);
+      await reconcileBatchAccountables(r, 'Contexts', [{ id: ID1 }]);
+      expect(r.query).toHaveBeenCalledTimes(1);
+      expect(r.query.mock.calls[0][0]).toContain('by_name AS');
+      expect(r.query.mock.calls[0][0]).toMatch(/FROM by_email\s+UNION ALL\s+SELECT "contextId", "principalId" FROM by_name/);
+    } finally {
+      delete process.env.FEATURE_SOURCE_OWNER_NAME_MATCH;
+    }
+  });
+
+  it('is left out by default: a name alone is a guess the operator has to opt into', async () => {
+    const r = runner(COUNTS);
+    await reconcileBatchAccountables(r, 'Contexts', [{ id: ID1 }]);
+    const sql = r.query.mock.calls[0][0];
+    expect(sql).not.toContain('by_name');
+    expect(sql).not.toContain('name_owner');
+    // the key and e-mail steps still resolve, ending the union
+    expect(sql).toMatch(/SELECT "contextId", "principalId" FROM by_email\s+\)/);
   });
 });

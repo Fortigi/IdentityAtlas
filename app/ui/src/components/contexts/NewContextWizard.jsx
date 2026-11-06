@@ -5,6 +5,7 @@ import { Modal, ErrorBox } from './ModalPrimitives';
 import Stepper from '@ui/components/Stepper';
 import WizardBody from './NewContextWizardBody';
 import WizardFooter from './NewContextWizardFooter';
+import UploadListFlow from './upload/UploadListFlow';
 import {
   stepsFor, groupByTargetType, wizardSubtitle, seedParamsFromSchema,
   pluginMissingParams, computeRefreshTargets,
@@ -14,19 +15,22 @@ import {
 // One stepped flow (matching the matrix / crawler wizards via the shared
 // Stepper) for every way of creating a context tree:
 //
-//   Step 1  Source        — Import from a system (→ Crawlers) · Derive from data · Create by hand
+//   Step 1  Source        — Import from a system (→ Crawlers) · Derive from data · Create by hand · Upload a list
 //   Plugin: Step 2 Pick plugin → Step 3 Configure → Step 4 Preview & run
 //   Manual: Step 2 Details (then Create)
+//   Upload: Step 2 File → Step 3 Mapping → Step 4 Preview & import (upload/UploadListFlow,
+//           which renders its own footer; `reimportListId` opens it on step 2 for that list)
 //
 // The step bodies live in NewContextWizardBody, the footer in
 // NewContextWizardFooter, and pure data shaping in NewContextWizard.helpers.
 
-export default function NewContextWizard({ open, onClose, onCreated, onRunStarted, onOpenCrawlers, onOpenBuilder }) {
+export default function NewContextWizard({ open, onClose, onCreated, onRunStarted, onOpenCrawlers, onOpenBuilder, reimportListId = null }) {
   const { authFetch } = useAuth();
   const canDescribe = useCanBuildContexts() && !!onOpenBuilder;
 
-  const [step, setStep] = useState(1);
-  const [source, setSource] = useState(null); // 'import' | 'plugin' | 'manual'
+  const reimporting = open && !!reimportListId;
+  const [step, setStep] = useState(reimporting ? 2 : 1);
+  const [source, setSource] = useState(reimporting ? 'upload' : null); // 'import' | 'plugin' | 'manual' | 'upload' | 'describe'
 
   // Shared / plugin data
   const [systems, setSystems] = useState([]);
@@ -88,6 +92,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
   if (open !== wasOpen) {
     setWasOpen(open);
     if (!open) resetAll();
+    else if (reimportListId) { setSource('upload'); setStep(2); }
   }
   function resetAll() {
     setStep(1); setSource(null);
@@ -222,33 +227,42 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
 
       <ErrorBox message={loadError} />
 
-      {/* ─── Step content ─── */}
-      <WizardBody
-        source={source} step={step} loading={loading}
-        setSource={setSource} canDescribe={canDescribe}
-        grouped={grouped} selected={selected} setSelected={setSelected}
-        params={params} setParams={setParams} systems={systems} principalAttrs={principalAttrs}
-        mode={mode} setMode={setMode} refreshKey={refreshKey} setRefreshKey={setRefreshKey}
-        refreshTargets={refreshTargets}
-        dryRunning={dryRunning} dryResult={dryResult} onDryRun={dryRun}
-        mTargetType={mTargetType} setMTargetType={setMTargetType}
-        mContextCategory={mContextCategory} setMContextCategory={setMContextCategory}
-        mContextType={mContextType} setMContextType={setMContextType}
-        mDisplayName={mDisplayName} setMDisplayName={setMDisplayName}
-        mDescription={mDescription} setMDescription={setMDescription}
-        mScopeSystemId={mScopeSystemId} setMScopeSystemId={setMScopeSystemId}
-      />
+      {source === 'upload' && step >= 2 ? (
+        <UploadListFlow
+          step={step} onStep={setStep} onBackToSource={() => setStep(1)} reimportListId={reimportListId}
+          onImported={(result) => { onCreated?.({ id: result.rootContextId }); onClose(); }}
+        />
+      ) : (
+        <>
+          {/* ─── Step content ─── */}
+          <WizardBody
+            source={source} step={step} loading={loading}
+            setSource={setSource} canDescribe={canDescribe}
+            grouped={grouped} selected={selected} setSelected={setSelected}
+            params={params} setParams={setParams} systems={systems} principalAttrs={principalAttrs}
+            mode={mode} setMode={setMode} refreshKey={refreshKey} setRefreshKey={setRefreshKey}
+            refreshTargets={refreshTargets}
+            dryRunning={dryRunning} dryResult={dryResult} onDryRun={dryRun}
+            mTargetType={mTargetType} setMTargetType={setMTargetType}
+            mContextCategory={mContextCategory} setMContextCategory={setMContextCategory}
+            mContextType={mContextType} setMContextType={setMContextType}
+            mDisplayName={mDisplayName} setMDisplayName={setMDisplayName}
+            mDescription={mDescription} setMDescription={setMDescription}
+            mScopeSystemId={mScopeSystemId} setMScopeSystemId={setMScopeSystemId}
+          />
 
-      <ErrorBox message={error} />
+          <ErrorBox message={error} />
 
-      {/* ─── Footer ─── */}
-      <WizardFooter
-        source={source} step={step} pluginMissing={pluginMissing}
-        showBack={step > 1} onBack={back}
-        running={running} dryRunning={dryRunning} mode={mode} refreshKey={refreshKey}
-        manualValid={manualValid} creating={creating} canNext={canNext()}
-        onRun={run} onCreate={createManual} onNext={next}
-      />
+          {/* ─── Footer ─── */}
+          <WizardFooter
+            source={source} step={step} pluginMissing={pluginMissing}
+            showBack={step > 1} onBack={back}
+            running={running} dryRunning={dryRunning} mode={mode} refreshKey={refreshKey}
+            manualValid={manualValid} creating={creating} canNext={canNext()}
+            onRun={run} onCreate={createManual} onNext={next}
+          />
+        </>
+      )}
     </Modal>
   );
 }

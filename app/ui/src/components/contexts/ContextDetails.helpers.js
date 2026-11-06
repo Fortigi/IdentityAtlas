@@ -12,7 +12,7 @@
 // and the bookkeeping flags; a business reader gets neither.
 
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
-import { friendlyLabel } from '@ui/utils/formatters';
+import { friendlyLabel, formatDate } from '@ui/utils/formatters';
 import { accessCountParts } from './ContextAccessCounts.helpers';
 
 // Shown elsewhere on the page, or internal (temporal columns, ids that only
@@ -28,7 +28,7 @@ const SHOWN_ELSEWHERE = [
 
 // The raw classification the subtitle sentence is built from: the analyst
 // sees it here as stored, a business reader only the sentence.
-const CLASSIFICATION = ['variant', 'targetType', 'contextType', 'contextCategory', 'scopeSystemName', 'sourceAlgorithmName'];
+const CLASSIFICATION = ['variant', 'targetType', 'contextType', 'contextCategory', 'scopeSystemName', 'scopeSystemType', 'sourceAlgorithmName'];
 
 // Bookkeeping that means nothing to a business reader.
 const ANALYST_ONLY = ['userRenamed', 'userReparented', 'directMemberCount', 'createdByUser'];
@@ -36,7 +36,16 @@ const ANALYST_ONLY = ['userRenamed', 'userReparented', 'directMemberCount', 'cre
 const ACCESS_COUNT_KEYS = ['resourceCount', 'directAssignmentCount', 'indirectAssignmentCount', 'eligibleAssignmentCount', 'holderCount'];
 
 // Labels that read better than the split column name.
-const DETAIL_LABELS = { lastCalculatedAt: 'Last updated' };
+const DETAIL_LABELS = {
+  lastCalculatedAt: 'Last updated',
+  // A context of an uploaded list (GET /api/contexts/:id adds these).
+  uploadedFrom: 'Uploaded from',
+  uploadedAt: 'Uploaded on',
+  uploadedBy: 'Uploaded by',
+  lastUploadFile: 'Last upload',
+  lastUploadAt: 'Last upload on',
+  lastUploadBy: 'Last upload by',
+};
 
 export function detailLabel(key) {
   return DETAIL_LABELS[key] || friendlyLabel(key);
@@ -61,4 +70,18 @@ export function detailEntries(attrs, opts) {
   if (!attrs) return [];
   const ext = attrs.extendedAttributes && typeof attrs.extendedAttributes === 'object' ? attrs.extendedAttributes : null;
   return buildAttributeEntries(attrs, ext, hiddenDetailKeys(attrs, opts));
+}
+
+// Where a context of an uploaded list came from, as the one line under its
+// header (UploadProvenance.jsx): "Uploaded from klanten.xlsx on 3 Oct 2026 by …;
+// last updated by an upload of klanten-v2.xlsx on 20 Oct 2026. This unit exists
+// since 3 Oct 2026." Null for any other context.
+export function provenanceText(attrs) {
+  if (!attrs?.uploadedFrom) return null;
+  const by = attrs.uploadedBy && attrs.uploadedBy !== 'unknown' ? ` by ${attrs.uploadedBy}` : '';
+  const updated = attrs.lastUploadAt && attrs.lastUploadAt !== attrs.uploadedAt
+    ? `; last updated by an upload of ${attrs.lastUploadFile} on ${formatDate(attrs.lastUploadAt)}`
+    : '';
+  const since = attrs.createdAt ? ` This unit exists since ${formatDate(attrs.createdAt)}.` : '';
+  return `Uploaded from ${attrs.uploadedFrom} on ${formatDate(attrs.uploadedAt)}${by}${updated}.${since}`;
 }

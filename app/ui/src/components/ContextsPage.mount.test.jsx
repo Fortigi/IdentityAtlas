@@ -310,6 +310,34 @@ describe('ContextsPage — editing the tree', () => {
     await shownContext('Sales OUs');
   });
 
+  it('an uploaded list is imported, yet offers Re-import… alone; it opens the wizard on that list', async () => {
+    const UPLOADED = {
+      ...SYNCED, id: 'root-upl', displayName: 'Klanten', scopeSystemId: 42, scopeSystemName: 'Klanten (upload)', scopeSystemType: 'Upload',
+    };
+    const lists = [{ id: 42, displayName: 'Klanten (upload)', fileName: 'klanten.xlsx', uploadedAt: '2026-10-01T10:00:00.000Z' }];
+    const { user } = mount({
+      roots: [UPLOADED, SYNCED], select: null,
+      answer: (u) => (u === '/api/contexts/uploads' ? { data: lists } : undefined),
+    });
+    await waitFor(() => expect(menuFor('Klanten')).toBeInTheDocument());
+    // The other imported tree still has no menu: only an upload list is re-imported here.
+    expect(menuFor('Sales OUs')).toBeNull();
+    const menu = await openMenu(user, 'Klanten');
+    expect(within(menu).getAllByRole('menuitem').map(i => i.textContent)).toEqual(['Re-import…']);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Re-import…' }));
+    expect(await screen.findByText('New context tree')).toBeInTheDocument();
+    const picker = await screen.findByRole('combobox', { name: 'Update an existing list' });
+    await waitFor(() => expect(picker).toHaveValue('42'));
+    expect(picker).toBeDisabled();
+  });
+
+  it('a reader gets no Re-import on an uploaded list', async () => {
+    const UPLOADED = { ...SYNCED, id: 'root-upl', displayName: 'Klanten', scopeSystemType: 'Upload' };
+    mount({ roots: [UPLOADED], select: null, auth: READER });
+    await screen.findByText('Klanten');
+    expect(menuFor('Klanten')).toBeNull();
+  });
+
   it('a tree created here offers Delete but not Refresh', async () => {
     const MANUAL = { ...GEN, id: 'root-man', displayName: 'Projects', variant: 'manual', sourceAlgorithmName: null };
     const { user } = mount({ roots: [MANUAL], select: null });

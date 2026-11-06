@@ -73,12 +73,12 @@ describe('NewContextWizard (mounted)', () => {
     expect(screen.queryByText('New context tree')).not.toBeInTheDocument();
   });
 
-  it('shows the three source cards on step 1, in plain words and without a colour per source', async () => {
+  it('shows the four source cards on step 1, in plain words and without a colour per source', async () => {
     mockCanBuildContexts.mockReturnValue(false);
     renderWizard(routes());
     expect(await screen.findByText('New context tree')).toBeInTheDocument();
     expect(screen.getByText('Where should this come from?')).toBeInTheDocument();
-    const cards = ['Import from a system', 'Derive from data', 'Create by hand'].map(t => screen.getByRole('button', { name: new RegExp(`^${t}`) }));
+    const cards = ['Import from a system', 'Derive from data', 'Create by hand', 'Upload a list'].map(t => screen.getByRole('button', { name: new RegExp(`^${t}`) }));
     for (const card of cards) {
       expect(card.textContent).not.toMatch(/plugin|from a crawler|manual|curate/i);
       expect(card.querySelector('[class*="bg-blue-500"], [class*="bg-amber-500"], [class*="bg-slate-500"]')).toBeNull();
