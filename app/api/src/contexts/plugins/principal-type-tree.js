@@ -53,6 +53,7 @@ export default {
     'all managed identities / AI agents / service principals access?". Optionally restrict to chosen ' +
     'values (e.g. ManagedIdentity) and/or a single system.',
   targetType: 'Principal',
+  contextTypes: ['PrincipalTypeRoot', 'PrincipalType'],
   parametersSchema: {
     type: 'object',
     properties: {

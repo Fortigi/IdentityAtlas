@@ -38,6 +38,12 @@ Restart the worker container after adding the folder. The new crawler appears in
 ```json
 {
   "type": "my-source",
+  "emits": {
+    "principalTypes": ["User"],
+    "resourceTypes": ["Entitlement"],
+    "contextTypes": [],
+    "open": ["resourceType"]
+  },
   "displayName": "My Source System",
   "entryPoint": "Start-MySourceCrawler.ps1",
   "dependsOn": [],
@@ -56,11 +62,12 @@ Restart the worker container after adding the folder. The new crawler appears in
 | Field | Required | Description |
 |---|---|---|
 | `type` | ✅ | Unique key — becomes the `jobType` in `CrawlerJobs`. Use the folder name. |
+| `emits` | ✅ | The types this crawler writes: `principalTypes`, `resourceTypes` and `contextTypes` list the fixed values and the defaults of its built-in mappings; `open` lists the type fields (`principalType`, `resourceType`, `contextType`) it fills from source data or configuration. CI checks every value against the [core ontology](../concepts/ontology.md#the-types), and checks that your sources write no type literal the list leaves out. A new type value therefore needs a class in `ontology/core.ttl` with `ia:emittedBy "<your type>"` — see [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md#a-type-a-crawler-writes). |
 | `displayName` | ✅ | Name shown in the UI. |
 | `entryPoint` | ✅ | Entry point filename, relative to the crawler folder. |
 | `dependsOn` | — | Other crawler types whose library files are dot-sourced before this one runs. |
 | `configSchema` | — | [JSON Schema](https://json-schema.org/) object. The UI renders a form from it; the API validates configs against it before queueing. |
-| `postSyncHooks` | — | `"buildContexts"` derives org-unit contexts after a sync. Most user-syncing crawlers should include it. The historical `"accountCorrelation"` hook is now a **no-op** — account-to-identity matching moved to the scheduler-driven [Account Linking](../architecture/account-linking.md) engine — so new crawlers should omit it. |
+| `postSyncHooks` | — | `"buildContexts"` calls the old `refresh-contexts` endpoint, which no longer exists in the API — department and manager trees now come from the `department-from-principal` and `manager-hierarchy` [context plugins](../architecture/context-redesign.md#42-initial-plugin-set), so the hook only logs a non-critical failure. The historical `"accountCorrelation"` hook is now a **no-op** — account-to-identity matching moved to the scheduler-driven [Account Linking](../architecture/account-linking.md) engine — so new crawlers should omit it. |
 
 **If your `configSchema` marks a secret field (`clientSecret`, or one of `password`/`apiToken`/`cookieString`) as `required`** — directly, or conditionally via `allOf`/`if`-`then` keyed off an auth-method property, the way `omada`'s and `midPoint`'s schemas do for `OAuth2CC`/`OAuth2ROPC` — you get correct vault-aware validation for free, with no code on your part. `clientSecret` is stripped out of the stored config JSON on every save (it lives only in the secrets vault), so a config freshly loaded from storage never has it; every place that validates such a config (an edit, a "Run Now", a scheduled run) calls `validateStoredCrawlerConfig(type, config, configId)` instead of the raw schema validator, which checks the vault before concluding the field is genuinely missing. See `app/api/CLAUDE.md` → "Crawler Job System" for the mechanism, and `app/api/src/crawlerManifests.test.js` for the test coverage.
 
@@ -223,7 +230,7 @@ Two rules for a crawler in this position:
 - **Swagger UI:** `<ApiBaseUrl>/docs` (e.g. `http://localhost:3001/api/docs`) — interactive, try-it-out enabled
 - **Raw spec:** `<ApiBaseUrl>/openapi.json`
 
-As of this writing the ingest surface covers: `/ingest/systems`, `/ingest/principals`, `/ingest/resources`, `/ingest/resource-assignments`, `/ingest/resource-relationships`, `/ingest/identities`, `/ingest/identity-members`, `/ingest/contexts`, `/ingest/governance/catalogs`, `/ingest/governance/policies`, `/ingest/governance/requests`, `/ingest/governance/certifications`, and `/ingest/refresh-views` — see [Data Model](../concepts/data-model.md) and [Governance Model](../concepts/governance-model.md) for what each table represents. Don't hand-roll a request shape from memory or by copying another crawler — check the spec first (it's hand-maintained in `app/api/src/openapi.yaml`, lint-checked by Spectral in CI for internal consistency, but not auto-generated from the route handlers, so treat the live route's validation as the final authority if the two ever disagree).
+As of this writing the ingest surface covers: `/ingest/systems`, `/ingest/principals`, `/ingest/resources`, `/ingest/resource-assignments`, `/ingest/resource-assignments-identity`, `/ingest/resource-relationships`, `/ingest/principal-relationships`, `/ingest/identities`, `/ingest/identity-members`, `/ingest/contexts`, `/ingest/context-members`, `/ingest/governance/catalogs`, `/ingest/governance/policies`, `/ingest/governance/requests`, `/ingest/governance/certifications`, and `/ingest/refresh-views` — see [Data Model](../concepts/data-model.md) and [Governance Model](../concepts/governance-model.md) for what each table represents. Don't hand-roll a request shape from memory or by copying another crawler — check the spec first (it's hand-maintained in `app/api/src/openapi.yaml`, lint-checked by Spectral in CI for internal consistency, but not auto-generated from the route handlers, so treat the live route's validation as the final authority if the two ever disagree).
 
 ---
 

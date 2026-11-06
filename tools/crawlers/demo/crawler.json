@@ -1,5 +1,11 @@
 {
   "type": "demo",
+  "emits": {
+    "principalTypes": ["User", "ExternalUser", "ServicePrincipal", "AIAgent", "SharedMailbox", "ManagedIdentity"],
+    "resourceTypes": ["Group", "EntraDirectoryRole", "AppRole", "GroupOwnership", "Application", "DelegatedPermission", "BusinessRole", "AzureScope", "AzureResourceGroup", "AzureResource", "AzureRoleAssignment", "SAPRole", "CRMRole", "ApplicationOwnership", "ServicePrincipalOwnership"],
+    "contextTypes": ["Department", "Team", "AdministrativeUnit"],
+    "open": []
+  },
   "displayName": "Demo Dataset",
   "entryPoint": "Start-DemoCrawler.ps1",
   "singletonJob": true,

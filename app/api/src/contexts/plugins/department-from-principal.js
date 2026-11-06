@@ -17,6 +17,7 @@ export default {
   description:
     'Creates one Department context per unique department value on Principals and assigns each principal as a member. Run after a CSV or Entra sync.',
   targetType: 'Principal',
+  contextTypes: ['Department'],
   parametersSchema: {
     type: 'object',
     properties: {

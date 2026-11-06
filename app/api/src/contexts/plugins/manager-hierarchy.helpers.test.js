@@ -210,3 +210,62 @@ describe('manager-hierarchy helpers — buildMemberRows', () => {
     expect(of('ic2')).toEqual(['root']);
   });
 });
+
+// What the plugin hands the runner for the awkward shapes of real reporting
+// data. The runner then refuses any parent link that would close a loop
+// (runner.refresh.test.js, contract-tests/runnerCycle.contract.test.js), so a
+// node below ends up as a root without a parent. The core ontology describes
+// this (ia:ManagerHierarchyContext in ontology/core.ttl); keep the two in step.
+describe('manager-hierarchy helpers — irregular reporting lines', () => {
+  const naming = { resolved: [], separator: ' · ', includeManagerName: false };
+  const build = (rows) => {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const { managerIds } = buildManagerIds(rows, byId, [], new Map());
+    const contexts = buildManagerContexts(managerIds, byId, 'root', naming);
+    const members = buildMemberRows(rows, managerIds, new Map(), 'root');
+    const of = (id) => members.filter((m) => m.memberId === id).map((m) => m.contextExternalId);
+    return { managerIds, byExt: Object.fromEntries(contexts.map((c) => [c.externalId, c])), of };
+  };
+
+  it('records the manager only as the node externalId (the manager principal id)', () => {
+    const { byExt } = build([
+      { id: 'mgr-uuid', displayName: 'Mia', managerId: null },
+      { id: 'ic', displayName: 'Ian', managerId: 'mgr-uuid' },
+    ]);
+    expect(Object.keys(byExt)).toEqual(['mgr-uuid']);
+    expect(byExt['mgr-uuid']).toEqual({
+      externalId: 'mgr-uuid', displayName: 'Mia', contextType: 'ManagerHierarchy', parentExternalId: 'root',
+    });
+  });
+
+  it('keeps a manager who is not an account of the system as a node named Unknown', () => {
+    // ic reports to an id that is not among the loaded principals (another
+    // system, or deleted). The node still exists — reports do NOT fall to root.
+    const { byExt, of } = build([{ id: 'ic', displayName: 'Ian', managerId: 'gone' }]);
+    expect(byExt.gone).toMatchObject({ displayName: 'Unknown', parentExternalId: 'root' });
+    expect(of('ic')).toEqual(['gone']);
+  });
+
+  it('emits a self-parented node for a self-managed account, with the account as its own member', () => {
+    const { byExt, of } = build([
+      { id: 'a', displayName: 'Ann', managerId: 'a' },
+      { id: 'b', displayName: 'Ben', managerId: 'a' },
+    ]);
+    expect(byExt.a.parentExternalId).toBe('a'); // the runner refuses this link: a ends up without parent
+    expect(of('a')).toEqual(['a']);
+    expect(of('b')).toEqual(['a']);
+  });
+
+  it('emits both halves of a two-person reporting loop; the runner keeps one', () => {
+    const { byExt, of } = build([
+      { id: 'a', displayName: 'Ann', managerId: 'b' },
+      { id: 'b', displayName: 'Ben', managerId: 'a' },
+    ]);
+    expect(byExt.a.parentExternalId).toBe('b');
+    expect(byExt.b.parentExternalId).toBe('a');
+    expect(of('a')).toEqual(['b']);
+    expect(of('b')).toEqual(['a']);
+    // Neither is a member of the root: the loop is detached from the tree.
+    expect([...of('a'), ...of('b')]).not.toContain('root');
+  });
+});

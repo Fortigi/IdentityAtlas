@@ -1,5 +1,11 @@
 {
   "type": "custom-connector",
+  "emits": {
+    "principalTypes": [],
+    "resourceTypes": [],
+    "contextTypes": [],
+    "open": ["principalType", "resourceType", "contextType"]
+  },
   "displayName": "Custom Connector",
   "entryPoint": "Start-CustomConnector.ps1",
   "pushMode": true,

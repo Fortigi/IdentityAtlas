@@ -9,6 +9,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { recalcMemberCountsForChain } from '../../contexts/memberCounts.js';
 import { useSql, UUID_RE, writeContexts } from './shared.js';
+import { MANAGER_HIERARCHY_CONTEXT_TYPE } from '../../contexts/plugins/manager-hierarchy.helpers.js';
 
 const router = Router();
 
@@ -93,7 +94,7 @@ router.patch('/contexts/:id/members/:memberId/move', writeContexts, async (req, 
   const from = await db.queryOne(`SELECT "contextType", "targetType" FROM "Contexts" WHERE id = $1`, [id]);
   const to   = await db.queryOne(`SELECT "contextType", "targetType", "externalId" FROM "Contexts" WHERE id = $1`, [toContextId]);
   if (!from || !to) return res.status(404).json({ error: 'Context not found' });
-  if (from.contextType !== 'ManagerHierarchy' || to.contextType !== 'ManagerHierarchy') {
+  if (from.contextType !== MANAGER_HIERARCHY_CONTEXT_TYPE || to.contextType !== MANAGER_HIERARCHY_CONTEXT_TYPE) {
     return res.status(400).json({ error: 'Moving members is only supported in the Manager Hierarchy tree.' });
   }
 

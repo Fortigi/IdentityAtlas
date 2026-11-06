@@ -11,9 +11,10 @@
 //   - Contexts in the plugin output that don't exist yet get INSERT.
 //   - Existing contexts that still appear in the output get UPDATE.
 //   - Contexts previously produced by this (algorithm, scope) that are NOT
-//     in the new output get DELETE. Manual children grafted under a
-//     generated parent survive — the FK is ON DELETE CASCADE on parent, so
-//     we only delete rows we own (variant='generated').
+//     in the new output get DELETE. We only delete rows we own, but the FK
+//     is ON DELETE CASCADE on parent: a manual (or analyst-reparented) child
+//     still grafted under a deleted node is deleted with it. Children of a
+//     node that is still produced survive.
 //   - Members with addedBy='algorithm' are fully replaced by the new set
 //     for contexts we own. Members with addedBy='analyst' or 'sync' survive.
 

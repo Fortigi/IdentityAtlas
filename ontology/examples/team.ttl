@@ -1,0 +1,104 @@
+# Worked example: one small team, described with the Identity Atlas core ontology.
+#
+# Fictional people and systems. Every resource below is an instance of a class
+# from ontology/core.ttl, and every property is one of its terms — this is
+# what the data in an Identity Atlas database looks like when it is written as
+# RDF. `npm run ontology:check` (app/api) validates this file against the
+# ontology, and the picture on docs/concepts/ontology.md is generated from it,
+# so neither can drift from the model.
+#
+# Rows of the edge tables (assignments, identity and context memberships) are
+# resources of their own, because they carry fields. A resource-to-resource
+# relationship (Contains, HasAppRole …) is written as the direct shortcut
+# property between the two resources.
+
+@prefix ia: <https://identityatlas.io/ontology#> .
+@prefix ex: <https://identityatlas.io/example#> .
+
+# ── A source system ──────────────────────────────────────────────────────────
+ex:entra a ia:System ;
+    ia:displayName "Entra ID" .
+
+# ── Two people and their accounts ────────────────────────────────────────────
+ex:anna a ia:Identity ;
+    ia:displayName "Anna de Vries" .
+
+ex:annaAccount a ia:User ;
+    ia:displayName "anna.devries@example.org" ;
+    ia:systemId ex:entra ;
+    ia:managerId ex:pietAccount .
+
+ex:pietAccount a ia:User ;
+    ia:displayName "piet.jansen@example.org" ;
+    ia:systemId ex:entra .
+
+ex:annaIsAnna a ia:IdentityMember ;          # account correlation: this account is Anna
+    ia:identityId ex:anna ;
+    ia:principalId ex:annaAccount .
+
+# ── An AI agent that holds access as its own account ─────────────────────────
+ex:plannerBot a ia:AIAgent ;
+    ia:displayName "Planning assistant" ;
+    ia:systemId ex:entra .
+
+# ── What can be held ─────────────────────────────────────────────────────────
+ex:planningGroup a ia:Group ;
+    ia:displayName "SG-Berth-Planning" ;
+    ia:systemId ex:entra .
+
+ex:plannerRole a ia:BusinessRole ;            # a governance construct (access package)
+    ia:displayName "Berth planner" ;
+    ia:systemId ex:entra ;
+    ia:contains ex:planningGroup .
+
+ex:berthApp a ia:Application ;
+    ia:displayName "Berth Planning System" ;
+    ia:systemId ex:entra ;
+    ia:hasAppRole ex:berthPlanner .
+
+ex:berthPlanner a ia:AppRole ;
+    ia:displayName "Planner" ;
+    ia:systemId ex:entra .
+
+# ── Who holds what (rows of ResourceAssignments) ─────────────────────────────
+ex:annaHoldsRole a ia:ResourceAssignment ;
+    ia:principalId ex:annaAccount ;
+    ia:resourceId ex:plannerRole ;
+    ia:assignmentType "Direct" ;
+    ia:governed true ;
+    ia:origin "Requested" .
+
+ex:annaInGroup a ia:ResourceAssignment ;
+    ia:principalId ex:annaAccount ;
+    ia:resourceId ex:planningGroup ;
+    ia:assignmentType "Direct" .
+
+ex:annaHasAppRole a ia:ResourceAssignment ;   # through the group: Indirect
+    ia:principalId ex:annaAccount ;
+    ia:resourceId ex:berthPlanner ;
+    ia:assignmentType "Indirect" .
+
+ex:botHasAppRole a ia:ResourceAssignment ;
+    ia:principalId ex:plannerBot ;
+    ia:resourceId ex:berthPlanner ;
+    ia:assignmentType "Direct" .
+
+# ── The team, as the manager-hierarchy plugin builds it ──────────────────────
+ex:orgRoot a ia:ManagerHierarchyContext ;
+    ia:displayName "Organisation" ;
+    ia:targetType "Principal" ;
+    ia:variant "generated" ;
+    ia:externalId "root" .
+
+ex:pietsTeam a ia:ManagerHierarchyContext ;   # the manager is recorded in externalId only
+    ia:displayName "Berth Planning (Piet Jansen)" ;
+    ia:targetType "Principal" ;
+    ia:variant "generated" ;
+    ia:externalId "pietAccount" ;
+    ia:parentContextId ex:orgRoot .
+
+ex:annaInPietsTeam a ia:ContextMember ;
+    ia:contextId ex:pietsTeam ;
+    ia:memberId ex:annaAccount ;
+    ia:memberType "Principal" ;
+    ia:addedBy "algorithm" .

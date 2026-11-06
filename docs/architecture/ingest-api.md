@@ -135,14 +135,18 @@ Response — `201 Created`:
 
 | Endpoint | Target Table | Key Column(s) | Scope Filters |
 |----------|-------------|----------------|---------------|
-| `POST /api/ingest/systems` | Systems | `id` (INT, auto) | — |
+| `POST /api/ingest/systems` | Systems | `(systemType, tenantId)` (`id` INT, auto) | — |
 | `POST /api/ingest/principals` | Principals | `id` (GUID) | `principalType` |
 | `POST /api/ingest/resources` | Resources | `id` (GUID) | `resourceType` |
-| `POST /api/ingest/resource-assignments` | ResourceAssignments | `(resourceId, principalId, assignmentType, governed)` | `assignmentType` |
+| `POST /api/ingest/resource-assignments` | ResourceAssignments | `(resourceId, principalId, assignmentType, governed)` | `assignmentType`, `resourceType`, `governed` |
+| `POST /api/ingest/resource-assignments-identity` | ResourceAssignments | `(resourceId, identityId, assignmentType, governed)` | `assignmentType`, `resourceType`, `governed` |
 | `POST /api/ingest/resource-relationships` | ResourceRelationships | `(parentResourceId, childResourceId, relationshipType)` | `relationshipType` |
+| `POST /api/ingest/principal-relationships` | PrincipalRelationships | `(principalId, relatedPrincipalId, relationshipType)` | `relationshipType` |
 | `POST /api/ingest/identities` | Identities | `id` (GUID) | — |
 | `POST /api/ingest/identity-members` | IdentityMembers | `(identityId, principalId)` | — |
-| `POST /api/ingest/contexts` | Contexts | `id` (GUID) | `contextType` |
+| `POST /api/ingest/contexts` | Contexts | `id` (GUID) | `variant`, `contextType`, `scopeSystemId`, `sourceAlgorithmId` |
+| `POST /api/ingest/context-members` | ContextMembers | `(contextId, memberId)` | `contextId` |
+| `POST /api/ingest/principal-activity` | PrincipalActivity | `(principalId, resourceId, activityType)` | — |
 | `POST /api/ingest/governance/catalogs` | GovernanceCatalogs | `id` (GUID) | — |
 | `POST /api/ingest/governance/policies` | AssignmentPolicies | `id` (GUID) | — |
 | `POST /api/ingest/governance/requests` | AssignmentRequests | `id` (GUID) | — |
@@ -291,6 +295,7 @@ six hours after it was opened.
 
 No external IdP dependency. The API manages its own crawler credentials.
 
+<!-- ontology: out-of-scope — crawler credential tables, not the graph model -->
 ```mermaid
 erDiagram
     Crawlers {
@@ -448,12 +453,12 @@ A key can hold at most 3 multi-batch sessions open at once, and the API at most 
 | `systemId` | Must exist in Systems table AND be in crawler's allowed systems |
 | `displayName` | Required, max 255 chars |
 | `principalType` | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` |
-| `resourceType` | Free-form text — no enum check. Values currently emitted by crawlers: `Group`, `BusinessRole`, `Application`, `AppRole`, `DelegatedPermission`, `EntraDirectoryRole`, `GroupOwnership`, `ApplicationOwnership`, `ServicePrincipalOwnership` |
+| `resourceType` | Free-form text — no enum check. Values the application relies on: `Group`, `BusinessRole`, `Application`, `AppRole`, `DelegatedPermission`, `ApplicationPermission`, `EntraDirectoryRole`, `GroupOwnership`, `ApplicationOwnership`, `ServicePrincipalOwnership`, `ResourceOwnership` |
 | `assignmentType` | One of exactly: `Direct`, `Indirect`, `Eligible` — ingest **rejects** any other value. Everything that used to be its own type is modelled differently: ownership is a `Direct` membership on a `GroupOwnership`/`*Ownership` resource; governance is the `governed=true` flag on the assignment; the former source-detail types (`OAuth2Grant`, `AppRole`, `AppRoleViaGroup`, `DirectoryRole`, `DirectoryRoleEligible`) collapse to `Direct`/`Indirect`/`Eligible` with `resourceType` carrying the detail |
 | `origin` | Optional, on assignments. One of exactly: `Automatic` (a rule or birthright policy assigned it), `Requested` (it was requested and approved), `Discovered` (the source found it on the target system) — ingest **rejects** any other value. Leave it out when the source does not say; that is not the same as `Discovered`. Not part of the row key or the reconcile scope, so a grant whose origin changes is the same row |
 | `originDetail` | Optional, on assignments, max 100 chars. The source's own word for the origin (IdentityIQ: `Rule`, `LCM`, `Aggregation`, …), kept so the grouping into `origin` can be audited |
-| `relationshipType` | One of: `Contains`, `HasAppRole`, `DelegatesScope`, `HasApplicationPermission`, `HasAppOwnership`, `HasOwnership` (`GrantsAccessTo` is accepted but reserved / not yet emitted) |
-| `extendedAttributes` | Valid JSON object, max 64 KB |
+| `relationshipType` | On resource relationships, one of: `Contains`, `GrantsAccessTo`, `HasAppRole`, `DelegatesScope`, `HasApplicationPermission`, `HasAppOwnership`, `HasOwnership` (`GrantsAccessTo` is emitted by the CSV and SQL connectors and the demo dataset; no built-in crawler uses it). On principal relationships, one of: `Owner`, `Sponsor` |
+| `extendedAttributes` | Valid JSON object, at most 500 keys and 512 KB |
 
 ---
 

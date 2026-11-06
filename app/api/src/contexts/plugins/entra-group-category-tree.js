@@ -24,6 +24,7 @@ export default {
     'child context per category holding the matching groups. Lets you browse or filter by the ' +
     'kind of group.',
   targetType: 'Resource',
+  contextTypes: ['EntraGroupRoot', 'EntraGroupCategory'],
   parametersSchema: {
     type: 'object',
     properties: {

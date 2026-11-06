@@ -15,7 +15,7 @@
  *   externalId must be unique within the plugin's output.
  * @property {string} externalId         Stable id within this plugin run.
  * @property {string} displayName
- * @property {string} contextType        Free-form sub-classification.
+ * @property {string} contextType        Sub-classification; one of the plugin's contextTypes.
  * @property {string} [description]
  * @property {string} [parentExternalId] Optional parent (must match another node's externalId in the same run).
  * @property {Object} [extendedAttributes]
@@ -46,6 +46,11 @@
  * @property {string} displayName
  * @property {string} description
  * @property {('Identity'|'Resource'|'Principal'|'System')} targetType
+ * @property {string[]} contextTypes      Every contextType the plugin can emit. The core
+ *                                        ontology (ontology/core.ttl) declares each one;
+ *                                        npm run ontology:check compares the two.
+ * @property {boolean} [contextTypesFromResourceType]  True when nodes below the declared
+ *                                        types are typed after a resourceType (open list).
  * @property {Object} parametersSchema    JSON-Schema-ish (required + properties).
  * @property {Function} run               (params, ctx) => Promise<PluginRunResult>
  */

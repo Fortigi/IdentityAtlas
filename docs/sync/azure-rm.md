@@ -56,7 +56,7 @@ Add it from **Admin → Crawlers → Add Crawler → Azure Resource Manager**, o
 | Each declared role assignment | one `Role @ Scope` capability-resource (`resourceType='AzureRoleAssignment'`) + a `Direct` `allow` assignment to the principal |
 | Built-in + custom role definitions | resolved to friendly role names on the capability-resources |
 | Users / service principals referenced by assignments | thin `Principals` stubs (named once the Entra crawler runs) |
-| Management groups + subscriptions | also emitted as **Contexts** for matrix filtering |
+| Management groups + subscriptions | not emitted as Contexts by the crawler — the `scope-hierarchy` and `resource-type-tree` context plugins generate those trees from the scope Resources for matrix filtering |
 
 **Worked example:** a `Contributor` assignment at *Subscription Foo* becomes one
 `Contributor @ Subscription Foo` resource with one assignment. Querying effective access on a
