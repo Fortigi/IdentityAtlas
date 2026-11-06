@@ -872,6 +872,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/governance-model/" class="md-nav__link">
         
   
@@ -3373,6 +3401,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../csv-import-schema/" class="md-nav__link">
         
   
@@ -3473,10 +3529,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="">
             
   
   
@@ -3494,8 +3550,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3504,6 +3560,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4171,6 +4255,34 @@
     
   
     Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
   
 
     
@@ -6126,7 +6238,7 @@
 <tr>
 <td><code>POST /api/ingest/systems</code></td>
 <td>Systems</td>
-<td><code>id</code> (INT, auto)</td>
+<td><code>(systemType, tenantId)</code> (<code>id</code> INT, auto)</td>
 <td>—</td>
 </tr>
 <tr>
@@ -6145,12 +6257,24 @@
 <td><code>POST /api/ingest/resource-assignments</code></td>
 <td>ResourceAssignments</td>
 <td><code>(resourceId, principalId, assignmentType, governed)</code></td>
-<td><code>assignmentType</code></td>
+<td><code>assignmentType</code>, <code>resourceType</code>, <code>governed</code></td>
+</tr>
+<tr>
+<td><code>POST /api/ingest/resource-assignments-identity</code></td>
+<td>ResourceAssignments</td>
+<td><code>(resourceId, identityId, assignmentType, governed)</code></td>
+<td><code>assignmentType</code>, <code>resourceType</code>, <code>governed</code></td>
 </tr>
 <tr>
 <td><code>POST /api/ingest/resource-relationships</code></td>
 <td>ResourceRelationships</td>
 <td><code>(parentResourceId, childResourceId, relationshipType)</code></td>
+<td><code>relationshipType</code></td>
+</tr>
+<tr>
+<td><code>POST /api/ingest/principal-relationships</code></td>
+<td>PrincipalRelationships</td>
+<td><code>(principalId, relatedPrincipalId, relationshipType)</code></td>
 <td><code>relationshipType</code></td>
 </tr>
 <tr>
@@ -6169,7 +6293,19 @@
 <td><code>POST /api/ingest/contexts</code></td>
 <td>Contexts</td>
 <td><code>id</code> (GUID)</td>
-<td><code>contextType</code></td>
+<td><code>variant</code>, <code>contextType</code>, <code>scopeSystemId</code>, <code>sourceAlgorithmId</code></td>
+</tr>
+<tr>
+<td><code>POST /api/ingest/context-members</code></td>
+<td>ContextMembers</td>
+<td><code>(contextId, memberId)</code></td>
+<td><code>contextId</code></td>
+</tr>
+<tr>
+<td><code>POST /api/ingest/principal-activity</code></td>
+<td>PrincipalActivity</td>
+<td><code>(principalId, resourceId, activityType)</code></td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>POST /api/ingest/governance/catalogs</code></td>
@@ -6352,6 +6488,7 @@ six hours after it was opened.</p>
 <h2 id="crawler-authentication">Crawler Authentication<a class="headerlink" href="#crawler-authentication" title="Permanent link">&para;</a></h2>
 <h3 id="self-contained-api-keys">Self-Contained API Keys<a class="headerlink" href="#self-contained-api-keys" title="Permanent link">&para;</a></h3>
 <p>No external IdP dependency. The API manages its own crawler credentials.</p>
+<!-- ontology: out-of-scope — crawler credential tables, not the graph model -->
 <pre class="mermaid"><code>erDiagram
     Crawlers {
         int id PK
@@ -6548,7 +6685,7 @@ bound against real PostgreSQL.</p>
 </tr>
 <tr>
 <td><code>resourceType</code></td>
-<td>Free-form text — no enum check. Values currently emitted by crawlers: <code>Group</code>, <code>BusinessRole</code>, <code>Application</code>, <code>AppRole</code>, <code>DelegatedPermission</code>, <code>EntraDirectoryRole</code>, <code>GroupOwnership</code>, <code>ApplicationOwnership</code>, <code>ServicePrincipalOwnership</code></td>
+<td>Free-form text — no enum check. Values the application relies on: <code>Group</code>, <code>BusinessRole</code>, <code>Application</code>, <code>AppRole</code>, <code>DelegatedPermission</code>, <code>ApplicationPermission</code>, <code>EntraDirectoryRole</code>, <code>GroupOwnership</code>, <code>ApplicationOwnership</code>, <code>ServicePrincipalOwnership</code>, <code>ResourceOwnership</code></td>
 </tr>
 <tr>
 <td><code>assignmentType</code></td>
@@ -6564,11 +6701,11 @@ bound against real PostgreSQL.</p>
 </tr>
 <tr>
 <td><code>relationshipType</code></td>
-<td>One of: <code>Contains</code>, <code>HasAppRole</code>, <code>DelegatesScope</code>, <code>HasApplicationPermission</code>, <code>HasAppOwnership</code>, <code>HasOwnership</code> (<code>GrantsAccessTo</code> is accepted but reserved / not yet emitted)</td>
+<td>On resource relationships, one of: <code>Contains</code>, <code>GrantsAccessTo</code>, <code>HasAppRole</code>, <code>DelegatesScope</code>, <code>HasApplicationPermission</code>, <code>HasAppOwnership</code>, <code>HasOwnership</code> (<code>GrantsAccessTo</code> is emitted by the CSV and SQL connectors and the demo dataset; no built-in crawler uses it). On principal relationships, one of: <code>Owner</code>, <code>Sponsor</code></td>
 </tr>
 <tr>
 <td><code>extendedAttributes</code></td>
-<td>Valid JSON object, max 64 KB</td>
+<td>Valid JSON object, at most 500 keys and 512 KB</td>
 </tr>
 </tbody>
 </table>

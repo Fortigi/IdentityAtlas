@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/csv-import-schema/">
       
       
-        <link rel="prev" href="../../reference/sql-views/">
+        <link rel="prev" href="../../reference/core-model/">
       
       
         <link rel="next" href="../../reference/sbom/">
@@ -852,6 +852,34 @@
     
   
     Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
   
 
     
@@ -3022,6 +3050,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -3168,6 +3224,17 @@
     <span class="md-ellipsis">
       
         6. Contexts.csv (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6b-contextmemberscsv-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6b. ContextMembers.csv (optional)
       
     </span>
   </a>
@@ -3371,10 +3438,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="">
             
   
   
@@ -3392,8 +3459,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3402,6 +3469,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4069,6 +4164,34 @@
     
   
     Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
   
 
     
@@ -5570,6 +5693,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#6b-contextmemberscsv-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6b. ContextMembers.csv (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#7-identitiescsv-optional" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5903,7 +6037,7 @@
 <td><code>PrincipalType</code></td>
 <td>string</td>
 <td>no</td>
-<td>One of: <code>User</code>, <code>ServicePrincipal</code>, <code>ExternalUser</code>, <code>SharedMailbox</code>. Default: <code>User</code></td>
+<td>One of: <code>User</code>, <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>ExternalUser</code>, <code>SharedMailbox</code>. Any other value falls back to <code>User</code>. Default: <code>User</code></td>
 </tr>
 <tr>
 <td><code>JobTitle</code></td>
@@ -5915,7 +6049,7 @@
 <td><code>Department</code></td>
 <td>string</td>
 <td>no</td>
-<td>Used to derive OrgUnit contexts when no <code>Contexts.csv</code> is provided</td>
+<td>Stored on the account; the <code>department-from-principal</code> context plugin can turn it into <code>Department</code> contexts</td>
 </tr>
 <tr>
 <td><code>ManagerExternalId</code></td>
@@ -6016,7 +6150,7 @@
 </tbody>
 </table>
 <h4 id="6-contextscsv-optional">6. <code>Contexts.csv</code> (optional)<a class="headerlink" href="#6-contextscsv-optional" title="Permanent link">&para;</a></h4>
-<p>Organisational units, departments, cost centres. If omitted, contexts are derived automatically from <code>Users.csv → Department</code> column.</p>
+<p>Organisational units, departments, cost centres. Every row becomes a <code>synced</code> context. If omitted, no synced contexts are created; run the <code>department-from-principal</code> context plugin to derive department contexts from <code>Users.csv → Department</code> instead.</p>
 <table>
 <thead>
 <tr>
@@ -6043,7 +6177,13 @@
 <td><code>ContextType</code></td>
 <td>string</td>
 <td>no</td>
-<td><code>Department</code> (default), <code>CostCenter</code>, <code>Division</code>, <code>Team</code></td>
+<td>Free text, e.g. <code>OrgUnit</code> (default), <code>Department</code>, <code>CostCenter</code>, <code>Division</code>, <code>Team</code></td>
+</tr>
+<tr>
+<td><code>TargetType</code></td>
+<td>string</td>
+<td>no</td>
+<td>What the context groups: <code>Identity</code> (default), <code>Principal</code>, <code>Resource</code> or <code>System</code>. A child should have the same <code>TargetType</code> as its parent</td>
 </tr>
 <tr>
 <td><code>Description</code></td>
@@ -6058,10 +6198,48 @@
 <td>For hierarchical org structures</td>
 </tr>
 <tr>
+<td><code>OwnerUserId</code></td>
+<td>string</td>
+<td>no</td>
+<td>Owner of the grouping (free text)</td>
+</tr>
+<tr>
 <td><code>SystemName</code></td>
 <td>string</td>
 <td>no</td>
 <td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="6b-contextmemberscsv-optional">6b. <code>ContextMembers.csv</code> (optional)<a class="headerlink" href="#6b-contextmemberscsv-optional" title="Permanent link">&para;</a></h4>
+<p>Explicit membership of a context. Synced as one set; <code>SystemName</code> is ignored (see below).</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ContextExternalId</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Must match an <code>ExternalId</code> from <code>Contexts.csv</code></td>
+</tr>
+<tr>
+<td><code>MemberExternalId</code></td>
+<td>string</td>
+<td>yes</td>
+<td>ExternalId of the member</td>
+</tr>
+<tr>
+<td><code>MemberType</code></td>
+<td>string</td>
+<td>yes</td>
+<td><code>Identity</code>, <code>Principal</code>, <code>Resource</code> or <code>System</code> — the context's <code>TargetType</code></td>
 </tr>
 </tbody>
 </table>
@@ -6235,7 +6413,7 @@
 </tr>
 <tr>
 <td><strong>With org structure</strong></td>
-<td>+ <code>Contexts.csv</code> (or just <code>Department</code> column in <code>Users.csv</code>) + <code>ContextMembers.csv</code> for explicit membership</td>
+<td>+ <code>Contexts.csv</code> + <code>ContextMembers.csv</code> for explicit membership (or just the <code>Department</code> column in <code>Users.csv</code>, turned into contexts by the <code>department-from-principal</code> plugin)</td>
 </tr>
 <tr>
 <td><strong>Multi-system</strong></td>

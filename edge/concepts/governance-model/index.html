@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/concepts/governance-model/">
       
       
-        <link rel="prev" href="../data-model/">
+        <link rel="prev" href="../ontology/">
       
       
         <link rel="next" href="../../architecture/account-linking/">
@@ -862,6 +862,34 @@
     
   
     Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
   
 
     
@@ -3232,6 +3260,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/csv-import-schema/" class="md-nav__link">
         
   
@@ -3329,10 +3385,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="0">
             
   
   
@@ -3350,8 +3406,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3360,6 +3416,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4027,6 +4111,34 @@
     
   
     Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
   
 
     
@@ -5709,6 +5821,7 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 </div>
 <hr />
 <h2 id="governance-entity-diagram">Governance Entity Diagram<a class="headerlink" href="#governance-entity-diagram" title="Permanent link">&para;</a></h2>
+<!-- ontology: validated -->
 <pre class="mermaid"><code>erDiagram
     GovernanceCatalogs {
         guid id PK
@@ -5773,12 +5886,12 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
         string reviewInstanceStatus
     }
 
-    GovernanceCatalogs ||--o{ Resources : "contains (BusinessRole)"
+    GovernanceCatalogs |o--o{ Resources : "contains (BusinessRole)"
     Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
-    Resources ||--o{ AssignmentPolicies : "governed by"
-    Resources ||--o{ AssignmentRequests : "requested via"
-    Resources ||--o{ CertificationDecisions : "reviewed via"</code></pre>
+    Resources |o--o{ AssignmentPolicies : "governed by"
+    Resources |o--o{ AssignmentRequests : "requested via"
+    Resources |o--o{ CertificationDecisions : "reviewed via"</code></pre>
 <hr />
 <h2 id="iga-platform-mapping">IGA Platform Mapping<a class="headerlink" href="#iga-platform-mapping" title="Permanent link">&para;</a></h2>
 <p>The same governance tables absorb data from any IGA platform. The source platform determines the sync method; the model is always the same.</p>
@@ -5847,7 +5960,7 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <hr />
 <h2 id="governance-specific-columns">Governance-Specific Columns<a class="headerlink" href="#governance-specific-columns" title="Permanent link">&para;</a></h2>
 <p>The unified model extends the three shared tables with extra columns that carry governance semantics. These columns are <code>NULL</code> for non-governance rows, so they do not break existing queries.</p>
-<p><code>Initialize-FGGovernanceTables</code> adds these columns if they are not already present.</p>
+<p>These columns are created by the PostgreSQL migrations (<code>001_core_schema.sql</code>, <code>047_governed_assignment_flag.sql</code>).</p>
 <h3 id="resources-business-roles">Resources (business roles)<a class="headerlink" href="#resources-business-roles" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

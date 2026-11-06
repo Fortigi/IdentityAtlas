@@ -872,6 +872,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/governance-model/" class="md-nav__link">
         
   
@@ -3329,6 +3357,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/csv-import-schema/" class="md-nav__link">
         
   
@@ -3429,10 +3485,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="">
             
   
   
@@ -3450,8 +3506,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3460,6 +3516,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4127,6 +4211,34 @@
     
   
     Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
   
 
     
@@ -6288,7 +6400,7 @@
 <p><strong>Reads From:</strong> <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code></p>
 <hr />
 <h2 id="tag-management">Tag Management<a class="headerlink" href="#tag-management" title="Permanent link">&para;</a></h2>
-<p>Tags are free-form labels for users and resources. Unlike categories, an entity can have <strong>multiple tags</strong>, and tags are scoped by <code>entityType</code> (<code>user</code> or <code>group</code>). Tags read/write through <code>GraphTags</code> and <code>GraphTagAssignments</code>, which since the v6 Contexts redesign are <strong>backward-compatibility views</strong> over the unified <code>Contexts</code> model (<code>contextType='Tag'</code>), not standalone base tables.</p>
+<p>Tags are free-form labels for users and resources. Unlike categories, an entity can have <strong>multiple tags</strong>, and tags are scoped by <code>entityType</code> (<code>user</code>, <code>group</code>, <code>resource</code> or <code>identity</code>; <code>group</code> and <code>resource</code> both target Resources). Tags are stored as Contexts (<code>contextType='Tag'</code>) with their members in <code>ContextMembers</code>; reads go through <code>GraphTags</code> and <code>GraphTagAssignments</code>, which since the v6 Contexts redesign are <strong>read-only backward-compatibility views</strong> over that model, not standalone base tables.</p>
 <h3 id="get-apitags">GET /api/tags<a class="headerlink" href="#get-apitags" title="Permanent link">&para;</a></h3>
 <p>List all tags, optionally filtered by entity type.</p>
 <p><strong>Query Parameters</strong></p>
@@ -6304,7 +6416,7 @@
 <tr>
 <td><code>entityType</code></td>
 <td>string</td>
-<td><code>user</code> or <code>group</code>. Omit to return all tags.</td>
+<td><code>user</code>, <code>group</code>, <code>resource</code> or <code>identity</code>. Omit to return all tags.</td>
 </tr>
 </tbody>
 </table>
@@ -6354,7 +6466,7 @@
 <tr>
 <td><code>entityType</code></td>
 <td>Yes</td>
-<td><code>user</code> or <code>group</code>.</td>
+<td><code>user</code>, <code>group</code>, <code>resource</code> or <code>identity</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -6371,7 +6483,7 @@
 <p><strong>Response:</strong> <code>200 OK</code> with the updated tag object.</p>
 <hr />
 <h3 id="delete-apitagsid">DELETE /api/tags/:id<a class="headerlink" href="#delete-apitagsid" title="Permanent link">&para;</a></h3>
-<p>Delete a tag and cascade-remove all its assignments from <code>GraphTagAssignments</code>.</p>
+<p>Delete a tag (its <code>Contexts</code> row) and cascade-remove all its assignments from <code>ContextMembers</code>.</p>
 <p><strong>Response:</strong> <code>204 No Content</code></p>
 <hr />
 <h3 id="post-apitagsidassign">POST /api/tags/:id/assign<a class="headerlink" href="#post-apitagsidassign" title="Permanent link">&para;</a></h3>
@@ -6431,7 +6543,7 @@
 <tr>
 <td><code>entityType</code></td>
 <td>Yes</td>
-<td><code>user</code> or <code>group</code> — determines which table is queried</td>
+<td><code>user</code>, <code>group</code>, <code>resource</code> or <code>identity</code> — determines which table is queried</td>
 </tr>
 <tr>
 <td><code>search</code></td>

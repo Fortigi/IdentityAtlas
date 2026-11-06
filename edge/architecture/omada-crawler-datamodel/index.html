@@ -872,6 +872,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/governance-model/" class="md-nav__link">
         
   
@@ -3401,6 +3429,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../csv-import-schema/" class="md-nav__link">
         
   
@@ -3498,10 +3554,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="0">
             
   
   
@@ -3519,8 +3575,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3529,6 +3585,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4196,6 +4280,34 @@
     
   
     Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
   
 
     
@@ -6811,7 +6923,7 @@
 </tr>
 <tr>
 <td><strong>IA destination</strong></td>
-<td><code>ingest/resource-assignments</code> (full sync, per-system, <code>assignmentType='Governed'</code>)</td>
+<td><code>ingest/resource-assignments</code> (full sync, per-system, <code>assignmentType='Direct'</code>, <code>governed=true</code>)</td>
 </tr>
 <tr>
 <td><strong>Deduplication</strong></td>
@@ -6837,7 +6949,7 @@
 </tr>
 <tr>
 <td><em>(constant)</em></td>
-<td>assignmentType = <code>'Governed'</code></td>
+<td>assignmentType = <code>'Direct'</code>, governed = <code>true</code></td>
 </tr>
 <tr>
 <td>VALIDFROM / VALIDTO</td>
@@ -6871,7 +6983,7 @@
 <p>Two sub-tracks based on which Omada system the account belongs to:</p>
 <p><strong>Omada Identity accounts</strong> (AccountName → <code>$UserNameToUid</code> lookup):
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>principalId  = existing User.UId
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>assignmentType = Governed (IsManaged=true) or Direct (IsManaged=false)
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>assignmentType = Direct, governed = true (IsManaged kept in extendedAttributes.isManaged)
 </code></pre></div></p>
 <p><strong>Connected-system accounts</strong> (Salesforce, AD, etc. — AccountKey as new Principal id):
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>New Principal:
@@ -6890,8 +7002,8 @@
 <a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>ResourceAssignment:
 <a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>  Resource.UId     → resourceId
 <a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>  AccountKey       → principalId
-<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  IsManaged=true   → assignmentType = 'Governed'
-<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>  IsManaged=false  → assignmentType = 'Direct'
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  (constant)       → assignmentType = 'Direct', governed = true
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>  IsManaged        → extendedAttributes.isManaged
 </code></pre></div></p>
 <p><strong><code>extendedAttributes</code> on CRA assignments:</strong></p>
 <table>
@@ -6921,6 +7033,10 @@
 <tr>
 <td>accountName</td>
 <td>AccountName</td>
+</tr>
+<tr>
+<td>isManaged</td>
+<td>IsManaged</td>
 </tr>
 </tbody>
 </table>

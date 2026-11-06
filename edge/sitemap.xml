@@ -121,6 +121,10 @@
          <lastmod>2026-11-06</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/core-ontology/</loc>
+         <lastmod>2026-11-06</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/crawler-architecture/</loc>
          <lastmod>2026-11-06</lastmod>
     </url>
@@ -233,6 +237,10 @@
          <lastmod>2026-11-06</lastmod>
     </url>
     <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/concepts/ontology/</loc>
+         <lastmod>2026-11-06</lastmod>
+    </url>
+    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/concepts/risk-scoring-model/</loc>
          <lastmod>2026-11-06</lastmod>
     </url>
@@ -242,6 +250,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/contributing/contribute/</loc>
+         <lastmod>2026-11-06</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/contributing/maintaining-the-ontology/</loc>
          <lastmod>2026-11-06</lastmod>
     </url>
     <url>
@@ -350,6 +362,10 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/config/</loc>
+         <lastmod>2026-11-06</lastmod>
+    </url>
+    <url>
+         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/core-model/</loc>
          <lastmod>2026-11-06</lastmod>
     </url>
     <url>

@@ -1,0 +1,6380 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Universal authorization intelligence — sync, analyze, and govern permissions from any identity system">
+      
+      
+      
+        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/concepts/ontology/">
+      
+      
+        <link rel="prev" href="../data-model/">
+      
+      
+        <link rel="next" href="../governance-model/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>The Ontology, Visually - Identity Atlas</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-ontology-visually" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Identity Atlas" class="md-header__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Identity Atlas
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The Ontology, Visually
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../start/glossary/" class="md-tabs__link">
+          
+  
+  
+  Start here
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../data-model/" class="md-tabs__link">
+          
+  
+  
+  Learn
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../ui/overview/" class="md-tabs__link">
+          
+  
+  
+  Use
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+          
+  
+  
+  Set up & run
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/report-an-issue/" class="md-tabs__link">
+          
+  
+  
+  Project
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Identity Atlas" class="md-nav__button md-logo" aria-label="Identity Atlas" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    Identity Atlas
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Fortigi/IdentityAtlas" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Fortigi/IdentityAtlas
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Start here
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The words you need first
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get it running
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../start/first-15-minutes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first 15 minutes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capture the Flag
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Capture the Flag
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/before-you-play/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Before you play
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demo/capture-the-flag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The twelve flags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_1" id="__nav_3_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-big-picture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The big picture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#account-types-principal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account types (Principal)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-types-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource types (Resource)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grouping-types-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grouping types (Context)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-team-as-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One team, as data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="One team, as data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-same-team-as-the-file-says-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same team, as the file says it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-schema-file-says" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the schema file says
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-way-of-holding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One way of holding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-stays-true" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it stays true
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-it-in-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open it in a tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../governance-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/account-linking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    One Person, Many Accounts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk scoring
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Risk scoring
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../risk-scoring-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a Risk Score Means
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How Scoring Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/classifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/ai-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Agents & Non-Human Identities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Use
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The app at a glance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/entity-detail-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get data out
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get data out
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set up & run
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Set up & run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/azure-gitops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure as Code (GitOps)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/scale-rehearsal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Connect your systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint Configuration Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/mssql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HTTP API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    HTTP API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server (AI assistants)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Under the hood
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Under the hood
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Delta Loading
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Assistant Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/audit-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/soft-delete/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soft-Delete & Tombstones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/effective-access-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-cluster-algorithm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Cluster Algorithm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Engine Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../risk-scoring/plugin-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/llm-and-risk-scoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM & Risk Scoring Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/resource-assignments-identity-support/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignments & Identity Support
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/dashboard-trends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Trends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/demo-dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demo Dataset (contains CTF spoilers)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_1" id="__nav_7_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/report-an-issue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report a Bug or Request a Feature
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribute a Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/local-dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/building-a-crawler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Crawler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/writing-tests-that-assert/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/ci-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ci-scope-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Scope Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/branching-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release & Branching Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/maintaining-a-release-line/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining a Release Line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/release-notes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How a Release's Notes Are Assembled
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/definition-of-ready/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Definition of Ready
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-state-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR state machine & operating procedure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/operationalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operationalising the DoR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/dor-sidekick-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DoR sidekick setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The epic layer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomy-roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomy roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/epic-layer-session-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session log — epic layer (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../process/autonomous-bug-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autonomous bug pipeline (partly built)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_2" id="__nav_7_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design archive
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design archive
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/design-archive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About the archive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-redesign-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-redesign-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Redesign — UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/assignment-model-redesign/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assignment Model Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/identitytype-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    IdentityType Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/risk-scoring-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scoring Plugins (proposal)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/rule-mining-discussion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rule Mining Discussion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_3" id="__nav_7_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality & audits
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quality & audits
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-gap-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Gap Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs-remediation-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation Remediation Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../maintenance-backlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Backlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ux/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Experience Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/architecture-guidance-review-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Guidance Review (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/decision-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Decision Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_7_4" id="__nav_7_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Marketing & Press Kit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Marketing & Press Kit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/product-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Brief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/key-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Key Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/use-cases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Cases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/proof-points/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Proof Points
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/competitive-landscape/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where Identity Atlas Fits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../marketing/boilerplate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Boilerplate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About Identity Atlas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-big-picture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The big picture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#account-types-principal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account types (Principal)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-types-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource types (Resource)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grouping-types-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grouping types (Context)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-team-as-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One team, as data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="One team, as data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-same-team-as-the-file-says-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same team, as the file says it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-schema-file-says" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the schema file says
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-way-of-holding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One way of holding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-stays-true" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it stays true
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-it-in-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open it in a tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../data-model/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Learn
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../data-model/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    The model
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="the-ontology-visually">The Ontology, Visually<a class="headerlink" href="#the-ontology-visually" title="Permanent link">&para;</a></h1>
+<p>Identity Atlas keeps its data in PostgreSQL tables. The <strong>ontology</strong> describes what that data
+<em>means</em>: which kinds of things exist (an account, a group, a person, a team), how they may be
+connected, and which values a field may hold. It is the grammar of the data model, written in a
+standard format that other tools can read.</p>
+<p>This page shows what that looks like: first the overall picture, then one small team as real data,
+then a few lines of the schema file itself.</p>
+<div class="admonition tip">
+<p class="admonition-title">Download the schema file</p>
+<p>The ontology is one file, <strong><a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl"><code>core.ttl</code></a></strong>
+(<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/ontology/core.ttl">view on GitHub</a>). It is
+written in <strong>Turtle</strong>, the readable text format for RDF, and uses the <strong>OWL 2</strong> vocabulary for
+classes and properties. Protégé, WebVOWL, Apache Jena, rdflib and any other RDF/OWL tool can open
+it; see <a href="#open-it-in-a-tool">Open it in a tool</a>.</p>
+<p>The worked example on this page is a file too:
+<strong><a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/examples/team.ttl"><code>examples/team.ttl</code></a></strong>.</p>
+</div>
+<hr />
+<h2 id="the-big-picture">The big picture<a class="headerlink" href="#the-big-picture" title="Permanent link">&para;</a></h2>
+<p>Everything in Identity Atlas is one of five kinds of <strong>node</strong>, connected by five kinds of <strong>edge</strong>.
+A solid arrow is an edge table: a row in it connects two nodes, and carries fields of its own (an
+assignment has an <code>assignmentType</code>, for example). A dotted arrow is a plain reference from one node
+to another (a column such as <code>managerId</code>).</p>
+<!-- BEGIN GENERATED: ontology core-overview -->
+<pre class="mermaid"><code>flowchart LR
+    Context["Context&lt;br/&gt;&lt;small&gt;Contexts&lt;/small&gt;"]:::Context
+    Identity["Identity&lt;br/&gt;&lt;small&gt;Identities&lt;/small&gt;"]:::Identity
+    Principal["Principal&lt;br/&gt;&lt;small&gt;Principals&lt;/small&gt;"]:::Principal
+    Resource["Resource&lt;br/&gt;&lt;small&gt;Resources&lt;/small&gt;"]:::Resource
+    System["System&lt;br/&gt;&lt;small&gt;Systems&lt;/small&gt;"]:::System
+    Context --&gt;|"ContextMembers"| Identity
+    Context --&gt;|"ContextMembers"| Resource
+    Context --&gt;|"ContextMembers"| Principal
+    Context --&gt;|"ContextMembers"| System
+    Identity --&gt;|"IdentityMembers"| Principal
+    Principal --&gt;|"PrincipalRelationships&lt;br/&gt;&lt;small&gt;Owner, Sponsor&lt;/small&gt;"| Principal
+    Principal --&gt;|"ResourceAssignments"| Resource
+    Identity --&gt;|"ResourceAssignments"| Resource
+    Resource --&gt;|"ResourceRelationships&lt;br/&gt;&lt;small&gt;Contains, DelegatesScope, GrantsAccessTo, HasAppOwnership, HasAppRole, HasApplicationPermission, HasOwnership&lt;/small&gt;"| Resource
+    Context -.-&gt;|"parentContextId"| Context
+    Context -.-&gt;|"scopeSystemId"| System
+    Identity -.-&gt;|"managerIdentityId"| Identity
+    Identity -.-&gt;|"primaryPrincipalId"| Principal
+    Principal -.-&gt;|"managerId"| Principal
+    Principal -.-&gt;|"systemId"| System
+    Resource -.-&gt;|"systemId"| System
+    System -.-&gt;|"directorySystemId"| System
+    classDef Context fill:#d97706,stroke:#b45309,color:#fff
+    classDef Identity fill:#7c3aed,stroke:#5b21b6,color:#fff
+    classDef Principal fill:#2563eb,stroke:#1e40af,color:#fff
+    classDef Resource fill:#059669,stroke:#047857,color:#fff
+    classDef System fill:#475569,stroke:#334155,color:#fff</code></pre>
+<!-- END GENERATED: ontology core-overview -->
+
+<table>
+<thead>
+<tr>
+<th>Node</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>System</strong></td>
+<td>A source the data came from: Entra ID, Omada, a SQL database, a CSV file.</td>
+</tr>
+<tr>
+<td><strong>Principal</strong></td>
+<td>An <em>account</em> in one system: a user, a service principal, a managed identity, an AI agent, a guest.</td>
+</tr>
+<tr>
+<td><strong>Resource</strong></td>
+<td>Anything that gives access: a group, an app role, a directory role, a permission — and also a business role.</td>
+</tr>
+<tr>
+<td><strong>Identity</strong></td>
+<td>A real <em>person</em>, who may have accounts in several systems.</td>
+</tr>
+<tr>
+<td><strong>Context</strong></td>
+<td>A grouping of one kind of node: a team, a department, an OU, a tag, a cluster. Contexts form trees.</td>
+</tr>
+</tbody>
+</table>
+<p>Each kind has <strong>types</strong> below it. A Principal is a <code>User</code>, an <code>AIAgent</code>, a <code>ServicePrincipal</code> …; a
+Resource is a <code>Group</code>, an <code>AppRole</code>, a <code>BusinessRole</code> …; a Context is a <code>ManagerHierarchy</code> node, a
+<code>Department</code>, a <code>Tag</code> …. The next section shows them all.</p>
+<hr />
+<h2 id="the-types">The types<a class="headerlink" href="#the-types" title="Permanent link">&para;</a></h2>
+<p>Each kind of node has <strong>types</strong>: a value in its type column (<code>principalType</code>, <code>resourceType</code>,
+<code>contextType</code>) that says what sort of account, resource or grouping a row is. Above the types sit
+14 <strong>templates</strong>: three kinds of account (Person, Software, Agent), seven kinds of resource (Group,
+TechnicalRole, Permission, Application, Scope, BusinessRole, Other) and four kinds of grouping
+(OrganizationalUnit, LogicalApplication, Tag, Segment). The diagrams below
+show every type the ontology defines, grouped by its <strong>template</strong>: the level at which Identity Atlas
+reasons about it. The type is the source's own word; the template says what the product does with
+it. The small text under a type names the crawlers and plugins that write it.</p>
+<h3 id="account-types-principal">Account types (Principal)<a class="headerlink" href="#account-types-principal" title="Permanent link">&para;</a></h3>
+<p><code>principalType</code> is a <strong>closed list</strong>: the ingest accepts only these values. Crawlers that map types
+from their source (Omada, midPoint, SCIM, CSV, SQL) map onto this list. The template says what kind
+of actor an account is. <em>Who answers for it</em> is a second axis, <strong>accountability</strong>: Personal, Shared or
+Autonomous, a property of each account with a default per type. An AI agent can be any of the three
+(a personal assistant, a team assistant, an agent on its own permissions), so its default is unknown
+until the source, an Owner or Sponsor link, or a person settles it.</p>
+<!-- BEGIN GENERATED: ontology types-principal -->
+<pre class="mermaid"><code>flowchart LR
+    root["Principal&lt;br/&gt;&lt;small&gt;principalType&lt;/small&gt;"]:::Principal
+    subgraph g_Agent["Agent"]
+      direction LR
+      t_AIAgent["AIAgent&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Principal
+    end
+    subgraph g_Person["Person"]
+      direction LR
+      t_ExternalUser["ExternalUser&lt;br/&gt;&lt;small&gt;demo, omada&lt;/small&gt;"]:::Principal
+      t_SharedMailbox["SharedMailbox&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Principal
+      t_User["User&lt;br/&gt;&lt;small&gt;azure-rm, csv, demo, entra-id, midpoint, mssql, omada, scim&lt;/small&gt;"]:::Principal
+      t_ExternalUser ~~~ t_SharedMailbox ~~~ t_User
+    end
+    subgraph g_Software["Software"]
+      direction LR
+      t_ManagedIdentity["ManagedIdentity&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Principal
+      t_ServicePrincipal["ServicePrincipal&lt;br/&gt;&lt;small&gt;demo, entra-id, omada&lt;/small&gt;"]:::Principal
+      t_WorkloadIdentity["WorkloadIdentity"]:::Principal
+      t_ManagedIdentity ~~~ t_ServicePrincipal ~~~ t_WorkloadIdentity
+    end
+    root --&gt; g_Agent
+    root --&gt; g_Person
+    root --&gt; g_Software
+    classDef Principal fill:#2563eb,stroke:#1e40af,color:#fff</code></pre>
+<!-- END GENERATED: ontology types-principal -->
+
+<h3 id="resource-types-resource">Resource types (Resource)<a class="headerlink" href="#resource-types-resource" title="Permanent link">&para;</a></h3>
+<p><code>resourceType</code> is an <strong>open list</strong>: any value is accepted, because every system names its own kinds
+of access. Defined here are the values Identity Atlas itself writes or relies on. The dotted arrow
+names the crawlers that also pass values through from their source data or configuration.</p>
+<p>Owning a group is a right in the target system, so it is a <strong>Permission</strong> of the <em>control</em> kind: a
+right over another object, which it names through the <code>HasOwnership</code> link from that object. Holding
+it never makes the holder a member of what it controls. That is how owner and member of one group
+stay two rows of the same group in the matrix, each held <code>Direct</code>, <code>Indirect</code> or <code>Eligible</code>.</p>
+<!-- BEGIN GENERATED: ontology types-resource -->
+<pre class="mermaid"><code>flowchart LR
+    root["Resource&lt;br/&gt;&lt;small&gt;resourceType&lt;/small&gt;"]:::Resource
+    subgraph g_Application["Application"]
+      direction LR
+      t_AppRegistration["AppRegistration&lt;br/&gt;&lt;small&gt;entra-id&lt;/small&gt;"]:::Resource
+      t_Application["Application&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_Service["Service&lt;br/&gt;&lt;small&gt;midpoint&lt;/small&gt;"]:::Resource
+      t_AppRegistration ~~~ t_Application ~~~ t_Service
+    end
+    subgraph g_BusinessRole["Business role"]
+      direction LR
+      t_BusinessRole["BusinessRole&lt;br/&gt;&lt;small&gt;csv, demo, entra-id, midpoint, mssql, omada&lt;/small&gt;"]:::Resource
+    end
+    subgraph g_Group["Group"]
+      direction LR
+      t_Group["Group&lt;br/&gt;&lt;small&gt;demo, entra-id, scim&lt;/small&gt;"]:::Resource
+    end
+    subgraph g_Permission["Permission"]
+      direction LR
+      t_ApplicationOwnership["ApplicationOwnership&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_ApplicationPermission["ApplicationPermission&lt;br/&gt;&lt;small&gt;entra-id&lt;/small&gt;"]:::Resource
+      t_DelegatedPermission["DelegatedPermission&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_Entitlement["Entitlement&lt;br/&gt;&lt;small&gt;midpoint, mssql&lt;/small&gt;"]:::Resource
+      t_GroupOwnership["GroupOwnership&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_Resource["Resource&lt;br/&gt;&lt;small&gt;omada&lt;/small&gt;"]:::Resource
+      t_ResourceOwnership["ResourceOwnership&lt;br/&gt;&lt;small&gt;mssql&lt;/small&gt;"]:::Resource
+      t_ServicePrincipalOwnership["ServicePrincipalOwnership&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_ApplicationOwnership ~~~ t_ApplicationPermission ~~~ t_DelegatedPermission ~~~ t_Entitlement
+      t_GroupOwnership ~~~ t_Resource ~~~ t_ResourceOwnership ~~~ t_ServicePrincipalOwnership
+    end
+    subgraph g_Scope["Scope"]
+      direction LR
+      t_AzureManagementGroup["AzureManagementGroup&lt;br/&gt;&lt;small&gt;azure-rm&lt;/small&gt;"]:::Resource
+      t_AzureResource["AzureResource&lt;br/&gt;&lt;small&gt;azure-rm, demo&lt;/small&gt;"]:::Resource
+      t_AzureResourceGroup["AzureResourceGroup&lt;br/&gt;&lt;small&gt;azure-rm, demo&lt;/small&gt;"]:::Resource
+      t_AzureScope["AzureScope&lt;br/&gt;&lt;small&gt;azure-rm, demo&lt;/small&gt;"]:::Resource
+      t_AzureSubscription["AzureSubscription&lt;br/&gt;&lt;small&gt;azure-rm&lt;/small&gt;"]:::Resource
+      t_AzureManagementGroup ~~~ t_AzureResource ~~~ t_AzureResourceGroup ~~~ t_AzureScope
+    end
+    subgraph g_TechnicalRole["Technical role"]
+      direction LR
+      t_AppRole["AppRole&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_AzureRoleAssignment["AzureRoleAssignment&lt;br/&gt;&lt;small&gt;azure-rm, demo&lt;/small&gt;"]:::Resource
+      t_CRMRole["CRMRole&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Resource
+      t_EntraDirectoryRole["EntraDirectoryRole&lt;br/&gt;&lt;small&gt;demo, entra-id&lt;/small&gt;"]:::Resource
+      t_SAPRole["SAPRole&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Resource
+      t_AppRole ~~~ t_AzureRoleAssignment ~~~ t_CRMRole ~~~ t_EntraDirectoryRole
+    end
+    root --&gt; g_Application
+    root --&gt; g_BusinessRole
+    root --&gt; g_Group
+    root --&gt; g_Permission
+    root --&gt; g_Scope
+    root --&gt; g_TechnicalRole
+    other["any other value&lt;br/&gt;&lt;small&gt;from csv, custom-connector, midpoint, mssql, omada&lt;/small&gt;"]
+    root -.-&gt; other
+    classDef Resource fill:#059669,stroke:#047857,color:#fff</code></pre>
+<!-- END GENERATED: ontology types-resource -->
+
+<h3 id="grouping-types-context">Grouping types (Context)<a class="headerlink" href="#grouping-types-context" title="Permanent link">&para;</a></h3>
+<p><code>contextType</code> is an open list too. A context groups one kind of node; the
+<a href="../../reference/core-model/#contexts">Core Model Reference</a> lists which kind each type groups.
+<code>OrgUnit</code> (synced from an IGA or HR source, grouping persons) and <code>OrganisationalUnit</code> (derived by a
+plugin from accounts' AD distinguished names) are two different values today.</p>
+<!-- BEGIN GENERATED: ontology types-context -->
+<pre class="mermaid"><code>flowchart LR
+    root["Context&lt;br/&gt;&lt;small&gt;contextType&lt;/small&gt;"]:::Context
+    subgraph g_LogicalApplicationContext["Logical application"]
+      direction LR
+      t_LogicalApplication["LogicalApplication&lt;br/&gt;&lt;small&gt;mssql&lt;/small&gt;"]:::Context
+    end
+    subgraph g_OrganizationalUnit["Organizational unit"]
+      direction LR
+      t_AdministrativeUnit["AdministrativeUnit&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Context
+      t_Department["Department&lt;br/&gt;&lt;small&gt;department-from-principal, demo, omada&lt;/small&gt;"]:::Context
+      t_ManagerHierarchy["ManagerHierarchy&lt;br/&gt;&lt;small&gt;manager-hierarchy&lt;/small&gt;"]:::Context
+      t_OrgUnit["OrgUnit&lt;br/&gt;&lt;small&gt;csv, midpoint, omada&lt;/small&gt;"]:::Context
+      t_OrganisationalUnit["OrganisationalUnit&lt;br/&gt;&lt;small&gt;ad-ou-from-dn&lt;/small&gt;"]:::Context
+      t_Team["Team&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Context
+      t_AdministrativeUnit ~~~ t_Department ~~~ t_ManagerHierarchy ~~~ t_OrgUnit
+      t_OrganisationalUnit ~~~ t_Team
+    end
+    subgraph g_Segment["Segment"]
+      direction LR
+      t_ContextRecipe["ContextRecipe&lt;br/&gt;&lt;small&gt;context-recipe&lt;/small&gt;"]:::Context
+      t_CostCenter["CostCenter&lt;br/&gt;&lt;small&gt;omada&lt;/small&gt;"]:::Context
+      t_EntraGroupCategory["EntraGroupCategory&lt;br/&gt;&lt;small&gt;entra-group-category-tree&lt;/small&gt;"]:::Context
+      t_EntraGroupRoot["EntraGroupRoot&lt;br/&gt;&lt;small&gt;entra-group-category-tree&lt;/small&gt;"]:::Context
+      t_Location["Location&lt;br/&gt;&lt;small&gt;omada&lt;/small&gt;"]:::Context
+      t_OrphanedAccounts["OrphanedAccounts&lt;br/&gt;&lt;small&gt;orphaned-accounts&lt;/small&gt;"]:::Context
+      t_PrincipalType["PrincipalType&lt;br/&gt;&lt;small&gt;principal-type-tree&lt;/small&gt;"]:::Context
+      t_PrincipalTypeRoot["PrincipalTypeRoot&lt;br/&gt;&lt;small&gt;principal-type-tree&lt;/small&gt;"]:::Context
+      t_ResourceCluster["ResourceCluster&lt;br/&gt;&lt;small&gt;resource-cluster&lt;/small&gt;"]:::Context
+      t_ResourcePlane["ResourcePlane&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
+      t_ResourceRole["ResourceRole&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
+      t_ResourceType["ResourceType&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
+      t_ResourceTypeRoot["ResourceTypeRoot&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
+      t_RiskyAppConsent["RiskyAppConsent&lt;br/&gt;&lt;small&gt;risky-consent&lt;/small&gt;"]:::Context
+      t_RiskyConsent["RiskyConsent&lt;br/&gt;&lt;small&gt;risky-consent&lt;/small&gt;"]:::Context
+      t_Scope["Scope&lt;br/&gt;&lt;small&gt;scope-hierarchy&lt;/small&gt;"]:::Context
+      t_ScopeHierarchy["ScopeHierarchy&lt;br/&gt;&lt;small&gt;scope-hierarchy&lt;/small&gt;"]:::Context
+      t_SystemMembership["SystemMembership&lt;br/&gt;&lt;small&gt;system-membership-principals, system-membership-resources&lt;/small&gt;"]:::Context
+      t_SystemMembershipRoot["SystemMembershipRoot&lt;br/&gt;&lt;small&gt;system-membership-principals, system-membership-resources&lt;/small&gt;"]:::Context
+      t_ContextRecipe ~~~ t_CostCenter ~~~ t_EntraGroupCategory ~~~ t_EntraGroupRoot
+      t_Location ~~~ t_OrphanedAccounts ~~~ t_PrincipalType ~~~ t_PrincipalTypeRoot
+      t_ResourceCluster ~~~ t_ResourcePlane ~~~ t_ResourceRole ~~~ t_ResourceType
+      t_ResourceTypeRoot ~~~ t_RiskyAppConsent ~~~ t_RiskyConsent ~~~ t_Scope
+      t_ScopeHierarchy ~~~ t_SystemMembership ~~~ t_SystemMembershipRoot
+    end
+    subgraph g_TagContext["Tag"]
+      direction LR
+      t_Tag["Tag"]:::Context
+      t_TagGroup["TagGroup"]:::Context
+      t_Tag ~~~ t_TagGroup
+    end
+    root --&gt; g_LogicalApplicationContext
+    root --&gt; g_OrganizationalUnit
+    root --&gt; g_Segment
+    root --&gt; g_TagContext
+    other["any other value&lt;br/&gt;&lt;small&gt;from csv, custom-connector, midpoint, mssql, omada&lt;/small&gt;"]
+    root -.-&gt; other
+    classDef Context fill:#d97706,stroke:#b45309,color:#fff</code></pre>
+<!-- END GENERATED: ontology types-context -->
+
+<p>Every type, with its description, is in the tables of the <a href="../../reference/core-model/">Core Model Reference</a>.</p>
+<hr />
+<h2 id="one-team-as-data">One team, as data<a class="headerlink" href="#one-team-as-data" title="Permanent link">&para;</a></h2>
+<p>The picture below is a small, fictional team: Anna works for Piet. Anna has an account in Entra ID,
+holds a business role, and through a group has access to an app role. An AI agent holds that same app
+role directly. The manager-hierarchy plugin has put Anna in Piet's team.</p>
+<!-- BEGIN GENERATED: ontology example-team -->
+<pre class="mermaid"><code>flowchart LR
+    anna["Anna de Vries&lt;br/&gt;&lt;small&gt;Identity&lt;/small&gt;"]:::Identity
+    subgraph entra["Entra ID · System"]
+      annaAccount["anna.devries@example.org&lt;br/&gt;&lt;small&gt;User&lt;/small&gt;"]:::Principal
+      berthApp["Berth Planning System&lt;br/&gt;&lt;small&gt;Application&lt;/small&gt;"]:::Resource
+      berthPlanner["Planner&lt;br/&gt;&lt;small&gt;App role&lt;/small&gt;"]:::Resource
+      pietAccount["piet.jansen@example.org&lt;br/&gt;&lt;small&gt;User&lt;/small&gt;"]:::Principal
+      plannerBot["Planning assistant&lt;br/&gt;&lt;small&gt;AI agent&lt;/small&gt;"]:::Principal
+      plannerRole["Berth planner&lt;br/&gt;&lt;small&gt;Business role&lt;/small&gt;"]:::Resource
+      planningGroup["SG-Berth-Planning&lt;br/&gt;&lt;small&gt;Group&lt;/small&gt;"]:::Resource
+    end
+    orgRoot["Organisation&lt;br/&gt;&lt;small&gt;Manager hierarchy node&lt;/small&gt;"]:::Context
+    pietsTeam["Berth Planning (Piet Jansen)&lt;br/&gt;&lt;small&gt;Manager hierarchy node&lt;/small&gt;"]:::Context
+    annaAccount --&gt;|"Indirect"| berthPlanner
+    annaAccount --&gt;|"Direct, governed"| plannerRole
+    annaAccount --&gt;|"Direct"| planningGroup
+    pietsTeam --&gt;|"context member"| annaAccount
+    anna --&gt;|"identity member"| annaAccount
+    plannerBot --&gt;|"Direct"| berthPlanner
+    annaAccount -.-&gt;|"managerId"| pietAccount
+    berthApp ==&gt;|"HasAppRole"| berthPlanner
+    pietsTeam -.-&gt;|"parentContextId"| orgRoot
+    plannerRole ==&gt;|"Contains"| planningGroup
+    classDef Identity fill:#7c3aed,stroke:#5b21b6,color:#fff
+    classDef Principal fill:#2563eb,stroke:#1e40af,color:#fff
+    classDef Resource fill:#059669,stroke:#047857,color:#fff
+    classDef Context fill:#d97706,stroke:#b45309,color:#fff
+    classDef System fill:#475569,stroke:#334155,color:#fff</code></pre>
+<!-- END GENERATED: ontology example-team -->
+
+<p>How to read it:</p>
+<ul>
+<li><strong>Colour = kind of node</strong>: purple a person (Identity), blue an account (Principal), green something
+  that gives access (Resource), orange a grouping (Context). The grey box is the system the accounts
+  and resources come from. The small text under each name is its <strong>type</strong>.</li>
+<li><strong>A solid arrow labelled <code>Direct</code> / <code>Indirect</code></strong> is an assignment: who holds what, and how. Anna holds
+  the business role <em>Direct</em> and <em>governed</em> (an approved request); she has the app role <em>Indirect</em>,
+  because it comes through her group.</li>
+<li><strong>A thick arrow</strong> is a relationship between two resources: the business role <code>Contains</code> the group,
+  the application <code>HasAppRole</code> the app role.</li>
+<li><strong>A dotted arrow</strong> is a reference: Anna's account names Piet's as its <code>managerId</code>; Piet's team sits
+  below the organisation root (<code>parentContextId</code>).</li>
+<li><strong>Anna (the person) and anna.devries@example.org (the account) are two different things.</strong> The
+  person can have more accounts in other systems; the <code>identity member</code> arrow links them.</li>
+<li><strong>The team does not point at Piet.</strong> The manager-hierarchy plugin records a team's manager only in
+  the team's <code>externalId</code> field — there is no manager link. This is one of the facts the ontology
+  makes explicit; see <a href="../../architecture/core-ontology/#contexts-and-the-manager-hierarchy-as-implemented">Contexts and the manager hierarchy</a>.</li>
+</ul>
+<h3 id="the-same-team-as-the-file-says-it">The same team, as the file says it<a class="headerlink" href="#the-same-team-as-the-file-says-it" title="Permanent link">&para;</a></h3>
+<p>This is the complete example file. Every word after <code>ia:</code> is a term from the ontology. Each block
+describes one thing: its type after <code>a</code>, then its fields.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c"># Worked example: one small team, described with the Identity Atlas core ontology.</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c">#</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c"># Fictional people and systems. Every resource below is an instance of a class</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c"># from ontology/core.ttl, and every property is one of its terms — this is</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c"># what the data in an Identity Atlas database looks like when it is written as</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c"># RDF. `npm run ontology:check` (app/api) validates this file against the</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c"># ontology, and the picture on docs/concepts/ontology.md is generated from it,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># so neither can drift from the model.</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c">#</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c"># Rows of the edge tables (assignments, identity and context memberships) are</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c"># resources of their own, because they carry fields. A resource-to-resource</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c"># relationship (Contains, HasAppRole …) is written as the direct shortcut</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c"># property between the two resources.</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="k">@prefix</span><span class="w"> </span><span class="nn">ia:</span><span class="w"> </span><span class="nv">&lt;https://identityatlas.io/ontology#&gt;</span><span class="w"> </span><span class="p">.</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">@prefix</span><span class="w"> </span><span class="nn">ex:</span><span class="w"> </span><span class="nv">&lt;https://identityatlas.io/example#&gt;</span><span class="w"> </span><span class="p">.</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c"># ── A source system ──────────────────────────────────────────────────────────</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">System</span> <span class="p">;</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Entra ID"</span> <span class="p">.</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c"># ── Two people and their accounts ────────────────────────────────────────────</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">anna</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">Identity</span> <span class="p">;</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Anna de Vries"</span> <span class="p">.</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">User</span> <span class="p">;</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"anna.devries@example.org"</span> <span class="p">;</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">;</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">managerId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">pietAccount</span> <span class="p">.</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">pietAccount</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">User</span> <span class="p">;</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"piet.jansen@example.org"</span> <span class="p">;</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">.</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaIsAnna</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">IdentityMember</span> <span class="p">;</span>          <span class="c"># account correlation: this account is Anna</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">identityId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">anna</span> <span class="p">;</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">principalId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">.</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="c"># ── An AI agent that holds access as its own account ─────────────────────────</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">plannerBot</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">AIAgent</span> <span class="p">;</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Planning assistant"</span> <span class="p">;</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">.</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="c"># ── What can be held ─────────────────────────────────────────────────────────</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">planningGroup</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">Group</span> <span class="p">;</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"SG-Berth-Planning"</span> <span class="p">;</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">.</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">plannerRole</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">BusinessRole</span> <span class="p">;</span>            <span class="c"># a governance construct (access package)</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Berth planner"</span> <span class="p">;</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">;</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contains</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">planningGroup</span> <span class="p">.</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">berthApp</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">Application</span> <span class="p">;</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Berth Planning System"</span> <span class="p">;</span>
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">;</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">hasAppRole</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">berthPlanner</span> <span class="p">.</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">berthPlanner</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">AppRole</span> <span class="p">;</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Planner"</span> <span class="p">;</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">systemId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">entra</span> <span class="p">.</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>
+<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a><span class="c"># ── Who holds what (rows of ResourceAssignments) ─────────────────────────────</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaHoldsRole</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ResourceAssignment</span> <span class="p">;</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">principalId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">;</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">resourceId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">plannerRole</span> <span class="p">;</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">assignmentType</span> <span class="s">"Direct"</span> <span class="p">;</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">governed</span> <span class="l">true</span> <span class="p">;</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">origin</span> <span class="s">"Requested"</span> <span class="p">.</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a>
+<a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaInGroup</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ResourceAssignment</span> <span class="p">;</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">principalId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">;</span>
+<a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">resourceId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">planningGroup</span> <span class="p">;</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">assignmentType</span> <span class="s">"Direct"</span> <span class="p">.</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a>
+<a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaHasAppRole</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ResourceAssignment</span> <span class="p">;</span>   <span class="c"># through the group: Indirect</span>
+<a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">principalId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">;</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">resourceId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">berthPlanner</span> <span class="p">;</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">assignmentType</span> <span class="s">"Indirect"</span> <span class="p">.</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>
+<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">botHasAppRole</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ResourceAssignment</span> <span class="p">;</span>
+<a id="__codelineno-0-82" name="__codelineno-0-82" href="#__codelineno-0-82"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">principalId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">plannerBot</span> <span class="p">;</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83" href="#__codelineno-0-83"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">resourceId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">berthPlanner</span> <span class="p">;</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84" href="#__codelineno-0-84"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">assignmentType</span> <span class="s">"Direct"</span> <span class="p">.</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85" href="#__codelineno-0-85"></a>
+<a id="__codelineno-0-86" name="__codelineno-0-86" href="#__codelineno-0-86"></a><span class="c"># ── The team, as the manager-hierarchy plugin builds it ──────────────────────</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">orgRoot</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ManagerHierarchyContext</span> <span class="p">;</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88" href="#__codelineno-0-88"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Organisation"</span> <span class="p">;</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89" href="#__codelineno-0-89"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">targetType</span> <span class="s">"Principal"</span> <span class="p">;</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">variant</span> <span class="s">"generated"</span> <span class="p">;</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">externalId</span> <span class="s">"root"</span> <span class="p">.</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>
+<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ManagerHierarchyContext</span> <span class="p">;</span>   <span class="c"># the manager is recorded in externalId only</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Berth Planning (Piet Jansen)"</span> <span class="p">;</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">targetType</span> <span class="s">"Principal"</span> <span class="p">;</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">variant</span> <span class="s">"generated"</span> <span class="p">;</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">externalId</span> <span class="s">"pietAccount"</span> <span class="p">;</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">parentContextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">orgRoot</span> <span class="p">.</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>
+<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaInPietsTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ContextMember</span> <span class="p">;</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="p">;</span>
+<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">memberId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">;</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">memberType</span> <span class="s">"Principal"</span> <span class="p">;</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">addedBy</span> <span class="s">"algorithm"</span> <span class="p">.</span>
+</code></pre></div>
+<hr />
+<h2 id="what-the-schema-file-says">What the schema file says<a class="headerlink" href="#what-the-schema-file-says" title="Permanent link">&para;</a></h2>
+<p>The ontology itself is written the same way, but it describes the <em>kinds</em> of things instead of the
+things. A few excerpts, quoted straight from <code>core.ttl</code>:</p>
+<p><strong>A kind of node.</strong> <code>ia:Principal</code> is a class. It is stored in the <code>Principals</code> table, and its
+<code>principalType</code> column says which subtype a row is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">Principal</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">Class</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">subClassOf</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">Node</span> <span class="p">;</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"Principal"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"An account in a source system: a user, service principal, managed identity, AI agent, guest, shared mailbox …"</span> <span class="p">;</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">table</span> <span class="s">"Principals"</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">identifierColumn</span> <span class="s">"id"</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">identifierSqlType</span> <span class="s">"uuid"</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ingestEntity</span> <span class="s">"principals"</span> <span class="p">;</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">discriminator</span> <span class="s">"principalType"</span> <span class="p">;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">passthroughFrom</span> <span class="s">"csv"</span><span class="p">,</span> <span class="s">"custom-connector"</span><span class="p">,</span> <span class="s">"midpoint"</span><span class="p">,</span> <span class="s">"mssql"</span><span class="p">,</span> <span class="s">"omada"</span><span class="p">,</span> <span class="s">"scim"</span> <span class="p">.</span>
+</code></pre></div>
+<p><strong>A type below it.</strong> An AI agent is a Principal whose <code>principalType</code> is <code>AIAgent</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">AIAgent</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">Class</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">subClassOf</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">Agent</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">typeValue</span> <span class="s">"AIAgent"</span> <span class="p">;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">emittedBy</span> <span class="s">"demo"</span><span class="p">,</span> <span class="s">"entra-id"</span> <span class="p">;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"AI agent"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"An AI agent (Copilot Studio, Azure OpenAI, a custom bot) that holds access as its own account."</span> <span class="p">.</span>
+</code></pre></div>
+<p><strong>A context type</strong>, with the plugin that makes it and the kind of node it groups:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">ManagerHierarchyContext</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">Class</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">subClassOf</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">OrganizationalUnit</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">typeValue</span> <span class="s">"ManagerHierarchy"</span> <span class="p">;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">producedBy</span> <span class="s">"manager-hierarchy"</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">allowedTargetType</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">EntityKind_Principal</span> <span class="p">;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"Manager hierarchy node"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"One generated context per manager of one system's accounts, plus a synthetic root (externalId 'root'). The manager is recorded only in externalId, which holds the manager's Principal id — there is no manager column or member role. Members are the manager's direct reports (Principals.managerId, overridden per account by ManagerHierarchyOverrides); the manager is a member of their own manager's node, not of their own. parentContextId is the node of the manager's own manager, else the root. Accounts with no manager that manage nobody are members of the root; a top-level manager is a member of no node. A managerId that points at no account of the system still becomes a node, named 'Unknown'. A reporting cycle, a self-reference included, leaves a node without a parent: the runner refuses the link that would close the cycle."</span> <span class="p">.</span>
+</code></pre></div>
+<p><strong>A relationship type</strong> between two resources, and which classes it connects:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">hasAppRole</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">ObjectProperty</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">typeValue</span> <span class="s">"HasAppRole"</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">storedIn</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ResourceRelationship</span> <span class="p">;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">domain</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">Application</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">range</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">AppRole</span> <span class="p">;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"has app role"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"An application and one of its app roles."</span> <span class="p">.</span>
+</code></pre></div>
+<p><strong>A closed list of values.</strong> An assignment is always one of exactly three:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">Class</span> <span class="p">;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"Assignment type"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"How an assignment is held. Only these three values exist; ownership, governance and source detail are modelled elsewhere."</span> <span class="p">.</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType_Direct</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">NamedIndividual</span><span class="p">,</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">typeValue</span> <span class="s">"Direct"</span> <span class="p">;</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"Direct"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"Held directly: a membership, a directly assigned app role, an OAuth2 grant, an ownership."</span> <span class="p">.</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType_Indirect</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">NamedIndividual</span><span class="p">,</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">typeValue</span> <span class="s">"Indirect"</span> <span class="p">;</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"Indirect"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"Inherited through another resource (an app role held via a group, a nested group). Stored, not inferred."</span> <span class="p">.</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType_Eligible</span> <span class="kt">a</span> <span class="nn">owl</span><span class="p">:</span><span class="nt">NamedIndividual</span><span class="p">,</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">AssignmentType</span> <span class="p">;</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">typeValue</span> <span class="s">"Eligible"</span> <span class="p">;</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">label</span> <span class="s">"Eligible"</span> <span class="p">;</span> <span class="nn">rdfs</span><span class="p">:</span><span class="nt">isDefinedBy</span> <span class="nv">&lt;https://identityatlas.io/ontology&gt;</span> <span class="p">;</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="nn">rdfs</span><span class="p">:</span><span class="nt">comment</span> <span class="s">"Granted but not active (PIM-eligible): can be activated."</span> <span class="p">.</span>
+</code></pre></div>
+<p>Every term carries a label and a description; the <a href="../../reference/core-model/">Core Model Reference</a>
+lists them all as tables, generated from this same file.</p>
+<hr />
+<h2 id="one-way-of-holding">One way of holding<a class="headerlink" href="#one-way-of-holding" title="Permanent link">&para;</a></h2>
+<p>The model separates <em>what exists</em> (the types and templates above), <em>how things relate</em> (the
+relationship types) and <em>who holds what</em>. The first two may grow. The third never does: an account
+reaches a resource only through an assignment, held <strong>Direct</strong>, <strong>Indirect</strong> or <strong>Eligible</strong>. A new kind
+of right, such as owning a group, is a new resource plus a relationship to the object it is about,
+never a new way of holding. That rule is what keeps every matrix cell to three values while the
+ontology grows; <a href="../../architecture/core-ontology/#three-layers-one-way-of-holding">Core Ontology</a>
+has the full table of concepts and where each one lives.</p>
+<hr />
+<h2 id="how-it-stays-true">How it stays true<a class="headerlink" href="#how-it-stays-true" title="Permanent link">&para;</a></h2>
+<p>A description is only useful if it matches the application. Three things keep it that way:</p>
+<ul>
+<li><strong>CI compares the ontology with the code.</strong> If a developer adds a relationship type, a principal
+  type, a column, a context type or an allowed value without describing it, the build fails. It also
+  fails the other way round, when the ontology describes something the code does not do.</li>
+<li><strong>CI compares it with the database.</strong> A database migrated from scratch must have exactly the
+  columns and allowed values the ontology describes.</li>
+<li><strong>The pictures on this page and the reference page are generated</strong> from the ontology, and the
+  example file is validated against it. Nobody draws them by hand, so they cannot drift.</li>
+</ul>
+<p>The details, and what is deliberately <em>not</em> checked, are on <a href="../../architecture/core-ontology/">Core Ontology</a>.
+How to change the model: <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
+<hr />
+<h2 id="open-it-in-a-tool">Open it in a tool<a class="headerlink" href="#open-it-in-a-tool" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Protégé</strong> (free desktop editor, <a href="https://protege.stanford.edu/">protege.stanford.edu</a>): <em>File →
+  Open from URL</em>, paste the <code>core.ttl</code> link above. The <em>Entities</em> tab shows the class tree (Node →
+  Principal → AIAgent …) and every property with its domain and range. The <em>OntoGraf</em> tab draws it.</li>
+<li><strong>WebVOWL</strong> (in the browser, <a href="https://service.tib.eu/webvowl/">service.tib.eu/webvowl</a>): download
+  <code>core.ttl</code>, then <em>Ontology → Select ontology file</em> to see an interactive graph of the classes.</li>
+<li>
+<p><strong>Python</strong> (rdflib):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rdflib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">g</span> <span class="o">=</span> <span class="n">Graph</span><span class="p">()</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">"https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl"</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"""</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s2">    PREFIX ia: &lt;https://identityatlas.io/ontology#&gt;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s2">    PREFIX rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s2">    SELECT ?type WHERE { ?c rdfs:subClassOf ia:Principal ; ia:typeValue ?type }"""</span><span class="p">):</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>          <span class="c1"># User, ServicePrincipal, AIAgent, …</span>
+</code></pre></div>
+</li>
+</ul>
+<p>The namespace <code>https://identityatlas.io/ontology#</code> is an identifier, not a web page: opening it in a
+browser does not return the file. Use the download links above.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Created by <a href="https://www.fortigi.nl">Maatschap Fortigi</a>
+
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.linkedin.com/in/wimvdheijkant/" target="_blank" rel="noopener" title="Wim van den Heijkant" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3M135.4 416H69V202.2h66.5V416zM102.2 96a38.5 38.5 0 1 1 0 77 38.5 38.5 0 1 1 0-77m282.1 320h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://www.fortigi.nl" target="_blank" rel="noopener" title="Fortigi" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M351.9 280H161c2.9 64.5 17.2 123.9 37.5 167.4 11.4 24.5 23.7 41.8 35.1 52.4 11.2 10.5 18.9 12.2 22.9 12.2s11.7-1.7 22.9-12.2c11.4-10.6 23.7-28 35.1-52.4 20.3-43.5 34.6-102.9 37.5-167.4zm-191-48h190.9c-2.8-64.5-17.1-123.9-37.4-167.4-11.4-24.4-23.7-41.8-35.1-52.4C268.1 1.7 260.4 0 256.4 0s-11.7 1.7-22.9 12.2c-11.4 10.6-23.7 28-35.1 52.4-20.3 43.5-34.6 102.9-37.5 167.4m-48 0c3.5-85.6 25.6-165.1 57.9-217.3C78.7 47.3 10.9 131.2 1.5 232zM1.5 280c9.4 100.8 77.2 184.7 169.3 217.3-32.3-52.2-54.4-131.7-57.9-217.3zm398.4 0c-3.5 85.6-25.6 165.1-57.9 217.3 92.1-32.7 159.9-116.5 169.3-217.3zm111.4-48C501.9 131.2 434.1 47.3 342 14.7c32.3 52.2 54.4 131.7 57.9 217.3z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

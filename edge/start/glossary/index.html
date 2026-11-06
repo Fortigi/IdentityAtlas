@@ -1090,6 +1090,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/governance-model/" class="md-nav__link">
         
   
@@ -3235,6 +3263,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/csv-import-schema/" class="md-nav__link">
         
   
@@ -3332,10 +3388,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_12" id="__nav_6_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="0">
             
   
   
@@ -3353,8 +3409,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_12">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3363,6 +3419,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -4030,6 +4114,34 @@
     
   
     Writing Tests That Assert
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
   
 
     
@@ -5844,7 +5956,7 @@
 <tbody>
 <tr>
 <td><strong>Synced</strong></td>
-<td>Read from a source system (an Entra group category, an AD OU)</td>
+<td>Read from a source system (Omada org units and departments, a <code>Contexts.csv</code> import)</td>
 </tr>
 <tr>
 <td><strong>Generated</strong></td>
@@ -5857,7 +5969,7 @@
 </tbody>
 </table>
 <p>A context always targets exactly one kind of thing: an <strong>Identity</strong>, a <strong>Resource</strong>, a <strong>Principal</strong> or a <strong>System</strong>.</p>
-<p><strong>Plugins</strong> are the interesting half. Ten ship in the box — including manager hierarchies, department trees, orphaned accounts and risky-consent grouping. A plugin does not import anything; it finds structure that was already there and gives it a name you can filter on. See <a href="../../ui/contexts/">Contexts</a>.</p>
+<p><strong>Plugins</strong> are the interesting half. Thirteen ship in the box — including manager hierarchies, department trees, AD OU trees, Entra group categories, orphaned accounts and risky-consent grouping. A plugin does not import anything; it finds structure that was already there and gives it a name you can filter on. See <a href="../../ui/contexts/">Contexts</a>.</p>
 <h2 id="12-effective-access">12. Effective access<a class="headerlink" href="#12-effective-access" title="Permanent link">&para;</a></h2>
 <p><strong>What someone can actually do, once every inheritance hop is followed.</strong></p>
 <p>Declared access is what a single record says. Effective access is the answer after you have walked nested groups, role bundles and Azure scope inheritance to the end. They are frequently not the same number, and the difference is usually where the unpleasant surprise lives.</p>
