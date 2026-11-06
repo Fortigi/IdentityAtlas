@@ -28,6 +28,7 @@ function rootNode(recipe, memberCount) {
     externalId: ROOT,
     displayName: recipe.name || 'Context',
     contextType: CONTEXT_TYPE,
+    contextCategory: recipe.template,
     description: kept.length
       ? `${memberCount} objects found by: ${kept.join(', ')}.`
       : `${memberCount} objects added by hand.`,
@@ -83,6 +84,7 @@ export default {
   displayName: 'Context assistant recipe',
   description: 'Builds a context from search terms and hand-picked objects chosen in the context assistant. Refreshed after every crawl.',
   targetType: 'Resource',
+  contextCategory: 'LogicalApplication',
   contextTypes: [CONTEXT_TYPE],
   hidden: true,
   parametersSchema: {

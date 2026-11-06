@@ -103,11 +103,29 @@ function Convert-SystemIds {
 # Post a section one batch per system, so each full sync reconciles only within
 # the system it is syncing.
 function Invoke-IngestPerSystem {
-    param([string]$Endpoint, [object]$Records, [string]$Label)
-    $groups = @($Records | Group-Object -Property systemId)
+    param([string]$Endpoint, [object]$Records, [string]$Label, [string]$GroupBy = 'systemId')
+    $groups = @($Records | Group-Object -Property $GroupBy)
     foreach ($g in $groups) {
         Write-Host "  $Label — system $($g.Name): $($g.Count) record(s)" -ForegroundColor DarkGray
         Invoke-IngestPost -Endpoint $Endpoint -Records $g.Group -SystemId ([int]$g.Name) -SyncMode 'full' | Out-Null
+    }
+}
+
+# Contexts carry no systemId: a context belongs to the system named in its
+# scopeSystemId, and its memberships, roles and links belong with it. Post each
+# under its owner's envelope, so a full sync reconciles only what that system
+# owns (the ingest bounds Contexts/ContextMembers by scopeSystemId).
+function Invoke-IngestPerContextOwner {
+    param(
+        [string]$Endpoint, [object]$Records, [string]$Label,
+        [hashtable]$OwnerOf, [string]$SyncMode = 'full'
+    )
+    foreach ($g in @($Records | Group-Object -Property { $OwnerOf[$_.contextId] })) {
+        if (-not $g.Name) {
+            throw "$Label reference context(s) not in the dataset: $(($g.Group.contextId | Select-Object -Unique) -join ', ')"
+        }
+        Write-Host "  $Label — system $($g.Name): $($g.Count) record(s)" -ForegroundColor DarkGray
+        Invoke-IngestPost -Endpoint $Endpoint -Records $g.Group -SystemId ([int]$g.Name) -SyncMode $SyncMode | Out-Null
     }
 }
 
@@ -117,7 +135,7 @@ Write-Host "API:     $ApiBaseUrl"
 Write-Host ""
 
 # 1. Systems (no systemId needed) — and resolve the real ids.
-Write-Host "[1/13] Systems ($($dataset.systems.Count))..." -ForegroundColor Cyan
+Write-Host "[1/15] Systems ($($dataset.systems.Count))..." -ForegroundColor Cyan
 $sysResult = Invoke-IngestPost -Endpoint 'ingest/systems' -Records $dataset.systems -SyncMode 'delta'
 
 $realIds = @($sysResult.systemIds)
@@ -148,46 +166,49 @@ $sysEntra = $byKey['entra']
 $sysHR    = $byKey['hr']
 $sysIga   = $byKey['iga']
 
-# 2. Contexts
-Write-Host "[2/13] Contexts ($($dataset.contexts.Count))..." -ForegroundColor Cyan
-Invoke-IngestPost -Endpoint 'ingest/contexts' -Records $dataset.contexts -SystemId $sysHR -SyncMode 'full' | Out-Null
+# 2. Contexts — the org tree is the HR system's, the application catalogue the
+# IGA system's, the administrative unit Entra's: each under its own envelope.
+Write-Host "[2/15] Contexts ($($dataset.contexts.Count))..." -ForegroundColor Cyan
+$contextOwner = @{}
+foreach ($c in $dataset.contexts) { $contextOwner[$c.id] = [int]$c.scopeSystemId }
+Invoke-IngestPerSystem -Endpoint 'ingest/contexts' -Records $dataset.contexts -Label 'contexts' -GroupBy 'scopeSystemId'
 
 # 3. Principals — span Entra, IGA and SAP.
-Write-Host "[3/13] Principals ($($dataset.principals.Count))..." -ForegroundColor Cyan
+Write-Host "[3/15] Principals ($($dataset.principals.Count))..." -ForegroundColor Cyan
 Invoke-IngestPerSystem -Endpoint 'ingest/principals' -Records $dataset.principals -Label 'principals'
 
 # 4. Context Members (depends on Contexts + Principals)
-Write-Host "[4/13] Context Members ($($dataset.contextMembers.Count))..." -ForegroundColor Cyan
-Invoke-IngestPost -Endpoint 'ingest/context-members' -Records $dataset.contextMembers -SystemId $sysHR -SyncMode 'full' | Out-Null
+Write-Host "[4/15] Context Members ($($dataset.contextMembers.Count))..." -ForegroundColor Cyan
+Invoke-IngestPerContextOwner -Endpoint 'ingest/context-members' -Records $dataset.contextMembers -Label 'context members' -OwnerOf $contextOwner
 
 # 5. Resources — span Entra, IGA, SAP and AzureRM.
-Write-Host "[5/13] Resources ($($dataset.resources.Count))..." -ForegroundColor Cyan
+Write-Host "[5/15] Resources ($($dataset.resources.Count))..." -ForegroundColor Cyan
 Invoke-IngestPerSystem -Endpoint 'ingest/resources' -Records $dataset.resources -Label 'resources'
 
 # 6. Resource Assignments — carry the system of the resource they hang off.
-Write-Host "[6/13] Resource Assignments ($($dataset.resourceAssignments.Count))..." -ForegroundColor Cyan
+Write-Host "[6/15] Resource Assignments ($($dataset.resourceAssignments.Count))..." -ForegroundColor Cyan
 Invoke-IngestPerSystem -Endpoint 'ingest/resource-assignments' -Records $dataset.resourceAssignments -Label 'assignments'
 
 # 7. Resource Relationships
-Write-Host "[7/13] Resource Relationships ($($dataset.resourceRelationships.Count))..." -ForegroundColor Cyan
+Write-Host "[7/15] Resource Relationships ($($dataset.resourceRelationships.Count))..." -ForegroundColor Cyan
 Invoke-IngestPerSystem -Endpoint 'ingest/resource-relationships' -Records $dataset.resourceRelationships -Label 'relationships'
 
 # 8. Identities
-Write-Host "[8/13] Identities ($($dataset.identities.Count))..." -ForegroundColor Cyan
+Write-Host "[8/15] Identities ($($dataset.identities.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/identities' -Records $dataset.identities -SystemId $sysHR -SyncMode 'full' | Out-Null
 
 # 9. Identity Members — the cross-system correlation (Entra + IGA + SAP).
-Write-Host "[9/13] Identity Members ($($dataset.identityMembers.Count))..." -ForegroundColor Cyan
+Write-Host "[9/15] Identity Members ($($dataset.identityMembers.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/identity-members' -Records $dataset.identityMembers -SystemId $sysHR -SyncMode 'full' | Out-Null
 
 # 10-12. Governance — sourced from the IGA system.
-Write-Host "[10/13] Governance Catalogs ($($dataset.governanceCatalogs.Count))..." -ForegroundColor Cyan
+Write-Host "[10/15] Governance Catalogs ($($dataset.governanceCatalogs.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/governance/catalogs' -Records $dataset.governanceCatalogs -SystemId $sysIga -SyncMode 'full' | Out-Null
 
-Write-Host "[11/13] Assignment Policies ($($dataset.assignmentPolicies.Count))..." -ForegroundColor Cyan
+Write-Host "[11/15] Assignment Policies ($($dataset.assignmentPolicies.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/governance/policies' -Records $dataset.assignmentPolicies -SystemId $sysIga -SyncMode 'full' | Out-Null
 
-Write-Host "[12/13] Certification Decisions ($($dataset.certificationDecisions.Count))..." -ForegroundColor Cyan
+Write-Host "[12/15] Certification Decisions ($($dataset.certificationDecisions.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/governance/certifications' -Records $dataset.certificationDecisions -SystemId $sysIga -SyncMode 'full' | Out-Null
 
 # 13. Principal activity. The table has no systemId column, but every ingest
@@ -195,7 +216,7 @@ Invoke-IngestPost -Endpoint 'ingest/governance/certifications' -Records $dataset
 # it belongs to. Delta, exactly as the Entra crawler sends it: an activity
 # snapshot is an upsert, never a reconcile that could drop other rows. Posted
 # last because every row references a principal.
-Write-Host "[13/13] Principal Activity ($($dataset.principalActivity.Count))..." -ForegroundColor Cyan
+Write-Host "[13/15] Principal Activity ($($dataset.principalActivity.Count))..." -ForegroundColor Cyan
 $systemOfPrincipal = @{}
 foreach ($p in $dataset.principals) { $systemOfPrincipal[$p.id] = [int]$p.systemId }
 foreach ($g in @($dataset.principalActivity | Group-Object -Property { $systemOfPrincipal[$_.principalId] })) {
@@ -205,6 +226,19 @@ foreach ($g in @($dataset.principalActivity | Group-Object -Property { $systemOf
     Write-Host "  activity — system $($g.Name): $($g.Count) record(s)" -ForegroundColor DarkGray
     Invoke-IngestPost -Endpoint 'ingest/principal-activity' -Records $g.Group -SystemId ([int]$g.Name) -SyncMode 'delta' | Out-Null
 }
+
+# 14-15. Who answers for a context (Accountable / Responsible) and which
+# contexts are one unit (SameUnitAs). Posted after the contexts and the
+# principals they point at. Additive: the endpoints never remove a role or a
+# link, so an analyst's changes survive the next demo load. A dataset without
+# either section (an older file) simply posts nothing.
+$contextRoles = @($dataset.contextRoles | Where-Object { $_ })
+Write-Host "[14/15] Context Roles ($($contextRoles.Count))..." -ForegroundColor Cyan
+Invoke-IngestPerContextOwner -Endpoint 'ingest/context-roles' -Records $contextRoles -Label 'context roles' -OwnerOf $contextOwner -SyncMode 'delta'
+
+$contextLinks = @($dataset.contextRelationships | Where-Object { $_ })
+Write-Host "[15/15] Context Relationships ($($contextLinks.Count))..." -ForegroundColor Cyan
+Invoke-IngestPerContextOwner -Endpoint 'ingest/context-relationships' -Records $contextLinks -Label 'context relationships' -OwnerOf $contextOwner -SyncMode 'delta'
 
 # Refresh views
 Write-Host "`nRefreshing views..." -ForegroundColor Cyan

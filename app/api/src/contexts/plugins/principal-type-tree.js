@@ -26,7 +26,7 @@ export function parseParams(params) {
 // Returns the built contexts/members plus the count of distinct types for logging.
 export function buildTree(rows, rootName, allow) {
   const rootExt = 'ptype-root';
-  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'PrincipalTypeRoot' }];
+  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'PrincipalType' }];
   const members = [];
   const seen = new Map(); // value → externalId
   for (const r of rows) {
@@ -53,7 +53,8 @@ export default {
     'all managed identities / AI agents / service principals access?". Optionally restrict to chosen ' +
     'values (e.g. ManagedIdentity) and/or a single system.',
   targetType: 'Principal',
-  contextTypes: ['PrincipalTypeRoot', 'PrincipalType'],
+  contextCategory: 'Segment',
+  contextTypes: ['PrincipalType'],
   parametersSchema: {
     type: 'object',
     properties: {

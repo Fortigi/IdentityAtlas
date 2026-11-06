@@ -16,7 +16,7 @@ import { reportMetadata } from './registry.js';
 // `allRows` asks a template that caps its rows to lift that cap. Off by default:
 // only a download or a reader who chose to wait asks for every row.
 export async function runReport(report, params, { allRows = false } = {}) {
-  const { rows, notices, truncated, canLoadAllRows, constantColumns, columns, pivots } = await report.run(params, { allRows });
+  const { rows, notices, truncated, canLoadAllRows, constantColumns, columns, pivots, details } = await report.run(params, { allRows });
   const metadata = reportMetadata(report);
   return {
     ...metadata,
@@ -28,6 +28,9 @@ export async function runReport(report, params, { allRows = false } = {}) {
     // and does not change: the screen shows every column whatever the run said,
     // and only a format with room for a header acts on this.
     constantColumns: Array.isArray(constantColumns) ? constantColumns : [],
+    // Blocks of label/value facts about what the run covers (the contexts of an
+    // Entitlement Pivot): context, like the notices, for a format with room for it.
+    details: Array.isArray(details) ? details : [],
     total: rows.length,
     // A template that stops at a row cap says so; the screen and the download must
     // not present the first N rows as the whole answer.

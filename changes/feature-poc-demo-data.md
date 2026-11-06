@@ -1,0 +1,4 @@
+- The demo dataset now includes seven logical applications (SAP ERP with its Financial Accounting module, Customer Relationship Management, IT Service Management, Engineering Platform, Privileged Access Management and Employee Portal & Intranet), each grouping the demo resources that belong to it.
+- Demo applications show every ownership case: three have an Accountable and Responsible set, two have none but suggest a best-guess owner from group ownership, one has an owner below the suggestion threshold, and one has no owner at all.
+- The demo's Security Team is also available as its resources and linked to the people team, so its "Download report" card has something to run on.
+- Crawlers can now send who is Accountable or Responsible for a context, and which contexts are one unit, through the ingest API; these are added without overwriting changes an analyst made.

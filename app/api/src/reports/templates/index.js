@@ -18,6 +18,7 @@ import privilegedAccounts from './privileged-accounts.js';
 import riskyApplications from './risky-applications.js';
 import staleAccounts from './stale-accounts.js';
 import staleGuestAccounts from './stale-guest-accounts.js';
+import unitMembers from './unit-members.js';
 
 /** @type {import('../types.js').ReportTemplate[]} */
 export const BUILT_IN_REPORTS = [
@@ -35,4 +36,5 @@ export const BUILT_IN_REPORTS = [
   riskyApplications,
   staleAccounts,
   staleGuestAccounts,
+  unitMembers,
 ];

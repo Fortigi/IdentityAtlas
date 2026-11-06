@@ -64,6 +64,9 @@ an exported constant that the code itself uses (`CONTEXT_VARIANTS`, `CONTEXT_TAR
 | A template (the level the application reasons at) | a class with `ia:template true` between the kind of node and its types; a template with one built-in type is that type's own class | `ia:TechnicalRole`, `ia:Person`, `ia:Group` |
 | What holding a resource reaches | `ia:expandsAccess` true (membership expands) or false (a control permission never does), inherited by the types below | `ia:Group` true, `ia:ControlPermission` false |
 | Ownership resources (`lib/ownershipTypes.js`) | subclasses of `ia:ControlPermission`, each the range of exactly one ownership relationship | `ia:GroupOwnership` |
+| The template of a context, stored | the `ia:ContextCategory` value list, each value `ia:denotesTemplate` the template class; the `contextCategory` column | `ia:ContextCategory_OrganizationalUnit` |
+| Who answers for a context | `ia:ContextRole`: an edge from a context to an account or a person, `role` from `ia:ContextRoleType` (Accountable, at most one; Responsible, many) | Piet is Accountable for his team |
+| Two contexts linked | `ia:ContextRelationship`, relationship type `ia:sameUnitAs` (symmetric) | Contoso's people ↔ Contoso's resources |
 | Who answers for an account | the `ia:Accountability` value list (Personal, Shared, Autonomous), with `ia:accountabilityDefault` per principal type; declared ahead of its column | `ia:User` → Personal |
 | `contextType` (open) | subclasses of `ia:Context` named `<Value>Context`, with `ia:typeValue`, `ia:producedBy` (the plugin, if one emits it) and `ia:allowedTargetType` (the `ia:EntityKind` values it may group) | `ia:ManagerHierarchyContext` |
 
@@ -114,6 +117,8 @@ own is that holding it never makes the holder a member of what it controls: `ia:
 | Requested and approved | — | — | a flag: origin = Requested |
 | An AI agent acting for a person | AIAgent, accountability Personal | Owner link agent → person | — |
 | Member of a team | an OrganizationalUnit context | ContextMembers | — |
+| Manager of a team | an OrganizationalUnit context | ContextRoles: Accountable | — |
+| The resources that belong to a team | a second OrganizationalUnit context, of resources | ContextRelationships: SameUnitAs | — |
 
 Templates are the level the application reasons at: three for accounts (Person, Software, Agent),
 seven for resources (Group, TechnicalRole, Permission, Application, Scope, BusinessRole, Other) and
@@ -162,6 +167,7 @@ so a *new* ingest entity type cannot silently fall outside the model:
 | 5 | Every column of every core table is described, with the same type; nothing described is missing; every `IN (…)` CHECK constraint equals the ontology's list | `information_schema.columns`, `pg_constraint` of a database migrated from scratch | contract test (`Contract Tests` job) |
 | 6 | No term declared twice or as two kinds, no conflicting annotations, no case-only clashes, no undeclared references, naming conventions | the ontology itself | `ontology:check` |
 | 4 | Templates and holding: every type has exactly one template among its ancestors or is one; `ia:expandsAccess` agrees with `GROUP_RESOURCE_TYPES` and `OWNERSHIP_RESOURCE_TYPES`; every control permission is the range of exactly one ownership relationship; an accountability default names an `ia:Accountability` value; `ia:ResourceAssignment` is the only edge table from an account or a person to a resource | the ontology, `effectiveAccess/engine.js`, `lib/ownershipTypes.js` | `ontology:check` |
+| 4 | Context templates, stored: the `ia:ContextCategory` values name exactly the templates under `ia:Context`; a plugin's `contextCategory` is one of them and every type it emits sits under it | `REGISTERED_PLUGINS` | `ontology:check` |
 | 4 | Crawler types: each type a crawler manifest declares in `emits` is a subclass of the right core class whose `ia:emittedBy` names that crawler; each `ia:emittedBy` names a crawler that still declares it; `ia:passthroughFrom` equals the manifests' `emits.open` | every `tools/crawlers/*/crawler.json` (read through `crawlerManifests.js`) | `ontology:check` |
 | — | Every type literal a crawler's sources write is in its manifest's `emits` | the crawler sources (and the demo dataset for the demo crawler) | `ontology/crawlerEmits.guard.test.js` (unit job) |
 | — | Every `contextType` literal a plugin writes is in its own `contextTypes` | the plugin sources | `contexts/plugins/contextTypes.guard.test.js` (unit job) |
@@ -217,9 +223,9 @@ Verified against the code and its tests, not against earlier design documents.
   of accounts (`targetType` Principal, `contextType` `ManagerHierarchy`, `variant` generated):
     - one node per manager referenced by `Principals.managerId`, plus a synthetic root with
       `externalId` `root`;
-    - **the manager is recorded only as the node's `externalId`**, the manager's Principal id — there is
-      no manager column on Contexts and no member role. The org-chart route and the member-move route
-      read it from there;
+    - **the manager is stated as the node's `Accountable` context role** (since 2.1.0; before, only as
+      the node's `externalId`, which still holds the manager's Principal id and which the member-move
+      route reads);
     - members are the manager's direct reports, after analyst overrides (`ManagerHierarchyOverrides`);
       a manager is a member of their own manager's node, not of their own;
     - a node's parent is its manager's own manager's node, else the root; an account with no manager
@@ -227,7 +233,9 @@ Verified against the code and its tests, not against earlier design documents.
     - a `managerId` that points at no account of the system still becomes a node, named `Unknown`;
     - a reporting loop (including an account that is its own manager) reaches the runner as a cycle; the
       runner keeps all but the closing link, so one node of the loop has no parent and the loop hangs
-      outside the synthetic root.
+      outside the synthetic root;
+    - every node carries `contextCategory = OrganizationalUnit`; the member-move route, the org-chart
+      route and the matrix sort recognise the tree by the plugin that built it, not by its type.
 
   Pinned by `manager-hierarchy.helpers.test.js` ("irregular reporting lines"), `runner.refresh.test.js`
   and the `runnerCycle` / `contextAcyclicTrigger` contract tests; described on `ia:ManagerHierarchyContext`.

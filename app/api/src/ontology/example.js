@@ -140,7 +140,7 @@ function edgeArrow(model, inst) {
   const end = (props) => props.map(p => first(inst, p)?.iri).find(Boolean);
   const from = end(cls.sourceProperties);
   const to = end(cls.targetProperties);
-  const how = first(inst, 'assignmentType')?.literal;
+  const how = first(inst, 'assignmentType')?.literal ?? first(inst, 'role')?.literal;
   const governed = first(inst, 'governed')?.literal === 'true' ? ', governed' : '';
   const text = how ? `${how}${governed}` : cls.label.toLowerCase();
   return `    ${short(from)} -->|"${label(text)}"| ${short(to)}`;

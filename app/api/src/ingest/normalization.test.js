@@ -615,3 +615,23 @@ describe('normalizeRecords — cross-system references', () => {
     expect(assignment.principalId).not.toBe(principal.id);
   });
 });
+
+describe('normalizeRecords — a synced context gets its template from its type', () => {
+  const cols = ['id', 'externalId', 'displayName', 'contextType', 'contextCategory', 'variant', 'targetType'];
+  const one = (rec, columns = cols) => normalizeRecords([rec], columns, { systemPrefix: 'sys' })[0];
+
+  it('derives OrganizationalUnit for an OrgUnit and Segment for a Location', () => {
+    expect(one({ externalId: 'ou1', displayName: 'Inkoop', contextType: 'OrgUnit' }).contextCategory).toBe('OrganizationalUnit');
+    expect(one({ externalId: 'l1', displayName: 'Rotterdam', contextType: 'Location' }).contextCategory).toBe('Segment');
+  });
+
+  it('keeps what the sender said, and leaves an unknown type without a template', () => {
+    expect(one({ externalId: 'ou1', contextType: 'OrgUnit', contextCategory: 'Segment' }).contextCategory).toBe('Segment');
+    expect(one({ externalId: 'p1', contextType: 'Position' }).contextCategory).toBeUndefined();
+  });
+
+  it('does nothing on a table without the column, or a record without a type', () => {
+    expect(one({ externalId: 'ou1', contextType: 'OrgUnit' }, cols.filter(c => c !== 'contextCategory')).contextCategory).toBeUndefined();
+    expect(one({ externalId: 'x' }).contextCategory).toBeUndefined();
+  });
+});

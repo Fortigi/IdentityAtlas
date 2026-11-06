@@ -111,14 +111,27 @@ function Add-DemoGroupOwnership {
     )
 
     foreach ($og in $ownedGroups) {
-        $ownId = New-DemoGuid "res-ownership-$($og.Name)"
-        $null = Add-DemoResource $State -Id $ownId -DisplayName $og.Name -ResourceType 'GroupOwnership' `
-            -SystemId $State.SystemIds['entra'] -ExternalId "entraid-ownership:$($og.GroupId)" `
-            -Extended @{ ownedResourceId = $og.GroupId }
-        Add-DemoRelationship $State -ParentResourceId $og.GroupId -ChildResourceId $ownId -RelationshipType 'HasOwnership'
-        foreach ($ownerId in $og.Owners) {
-            Add-DemoAssignment $State -ResourceId $ownId -PrincipalId (Get-DemoPrincipalId $ownerId) `
-                -AssignmentType 'Direct' -ResourceType 'GroupOwnership'
-        }
+        Add-DemoGroupOwner $State -GroupId $og.GroupId -GroupName $og.Name -Owners $og.Owners
+    }
+}
+
+# One owned group: its GroupOwnership resource, the HasOwnership link, and a
+# Direct assignment per owner (employee ids). Shared with DemoApplications.ps1,
+# which gives the application story's groups their owners.
+function Add-DemoGroupOwner {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$GroupId,
+        [Parameter(Mandatory)][string]$GroupName,
+        [Parameter(Mandatory)][string[]]$Owners
+    )
+    $ownId = New-DemoGuid "res-ownership-$GroupName"
+    $null = Add-DemoResource $State -Id $ownId -DisplayName $GroupName -ResourceType 'GroupOwnership' `
+        -SystemId $State.SystemIds['entra'] -ExternalId "entraid-ownership:$GroupId" `
+        -Extended @{ ownedResourceId = $GroupId }
+    Add-DemoRelationship $State -ParentResourceId $GroupId -ChildResourceId $ownId -RelationshipType 'HasOwnership'
+    foreach ($ownerId in $Owners) {
+        Add-DemoAssignment $State -ResourceId $ownId -PrincipalId (Get-DemoPrincipalId $ownerId) `
+            -AssignmentType 'Direct' -ResourceType 'GroupOwnership'
     }
 }

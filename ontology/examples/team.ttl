@@ -87,15 +87,23 @@ ex:botHasAppRole a ia:ResourceAssignment ;
 ex:orgRoot a ia:ManagerHierarchyContext ;
     ia:displayName "Organisation" ;
     ia:targetType "Principal" ;
+    ia:contextCategory "OrganizationalUnit" ;
     ia:variant "generated" ;
     ia:externalId "root" .
 
-ex:pietsTeam a ia:ManagerHierarchyContext ;   # the manager is recorded in externalId only
+ex:pietsTeam a ia:ManagerHierarchyContext ;
     ia:displayName "Berth Planning (Piet Jansen)" ;
     ia:targetType "Principal" ;
+    ia:contextCategory "OrganizationalUnit" ;
     ia:variant "generated" ;
     ia:externalId "pietAccount" ;
     ia:parentContextId ex:orgRoot .
+
+ex:pietAnswersForTeam a ia:ContextRole ;        # who answers for the team: a link, not access
+    ia:contextId ex:pietsTeam ;
+    ia:principalId ex:pietAccount ;
+    ia:role "Accountable" ;
+    ia:addedBy "algorithm" .
 
 ex:annaInPietsTeam a ia:ContextMember ;
     ia:contextId ex:pietsTeam ;

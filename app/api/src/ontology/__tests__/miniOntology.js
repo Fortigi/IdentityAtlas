@@ -155,7 +155,7 @@ export function contextRegistry() {
   return {
     ...miniRegistry(),
     contexts: {
-      plugins: [{ name: 'manager-hierarchy', targetType: 'Principal', contextTypes: ['ManagerHierarchy'] }],
+      plugins: [{ name: 'manager-hierarchy', targetType: 'Principal', contextTypes: ['ManagerHierarchy'], contextCategory: 'OrganizationalUnit' }],
       branchedOn: new Map([['Tag', ['routes/tags.js:1']], ['ManagerHierarchy', ['routes/orgChart.js:9']]]),
     },
   };

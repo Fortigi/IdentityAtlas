@@ -54,7 +54,7 @@ export function loadRegistry() {
       relationshipTypes: OWNERSHIP_RELATIONSHIP_TYPES,
     },
     contexts: {
-      plugins: REGISTERED_PLUGINS.map(p => ({ name: p.name, targetType: p.targetType, contextTypes: p.contextTypes })),
+      plugins: REGISTERED_PLUGINS.map(p => ({ name: p.name, targetType: p.targetType, contextTypes: p.contextTypes, contextCategory: p.contextCategory })),
       branchedOn: scanContextTypeUsage(),
     },
     access: { expands: GROUP_RESOURCE_TYPES, never: OWNERSHIP_RESOURCE_TYPES },

@@ -1,0 +1,19 @@
+- Every grouping (context) now carries its template — organisation, application, tag or segment — and the Contexts page groups trees that way, with the source of each tree as caption
+- An organisational unit or a logical application can record who answers for it: one accountable person (its manager or owner) and any number of responsible people; the manager hierarchy fills in the accountable manager of every team
+- A unit can exist as several groupings — its people, its accounts and its resources — each holding one kind of member, linked as variants of the same unit
+- The roots of generated trees no longer carry a type of their own; the Azure scope tree's nodes are scopes with the resource type as an attribute
+- The ontology (2.1.0) describes the template column, context roles and context relationships, and CI checks that every plugin's types sit under the template it declares
+- Context trees are now grouped by template (Organisation, Applications, Tags, Segments, Other) and show where each tree came from, the plugin or the source system, instead of the raw type name
+- A context's template is shown on its detail page; organisational units and applications list the people who answer for them (one accountable, any number responsible), which an analyst with write access can add or remove
+- The new-context wizard and the context editor let you choose a template; a new child starts on its parent's template
+- Moving a person between teams by drag and drop, and the matrix "By Manager Hierarchy" sort, now follow the manager-hierarchy plugin's trees rather than a type name
+- The context list can be filtered by template and by the plugin that built a tree; creating or editing a context lets you choose its template
+- The "Tags" root no longer appears as a tag of its own and cannot be renamed or deleted through the tag endpoints
+- The owner a source names for a synced grouping (for example a logical application's owner from IdentityIQ) now shows as its accountable person, matched to an account by its key or, failing that, by an employee number only one active account carries; a choice an analyst made is never overwritten by the next sync, and the context page says which system an accountable person came from
+- Existing databases get the accountable person filled in for synced groupings that name an owner and have none yet, once, on upgrade
+- The IdentityIQ preset with organisation extensions takes a logical application's owner from the application owner key when the catalogue's owner key is empty
+- Databases that already applied a migration under its earlier number keep it applied when the migration is renumbered, instead of running it again
+- Fixed: an accountable person a crawler sends for a grouping directly is no longer removed by the next contexts sync when the grouping itself names no owner; only the owner taken from the source's owner field follows that field, and existing databases are relabelled on upgrade
+- Upgrade note: the root types of generated trees are renamed (for example PrincipalTypeRoot → PrincipalType, ScopeHierarchy and the Azure scope types → Scope, TagGroup → Tag); saved filters, report parameters or API scripts that select contexts by one of the old type names need the new name
+- Databases that ran an early test build of the context templates (links between variants of a unit stored as "DedicatedTo") are brought level on upgrade: those links become "same unit as" links, a link stored both ways is kept once, and the change history of who answers for a unit is recorded
+- Added a setting under Admin → Experimental, "Accountables from source owners" (on by default): switched off, a sync no longer sets, changes or removes any accountable person from the owner a source names

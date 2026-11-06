@@ -13,7 +13,8 @@ import { Router } from 'express';
 import { listAllReports, reportMetadata, resolveReport } from '../reports/registry.js';
 import { runReport } from '../reports/run.js';
 import {
-  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, exportFilename, resolveExportFormat,
+  DEFAULT_EXPORT_FORMAT, EXPORT_FORMAT_NAMES, contentDisposition, exportFilename, resolveExportFormat,
+  singleSubject,
 } from '../reports/export.js';
 
 const router = Router();
@@ -80,8 +81,8 @@ router.get('/reports/:name/export', async (req, res) => {
   }
 
   try {
-    // Whether a run's context — its notices, and the columns it declared
-    // constant — travels with the rows is the FORMAT's call, not this route's. A
+    // Whether a run's context — its notices, its details, and the columns it
+    // declared constant — travels with the rows is the FORMAT's call, not this route's. A
     // CSV is a table and nothing else, so a preamble above the header would
     // break every parser that reads it; a workbook has room above the table and
     // a reader who expects to find context there. So a format declares
@@ -89,12 +90,12 @@ router.get('/reports/:name/export', async (req, res) => {
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
     const full = await runReport(report, params, { allRows: true });
-    const { notices: _screenOnly, constantColumns: _headerOnly, ...rowsOnly } = full;
+    const { notices: _screenOnly, constantColumns: _headerOnly, details: _aboutOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 
-    const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt);
+    const filename = exportFilename(report.name, exportFormat.extension, payload.generatedAt, singleSubject(full));
     res.setHeader('Content-Type', exportFormat.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', contentDisposition(filename));
     // A serializer may be async — a workbook is assembled and zipped, not
     // concatenated — so every format is awaited, including the synchronous ones.
     res.send(await exportFormat.serialize(payload));

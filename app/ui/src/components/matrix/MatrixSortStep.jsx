@@ -34,7 +34,7 @@ export default function MatrixSortStep({
   useEffect(() => {
     if (!isHierarchy || ctxRoots !== null) return;
     let cancelled = false;
-    authFetch('/api/contexts?contextType=ManagerHierarchy')
+    authFetch('/api/contexts?sourceAlgorithm=manager-hierarchy')
       .then(r => r.ok ? r.json() : { data: [] })
       .then(body => { if (!cancelled) setCtxRoots(Array.isArray(body.data) ? body.data : []); })
       .catch(() => { if (!cancelled) setCtxRoots([]); });

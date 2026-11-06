@@ -25,7 +25,7 @@ const ia = (name) => `${IA}${name}`;
 export const SINGLE_VALUED = [
   ia('expandsAccess'), ia('accountabilityDefault'),
   P.label, P.comment, ia('typeValue'), ia('sqlType'), ia('table'), ia('identifierColumn'),
-  ia('identifierSqlType'), ia('discriminator'), ia('typeColumn'), ia('storedIn'), ia('valueScheme'), ia('denotesClass'), ia('status'),
+  ia('identifierSqlType'), ia('discriminator'), ia('typeColumn'), ia('storedIn'), ia('valueScheme'), ia('denotesClass'), ia('denotesTemplate'), ia('status'),
 ];
 
 /**
@@ -119,6 +119,7 @@ function buildIndividual(store, iri) {
     types: locals(types),
     typeValue: first(store, iri, ia('typeValue')),
     denotesClass: localName(first(store, iri, ia('denotesClass')) ?? '') ?? undefined,
+    denotesTemplate: localName(first(store, iri, ia('denotesTemplate')) ?? '') ?? undefined,
   };
 }
 

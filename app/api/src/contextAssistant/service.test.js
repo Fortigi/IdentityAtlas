@@ -5,7 +5,7 @@ vi.mock('../nlreports/settings.js', () => ({ getReportModel: vi.fn(async () => '
 vi.mock('../featureFlags.js', () => ({ isFeatureEnabled: vi.fn(async () => true) }));
 
 import { chat, warm } from '../nlreports/llm.js';
-import { containsOwnWord, interpret, isGenericTerm, ownWords, schemaFor, shapeTerms, suggestMore, warmAtStartup } from './service.js';
+import { containsOwnWord, interpret, isGenericTerm, ownWords, schemaFor, shapeTerms, suggestMore, templateGuess, warmAtStartup } from './service.js';
 import { buildContextPrompt, MORE_TERMS_SCHEMA, RESPONSE_SCHEMA, TERMS_ONLY_SCHEMA } from './prompt.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 import { validateRecipe } from '../contexts/recipe/recipe.js';
@@ -143,6 +143,36 @@ describe('interpret', () => {
   it('reports a reply that is not JSON', async () => {
     chat.mockResolvedValueOnce({ content: 'not json', timing: {} });
     expect(await interpret({ question: 'x' })).toMatchObject({ kind: 'error', raw: 'not json' });
+  });
+
+  it('passes on the model\'s guess at the template, and drops one that is no template', async () => {
+    chat.mockResolvedValueOnce(reply({ kind: 'terms', name: 'Salaris', template: 'OrganizationalUnit', terms: [{ text: 'salaris', why: 'name' }], notes: [] }));
+    expect((await interpret({ question: 'salarisadministratie' })).template).toBe('OrganizationalUnit');
+    chat.mockResolvedValueOnce(reply({ kind: 'terms', name: 'Salaris', template: 'Department', terms: [{ text: 'salaris', why: 'name' }], notes: [] }));
+    expect((await interpret({ question: 'salarisadministratie' })).template).toBeNull();
+  });
+});
+
+describe('the template guess', () => {
+  it('accepts exactly the four templates', () => {
+    for (const t of ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment']) expect(templateGuess(t)).toBe(t);
+    for (const t of ['Department', 'organizationalunit', '', null, undefined, 3]) expect(templateGuess(t)).toBeNull();
+  });
+
+  it('the first answer must carry a template; asking for more terms does not ask for one', () => {
+    expect(TERMS_ONLY_SCHEMA.required).toContain('template');
+    expect(TERMS_ONLY_SCHEMA.properties.template.enum).toEqual(['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment']);
+    expect(RESPONSE_SCHEMA.anyOf[0]).toBe(TERMS_ONLY_SCHEMA);
+    expect(MORE_TERMS_SCHEMA.required).not.toContain('template');
+    expect(MORE_TERMS_SCHEMA.properties.template).toBeUndefined();
+  });
+
+  it('the prompt explains the templates, and every example answer names a valid one', () => {
+    const prompt = buildContextPrompt();
+    expect(prompt).toContain('"template" says what the context is');
+    const examples = [...prompt.matchAll(/Reply: (\{.*\})/g)].map(m => JSON.parse(m[1])).filter(a => a.kind === 'terms');
+    expect(examples.length).toBeGreaterThan(0);
+    for (const a of examples) expect(templateGuess(a.template)).toBe(a.template);
   });
 });
 

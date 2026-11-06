@@ -15,6 +15,7 @@ import {
 } from '../config/authConfig.js';
 import { isReadTokenFormat, findActiveByPlaintext } from '../auth/readTokens.js';
 import { resolvePermissions } from '../auth/permissions.js';
+import { applyContextOwnerMode } from './contextOwnerMode.js';
 
 // The request path the prefix guards below compare against: originalUrl (not
 // req.path, which is mount-stripped under app.use('/api', ...)), without the
@@ -107,12 +108,20 @@ export function authMiddleware(req, res, next) {
   // aud = api://<clientId>. (Requires the Entra App ID URI to be the default
   // `api://<clientId>` — see the setup walkthrough's "Expose an API" step.)
   verifyEntraAccessToken(token, `api://${getClientId()}`).then((decoded) => {
-    const access = accessFromClaims(decoded);
-    if (!access) return res.status(403).json({ error: 'Insufficient permissions' });
+    const access = resolveAccess(decoded);
     req.user = decoded;
     req.user.roles = access.roles;
     req.user.permissions = access.permissions;
-    next();
+    if (!access.missesRequiredRole && access.permissions.size > 0) return next();
+
+    // A caller who would otherwise have no access — missing a required role, or
+    // holding roles that map to nothing — may still be a context owner
+    // (Accountable / Responsible for a context, with the Admin → Authentication
+    // switch on). contextOwnerMode.js decides; when they are not one, the
+    // `otherwise` path is exactly the behaviour without that feature: the 403
+    // for a missing required role, next() for a roleless caller.
+    const otherwise = access.missesRequiredRole ? refuseMissingRole(res, access.roles) : next;
+    return applyContextOwnerMode(req, res, next, { path: guardPath(req), otherwise });
   }, (err) => {
     if (err.code === 'TENANT_MISMATCH') {
       console.error(err.message);
@@ -121,6 +130,17 @@ export function authMiddleware(req, res, next) {
     console.error('Token validation failed:', err.message);
     res.status(401).json({ error: 'Invalid or expired token' });
   });
+}
+
+function refuseMissingRole(res, tokenRoles) {
+  return () => {
+    logMissingRole(tokenRoles);
+    res.status(403).json({ error: 'Insufficient permissions' });
+  };
+}
+
+function logMissingRole(tokenRoles) {
+  console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${getRequiredRoles().join(', ')}]`);
 }
 
 // Verify an Entra-issued access token: signature (tenant JWKS), RS256, issuer
@@ -151,36 +171,40 @@ export function verifyEntraAccessToken(token, audience) {
   });
 }
 
-// A verified token's app roles and the permissions they map to, or null when
-// the optional AUTH_REQUIRED_ROLES gate refuses the caller.
-export function accessFromClaims(decoded) {
+// A verified token's app roles, the permissions they map to, and whether the
+// optional AUTH_REQUIRED_ROLES gate refuses the caller.
+//
+// Fail closed: a token whose roles aren't in the mapping resolves to an
+// EMPTY permission set and is denied by every requirePermission gate. There
+// is deliberately NO "no recognised roles -> wildcard admin" fallback — that
+// previously made any authenticated tenant user a full admin whenever app
+// roles hadn't been assigned yet (security finding C-01).
+//
+// To grant access, assign the user an Entra app role that the mapping maps
+// to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
+// out by enabling auth before assigning a role? Use the CLI to toggle auth
+// off, assign the role, then turn it back on (see cli/auth-config.js).
+// Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
+export function resolveAccess(decoded) {
   const tokenRoles = Array.isArray(decoded.roles) ? decoded.roles : [];
-
   // Optional app-role gate — coarse "must have one of these roles" check
   // configured via AUTH_REQUIRED_ROLES. Independent of the permission
-  // model below; if both are set, both must pass.
+  // model; if both are set, both must pass.
   const requiredRoles = getRequiredRoles();
-  if (requiredRoles && requiredRoles.length > 0) {
-    if (!requiredRoles.some(r => tokenRoles.includes(r))) {
-      console.error(`Token missing required role. Has: [${tokenRoles.join(', ')}], needs one of: [${requiredRoles.join(', ')}]`);
-      return null;
-    }
-  }
+  const missesRequiredRole = !!requiredRoles && requiredRoles.length > 0
+    && !requiredRoles.some(r => tokenRoles.includes(r));
+  return { roles: tokenRoles, permissions: resolvePermissions(tokenRoles, getRolePermissions()), missesRequiredRole };
+}
 
-  // Resolve roles -> permissions via the configured (or seed) mapping.
-  //
-  // Fail closed: a token whose roles aren't in the mapping resolves to an
-  // EMPTY permission set and is denied by every requirePermission gate. There
-  // is deliberately NO "no recognised roles -> wildcard admin" fallback — that
-  // previously made any authenticated tenant user a full admin whenever app
-  // roles hadn't been assigned yet (security finding C-01).
-  //
-  // To grant access, assign the user an Entra app role that the mapping maps
-  // to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
-  // out by enabling auth before assigning a role? Use the CLI to toggle auth
-  // off, assign the role, then turn it back on (see cli/auth-config.js).
-  // Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
-  return { roles: tokenRoles, permissions: resolvePermissions(tokenRoles, getRolePermissions()) };
+// The same, or null when the AUTH_REQUIRED_ROLES gate refuses the caller — for
+// a caller with no context-owner fallback (the MCP endpoint).
+export function accessFromClaims(decoded) {
+  const { roles, permissions, missesRequiredRole } = resolveAccess(decoded);
+  if (missesRequiredRole) {
+    logMissingRole(roles);
+    return null;
+  }
+  return { roles, permissions };
 }
 
 // Per-route permission gate. Use at the mount line (most routers) or as a

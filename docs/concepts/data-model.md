@@ -69,13 +69,29 @@ The diagram below is **generated from the [core ontology](../reference/core-mode
 ```mermaid
 erDiagram
     ContextMembers {
-        string addedBy "sync, algorithm, analyst"
+        string addedBy "sync, algorithm, analyst, sourceOwner"
         uuid contextId FK
         uuid memberId FK
         string memberType "Identity, Resource, Principal, System"
     }
+    ContextRelationships {
+        uuid id PK
+        string addedBy "sync, algorithm, analyst, sourceOwner"
+        uuid contextId FK
+        uuid relatedContextId FK
+        string relationshipType "SameUnitAs"
+    }
+    ContextRoles {
+        uuid id PK
+        string addedBy "sync, algorithm, analyst, sourceOwner"
+        uuid contextId FK
+        uuid identityId FK
+        uuid principalId FK
+        string role "Accountable, Responsible"
+    }
     Contexts {
         uuid id PK
+        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment"
         string contextType "open vocabulary"
         string displayName
         uuid parentContextId FK
@@ -140,6 +156,11 @@ erDiagram
     Resources |o--o{ ContextMembers : "memberId"
     Principals |o--o{ ContextMembers : "memberId"
     Systems |o--o{ ContextMembers : "memberId"
+    Contexts |o--o{ ContextRelationships : "contextId"
+    Contexts |o--o{ ContextRelationships : "relatedContextId"
+    Contexts |o--o{ ContextRoles : "contextId"
+    Identities |o--o{ ContextRoles : "identityId"
+    Principals |o--o{ ContextRoles : "principalId"
     Contexts |o--o{ Contexts : "parentContextId"
     Systems |o--o{ Contexts : "scopeSystemId"
     Identities |o--o{ Identities : "managerIdentityId"

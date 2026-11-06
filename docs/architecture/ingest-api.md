@@ -152,6 +152,17 @@ Response — `201 Created`:
 | `POST /api/ingest/governance/requests` | AssignmentRequests | `id` (GUID) | — |
 | `POST /api/ingest/governance/certifications` | CertificationDecisions | `id` (GUID) | — |
 
+### Context Roles and Context Links
+
+Who answers for a context, and which contexts are one unit, come in through two small endpoints of their own. They are **additive** — not part of the generic engine above: each record is inserted when it is new and skipped otherwise, nothing is updated or removed, so an analyst's roles and links survive every crawl. Rows land as `addedBy='sync'`. A crawler may only write to contexts its system owns (`Contexts.scopeSystemId` = the envelope's `systemId`).
+
+| Endpoint | Record | Inserted only when |
+|----------|--------|--------------------|
+| `POST /api/ingest/context-roles` | `{ contextId, role: 'Accountable' \| 'Responsible', principalId \| identityId }` | the context is an OrganizationalUnit or LogicalApplication, the holder exists, and (for an Accountable) the context has none yet |
+| `POST /api/ingest/context-relationships` | `{ contextId, relatedContextId, relationshipType: 'SameUnitAs' }` | the related context exists, holds a different kind of member, and the pair is not linked yet (either way round) |
+
+Envelope `{ systemId, records }` (at most 5,000 records); the response is `{ inserted, skipped }`. One malformed record fails the whole batch with `400`, before anything is written. The demo dataset uses both.
+
 ### Sync Modes
 
 | Mode | Behavior | Use Case |

@@ -11,6 +11,7 @@ import * as db from '../../db/connection.js';
 import { writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
 import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
+import { reconcileBatchAccountables } from '../../ingest/contextOwners.js';
 import {
   restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
   preservedOwnerColumns,
@@ -54,11 +55,12 @@ async function batchBoundaryError(req, body, allowed, ctx) {
 }
 
 // The advisory part of a successful ingest response: the systems it touched, the
-// manager links it had to clear, and the human-readable warnings for both. Each
+// manager links it had to clear, the Accountables a contexts batch stated from
+// its owners, and the human-readable warnings. Each
 // key is present only when there is something to say, so a clean load answers
 // with counts alone. Also logs the warnings, which is the only record a crawler
 // that ignores the body leaves behind.
-function ingestNotices(entityType, body, { systemIds, managerLinks }) {
+function ingestNotices(entityType, body, { systemIds, managerLinks, accountable }) {
   const ownerWarning = unownedContextWarning(entityType, body.records, body.systemId);
   if (ownerWarning) console.warn('Ingest contexts: %s', oneLineForLog(ownerWarning));
   const managerWarning = managerLinkWarning(managerLinks);
@@ -68,6 +70,7 @@ function ingestNotices(entityType, body, { systemIds, managerLinks }) {
   return {
     ...(systemIds ? { systemIds } : {}),
     ...(managerLinks ? { managerLinks } : {}),
+    ...(accountable ? { accountable } : {}),
     ...(warnings.length ? { warnings } : {}),
   };
 }
@@ -148,6 +151,9 @@ function createIngestHandler(entityType) {
       // than one opens a session instead), so this is the point at which a
       // manager link can be told apart from one whose manager had not arrived.
       const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
+      // Contexts only: the owner a source names becomes the synced context's
+      // Accountable (ingest/contextOwners.js). Null for every other table.
+      const accountable = await reconcileBatchAccountables(db, tableName, normalized);
 
       // Context-tree acyclicity is enforced at the database (migration 059's
       // deferred trigger) — a cyclic batch aborts the ingest() commit above and is
@@ -161,7 +167,7 @@ function createIngestHandler(entityType) {
       const durationMs = Date.now() - startTime.getTime();
       await linkSystemDirectories(entityType);
       const systemIds = await lookupSystemIds(entityType, body.records);
-      const notices = ingestNotices(entityType, body, { systemIds, managerLinks });
+      const notices = ingestNotices(entityType, body, { systemIds, managerLinks, accountable });
 
       return res.status(201).json({
         table: tableName,

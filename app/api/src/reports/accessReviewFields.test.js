@@ -16,7 +16,7 @@ const source = {
     resourceType: 'Entitlement', systemName: 'IdentityIQ', description: 'Post journals',
     extendedAttributes: { certfrequency: ' Quarterly ', requestable: true, nested: { a: 1 }, blank: '   ' },
   },
-  owner: { ownerName: 'Grace Hopper', ownerEmail: 'grace@example.com' },
+  owner: { ownerName: 'Grace Hopper', ownerEmail: 'grace@example.com', ownerEmployeeId: 'E-4410' },
   count: { direct: 2, indirect: 5, eligible: 7 },
 };
 
@@ -34,6 +34,7 @@ describe('core fields', () => {
       'entitlement.system': 'IdentityIQ',
       'entitlement.description': 'Post journals',
       'entitlement.owner': 'Grace Hopper',
+      'entitlement.ownerEmployeeId': 'E-4410',
       'entitlement.ownerEmail': 'grace@example.com',
       'entitlement.eligibleAssignments': 7,
     });

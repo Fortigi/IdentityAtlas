@@ -3,6 +3,7 @@
 
 import { listModels, modelState } from './llm.js';
 import { getReportModel } from './settings.js';
+import { userOf } from '../lib/userOf.js';
 
 // Values written into a log line. Questions and user labels are free text (a token's
 // name claim is not validated), so line breaks — which would let a caller forge extra
@@ -57,7 +58,8 @@ export function parseInterpretRequest(body) {
     : { question, history: cleanHistory, conversationId };
 }
 
-export const userOf = (req) => (req.user && (req.user.email || req.user.upn || req.user.preferred_username || req.user.name)) || 'unknown';
+// Lifted to lib/userOf.js so the contexts routes share it; re-exported for the callers that import it from here.
+export { userOf };
 
 /**
  * Is the model server reachable, and is the model loaded — for one assistant's warm-up.

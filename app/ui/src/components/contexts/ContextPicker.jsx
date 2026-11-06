@@ -13,7 +13,7 @@ import { matchesTargetTypes } from './ContextPicker.helpers.js';
 // ─── ContextPicker ────────────────────────────────────────────────────────────
 // Reusable modal for selecting a single Context. Mirrors the look of
 // ContextTreeView (rounded pills, variant bubbles, connector lines) and
-// the search/toggle layout of ContextListView.
+// the search/toggle layout of the Contexts tree panel.
 //
 // Used by:
 //   - ManualContextEditor — picking a parent context

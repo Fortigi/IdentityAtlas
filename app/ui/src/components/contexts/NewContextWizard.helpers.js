@@ -5,7 +5,7 @@
 // Steps shown in the indicator, by chosen source.
 export function stepsFor(source) {
   if (source === 'plugin') return [
-    { n: 1, label: 'Source' }, { n: 2, label: 'Pick plugin' },
+    { n: 1, label: 'Source' }, { n: 2, label: 'Pick a rule' },
     { n: 3, label: 'Configure' }, { n: 4, label: 'Preview & run' },
   ];
   if (source === 'manual') return [
@@ -31,11 +31,11 @@ export function prettifyName(name) {
 
 // Modal subtitle text for the current source / selection.
 export function wizardSubtitle(source, selected) {
-  if (!source) return 'Where should this tree come from?';
+  if (!source) return 'Where should this come from?';
   if (source === 'plugin') return selected ? selected.displayName : 'Build a tree from existing data';
   if (source === 'manual') return 'Start an empty tree you’ll curate yourself';
   if (source === 'describe') return 'Build a tree from search terms, in its own tab';
-  return 'Import from a crawler';
+  return 'Import from a system';
 }
 
 // Seed a plugin's params object from its schema defaults.

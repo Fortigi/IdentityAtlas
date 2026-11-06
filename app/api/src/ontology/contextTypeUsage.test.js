@@ -49,6 +49,7 @@ describe('scanContextTypeUsage', () => {
   it('scans the real application by default and finds the tags and manager-hierarchy branches', () => {
     const usage = scanContextTypeUsage();
     expect(usage.get('Tag')).toEqual(expect.arrayContaining([expect.stringMatching(/^app\/api\/src\/routes\/tags\/crud\.js:\d+$/)]));
-    expect(usage.get('ManagerHierarchy')).toEqual(expect.arrayContaining([expect.stringMatching(/^app\/ui\/src\/components\/ContextsPage\.jsx:\d+$/)]));
+    // Since phase B the manager-hierarchy behaviour is keyed to the plugin that built the tree, so no code compares the type.
+    expect(usage.has('ManagerHierarchy')).toBe(false);
   });
 });

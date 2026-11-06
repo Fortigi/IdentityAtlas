@@ -44,6 +44,7 @@ export default {
   description:
     'Groups risky OAuth / application permission grants into contexts you can scope a matrix to — by permission risk ("Risky Consent — High/Medium") and by app reputation ("Risky App Consent — Malicious/Suspicious", using the OAuthSentry threat feed + heuristics). Members are the grants; filter a matrix to a group to see which users consented.',
   targetType: 'Resource',
+  contextCategory: 'Segment',
   contextTypes: ['RiskyConsent', 'RiskyAppConsent'],
   parametersSchema: {
     type: 'object',

@@ -11,11 +11,14 @@
 //   - each ia:producedBy names a registered plugin that still declares the
 //     value (the reverse direction, so a renamed plugin type fails);
 //   - each value the code compares against is defined;
+//   - the stored template values (ia:ContextCategory) name exactly the templates
+//     under ia:Context, and a plugin's contextCategory is one of them with every
+//     type it emits beneath it;
 //   - each defined context type is produced by a plugin, written by a crawler
 //     (ia:emittedBy, checked in ./crawlers.js) or compared against —
 //     the ontology does not collect values nothing in the code knows about.
 
-import { typedSubclasses } from '../model.js';
+import { isSubClassOf, schemeMembers, typedSubclasses } from '../model.js';
 
 const err = (code, subject, message) => ({ code, subject, message });
 
@@ -74,6 +77,45 @@ function checkUsage(byValue, branchedOn) {
   return out;
 }
 
+// The stored template value (ia:ContextCategory) names exactly the templates
+// under ia:Context, one each, in both directions.
+function checkCategoryScheme(model) {
+  const members = schemeMembers(model, 'ContextCategory');
+  if (!members.length) return [];
+  const templates = [...model.classes.values()].filter(c => c.template && c.local !== 'Context' && isSubClassOf(model, c.local, 'Context')).map(c => c.local);
+  const out = [];
+  const denoted = [];
+  for (const m of members) {
+    if (!m.denotesTemplate || !templates.includes(m.denotesTemplate)) out.push(err('context-category-template', `ia:${m.local}`, `ia:denotesTemplate ${m.denotesTemplate ? `ia:${m.denotesTemplate}` : 'is missing and'} must name a template under ia:Context`));
+    else denoted.push(m.denotesTemplate);
+  }
+  for (const t of templates.filter(t => !denoted.includes(t))) out.push(err('context-category-template', `ia:${t}`, 'is a template under ia:Context but no ia:ContextCategory value denotes it'));
+  for (const d of denoted.filter((t, i) => denoted.indexOf(t) !== i)) out.push(err('context-category-template', `ia:${d}`, 'is denoted by two ia:ContextCategory values'));
+  return out;
+}
+
+// The template a plugin declares exists, and every type it emits sits under it.
+function templateFor(model, value) {
+  const byValue = schemeMembers(model, 'ContextCategory').find(m => m.typeValue === value)?.denotesTemplate;
+  const local = byValue ?? value;
+  const cls = model.classes.get(local);
+  return cls?.template && isSubClassOf(model, local, 'Context') ? cls : null;
+}
+
+function checkPluginCategories(model, byType, plugins) {
+  const out = [];
+  for (const p of plugins) {
+    if (p.contextCategory === undefined) continue;
+    const tpl = templateFor(model, p.contextCategory);
+    if (!tpl) { out.push(err('plugin-category-undefined', `plugin:${p.name}`, `declares contextCategory "${p.contextCategory}", which is not a template under ia:Context`)); continue; }
+    for (const value of p.contextTypes ?? []) {
+      const cls = byType.get(value);
+      if (cls && !isSubClassOf(model, cls.local, tpl.local)) out.push(err('plugin-category-mismatch', `plugin:${p.name}`, `emits "${value}" (ia:${cls.local}), which is not under its template ia:${tpl.local}`));
+    }
+  }
+  return out;
+}
+
 /** Context-type agreement. `registry.contexts` = { plugins, branchedOn: Map }. */
 export function checkContextTypes(model, registry) {
   if (!registry.contexts) return [];
@@ -83,5 +125,7 @@ export function checkContextTypes(model, registry) {
     ...plugins.flatMap(p => checkPlugin(model, byValue, p)),
     ...checkProducers(byValue, plugins),
     ...checkUsage(byValue, branchedOn),
+    ...checkCategoryScheme(model),
+    ...checkPluginCategories(model, byValue, plugins),
   ];
 }

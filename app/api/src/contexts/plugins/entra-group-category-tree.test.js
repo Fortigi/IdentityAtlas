@@ -24,7 +24,7 @@ describe('entra-group-category-tree', () => {
     const root = contexts.find((c) => c.externalId === 'entra-groups-root');
     expect(root).toBeDefined();
     expect(root.displayName).toBe('EntraID Groups');
-    expect(root.contextType).toBe('EntraGroupRoot');
+    expect(root.contextType).toBe('EntraGroupCategory');
 
     const exts = contexts.map((c) => c.externalId);
     expect(exts).toContain('category:Team');

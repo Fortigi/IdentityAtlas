@@ -7,7 +7,7 @@ import {
 
 describe('stepsFor', () => {
   it('returns the four-step plugin flow', () => {
-    expect(stepsFor('plugin').map(s => s.label)).toEqual(['Source', 'Pick plugin', 'Configure', 'Preview & run']);
+    expect(stepsFor('plugin').map(s => s.label)).toEqual(['Source', 'Pick a rule', 'Configure', 'Preview & run']);
   });
   it('returns the two-step manual flow', () => {
     expect(stepsFor('manual').map(s => s.label)).toEqual(['Source', 'Details']);
@@ -44,7 +44,7 @@ describe('prettifyName', () => {
 
 describe('wizardSubtitle', () => {
   it('prompts for a source when none chosen', () => {
-    expect(wizardSubtitle(null, null)).toMatch(/Where should this tree/);
+    expect(wizardSubtitle(null, null)).toBe('Where should this come from?');
   });
   it('shows the plugin name once selected, else a prompt', () => {
     expect(wizardSubtitle('plugin', { displayName: 'Manager Hierarchy' })).toBe('Manager Hierarchy');
@@ -52,7 +52,7 @@ describe('wizardSubtitle', () => {
   });
   it('describes manual and import sources', () => {
     expect(wizardSubtitle('manual', null)).toMatch(/empty tree/);
-    expect(wizardSubtitle('import', null)).toMatch(/Import from a crawler/);
+    expect(wizardSubtitle('import', null)).toBe('Import from a system');
   });
 });
 

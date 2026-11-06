@@ -1,4 +1,5 @@
-// Admin → Authentication → Roles & Permissions matrix.
+// Admin → Roles & Permissions: the role → permission matrix (RolesPermissionsTab
+// puts the Relative permissions section below it).
 //
 // Renders the role-to-permission mapping as a checkbox grid: rows are
 // permissions grouped by category (Read / Export / Write / Admin), columns

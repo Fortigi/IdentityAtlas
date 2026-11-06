@@ -73,13 +73,17 @@ describe('NewContextWizard (mounted)', () => {
     expect(screen.queryByText('New context tree')).not.toBeInTheDocument();
   });
 
-  it('shows the three source cards on step 1', async () => {
+  it('shows the three source cards on step 1, in plain words and without a colour per source', async () => {
     mockCanBuildContexts.mockReturnValue(false);
     renderWizard(routes());
     expect(await screen.findByText('New context tree')).toBeInTheDocument();
-    expect(screen.getByText('Import')).toBeInTheDocument();
-    expect(screen.getByText('Run a plugin')).toBeInTheDocument();
-    expect(screen.getByText('Create manual')).toBeInTheDocument();
+    expect(screen.getByText('Where should this come from?')).toBeInTheDocument();
+    const cards = ['Import from a system', 'Derive from data', 'Create by hand'].map(t => screen.getByRole('button', { name: new RegExp(`^${t}`) }));
+    for (const card of cards) {
+      expect(card.textContent).not.toMatch(/plugin|from a crawler|manual|curate/i);
+      expect(card.querySelector('[class*="bg-blue-500"], [class*="bg-amber-500"], [class*="bg-slate-500"]')).toBeNull();
+      expect(card).toHaveAttribute('aria-pressed', 'false');
+    }
     expect(screen.queryByText('Describe it')).not.toBeInTheDocument();
   });
 
@@ -94,26 +98,26 @@ describe('NewContextWizard (mounted)', () => {
     expect(cb.onOpenBuilder).toHaveBeenCalled();
     expect(cb.onClose).toHaveBeenCalled();
     // The builder is a tab of its own, so the wizard never walks further steps for it.
-    expect(screen.queryByText('Pick plugin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pick a rule')).not.toBeInTheDocument();
   });
 
   it('hides "Describe it" when the feature is off or the role may not build contexts', async () => {
     mockCanBuildContexts.mockReturnValue(false);
     renderWizard(routes());
-    expect(await screen.findByText('Run a plugin')).toBeInTheDocument();
+    expect(await screen.findByText('Derive from data')).toBeInTheDocument();
     expect(screen.queryByText('Describe it')).not.toBeInTheDocument();
   });
 
   it('hides "Describe it" when the page cannot open a builder tab', async () => {
     renderWizard(routes(), { onOpenBuilder: undefined });
-    expect(await screen.findByText('Run a plugin')).toBeInTheDocument();
+    expect(await screen.findByText('Derive from data')).toBeInTheDocument();
     expect(screen.queryByText('Describe it')).not.toBeInTheDocument();
   });
 
   it('opens crawlers and closes when Import is chosen', async () => {
     const cb = renderWizard(routes());
     const user = userEvent.setup();
-    await user.click(await screen.findByText('Import'));
+    await user.click(await screen.findByText('Import from a system'));
     await user.click(screen.getByText('Open Crawlers →'));
     expect(cb.onOpenCrawlers).toHaveBeenCalled();
     expect(cb.onClose).toHaveBeenCalled();
@@ -125,7 +129,7 @@ describe('NewContextWizard (mounted)', () => {
     const user = userEvent.setup();
 
     // Step 1 → choose plugin source, Next.
-    await user.click(await screen.findByText('Run a plugin'));
+    await user.click(await screen.findByText('Derive from data'));
     await user.click(screen.getByText('Next ▸'));
 
     // Step 2 → pick the plugin from the grouped picker.
@@ -178,7 +182,7 @@ describe('NewContextWizard (mounted)', () => {
     renderWizard(authFetch);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByText('Run a plugin'));
+    await user.click(await screen.findByText('Derive from data'));
     await user.click(screen.getByText('Next ▸'));
     await user.click(await screen.findByText('Manager Hierarchy'));
     await user.click(screen.getByText('Next ▸'));
@@ -201,12 +205,16 @@ describe('NewContextWizard (mounted)', () => {
     const cb = renderWizard(authFetch);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByText('Create manual'));
+    await user.click(await screen.findByText('Create by hand'));
     await user.click(screen.getByText('Next ▸'));
 
     // Step 2 — manual details form.
     expect(await screen.findByText('Target type')).toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue('Identity'), { target: { value: 'Resource' } });
+    // A new tree starts as a Segment; this one is an application.
+    const template = screen.getByRole('combobox', { name: 'Template' });
+    expect(template).toHaveValue('Segment');
+    await user.selectOptions(template, 'LogicalApplication');
     await user.type(screen.getByPlaceholderText('Application'), 'BusinessProcess');
     await user.type(screen.getByPlaceholderText('Procurement app'), 'My Tree');
 
@@ -217,6 +225,8 @@ describe('NewContextWizard (mounted)', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     );
+    const body = JSON.parse(authFetch.mock.calls.find(([u, o]) => u === '/api/contexts' && o?.method === 'POST')[1].body);
+    expect(body).toMatchObject({ targetType: 'Resource', contextCategory: 'LogicalApplication', contextType: 'BusinessProcess', displayName: 'My Tree' });
     await waitFor(() => expect(cb.onCreated).toHaveBeenCalled());
     expect(cb.onClose).toHaveBeenCalled();
   });
@@ -225,11 +235,11 @@ describe('NewContextWizard (mounted)', () => {
     renderWizard(routes());
     const user = userEvent.setup();
 
-    await user.click(await screen.findByText('Run a plugin'));
+    await user.click(await screen.findByText('Derive from data'));
     await user.click(screen.getByText('Next ▸'));
     await screen.findByText('Manager Hierarchy');
     await user.click(screen.getByText('Back'));
     // Back on step 1 the source cards are shown again.
-    expect(await screen.findByText('Run a plugin')).toBeInTheDocument();
+    expect(await screen.findByText('Derive from data')).toBeInTheDocument();
   });
 });

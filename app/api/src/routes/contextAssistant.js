@@ -9,7 +9,7 @@
 //   POST /api/context-assistant/warm             load the model, restore this prompt's cache
 //   POST /api/context-assistant/interpret        description (+ conversation) → terms or a question
 //   POST /api/context-assistant/suggest          description + kept/dropped terms → new terms
-//   POST /api/context-assistant/evaluate         recipe → per-term numbers and the matched objects
+//   POST /api/context-assistant/evaluate         recipe → per-term numbers, the matched objects, the likely owner
 //   POST /api/context-assistant/related          recipe → words typical of what it finds (no model)
 //   GET  /api/context-assistant/lookup           objects by name, to include one by hand (?q=)
 //   GET  /api/context-assistant/recipe/:id       the recipe behind a context tree, to edit it
@@ -33,6 +33,7 @@ import { SEARCH_FIELDS, searchFieldLabel, validateRecipe } from '../contexts/rec
 import { computeMatches, loadCandidates } from '../contexts/recipe/matches.js';
 import { loadScopeNames, relatedWords } from '../contexts/recipe/relatedWords.js';
 import { enqueueRun, getRun } from '../contexts/plugins/runner.js';
+import { suggestOwnerOf } from '../contexts/roleSuggestion.js';
 
 const router = Router();
 
@@ -107,7 +108,8 @@ router.post('/context-assistant/evaluate', gate, async (req, res) => {
   try {
     const { rows, scopeTotal, truncated } = await loadCandidates(recipe, tx);
     const { terms, matches, memberIds, addedByModel } = computeMatches(rows, recipe, scopeTotal);
-    res.json({ recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length, addedByModel });
+    const suggestedOwner = await suggestOwnerOf(memberIds);
+    res.json({ recipe, errors, scopeTotal, truncated, terms, matches, memberCount: memberIds.length, addedByModel, suggestedOwner });
   } catch (err) {
     fail(res, 'evaluate', err);
   }

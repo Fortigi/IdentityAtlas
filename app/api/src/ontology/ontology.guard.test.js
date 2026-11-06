@@ -55,7 +55,14 @@ describe('core ontology (repository)', () => {
     const { plugins } = loadRegistry().contexts;
     expect(plugins.map(p => p.name)).toEqual(REGISTERED_PLUGINS.map(p => p.name));
     expect(plugins.find(p => p.name === 'manager-hierarchy'))
-      .toEqual({ name: 'manager-hierarchy', targetType: 'Principal', contextTypes: [MANAGER_HIERARCHY_CONTEXT_TYPE] });
+      .toEqual({ name: 'manager-hierarchy', targetType: 'Principal', contextTypes: [MANAGER_HIERARCHY_CONTEXT_TYPE], contextCategory: 'OrganizationalUnit' });
+  });
+
+  it('fails when a plugin declares a template its types do not sit under', () => {
+    const registry = loadRegistry();
+    registry.contexts.plugins = registry.contexts.plugins.map(p => (p.name === 'manager-hierarchy' ? { ...p, contextCategory: 'Segment' } : p));
+    expect(runCheck({ registry }).errors.map(e => `${e.code} ${e.subject}`))
+      .toEqual(['plugin-category-mismatch plugin:manager-hierarchy']);
   });
 
   it('fails for a context type a plugin emits but the ontology lacks', () => {
