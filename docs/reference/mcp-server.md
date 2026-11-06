@@ -63,6 +63,16 @@ tool with which arguments, whether it succeeded, and how many rows went out — 
 rows themselves. The latest calls are listed on the **MCP server** card under **Admin →
 Experimental**.
 
+## Before you start
+
+| You need | Why |
+|---|---|
+| **An address the assistant can reach** | Claude (web, desktop, mobile), ChatGPT and Microsoft Copilot call the MCP server **from their vendor's cloud**, not from the user's PC. Identity Atlas must answer on a public HTTPS address (`https://<your host>/mcp`). An installation that is only reachable on the internal network or on one laptop works with local clients only (Claude Code, VS Code). |
+| **`PUBLIC_BASE_URL`** set to that address | The server tells the assistant where to sign in and which resource to ask for, built from this address. Behind a reverse proxy, set it (or `TRUST_PROXY`) so the address is the public one. |
+| **Sign-in on, the feature on, the permission on a role** | See [Who may use it](#who-may-use-it). |
+| **A Microsoft Entra admin** (Application Administrator or higher) | For the two app-registration changes below. |
+| **The assistant's own plan or licence** | Per assistant — see [Connect an assistant](#3-connect-an-assistant). |
+
 ## Setting it up
 
 ### 1. The Entra app registration
@@ -77,29 +87,83 @@ MCP clients sign in through the same Entra app registration Identity Atlas alrea
    it Entra refuses the token request with `AADSTS9010010`. Entra only accepts it when the
    host is on a domain verified in your tenant.
 
+Both are additions: the existing sign-in of the web app keeps working.
+
 Your MCP URL and the exact scope to use are shown on the MCP server card once the feature
 is on. The scope is `https://<your host>/mcp/Mcp.Read`.
 
 ### 2. A client app registration for the assistants
 
-Create one more app registration — e.g. *Identity Atlas MCP clients* — that the assistants
-sign in with:
+Entra does not let an assistant register itself (no dynamic client registration), so an
+admin registers one app the assistants sign in **as** — e.g. *Identity Atlas MCP clients*.
+It identifies the assistant, not the user: every user still signs in with their own
+account, and the secret on its own gets no data.
 
-- **Redirect URIs**
-    - *Web*: `https://claude.ai/api/mcp/auth_callback` (Claude on the web, desktop and mobile)
-    - *Mobile and desktop applications*: `http://localhost` (Claude Code and other local clients; Entra accepts any port)
-    - add the redirect URI of each other assistant you allow (ChatGPT, Copilot Studio) as its own documentation gives it
-- **API permissions** → *My APIs* → your Identity Atlas app → delegated `Mcp.Read`, then
-  **Grant admin consent**.
-- **Certificates & secrets** → a client secret, for the web clients.
+- **Supported account types**: *this organisational directory only*.
+- **Redirect URIs** — only those of the assistants you allow:
+
+    | Assistant | Platform | Redirect URI |
+    |---|---|---|
+    | Claude (web, desktop, mobile) | Web | `https://claude.ai/api/mcp/auth_callback` |
+    | Claude Code, VS Code and other local clients | Mobile and desktop applications | `http://localhost` and `http://127.0.0.1` (Entra accepts any port) |
+    | ChatGPT | Web | the callback URL ChatGPT shows when you add the app (per app; older apps used `https://chatgpt.com/connector_platform_oauth_redirect`) |
+    | Microsoft 365 Copilot (federated connector) | Web | `https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect` |
+    | Copilot Studio agent | Web | the redirect URL Copilot Studio shows after you save the MCP tool |
+
+- **API permissions** → *Add a permission* → *My APIs* → your Identity Atlas app →
+  delegated `Mcp.Read`, then **Grant admin consent**, so users get no consent prompt.
+- **Certificates & secrets** → a client secret. Note when it expires: the assistants stop
+  signing in on that date until you give them a new one.
+
+With the Azure CLI, as an Application Administrator (replace the two ids and the host):
+
+```bash
+API_APP_ID=<client id of the Identity Atlas app>
+SCOPE_ID=<id of the Mcp.Read scope, from step 1>
+CLIENT_APP_ID=$(az ad app create --display-name "Identity Atlas MCP clients" \
+  --sign-in-audience AzureADMyOrg \
+  --web-redirect-uris "https://claude.ai/api/mcp/auth_callback" \
+  --public-client-redirect-uris "http://localhost" "http://127.0.0.1" \
+  --query appId -o tsv)
+az ad app update --id "$CLIENT_APP_ID" --required-resource-accesses \
+  "[{\"resourceAppId\":\"$API_APP_ID\",\"resourceAccess\":[{\"id\":\"$SCOPE_ID\",\"type\":\"Scope\"}]}]"
+az ad sp create --id "$CLIENT_APP_ID"
+az ad app permission admin-consent --id "$CLIENT_APP_ID"
+az ad app credential reset --id "$CLIENT_APP_ID" --append --display-name assistants --years 1 \
+  --query password -o tsv > client-secret.txt   # keep this file safe
+```
 
 ### 3. Connect an assistant
 
-**Claude (claude.ai, desktop, mobile)** — *Settings → Connectors → Add custom connector*:
-URL `https://<your host>/mcp`; under *Advanced settings*, the client app's **client ID** and
-**client secret**. Click **Connect** and sign in.
+Every assistant needs the same three values:
 
-**Claude Code**:
+- **URL**: `https://<your host>/mcp`
+- **Client ID** and **client secret** of the client app from step 2
+- if it asks for a **scope**: `https://<your host>/mcp/Mcp.Read`
+
+It discovers the rest — the tenant and where to sign in — from
+`https://<your host>/.well-known/oauth-protected-resource/mcp`.
+
+#### Claude
+
+| | |
+|---|---|
+| **Plan** | Any. Free accounts can add one custom connector. |
+| **Who adds it** | Pro / Max: each user. Team / Enterprise: an **Owner** adds it once for the organisation; members then only click **Connect**. |
+
+1. Pro / Max: **Customize → Connectors** (`https://claude.ai/customize/connectors`) →
+   **+ Add** → **Add custom connector**.
+   Team / Enterprise: **Organization settings → Connectors**
+   (`https://claude.ai/admin-settings/connectors`) → **Add** → **Custom** → **Web**.
+2. Name *Identity Atlas*, URL `https://<your host>/mcp` → **Continue**.
+3. **OAuth client**: choose **Use your own OAuth client** and enter the client ID and secret.
+4. **Add**, then **Connect**, and sign in with the work account.
+
+The connector belongs to the Claude account: once connected it works in the browser, the
+desktop app and on mobile. Charts and tables are drawn by Claude itself from the rows.
+
+**Claude Code** (runs on the user's machine, so it also works for an installation that is
+only reachable internally):
 
 ```bash
 claude mcp add --transport http identity-atlas https://<your host>/mcp --client-id <client id> --callback-port 33418
@@ -107,9 +171,73 @@ claude mcp add --transport http identity-atlas https://<your host>/mcp --client-
 
 then run `/mcp` in Claude Code to sign in.
 
-**Other assistants** (ChatGPT, Copilot Studio, VS Code): add a remote MCP server with the
-same URL and the client app's ID (and secret where asked). They discover the rest — the
-tenant and the scope — from `https://<your host>/.well-known/oauth-protected-resource/mcp`.
+#### ChatGPT
+
+| | |
+|---|---|
+| **Plan** | Business, Enterprise or Edu — custom MCP apps with full tool use. OpenAI's plan list for Plus and Pro has changed over time; check its help article *Developer mode and MCP apps in ChatGPT*. |
+| **Who adds it** | A workspace admin or owner turns on **developer mode** (Workspace settings → Permissions & roles), creates the app and publishes it to the workspace. |
+
+1. In ChatGPT, with developer mode on: **Settings → Apps & Connectors → Create**.
+2. URL `https://<your host>/mcp`, authentication **OAuth**.
+3. Under the advanced OAuth settings, leave the registration URL empty, choose the
+   **user-defined OAuth client**, and enter the client ID and secret.
+4. Copy the **callback URL** ChatGPT shows and add it to the client app (step 2) as a
+   *Web* redirect URI.
+5. Save, sign in, and publish the app to the workspace.
+
+#### Microsoft 365 Copilot
+
+There are two ways in, and which one fits depends on the licences the organisation has.
+The free **Microsoft 365 Copilot Chat** that comes with Office 365 is *not* the same as the
+paid **Microsoft 365 Copilot** add-on.
+
+| | Federated connector | Copilot Studio agent |
+|---|---|---|
+| **Users need** | A **Microsoft 365 Copilot** licence (the add-on, or E7). Microsoft's prerequisites rule out the free Copilot Chat and pay-as-you-go. | Nothing extra: also works for users with only the free Copilot Chat. |
+| **The organisation needs** | — | Copilot Studio capacity; use is billed in **Copilot Credits**. The person who builds the agent needs a Copilot Studio or Microsoft 365 Copilot licence. |
+| **Who sets it up** | A **Global Administrator** or **AI Administrator**. | An agent maker in Copilot Studio. |
+| **Users find it** | Copilot Chat → **Settings → Sources**. | As an agent in Copilot Chat and Teams. |
+| **Redirect URI** on the client app | `https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect` | the URL Copilot Studio generates |
+
+You can see which licences users have in the Microsoft 365 admin center under
+**Billing → Licenses**.
+
+**Federated connector**
+
+1. **Teams Developer Portal** (`https://dev.teams.microsoft.com`) → **Tools → OAuth client
+   registration** → new registration:
+    - client ID and secret of the client app (step 2)
+    - authorization endpoint `https://login.microsoftonline.com/<tenant id>/oauth2/v2.0/authorize`
+    - token endpoint `https://login.microsoftonline.com/<tenant id>/oauth2/v2.0/token`
+    - scope `https://<your host>/mcp/Mcp.Read`
+    - do not restrict it to a Teams app ID
+
+    Save, and copy the **OAuth registration ID**.
+2. Add `https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect` to the client app as a
+   *Web* redirect URI.
+3. **Microsoft 365 admin center → Copilot → Connectors → Connect to MCP server**: URL
+   `https://<your host>/mcp`, authentication **OAuth 2.0**, and the OAuth registration ID.
+   Choose which users see it.
+
+**Copilot Studio agent**
+
+1. In Copilot Studio, open or create an agent with **generative orchestration** on.
+2. **Tools → Add a tool → Model Context Protocol**: server URL `https://<your host>/mcp`,
+   authentication **OAuth 2.0 → Manual**:
+    - client ID and secret of the client app (step 2)
+    - authorization URL `https://login.microsoftonline.com/<tenant id>/oauth2/v2.0/authorize`
+    - token URL `https://login.microsoftonline.com/<tenant id>/oauth2/v2.0/token`
+    - refresh URL: the same as the token URL
+    - scope `https://<your host>/mcp/Mcp.Read`
+3. Save, copy the **redirect URL** Copilot Studio shows, and add it to the client app as a
+   *Web* redirect URI.
+4. Test the agent, then publish it to Microsoft 365 Copilot and Teams.
+
+!!! note
+    The Claude connection is tested against a live deployment. The ChatGPT and Copilot steps
+    follow the vendors' documentation; their menus change often, so if a label differs,
+    the three values above (URL, client ID and secret, scope) are still all you need.
 
 ## How sign-in works
 
@@ -121,6 +249,11 @@ assistant ──POST /mcp (Bearer token)──────────▶ Identi
                                                                   scope Mcp.Read, role → mcp.use; then the tool runs
 ```
 
+This is delegated access: the token belongs to the signed-in user, and every query runs
+with that user's rights and is logged under their name. It is not Entra's
+*on-behalf-of* token exchange — the MCP server reads its own database and calls no other
+API as the user.
+
 The token's audience must be the MCP URL, `api://<client id>` or the client id; the web
 app's own tokens (scope `access`) and app-only tokens are refused, because they do not carry
 `Mcp.Read`.
@@ -130,8 +263,13 @@ app's own tokens (scope `access`) and app-only tokens are refused, because they 
 | Symptom | Cause |
 |---|---|
 | `404` on `/mcp` | Sign-in is off, or the feature is off. |
+| The assistant cannot reach the server | Identity Atlas is not reachable from the internet; cloud assistants call it from their vendor's cloud. See [Before you start](#before-you-start). |
 | Sign-in fails with `AADSTS9010010` / `invalid_target` | The MCP URL is not an Application ID URI of the Identity Atlas app (step 1.2). |
+| Sign-in fails with `AADSTS50011` (redirect URI mismatch) | The assistant's redirect URI is not on the client app (step 2), or differs in one character. |
+| Sign-in fails with `AADSTS700003` ("your organisation has deleted this device") | Not Identity Atlas: Windows single sign-on sent a device registration that no longer exists in Entra. Sign in from a browser without the work profile, or remove and re-add the work account under Windows *Settings → Accounts → Access work or school*. |
+| Claude on the web never finishes signing in, Claude Code does | A known claude.ai issue with Entra as the sign-in server ([anthropics/claude-ai-mcp#506](https://github.com/anthropics/claude-ai-mcp/issues/506)). Try again later, or use Claude Code. |
 | `403` with `insufficient_scope` | The client asked for a different scope; use `https://<your host>/mcp/Mcp.Read`. |
 | `403` naming `mcp.use` | The user's role lacks **Use the MCP server**. |
 | The assistant has no `run_query` | The user's role lacks **Ask questions in plain language**. |
 | `401 invalid_token` | Expired token, or one from another tenant; check that `PUBLIC_BASE_URL` is the address the assistant uses. |
+| Everyone stops signing in on the same day | The client app's secret expired; create a new one and update each assistant. |

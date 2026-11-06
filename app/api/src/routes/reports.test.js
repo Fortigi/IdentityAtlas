@@ -73,6 +73,40 @@ describe('GET /api/reports/:name/rows', () => {
     }
   });
 
+  it('lifts the row cap only when asked, and never hands allRows to the template as a parameter', async () => {
+    const run = vi.fn(async (_params, ctx) => (ctx.allRows
+      ? { rows: [{ a: 1 }, { a: 2 }] }
+      : { rows: [{ a: 1 }], truncated: true, canLoadAllRows: true }));
+    const unregister = registerReport({ name: 'zz-liftable', displayName: 'Liftable', form: 'list', columns: [{ key: 'a', label: 'A' }], run });
+    try {
+      const capped = (await request(app).get('/api/reports/zz-liftable/rows?x=1').expect(200)).body;
+      expect(capped).toMatchObject({ total: 1, truncated: true, canLoadAllRows: true });
+      expect(run).toHaveBeenLastCalledWith({ x: '1' }, { allRows: false });
+
+      const all = (await request(app).get('/api/reports/zz-liftable/rows?x=1&allRows=true').expect(200)).body;
+      expect(all).toMatchObject({ total: 2, truncated: false, canLoadAllRows: false });
+      expect(run).toHaveBeenLastCalledWith({ x: '1' }, { allRows: true });
+
+      // Anything but the literal "true" is no request to wait.
+      await request(app).get('/api/reports/zz-liftable/rows?allRows=1').expect(200);
+      expect(run).toHaveBeenLastCalledWith({}, { allRows: false });
+    } finally {
+      unregister();
+    }
+  });
+
+  it('offers no Load all for a complete run, even when the template claims it could', async () => {
+    const unregister = registerReport({
+      name: 'zz-claims', displayName: 'Claims', form: 'list', columns: [{ key: 'a', label: 'A' }],
+      async run() { return { rows: [{ a: 1 }], truncated: false, canLoadAllRows: true }; },
+    });
+    try {
+      expect((await request(app).get('/api/reports/zz-claims/rows').expect(200)).body.canLoadAllRows).toBe(false);
+    } finally {
+      unregister();
+    }
+  });
+
   it('returns an empty result — not an error — when the report finds nothing', async () => {
     const res = await request(app).get('/api/reports/orphaned-accounts/rows').expect(200);
     expect(res.body.rows).toEqual([]);
@@ -131,6 +165,20 @@ describe('GET /api/reports/:name/export', () => {
     expect(JSON.parse(res.text)).toMatchObject({
       name: 'downloadable-report', total: 1, rows: [{ thing: 'widget', count: 3 }],
     });
+  });
+
+  it('always downloads every row, whether or not the screen asked for them', async () => {
+    const run = vi.fn(async (_params, ctx) => (ctx.allRows
+      ? { rows: [{ a: 1 }, { a: 2 }] }
+      : { rows: [{ a: 1 }], truncated: true, canLoadAllRows: true }));
+    const unregisterCapped = registerReport({ name: 'zz-capped-download', displayName: 'Capped download', form: 'list', columns: [{ key: 'a', label: 'A' }], run });
+    try {
+      const res = await request(app).get('/api/reports/zz-capped-download/export?format=csv&allRows=false&x=1').expect(200);
+      expect(res.text).toBe('"A"\r\n"1"\r\n"2"');
+      expect(run).toHaveBeenCalledWith({ x: '1' }, { allRows: true });
+    } finally {
+      unregisterCapped();
+    }
   });
 
   it('downloads exactly what the rows endpoint served — same columns, same rows', async () => {
