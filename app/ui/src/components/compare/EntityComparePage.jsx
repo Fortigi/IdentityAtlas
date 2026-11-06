@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import useEntitySnapshots from '@ui/hooks/useEntitySnapshots';
 import PeoplePicker from '@ui/components/inputs/PeoplePicker';
 import EntityCompareView from './EntityCompareView';
+import { NoteList } from '@ui/components/SnapshotDiffView';
 import {
   MAX_COMPARE, parseCompareIds, compareRouteId, compareSnapshots, visibleComparison,
   toAccount, snapshotName, compareTabLabel,
@@ -46,12 +47,7 @@ function Notes({ entries }) {
     else if (e.data?.omitted > 0) notes.push(`${snapshotName(e)} has ${e.data.omitted.toLocaleString()} more relationships than can be shown, so the comparison of those is incomplete.`);
     else if (e.data?.snapshot?.deleted) notes.push(`${snapshotName(e)} is deleted in the source.`);
   }
-  if (notes.length === 0) return null;
-  return (
-    <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-      {notes.map(n => <li key={n}>{n}</li>)}
-    </ul>
-  );
+  return <NoteList notes={notes} />;
 }
 
 // Picker value for the ids in the address: names from the loaded snapshots.
