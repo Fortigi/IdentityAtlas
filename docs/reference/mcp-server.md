@@ -21,6 +21,7 @@ Everything is read-only.
 | `search` | Find people, accounts, groups, roles, applications or contexts by name | Read all data |
 | `describe_data_model` | The vocabulary for free-form questions: entities (contexts included), fields, relations, rules, examples, and the values that exist in this deployment. The deployment's own extra attributes are listed on request, per entity | Ask questions in plain language |
 | `run_query` | Answer a free-form question with a report definition | Ask questions in plain language |
+| `get_photos` | Profile photos of up to 10 accounts, as images and as data URIs (for an org chart or a card) | Read all data |
 
 `run_query` uses the same engine as **Reports → Ask**: the assistant writes a JSON report
 definition, never SQL; the server validates it against the catalog, compiles it to
@@ -33,13 +34,28 @@ past 5,000), so the assistant can say "119 groups" rather than "100". Every reco
 carries its id, which the assistant uses to chain one query into the next, and a link
 back to its page in Identity Atlas.
 
+Every answer also carries `scope`, which says whether authorization limited it:
+
+```json
+"scope": { "restricted": true, "basis": "context-owner",
+           "description": "Only what you may see as the Accountable or Responsible person for …",
+           "contexts": [{ "id": "…", "name": "CTO (Carla Cash)", "role": "Accountable" }] }
+```
+
+`restricted` and `truncated` are different things: `restricted` means the person may only
+see part of the organisation, so `total` counts that part and never the whole; `truncated`
+means the row cap cut the list off. The server instructions tell the assistant to say so,
+and never to present a restricted count as the organisation's total. For somebody with a
+role the block reads `{ "restricted": false, "basis": "role", … }`.
+
 A group that is "empty" or "without members" is read as fully empty: no accounts,
 devices, nested groups or eligible members. When groups exist that hold no accounts but
 do hold devices or nested groups, the assistant says how many and offers to list them.
 
 ## Who may use it
 
-Three things must all be true:
+Three things must all be true (or, instead of the third, the person is a
+[context owner](#context-owners) and the switch for them is on):
 
 1. **Sign-in is on.** With authentication off there is no user to act for: the endpoint
    answers `404` and the switch refuses to turn on.
@@ -50,6 +66,34 @@ Three things must all be true:
    assistant never sees more than its user could.
 
 API keys (`fgr_` / `fgc_`) are refused — they act for no one.
+
+### Context owners
+
+A person who is **Accountable or Responsible for a context** but holds no Identity Atlas
+role (a department manager, an application owner —
+[context-owner access](../architecture/context-owner-access.md)) may also use the MCP
+server, when the admin turns on **Admin → Roles & Permissions → Relative permissions →
+Context owners may also use the MCP server** (next to the context-owner switch, which must
+be on too). They then see exactly what they see in the app, enforced by the same code:
+
+- every `run_query` lists only the records they may open — their contexts' members,
+  what those members hold (or, for an application, who holds it), their sub-units. For
+  those records, member lists and counts are complete by name, as in the app; anything
+  more about a related record outside their part (its other fields, filtering on it) is not
+  available;
+- `search` and every name lookup find those records. Somebody outside their part, named
+  by their exact full name, is reported as **existing but out of reach** — name and type
+  only — so the assistant can say "she exists, but I can't show details" instead of "not
+  found". A name that exists nowhere is "not found";
+- `list_reports` / `run_report` offer only the two reports the app lets them download on
+  their own contexts (by id), and refuse anything else as if it did not exist;
+- `get_photos` returns photos of the people they may open and their own, as their
+  pages in the app show them; for anyone else it answers as for an unknown id;
+- comparing with a reference record is not available to them.
+
+Somebody who holds any Identity Atlas permission is not treated as a context owner here,
+as in the app: without **Use the MCP server** they are refused. How this is enforced and
+tested: [MCP and relative permissions](../architecture/mcp-authorization.md).
 
 !!! warning "Data leaves the deployment"
     What the assistant reads is sent to that assistant's vendor (Anthropic, OpenAI,

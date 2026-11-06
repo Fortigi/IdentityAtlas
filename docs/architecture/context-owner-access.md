@@ -22,11 +22,10 @@ relates to:
 The **Roles & Permissions** admin tab groups them in a **Relative permissions**
 section below the role table. Matrix sharing has
 no setting there and its behaviour is unchanged. Today the two are enforced
-separately: a context owner by the allow-list on this page, a share recipient
-by the share itself. A single data-level scope that matrix shares and the MCP
-server could also run under — "this caller may see these principals and
-resources" rather than "these endpoints" — is a later, separate track
-([#1105](https://github.com/Fortigi/IdentityAtlas/issues/1105)).
+separately: a context owner by the allow-list and the tiers on this page (the
+MCP server reuses both — [The MCP server](#the-mcp-server)), a share recipient
+by the share itself. Running matrix shares under the same data-level scope is a
+later, separate track ([#1105](https://github.com/Fortigi/IdentityAtlas/issues/1105)).
 
 ## Turning it on
 
@@ -35,7 +34,13 @@ owners** (needs `admin.auth`). Off by default. The setting is stored in
 `WorkerConfig` as `CONTEXT_OWNER_ACCESS` and takes effect on the next request;
 no restart.
 
-API: `GET` / `PUT /api/admin/context-owner-access` with `{ "enabled": true }`.
+Below it, **Context owners may also use the MCP server** (`CONTEXT_OWNER_MCP`,
+off by default) lets the same people ask about their contexts from an AI
+assistant, under exactly the same scope — see [The MCP server](#the-mcp-server).
+It only has effect while the first switch is on.
+
+API: `GET` / `PUT /api/admin/context-owner-access` with `{ "enabled": true }`
+and/or `{ "mcp": true }`; a field left out keeps its value.
 
 ## Who qualifies
 
@@ -245,14 +250,13 @@ arrow on a nested group). The application matrix has no org roll-up: the
 roll-up groups people by their unit tree, and an application's tree is one of
 resources.
 
-### Reusing this scope (MCP)
+### Reusing this scope (API code)
 
-The MCP server (#1508) answers on behalf of the signed-in user and must apply
-exactly this scope. Everything it needs is exported from
-`app/api/src/auth/ownerAccess/index.js`:
+Everything another surface needs to answer on an owner's behalf is exported
+from `app/api/src/auth/ownerAccess/index.js`:
 
 ```js
-import { createOwnerAccess, ownerMatrixVerdict, annotateReferences, entityEndpointFor, refsFor } from '../auth/ownerAccess/index.js';
+import { createOwnerAccess, ownerMatrixVerdict, annotateReferences, OPENABLE_SQL } from '../auth/ownerAccess/index.js';
 
 const owner = await resolveContextOwner(user);              // auth/contextOwner.js — null for a non-owner
 const access = createOwnerAccess(owner.contextIds);         // one per request
@@ -261,16 +265,25 @@ await access.tierOf('resource', id);                       // 'team' | 'held' | 
 await access.accessibleIds('principal', ids);              // batch: the Set of ids that open
 ownerMatrixVerdict(body, owner.contextIds, contextTypes);   // { ok, filter } for a matrix query
 await annotateReferences(body, refs, access);               // mark references in a result
+OPENABLE_SQL.resource('t0."id"', '$1::uuid[]');             // the same rule as an SQL predicate, for inside a query
 ```
 
 Kinds accept the data model's words (`principal`, `identity`, `resource`,
 `context`, `member`) and the UI's (`user`, `group`, `access-package`,
-`business-role`). A tool that returns an object should check `canOpen` first
-and refuse otherwise (the tiers are already the union over every context the
-owner holds — one access object covers a unit and an application alike); a tool
-that runs a matrix query should pass it through `ownerMatrixVerdict` and run
-only the filter it returns; a tool that lists references should return them all and
-mark each from `accessibleIds`, as the REST responses do.
+`business-role`). `OPENABLE_SQL` is what the tier statements themselves are
+built from, so a query that embeds it agrees with `canOpen` by construction.
+
+### The MCP server
+
+With **Context owners may also use the MCP server** on, an owner can connect
+Claude, ChatGPT or Copilot ([MCP server](../reference/mcp-server.md#context-owners))
+and gets exactly the scope on this page: every query the assistant runs is
+compiled with `OPENABLE_SQL` on its own table, inside every relation and inside
+every relation column; name lookups and search are restricted the same way; a
+report runs only when this page's allow-list would let the owner download it.
+Every answer says it is restricted. Design, enforcement points and the
+regression suite that keeps REST and MCP in step:
+[MCP and relative permissions](mcp-authorization.md).
 
 ## Enforcement
 

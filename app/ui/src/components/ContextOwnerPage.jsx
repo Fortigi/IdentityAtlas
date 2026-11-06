@@ -24,6 +24,7 @@ import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 import { ContextOwnerScopeContext } from '@ui/contexts/ContextOwnerScopeContext';
 import ErrorBoundary from './ErrorBoundary';
 import Brand from './app/Brand';
+import { Avatar } from './DepartmentBadges';
 import ContextDetailPage from './ContextDetailPage';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { categoryMeta } from '@ui/utils/contextStyles';
@@ -43,13 +44,21 @@ function RoleBadge({ role }) {
   );
 }
 
-function OwnerHeader({ isDark, userName, onSignOut }) {
+// The signed-in owner, as the app's own header shows them (SettingsMenu): their
+// profile photo when /api/auth-me matched them to an account that has one, else
+// their initial.
+function OwnerHeader({ isDark, userName, photo, onSignOut }) {
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div className="px-6 py-3 flex items-center gap-4">
         <Brand isDark={isDark} />
         <div className="flex-1" />
-        {userName && <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{userName}</span>}
+        {userName && (
+          <span className="flex min-w-0 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <Avatar name={userName} photo={photo} />
+            <span className="truncate">{userName}</span>
+          </span>
+        )}
         {onSignOut && (
           <button type="button" onClick={onSignOut}
             className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -99,7 +108,7 @@ function ContextList({ contexts, selectedId, onSelect }) {
 }
 
 export default function ContextOwnerPage() {
-  const { contextOwner, account, logout } = useAuth();
+  const { contextOwner, account, me, logout } = useAuth();
   const { isDark, mode } = useTheme();
   const contexts = useMemo(() => contextOwner?.contexts || [], [contextOwner]);
   // The scope the API enforces: the held contexts, their own sub-units and their variants.
@@ -134,7 +143,7 @@ export default function ContextOwnerPage() {
         <ContextOwnerScopeContext.Provider value={scope}>
           <ErrorBoundary>
             <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
-              <OwnerHeader isDark={isDark} userName={account?.name || account?.username} onSignOut={logout} />
+              <OwnerHeader isDark={isDark} userName={account?.name || account?.username} photo={me?.photo} onSignOut={logout} />
               <div className="flex-1 min-h-0 flex">
                 {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={selectContext} />}
                 <main className="flex-1 min-w-0 overflow-y-auto p-6">

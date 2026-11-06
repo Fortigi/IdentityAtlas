@@ -8,7 +8,8 @@
 import { query, tx } from '../db/connection.js';
 import { ENTITIES, VALUE_QUERIES } from './catalog.js';
 import { PREVIOUS_SENTINEL, runLimit, validateSpec } from './spec.js';
-import { compileSpec } from './compile.js';
+import { compileSpec, SCOPED_COMPARE_ERROR } from './compile.js';
+import { compareConditions } from './compare.js';
 import { explainSpec } from './explain.js';
 import { sentinelsIn, substituteValues } from './sentinels.js';
 import { keepThePerson } from './autofix.followup.js';
@@ -625,16 +626,19 @@ function buildRow(r, columns, kind, grouped) {
 // with the ids already in (interpret() substitutes before validating).
 // `allRows` lifts the definition's row cap (see runLimit); `canLoadAllRows` on the
 // result says whether doing so would return more than this run did.
-export async function runSpec(rawSpec, substitutions = new Map(), { allRows = false } = {}) {
+// `scope` (scope.js) limits the run to the records the caller may open: the
+// named-object lookups and the compiled SQL both apply it.
+export async function runSpec(rawSpec, substitutions = new Map(), { allRows = false, scope = null } = {}) {
   const values = await loadValues();
   const extFields = await loadExtFields();
   const { ok, spec, errors } = validateSpec(substituteValues(rawSpec, substitutions), values, extFields);
   if (!ok) return { ok: false, errors, spec };
-  const { confirm } = await resolveNamedObjects(spec, query);
+  if (scope && compareConditions(spec).length) return { ok: false, errors: [SCOPED_COMPARE_ERROR], spec };
+  const { confirm } = await resolveNamedObjects(spec, query, { scope });
   if (confirm) return { ok: false, errors: [confirm.message], confirm, spec };
 
   const limit = runLimit(spec, allRows);
-  const compiled = compileSpec({ ...spec, limit }, extFields);
+  const compiled = compileSpec({ ...spec, limit }, extFields, { scope });
   const timeout = limit > spec.limit ? ALL_ROWS_TIMEOUT : STATEMENT_TIMEOUT;
 
   const started = Date.now();

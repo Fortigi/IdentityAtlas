@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:contract": "vitest run --config vitest.contract.config.js",
+    "test:security": "vitest run src/mcp src/auth src/middleware/contextOwnerMode.test.js src/routes/contextOwnerAccess.test.js src/nlreports/scope.test.js src/nlreports/compile.scope.test.js src/nlreports/references.scope.test.js && vitest run --config vitest.contract.config.js contract-tests/authzSecurity.integration.test.js contract-tests/ownerAccess.contract.test.js contract-tests/contextOwner.contract.test.js contract-tests/memberReferences.contract.test.js",
     "test:watch": "vitest",
     "lint": "eslint src/ --max-warnings 0",
     "ontology:check": "node src/ontology/cli.js check",

@@ -65,17 +65,18 @@ const PEOPLE = { data: [{ key: 'identityId:m-1', status: 'current', former: fals
 
 const ctx = (id, displayName, role) => ({ id, displayName, role, contextCategory: 'OrganizationalUnit', targetType: 'Identity' });
 
-function mount(contexts, contextIds = [UNIT, RESOURCES, SECOND], unitExtra = {}) {
+function mount(contexts, contextIds = [UNIT, RESOURCES, SECOND], unitExtra = {}, me = null) {
   const authFetch = api(unitExtra);
   const logout = vi.fn();
-  renderWithProviders(<ContextOwnerPage />, {
+  const view = renderWithProviders(<ContextOwnerPage />, {
     auth: {
       authFetch, logout, authEnabled: true, hasWildcard: false, permissions: new Set(),
       account: { name: 'Olivia Owner', username: 'olivia@example.com' },
       contextOwner: { contexts, contextIds },
+      me,
     },
   });
-  return { authFetch, logout };
+  return { authFetch, logout, container: view.container };
 }
 
 const fetched = (authFetch, fragment) => authFetch.mock.calls.some(([u]) => String(u).includes(fragment));
@@ -91,6 +92,20 @@ describe('ContextOwnerPage — one context', () => {
     expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Your contexts' })).not.toBeInTheDocument();
     expect(screen.getByText('Olivia Owner')).toBeInTheDocument();
+  });
+
+  it('shows the owner\'s own profile photo in the header, as the app\'s header does', async () => {
+    const photo = 'data:image/png;base64,AQID';
+    const { container } = mount([ctx(UNIT, 'Finance', 'Accountable')], undefined, {}, { photo });
+    await screen.findByRole('heading', { name: 'Finance', level: 2 });
+    expect(container.querySelector('header img[alt=""]')?.getAttribute('src')).toBe(photo);
+  });
+
+  it('falls back to the initial without a photo', async () => {
+    const { container } = mount([ctx(UNIT, 'Finance', 'Accountable')]);
+    await screen.findByRole('heading', { name: 'Finance', level: 2 });
+    expect(container.querySelector('header img[alt=""]')).toBeNull();
+    expect(within(container.querySelector('header')).getByText('O')).toBeInTheDocument();
   });
 
   it('signs out from the header', async () => {

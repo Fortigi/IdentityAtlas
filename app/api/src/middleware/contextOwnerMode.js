@@ -42,7 +42,7 @@ async function decide(req, path) {
   const owner = { ...resolved, access: createOwnerAccess(resolved.contextIds) };
 
   const verdict = contextOwnerVerdict({ method: req.method, path, query: req.query }, owner.contextIds);
-  return { owner, allow: await settle(verdict, owner, req) };
+  return { owner, allow: await settleOwnerVerdict(verdict, owner, req) };
 }
 
 // The team matrix: run the request's filter only once it is bound to the team,
@@ -70,7 +70,10 @@ async function settleReport(verdict, contextIds) {
 // The verdicts that need the database: a report's named contexts must all
 // resolve inside the scope; a member must be a member of that very context; an
 // object must open in full for this owner; a matrix must be bound to the team.
-async function settle(verdict, owner, req) {
+// Exported for the MCP server, which asks the same allow-list about a report
+// (mcp/tools/reports.js) — one decision for both, never a copy of it. `req` is
+// read only for a matrix verdict (its body is replaced by the forced filter).
+export async function settleOwnerVerdict(verdict, owner, req) {
   const { contextIds } = owner;
   if (verdict.resolve) return settleReport(verdict, contextIds);
   if (verdict.member) {
