@@ -89,7 +89,11 @@
  * @property {ReportColumn[]} columns
  * @property {ReportPivot[]} [pivots]   Pivot tables the xlsx download opens with.
  * @property {ReportChart[]} [charts]   Pie charts the xlsx download opens with.
- * @property {Function} run             (params, ctx) => Promise<ReportRunResult>
+ * @property {Function} run             (params, ctx) => Promise<ReportRunResult>.
+ *   `ctx.allRows` is true when the reader asked for every row (always on a
+ *   download): a template that caps its rows lifts the cap then. A capped run
+ *   returns `truncated: true`, plus `canLoadAllRows: true` when a run with
+ *   `allRows` would return more — the screen then offers "Load all rows".
  */
 
 /**
