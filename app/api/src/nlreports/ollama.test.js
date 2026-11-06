@@ -44,6 +44,19 @@ describe('model server client', () => {
     expect(r.timing).toEqual({ totalMs: 2500, loadMs: 1, promptTokens: 3000, promptMs: 2000, outputTokens: 80, outputMs: 500 });
   });
 
+  it('predicts 1200 tokens unless the caller sets its own budget', async () => {
+    const seen = [];
+    handler = (req, res, body) => {
+      seen.push(JSON.parse(body).options.num_predict);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: { content: '{}' } }));
+    };
+    const { chat } = await client();
+    await chat({ model: 'm', messages: [], schema: {} });
+    await chat({ model: 'm', messages: [], schema: {}, maxTokens: 2000 });
+    expect(seen).toEqual([1200, 2000]);
+  });
+
   it('turns an error status into an error that carries the server message', async () => {
     handler = (req, res) => { res.writeHead(404); res.end('model "nope" not found'); };
     const { chat } = await client();

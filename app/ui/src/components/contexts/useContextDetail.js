@@ -22,8 +22,11 @@ export function useContextDetail(authFetch, contextId, refreshKey, onCacheData) 
     })();
   }, [authFetch, contextId]);
 
-  const fetchDetail = useCallback(() => {
-    setLoading(true);
+  // `quiet`: re-read without the loading state, so the page stays as it is
+  // (open sections, a transcript panel) — after a claim decision that changed
+  // the context: an alias, a property, the description.
+  const fetchDetail = useCallback(({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     setError(null);
     return authFetch(`/api/contexts/${contextId}`)
       .then(async (res) => {
@@ -34,14 +37,16 @@ export function useContextDetail(authFetch, contextId, refreshKey, onCacheData) 
       })
       .catch((err) => {
         console.error('Failed to load context detail:', err);
-        setError(err.message || 'Failed to load context details');
+        if (!quiet) setError(err.message || 'Failed to load context details');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!quiet) setLoading(false); });
   }, [authFetch, contextId, onCacheData]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail, refreshKey]);
 
-  return { detail, loading, error, fetchDetail, riskData };
+  const refreshDetail = useCallback(() => fetchDetail({ quiet: true }), [fetchDetail]);
+
+  return { detail, loading, error, fetchDetail, refreshDetail, riskData };
 }
 
 // What the page offers this reader for this context:

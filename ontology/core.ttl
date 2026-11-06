@@ -30,6 +30,10 @@
 #     an account reaches a resource only through ResourceAssignments, and its
 #     assignmentType is exactly Direct, Indirect or Eligible. A new kind of
 #     right is a new resource plus a relationship, never a new way of holding.
+#   * Beside the graph, KNOWLEDGE (ia:Knowledge): what a source — an interview —
+#     SAID about a context or a person, as claims with provenance. A claim is no
+#     fact until someone confirms it, and it never holds anything: a confirmed
+#     role claim becomes an ia:ContextRole that names it (sourceClaimId).
 #   * The scissors comment lines (start / end markers) mark excerpts that
 #     docs/concepts/ontology.md quotes verbatim (pymdownx.snippets).
 
@@ -44,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.1.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.1.0> ;
+    owl:versionInfo "2.2.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/2.2.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -225,6 +229,32 @@ ia:ContextRelationship a owl:Class ; rdfs:subClassOf ia:Edge ;
     ia:table "ContextRelationships" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" ;
     ia:typeColumn "relationshipType" ;
     ia:sourceProperty ia:contextId ; ia:targetProperty ia:relatedContextId .
+
+# ─── Knowledge: sources and what they claim ──────────────────────────────────
+# What someone said, kept apart from what the graph holds. A source makes claims
+# about a context or a person; a claim says nothing true until it is confirmed.
+# Confirming writes to the graph through its own columns (a description, an
+# attribute) or as an ia:ContextRole with the claim as its source — never as a
+# way of holding a resource.
+
+ia:Knowledge a owl:Class ;
+    rdfs:label "Knowledge" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A table of statements about the graph and where they came from, kept apart from the graph itself: what was said, by whom, when, with the words it rests on." .
+ia:Source a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Source" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where claims come from." .
+ia:Interview a owl:Class ; rdfs:subClassOf ia:Source ;
+    rdfs:label "Interview" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A conversation with one person (the interviewee: an account or a person) about one context — an organizational unit or a logical application — on one date, kept as its transcript. What it says becomes claims." ;
+    ia:table "ContextInterviews" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+ia:Claim a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Claim" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A statement an interview makes about a subject — the context itself (subjectKind Context) or a person (Person: the account or person it was matched to, and always the name as spoken) — of one claimKind (description, property, role, roleHistory, membership, alias), with its value, the period it is about (from / to, or vague text), the verbatim quote it rests on and a confidence. Proposed until someone decides it (claimStatus confirmed, edited or rejected). A confirmed role claim with a roleSuggestion becomes an ia:ContextRole whose sourceClaimId is the claim; a confirmed description or property claim is written to the context. A claim never creates access." ;
+    ia:table "ContextClaims" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+ia:MemberOverride a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Member override" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst's decision that a person the member list (its source) still lists is a former member of the context: a contradiction 'left, but still listed' decided 'the interview is right'. It sits on top of ia:ContextMember and never changes it (the source would add the row back): the members list leaves the person out of the current members, Previous members lists them with the decision. One per context and member, with the claim it rests on, the source it overrides, who and when. Undone, it is deleted. It never removes access." ;
+    ia:table "ContextMemberOverrides" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
 
 # ─── Principal types (closed: ingest enum on principalType) ──────────────────
 # Three templates say what kind of actor an account is. Who answers for what it
@@ -513,6 +543,112 @@ ia:ContextRoleType_Accountable a owl:NamedIndividual, ia:ContextRoleType ; ia:ty
 ia:ContextRoleType_Responsible a owl:NamedIndividual, ia:ContextRoleType ; ia:typeValue "Responsible" ;
     rdfs:label "Responsible" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Does the work the accountable person delegated. Any number per context." .
+
+ia:ExtractionStatus a owl:Class ;
+    rdfs:label "Extraction status" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How far reading an interview with the local model got." .
+ia:ExtractionStatus_pending a owl:NamedIndividual, ia:ExtractionStatus ; ia:typeValue "pending" ;
+    rdfs:label "pending" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Waiting to be read." .
+ia:ExtractionStatus_running a owl:NamedIndividual, ia:ExtractionStatus ; ia:typeValue "running" ;
+    rdfs:label "running" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Being read." .
+ia:ExtractionStatus_done a owl:NamedIndividual, ia:ExtractionStatus ; ia:typeValue "done" ;
+    rdfs:label "done" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Read; its claims wait for review." .
+ia:ExtractionStatus_failed a owl:NamedIndividual, ia:ExtractionStatus ; ia:typeValue "failed" ;
+    rdfs:label "failed" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Reading failed; the message says why. It can be retried." .
+ia:ExtractionStatus_notConfigured a owl:NamedIndividual, ia:ExtractionStatus ; ia:typeValue "notConfigured" ;
+    rdfs:label "notConfigured" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "No local model is configured; claims are added by hand." .
+
+ia:ClaimKind a owl:Class ;
+    rdfs:label "Claim kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What a claim states." .
+ia:ClaimKind_description a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "description" ;
+    rdfs:label "description" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the context is, in words. Confirmed, it is added to the description." .
+ia:ClaimKind_property a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "property" ;
+    rdfs:label "property" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One fact about the context, under an attribute name. Confirmed, it sets that extended attribute." .
+ia:ClaimKind_role a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "role" ;
+    rdfs:label "role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What a person is to the context (the relation as said: owner, notOwner, dayToDay, delegate, member, other). With a roleSuggestion, confirmed, it becomes a ContextRole." .
+ia:ClaimKind_roleHistory a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "roleHistory" ;
+    rdfs:label "roleHistory" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A role a person held at the context over a period. Knowledge only." .
+ia:ClaimKind_membership a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "membership" ;
+    rdfs:label "membership" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether a person is in the context: the status (current, former, joined, left, rejoined) in attribute, with the period. Knowledge only: confirming it never changes the context's members, which come from their source." .
+ia:ClaimKind_alias a owl:NamedIndividual, ia:ClaimKind ; ia:typeValue "alias" ;
+    rdfs:label "alias" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Another name the context goes by. Confirmed, it is added to the context's extendedAttributes.aliases." .
+
+ia:ClaimSubjectKind a owl:Class ;
+    rdfs:label "Claim subject" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What a claim is about." .
+ia:ClaimSubjectKind_Context a owl:NamedIndividual, ia:ClaimSubjectKind ; ia:typeValue "Context" ;
+    rdfs:label "Context" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The context the interview is about." .
+ia:ClaimSubjectKind_Person a owl:NamedIndividual, ia:ClaimSubjectKind ; ia:typeValue "Person" ;
+    rdfs:label "Person" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A person named in the interview." .
+
+ia:SubjectMatch a owl:Class ;
+    rdfs:label "Subject match" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How the person a claim names was matched to an account or a person." .
+ia:SubjectMatch_interviewee a owl:NamedIndividual, ia:SubjectMatch ; ia:typeValue "interviewee" ;
+    rdfs:label "interviewee" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The interviewee, speaking about themselves." .
+ia:SubjectMatch_key a owl:NamedIndividual, ia:SubjectMatch ; ia:typeValue "key" ;
+    rdfs:label "key" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "By an identifier (e-mail, employee id, external id), or chosen by an analyst." .
+ia:SubjectMatch_name a owl:NamedIndividual, ia:SubjectMatch ; ia:typeValue "name" ;
+    rdfs:label "name" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "By the normalised name, the one candidate with it." .
+ia:SubjectMatch_fuzzy a owl:NamedIndividual, ia:SubjectMatch ; ia:typeValue "fuzzy" ;
+    rdfs:label "fuzzy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "By a near miss of the name. To be checked." .
+ia:SubjectMatch_firstName a owl:NamedIndividual, ia:SubjectMatch ; ia:typeValue "firstName" ;
+    rdfs:label "firstName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "By a first name alone, the one person the context knows with it. To be checked." .
+
+ia:ClaimStatus a owl:Class ;
+    rdfs:label "Claim status" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where a claim stands in review." .
+ia:ClaimStatus_proposed a owl:NamedIndividual, ia:ClaimStatus ; ia:typeValue "proposed" ;
+    rdfs:label "proposed" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Not decided yet." .
+ia:ClaimStatus_confirmed a owl:NamedIndividual, ia:ClaimStatus ; ia:typeValue "confirmed" ;
+    rdfs:label "confirmed" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Confirmed as said." .
+ia:ClaimStatus_edited a owl:NamedIndividual, ia:ClaimStatus ; ia:typeValue "edited" ;
+    rdfs:label "edited" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Confirmed with a changed value or period." .
+ia:ClaimStatus_rejected a owl:NamedIndividual, ia:ClaimStatus ; ia:typeValue "rejected" ;
+    rdfs:label "rejected" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Rejected." .
+
+ia:ClaimRelevance a owl:Class ;
+    rdfs:label "Claim relevance" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How much a claim matters for identity and access governance." .
+ia:ClaimRelevance_high a owl:NamedIndividual, ia:ClaimRelevance ; ia:typeValue "high" ;
+    rdfs:label "high" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Matters for who should have access to what: people, roles, membership, aliases, facts that affect access." .
+ia:ClaimRelevance_low a owl:NamedIndividual, ia:ClaimRelevance ; ia:typeValue "low" ;
+    rdfs:label "low" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "True, but changes nothing about access. Folded away in review." .
+
+ia:ClaimProposer a owl:Class ;
+    rdfs:label "Claim proposer" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who proposed a claim." .
+ia:ClaimProposer_model a owl:NamedIndividual, ia:ClaimProposer ; ia:typeValue "model" ;
+    rdfs:label "model" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The local model, reading the transcript." .
+ia:ClaimProposer_analyst a owl:NamedIndividual, ia:ClaimProposer ; ia:typeValue "analyst" ;
+    rdfs:label "analyst" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An analyst, by hand." .
 
 ia:EntityKind a owl:Class ;
     rdfs:label "Entity kind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -824,7 +960,7 @@ ia:complianceState a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "complianceState" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The source system's compliance verdict for the assignment." .
 ia:contextId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ia:MemberOverride ) ] ;
     rdfs:range ia:Context ;
     ia:ingestAlias "contextExternalId" ;
     rdfs:label "contextId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -857,7 +993,7 @@ ia:country a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:label "country" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The person's country." .
 ia:createdAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Context ia:ContextRole ia:ContextRelationship ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Context ia:ContextRole ia:ContextRelationship ia:Interview ia:Claim ) ] ;
     rdfs:range xsd:dateTime ;
     rdfs:label "createdAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "When the context row was created." .
@@ -983,11 +1119,11 @@ ia:hrScore a owl:DatatypeProperty ; ia:sqlType "integer" ;
     rdfs:label "hrScore" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "How strongly this account looks like the HR record." .
 ia:identityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:IdentityMember ia:ResourceAssignment ia:ContextRole ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:IdentityMember ia:ResourceAssignment ia:ContextRole ia:Interview ia:Claim ) ] ;
     rdfs:range ia:Identity ;
     ia:ingestAlias "identityExternalId" ;
     rdfs:label "identityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The person. On ResourceAssignments set instead of principalId for person-level assignments." .
+    rdfs:comment "The person. On ResourceAssignments set instead of principalId for person-level assignments; on ContextInterviews the interviewee, on ContextClaims the person the claim is about, when that is a person." .
 ia:indirectAssignmentCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
     rdfs:domain ia:Context ;
     rdfs:range xsd:integer ;
@@ -1061,7 +1197,7 @@ ia:managerIdentityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:label "managerIdentityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The manager as a PERSON." .
 ia:memberId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain ia:ContextMember ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:MemberOverride ) ] ;
     rdfs:range [ a owl:Class ; owl:unionOf ( ia:Identity ia:Resource ia:Principal ia:System ) ] ;
     ia:ingestAlias "memberExternalId" ;
     rdfs:label "memberId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -1142,11 +1278,11 @@ ia:primaryPrincipalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:label "primaryPrincipalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The person's primary account." .
 ia:principalId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:PrincipalRelationship ia:IdentityMember ia:ContextRole ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:PrincipalRelationship ia:IdentityMember ia:ContextRole ia:Interview ia:Claim ) ] ;
     rdfs:range ia:Principal ;
     ia:ingestAlias "principalExternalId", "userExternalId" ;
     rdfs:label "principalId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor." .
+    rdfs:comment "The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about." .
 ia:principalType a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:ResourceAssignment ) ] ;
     rdfs:range xsd:string ;
@@ -1303,3 +1439,180 @@ ia:visibility a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:range xsd:string ;
     rdfs:label "visibility" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Visibility as the source reports it (Public / Private for groups)." .
+
+# Columns of the knowledge tables (ContextInterviews, ContextClaims,
+# ContextMemberOverrides) and the provenance column they add to ContextRoles
+# (migrations 099, 100, 101).
+ia:sourceClaimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:ContextRole ;
+    rdfs:range ia:Claim ;
+    rdfs:label "sourceClaimId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The interview claim this role was confirmed from. NULL for every other role, and once the interview is deleted." .
+ia:interviewId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range ia:Interview ;
+    rdfs:label "interviewId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The interview that makes the claim." .
+ia:intervieweeName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "intervieweeName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The interviewee's name when the transcript was uploaded; the source keeps it after a crawl removes the account." .
+ia:interviewedAt a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:date ;
+    rdfs:label "interviewedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the interview took place." .
+ia:fileName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "fileName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The transcript file as uploaded." .
+ia:transcript a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "transcript" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The transcript as plain text, one line per turn; every quote is a verbatim part of it." .
+ia:language a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "language" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The language of the transcript (en, nl)." .
+ia:extractionStatus a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ExtractionStatus ;
+    rdfs:label "extractionStatus" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How far reading it with the local model got." .
+ia:extractionMessage a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "extractionMessage" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Why a run failed, or what a finished run left out." .
+ia:extractionStartedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "extractionStartedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When the last run started." .
+ia:model a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "model" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The model that read it." .
+ia:createdBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Interview ;
+    rdfs:range xsd:string ;
+    rdfs:label "createdBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who uploaded it." .
+ia:claimKind a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ClaimKind ;
+    rdfs:label "claimKind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the claim states." .
+ia:subjectKind a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ClaimSubjectKind ;
+    rdfs:label "subjectKind" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether the claim is about the context or a person." .
+ia:subjectName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    rdfs:label "subjectName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The person as named in the interview, matched or not." .
+ia:subjectMatch a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:SubjectMatch ;
+    rdfs:label "subjectMatch" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How the person was matched; NULL when they were not." .
+ia:attribute a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    rdfs:label "attribute" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A property claim's attribute name; a role claim's relation as said (owner, notOwner, dayToDay, delegate, member, other); a membership claim's status (current, former, joined, left, rejoined)." .
+ia:value a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    rdfs:label "value" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the claim says." .
+ia:periodFrom a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:date ;
+    rdfs:label "periodFrom" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The start of the period the claim is about, when the interview gives one." .
+ia:periodTo a owl:DatatypeProperty ; ia:sqlType "date" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:date ;
+    rdfs:label "periodTo" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The end of the period the claim is about, when the interview gives one." .
+ia:periodText a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    rdfs:label "periodText" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The period as said (early years, now)." .
+ia:quote a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    rdfs:label "quote" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The words of the transcript the claim rests on, verbatim." .
+ia:confidence a owl:DatatypeProperty ; ia:sqlType "numeric" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "confidence" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How clearly the transcript states it, 0 to 1. Not a decision." .
+ia:roleSuggestion a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ContextRoleType ;
+    rdfs:label "roleSuggestion" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The ContextRole a confirmed role claim becomes, by fixed rules on its relation." .
+ia:claimStatus a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ClaimStatus ;
+    rdfs:label "claimStatus" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the claim stands in review." .
+ia:relevance a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ClaimRelevance ;
+    rdfs:label "relevance" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How much the claim matters for identity and access governance, by fixed rules and the model's own tier. NULL (before tiers) reads as high." .
+ia:quoteStart a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:integer ;
+    rdfs:label "quoteStart" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the quote starts in the stored transcript (a string offset), for the transcript view. NULL when not found." .
+ia:quoteEnd a owl:DatatypeProperty ; ia:sqlType "integer" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:integer ;
+    rdfs:label "quoteEnd" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Where the quote ends in the stored transcript (exclusive)." .
+ia:proposedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Claim ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ClaimProposer ;
+    rdfs:label "proposedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who proposed the claim." .
+ia:decidedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Claim ia:MemberOverride ) ] ;
+    rdfs:range xsd:string ;
+    rdfs:label "decidedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Who decided it." .
+ia:decidedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Claim ia:MemberOverride ) ] ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "decidedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When it was decided." .
+ia:claimId a owl:ObjectProperty ; ia:sqlType "uuid" ;
+    rdfs:domain ia:MemberOverride ;
+    rdfs:range ia:Claim ;
+    rdfs:label "claimId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The claim the decision was made on; deleting its interview deletes the override with it." .
+ia:overrides a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:MemberOverride ;
+    rdfs:range xsd:string ;
+    rdfs:label "overrides" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source whose member list the decision overrides, by its name when decided (an upload, a system, the rule that derives it, the member list kept by hand)." .

@@ -34,6 +34,9 @@ export const CONTEXT_PATHS = [
   new RegExp(`^/api/contexts/${UUID}/members$`),
   new RegExp(`^/api/contexts/${UUID}/roles$`),
   new RegExp(`^/api/contexts/${UUID}/relationships$`),
+  // What interviews established about it: the route answers a context owner
+  // with confirmed claims only (routes/contexts/interviews.js).
+  new RegExp(`^/api/contexts/${UUID}/claims$`),
   new RegExp(`^/api/contexts/${UUID}/timeline$`),
   new RegExp(`^/api/risk-scores/contexts/${UUID}$`),
 ];

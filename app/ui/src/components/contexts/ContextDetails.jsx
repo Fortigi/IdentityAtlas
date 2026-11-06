@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatValue } from '@ui/utils/formatters';
-import { detailEntries, detailLabel } from './ContextDetails.helpers';
+import { detailEntries, detailLabel, detailValue, extendedLabel } from './ContextDetails.helpers';
 
 // ─── "More details": every attribute the rest of the page does not show ──
 // Replaces the old Attributes tab. Which keys are left out (because the
@@ -33,7 +33,7 @@ export default function ContextDetails({ attrs, hasProfile = false, framed = fal
       {open && (
         <dl className="mt-2 grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto_1fr] gap-x-3 gap-y-1 text-xs">
           {entries.map(([key, value, meta]) => (
-            <DetailRow key={meta?.extended ? `ext:${key}` : key} label={meta?.extended ? key : detailLabel(key)} value={value} />
+            <DetailRow key={meta?.extended ? `ext:${key}` : key} label={meta?.extended ? extendedLabel(key) : detailLabel(key)} value={detailValue(value)} />
           ))}
         </dl>
       )}
