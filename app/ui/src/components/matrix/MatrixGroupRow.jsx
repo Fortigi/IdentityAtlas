@@ -1,4 +1,5 @@
 import MatrixCell from './MatrixCell';
+import { BUSINESS_ROLE_CHIP_CLASS } from './MatrixBadges';
 import CellMarkerStrip from './CellMarkerStrip';
 import MatrixContextsCell from './MatrixContextsCell';
 import { CELL_BOX_STYLE } from './cellMarkers';
@@ -81,7 +82,7 @@ function RoleOwnerChip({ owners, onOpenDetail }) {
       onClick={(e) => { e.stopPropagation(); onOpenDetail?.('resource', first.id, first.name); }}
       title={title}
       aria-label={title}
-      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-900/50"
+      className={`${BUSINESS_ROLE_CHIP_CLASS} ml-1 text-[10px] hover:bg-indigo-100 dark:hover:bg-indigo-900/50`}
     >
       {label}
     </button>

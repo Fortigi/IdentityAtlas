@@ -13,6 +13,7 @@ const ReportViewPage = lazy(() => import('@ui/components/reports/ReportViewPage'
 const ReportBuilderPage = lazy(() => import('@ui/components/reports/ask/ReportBuilderPage'));
 const ContextBuilderPage = lazy(() => import('@ui/components/contexts/assistant/ContextBuilderPage'));
 const AdjustTreePage = lazy(() => import('@ui/components/adjustTree/AdjustTreePage'));
+const WorkbenchPage = lazy(() => import('@ui/components/workbench/WorkbenchPage'));
 
 // hash type → { detail page component, its id prop, whether it takes the cache }.
 // #group: is backward-compat and reuses ResourceDetailPage.
@@ -36,6 +37,8 @@ const DETAIL_ROUTES = {
   // Adjust one tree (id = the tree's key). Takes onCacheData so a tab opened
   // from a URL is relabelled 'Adjust: <tree name>' once the tree has loaded.
   'adjust-tree':     { Comp: AdjustTreePage,           idProp: 'treeKey' },
+  // The authorization workbench of one organizational unit (id = the unit's id).
+  workbench:         { Comp: WorkbenchPage,            idProp: 'contextId' },
 };
 
 // Renders the detail page for the current hash, or null when the hash is not a

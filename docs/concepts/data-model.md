@@ -80,11 +80,12 @@ erDiagram
     }
     ContextClaims {
         uuid id PK
-        string claimKind "description, property, role, roleHistory, membership, alias"
+        string claimKind "description, property, role, roleHistory, membership, alias, activity, expertise, duty"
         string claimStatus "proposed, confirmed, edited, rejected"
         uuid contextId FK
         uuid identityId FK
         uuid interviewId FK
+        uuid objectContextId FK
         uuid principalId FK
         string proposedBy "model, analyst"
         string relevance "high, low"
@@ -200,6 +201,7 @@ erDiagram
     Contexts |o--o{ ContextClaims : "contextId"
     Identities |o--o{ ContextClaims : "identityId"
     ContextInterviews |o--o{ ContextClaims : "interviewId"
+    Contexts |o--o{ ContextClaims : "objectContextId"
     Principals |o--o{ ContextClaims : "principalId"
     Contexts |o--o{ ContextInterviews : "contextId"
     Identities |o--o{ ContextInterviews : "identityId"

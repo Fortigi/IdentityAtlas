@@ -1,4 +1,5 @@
 import { TYPE_COLORS } from '@ui/utils/colors';
+import { MembershipBadge, BusinessRoleBadge } from './MatrixBadges';
 
 // On-screen key for the matrix. The grid encodes everything as single colored
 // letters (D/I/E/O), AP-tinted backgrounds, a count bubble, and a gap marker —
@@ -18,19 +19,6 @@ const TYPE_LABELS = [
   ['Eligible', 'Eligible — just-in-time access'],
 ];
 
-function Badge({ type }) {
-  const c = TYPE_COLORS[type];
-  if (!c) return null;
-  return (
-    <span
-      className="inline-block w-4 h-4 rounded-sm text-center text-[9px] leading-4 font-bold shrink-0"
-      style={{ backgroundColor: c.bg, color: c.text }}
-      aria-hidden="true"
-    >
-      {c.letter}
-    </span>
-  );
-}
 
 // The marker entries that exist only in a matrix showing business roles as
 // foldable rows: the over-grant mark, the "held outside governance" count, a
@@ -65,13 +53,13 @@ function BusinessRoleRowMarkers() {
         </span>
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR</span>
+        <BusinessRoleBadge />
         <span className="text-gray-700 dark:text-gray-300">
           This resource is <span className="font-medium">also granted by another business role</span>, so it has a row under that role too. Hover the chip for the role&apos;s name; click it to open the role.
         </span>
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex px-1 items-center justify-center rounded bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 text-[9px] font-medium shrink-0" aria-hidden="true">BR+2</span>
+        <BusinessRoleBadge label="BR+2" />
         <span className="text-gray-700 dark:text-gray-300">
           A resource granted by <span className="font-medium">more than one business role</span> is shown under every one of them, and each of its rows counts the others — so folding one role removes only that role&apos;s copy and the rest stay where they are.
         </span>
@@ -92,7 +80,7 @@ export default function MatrixLegend({ showBusinessRoles = false }) {
         <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
           {TYPE_LABELS.map(([type, label]) => (
             <div key={type} className="flex items-center gap-1.5">
-              <Badge type={type} />
+              <MembershipBadge type={type} decorative />
               <span className="text-gray-700 dark:text-gray-300">{label}</span>
             </div>
           ))}

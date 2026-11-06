@@ -17,7 +17,9 @@ vi.mock('../middleware/auth.js', () => ({
 }));
 // Member-count roll-up touches the DB; stub it out so handlers don't error.
 const recalcMemberCountsForChain = vi.fn(async () => {});
-vi.mock('../contexts/memberCounts.js', () => ({
+// The pure SQL fragments (liveMemberSql, used by the workbench's member query) stay real.
+vi.mock('../contexts/memberCounts.js', async (orig) => ({
+  ...(await orig()),
   recalcMemberCountsForChain: (...a) => recalcMemberCountsForChain(...a),
 }));
 // Plugin runner — never actually queue/execute a run.

@@ -14,8 +14,9 @@ const inList = (column) => statements.match(new RegExp(`"${column}" IN \\(([^)]+
 describe('migration 100 — membership and alias claims, relevance, quote offsets', () => {
   it('replaces the claim-kind check with exactly the kinds the code uses', () => {
     expect(statements).toMatch(/DROP CONSTRAINT IF EXISTS "ContextClaims_claimKind_check";\nALTER TABLE "ContextClaims" ADD CONSTRAINT "ContextClaims_claimKind_check"/);
-    expect(inList('claimKind')).toEqual(CLAIM_KINDS);
-    expect(CLAIM_KINDS.slice(-2)).toEqual(['membership', 'alias']);
+    // Migration 106 adds three more kinds after these six.
+    expect(inList('claimKind')).toEqual(CLAIM_KINDS.slice(0, 6));
+    expect(CLAIM_KINDS.slice(4, 6)).toEqual(['membership', 'alias']);
   });
 
   it('adds the relevance tier and the quote offsets, all nullable', () => {

@@ -164,3 +164,36 @@ describe('MatrixCell', () => {
     });
   });
 });
+
+describe('MatrixCell — selectable (the workbench), and the matrix’s own cell unchanged', () => {
+  it('is no button and carries no selection without onSelect', () => {
+    const td = renderCell({ membershipTypes: types('Direct') });
+    expect(td).not.toHaveAttribute('role');
+    expect(td).not.toHaveAttribute('tabindex');
+    expect(td).not.toHaveAttribute('aria-pressed');
+    expect(td.className).not.toMatch(/outline|cursor-pointer/);
+  });
+
+  it('answers a click, Enter and Space with onSelect, says whether it is selected, and shows what it is given on top', async () => {
+    const onSelect = vi.fn();
+    const td = renderCell({ membershipTypes: types('Direct'), onSelect, selected: true, label: 'Other context — Direct', children: h('span', null, 'O') });
+    expect(td).toHaveAttribute('role', 'button');
+    expect(td).toHaveAttribute('aria-pressed', 'true');
+    expect(td).toHaveAttribute('aria-label', 'Other context — Direct');
+    expect(td.className).toMatch(/outline-blue-600/);
+    expect(td).toHaveTextContent('DO');
+    const user = userEvent.setup();
+    await user.click(td);
+    td.focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
+    await user.keyboard('a');
+    expect(onSelect).toHaveBeenCalledTimes(3);
+  });
+
+  it('falls back to its own tooltip as the label', () => {
+    const td = renderCell({ membershipTypes: types('Indirect'), onSelect: () => {} });
+    expect(td).toHaveAttribute('aria-label', 'Indirect');
+    expect(td).toHaveAttribute('aria-pressed', 'false');
+  });
+});

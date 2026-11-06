@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { poolDb } from '../test-utils/poolDb.js';
 
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const store = await import('../src/contexts/interviews/store.js');
@@ -22,25 +23,8 @@ let sysId;
 let ctxId;
 const P = {};
 
-// The connection.js surface the feature uses, over this file's pool.
-const db = {
-  query: (sql, params) => pool.query(sql, params),
-  queryOne: async (sql, params) => (await pool.query(sql, params)).rows[0] ?? null,
-  tx: async (fn) => {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const out = await fn(client);
-      await client.query('COMMIT');
-      return out;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  },
-};
+// The connection.js surface the feature uses, over this file's pool (set in beforeAll).
+let db;
 
 async function principal(key, displayName) {
   const r = await pool.query(
@@ -54,6 +38,7 @@ const claimIds = {};
 
 beforeAll(async () => {
   pool = new pg.Pool({ connectionString: process.env.CONTRACT_DB_URL });
+  db = poolDb(pool);
   sysId = (await pool.query(`INSERT INTO "Systems" ("systemType", "displayName") VALUES ('InterviewTest', 'interviews-1') RETURNING id`)).rows[0].id;
   await principal('anna', 'Anna Voorbeeldig');
   await principal('piet', 'Piet Proefpersoon');

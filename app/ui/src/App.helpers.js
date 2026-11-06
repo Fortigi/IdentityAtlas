@@ -8,6 +8,8 @@ export const DETAIL_PREFIXES = [
   'department', 'context', 'identity', 'run', 'report', 'report-builder', 'context-builder',
   // The Adjust tree screen of one tree; its id is the tree's key.
   'adjust-tree',
+  // The authorization workbench of one organizational unit; its id is the unit's id.
+  'workbench',
 ];
 
 // True when a hash page-key addresses a detail tab.
@@ -69,6 +71,7 @@ const CLOSE_FALLBACK = {
   context: 'contexts',
   'context-builder': 'contexts',
   'adjust-tree': 'contexts',
+  workbench: 'contexts',
   identity: 'identities',
   resource: 'resources',
 };
@@ -85,6 +88,7 @@ const DETAIL_TAB_ICON_BG = {
   context: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   'context-builder': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   'adjust-tree': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
+  workbench: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
   report: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
   'report-builder': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
 };
