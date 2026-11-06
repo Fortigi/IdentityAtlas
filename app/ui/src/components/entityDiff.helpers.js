@@ -53,11 +53,11 @@ export function attributeDisplayLabel(key) {
   return friendlyLabel(key);
 }
 
-function isEmpty(v) {
+export function isEmpty(v) {
   return v === null || v === undefined || v === '';
 }
 
-function sameValue(a, b) {
+export function sameValue(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -81,7 +81,7 @@ function diffAttributes(before, after) {
   return rows.sort((x, y) => (x.extended - y.extended) || x.label.localeCompare(y.label));
 }
 
-function groupRank(group) {
+export function groupRank(group) {
   const i = GROUP_ORDER.indexOf(group);
   return i === -1 ? GROUP_ORDER.length : i;
 }

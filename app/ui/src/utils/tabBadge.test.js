@@ -20,6 +20,10 @@ describe('tabBadge', () => {
     expect(tabBadge('workbench')).toBe('WB');
   });
 
+  it('shows CMP (not AP) for compare tabs', () => {
+    expect(tabBadge('compare')).toBe('CMP');
+  });
+
   it('shows RUN (not AP) for run tabs', () => {
     expect(tabBadge('run')).toBe('RUN');
   });

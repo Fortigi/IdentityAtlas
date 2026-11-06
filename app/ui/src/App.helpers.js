@@ -10,6 +10,8 @@ export const DETAIL_PREFIXES = [
   'adjust-tree',
   // The authorization workbench of one organizational unit; its id is the unit's id.
   'workbench',
+  // Two or three users side by side; its id is their ids joined with commas.
+  'compare',
 ];
 
 // True when a hash page-key addresses a detail tab.
@@ -74,6 +76,7 @@ const CLOSE_FALLBACK = {
   workbench: 'contexts',
   identity: 'identities',
   resource: 'resources',
+  compare: 'principals',
 };
 export function closeFallbackPage(type) {
   return CLOSE_FALLBACK[type] || 'matrix';
@@ -91,6 +94,7 @@ const DETAIL_TAB_ICON_BG = {
   workbench: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
   report: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
   'report-builder': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+  compare: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
 };
 const DETAIL_TAB_ICON_BG_DEFAULT =
   'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
@@ -129,6 +133,17 @@ export function relabelDetailTabs(tabs, id, partialData) {
     return { ...t, ...patch };
   });
   return changed ? next : tabs;
+}
+
+// Give an open detail tab a new id in place — the Compare tab, when a user is
+// added or removed. The tab keeps its place and where it returns to; its label
+// becomes the new id until the page reports a name (relabelDetailTabs). When a
+// tab with the new id is already open, the old one is dropped instead.
+export function replaceTabId(tabs, type, oldId, newId) {
+  if (tabs.some(t => t.type === type && t.id === newId)) {
+    return tabs.filter(t => !(t.type === type && t.id === oldId));
+  }
+  return tabs.map(t => (t.type === type && t.id === oldId ? { ...t, id: newId, displayName: newId } : t));
 }
 
 // The standalone page of a context, seen by someone who cannot edit contexts:

@@ -19,7 +19,13 @@ import { toPerson } from './PeoplePicker.helpers';
 
 const RESULT_LIMIT = 10;
 
-export default function PeoplePicker({ value = [], onChange, label = 'Search people', help, inputId = 'people-picker' }) {
+// `toItem` turns a /api/users row into a value entry ({ userKey, displayName,
+// subtitle? }); a row whose userKey is empty can't be picked. The default keys
+// on the sign-in name; a caller that picks accounts by id passes its own.
+// `max` caps how many can be picked.
+export default function PeoplePicker({
+  value = [], onChange, label = 'Search people', help, inputId = 'people-picker', toItem = toPerson, max,
+}) {
   const { authFetch } = useAuth();
   const [query, setQuery] = useState('');
   const debounced = useDebouncedValue(query, 250);
@@ -38,6 +44,7 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
 
   const settled = found.term === term;
   const selectedKeys = useMemo(() => new Set(value.map(p => p.userKey)), [value]);
+  const full = max != null && value.length >= max;
 
   useEffect(() => {
     if (!term) { setFound({ term: '', rows: [] }); return; }
@@ -57,8 +64,8 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
   }, []);
 
   function add(row) {
-    const person = toPerson(row);
-    if (!person.userKey || selectedKeys.has(person.userKey)) return;
+    const person = toItem(row);
+    if (full || !person.userKey || selectedKeys.has(person.userKey)) return;
     onChange([...value, person]);
     setQuery('');
     setFound({ term: '', rows: [] });
@@ -78,12 +85,13 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        placeholder="Search by name or e-mail…"
+        disabled={full}
+        placeholder={full ? `At most ${max}` : 'Search by name or e-mail…'}
         className="mt-1 w-full rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
       />
       {help && <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{help}</p>}
 
-      {open && term && (
+      {open && term && !full && (
         <div
           role="group"
           aria-label="Search results"
@@ -94,7 +102,7 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
             <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No people match “{term}”.</p>
           )}
           {settled && found.rows.map(row => {
-            const person = toPerson(row);
+            const person = toItem(row);
             const already = selectedKeys.has(person.userKey);
             const unusable = !person.userKey;
             return (
@@ -107,7 +115,7 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
               >
                 <span className="min-w-0">
                   <span className="block truncate text-gray-900 dark:text-gray-100">{row.displayName || person.userKey}</span>
-                  <span className="block truncate text-[11px] text-gray-600 dark:text-gray-400">{person.userKey || 'no sign-in name'}</span>
+                  <span className="block truncate text-[11px] text-gray-600 dark:text-gray-400">{person.subtitle ?? (person.userKey || 'no sign-in name')}</span>
                 </span>
                 <span className="shrink-0 text-[11px] text-gray-600 dark:text-gray-400">
                   {unusable ? 'cannot sign in' : already ? 'already added' : 'add'}
@@ -125,7 +133,7 @@ export default function PeoplePicker({ value = [], onChange, label = 'Search peo
               key={p.userKey}
               className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
             >
-              <span className="max-w-[16rem] truncate" title={p.userKey}>{p.displayName || p.userKey}</span>
+              <span className="max-w-[16rem] truncate" title={p.subtitle || p.userKey}>{p.displayName || p.userKey}</span>
               <button
                 type="button"
                 onClick={() => remove(p.userKey)}

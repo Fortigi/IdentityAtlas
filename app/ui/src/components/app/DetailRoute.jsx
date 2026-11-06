@@ -14,6 +14,7 @@ const ReportBuilderPage = lazy(() => import('@ui/components/reports/ask/ReportBu
 const ContextBuilderPage = lazy(() => import('@ui/components/contexts/assistant/ContextBuilderPage'));
 const AdjustTreePage = lazy(() => import('@ui/components/adjustTree/AdjustTreePage'));
 const WorkbenchPage = lazy(() => import('@ui/components/workbench/WorkbenchPage'));
+const EntityComparePage = lazy(() => import('@ui/components/compare/EntityComparePage'));
 
 // hash type → { detail page component, its id prop, whether it takes the cache }.
 // #group: is backward-compat and reuses ResourceDetailPage.
@@ -39,12 +40,15 @@ const DETAIL_ROUTES = {
   'adjust-tree':     { Comp: AdjustTreePage,           idProp: 'treeKey' },
   // The authorization workbench of one organizational unit (id = the unit's id).
   workbench:         { Comp: WorkbenchPage,            idProp: 'contextId' },
+  // Two or three users side by side (id = their ids, comma-separated). Adding or
+  // removing a user gives the tab a new id (onReplaceRoute).
+  compare:           { Comp: EntityComparePage,        idProp: 'compareId' },
 };
 
 // Renders the detail page for the current hash, or null when the hash is not a
 // known detail route. Built via createElement (not called as a component
 // factory) so the user-controlled hash key never reaches callee position.
-export default function DetailRoute({ page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab }) {
+export default function DetailRoute({ page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab, replaceDetailTab }) {
   const route = parseDetailRoute(page);
   if (!route) return null;
   const cfg = DETAIL_ROUTES[route.type];
@@ -53,10 +57,13 @@ export default function DetailRoute({ page, detailCacheRef, onCacheData, openDet
   const { type, id } = route;
   const cacheKey = `${type}:${id}`;
   const props = {
-    key: cacheKey,
+    // The compare page keeps one instance while its id changes, so its picker
+    // and switches survive adding or removing a user.
+    key: type === 'compare' ? type : cacheKey,
     [cfg.idProp]: id,
     onClose: () => closeDetailTab(type, id),
     onOpenDetail: openDetailTab,
+    onReplaceRoute: (newId) => replaceDetailTab?.(type, id, newId),
   };
   if (!cfg.noCache) {
     // detailCacheRef is an intentional mutable per-tab render cache (cachedData

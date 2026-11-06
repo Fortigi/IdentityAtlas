@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { formatDate, formatDateOnly } from '@ui/utils/formatters';
 import useEntityDiff from '@ui/hooks/useEntityDiff';
-import SnapshotDiffView from './SnapshotDiffView';
+import SnapshotDiffView, { NoteList } from './SnapshotDiffView';
 import {
   DIFF_PRESETS, daysAgoIso, dateInputToIso, isoToDateInput, diffSnapshots, onlyChanges,
 } from './entityDiff.helpers';
@@ -69,12 +69,7 @@ function Notes({ data }) {
   if (data.relationshipsTracked === false) {
     notes.push('Membership changes are not recorded for this kind of item, so only its attributes are compared.');
   }
-  if (notes.length === 0) return null;
-  return (
-    <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-      {notes.map(n => <li key={n}>{n}</li>)}
-    </ul>
-  );
+  return <NoteList notes={notes} />;
 }
 
 export default function EntityDiff({ entityKind, entityId, authFetch, onOpenDetail }) {

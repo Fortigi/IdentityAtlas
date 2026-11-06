@@ -84,7 +84,7 @@ function assignmentDetail(row) {
 }
 
 // The `_history` trigger keys composite-PK rows as `a|b|c` (migration 022);
-// the same key identifies the row on both sides of the diff.
+// sourceSnapshots matches history rows to current rows on this key.
 export function rowKey(table, row) {
   switch (table) {
     case 'ResourceAssignments': return `${row.resourceId}|${row.principalId}|${row.assignmentType}`;
@@ -97,6 +97,7 @@ export function rowKey(table, row) {
 const SOURCE = {
   heldResources: {
     name: 'heldResources', table: 'ResourceAssignments', column: 'principalId', softDelete: true,
+    counterpart: row => `${row.resourceId}|${row.assignmentType}`,
     toItem: (row, lbl) => {
       const info = lbl.resource(row.resourceId);
       const type = row.resourceType || info?.resourceType;
@@ -106,11 +107,13 @@ const SOURCE = {
   },
   members: {
     name: 'members', table: 'ResourceAssignments', column: 'resourceId', softDelete: true,
+    counterpart: row => `${row.principalId}|${row.assignmentType}`,
     toItem: (row, lbl) => ({ group: 'Members', label: lbl.principal(row.principalId) || row.principalId,
       kind: 'user', id: row.principalId, detail: assignmentDetail(row) }),
   },
   children: {
     name: 'children', table: 'ResourceRelationships', column: 'parentResourceId', softDelete: false,
+    counterpart: row => `${row.childResourceId}|${row.relationshipType}`,
     toItem: (row, lbl) => {
       const info = lbl.resource(row.childResourceId);
       return { group: 'Contains', label: info?.displayName || row.childResourceId,
@@ -119,6 +122,7 @@ const SOURCE = {
   },
   parents: {
     name: 'parents', table: 'ResourceRelationships', column: 'childResourceId', softDelete: false,
+    counterpart: row => `${row.parentResourceId}|${row.relationshipType}`,
     toItem: (row, lbl) => {
       const info = lbl.resource(row.parentResourceId);
       return { group: 'Part of', label: info?.displayName || row.parentResourceId,
@@ -127,11 +131,13 @@ const SOURCE = {
   },
   identity: {
     name: 'identity', table: 'IdentityMembers', column: 'principalId', softDelete: false,
+    counterpart: row => String(row.identityId),
     toItem: (row, lbl) => ({ group: 'Identity', label: lbl.identity(row.identityId) || row.identityId,
       kind: 'identity', id: row.identityId, detail: row.isPrimary ? 'primary account' : '' }),
   },
   accounts: {
     name: 'accounts', table: 'IdentityMembers', column: 'identityId', softDelete: false,
+    counterpart: row => String(row.principalId),
     toItem: (row, lbl) => ({ group: 'Linked accounts', label: lbl.principal(row.principalId) || row.displayName || row.principalId,
       kind: 'user', id: row.principalId, detail: row.isPrimary ? 'primary' : (row.accountType || '') }),
   },
@@ -155,8 +161,12 @@ export const ENTITY_TABLE = {
   context: 'Contexts',
 };
 
+// An item's key names the relationship from the viewed entity's side only
+// (the counterpart and how it is held), never the viewed entity's own id. So
+// the same group held the same way by two different users gets the same key,
+// and the Compare view lines them up; within one entity the key stays unique.
 function toItem(source, row, lbl) {
-  return { key: `${source.name}:${rowKey(source.table, row)}`, ...source.toItem(row, lbl) };
+  return { key: `${source.name}:${source.counterpart(row)}`, ...source.toItem(row, lbl) };
 }
 
 // Before/after items for one source.
@@ -228,4 +238,17 @@ export function buildDiffSnapshots({ thenRow, nowRow, sources = [], labels = {} 
     after: snapshot(nowRow, afterItems),
     omittedUnchanged,
   };
+}
+
+// One snapshot of the entity as it is now — the Compare view's input, one per
+// entity compared. Same shape as either side of buildDiffSnapshots.
+//   row:     the entity's row now
+//   sources: [{ source, current, total }] — no history needed
+// Returns { snapshot, omitted } — omitted = rows present now that the cap left out.
+export function buildCurrentSnapshot({ row, sources = [], labels = {} }) {
+  const built = buildDiffSnapshots({
+    thenRow: row, nowRow: row, labels,
+    sources: sources.map(s => ({ ...s, changes: [] })),
+  });
+  return { snapshot: built.after, omitted: built.omittedUnchanged };
 }

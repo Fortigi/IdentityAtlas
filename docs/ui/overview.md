@@ -157,6 +157,8 @@ Browse all synced principals (accounts) with pagination, search, tagging, and at
 
 Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships**, **Timeline** and **Diff** views. **Diff** compares the account with how it was at a moment you pick (a day, a week, a month or a year ago, or any date): the old state on the left, the current state on the right, with changed attributes and added or removed access highlighted.
 
+To compare *different* accounts, use **Compare with…** on an account's page, or tick two or three rows in the list and click **Compare**. The accounts appear side by side in one column each. By default only the attributes and access where they differ are shown, and names, e-mail addresses and IDs are hidden.
+
 <figure markdown="span">
   ![A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments](../assets/screenshots/user-detail.png)
   <figcaption>A user's detail tab — the Relationships view, with the direct assignments fanned out.</figcaption>
