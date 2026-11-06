@@ -17,16 +17,30 @@ const base = {
 // A transaction client that answers by statement and records every write.
 function fakeDb(claim, { accountable = null, holder = { displayName: 'Piet Jansen' }, context = null, rowCount = 1 } = {}) {
   const writes = [];
+  const rowsOf = (row) => ({ rows: row ? [row] : [] });
+  // Reads: answered, not recorded. The first statement that matches answers.
+  const reads = [
+    [(sql) => sql.includes('FOR UPDATE OF c'), () => rowsOf(claim)],
+    [(sql) => sql.includes('AS "isListed"'), () => rowsOf(context)],
+    // The change request a mark raises reads the context again, with the member's name.
+    [(sql) => sql.includes('AS "memberName"'), () => rowsOf(context && { displayName: 'Klanten', variant: context.variant, scopeSystemId: 7, systemName: context.systemName, memberName: 'Piet Jansen' })],
+    [(sql) => sql.includes(`r.role = 'Accountable'`), () => rowsOf(accountable)],
+    [(sql) => /^SELECT "displayName" FROM/.test(sql.trim()), () => rowsOf(holder)],
+  ];
+  // Writes whose answer a test depends on; every other write answers one row changed.
+  const answers = [
+    ['INSERT INTO "ContextRoles"', () => ({ rows: [{ id: ROLE_ID }] })],
+    ['INSERT INTO "ContextMemberOverrides"', () => ({ rows: [{ id: 'ovr-1' }] })],
+    ['INSERT INTO "ChangeRequests"', (params) => ({ rows: [{ id: 'cr-1', summary: 'Remove Piet Jansen from Klanten', targetName: params[2] }] })],
+  ];
   const client = {
     query: vi.fn(async (sql, params) => {
-      if (sql.includes('FOR UPDATE OF c')) return { rows: claim ? [claim] : [] };
-      if (sql.includes('AS "isListed"')) return { rows: context ? [context] : [] };
+      const read = reads.find(([match]) => match(sql));
+      if (read) return read[1]();
       if (sql.startsWith('DELETE FROM "ContextMemberOverrides" WHERE "claimId"')) { writes.push({ sql, params }); return { rows: [], rowCount }; }
-      if (sql.includes(`r.role = 'Accountable'`)) return { rows: accountable ? [accountable] : [] };
-      if (/^SELECT "displayName" FROM/.test(sql.trim())) return { rows: holder ? [holder] : [] };
       writes.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
-      if (sql.includes('INSERT INTO "ContextRoles"')) return { rows: [{ id: ROLE_ID }] };
-      return { rows: [], rowCount: 1 };
+      const answer = answers.find(([text]) => sql.includes(text));
+      return answer ? answer[1](params) : { rows: [], rowCount: 1 };
     }),
   };
   return {
@@ -204,8 +218,15 @@ describe('decideClaim — the interview is right: marked former, on top of the m
   it('confirming that a listed person left marks them former, naming the source it overrides', async () => {
     const db = fakeDb(LEFT, { context: UNIT });
     const out = await decide(db, { status: 'confirmed' });
-    expect(out.effect).toEqual({ kind: 'formerMember', overrides: 'Klanten (upload)' });
-    expect(verbs(db)).toEqual(['UPDATE "ContextClaims"', 'INSERT INTO']);
+    expect(out.effect).toEqual({
+      kind: 'formerMember', overrides: 'Klanten (upload)',
+      changeRequest: { id: 'cr-1', summary: 'Remove Piet Jansen from Klanten', targetName: 'Klanten (upload)' },
+    });
+    expect(verbs(db)).toEqual(['UPDATE "ContextClaims"', 'INSERT INTO', 'SELECT id', 'INSERT INTO']);
+    // The source is asked to stop listing them, resting on this claim and the mark.
+    expect(db.writes[3].sql).toContain('INSERT INTO "ChangeRequests"');
+    expect(db.writes[3].params.slice(0, 2)).toEqual(['RelationshipRemove', 7]);
+    expect(db.writes[3].params.slice(8)).toEqual([CLAIM_ID, 'ovr-1', 'analyst@example.test']);
     const mark = db.writes[1];
     expect(mark.sql).toContain('INSERT INTO "ContextMemberOverrides"');
     expect(mark.params).toEqual([CTX, PIET, CLAIM_ID, 'Klanten (upload)', 'analyst@example.test']);
@@ -215,7 +236,9 @@ describe('decideClaim — the interview is right: marked former, on top of the m
 
   it('a role claim whose words say they left marks them too; a manual list is "The member list"', async () => {
     const db = fakeDb({ ...LEFT, claimKind: 'roleHistory', attribute: null, value: 'worked on it, has since left' }, { context: { ...UNIT, variant: 'manual' } });
-    expect((await decide(db, { status: 'confirmed' })).effect).toEqual({ kind: 'formerMember', overrides: 'The member list' });
+    // A list kept by hand is Identity Atlas's own: no source to ask, no change request.
+    expect((await decide(db, { status: 'confirmed' })).effect).toEqual({ kind: 'formerMember', overrides: 'The member list', changeRequest: null });
+    expect(db.writes.some(w => w.sql.includes('"ChangeRequests"'))).toBe(false);
   });
 
   it('the list is right (rejected): nothing but the claim; both true at different times (a period): no mark', async () => {
@@ -239,6 +262,8 @@ describe('decideClaim — the interview is right: marked former, on top of the m
     expect((await decide(db, { status: 'confirmed' })).effect).toEqual({ kind: 'none' });
     expect(db.writes[1].sql).toBe('DELETE FROM "ContextMemberOverrides" WHERE "contextId" = $1 AND "memberId" = $2');
     expect(db.writes[1].params).toEqual([CTX, PIET]);
+    expect(db.writes[2].sql).toMatch(/^UPDATE "ChangeRequests" SET "requestStatus" = 'withdrawn'/);
+    expect(db.writes[2].params).toEqual([CTX, PIET, 'A later decision says they are in the unit']);
   });
 
   it('marks nobody in a unit of people for an account, nor without a person', async () => {
@@ -266,7 +291,9 @@ describe('canUndo / undoClaim', () => {
     const out = await undoClaim(db, CLAIM_ID);
     expect(out.unmarked).toBe(true);
     expect(db.writes[0]).toEqual({ sql: 'DELETE FROM "ContextMemberOverrides" WHERE "claimId" = $1', params: [CLAIM_ID] });
-    expect(db.writes[1].sql).toBe(`UPDATE "ContextClaims" SET "claimStatus" = 'proposed', "decidedBy" = NULL, "decidedAt" = NULL WHERE id = $1`);
+    expect(db.writes[1].sql).toMatch(/^UPDATE "ChangeRequests" SET "requestStatus" = 'withdrawn'.* WHERE "requestStatus" = 'open' AND "basisClaimId" = \$1$/);
+    expect(db.writes[1].params).toEqual([CLAIM_ID, 'The decision was undone']);
+    expect(db.writes[2].sql).toBe(`UPDATE "ContextClaims" SET "claimStatus" = 'proposed', "decidedBy" = NULL, "decidedAt" = NULL WHERE id = $1`);
   });
 
   it('refuses a bad id, a missing claim, an undecided one and one that changed the context', async () => {

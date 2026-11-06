@@ -5,6 +5,7 @@ import ContextDetails from '@ui/components/contexts/ContextDetails';
 import ClaimsProvider from '@ui/components/contexts/interviews/ClaimsProvider';
 import WhatWeKnow from '@ui/components/contexts/interviews/WhatWeKnow';
 import AlsoKnownAs from '@ui/components/contexts/interviews/AlsoKnownAs';
+import ChangeRequestsPanel from '@ui/components/contexts/changeRequests/ChangeRequestsPanel';
 import UnitVariants from './UnitVariants';
 import { useUnitVariants } from './useUnitVariants';
 import { memberCountText } from './variants.helpers';
@@ -18,7 +19,8 @@ import { memberCountText } from './variants.helpers';
 // onShowMembers / onShowSubUnits make the counts links to the lists below.
 // Its interviews' claims (ClaimsProvider) are shared by the People block's
 // suggestions, its "Also known as" fact (proposed names with Confirm / Reject),
-// What we know and the Upload interview card.
+// What we know and the Upload interview card. Change requests (what the source
+// still has to change after a decision overrode it) re-read when the claims do.
 export default function ContextProfile({ profile, attrs, subContexts = [], onOpenDetail, analyst = false, onShowMembers, onShowSubUnits }) {
   const { variants, loading } = useUnitVariants(attrs);
   const membersLabel = profile.membersWithKind ? memberKindLabel(attrs.targetType) : profile.membersLabel;
@@ -45,6 +47,7 @@ export default function ContextProfile({ profile, attrs, subContexts = [], onOpe
         <ContextDetails attrs={attrs} hasProfile analyst={analyst} />
       </section>
       <WhatWeKnow />
+      <ChangeRequestsPanel contextId={attrs.id} />
       <WorkflowsArea attrs={attrs} variants={variants} variantsLoading={loading} onOpenDetail={onOpenDetail} />
     </ClaimsProvider>
   );

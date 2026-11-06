@@ -56,6 +56,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await q(`DELETE FROM "ChangeRequests" WHERE "contextId" = $1`, [id.unit]);
   await q(`DELETE FROM "Contexts" WHERE id = $1`, [id.unit]);
   await q(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
   await q(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
@@ -79,7 +80,8 @@ describe('a member marked former by a decision', () => {
   it('"the interview is right" marks Led former, naming the source — ContextMembers untouched', async () => {
     const res = await decide(claim.led, { status: 'confirmed' });
     expect(res.status).toBe(200);
-    expect(res.body.effect).toEqual({ kind: 'formerMember', overrides: SOURCE });
+    expect(res.body.effect).toEqual({ kind: 'formerMember', overrides: SOURCE,
+      changeRequest: { id: expect.any(String), summary: 'Remove Led Ledeboer from Contract override unit', targetName: SOURCE } });
     const listed = await q(`SELECT count(*)::int AS n FROM "ContextMembers" WHERE "contextId" = $1`, [id.unit]);
     expect(listed.rows[0].n).toBe(3);
     const [mark] = (await q(`SELECT "memberId", "claimId", overrides, "decidedBy" FROM "ContextMemberOverrides" WHERE "contextId" = $1`, [id.unit])).rows;

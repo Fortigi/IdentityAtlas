@@ -1,0 +1,4 @@
+- Added change requests: when you decide that a source is wrong ("the interview is right: Led left, even though the uploaded list still has him"), Identity Atlas now also records what should change in that source, such as "Remove Led from Klanten", for the uploaded list or system it came from.
+- Change requests close themselves: a request is resolved when the source no longer shows the old fact (for example, after a re-import without the person), and withdrawn when you undo the decision. A unit kept by hand in Identity Atlas raises none, because Identity Atlas is its own source.
+- Added a "Change requests" panel to the unit page, listing what the source still has to change (open first, with closed ones folded away), and a `GET /api/change-requests` endpoint with status, system and unit filters.
+- Change requests are part of the experimental "Organisation knowledge" feature: hidden, and not listed by the API, while it is off

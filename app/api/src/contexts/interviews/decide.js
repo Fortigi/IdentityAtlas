@@ -215,7 +215,7 @@ export async function decideClaim(db, claimId, body, user) {
       holder?.col === 'principalId' ? holder.id : null, holder?.col === 'identityId' ? holder.id : null,
       !!decision.holder, user]);
     const marked = await applyMemberOverride(client, claim, { status, merged, holder }, user);
-    return marked && result.kind === 'none' ? { kind: 'formerMember', overrides: marked.overrides } : result;
+    return marked && result.kind === 'none' ? { kind: 'formerMember', overrides: marked.overrides, changeRequest: marked.changeRequest } : result;
   });
   return { claim: await store.getClaimRow(db, claimId), effect };
 }

@@ -1,7 +1,7 @@
 // Context interviews — a member marked former by a decision (migration 101).
 //
 //   overrideAction(claim, status, merged)              → 'mark' | 'clear' | null   (pure)
-//   applyMemberOverride(client, claim, decided, user)  → { overrides } | null
+//   applyMemberOverride(client, claim, decided, user)  → { overrides, changeRequest } | null
 //   clearClaimOverride(client, claimId)                → rows removed
 //   overriddenMemberCount(db, contextId)               → n
 //
@@ -28,9 +28,15 @@
 // Two functions are the only writers of ContextMemberOverrides — a hook on a mark
 // being set or removed belongs in them: applyMemberOverride (sets or clears, from
 // a decision) and clearClaimOverride (removes the mark a claim made, on undo).
+//
+// Each mark also asks its source for the correction it owes: a change request
+// (changeRequests.js, migration 103) raised with the mark, in the same
+// transaction, when the source is a system or an uploaded list. Clearing the mark
+// withdraws it; undoing the decision withdraws what that claim raised.
 
 import { leftSignal } from './leftSignal.js';
 import { memberListName } from './contradictions.js';
+import { raiseForOverride, withdrawForMember, withdrawForClaim } from '../changeRequests.js';
 
 const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership']);
 const PRESENT = new Set(['current', 'joined', 'rejoined']);
@@ -67,7 +73,8 @@ export const UPSERT_OVERRIDE_SQL = `
     VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT ("contextId", "memberId")
     DO UPDATE SET "claimId" = EXCLUDED."claimId", overrides = EXCLUDED.overrides,
-                  "decidedBy" = EXCLUDED."decidedBy", "decidedAt" = now()`;
+                  "decidedBy" = EXCLUDED."decidedBy", "decidedAt" = now()
+    RETURNING id`;
 
 export const DELETE_MEMBER_OVERRIDE_SQL = `DELETE FROM "ContextMemberOverrides" WHERE "contextId" = $1 AND "memberId" = $2`;
 export const DELETE_CLAIM_OVERRIDE_SQL = `DELETE FROM "ContextMemberOverrides" WHERE "claimId" = $1`;
@@ -97,12 +104,15 @@ export async function applyMemberOverride(client, claim, { status, merged, holde
   if (!context || MEMBER_COLUMN[context.targetType] !== holder.col) return null;
   if (action === 'clear') {
     await client.query(DELETE_MEMBER_OVERRIDE_SQL, [claim.contextId, holder.id]);
+    await withdrawForMember(client, claim.contextId, holder.id);
     return null;
   }
   if (!context.isListed) return null;
   const overrides = memberListName(context);
-  await client.query(UPSERT_OVERRIDE_SQL, [claim.contextId, holder.id, claim.id, overrides, user ?? null]);
-  return { overrides };
+  const override = (await client.query(UPSERT_OVERRIDE_SQL, [claim.contextId, holder.id, claim.id, overrides, user ?? null])).rows?.[0];
+  const request = await raiseForOverride(client,
+    { contextId: claim.contextId, memberId: holder.id, claimId: claim.id, overrideId: override?.id ?? null }, user);
+  return { overrides, changeRequest: request ? { id: request.id, summary: request.summary, targetName: request.targetName } : null };
 }
 
 /**
@@ -112,7 +122,9 @@ export async function applyMemberOverride(client, claim, { status, merged, holde
  * @returns {Promise<number>}           how many marks were removed (0 or 1)
  */
 export async function clearClaimOverride(client, claimId) {
-  return (await client.query(DELETE_CLAIM_OVERRIDE_SQL, [claimId])).rowCount ?? 0;
+  const removed = (await client.query(DELETE_CLAIM_OVERRIDE_SQL, [claimId])).rowCount ?? 0;
+  await withdrawForClaim(client, claimId);
+  return removed;
 }
 
 export async function overriddenMemberCount(db, contextId) {

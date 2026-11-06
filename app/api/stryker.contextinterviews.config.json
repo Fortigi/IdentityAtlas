@@ -36,7 +36,9 @@
     "src/contexts/interviews/timelineEvents.js",
     "src/contexts/interviews/transcript.js",
     "src/lib/contextNameMatch.js",
-    "src/routes/contexts/interviews.js"
+    "src/routes/contexts/interviews.js",
+    "src/contexts/changeRequests.js",
+    "src/routes/contexts/changeRequests.js"
   ],
   "thresholds": {
     "high": 90,
