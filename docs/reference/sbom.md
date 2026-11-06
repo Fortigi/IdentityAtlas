@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.26.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.27.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -105,7 +105,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.1.2 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.2.1 | Vite React plugin | MIT |
 | eslint | ^10.13.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
