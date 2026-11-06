@@ -1423,6 +1423,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/access-review-adoption/" class="md-nav__link">
         
   
@@ -1604,10 +1632,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1625,8 +1653,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2442,6 +2470,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -2943,6 +2999,17 @@
     <span class="md-ellipsis">
       
         Entity Endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#context-roles-and-context-links" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context Roles and Context Links
       
     </span>
   </a>
@@ -3576,6 +3643,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5761,6 +5912,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#context-roles-and-context-links" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context Roles and Context Links
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#sync-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6333,6 +6495,30 @@
 </tr>
 </tbody>
 </table>
+<h3 id="context-roles-and-context-links">Context Roles and Context Links<a class="headerlink" href="#context-roles-and-context-links" title="Permanent link">&para;</a></h3>
+<p>Who answers for a context, and which contexts are one unit, come in through two small endpoints of their own. They are <strong>additive</strong> — not part of the generic engine above: each record is inserted when it is new and skipped otherwise, nothing is updated or removed, so an analyst's roles and links survive every crawl. Rows land as <code>addedBy='sync'</code>. A crawler may only write to contexts its system owns (<code>Contexts.scopeSystemId</code> = the envelope's <code>systemId</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Record</th>
+<th>Inserted only when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /api/ingest/context-roles</code></td>
+<td><code>{ contextId, role: 'Accountable' \| 'Responsible', principalId \| identityId }</code></td>
+<td>the context is an OrganizationalUnit or LogicalApplication, the holder exists, and (for an Accountable) the context has none yet</td>
+</tr>
+<tr>
+<td><code>POST /api/ingest/context-relationships</code></td>
+<td><code>{ contextId, relatedContextId, relationshipType: 'SameUnitAs' }</code></td>
+<td>the related context exists, holds a different kind of member, and the pair is not linked yet (either way round)</td>
+</tr>
+</tbody>
+</table>
+<p>Envelope <code>{ systemId, records }</code> (at most 5,000 records); the response is <code>{ inserted, skipped }</code>. One malformed record fails the whole batch with <code>400</code>, before anything is written. The demo dataset uses both.</p>
 <h3 id="sync-modes">Sync Modes<a class="headerlink" href="#sync-modes" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

@@ -1616,6 +1616,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/access-review-adoption/" class="md-nav__link">
         
   
@@ -1797,10 +1825,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1818,8 +1846,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2635,6 +2663,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3410,6 +3466,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5788,6 +5928,9 @@ to another (a column such as <code>managerId</code>).</p>
     Context --&gt;|"ContextMembers"| Resource
     Context --&gt;|"ContextMembers"| Principal
     Context --&gt;|"ContextMembers"| System
+    Context --&gt;|"ContextRelationships&lt;br/&gt;&lt;small&gt;SameUnitAs&lt;/small&gt;"| Context
+    Context --&gt;|"ContextRoles"| Principal
+    Context --&gt;|"ContextRoles"| Identity
     Identity --&gt;|"IdentityMembers"| Principal
     Principal --&gt;|"PrincipalRelationships&lt;br/&gt;&lt;small&gt;Owner, Sponsor&lt;/small&gt;"| Principal
     Principal --&gt;|"ResourceAssignments"| Resource
@@ -5954,60 +6097,59 @@ stay two rows of the same group in the matrix, each held <code>Direct</code>, <c
 <!-- END GENERATED: ontology types-resource -->
 
 <h3 id="grouping-types-context">Grouping types (Context)<a class="headerlink" href="#grouping-types-context" title="Permanent link">&para;</a></h3>
-<p><code>contextType</code> is an open list too. A context groups one kind of node; the
+<p><code>contextType</code> is an open list too, and since 2.1.0 every row also carries its template in
+<code>contextCategory</code>. A context groups one kind of node; the
 <a href="../../reference/core-model/#contexts">Core Model Reference</a> lists which kind each type groups.
 <code>OrgUnit</code> (synced from an IGA or HR source, grouping persons) and <code>OrganisationalUnit</code> (derived by a
-plugin from accounts' AD distinguished names) are two different values today.</p>
+plugin from accounts' AD distinguished names) are two values under the same template. A tree's root
+is simply a context without a parent, not a type of its own.</p>
+<p>An organizational unit or a logical application can say <strong>who answers for it</strong>: one <em>Accountable</em>
+(its manager or owner) and any number of <em>Responsible</em> people, each an account or a person. That is a
+link from the grouping to the person (<code>ContextRoles</code>), never access: nobody gains anything by being
+accountable for a team. Two org units can be two sides of one unit, the persons and the resources
+that belong to them, linked as two variants of one unit by <code>SameUnitAs</code>.</p>
 <!-- BEGIN GENERATED: ontology types-context -->
 <pre class="mermaid"><code>flowchart LR
     root["Context&lt;br/&gt;&lt;small&gt;contextType&lt;/small&gt;"]:::Context
     subgraph g_LogicalApplicationContext["Logical application"]
       direction LR
-      t_LogicalApplication["LogicalApplication&lt;br/&gt;&lt;small&gt;mssql&lt;/small&gt;"]:::Context
+      t_ContextRecipe["ContextRecipe&lt;br/&gt;&lt;small&gt;context-recipe&lt;/small&gt;"]:::Context
+      t_LogicalApplication["LogicalApplication&lt;br/&gt;&lt;small&gt;demo, mssql&lt;/small&gt;"]:::Context
+      t_ContextRecipe ~~~ t_LogicalApplication
     end
     subgraph g_OrganizationalUnit["Organizational unit"]
       direction LR
       t_AdministrativeUnit["AdministrativeUnit&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Context
+      t_CostCenter["CostCenter&lt;br/&gt;&lt;small&gt;omada&lt;/small&gt;"]:::Context
       t_Department["Department&lt;br/&gt;&lt;small&gt;department-from-principal, demo, omada&lt;/small&gt;"]:::Context
       t_ManagerHierarchy["ManagerHierarchy&lt;br/&gt;&lt;small&gt;manager-hierarchy&lt;/small&gt;"]:::Context
       t_OrgUnit["OrgUnit&lt;br/&gt;&lt;small&gt;csv, midpoint, omada&lt;/small&gt;"]:::Context
       t_OrganisationalUnit["OrganisationalUnit&lt;br/&gt;&lt;small&gt;ad-ou-from-dn&lt;/small&gt;"]:::Context
       t_Team["Team&lt;br/&gt;&lt;small&gt;demo&lt;/small&gt;"]:::Context
-      t_AdministrativeUnit ~~~ t_Department ~~~ t_ManagerHierarchy ~~~ t_OrgUnit
-      t_OrganisationalUnit ~~~ t_Team
+      t_AdministrativeUnit ~~~ t_CostCenter ~~~ t_Department ~~~ t_ManagerHierarchy
+      t_OrgUnit ~~~ t_OrganisationalUnit ~~~ t_Team
     end
     subgraph g_Segment["Segment"]
       direction LR
-      t_ContextRecipe["ContextRecipe&lt;br/&gt;&lt;small&gt;context-recipe&lt;/small&gt;"]:::Context
-      t_CostCenter["CostCenter&lt;br/&gt;&lt;small&gt;omada&lt;/small&gt;"]:::Context
       t_EntraGroupCategory["EntraGroupCategory&lt;br/&gt;&lt;small&gt;entra-group-category-tree&lt;/small&gt;"]:::Context
-      t_EntraGroupRoot["EntraGroupRoot&lt;br/&gt;&lt;small&gt;entra-group-category-tree&lt;/small&gt;"]:::Context
       t_Location["Location&lt;br/&gt;&lt;small&gt;omada&lt;/small&gt;"]:::Context
       t_OrphanedAccounts["OrphanedAccounts&lt;br/&gt;&lt;small&gt;orphaned-accounts&lt;/small&gt;"]:::Context
       t_PrincipalType["PrincipalType&lt;br/&gt;&lt;small&gt;principal-type-tree&lt;/small&gt;"]:::Context
-      t_PrincipalTypeRoot["PrincipalTypeRoot&lt;br/&gt;&lt;small&gt;principal-type-tree&lt;/small&gt;"]:::Context
       t_ResourceCluster["ResourceCluster&lt;br/&gt;&lt;small&gt;resource-cluster&lt;/small&gt;"]:::Context
       t_ResourcePlane["ResourcePlane&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
       t_ResourceRole["ResourceRole&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
       t_ResourceType["ResourceType&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
-      t_ResourceTypeRoot["ResourceTypeRoot&lt;br/&gt;&lt;small&gt;resource-type-tree&lt;/small&gt;"]:::Context
       t_RiskyAppConsent["RiskyAppConsent&lt;br/&gt;&lt;small&gt;risky-consent&lt;/small&gt;"]:::Context
       t_RiskyConsent["RiskyConsent&lt;br/&gt;&lt;small&gt;risky-consent&lt;/small&gt;"]:::Context
       t_Scope["Scope&lt;br/&gt;&lt;small&gt;scope-hierarchy&lt;/small&gt;"]:::Context
-      t_ScopeHierarchy["ScopeHierarchy&lt;br/&gt;&lt;small&gt;scope-hierarchy&lt;/small&gt;"]:::Context
       t_SystemMembership["SystemMembership&lt;br/&gt;&lt;small&gt;system-membership-principals, system-membership-resources&lt;/small&gt;"]:::Context
-      t_SystemMembershipRoot["SystemMembershipRoot&lt;br/&gt;&lt;small&gt;system-membership-principals, system-membership-resources&lt;/small&gt;"]:::Context
-      t_ContextRecipe ~~~ t_CostCenter ~~~ t_EntraGroupCategory ~~~ t_EntraGroupRoot
-      t_Location ~~~ t_OrphanedAccounts ~~~ t_PrincipalType ~~~ t_PrincipalTypeRoot
+      t_EntraGroupCategory ~~~ t_Location ~~~ t_OrphanedAccounts ~~~ t_PrincipalType
       t_ResourceCluster ~~~ t_ResourcePlane ~~~ t_ResourceRole ~~~ t_ResourceType
-      t_ResourceTypeRoot ~~~ t_RiskyAppConsent ~~~ t_RiskyConsent ~~~ t_Scope
-      t_ScopeHierarchy ~~~ t_SystemMembership ~~~ t_SystemMembershipRoot
+      t_RiskyAppConsent ~~~ t_RiskyConsent ~~~ t_Scope ~~~ t_SystemMembership
     end
     subgraph g_TagContext["Tag"]
       direction LR
       t_Tag["Tag"]:::Context
-      t_TagGroup["TagGroup"]:::Context
-      t_Tag ~~~ t_TagGroup
     end
     root --&gt; g_LogicalApplicationContext
     root --&gt; g_OrganizationalUnit
@@ -6044,6 +6186,7 @@ role directly. The manager-hierarchy plugin has put Anna in Piet's team.</p>
     pietsTeam --&gt;|"context member"| annaAccount
     anna --&gt;|"identity member"| annaAccount
     plannerBot --&gt;|"Direct"| berthPlanner
+    pietsTeam --&gt;|"Accountable"| pietAccount
     annaAccount -.-&gt;|"managerId"| pietAccount
     berthApp ==&gt;|"HasAppRole"| berthPlanner
     pietsTeam -.-&gt;|"parentContextId"| orgRoot
@@ -6069,9 +6212,10 @@ role directly. The manager-hierarchy plugin has put Anna in Piet's team.</p>
   below the organisation root (<code>parentContextId</code>).</li>
 <li><strong>Anna (the person) and anna.devries@example.org (the account) are two different things.</strong> The
   person can have more accounts in other systems; the <code>identity member</code> arrow links them.</li>
-<li><strong>The team does not point at Piet.</strong> The manager-hierarchy plugin records a team's manager only in
-  the team's <code>externalId</code> field — there is no manager link. This is one of the facts the ontology
-  makes explicit; see <a href="../../architecture/core-ontology/#contexts-and-the-manager-hierarchy-as-implemented">Contexts and the manager hierarchy</a>.</li>
+<li><strong>Piet answers for the team.</strong> The <code>Accountable</code> arrow is a context role: the manager-hierarchy
+  plugin states who is accountable for each node, and an analyst can add who is responsible. It is a
+  link from the team to the person, not access; see
+  <a href="../../architecture/core-ontology/#contexts-and-the-manager-hierarchy-as-implemented">Contexts and the manager hierarchy</a>.</li>
 </ul>
 <h3 id="the-same-team-as-the-file-says-it">The same team, as the file says it<a class="headerlink" href="#the-same-team-as-the-file-says-it" title="Permanent link">&para;</a></h3>
 <p>This is the complete example file. Every word after <code>ia:</code> is a term from the ontology. Each block
@@ -6165,21 +6309,29 @@ describes one thing: its type after <code>a</code>, then its fields.</p>
 <a id="__codelineno-0-87" name="__codelineno-0-87" href="#__codelineno-0-87"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">orgRoot</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ManagerHierarchyContext</span> <span class="p">;</span>
 <a id="__codelineno-0-88" name="__codelineno-0-88" href="#__codelineno-0-88"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Organisation"</span> <span class="p">;</span>
 <a id="__codelineno-0-89" name="__codelineno-0-89" href="#__codelineno-0-89"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">targetType</span> <span class="s">"Principal"</span> <span class="p">;</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">variant</span> <span class="s">"generated"</span> <span class="p">;</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">externalId</span> <span class="s">"root"</span> <span class="p">.</span>
-<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>
-<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ManagerHierarchyContext</span> <span class="p">;</span>   <span class="c"># the manager is recorded in externalId only</span>
-<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Berth Planning (Piet Jansen)"</span> <span class="p">;</span>
-<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">targetType</span> <span class="s">"Principal"</span> <span class="p">;</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">variant</span> <span class="s">"generated"</span> <span class="p">;</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">externalId</span> <span class="s">"pietAccount"</span> <span class="p">;</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">parentContextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">orgRoot</span> <span class="p">.</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>
-<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaInPietsTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ContextMember</span> <span class="p">;</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="p">;</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">memberId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">;</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">memberType</span> <span class="s">"Principal"</span> <span class="p">;</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">addedBy</span> <span class="s">"algorithm"</span> <span class="p">.</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90" href="#__codelineno-0-90"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contextCategory</span> <span class="s">"OrganizationalUnit"</span> <span class="p">;</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91" href="#__codelineno-0-91"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">variant</span> <span class="s">"generated"</span> <span class="p">;</span>
+<a id="__codelineno-0-92" name="__codelineno-0-92" href="#__codelineno-0-92"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">externalId</span> <span class="s">"root"</span> <span class="p">.</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93" href="#__codelineno-0-93"></a>
+<a id="__codelineno-0-94" name="__codelineno-0-94" href="#__codelineno-0-94"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ManagerHierarchyContext</span> <span class="p">;</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95" href="#__codelineno-0-95"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">displayName</span> <span class="s">"Berth Planning (Piet Jansen)"</span> <span class="p">;</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96" href="#__codelineno-0-96"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">targetType</span> <span class="s">"Principal"</span> <span class="p">;</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97" href="#__codelineno-0-97"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contextCategory</span> <span class="s">"OrganizationalUnit"</span> <span class="p">;</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98" href="#__codelineno-0-98"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">variant</span> <span class="s">"generated"</span> <span class="p">;</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99" href="#__codelineno-0-99"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">externalId</span> <span class="s">"pietAccount"</span> <span class="p">;</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100" href="#__codelineno-0-100"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">parentContextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">orgRoot</span> <span class="p">.</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101" href="#__codelineno-0-101"></a>
+<a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">pietAnswersForTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ContextRole</span> <span class="p">;</span>        <span class="c"># who answers for the team: a link, not access</span>
+<a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="p">;</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">principalId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">pietAccount</span> <span class="p">;</span>
+<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">role</span> <span class="s">"Accountable"</span> <span class="p">;</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106" href="#__codelineno-0-106"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">addedBy</span> <span class="s">"algorithm"</span> <span class="p">.</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>
+<a id="__codelineno-0-108" name="__codelineno-0-108" href="#__codelineno-0-108"></a><span class="nn">ex</span><span class="p">:</span><span class="nt">annaInPietsTeam</span> <span class="kt">a</span> <span class="nn">ia</span><span class="p">:</span><span class="nt">ContextMember</span> <span class="p">;</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109" href="#__codelineno-0-109"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">contextId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">pietsTeam</span> <span class="p">;</span>
+<a id="__codelineno-0-110" name="__codelineno-0-110" href="#__codelineno-0-110"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">memberId</span> <span class="nn">ex</span><span class="p">:</span><span class="nt">annaAccount</span> <span class="p">;</span>
+<a id="__codelineno-0-111" name="__codelineno-0-111" href="#__codelineno-0-111"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">memberType</span> <span class="s">"Principal"</span> <span class="p">;</span>
+<a id="__codelineno-0-112" name="__codelineno-0-112" href="#__codelineno-0-112"></a>    <span class="nn">ia</span><span class="p">:</span><span class="nt">addedBy</span> <span class="s">"algorithm"</span> <span class="p">.</span>
 </code></pre></div>
 <hr />
 <h2 id="what-the-schema-file-says">What the schema file says<a class="headerlink" href="#what-the-schema-file-says" title="Permanent link">&para;</a></h2>

@@ -16,7 +16,7 @@
         <link rel="prev" href="../../reference/coverage/">
       
       
-        <link rel="next" href="../crawler-architecture/">
+        <link rel="next" href="../context-templates-phase-b/">
       
       
         
@@ -1423,6 +1423,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/access-review-adoption/" class="md-nav__link">
         
   
@@ -1604,10 +1632,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1625,8 +1653,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2422,6 +2450,34 @@
     
   
     Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
   
 
     
@@ -3401,6 +3457,90 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5835,6 +5975,21 @@ an exported constant that the code itself uses (<code>CONTEXT_VARIANTS</code>, <
 <td><code>ia:GroupOwnership</code></td>
 </tr>
 <tr>
+<td>The template of a context, stored</td>
+<td>the <code>ia:ContextCategory</code> value list, each value <code>ia:denotesTemplate</code> the template class; the <code>contextCategory</code> column</td>
+<td><code>ia:ContextCategory_OrganizationalUnit</code></td>
+</tr>
+<tr>
+<td>Who answers for a context</td>
+<td><code>ia:ContextRole</code>: an edge from a context to an account or a person, <code>role</code> from <code>ia:ContextRoleType</code> (Accountable, at most one; Responsible, many)</td>
+<td>Piet is Accountable for his team</td>
+</tr>
+<tr>
+<td>Two contexts linked</td>
+<td><code>ia:ContextRelationship</code>, relationship type <code>ia:sameUnitAs</code> (symmetric)</td>
+<td>Contoso's people ↔ Contoso's resources</td>
+</tr>
+<tr>
 <td>Who answers for an account</td>
 <td>the <code>ia:Accountability</code> value list (Personal, Shared, Autonomous), with <code>ia:accountabilityDefault</code> per principal type; declared ahead of its column</td>
 <td><code>ia:User</code> → Personal</td>
@@ -5968,6 +6123,18 @@ own is that holding it never makes the holder a member of what it controls: <cod
 <td>ContextMembers</td>
 <td>—</td>
 </tr>
+<tr>
+<td>Manager of a team</td>
+<td>an OrganizationalUnit context</td>
+<td>ContextRoles: Accountable</td>
+<td>—</td>
+</tr>
+<tr>
+<td>The resources that belong to a team</td>
+<td>a second OrganizationalUnit context, of resources</td>
+<td>ContextRelationships: SameUnitAs</td>
+<td>—</td>
+</tr>
 </tbody>
 </table>
 <p>Templates are the level the application reasons at: three for accounts (Person, Software, Agent),
@@ -6067,6 +6234,12 @@ so a <em>new</em> ingest entity type cannot silently fall outside the model:</p>
 <td>4</td>
 <td>Templates and holding: every type has exactly one template among its ancestors or is one; <code>ia:expandsAccess</code> agrees with <code>GROUP_RESOURCE_TYPES</code> and <code>OWNERSHIP_RESOURCE_TYPES</code>; every control permission is the range of exactly one ownership relationship; an accountability default names an <code>ia:Accountability</code> value; <code>ia:ResourceAssignment</code> is the only edge table from an account or a person to a resource</td>
 <td>the ontology, <code>effectiveAccess/engine.js</code>, <code>lib/ownershipTypes.js</code></td>
+<td><code>ontology:check</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Context templates, stored: the <code>ia:ContextCategory</code> values name exactly the templates under <code>ia:Context</code>; a plugin's <code>contextCategory</code> is one of them and every type it emits sits under it</td>
+<td><code>REGISTERED_PLUGINS</code></td>
 <td><code>ontology:check</code></td>
 </tr>
 <tr>
@@ -6182,9 +6355,9 @@ ontology on 2026-10-19: none draws the data model, and the few model terms they 
   of accounts (<code>targetType</code> Principal, <code>contextType</code> <code>ManagerHierarchy</code>, <code>variant</code> generated):<ul>
 <li>one node per manager referenced by <code>Principals.managerId</code>, plus a synthetic root with
   <code>externalId</code> <code>root</code>;</li>
-<li><strong>the manager is recorded only as the node's <code>externalId</code></strong>, the manager's Principal id — there is
-  no manager column on Contexts and no member role. The org-chart route and the member-move route
-  read it from there;</li>
+<li><strong>the manager is stated as the node's <code>Accountable</code> context role</strong> (since 2.1.0; before, only as
+  the node's <code>externalId</code>, which still holds the manager's Principal id and which the member-move
+  route reads);</li>
 <li>members are the manager's direct reports, after analyst overrides (<code>ManagerHierarchyOverrides</code>);
   a manager is a member of their own manager's node, not of their own;</li>
 <li>a node's parent is its manager's own manager's node, else the root; an account with no manager
@@ -6192,7 +6365,9 @@ ontology on 2026-10-19: none draws the data model, and the few model terms they 
 <li>a <code>managerId</code> that points at no account of the system still becomes a node, named <code>Unknown</code>;</li>
 <li>a reporting loop (including an account that is its own manager) reaches the runner as a cycle; the
   runner keeps all but the closing link, so one node of the loop has no parent and the loop hangs
-  outside the synthetic root.</li>
+  outside the synthetic root;</li>
+<li>every node carries <code>contextCategory = OrganizationalUnit</code>; the member-move route, the org-chart
+  route and the matrix sort recognise the tree by the plugin that built it, not by its type.</li>
 </ul>
 </li>
 </ul>

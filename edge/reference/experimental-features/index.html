@@ -1423,6 +1423,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/access-review-adoption/" class="md-nav__link">
         
   
@@ -1604,10 +1632,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1625,8 +1653,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2442,6 +2470,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3151,6 +3207,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accountables from source owners (a setting, not experimental)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#leaving-experimental-behind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3492,6 +3559,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5816,6 +5967,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accountables from source owners (a setting, not experimental)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#leaving-experimental-behind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6050,6 +6212,17 @@ signed-in user there is no one for the assistant to act for.</p>
 <h3 id="what-the-switch-does-not-do_4">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_4" title="Permanent link">&para;</a></h3>
 <p>Turning it off does not revoke tokens the assistants already hold — they simply stop
 working, because the endpoint is gone. It does not delete the audit log either.</p>
+<hr />
+<h2 id="accountables-from-source-owners-a-setting-not-experimental">Accountables from source owners (a setting, not experimental)<a class="headerlink" href="#accountables-from-source-owners-a-setting-not-experimental" title="Permanent link">&para;</a></h2>
+<p>Shown on the same tab, under <strong>Contexts — what a sync sets on its own</strong>, because it is
+switched the same way. When a source names the owner of a synced unit or application
+(<code>ownerUserId</code>: an account key or an employee number), that account becomes the context's
+<strong>Accountable</strong> on every sync and follows the source when the owner changes. An Accountable
+an analyst chose, or one a crawler states directly, is never overwritten.</p>
+<p>Environment variable: <code>FEATURE_SOURCE_OWNER_ACCOUNTABLES=false</code> turns it off by default.
+It is <strong>on</strong> unless switched off.</p>
+<p><strong>Off</strong> — a sync sets, replaces and removes no Accountable at all; the ones already there
+stay as they are.</p>
 <hr />
 <h2 id="leaving-experimental-behind">Leaving experimental behind<a class="headerlink" href="#leaving-experimental-behind" title="Permanent link">&para;</a></h2>
 <p>The label is temporary by design. Once a feature has run against enough real

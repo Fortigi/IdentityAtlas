@@ -1429,6 +1429,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../access-review-adoption/" class="md-nav__link">
         
   
@@ -1737,10 +1765,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="">
             
   
   
@@ -1758,8 +1786,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2575,6 +2603,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3350,6 +3406,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5635,8 +5775,18 @@ which of them really find what you mean.</p>
    whether it matched the name or the description. Tick the ones that fit; untick the rest.</li>
 <li><strong>Check the result.</strong> The table lists every group the terms found, and why. Exclude one that
    does not belong; include one by name that no term finds.</li>
-<li><strong>Create the context.</strong> Give it a name and press <strong>Create context</strong>.</li>
+<li><strong>Create the context.</strong> Give it a name, check what it is (<strong>This context is</strong>), and press
+   <strong>Create context</strong>.</li>
 </ol>
+<p><strong>What the context is.</strong> A new context starts as the template of the Contexts tab you opened the
+builder from (an application when it is not one of the four templates). The model also guesses it
+from your description: <em>"the claims department"</em> becomes an Organisation, <em>"everything to do with
+SAP"</em> an Application. Its guess is marked <em>suggested by the model</em> and replaces only the starting
+value, never a template you picked yourself. The builder finds groups and other resources, so an
+Organisation built here is that unit's <strong>Resources</strong> tree, not a unit of people.</p>
+<p><strong>Suggested owner.</strong> Under the template the builder names the account that owns most of what the
+terms find, when it owns at least 40% of it. It is the same best guess the context page offers as
+Accountable; nothing is assigned until you confirm it there after saving.</p>
 <h2 id="what-the-model-does-and-what-it-does-not">What the model does, and what it does not<a class="headerlink" href="#what-the-model-does-and-what-it-does-not" title="Permanent link">&para;</a></h2>
 <p>The model never sees your groups. It receives your description and answers with words — the same
 division of labour as custom reports, where it writes <em>"name is Wim"</em> and Identity Atlas does the

@@ -1423,6 +1423,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/access-review-adoption/" class="md-nav__link">
         
   
@@ -1604,10 +1632,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1625,8 +1653,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2442,6 +2470,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3217,6 +3273,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -6270,15 +6410,17 @@
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="nx">string</span><span class="p">;</span><span class="w">                    </span><span class="c1">// matches ContextAlgorithms.name</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nx">targetType</span><span class="o">:</span><span class="w"> </span><span class="s1">'Identity'</span><span class="o">|</span><span class="s1">'Resource'</span><span class="o">|</span><span class="s1">'Principal'</span><span class="o">|</span><span class="s1">'System'</span><span class="p">;</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nx">contextTypes</span><span class="o">:</span><span class="w"> </span><span class="nx">string</span><span class="p">[];</span><span class="w">          </span><span class="c1">// every contextType the plugin can emit</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nx">parametersSchema</span><span class="o">:</span><span class="w"> </span><span class="nx">object</span><span class="p">;</span><span class="w">        </span><span class="c1">// JSON Schema</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nx">run</span><span class="p">(</span><span class="nx">params</span><span class="p">,</span><span class="w"> </span><span class="nx">ctx</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="p">{</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nx">contexts</span><span class="o">:</span><span class="w"> </span><span class="nb">Array</span><span class="o">&lt;</span><span class="nx">ContextNode</span><span class="o">&gt;</span><span class="p">,</span><span class="w">  </span><span class="c1">// tree by parentExternalId</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nx">members</span><span class="o">:</span><span class="w"> </span><span class="nb">Array</span><span class="o">&lt;</span><span class="p">{</span><span class="w"> </span><span class="nx">contextExternalId</span><span class="p">,</span><span class="w"> </span><span class="nx">memberId</span><span class="w"> </span><span class="p">}</span><span class="o">&gt;</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="p">}</span><span class="o">&gt;</span><span class="p">;</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">}</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nx">contextCategory</span><span class="o">:</span><span class="w"> </span><span class="nx">string</span><span class="p">;</span><span class="w">         </span><span class="c1">// the template: OrganizationalUnit | LogicalApplication | Tag | Segment</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nx">parametersSchema</span><span class="o">:</span><span class="w"> </span><span class="nx">object</span><span class="p">;</span><span class="w">        </span><span class="c1">// JSON Schema</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nx">run</span><span class="p">(</span><span class="nx">params</span><span class="p">,</span><span class="w"> </span><span class="nx">ctx</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="p">{</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nx">contexts</span><span class="o">:</span><span class="w"> </span><span class="nb">Array</span><span class="o">&lt;</span><span class="nx">ContextNode</span><span class="o">&gt;</span><span class="p">,</span><span class="w">  </span><span class="c1">// tree by parentExternalId</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nx">members</span><span class="o">:</span><span class="w"> </span><span class="nb">Array</span><span class="o">&lt;</span><span class="p">{</span><span class="w"> </span><span class="nx">contextExternalId</span><span class="p">,</span><span class="w"> </span><span class="nx">memberId</span><span class="w"> </span><span class="p">}</span><span class="o">&gt;</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nx">roles</span><span class="o">?:</span><span class="w"> </span><span class="nb">Array</span><span class="o">&lt;</span><span class="p">{</span><span class="w"> </span><span class="nx">contextExternalId</span><span class="p">,</span><span class="w"> </span><span class="nx">principalId</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="nx">identityId</span><span class="p">,</span><span class="w"> </span><span class="nx">role</span><span class="o">:</span><span class="w"> </span><span class="s1">'Accountable'</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="s1">'Responsible'</span><span class="w"> </span><span class="p">}</span><span class="o">&gt;</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="p">}</span><span class="o">&gt;</span><span class="p">;</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="p">}</span>
 </code></pre></div>
 <p>The runner reconciles the plugin output with existing <code>Contexts</code> rows where <code>sourceAlgorithmId</code> matches: insert new, update changed, delete missing. Manual children grafted under a generated parent are preserved by <code>parentContextId</code> — as long as the parent itself survives: <code>parentContextId</code> is <code>ON DELETE CASCADE</code>, so when a re-run drops a generated node, the manual or analyst-reparented children still under it are deleted with it.</p>
-<p>Each <code>contextTypes</code> value is a subclass of <code>ia:Context</code> in the <a href="../core-ontology/">core ontology</a> whose <code>ia:producedBy</code> names the plugin and whose <code>ia:allowedTargetType</code> admits the plugin's <code>targetType</code>. <code>npm run ontology:check</code> compares the two in both directions; <code>contextTypes.guard.test.js</code> checks that the list is complete against the literals in the plugin sources. A new plugin, or a new type in an existing one, therefore needs an ontology entry — see <a href="../../contributing/maintaining-the-ontology/#a-context-type">Maintaining the Core Ontology</a>.</p>
+<p>The runner writes every node under the plugin's template (<code>contextCategory</code>, or the node's own), and replaces the plugin's <code>addedBy = 'algorithm'</code> roles the way it replaces members, so an analyst's Accountable survives a re-run. A tree's root is a context without a parent, not a type of its own. <strong>One run, one root:</strong> when a plugin's output has several roots (one context per department, one per risk tier), the runner adds a root named after the plugin (<code>rootDisplayName</code>, else its <code>displayName</code>; "Departments" for <code>department-from-principal</code>) under the fixed externalId <code>__plugin-root__</code>, typed as the plugin's first <code>contextType</code>, and puts the former roots under it (<code>withPluginRoot</code> in <code>runner.helpers.js</code>). The fixed key makes re-runs reuse the row; a tree a previous run left flat has its old roots updated in place and moved under the new root on its next run; a tree keeps the root once it has it, and an empty run removes it with the rest. Plugins that emit one root are untouched. Each <code>contextTypes</code> value is a subclass of <code>ia:Context</code> in the <a href="../core-ontology/">core ontology</a> whose <code>ia:producedBy</code> names the plugin and whose <code>ia:allowedTargetType</code> admits the plugin's <code>targetType</code>. <code>npm run ontology:check</code> compares the two in both directions; <code>contextTypes.guard.test.js</code> checks that the list is complete against the literals in the plugin sources. A new plugin, or a new type in an existing one, therefore needs an ontology entry — see <a href="../../contributing/maintaining-the-ontology/#a-context-type">Maintaining the Core Ontology</a>.</p>
 <h3 id="42-initial-plugin-set">4.2 Initial plugin set<a class="headerlink" href="#42-initial-plugin-set" title="Permanent link">&para;</a></h3>
 <p>The registry ships <strong>thirteen</strong> plugins (<code>app/api/src/contexts/plugins/registry.js</code>):</p>
 <table>

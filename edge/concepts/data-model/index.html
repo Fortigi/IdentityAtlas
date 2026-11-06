@@ -1698,6 +1698,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../ui/access-review-adoption/" class="md-nav__link">
         
   
@@ -1879,10 +1907,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1900,8 +1928,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2717,6 +2745,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3492,6 +3548,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5961,13 +6101,29 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <!-- BEGIN GENERATED: ontology core-erd -->
 <pre class="mermaid"><code>erDiagram
     ContextMembers {
-        string addedBy "sync, algorithm, analyst"
+        string addedBy "sync, algorithm, analyst, sourceOwner"
         uuid contextId FK
         uuid memberId FK
         string memberType "Identity, Resource, Principal, System"
     }
+    ContextRelationships {
+        uuid id PK
+        string addedBy "sync, algorithm, analyst, sourceOwner"
+        uuid contextId FK
+        uuid relatedContextId FK
+        string relationshipType "SameUnitAs"
+    }
+    ContextRoles {
+        uuid id PK
+        string addedBy "sync, algorithm, analyst, sourceOwner"
+        uuid contextId FK
+        uuid identityId FK
+        uuid principalId FK
+        string role "Accountable, Responsible"
+    }
     Contexts {
         uuid id PK
+        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment"
         string contextType "open vocabulary"
         string displayName
         uuid parentContextId FK
@@ -6032,6 +6188,11 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     Resources |o--o{ ContextMembers : "memberId"
     Principals |o--o{ ContextMembers : "memberId"
     Systems |o--o{ ContextMembers : "memberId"
+    Contexts |o--o{ ContextRelationships : "contextId"
+    Contexts |o--o{ ContextRelationships : "relatedContextId"
+    Contexts |o--o{ ContextRoles : "contextId"
+    Identities |o--o{ ContextRoles : "identityId"
+    Principals |o--o{ ContextRoles : "principalId"
     Contexts |o--o{ Contexts : "parentContextId"
     Systems |o--o{ Contexts : "scopeSystemId"
     Identities |o--o{ Identities : "managerIdentityId"

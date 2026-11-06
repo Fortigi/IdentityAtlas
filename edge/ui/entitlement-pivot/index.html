@@ -16,7 +16,7 @@
         <link rel="prev" href="../sharing-a-matrix/">
       
       
-        <link rel="next" href="../access-review-adoption/">
+        <link rel="next" href="../unit-report/">
       
       
         
@@ -1461,6 +1461,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#on-a-unit-of-accounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a unit of accounts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#choosing-the-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1497,6 +1508,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1693,10 +1732,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="">
             
   
   
@@ -1714,8 +1753,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2531,6 +2570,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3306,6 +3373,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5424,6 +5575,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#on-a-unit-of-accounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a unit of accounts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#choosing-the-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5539,11 +5701,22 @@ manages who holds it. An entitlement with a single direct holder is usually an a
 account.</p>
 <p>Above the table the report summarises the scope: unique users, number of entitlements, how many have
 an owner, and the share that is part of a business role.</p>
+<h2 id="on-a-unit-of-accounts">On a unit of accounts<a class="headerlink" href="#on-a-unit-of-accounts" title="Permanent link">&para;</a></h2>
+<p>A <strong>unit of accounts</strong> (for example a department of Entra accounts) works too. The report then lists
+the resources the unit's <strong>direct members</strong> hold, and the counts only count those members: "3 of
+this department hold it", not everyone in the company. A resource that only people outside the unit
+hold is not in the list, and neither are business roles (they show in <em>Granted by role(s)</em>). Accounts
+in sub-units are not included; add the sub-units to the run to review them as well. A run cannot mix
+units of accounts with contexts of resources, because the counts would mean different things; the
+report says so instead.</p>
+<p>Run it on a unit from the <strong>Reports</strong> page (pick the unit under contexts). The <strong>Actions › Download
+entitlement report</strong> card is on application pages only; a unit's page offers <strong>View in matrix</strong>.</p>
 <h2 id="choosing-the-columns">Choosing the columns<a class="headerlink" href="#choosing-the-columns" title="Permanent link">&para;</a></h2>
 <p>Under <strong>Columns</strong>, pick what to show between the entitlement and its counts. The list offers:</p>
 <ul>
 <li><strong>Built-in fields</strong> every deployment has: the context's name, type, description and owner; the
-  resource's type, system, description, owner and owner email; the number of <em>eligible</em> holders.</li>
+  resource's type, system, description, owner, owner employee ID and owner email; the number of
+  <em>eligible</em> holders.</li>
 <li><strong>Attributes</strong> the source systems stored on the contexts you picked, or on their resources. Examples
   are a CMDB reference from an application catalogue, or a certification frequency or cost centre from
   IdentityIQ. Only attributes the picked contexts actually carry are offered, and each says how many
@@ -5551,6 +5724,15 @@ an owner, and the share that is part of a business role.</p>
 </ul>
 <p>Pick the contexts first: the attribute list follows them. If none of the rows has a value for an
 attribute you picked, the report says so above the table.</p>
+<p>You do not have to pick the entitlements' own attributes to see them: after the counts, the report adds
+a column for <strong>every attribute the entitlements in the report carry</strong> (for example <em>certfrequency</em> or
+<em>requestable</em> from IdentityIQ), sorted by name and headed by the attribute's name. At most 60 are
+added; if there are more, the ones most entitlements carry are kept and the rest are named on the
+Summary tab, so you can pick them.</p>
+<p><strong>The owner</strong> comes in three columns: name, employee ID and e-mail — the default columns include all
+three. It is the owner linked to the entitlement; when there is none but the source named an owner
+(<code>ownerId</code> / <code>ownerName</code>, which the IdentityIQ preset stores), the report looks that person up by
+account key, then by employee ID, and otherwise shows the name the source gave.</p>
 <h2 id="the-excel-pivots">The Excel pivots<a class="headerlink" href="#the-excel-pivots" title="Permanent link">&para;</a></h2>
 <p><strong>Download XLSX</strong> opens on a <em>Summary</em> tab, then <em>Data</em> (the table), then two ready-made pivot tables:</p>
 <table>
@@ -5578,6 +5760,9 @@ attribute you picked, the report says so above the table.</p>
 table if you did not pick it as a column, because a pivot can only read what the table holds.</p>
 <p>When the report covers <strong>one</strong> context, the context fields you picked are stated once on the Summary
 tab instead of being repeated on every row.</p>
+<p>The Summary tab also describes <strong>each context in full</strong>: who is Accountable and Responsible (name,
+employee ID, e-mail) — or, when nobody is Accountable yet, the suggested person and why, as on the
+context page — and every attribute the context page lists under <em>More details</em>.</p>
 <h2 id="saving-your-setup-as-a-view">Saving your setup as a view<a class="headerlink" href="#saving-your-setup-as-a-view" title="Permanent link">&para;</a></h2>
 <p>Choosing contexts, columns and pivots each time is tedious. <strong>Save as view</strong> stores them under a name:</p>
 <ol>

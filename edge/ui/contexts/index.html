@@ -1429,6 +1429,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../access-review-adoption/" class="md-nav__link">
         
   
@@ -1765,10 +1793,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="">
             
   
   
@@ -1786,8 +1814,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2603,6 +2631,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3378,6 +3434,90 @@
     
   
     Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
   
 
     
@@ -5747,13 +5887,12 @@
 <p>A single tree keeps one target type all the way down, but it can mix variants — for example a manual sub-team grafted under a synced HR node.</p>
 <hr />
 <h2 id="the-two-pane-layout">The two-pane layout<a class="headerlink" href="#the-two-pane-layout" title="Permanent link">&para;</a></h2>
-<p>The Contexts tab is split in two:</p>
+<p>The Contexts tab has one tab per template — <strong>Organisation</strong>, <strong>Applications</strong>, <strong>Tags</strong> and <strong>Segments</strong> — and each is split in two:</p>
 <ul>
-<li><strong>Left — the tree selector.</strong> Every root tree, grouped by context type. Each entry shows a colored left border for its <strong>variant</strong>, a <strong>target-type</strong> badge, and (when the tree is pinned to one system) a muted <strong>system</strong> chip. A filter bar at the top narrows the list by target type, variant, or system — handy when you have dozens of trees.</li>
-<li><strong>Right — the selected tree.</strong> A header card summarizing the tree (name, variant, target type, system, owner, member count), then the tree itself. Toggle between <strong>Tree</strong> and <strong>List</strong> view with the buttons in the header.</li>
+<li><strong>Left — the trees.</strong> The tab's trees as one tree, under a heading per source (Imported · <em>system</em>, Derived · <em>rule</em>, Manager hierarchy, Created here). On Organisation, <strong>Show:</strong> switches between the People, Accounts and Resources trees, because each tree holds one kind of member. Each row shows one member count (everyone including sub-units; the direct share is in its tooltip). Filters at the top narrow by source, system and — on Tags and Segments — kind.</li>
+<li><strong>Right — the selected context.</strong> Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and members. <strong>Open as page</strong> opens it on its own.</li>
 </ul>
-<p><strong>Tree view</strong> shows the hierarchy with expand/collapse arrows. Hover a node for its direct and total member counts. Expand a node to see the members (users) directly in it.</p>
-<p><strong>List view</strong> flattens the same tree into a sortable, filterable table — better for very large trees (e.g. a multi-thousand-node AD OU structure) where the indented view is too dense.</p>
+<p>Expand a row with its arrow to see its sub-units. The old <strong>List</strong> mode, which flattened a tree into a table, is gone; a unit's members are listed on its page.</p>
 <hr />
 <h2 id="create-a-context">Create a context<a class="headerlink" href="#create-a-context" title="Permanent link">&para;</a></h2>
 <p>Click <strong>+ New</strong> (top-right) to open the New-Context wizard. Step 1 asks where the tree should come from — the three cards match the three variants:</p>
