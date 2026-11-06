@@ -22,6 +22,7 @@
     "src/mcp/router.js",
     "src/mcp/server.js",
     "src/mcp/tools/identity.js",
+    "src/mcp/tools/photos.js",
     "src/mcp/tools/query.js",
     "src/mcp/tools/reports.js",
     "src/routes/admin/mcp.js"

@@ -21,6 +21,7 @@ Everything is read-only.
 | `search` | Find people, accounts, groups, roles, applications or contexts by name | Read all data |
 | `describe_data_model` | The vocabulary for free-form questions: entities (contexts included), fields, relations, rules, examples, and the values that exist in this deployment. The deployment's own extra attributes are listed on request, per entity | Ask questions in plain language |
 | `run_query` | Answer a free-form question with a report definition | Ask questions in plain language |
+| `get_photos` | Profile photos of up to 10 accounts, as images and as data URIs (for an org chart or a card) | Read all data |
 
 `run_query` uses the same engine as **Reports → Ask**: the assistant writes a JSON report
 definition, never SQL; the server validates it against the catalog, compiles it to
@@ -86,6 +87,8 @@ be on too). They then see exactly what they see in the app, enforced by the same
   found". A name that exists nowhere is "not found";
 - `list_reports` / `run_report` offer only the two reports the app lets them download on
   their own contexts (by id), and refuse anything else as if it did not exist;
+- `get_photos` returns photos of the people they may open and their own, as their
+  pages in the app show them; for anyone else it answers as for an unknown id;
 - comparing with a reference record is not available to them.
 
 Somebody who holds any Identity Atlas permission is not treated as a context owner here,

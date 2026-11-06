@@ -175,15 +175,15 @@ describe('tools follow the caller\'s permissions', () => {
   };
 
   it('lists everything for an admin, with server instructions on initialize', async () => {
-    expect(await toolNames('Admin')).toEqual(['describe_data_model', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
+    expect(await toolNames('Admin')).toEqual(['describe_data_model', 'get_photos', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
     const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } }).expect(200);
     expect(init.body.result.serverInfo).toMatchObject({ name: 'identity-atlas', version: '9.9.9' });
     expect(init.body.result.instructions).toContain('read-only');
   });
 
   it('hides the query tools from a role that may read but not ask', async () => {
-    expect(await toolNames('Reader')).toEqual(['list_reports', 'run_report', 'search', 'whoami']);
-    expect(await toolNames('Asker')).toEqual(['describe_data_model', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
+    expect(await toolNames('Reader')).toEqual(['get_photos', 'list_reports', 'run_report', 'search', 'whoami']);
+    expect(await toolNames('Asker')).toEqual(['describe_data_model', 'get_photos', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
   });
 
   it('marks every tool read-only', async () => {
@@ -247,7 +247,7 @@ describe('a context owner (no Identity Atlas role)', () => {
     ownerState.owner = CARLA;
     verifyEntraAccessToken.mockResolvedValue(claims([]));
     const list = await rpc('tools/list').expect(200);
-    expect(list.body.result.tools.map(t => t.name).sort()).toEqual(['describe_data_model', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
+    expect(list.body.result.tools.map(t => t.name).sort()).toEqual(['describe_data_model', 'get_photos', 'list_reports', 'run_query', 'run_report', 'search', 'whoami']);
     const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } }).expect(200);
     expect(init.body.result.instructions).toContain('You are acting for a context owner');
     const me = await rpc('tools/call', { name: 'whoami', arguments: {} }).expect(200);

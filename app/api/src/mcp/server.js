@@ -16,11 +16,12 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { listReports, runReportTool } from './tools/reports.js';
 import { describeDataModel, runQuery } from './tools/query.js';
 import { search, whoAmI } from './tools/identity.js';
+import { getPhotos } from './tools/photos.js';
 import { hasPermission } from './auth.js';
 import { recordToolCall } from './audit.js';
 import { errorResult } from './result.js';
 
-export const TOOLS = [whoAmI, listReports, runReportTool, describeDataModel, runQuery, search];
+export const TOOLS = [whoAmI, listReports, runReportTool, describeDataModel, runQuery, search, getPhotos];
 
 export const INSTRUCTIONS = `Identity Atlas holds who has access to what across the organisation's systems (Entra ID and others): accounts, the persons behind them, groups, roles, applications, permissions, owners, business roles / access packages, and changes over time.
 You act on behalf of the signed-in user and see what their role allows. Everything here is read-only.
@@ -30,6 +31,7 @@ You act on behalf of the signed-in user and see what their role allows. Everythi
 - Results are capped; when "truncated" is true, say the list is partial and give the link.
 - Rows carry a "link" to the record in Identity Atlas: include links when you list records.
 - Answer in the user's language. Counts with groupBy make good charts.
+- For pictures of people (an org chart, a card), get_photos returns their profile photos; use initials for anyone without one.
 - Every result carries "scope". When scope.restricted is true the user sees only part of the organisation: say that the numbers and lists cover only what they may see, and never present a count as a total for the whole organisation. "truncated" is something else: the list was cut off at the row cap.`;
 
 // Added for a context owner: who they are acting as, in a sentence.

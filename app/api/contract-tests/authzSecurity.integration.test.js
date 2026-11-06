@@ -168,7 +168,7 @@ describe('who may use MCP', () => {
   };
 
   it('an owner gets the scoped tools; an asker and an admin get theirs', async () => {
-    const all = ['describe_data_model', 'list_reports', 'run_query', 'run_report', 'search', 'whoami'];
+    const all = ['describe_data_model', 'get_photos', 'list_reports', 'run_query', 'run_report', 'search', 'whoami'];
     expect(await toolNames('carla')).toEqual(all);
     expect(await toolNames('asker')).toEqual(all);
     expect(await toolNames('admin')).toEqual(all);
@@ -428,6 +428,34 @@ describe('REST paths an owner may not take at all', () => {
     const res = await agent.post('/api/matrix/data').set('Authorization', `Bearer ${token('carla')}`)
       .send({ filter: { subject: { include: [], exclude: [] }, resource: { include: [], exclude: [] } } });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('profile photos', () => {
+  const PNG = Buffer.from('89504e470d0a1a0a', 'hex');
+  beforeAll(async () => {
+    for (const k of ['ann', 'olga', 'carla']) {
+      await pool.query(`UPDATE "Principals" SET "photo" = $2, "photoContentType" = 'image/png' WHERE "id" = $1`, [fx.id[k], PNG]);
+    }
+  });
+
+  it('an owner gets the photos of people they may open, and their own — never the outsider\'s', async () => {
+    const r = await tool('carla', 'get_photos', { ids: [fx.id.ann, fx.id.carla, fx.id.olga] });
+    const body = data(r);
+    expect(body.photos.map(p => p.id).sort()).toEqual([fx.id.ann, fx.id.carla].sort());
+    expect(body.notAvailable).toEqual([fx.id.olga]);
+    expect(r.content.filter(c => c.type === 'image')).toHaveLength(2);
+    expect(JSON.stringify(r)).not.toContain(nameOf('olga'));
+  });
+
+  it('the REST detail page shows the photo of a team member to the owner, as get_photos does', async () => {
+    const res = await restGet('carla', `/api/user/${fx.id.ann}`);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).toContain('data:image/png;base64,');
+  });
+
+  it('positive control: an admin gets the outsider\'s photo', async () => {
+    expect(data(await tool('admin', 'get_photos', { ids: [fx.id.olga] })).photos.map(p => p.id)).toEqual([fx.id.olga]);
   });
 });
 
