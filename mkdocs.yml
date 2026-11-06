@@ -167,6 +167,7 @@ nav:
       - Report Generator (local LLM): reference/report-generator.md
       - Ask Assistant — how it thinks and is tested: reference/ask-assistant.md
       - Permissions & Roles: reference/permissions.md
+      - MCP Server (AI assistants): reference/mcp-server.md
       - Database Views: reference/sql-views.md
       - CSV Schema Reference: architecture/csv-import-schema.md
       - Software Bill of Materials: reference/sbom.md

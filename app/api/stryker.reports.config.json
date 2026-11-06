@@ -76,6 +76,8 @@
     "src/routes/nlReports.js",
     "src/routes/reportViews.js",
     "src/routes/reports.js",
+    "src/reports/run.js",
+    "src/nlreports/catalogPayload.js",
     "src/reports/views.js"
   ],
   "mutationExclusions": {
