@@ -15,8 +15,11 @@ import { reportMetadata } from './registry.js';
 
 // `ctx` says who is asking (routes/reports.js runContext); a caller without one
 // (the MCP server) gets each template's most restrictive reading.
+// `ctx.allRows` asks a template that caps its rows to lift that cap. Off by default:
+// only a download or a reader who chose to wait asks for every row.
 export async function runReport(report, params, ctx = {}) {
-  const { rows, notices, truncated, constantColumns, columns, pivots, details } = await report.run(params, ctx);
+  const runCtx = { ...ctx, allRows: ctx.allRows === true };
+  const { rows, notices, truncated, canLoadAllRows, constantColumns, columns, pivots, details } = await report.run(params, runCtx);
   const metadata = reportMetadata(report);
   return {
     ...metadata,
@@ -35,6 +38,9 @@ export async function runReport(report, params, ctx = {}) {
     // A template that stops at a row cap says so; the screen and the download must
     // not present the first N rows as the whole answer.
     truncated: truncated === true,
+    // Whether running again with `allRows` would return more — so the screen can
+    // offer to, instead of only telling the reader to narrow the report.
+    canLoadAllRows: truncated === true && canLoadAllRows === true,
     generatedAt: new Date().toISOString(),
   };
 }

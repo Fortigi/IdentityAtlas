@@ -433,6 +433,55 @@ describe('runSpec', () => {
     expect(result.truncated).toBe(true);
   });
 
+  describe('asking for every row', () => {
+    // Records what the transaction ran, and returns as many rows as the LIMIT
+    // allows (or fewer) — so the compiler's "one extra row" probe is exercised.
+    let ran;
+    const capturing = (rowsFor) => {
+      ran = [];
+      tx.mockImplementation(async (fn) => fn({
+        query: async (sql, params) => { ran.push({ sql, params }); return { rows: params ? rowsFor(params.at(-1)) : [] }; },
+      }));
+    };
+    const users = (n) => Array.from({ length: n }, (_, i) => ({ __id: `p${i}`, displayName: `U${i}` }));
+    const timeoutSet = () => ran.find(r => r.sql.includes('statement_timeout')).sql;
+
+    it('stops at the default cap with the short timeout, and says lifting it would return more', async () => {
+      capturing((probe) => users(probe));
+      const result = await runSpec({ entity: 'user' });
+
+      expect(ran.at(-1).params.at(-1)).toBe(1001);
+      expect(timeoutSet()).toContain("'15s'");
+      expect(result).toMatchObject({ total: 1000, truncated: true, canLoadAllRows: true });
+    });
+
+    it('lifts the default cap to the all-rows ceiling, with a longer timeout', async () => {
+      capturing(() => users(1500));
+      const result = await runSpec({ entity: 'user' }, undefined, { allRows: true });
+
+      expect(ran.at(-1).params.at(-1)).toBe(250001);
+      expect(timeoutSet()).toContain("'120s'");
+      expect(result).toMatchObject({ total: 1500, truncated: false, canLoadAllRows: false });
+      // The definition itself is unchanged: an edit of it must not save 250,000.
+      expect(result.spec.limit).toBe(1000);
+    });
+
+    it('keeps a "top N" limit as asked — that is the question, not a cap', async () => {
+      capturing((probe) => users(probe));
+      const result = await runSpec({ entity: 'user', limit: 10 }, undefined, { allRows: true });
+
+      expect(ran.at(-1).params.at(-1)).toBe(11);
+      expect(timeoutSet()).toContain("'15s'");
+      expect(result).toMatchObject({ total: 10, truncated: true, canLoadAllRows: false });
+    });
+
+    it('lifts a raised cap too', async () => {
+      capturing((probe) => users(Math.min(probe, 3)));
+      await runSpec({ entity: 'user', limit: 5000 }, undefined, { allRows: true });
+      expect(ran.at(-1).params.at(-1)).toBe(250001);
+    });
+  });
+
   it('refuses a definition the validator rejects, without touching the database', async () => {
     const result = await runSpec({ entity: 'user', groupBy: 'createdDateTime' });
     expect(result.ok).toBe(false);
