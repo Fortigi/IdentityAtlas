@@ -215,14 +215,25 @@ describe('known GUIDs and explicit filters on what lies outside', () => {
     }
   });
 
-  it('a relation filter naming an outsider is told the name does not exist — no rows, no hint', async () => {
+  it('a filter naming an outsider exactly is told she exists but lies outside — her name and type only, no rows', async () => {
     // "Groups with Olga as a member": the Mixed group has her, and Carla's team holds it.
     const q = { definition: { entity: 'group', conditions: [{ relation: 'members', quantifier: 'some', conditions: [{ field: 'displayName', op: 'eq', value: nameOf('olga') }] }], columns: ['displayName'] } };
-    const text = errorText(await tool('carla', 'run_query', q));
-    expect(text).toMatch(/could not find|Did you mean/);
+    const result = await tool('carla', 'run_query', q);
+    const text = errorText(result);
+    expect(text).toContain('exists in Identity Atlas, but lies outside the part you may see');
+    expect(JSON.parse(text).outsideScope).toEqual([{ name: nameOf('olga'), type: 'User' }]);
     expect(text).not.toContain(fx.id.olga);
+    expect(text).not.toContain('Secret department');
     expect(text).not.toContain(nameOf('groupMixed'));
     expect(namesOf(await tool('admin', 'run_query', q))).toContain(nameOf('groupMixed'));
+  });
+
+  it('a name that exists nowhere gets "not found / did you mean" — never "exists outside"', async () => {
+    const q = { definition: { entity: 'user', conditions: [{ field: 'displayName', op: 'eq', value: `${FIXTURE_PREFIX} Nobody Atall` }], columns: ['displayName'] } };
+    const body = JSON.parse(errorText(await tool('carla', 'run_query', q)));
+    expect(body.error).toMatch(/Did you mean|could not find/);
+    expect(body).not.toHaveProperty('outsideScope');
+    expect(JSON.stringify(body)).not.toContain('exists in Identity Atlas');
   });
 
   it('a relation filter on an outsider\'s id (no name lookup to stop it) matches nothing', async () => {
@@ -250,14 +261,21 @@ describe('known GUIDs and explicit filters on what lies outside', () => {
 });
 
 describe('relation columns, counts and groupings', () => {
-  it('a name-list column on a held group lists only members in scope; the admin sees both', async () => {
+  it('a held group\'s member list is complete by name, as in the app — but nothing more about the outsider', async () => {
     const q = { definition: { entity: 'group', conditions: [{ field: 'id', op: 'eq', value: fx.id.groupMixed }], columns: ['displayName', 'members.names', 'members.count'] } };
     const [mine] = data(await tool('carla', 'run_query', q)).rows;
-    expect(mine['members.names']).toBe(nameOf('ann'));
-    expect(mine['members.count']).toBe(1);
-    const [all] = data(await tool('admin', 'run_query', q)).rows;
-    expect(all['members.names']).toContain(nameOf('olga'));
-    expect(all['members.count']).toBe(2);
+    expect(mine['members.names']).toBe([nameOf('ann'), nameOf('olga')].sort().join(', '));
+    expect(mine['members.count']).toBe(2);
+    // The REST page lists the same holders, Olga marked not openable.
+    const rest = (await restGet('carla', `/api/resources/${fx.id.groupMixed}/assignments`)).body;
+    const restRows = Array.isArray(rest) ? rest : rest.data;
+    expect(restRows.find(m => m.principalId === fx.id.olga)?.accessible).toBe(false);
+    expect(restRows.find(m => m.principalId === fx.id.ann)?.accessible).toBe(true);
+  });
+
+  it('a group outside the scope is not listed at all, so its members are not either', async () => {
+    const q = { definition: { entity: 'group', conditions: [{ field: 'id', op: 'eq', value: fx.id.groupOutsider }], columns: ['displayName', 'members.names'] } };
+    expect(data(await tool('carla', 'run_query', q)).rows).toEqual([]);
   });
 
   it('a grouped count counts only what is in scope, and says the figures are restricted', async () => {
@@ -290,11 +308,13 @@ describe('relation columns, counts and groupings', () => {
     expect(data(await tool('bob', 'run_query', q)).rows).toEqual([]);
   });
 
-  it('an application owner sees its holders, but not what they hold outside the application', async () => {
-    const hank = { definition: { entity: 'user', conditions: [{ field: 'id', op: 'eq', value: fx.id.hank }], columns: ['displayName', 'memberOf.names', 'access.names'] } };
+  it('an application owner sees its holders, and what they hold elsewhere by name only — it does not open', async () => {
+    const hank = { definition: { entity: 'user', conditions: [{ field: 'id', op: 'eq', value: fx.id.hank }], columns: ['displayName', 'access.names'] } };
     const [row] = data(await tool('mia', 'run_query', hank)).rows;
     expect(row.displayName).toBe(nameOf('hank'));
-    expect(row['access.names'] ?? '').not.toContain(nameOf('groupHankOther'));
+    expect(row['access.names']).toContain(nameOf('groupHankOther'));
+    const other = { definition: { entity: 'resource', conditions: [{ field: 'id', op: 'eq', value: fx.id.groupHankOther }], columns: ['displayName'] } };
+    expect(data(await tool('mia', 'run_query', other)).rows).toEqual([]);
     expect(data(await tool('carla', 'run_query', hank)).rows).toEqual([]);
   });
 });
@@ -309,12 +329,25 @@ describe('search, name lookups and the data model', () => {
     expect(admin.matches.map(m => m.id)).toContain(fx.id.olga);
   });
 
-  it('every search match an owner gets is an object they may open', async () => {
+  it('every openable search match is an object they may open', async () => {
     for (const persona of OWNERS) {
       const res = data(await tool(persona, 'search', { text: FIXTURE_PREFIX, kinds: ['account', 'identity', 'resource', 'context'] }));
       const allowed = new Set(Object.values(fx.expected[persona]).flatMap(s => [...s]));
-      for (const m of res.matches) expect(allowed.has(m.id)).toBe(true);
+      for (const m of res.matches.filter(x => x.accessible !== false)) expect(allowed.has(m.id)).toBe(true);
     }
+  });
+
+  it('searching an outsider\'s full name says she exists — accessible false, no id, link or attributes', async () => {
+    const res = data(await tool('carla', 'search', { text: nameOf('olga'), kinds: ['account'] }));
+    expect(res.matches).toEqual([
+      { name: nameOf('olga'), type: 'User', entity: 'account', accessible: false, note: expect.stringContaining('outside the part you may see') },
+    ]);
+  });
+
+  it('a context outside the scope is never confirmed by name', async () => {
+    const res = data(await tool('carla', 'search', { text: nameOf('unitOther'), kinds: ['context'] }));
+    expect(res.matches.map(m => m.name)).not.toContain(nameOf('unitOther'));
+    expect(res.matches.every(m => m.accessible === true && fx.expected.carla.context.has(m.id))).toBe(true);
   });
 
   it('"did you mean" offers no names from outside the scope', async () => {

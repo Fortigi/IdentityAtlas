@@ -107,6 +107,41 @@ function* namedObjects(conditions, entityName, path = []) {
   }
 }
 
+// Outside the scope, but known by name: what the app itself shows a context
+// owner as plain grey text (a held group lists every member by name). A
+// lookup may confirm such a record EXISTS — never its id, its attributes or
+// anything else — so "does not exist" and "is not yours to see" read
+// differently. Only on an exact (or punctuation-insensitive) full-name match,
+// so it cannot be used to list the organisation, and only for people, accounts
+// and resources: context names are not shown to an owner in the app either.
+const NAMED_OUTSIDE_TABLES = new Set(['Principals', 'Identities', 'Resources']);
+
+/** [{ name, type }] of records named exactly `name` that lie OUTSIDE `scope`. */
+export async function namesOutsideScope(query, entityName, name, scope) {
+  const entity = ENTITIES[entityName];
+  if (!scope || !NAMED_OUTSIDE_TABLES.has(entity.table)) return [];
+  const t = 'n0';
+  const { rows } = await query(
+    `SELECT ${t}."displayName", ${typeSelect(entity, t)} AS type
+     FROM "${entity.table}" ${t}
+     WHERE ${entity.where(t)} AND NOT ${scopePredicate(entity.table, t, '$3::uuid[]')}
+       AND (lower(${t}."displayName") = lower($1)
+         OR regexp_replace(lower(${t}."displayName"), '[^[:alnum:]]+', '', 'g') = $2)
+     ORDER BY ${t}."displayName" LIMIT 6`,
+    [name, normalizeName(name), scope.contextIds],
+  );
+  return rows.map(r => ({ name: r.displayName, type: r.type }));
+}
+
+// The answer for a name that exists only outside the scope. `choices` are the
+// in-scope near matches, still offered in case another record was meant.
+function outOfScope(path, name, entityName, outside, choices) {
+  const label = humanType(outside[0].type, entityWord(entityName));
+  const message = `${label[0].toUpperCase()}${label.slice(1)} "${outside[0].name}" exists in Identity Atlas, but lies outside `
+    + 'the part you may see, so no details about it can be shown.';
+  return { kind: 'outOfScope', path, name, label, outsideScope: outside, choices, message };
+}
+
 function confirmation(kind, path, name, entityName, choices) {
   const label = choices.length ? humanType(choices[0].type, entityWord(entityName)) : entityWord(entityName);
   const message = choices.length
@@ -147,11 +182,15 @@ async function resolveReference(query, c, path, scope) {
 async function resolveValue(query, c, path, entityName, scope) {
   const rows = await exactMatches(query, entityName, c.value, scope);
   if (rows.some(r => r.exact)) return null;
-  if (rows.length === 1) { c.value = rows[0].displayName; return null; }
-  const choices = rows.length > 1
+  // An exact name outside the scope beats a near match inside it: that is the
+  // record the question named.
+  const outside = await namesOutsideScope(query, entityName, c.value, scope);
+  const nearInScope = () => (rows.length > 1
     ? rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }))
-    : await fuzzyMatches(query, entityName, c.value, scope);
-  return confirmation('value', path, c.value, entityName, choices);
+    : fuzzyMatches(query, entityName, c.value, scope));
+  if (outside.length) return outOfScope(path, c.value, entityName, outside, await nearInScope());
+  if (rows.length === 1) { c.value = rows[0].displayName; return null; }
+  return confirmation('value', path, c.value, entityName, await nearInScope());
 }
 
 /** The persons whose name contains the text, a page of them plus how many there are in all. */
@@ -177,7 +216,11 @@ async function resolvePerson(query, c, path, entityName, scope) {
     Object.assign(c, { op: 'eq', value: rows[0].displayName, checked: true });
     return null;
   }
-  if (total === 0) return confirmation('value', path, c.value, entityName, await fuzzyMatches(query, entityName, c.value, scope));
+  if (total === 0) {
+    const near = await fuzzyMatches(query, entityName, c.value, scope);
+    const outside = await namesOutsideScope(query, entityName, c.value, scope);
+    return outside.length ? outOfScope(path, c.value, entityName, outside, near) : confirmation('value', path, c.value, entityName, near);
+  }
   const label = entityWord(entityName);
   const choices = rows.map(r => ({ id: r.id, name: r.displayName, type: r.type }));
   // Last, so it is never the "first suggestion" a hurried answer picks.

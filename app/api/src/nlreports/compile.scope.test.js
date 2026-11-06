@@ -71,16 +71,29 @@ describe('every relation of the catalog', () => {
     expect(scopedAliasCount(c.text, table)).toBeGreaterThanOrEqual(expected);
   });
 
-  it.each(relations.map(r => [`${r.entity}.${r.name}`, r]))('%s is scoped in every column it offers', (_label, { entity, name, rel }) => {
-    const refs = rel.cardinality === 'many' ? [`${name}.names`, `${name}.count`] : [`${name}.displayName`];
-    const table = ENTITIES[rel.target].table;
-    for (const ref of refs) {
-      const c = compileSpec(spec(entity, { columns: [ref] }), {}, { scope: SCOPE });
-      const base = table === ENTITIES[entity].table ? 1 : 0;
-      // A name list adds a second subquery for its ids: both must be scoped.
-      const subqueries = ref.endsWith('.names') ? 2 : 1;
-      expect(scopedAliasCount(c.text, table) - base).toBeGreaterThanOrEqual(subqueries);
-      expect(scopesSomeAlias(c.text, table)).toBe(true);
-    }
-  });
+  // What the app shows about related records — names, how many — is not
+  // restricted; the ids behind a name list and any other field are.
+  const base = (entity, table) => (table === ENTITIES[entity].table ? 1 : 0);
+
+  it.each(relations.filter(r => r.rel.cardinality === 'many').map(r => [`${r.entity}.${r.name}`, r]))(
+    '%s: names and count read every related record, the ids behind the names only those in scope', (_label, { entity, name, rel }) => {
+      const table = ENTITIES[rel.target].table;
+      const names = compileSpec(spec(entity, { columns: [`${name}.names`] }), {}, { scope: SCOPE });
+      // Exactly one scoped subquery beyond the root: the id companion, not the names.
+      expect(scopedAliasCount(names.text, table) - base(entity, table)).toBe(1);
+      const ids = names.text.slice(names.text.indexOf('jsonb_agg'));
+      expect(scopesSomeAlias(ids, table)).toBe(true);
+      const count = compileSpec(spec(entity, { columns: [`${name}.count`] }), {}, { scope: SCOPE });
+      expect(scopedAliasCount(count.text, table) - base(entity, table)).toBe(0);
+    });
+
+  it.each(relations.filter(r => r.rel.cardinality === 'one').map(r => [`${r.entity}.${r.name}`, r]))(
+    '%s: the related record\'s name is shown, any other field of it only inside the scope', (_label, { entity, name, rel }) => {
+      const table = ENTITIES[rel.target].table;
+      const named = compileSpec(spec(entity, { columns: [`${name}.displayName`] }), {}, { scope: SCOPE });
+      expect(scopedAliasCount(named.text, table) - base(entity, table)).toBe(0);
+      const other = Object.keys(ENTITIES[rel.target].fields).find(f => f !== 'displayName' && f !== 'id');
+      const field = compileSpec(spec(entity, { columns: [`${name}.${other}`] }), {}, { scope: SCOPE });
+      expect(scopedAliasCount(field.text, table) - base(entity, table)).toBe(1);
+    });
 });

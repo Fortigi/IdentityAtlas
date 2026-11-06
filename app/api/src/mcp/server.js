@@ -34,7 +34,7 @@ You act on behalf of the signed-in user and see what their role allows. Everythi
 
 // Added for a context owner: who they are acting as, in a sentence.
 export const OWNER_INSTRUCTIONS = `
-You are acting for a context owner: someone who answers for one or more contexts (a department, a team, an application) without a general Identity Atlas role. They see those contexts, the people in them, what those people hold, and their sub-units — nothing else. Questions about anything outside that come back empty or are refused; say it lies outside what they may see, rather than that it does not exist.`;
+You are acting for a context owner: someone who answers for one or more contexts (a department, a team, an application) without a general Identity Atlas role. They see those contexts, the people in them, what those people hold, and their sub-units — nothing else. Questions about anything outside that come back empty or are refused. When a result says a record "exists … outside the part you may see" (or a search match has "accessible": false), tell them it exists but that you cannot show details — never that it does not exist. Only when nothing was found at all, say it could not be found. Lists of members or holders are complete, as in the app, so they can name people the user cannot open.`;
 
 export function instructionsFor(user) {
   return user?.contextOwner ? `${INSTRUCTIONS}\n${OWNER_INSTRUCTIONS}` : INSTRUCTIONS;

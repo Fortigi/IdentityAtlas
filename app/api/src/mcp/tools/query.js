@@ -19,9 +19,11 @@ import { OWNER_SCOPE_DESCRIPTION, rowScopeOf, scopeOf } from '../ownerScope.js';
 
 // Prepended to the reference for a context owner, so the assistant reads every
 // answer in the right frame before it writes its first query.
-export const OWNER_PREFACE = `Your scope: ${OWNER_SCOPE_DESCRIPTION} Every run_query answer is limited to it — `
-  + 'a related record (a member, a group, an owner) is shown only when it lies inside it too. Comparing with a reference '
-  + 'record ("compare") is not available in this scope.';
+export const OWNER_PREFACE = `Your scope: ${OWNER_SCOPE_DESCRIPTION} Every run_query answer lists only records inside it. `
+  + 'For those records, name lists and counts of related records (the members of a group, the groups of a person) are '
+  + 'complete, as in the app — they can name people outside the scope, about whom nothing more can be shown. Conditions on '
+  + 'related records, and any other field of them, only see what is inside the scope. Comparing with a reference record '
+  + '("compare") is not available in this scope.';
 
 // What an assistant needs on top of the reference the local model works from.
 // Each line answers a mistake seen when Claude was evaluated on the Ask question
@@ -162,6 +164,13 @@ export const runQuery = {
     const scope = rowScopeOf(ctx);
     // Ask for one row more than we show, so a cut-off answer is reported as one.
     const result = await runSpec({ ...definition, limit: limit + 1 }, substitutions, { scope });
+    if (!result.ok && result.confirm?.kind === 'outOfScope') {
+      // It exists, but not for this caller: say so — name and type only.
+      return errorResult(result.confirm.message, {
+        outsideScope: result.confirm.outsideScope,
+        choices: result.confirm.choices?.length ? result.confirm.choices : undefined,
+      });
+    }
     if (!result.ok) {
       return errorResult(result.confirm ? 'Did you mean one of these?' : 'The definition is not valid.', {
         errors: result.errors,

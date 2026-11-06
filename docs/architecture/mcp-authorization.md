@@ -53,16 +53,35 @@ so is the MCP row scope. REST and MCP cannot disagree about who opens what.
 |---|---|---|
 | Who is an owner over MCP | `mcp/auth.js` → `mcp/ownerScope.js` | Exactly the callers REST hands to owner mode (no permission from any role, or missing an `AUTH_REQUIRED_ROLES` role), with **both** switches on: context-owner access and *Context owners may also use the MCP server*. A failed lookup answers 500, never the roleless path. Someone with any permission is never an owner. |
 | Which tools an owner gets | `mcp/server.js allowedTools` | Only tools that declare `owner: 'scoped'`. Every tool must declare `scoped` or `refused` (`mcp/tools.guard.test.js`); one without the field is never offered to an owner. |
-| What a query reads | `nlreports/scope.js` + `nlreports/compile.js` | `compileSpec(spec, extFields, { scope })` puts the predicate on the report's own table, in every relation condition, in every relation column (name list, its id companion, count, single field). The context ids are one parameter. A table with no rule throws. Without a scope the SQL is byte-identical. |
-| What a lookup finds | `nlreports/references.js` | The same predicate in exact, fuzzy and person lookups and in `searchNames`. A name outside the scope is "not found" and never offered as a choice. |
+| What a query reads | `nlreports/scope.js` + `nlreports/compile.js` | `compileSpec(spec, extFields, { scope })` puts the predicate on the report's own table, in every relation condition, on the ids behind a name list and on every other field of a related record. Name lists, counts and a related record's name are read in full, as the app shows them (`isNameOnly`). The context ids are one parameter. A table with no rule throws. Without a scope the SQL is byte-identical. |
+| What a lookup finds | `nlreports/references.js` | The same predicate in exact, fuzzy and person lookups and in `searchNames`; fuzzy choices only come from inside the scope. A person, account or resource named exactly that lies outside it is reported as existing (`namesOutsideScope`: `NOT` the predicate) — see [Names outside the scope](#names-outside-the-scope-as-the-app-shows-them). |
 | Comparisons | `compile.js`, `service.js` | Refused under a scope instead of half-scoped. |
 | Which reports run | `mcp/tools/reports.js` | `list_reports` shows only the download allow-list's reports; `run_report` asks the REST allow-list itself (`contextOwnerVerdict` + `settleOwnerVerdict`, exported from `middleware/contextOwnerMode.js`) about the report's download path. Any other report answers exactly like a report that does not exist. |
 
+### Names outside the scope: as the app shows them
+
+The app shows an owner more than the records they may open: a group they may
+open lists **every** member, and the ones they may not open appear as grey text
+with "No access to details". MCP answers the same way:
+
+| What | Inside the scope | Outside the scope |
+|---|---|---|
+| The report's own rows (`run_query`) | Listed, all fields | Not listed |
+| Name lists and counts of related records (`members.names`, `members.count`, a related record's `displayName`) | Named and counted | Named and counted — as on the record's page in the app |
+| Any other field of a related record, a condition on one, the ids behind a name list | Yes | No: a condition cannot match on their attributes, and no id is handed out |
+| `search` | Full match: id, link, `accessible: true` | Only on an **exact** full-name match: name, type, `accessible: false`, a note — no id, no link |
+| A name in a `run_query` condition | Used | Answered with *"… exists in Identity Atlas, but lies outside the part you may see, so no details about it can be shown"* plus `outsideScope: [{ name, type }]` |
+| A name that exists nowhere | — | *"Could not find" / "Did you mean"*, with in-scope suggestions only |
+
+So "does not exist" and "is not yours to see" read differently, as in the app.
+Confirming an outside name needs the exact full name, so search cannot list the
+organisation; fuzzy suggestions stay inside the scope. People, accounts and
+resources only: a context's name outside the scope is never confirmed (the app
+does not show those either).
+
 A record's **own** fields stay as they are, including counts stored on or
 computed for it (a group's member count, a context's holder count): they are what
-its detail page shows, and the record is one the owner may open. What it is
-**related** to is restricted. This is narrower than REST, which lists a held
-group's out-of-scope members by name with `accessible: false`. MCP leaves them out.
+its detail page shows, and the record is one the owner may open.
 
 A change (the `change` entity) is visible when its account or its resource
 opens, which is what those two objects' timelines show over REST.
@@ -122,16 +141,19 @@ the code under test.
 |---|---|---|---|
 | Open each fixture object (4 kinds × 4 owners) | detail page by GUID | `run_query` per entity | Both equal the hand-written spec, so they equal each other |
 | Object outside the scope, by known GUID | 403 | 0 rows, `restricted: true` | Admin gets it (control) |
-| Filter on an outsider by name, inside a relation | — | "could not find", no rows, no hint | Admin finds the group |
+| Filter on an outsider by exact name, inside a relation | — | "exists, outside your part", name and type only, no rows | Admin finds the group |
+| Filter on a name that exists nowhere | — | "not found / did you mean", never "exists" | |
 | Filter on an outsider by id, inside a relation | — | 0 rows | Admin finds the group |
 | Filter on an outsider's attribute, inside a relation | — | 0 rows | Admin finds it |
 | `none` over a relation as an inverted probe | — | Every in-scope group qualifies | Admin sees the difference |
-| Name list / count column on a held group | — | Only in-scope members | Admin sees both |
+| Name list / count column on a held group | Lists all, outsider `accessible: false` | Lists all by name, as REST | A group outside the scope is not listed at all |
+| What a holder holds elsewhere | — | By name; the group itself does not open | |
 | Grouped count | — | Sums to the in-scope total, outsider's group absent | Admin sees it |
 | "How many users" | — | In-scope total, `restricted: true`, `truncated` separate | Admin: `restricted: false` |
 | Sub-unit people | — | Parent's owner yes, sibling's owner no | |
 | Application holder | — | Visible, not what he holds elsewhere | |
-| Search | — | Never the outsider; every match openable | Admin finds her |
+| Search | — | Partial name: never the outsider. Exact full name: `accessible: false`, no id/link. Every openable match really opens | Admin finds her |
+| Context outside the scope, searched by its exact name | — | Never confirmed | |
 | "Did you mean" | — | No out-of-scope names or ids | |
 | Data-model reference | — | No record names | |
 | Compare | — | Refused | |

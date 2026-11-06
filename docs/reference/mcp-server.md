@@ -75,10 +75,15 @@ server, when the admin turns on **Admin → Roles & Permissions → Relative per
 Context owners may also use the MCP server** (next to the context-owner switch, which must
 be on too). They then see exactly what they see in the app, enforced by the same code:
 
-- every `run_query` runs only over the records they may open — their contexts' members,
-  what those members hold (or, for an application, who holds it), their sub-units — and
-  a related record (a member, a group, an owner) appears only when it lies inside that too;
-- `search` and every name lookup ("did you mean …") find only those records;
+- every `run_query` lists only the records they may open — their contexts' members,
+  what those members hold (or, for an application, who holds it), their sub-units. For
+  those records, member lists and counts are complete by name, as in the app; anything
+  more about a related record outside their part (its other fields, filtering on it) is not
+  available;
+- `search` and every name lookup find those records. Somebody outside their part, named
+  by their exact full name, is reported as **existing but out of reach** — name and type
+  only — so the assistant can say "she exists, but I can't show details" instead of "not
+  found". A name that exists nowhere is "not found";
 - `list_reports` / `run_report` offer only the two reports the app lets them download on
   their own contexts (by id), and refuse anything else as if it did not exist;
 - comparing with a reference record is not available to them.

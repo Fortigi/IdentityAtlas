@@ -4,7 +4,7 @@
 // statements are unchanged.
 
 import { describe, it, expect, vi } from 'vitest';
-import { searchNames, resolveNamedObjects } from './references.js';
+import { searchNames, resolveNamedObjects, namesOutsideScope } from './references.js';
 import { scopePredicate } from './scope.js';
 
 const IDS = ['a0000000-0000-4000-8000-000000000001'];
@@ -44,9 +44,9 @@ describe('resolveNamedObjects', () => {
   it('looks an exact name up inside the scope only, and offers only in-scope choices', async () => {
     const { q, calls } = recorder();
     const out = await resolveNamedObjects(nameIs('Secret group'), q, { scope: SCOPE });
-    // Not found in scope → fuzzy choices, also in scope → "could not find".
+    // Not found in scope, not named outside it either → fuzzy choices in scope → "could not find".
     expect(out.confirm.message).toMatch(/could not find/);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     for (const c of calls) {
       expect(c.sql).toContain('::uuid[]');
       expect(c.params.at(-1)).toEqual(IDS);
@@ -63,6 +63,38 @@ describe('resolveNamedObjects', () => {
     await resolveNamedObjects({ entity: 'user', conditions: [{ type: 'compare', relation: 'groups', measure: 'containsAll', reference: { entity: 'user', name: 'X', id: IDS[0] } }] }, ref.q, { scope: SCOPE });
     expect(ref.calls[0].sql).toContain(scopePredicate('Principals', 'n0', '$2::uuid[]'));
     expect(ref.calls.every(c => c.params.at(-1) === IDS)).toBe(true);
+  });
+
+  // A recorder whose answer depends on which lookup runs: the out-of-scope one is the only NOT (…) statement.
+  const lookups = ({ inScope = [], outside = [] }) => recorder((sql) => (sql.includes('AND NOT ') ? outside : inScope));
+
+  it('says a name that exists only outside the scope EXISTS — name and type, no id', async () => {
+    const { q, calls } = lookups({ outside: [{ displayName: 'Olga Outsider', type: 'User' }] });
+    const out = await resolveNamedObjects({ entity: 'user', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'olga outsider' }] }, q, { scope: SCOPE });
+    expect(out.confirm).toMatchObject({ kind: 'outOfScope', outsideScope: [{ name: 'Olga Outsider', type: 'User' }] });
+    expect(out.confirm.message).toBe('User "Olga Outsider" exists in Identity Atlas, but lies outside the part you may see, so no details about it can be shown.');
+    expect(JSON.stringify(out.confirm.outsideScope)).not.toMatch(/"id"/);
+    const outsideSql = calls.find(c => c.sql.includes('AND NOT ')).sql;
+    expect(outsideSql).toContain(`NOT ${scopePredicate('Principals', 'n0', '$3::uuid[]')}`);
+  });
+
+  it('prefers an exact in-scope match and never asks outside then', async () => {
+    const { q, calls } = lookups({ inScope: [{ id: 'p', displayName: 'Ann', type: 'User', exact: true }], outside: [{ displayName: 'Ann', type: 'User' }] });
+    expect((await resolveNamedObjects({ entity: 'user', conditions: [{ type: 'field', field: 'displayName', op: 'eq', value: 'Ann' }] }, q, { scope: SCOPE })).confirm).toBeNull();
+    expect(calls.some(c => c.sql.includes('AND NOT '))).toBe(false);
+  });
+
+  it('tells a person lookup ("name contains") the same, when the full name is outside', async () => {
+    const { q } = lookups({ outside: [{ displayName: 'Abigail Davies', type: 'User' }] });
+    const out = await resolveNamedObjects({ entity: 'user', conditions: [{ type: 'field', field: 'displayName', op: 'contains', value: 'Abigail Davies' }] }, q, { scope: SCOPE });
+    expect(out.confirm.kind).toBe('outOfScope');
+  });
+
+  it('never confirms a context name outside the scope, and never asks outside without a scope', async () => {
+    const { q, calls } = lookups({ outside: [{ displayName: 'Secret unit', type: null }] });
+    expect(await namesOutsideScope(q, 'context', 'Secret unit', SCOPE)).toEqual([]);
+    expect(await namesOutsideScope(q, 'user', 'Secret unit', null)).toEqual([]);
+    expect(calls).toHaveLength(0);
   });
 
   it('runs unscoped without the option, as before', async () => {

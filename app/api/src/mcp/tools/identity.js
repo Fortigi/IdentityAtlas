@@ -3,7 +3,7 @@
 
 import { query } from '../../db/connection.js';
 import { ENTITIES } from '../../nlreports/catalog.js';
-import { searchNames } from '../../nlreports/references.js';
+import { searchNames, namesOutsideScope } from '../../nlreports/references.js';
 import { detailLink, jsonResult, errorResult } from '../result.js';
 import { rowScopeOf, scopeOf } from '../ownerScope.js';
 
@@ -45,8 +45,10 @@ export const search = {
     + 'Use it to resolve a name the user mentions to the exact record before querying, or when a query said '
     + '"Did you mean". Returns id, exact name, type and a link per match.',
   permission: 'data.read',
-  // Scoped: for a context owner only records they may open are found (the
-  // lookup runs under their row scope, nlreports/scope.js).
+  // Scoped: for a context owner the search runs under their row scope
+  // (nlreports/scope.js). A person, account or resource named EXACTLY as asked
+  // that lies outside it is listed too, as the app lists it in a held group's
+  // members: name and type, `accessible: false`, no id, no link.
   owner: 'scoped',
   inputSchema: {
     type: 'object',
@@ -79,6 +81,23 @@ export const search = {
     found.sort((a, b) => b.score - a.score);
     const seen = new Set();
     const matches = found.filter(m => !seen.has(m.id) && seen.add(m.id));
-    return jsonResult({ scope: scopeOf(ctx), matches }, matches.length);
+    if (!scope) return jsonResult({ scope: scopeOf(ctx), matches }, matches.length);
+    const outside = await namedOutside(kinds, text, scope);
+    const all = [...matches.map(m => ({ ...m, accessible: true })), ...outside];
+    return jsonResult({ scope: scopeOf(ctx), matches: all }, all.length);
   },
 };
+
+export const OUTSIDE_NOTE = 'Exists, but outside the part you may see: no details can be shown.';
+
+// Exact-name records outside the owner's scope, once per name and type.
+async function namedOutside(kinds, text, scope) {
+  const out = new Map();
+  for (const kind of kinds) {
+    for (const r of await namesOutsideScope(query, kind, text, scope)) {
+      const key = `${r.name.toLowerCase()}|${r.type ?? ''}`;
+      if (!out.has(key)) out.set(key, { name: r.name, type: r.type, entity: kind, accessible: false, note: OUTSIDE_NOTE });
+    }
+  }
+  return [...out.values()];
+}

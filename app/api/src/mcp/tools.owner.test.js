@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../db/connection.js');
 vi.mock('../nlreports/service.js', () => ({ runSpec: vi.fn(), loadValues: vi.fn(async () => ({})) }));
 vi.mock('../nlreports/extFields.js', () => ({ loadExtFields: vi.fn(async () => ({})) }));
-vi.mock('../nlreports/references.js', () => ({ searchNames: vi.fn(async () => []) }));
+vi.mock('../nlreports/references.js', () => ({ searchNames: vi.fn(async () => []), namesOutsideScope: vi.fn(async () => []) }));
 vi.mock('../reports/run.js', () => ({ runReport: vi.fn() }));
 const owners = vi.hoisted(() => ({ resolved: null }));
 vi.mock('../auth/contextOwner.js', () => ({
@@ -19,7 +19,7 @@ vi.mock('../auth/contextOwner.js', () => ({
 }));
 
 const { runSpec } = await import('../nlreports/service.js');
-const { searchNames } = await import('../nlreports/references.js');
+const { searchNames, namesOutsideScope } = await import('../nlreports/references.js');
 const { runReport } = await import('../reports/run.js');
 const { runQuery, describeDataModel, OWNER_PREFACE } = await import('./tools/query.js');
 const { search, whoAmI } = await import('./tools/identity.js');
@@ -41,6 +41,7 @@ const analystCtx = () => ({ baseUrl: BASE, user: { roles: ['Admin'], permissions
 beforeEach(() => {
   vi.mocked(runSpec).mockReset();
   vi.mocked(searchNames).mockReset().mockResolvedValue([]);
+  vi.mocked(namesOutsideScope).mockReset().mockResolvedValue([]);
   vi.mocked(runReport).mockReset().mockResolvedValue({ displayName: 'R', description: '', notices: [], columns: [], total: 0, truncated: false, rows: [] });
   owners.resolved = null;
 });
@@ -71,9 +72,44 @@ describe('search', () => {
     expect(r.structuredContent.scope.restricted).toBe(true);
   });
 
-  it('passes no scope for an analyst', async () => {
+  it('passes no scope for an analyst, and never asks about names outside one', async () => {
     await search.run({ text: 'Olga', kinds: ['account'] }, analystCtx());
     expect(vi.mocked(searchNames).mock.calls[0][3]).toBeNull();
+    expect(namesOutsideScope).not.toHaveBeenCalled();
+  });
+
+  it('lists an exact name outside the scope as existing — accessible false, no id, no link — after the openable ones', async () => {
+    vi.mocked(searchNames).mockResolvedValue([{ id: 'p-ann', name: 'Abigail Clarke', type: 'User', score: 0.4 }]);
+    vi.mocked(namesOutsideScope).mockImplementation(async (_q, kind) => (kind === 'account' || kind === 'identity'
+      ? [{ name: 'Abigail Davies', type: kind === 'account' ? 'User' : null }] : []));
+    const r = await search.run({ text: 'Abigail Davies', kinds: ['account', 'identity', 'account'] }, ownerCtx());
+    const [mine, ...outside] = r.structuredContent.matches;
+    expect(mine).toMatchObject({ id: 'p-ann', accessible: true });
+    expect(outside).toEqual([
+      { name: 'Abigail Davies', type: 'User', entity: 'account', accessible: false, note: 'Exists, but outside the part you may see: no details can be shown.' },
+      { name: 'Abigail Davies', type: null, entity: 'identity', accessible: false, note: 'Exists, but outside the part you may see: no details can be shown.' },
+    ]);
+    expect(vi.mocked(namesOutsideScope).mock.calls.every(c => c[3] === ROW_SCOPE)).toBe(true);
+  });
+});
+
+describe('run_query naming a record outside the scope', () => {
+  it('answers that it exists, with its name and type only, instead of "did you mean"', async () => {
+    vi.mocked(runSpec).mockResolvedValue({
+      ok: false, errors: ['…'],
+      confirm: { kind: 'outOfScope', message: 'User "Abigail Davies" exists in Identity Atlas, but lies outside the part you may see, so no details about it can be shown.', outsideScope: [{ name: 'Abigail Davies', type: 'User' }], choices: [] },
+    });
+    const r = await runQuery.run({ definition: { entity: 'user' } }, ownerCtx());
+    expect(r.isError).toBe(true);
+    expect(JSON.parse(r.content[0].text)).toEqual({
+      error: 'User "Abigail Davies" exists in Identity Atlas, but lies outside the part you may see, so no details about it can be shown.',
+      outsideScope: [{ name: 'Abigail Davies', type: 'User' }],
+    });
+  });
+
+  it('still offers in-scope near matches alongside', async () => {
+    vi.mocked(runSpec).mockResolvedValue({ ok: false, errors: [], confirm: { kind: 'outOfScope', message: 'm', outsideScope: [{ name: 'X', type: 'User' }], choices: [{ id: 'p1', name: 'Y' }] } });
+    expect(JSON.parse((await runQuery.run({ definition: { entity: 'user' } }, ownerCtx())).content[0].text).choices).toEqual([{ id: 'p1', name: 'Y' }]);
   });
 });
 

@@ -42,11 +42,25 @@ function scoped(entityName, alias, ctx) {
   return ctx.scopeRef ? ` AND ${scopePredicate(ENTITIES[entityName].table, alias, ctx.scopeRef)}` : '';
 }
 
-// A relation's FROM / WHERE with the scope folded into the WHERE.
-function relationFrom(entityName, relationName, outer, inner, ctx) {
+// A relation's FROM / WHERE with the scope folded into the WHERE — unless the
+// read is name-only (see NAME_ONLY below).
+function relationFrom(entityName, relationName, outer, inner, ctx, { nameOnly = false } = {}) {
   const rel = ENTITIES[entityName].relations[relationName];
   const { from, where } = rel.from(outer, inner, ctx.alias);
-  return { rel, from, where: `${where}${scoped(rel.target, inner, ctx)}` };
+  return { rel, from, where: nameOnly ? where : `${where}${scoped(rel.target, inner, ctx)}` };
+}
+
+// What the app shows a context owner about the records a record they may open
+// is related to: every one of them BY NAME, and how many there are (a held
+// group's page lists all its members, the ones they may not open as grey text).
+// A scoped query reads exactly that: a name list, a count, and a related
+// record's name are not restricted. Everything that would say more — another
+// field of a related record, a condition on one (it would match on its
+// attributes), the ids behind a name list — stays inside the scope. The report's
+// own rows are always scoped, so a name only appears where the app shows it.
+function isNameOnly(colDef) {
+  return colDef.kind === 'manyNames' || colDef.kind === 'manyCount'
+    || (colDef.kind === 'oneRelationField' && colDef.field === 'displayName');
 }
 
 
@@ -127,7 +141,7 @@ function columnSql(entityName, colDef, alias, ctx) {
 
   if (colDef.kind === 'compare') return compareColumnSql(entityName, ctx.firstCompare, colDef.sub, alias, ctx);
   const inner = ctx.alias();
-  const { rel, from, where } = relationFrom(entityName, colDef.relation, alias, inner, ctx);
+  const { rel, from, where } = relationFrom(entityName, colDef.relation, alias, inner, ctx, { nameOnly: isNameOnly(colDef) });
   if (colDef.kind === 'oneRelationField') {
     return `(SELECT ${fieldExpr(ENTITIES[rel.target].fields[colDef.field], inner, ctx)} FROM ${from} WHERE ${where} LIMIT 1)`;
   }
