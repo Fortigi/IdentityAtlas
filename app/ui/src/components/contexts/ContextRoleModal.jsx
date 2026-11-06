@@ -94,7 +94,7 @@ function ResponsibleBody({ holders, onAdd, onRemove, onClose }) {
 
 // Search accounts (/api/users, debounced) and hand the chosen row to onPick;
 // the list closes and the box clears once one is picked.
-export function PersonSearch({ inputId, label = 'Find a person', onPick }) {
+export function PersonSearch({ inputId, label = 'Find a person', onPick, autoFocus = true }) {
   const { authFetch } = useAuth();
   const [query, setQuery] = useState('');
   const term = useDebouncedValue(query.trim(), 250);
@@ -114,7 +114,7 @@ export function PersonSearch({ inputId, label = 'Find a person', onPick }) {
       <label htmlFor={inputId} className="block font-medium text-gray-700 dark:text-gray-300">{label}</label>
       <input
         id={inputId}
-        autoFocus
+        autoFocus={autoFocus}
         value={query}
         onChange={e => setQuery(e.target.value)}
         placeholder="Search by name or e-mail…"

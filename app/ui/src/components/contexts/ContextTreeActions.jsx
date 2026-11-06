@@ -1,5 +1,6 @@
 import { usePopover } from '@ui/components/matrix/usePopover';
 import { useDialog } from '@ui/components/dialogContext';
+import { AdjustTreeMenuItem } from '@ui/components/adjustTree/AdjustTreeAction';
 
 // The actions on one whole tree, in a ⋯ menu on its root row: Refresh (derived
 // trees only — it re-runs the rule; renames, moves and members added by hand
@@ -7,23 +8,26 @@ import { useDialog } from '@ui/components/dialogContext';
 // changes by uploading it again) and "Delete this tree…" (when `onDelete` is
 // given). The page renders the menu on trees the user may change, and on an
 // uploaded list with Re-import alone: an imported tree (the next import would
-// bring it back; the API refuses) is never deleted from here.
+// bring it back; the API refuses) is never deleted from here. "Adjust tree"
+// (when `onAdjust` is given) opens the tree's Adjust tree screen, or says why
+// this tree cannot be adjusted — the API decides, once the menu is open.
 
-function firstItem(canRefresh, onReimport) {
+function firstItem(canRefresh, onReimport, onAdjust) {
   if (canRefresh) return 'refresh';
-  return onReimport ? 'reimport' : 'delete';
+  if (onReimport) return 'reimport';
+  return onAdjust ? 'adjust' : 'delete';
 }
 
 const ITEM_CLASS = 'block w-full px-3 py-1.5 text-left text-xs hover:bg-gray-100 focus:bg-gray-100 focus:outline-none dark:hover:bg-gray-700 dark:focus:bg-gray-700 disabled:opacity-50';
 
 // `label` names the tree in the menu's accessible name when its display name
 // alone is ambiguous ("Tags · People" beside "Tags · Accounts").
-export default function TreeRootMenu({ root, label, onRefresh, refreshing, onDelete, onReimport }) {
+export default function TreeRootMenu({ root, label, onRefresh, refreshing, onDelete, onReimport, onAdjust }) {
   const { open, toggle, close, triggerRef, panelRef } = usePopover();
   const dialog = useDialog();
   const canRefresh = root.variant === 'generated';
   // The first item takes the focus when the menu opens.
-  const first = firstItem(canRefresh, onReimport);
+  const first = firstItem(canRefresh, onReimport, onAdjust);
   const name = label || root.displayName;
 
   async function confirmDelete() {
@@ -69,6 +73,9 @@ export default function TreeRootMenu({ root, label, onRefresh, refreshing, onDel
               title="Upload a new version of this list: its units are updated in place"
               className={`${ITEM_CLASS} text-gray-800 dark:text-gray-200`}
             >Re-import…</button>
+          )}
+          {onAdjust && (
+            <AdjustTreeMenuItem contextId={root.id} className={ITEM_CLASS} autoFocus={first === 'adjust'} onDone={close} onOpen={onAdjust} />
           )}
           {onDelete && (
             <button

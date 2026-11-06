@@ -12,6 +12,7 @@ import { writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
 import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
 import { reconcileBatchAccountables } from '../../ingest/contextOwners.js';
+import { reapplyAfterSync } from '../../contexts/adjustments/afterSync.js';
 import {
   restrictedSystemIds, writableCoreColumns, systemBoundaryDenial,
   preservedOwnerColumns,
@@ -184,6 +185,9 @@ async function writeBatch(entityType, body, { allowed, req, startTime }) {
   // Contexts only: the owner a source names becomes the synced context's
   // Accountable (ingest/contextOwners.js). Null for every other table.
   const accountable = await reconcileBatchAccountables(db, tableName, normalized);
+  // The analyst's adjustments of the trees this source feeds, applied again on
+  // top of what the sync just wrote (docs/architecture/adjust-tree.md).
+  await reapplyAfterSync(db, tableName, body.systemId);
 
   // Context-tree acyclicity is enforced at the database (migration 059's
   // deferred trigger) — a cyclic batch aborts the ingest() commit above and is

@@ -6,6 +6,8 @@
 export const DETAIL_PREFIXES = [
   'user', 'group', 'resource', 'access-package',
   'department', 'context', 'identity', 'run', 'report', 'report-builder', 'context-builder',
+  // The Adjust tree screen of one tree; its id is the tree's key.
+  'adjust-tree',
 ];
 
 // True when a hash page-key addresses a detail tab.
@@ -66,6 +68,7 @@ const CLOSE_FALLBACK = {
   department: 'contexts',
   context: 'contexts',
   'context-builder': 'contexts',
+  'adjust-tree': 'contexts',
   identity: 'identities',
   resource: 'resources',
 };
@@ -81,6 +84,7 @@ const DETAIL_TAB_ICON_BG = {
   department: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
   context: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   'context-builder': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
+  'adjust-tree': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   report: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
   'report-builder': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
 };

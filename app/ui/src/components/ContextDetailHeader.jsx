@@ -6,6 +6,8 @@ import ContextOwner from './contexts/ContextOwner';
 import ContextAccessCounts from './contexts/ContextAccessCounts';
 import { useContextAncestors } from './contexts/useContextAncestors';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import { AdjustTreeButton } from '@ui/components/adjustTree/AdjustTreeAction';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
 import { contextOpener } from './contexts/contextOpener';
 
 // ─── Header: the name, one sentence on what it is, and the page actions ──
@@ -16,6 +18,8 @@ import { contextOpener } from './contexts/contextOpener';
 // Actions, each only when its handler is given:
 //   onEdit        Edit (name, description, parent, template, delete)
 //   onAddSubUnit  Add sub-unit
+//   canAdjustTree Adjust tree (opens the tree's Adjust tree tab through onOpenDetail;
+//                 only while organisation knowledge is on)
 //   onOpenAsPage  Open as page (embedded in the Contexts page)
 //   onClose       Back to Contexts (the page opened from the tree)
 // Copy link is offered except in a read-only shell (a context owner's page),
@@ -31,8 +35,9 @@ function contextLink(id) {
   return `${origin}${pathname}#context:${id}`;
 }
 
-export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit }) {
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree }) {
   const readOnly = useIsSharedView();
+  const knowledge = useOrgKnowledge();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
   const subtitle = contextSubtitle(attrs);
 
@@ -56,6 +61,9 @@ export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, open
           )}
           {onEdit && <button type="button" onClick={onEdit} className={SECONDARY_BTN}>Edit</button>}
           {onAddSubUnit && <button type="button" onClick={onAddSubUnit} className={SECONDARY_BTN}>Add sub-unit</button>}
+          {canAdjustTree && knowledge && onOpenDetail && (
+            <AdjustTreeButton contextId={attrs.id} onOpen={(treeKey, title) => onOpenDetail('adjust-tree', treeKey, title)} />
+          )}
           {!readOnly && <CopyLinkButton id={attrs.id} />}
           {onOpenAsPage && (
             <button type="button" onClick={onOpenAsPage} className={OUTLINE_BTN} title="Open this unit in its own tab">

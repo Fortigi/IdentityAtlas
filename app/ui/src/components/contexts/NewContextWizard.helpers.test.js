@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   stepsFor, groupByTargetType, prettifyName, wizardSubtitle,
   seedParamsFromSchema, pluginMissingParams, computeRefreshTargets,
-  runLabel, runDisabled, nextLabel,
+  runLabel, runDisabled, nextLabel, schemaFieldKind, enumOptions,
 } from './NewContextWizard.helpers';
 
 describe('stepsFor', () => {
@@ -130,5 +130,40 @@ describe('footer labels / gates', () => {
     expect(nextLabel(1, 'import')).toBe('Open Crawlers →');
     expect(nextLabel(1, 'plugin')).toBe('Next ▸');
     expect(nextLabel(2, 'import')).toBe('Next ▸');
+  });
+});
+
+describe('schemaFieldKind', () => {
+  it('picks the field for each shape of the manager-hierarchy parameters', () => {
+    expect(schemaFieldKind('scopeSystemId', { type: 'integer' })).toBe('system');
+    expect(schemaFieldKind('topMode', { type: 'string', enum: ['auto', 'jobTitle', 'people'] })).toBe('enum');
+    expect(schemaFieldKind('topJobTitle', { type: 'string' })).toBe('text');
+    expect(schemaFieldKind('topPrincipalIds', { type: 'array', items: { type: 'string', format: 'uuid' } })).toBe('principalList');
+    expect(schemaFieldKind('owners', { type: 'array', 'x-picker': 'principal' })).toBe('principalList');
+    expect(schemaFieldKind('splitBy', { type: 'string', 'x-attributeSource': 'principal' })).toBe('attribute');
+    expect(schemaFieldKind('nameFields', { type: 'array', 'x-attributeSource': 'principal' })).toBe('attributeList');
+    expect(schemaFieldKind('splitMinMembers', { type: 'integer', default: 2 })).toBe('number');
+    expect(schemaFieldKind('ratio', { type: 'number' })).toBe('number');
+    expect(schemaFieldKind('notPlacedUnit', { type: 'boolean' })).toBe('boolean');
+    expect(schemaFieldKind('tags', { type: 'array', items: { type: 'string' } })).toBe('json');
+    expect(schemaFieldKind('options', { type: 'object' })).toBe('json');
+    expect(schemaFieldKind('anything')).toBe('text');
+  });
+
+  it('prefers the dropdown for an enum of any type', () => {
+    expect(schemaFieldKind('level', { type: 'integer', enum: [1, 2, 3] })).toBe('enum');
+  });
+});
+
+describe('enumOptions', () => {
+  it('labels each value from x-enumLabels, else makes the value readable', () => {
+    expect(enumOptions({ enum: ['auto', 'jobTitle'], 'x-enumLabels': { auto: 'Who has no manager' } })).toEqual([
+      { value: 'auto', label: 'Who has no manager' },
+      { value: 'jobTitle', label: 'Job Title' },
+    ]);
+    expect(enumOptions({ enum: ['manager', 'members'], 'x-enumLabels': ['The manager', 'The members'] }).map(o => o.label))
+      .toEqual(['The manager', 'The members']);
+    expect(enumOptions({ enum: [1, 2] })).toEqual([{ value: 1, label: '1' }, { value: 2, label: '2' }]);
+    expect(enumOptions({})).toEqual([]);
   });
 });

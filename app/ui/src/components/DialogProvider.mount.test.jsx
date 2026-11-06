@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createElement as h, useState } from 'react';
 import { renderWithProviders, screen, within, waitFor, userEvent } from '@ui/test-utils/renderWithProviders';
 import { useDialog } from './dialogContext';
 
 // A tiny harness component that exposes each dialog API via buttons and shows
 // the resolved result, so we can assert the async resolve/reject flow.
-function Harness() {
+function Harness({ onUndo }) {
   const dialog = useDialog();
   const [result, setResult] = useState('—');
   return h('div', null,
@@ -14,12 +14,13 @@ function Harness() {
     h('button', { onClick: async () => setResult(String(await dialog.prompt({ message: 'Name?', confirmLabel: 'Save' }))) }, 'ask-prompt'),
     h('button', { onClick: () => { dialog.toast('Saved!', { variant: 'success' }); } }, 'fire-toast'),
     h('button', { onClick: () => { dialog.alert('Boom'); } }, 'fire-alert'),
+    h('button', { onClick: () => { dialog.toast('Moved', { action: { label: 'Undo', onClick: onUndo } }); } }, 'fire-action-toast'),
     h('span', { 'data-testid': 'result' }, result),
   );
 }
 
-function setup() {
-  renderWithProviders(h(Harness));
+function setup(props = {}) {
+  renderWithProviders(h(Harness, props));
   return userEvent.setup();
 }
 
@@ -61,6 +62,23 @@ describe('DialogProvider / useDialog', () => {
     const toast = await screen.findByText('Saved!');
     await user.click(within(toast.closest('[role="status"]')).getByRole('button', { name: 'Dismiss' }));
     await waitFor(() => expect(screen.queryByText('Saved!')).not.toBeInTheDocument());
+  });
+
+  it('a toast with an action runs it once and closes', async () => {
+    const onUndo = vi.fn();
+    const user = setup({ onUndo });
+    await user.click(screen.getByText('fire-action-toast'));
+    const toast = (await screen.findByText('Moved')).closest('[role="status"]');
+    await user.click(within(toast).getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByText('Moved')).not.toBeInTheDocument());
+  });
+
+  it('a toast without an action has only the dismiss button', async () => {
+    const user = setup();
+    await user.click(screen.getByText('fire-toast'));
+    const toast = (await screen.findByText('Saved!')).closest('[role="status"]');
+    expect(within(toast).getAllByRole('button').map(b => b.getAttribute('aria-label') || b.textContent)).toEqual(['Dismiss']);
   });
 
   it('alert() surfaces a toast', async () => {

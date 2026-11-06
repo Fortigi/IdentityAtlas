@@ -30,6 +30,11 @@ describe('isDetailPage', () => {
 });
 
 describe('parseDetailRoute', () => {
+  it('reads an Adjust tree tab as its tree key, colons and all', () => {
+    expect(isDetailPage('adjust-tree:generated:abc')).toBe(true);
+    expect(parseDetailRoute('adjust-tree:generated:abc')).toEqual({ type: 'adjust-tree', id: 'generated:abc' });
+  });
+
   it('splits type/id on the first colon', () => {
     expect(parseDetailRoute('user:123')).toEqual({ type: 'user', id: '123' });
     expect(parseDetailRoute('access-package:ap-9')).toEqual({ type: 'access-package', id: 'ap-9' });
@@ -96,6 +101,7 @@ describe('pickDisplayName', () => {
 describe('closeFallbackPage', () => {
   it('maps types with a dedicated landing page', () => {
     expect(closeFallbackPage('run')).toBe('contexts');
+    expect(closeFallbackPage('adjust-tree')).toBe('contexts');
     expect(closeFallbackPage('department')).toBe('contexts');
     expect(closeFallbackPage('context')).toBe('contexts');
     expect(closeFallbackPage('identity')).toBe('identities');
@@ -118,6 +124,7 @@ describe('detailTabIconBg', () => {
     expect(detailTabIconBg('group')).toContain('purple');
     expect(detailTabIconBg('department')).toContain('green');
     expect(detailTabIconBg('context')).toContain('sky');
+    expect(detailTabIconBg('adjust-tree')).toContain('sky');
     expect(detailTabIconBg('report')).toContain('amber');
   });
 
