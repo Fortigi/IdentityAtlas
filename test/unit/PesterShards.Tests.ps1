@@ -15,6 +15,17 @@ BeforeAll {
     }
 }
 
+Describe 'Dot-sourcing PesterShards.ps1' {
+    It 'leaves strict mode off in the scope that then runs the suite' {
+        # The shard job dot-sources this file and runs every test in that scope. A
+        # top-level Set-StrictMode once made dozens of unrelated tests fail on
+        # reading a property their fixture object did not have.
+        $file = Join-Path $RepoRoot 'tools' 'pester' 'PesterShards.ps1'
+        $probe = "Set-StrictMode -Off; . '$file'; `$o = [pscustomobject]@{}; try { `$null = `$o.Missing; 'off' } catch { 'strict' }"
+        pwsh -NoProfile -Command $probe | Should -Be 'off'
+    }
+}
+
 Describe 'Get-PesterShardFile' {
     BeforeAll {
         $script:W = @{ 'a.Tests.ps1' = 10; 'b.Tests.ps1' = 6; 'c.Tests.ps1' = 5; 'd.Tests.ps1' = 4 }

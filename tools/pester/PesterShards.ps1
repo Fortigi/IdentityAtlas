@@ -5,7 +5,9 @@
     enforce a single coverage floor.
 
 .DESCRIPTION
-    Dot-source this file; it defines functions only.
+    Dot-source this file; it defines functions only. It must not change session state:
+    the shard job dot-sources it into the scope that then runs the whole suite, so a
+    top-level Set-StrictMode here would switch strict mode on for every test file.
 
     Sharding: files are assigned greedily, heaviest first, to the currently lightest
     shard (longest-processing-time first). Weights are seconds measured in CI and kept
@@ -20,7 +22,6 @@
     commands on a line were hit.
 #>
 
-Set-StrictMode -Version Latest
 
 function Get-PesterShardFile {
     <#
