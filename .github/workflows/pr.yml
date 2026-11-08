@@ -18,18 +18,16 @@
 #                   core ontology check)
 #   5. unit-ui    — Vitest tests for the UI
 #   6. node-launcher-ui-build — crawler wizard bundle check
-#   7. openapi    — Spectral lint on app/api/src/openapi.yaml
+#   7. static-gates — six small checks as steps of one job: file-length ratchet,
+#                   migration immutability, Node-version consistency, OpenAPI lint,
+#                   crawler-manifest completeness, compiled Azure templates
 #   8. audit      — npm audit on frontend and API packages
 #   9. hygiene    — tests + changelog fragment required for code changes
-#  10. crawler-manifest — CrawlerMeta.js completeness check
-#  11. duplication — jscpd clone detection; threshold in .jscpd.json
-#  12. filesize   — file-length ratchet (folded in from filesize.yml)
-#  13. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
-#  14. ci-scripts — self-tests for the path gates and the DoR scripts
-#  15. docs-build — MkDocs --strict, so a PR can't break the nav or a cross-link
-#  16. migration-immutability — migration hashes vs .ci/migration-hashes.json
-#  17. node-version — .nvmrc is the single source of truth for the Node major
-#  18. security-authz — authorization regression across REST and MCP (real PostgreSQL)
+#  10. duplication — jscpd clone detection; threshold in .jscpd.json
+#  11. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
+#  12. ci-scripts — self-tests for the path gates and the DoR scripts
+#  13. docs-build — MkDocs --strict, so a PR can't break the nav or a cross-link
+#  14. security-authz — authorization regression across REST and MCP (real PostgreSQL)
 #
 # All of the above feed ci-passed, so none needs to be an individual required
 # check — mark only ci-passed required, and it self-skips per the filter scopes.
@@ -627,28 +625,6 @@ jobs:
       - name: Build UI via the node-launcher pipeline
         run: node app/desktop/scripts/build-node-launcher.mjs --ui-only
 
-  # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
-  openapi:
-    name: 'Lint: OpenAPI spec'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.openapi == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        with:
-          node-version: '24'
-
-      - name: Install Spectral
-        run: npm install -g @stoplight/spectral-cli
-
-      - name: Lint openapi.yaml
-        run: spectral lint app/api/src/openapi.yaml
-
   # ── Stage 6: Dependency audit ────────────────────────────────────────────
   audit:
     name: 'Audit: npm audit'
@@ -799,84 +775,6 @@ jobs:
           fi
           echo "PR hygiene OK."
 
-  # ── Stage 8: Crawler manifest completeness ──────────────────────────────────
-  # Every user-facing crawler must have a CrawlerMeta.js. A crawler type must
-  # not appear as a hardcoded string or a stray type-named file anywhere in core
-  # — neither app/ui/ nor app/api/src/ — everything type-specific lives in
-  # tools/crawlers/<type>/ and core discovers it via the manifest (see #368).
-  # Library crawlers (used only as dependsOn, e.g. odata) are exempt.
-  crawler-manifest:
-    name: 'Lint: Crawler manifest completeness'
-    needs: [changes]
-    if: needs.changes.outputs.has_product_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check CrawlerMeta.js presence and no crawler-specific drift into app/ui or app/api
-        run: |
-          set -euo pipefail
-
-          # Library crawlers (dependsOn only) — never need CrawlerMeta.js.
-          LIBRARY_CRAWLERS="odata"
-
-          FAIL=0
-
-          for manifest in tools/crawlers/*/crawler.json; do
-            dir=$(dirname "$manifest")
-            type=$(node -e "process.stdout.write(require('./$manifest').type ?? '')")
-            [ -z "$type" ] && continue
-
-            # Skip library crawlers entirely.
-            if echo "$LIBRARY_CRAWLERS" | grep -qw "$type"; then continue; fi
-
-            # Check CrawlerMeta.js exists.
-            meta="$dir/CrawlerMeta.js"
-            if [ ! -f "$meta" ]; then
-              echo "::error file=$manifest::Crawler '$type' is missing CrawlerMeta.js — add one to $dir/"
-              FAIL=1
-            fi
-
-            # Crawler-specific files and hardcoded type strings must not appear
-            # anywhere under app/ui/ — everything belongs in tools/crawlers/<type>/.
-            stray_files=$(find app/ui/src app/ui/e2e -iname "*${type}*" 2>/dev/null || true)
-            if [ -n "$stray_files" ]; then
-              echo "::error::Found file(s) named after crawler type '$type' outside tools/crawlers/$type/ — move them there:"
-              echo "$stray_files"
-              FAIL=1
-            fi
-
-            hits=$(grep -rlE "(['\"])${type}\1" app/ui/src app/ui/e2e 2>/dev/null || true)
-            if [ -n "$hits" ]; then
-              echo "::error::Crawler type '$type' is hardcoded as a string outside tools/crawlers/$type/ — it must be discovered via CrawlerMeta.js only:"
-              echo "$hits"
-              FAIL=1
-            fi
-
-            # Same rule for the API core. Crawler-specific behaviour in the API
-            # must be manifest-driven (capability flags read via
-            # crawlerManifests.js), never a hardcoded type string. Exclusions:
-            # app-bundle.mjs is a gitignored generated bundle (vendored deps
-            # like mime-db legitimately contain type-like substrings), and test
-            # files are excluded the same way the UI side excludes its own.
-            api_files=$(find app/api/src -iname "*${type}*" ! -name 'app-bundle.mjs' ! -name '*.test.js' 2>/dev/null || true)
-            if [ -n "$api_files" ]; then
-              echo "::error::Found file(s) named after crawler type '$type' in app/api/src — move them to tools/crawlers/$type/:"
-              echo "$api_files"
-              FAIL=1
-            fi
-
-            api_hits=$(grep -rlE "(['\"])${type}\1" app/api/src --include='*.js' --include='*.mjs' --exclude='app-bundle.mjs' --exclude='*.test.js' 2>/dev/null || true)
-            if [ -n "$api_hits" ]; then
-              echo "::error::Crawler type '$type' is hardcoded as a string in app/api/src — core must discover behaviour via crawler.json manifest flags (see crawlerManifests.js), not type literals:"
-              echo "$api_hits"
-              FAIL=1
-            fi
-          done
-
-          if [ "$FAIL" = "1" ]; then exit 1; fi
-          echo "Crawler manifest check passed."
-
   # ── Stage 10: Code duplication threshold ─────────────────────────────────
   # Fails if overall duplication exceeds the threshold in .jscpd.json.
   # Threshold is 2% (above the 1.65% baseline after dedup phases 1-4). Lower it
@@ -919,35 +817,6 @@ jobs:
             echo "::error::This PR introduces $((HEAD_CLONES - BASE_CLONES)) new code clone(s) (base ${BASE_CLONES} -> head ${HEAD_CLONES}) below the aggregate threshold. Extract the shared code instead (Reuse before creating)."
             exit 1
           fi
-
-  # ── Stage 13: File-length ratchet ────────────────────────────────────────
-  # Enforces the CLAUDE.md "split before ~1000 lines" rule via a per-file baseline
-  # that only shrinks. Runs only when a measured source file changed (the `code`
-  # scope); part of ci-passed, so it blocks merge without a separate required
-  # check. See tools/filesize/ratchet.py.
-  filesize:
-    name: 'File-length ratchet'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.code == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Validate the ratchet gate logic (Python) before it gates anything.
-      - name: Test the ratchet gate logic
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/filesize/test_ratchet.py -q
-
-      # The report generator image runs this supervisor as its main process: it loads
-      # the model on demand and unloads it when idle. Standard library only.
-      - name: Test the report generator supervisor
-        run: python3 -m pytest setup/docker/report-generator/test_supervisor.py -q
-
-      - name: Run file-length ratchet
-        run: python3 tools/filesize/ratchet.py
 
   # ── Stage 14: Complexity ratchet (cyclomatic + cognitive) ────────────────
   # Per-unit complexity baselines that only ratchet down. Same `code` scope and
@@ -1083,73 +952,159 @@ jobs:
       - name: Build the site with warnings as errors
         run: mkdocs build --strict --site-dir /tmp/docs-site
 
-  # ── Stage 17: Migration immutability ─────────────────────────────────────
-  # "Never edit an existing migration — add a new file." The migration runner
-  # tracks applied files by NAME only (no checksum), so a silent edit to an
-  # applied migration would never re-run and would diverge environments. Hashes
-  # every migration against .ci/migration-hashes.json and fails on any change or
-  # deletion. See tools/migrations/ratchet.py.
-  migration-immutability:
-    name: Migration immutability gate
-    needs: [filter]
-    if: |
-      needs.filter.outputs.migrations == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
+  # ── Static gates: six small checks in one job ───────────────────────────
+  # File-length ratchet, migration immutability, Node-version consistency, OpenAPI
+  # lint, crawler-manifest completeness and the compiled Azure templates. Each does
+  # 5-20 s of work; as six separate jobs each also paid a 15-20 s runner start +
+  # checkout and held its own runner slot — six slots per push for about a minute
+  # of work, which is what queued every job for 14 minutes on a Dependabot burst.
+  #
+  # Each check is still scoped by its own path filter (step `if:`), still runs even
+  # when an earlier one fails (`continue-on-error`), and the Verdict step fails the
+  # job if ANY of them failed, with a per-check table in the job summary. When the
+  # path filter itself errors (`needs.filter.result != 'success'`) every check runs.
+  # test/ci-scripts/test-gate-wiring.sh asserts every check step feeds the Verdict.
+  static-gates:
+    name: 'Lint: static gates'
+    needs: [changes, filter]
+    if: ${{ !cancelled() && needs.changes.outputs.has_product_changes == 'true' }}
+    runs-on: ubuntu-latest   # git, python3, node, az and jq are preinstalled on the runner
+    env:
+      ALL: ${{ needs.filter.result != 'success' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Validate the gate logic (Python) before it gates anything.
-      - name: Test the gate logic
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest
+
+      # ── File-length ratchet (scope: code) ──────────────────────────────────
+      - name: 'File-length ratchet'
+        id: filesize
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.code == 'true')
+        continue-on-error: true
         run: |
-          python3 -m pip install --quiet pytest
+          # Validate the ratchet gate logic before it gates anything.
+          python3 -m pytest tools/filesize/test_ratchet.py -q
+          # The report generator image runs this supervisor as its main process: it
+          # loads the model on demand and unloads it when idle. Standard library only.
+          python3 -m pytest setup/docker/report-generator/test_supervisor.py -q
+          python3 tools/filesize/ratchet.py
+
+      # ── Migration immutability (scope: migrations) ─────────────────────────
+      - name: 'Migration immutability gate'
+        id: migrations
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.migrations == 'true')
+        continue-on-error: true
+        run: |
           python3 -m pytest tools/migrations/test_ratchet.py -q
+          python3 tools/migrations/ratchet.py
 
-      - name: Run migration immutability gate
-        run: python3 tools/migrations/ratchet.py
-
-  # ── Stage 18: Node-version consistency ───────────────────────────────────
-  # .nvmrc is the single source of truth for the Node major. Fails if any
-  # `node-version:` in a workflow, `FROM node:<v>` in a Dockerfile, or
-  # `engines.node` in a package.json declares a different major — so nothing can
-  # silently revert to an older Node. See tools/node-version/ratchet.py.
-  node-version:
-    name: Node-version gate
-    needs: [filter]
-    if: |
-      needs.filter.outputs.node_version == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Validate the gate logic (Python) before it gates anything.
-      - name: Test the gate logic
+      # ── Node-version consistency (scope: node_version) ─────────────────────
+      # .nvmrc is the single source of truth for the Node major. Fails if any
+      # `node-version:` in a workflow, `FROM node:<v>` in a Dockerfile, or
+      # `engines.node` in a package.json declares a different major.
+      - name: 'Node-version gate'
+        id: node_version
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.node_version == 'true')
+        continue-on-error: true
         run: |
-          python3 -m pip install --quiet pytest
           python3 -m pytest tools/node-version/test_ratchet.py -q
+          python3 tools/node-version/ratchet.py
 
-      - name: Run node-version gate
-        run: python3 tools/node-version/ratchet.py
+      # ── OpenAPI lint (scope: openapi) ───────────────────────────────────────
+      - name: Setup Node.js (for Spectral)
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.openapi == 'true')
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
 
-  # ── Stage 19: Compiled Azure templates match their Bicep source ──────────
-  # The Deploy to Azure button and every release package deploy the COMPILED
-  # azure/main.json and main-auth.json, not the .bicep files — so a .bicep change
-  # without a rebuild ships nothing, and a hand edit to the .json ships something
-  # no source describes. Rebuilt here with the Bicep version that produced the
-  # committed file (its metadata names it), so a newer compiler cannot turn this
-  # red on its own. No Azure sign-in: building needs none.
-  azure-templates:
-    name: 'Azure: compiled templates match Bicep'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.azure == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # az CLI and jq are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 'Lint: OpenAPI spec'
+        id: openapi
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.openapi == 'true')
+        continue-on-error: true
+        run: |
+          npm install -g @stoplight/spectral-cli
+          spectral lint app/api/src/openapi.yaml
 
-      - name: Rebuild and compare
+      # ── Crawler manifest completeness (every product-change push) ──────────
+      - name: 'Lint: Crawler manifest completeness'
+        id: crawler_manifest
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          # Library crawlers (dependsOn only) — never need CrawlerMeta.js.
+          LIBRARY_CRAWLERS="odata"
+
+          FAIL=0
+
+          for manifest in tools/crawlers/*/crawler.json; do
+            dir=$(dirname "$manifest")
+            type=$(node -e "process.stdout.write(require('./$manifest').type ?? '')")
+            [ -z "$type" ] && continue
+
+            # Skip library crawlers entirely.
+            if echo "$LIBRARY_CRAWLERS" | grep -qw "$type"; then continue; fi
+
+            # Check CrawlerMeta.js exists.
+            meta="$dir/CrawlerMeta.js"
+            if [ ! -f "$meta" ]; then
+              echo "::error file=$manifest::Crawler '$type' is missing CrawlerMeta.js — add one to $dir/"
+              FAIL=1
+            fi
+
+            # Crawler-specific files and hardcoded type strings must not appear
+            # anywhere under app/ui/ — everything belongs in tools/crawlers/<type>/.
+            stray_files=$(find app/ui/src app/ui/e2e -iname "*${type}*" 2>/dev/null || true)
+            if [ -n "$stray_files" ]; then
+              echo "::error::Found file(s) named after crawler type '$type' outside tools/crawlers/$type/ — move them there:"
+              echo "$stray_files"
+              FAIL=1
+            fi
+
+            hits=$(grep -rlE "(['\"])${type}\1" app/ui/src app/ui/e2e 2>/dev/null || true)
+            if [ -n "$hits" ]; then
+              echo "::error::Crawler type '$type' is hardcoded as a string outside tools/crawlers/$type/ — it must be discovered via CrawlerMeta.js only:"
+              echo "$hits"
+              FAIL=1
+            fi
+
+            # Same rule for the API core. Crawler-specific behaviour in the API
+            # must be manifest-driven (capability flags read via
+            # crawlerManifests.js), never a hardcoded type string. Exclusions:
+            # app-bundle.mjs is a gitignored generated bundle (vendored deps
+            # like mime-db legitimately contain type-like substrings), and test
+            # files are excluded the same way the UI side excludes its own.
+            api_files=$(find app/api/src -iname "*${type}*" ! -name 'app-bundle.mjs' ! -name '*.test.js' 2>/dev/null || true)
+            if [ -n "$api_files" ]; then
+              echo "::error::Found file(s) named after crawler type '$type' in app/api/src — move them to tools/crawlers/$type/:"
+              echo "$api_files"
+              FAIL=1
+            fi
+
+            api_hits=$(grep -rlE "(['\"])${type}\1" app/api/src --include='*.js' --include='*.mjs' --exclude='app-bundle.mjs' --exclude='*.test.js' 2>/dev/null || true)
+            if [ -n "$api_hits" ]; then
+              echo "::error::Crawler type '$type' is hardcoded as a string in app/api/src — core must discover behaviour via crawler.json manifest flags (see crawlerManifests.js), not type literals:"
+              echo "$api_hits"
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" = "1" ]; then exit 1; fi
+          echo "Crawler manifest check passed."
+
+      # ── Compiled Azure templates match Bicep (scope: azure) ────────────────
+      # The Deploy to Azure button and every release package deploy the COMPILED
+      # azure/main.json and main-auth.json, not the .bicep files — so a .bicep change
+      # without a rebuild ships nothing, and a hand edit to the .json ships something
+      # no source describes. Rebuilt with the Bicep version that produced the
+      # committed file (its metadata names it), so a newer compiler cannot turn this
+      # red on its own. No Azure sign-in: building needs none.
+      - name: 'Azure: compiled templates match Bicep'
+        id: azure
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.azure == 'true')
+        continue-on-error: true
         run: |
           set -euo pipefail
           stale=0
@@ -1167,6 +1122,35 @@ jobs:
             fi
           done
           exit $stale
+
+      # ── Verdict ─────────────────────────────────────────────────────────────
+      # `continue-on-error` turns each step's CONCLUSION green, so read the
+      # OUTCOMES. An out-of-scope step has outcome 'skipped'.
+      - name: Verdict
+        if: always()
+        env:
+          OUTCOMES: >-
+            File-length=${{ steps.filesize.outcome }}
+            Migration-immutability=${{ steps.migrations.outcome }}
+            Node-version=${{ steps.node_version.outcome }}
+            OpenAPI=${{ steps.openapi.outcome }}
+            Crawler-manifest=${{ steps.crawler_manifest.outcome }}
+            Azure-templates=${{ steps.azure.outcome }}
+        run: |
+          failed=""
+          { echo "| Check | Outcome |"; echo "|---|---|"; } >> "$GITHUB_STEP_SUMMARY"
+          for kv in $OUTCOMES; do
+            name="${kv%%=*}"; outcome="${kv#*=}"
+            echo "| $name | ${outcome:-skipped} |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$outcome" != "success" ] && [ "$outcome" != "skipped" ] && [ -n "$outcome" ]; then
+              failed="$failed $name"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Static gate(s) failed:$failed — open that step's log above."
+            exit 1
+          fi
+          echo "All in-scope static gates passed."
 
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
@@ -1190,19 +1174,14 @@ jobs:
       - security-authz
       - unit-ui
       - node-launcher-ui-build
-      - openapi
       - audit
       - supply-chain
       - hygiene
-      - crawler-manifest
       - duplication
-      - filesize
       - complexity
+      - static-gates
       - ci-scripts
       - docs-build
-      - migration-immutability
-      - node-version
-      - azure-templates
     if: always()
     runs-on: ubuntu-latest
     steps:
