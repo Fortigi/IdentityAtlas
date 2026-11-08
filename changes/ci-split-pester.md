@@ -1,0 +1,1 @@
+- Pull request checks finish sooner: the PowerShell unit tests now run in four parallel parts, and their coverage is combined before the 90% coverage floor is checked.

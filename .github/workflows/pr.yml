@@ -13,7 +13,7 @@
 # Jobs:
 #   1. lint-ps    — PSScriptAnalyzer on all PowerShell files
 #   2. lint-js    — ESLint on the frontend (app/ui)
-#   3. unit-tests — Pester tests with code coverage report
+#   3. unit-tests — Pester tests in 4 parallel shards, merged code coverage
 #   4. unit-js    — Vitest tests for the API (validation, middleware, docs structure,
 #                   core ontology check)
 #   5. unit-ui    — Vitest tests for the UI
@@ -179,6 +179,7 @@ jobs:
               - 'test/unit/**'
               - 'azure/**'
               - 'tools/release/**'
+              - 'tools/pester/**'
               # Self-referencing, as coverage.yml does: editing the scope config or this job's
               # own definition must run the job it configures, not silently skip it (#1088).
               - '.ci/psmutant.config.json'
@@ -358,13 +359,24 @@ jobs:
         run: npm run lint
 
   # ── Stage 3: Pester unit tests ───────────────────────────────────────────
-  unit-tests:
-    name: 'Unit Tests: Pester'
+  # Sharded over 4 runners: the single job was the slowest in PR Checks (~94s of
+  # tests behind ~20s of coverage set-up/processing), dominated by a few heavy
+  # files. tools/pester/PesterShards.ps1 assigns files heaviest-first using
+  # measured weights (test/unit/pester-weights.json); every shard measures coverage
+  # over the SAME product files, and `unit-tests` below merges them exactly (a
+  # command is covered when any shard executed it) before applying the floor.
+  # Changing the shard count: edit the matrix, SHARDS, and PESTER_SHARDS together.
+  unit-tests-shard:
+    name: 'Unit Tests: Pester (shard ${{ matrix.shard }}/4)'
     needs: [filter]
     if: |
       needs.filter.outputs.pester == 'true' ||
       needs.filter.result == 'failure'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -378,11 +390,23 @@ jobs:
             Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
           }
 
-      - name: Run Pester tests with coverage
+      - name: Run Pester shard with coverage
         shell: pwsh
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: 4
         run: |
+          . ./tools/pester/PesterShards.ps1
+          $root = (Get-Location).Path
+          $weights = (Get-Content test/unit/pester-weights.json -Raw | ConvertFrom-Json -AsHashtable).weights
+          $all = Get-ChildItem test/unit -Recurse -Filter '*.Tests.ps1' -File | ForEach-Object FullName
+          $mine = @(Get-PesterShardFile -TestFile $all -Weight $weights -Count $env:SHARDS -Index $env:SHARD)
+          if (-not $mine.Count) { throw "Shard $env:SHARD/$env:SHARDS was assigned no test files — lower the shard count." }
+          Write-Host "Shard $env:SHARD/$env:SHARDS runs $($mine.Count) of $($all.Count) test files:"
+          $mine | ForEach-Object { Write-Host "  $(Split-Path $_ -Leaf)" }
+
           $cfg = New-PesterConfiguration
-          $cfg.Run.Path = 'test/unit'
+          $cfg.Run.Path = $mine
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           # TestResult (JUnit/NUnit) export is deliberately OFF. Pester's XML writers don't sanitize
@@ -392,21 +416,8 @@ jobs:
           # captured test output only; both formats and both 5.7.1/5.9.0 crash the same way. Nothing
           # consumed pester-results.xml, and Output.Verbosity already logs every test's outcome.
           $cfg.CodeCoverage.Enabled = $true
-          # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
-          # that lives inside these dirs but isn't the crawler/SDK itself —
-          # self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*), and
-          # dev-only scripts. Same rationale as excluding *.test.js on the JS side.
-          $cfg.CodeCoverage.Path = @(
-            Get-ChildItem 'tools/powershell-sdk','tools/riskscoring' -Recurse -Filter '*.ps1' -File
-            (Get-ChildItem 'tools/crawlers' -Directory |
-              Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
-              ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File })
-          ) | Where-Object {
-            $_.Name -notlike '*.Tests.ps1' -and
-            $_.Name -notlike 'Test-*Crawler.ps1' -and
-            $_.Name -notlike 'Seed-*' -and
-            $_.FullName -notmatch '[\\/]dev[\\/]'
-          } | Select-Object -ExpandProperty FullName
+          # Every shard measures the same product files, so their coverage merges exactly.
+          $cfg.CodeCoverage.Path = Get-PesterCoverageTarget -Root $root
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
@@ -416,26 +427,68 @@ jobs:
             Write-Host '::error::Invoke-Pester returned no result object — it threw before returning (see the error above). The test outcome is UNKNOWN, not a pass.'
             exit 1
           }
-          $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
-          Write-Host "Coverage: $pct%"
+          New-Item -ItemType Directory -Force pester-shard | Out-Null
+          ConvertTo-PesterShardRecord -Result $result -Root $root |
+            ConvertTo-Json -Depth 3 -Compress | Set-Content "pester-shard/shard-$env:SHARD.json"
           if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload shard coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: pester-shard-${{ matrix.shard }}
+          path: pester-shard/
+          retention-days: 3
+
+  # Merges the shards' coverage and applies the PowerShell floor. Keeps the old
+  # job's id and check name, so the Pester result still reads as one check.
+  unit-tests:
+    name: 'Unit Tests: Pester'
+    needs: [filter, unit-tests-shard]
+    if: |
+      always() && needs.unit-tests-shard.result != 'skipped'
+    runs-on: ubuntu-latest
+    env:
+      PESTER_SHARDS: 4
+    steps:
+      - name: Require every shard to pass
+        if: needs.unit-tests-shard.result != 'success'
+        run: |
+          echo "::error::A Pester shard failed or was cancelled (result: ${{ needs.unit-tests-shard.result }}). See the 'Unit Tests: Pester (shard N/4)' jobs."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download shard coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pester-shard-*
+          path: pester-shard
+          merge-multiple: true
+
+      - name: Merge coverage and apply the floor
+        shell: pwsh
+        run: |
+          . ./tools/pester/PesterShards.ps1
+          $files = @(Get-ChildItem pester-shard -Filter 'shard-*.json' -File)
+          if ($files.Count -ne [int]$env:PESTER_SHARDS) {
+            Write-Host "::error::Expected $env:PESTER_SHARDS Pester shard records, found $($files.Count). Coverage would be incomplete."
+            exit 1
+          }
+          $merged = Merge-PesterShardRecord -Record @($files | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json })
+          $pct = [Math]::Round($merged.Percent, 1)
+          Write-Host "Tests: $($merged.Tests) over $($merged.Shards) shards, $($merged.Failed) failed."
+          Write-Host "Coverage: $pct% ($($merged.Covered) / $($merged.Analyzed) commands)"
+          "Pester: $($merged.Tests) tests over $($merged.Shards) shards, coverage **$pct%** ($($merged.Covered) / $($merged.Analyzed) commands)" >> $env:GITHUB_STEP_SUMMARY
+          if ($merged.Failed -gt 0) { exit 1 }
           # PowerShell coverage floor — the "coverage never down" ratchet for the
           # PS side (the JS side already has committed vitest thresholds). RAISE
           # this when coverage rises; only ever lower it as a reviewed, justified
-          # change. Measured ~91.9%.
+          # change. Measured ~92.1%.
           $FLOOR = 90.0
           if ($pct -lt $FLOOR) {
             Write-Host "::error::Pester coverage $pct% is below the floor of $FLOOR%. Add tests for the PowerShell you changed, or lower the floor in pr.yml with justification."
             exit 1
           }
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: pester-results
-          path: pester-coverage.xml
-          retention-days: 14
 
   # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────
   unit-js:
@@ -1184,6 +1237,7 @@ jobs:
       - filter
       - lint-ps
       - lint-js
+      - unit-tests-shard
       - unit-tests
       - unit-js
       - contract-tests
