@@ -1,0 +1,1 @@
+- The Test Coverage docs page now updates faster after a merge: it reuses the API and UI coverage the pull request's checks already measured whenever the merged code is identical, and only re-runs a suite when it is not. No change to the published numbers.
