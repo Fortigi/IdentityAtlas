@@ -25,7 +25,8 @@ function testFiles(dir) {
   return out
 }
 
-// Matches a call, not the words in a comment or string about it.
+// Matches a `process.chdir(` call. It is a text scan, so a mention in a comment
+// would also match; reword the comment rather than weakening this.
 const CHDIR_CALL = /\bprocess\.chdir\s*\(/
 
 describe('UI test suite runs in worker threads', () => {
