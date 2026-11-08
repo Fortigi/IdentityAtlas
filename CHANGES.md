@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Added a Compare view: put two or three users side by side and see where their access and attributes differ. Open it with "Compare with…" on a user's page, or select 2–3 users on the Users list and click "Compare". By default it shows only the differences and hides names, e-mail addresses and IDs; both can be switched off. The comparison has its own link, so it can be bookmarked or shared.
+
+## Changes in this PR
+
 - Context owners — people who are Accountable or Responsible for a department, team or application — can now use the MCP server from Claude, ChatGPT or Microsoft 365 Copilot without an Identity Atlas role. They see exactly what they see in the app: their contexts, the people in them, what those people hold (or who holds an application), and their sub-units. An admin turns it on under Admin → Roles & Permissions → Relative permissions → "Context owners may also use the MCP server" (off by default, and only while context-owner access is on).
 - For a context owner, every question the assistant asks is limited to their scope inside the query itself: the records listed, filters, groupings and "did you mean" suggestions never reach past it. Reports are limited to the two reports they can download in the app, on their own contexts.
 - As in the app, a context owner's assistant sees the complete member list of a group they may open — people outside their part by name only — and a person outside their part, asked about by full name, is reported as existing but out of reach rather than as not found.
