@@ -2498,6 +2498,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/mcp-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP and Relative Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -3131,6 +3159,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Who may use it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context-owners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context owners
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5875,6 +5920,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Who may use it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#context-owners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context owners
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6135,6 +6197,11 @@ from the answers.</p>
 <td>Answer a free-form question with a report definition</td>
 <td>Ask questions in plain language</td>
 </tr>
+<tr>
+<td><code>get_photos</code></td>
+<td>Profile photos of up to 10 accounts, as images and as data URIs (for an org chart or a card)</td>
+<td>Read all data</td>
+</tr>
 </tbody>
 </table>
 <p><code>run_query</code> uses the same engine as <strong>Reports → Ask</strong>: the assistant writes a JSON report
@@ -6146,11 +6213,22 @@ answer says <code>"truncated": true</code> and gives the full count as <code>tot
 past 5,000), so the assistant can say "119 groups" rather than "100". Every record
 carries its id, which the assistant uses to chain one query into the next, and a link
 back to its page in Identity Atlas.</p>
+<p>Every answer also carries <code>scope</code>, which says whether authorization limited it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"scope"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"restricted"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"basis"</span><span class="p">:</span><span class="w"> </span><span class="s2">"context-owner"</span><span class="p">,</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">           </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Only what you may see as the Accountable or Responsible person for …"</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">           </span><span class="nt">"contexts"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"…"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"CTO (Carla Cash)"</span><span class="p">,</span><span class="w"> </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Accountable"</span><span class="w"> </span><span class="p">}]</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p><code>restricted</code> and <code>truncated</code> are different things: <code>restricted</code> means the person may only
+see part of the organisation, so <code>total</code> counts that part and never the whole; <code>truncated</code>
+means the row cap cut the list off. The server instructions tell the assistant to say so,
+and never to present a restricted count as the organisation's total. For somebody with a
+role the block reads <code>{ "restricted": false, "basis": "role", … }</code>.</p>
 <p>A group that is "empty" or "without members" is read as fully empty: no accounts,
 devices, nested groups or eligible members. When groups exist that hold no accounts but
 do hold devices or nested groups, the assistant says how many and offers to list them.</p>
 <h2 id="who-may-use-it">Who may use it<a class="headerlink" href="#who-may-use-it" title="Permanent link">&para;</a></h2>
-<p>Three things must all be true:</p>
+<p>Three things must all be true (or, instead of the third, the person is a
+<a href="#context-owners">context owner</a> and the switch for them is on):</p>
 <ol>
 <li><strong>Sign-in is on.</strong> With authentication off there is no user to act for: the endpoint
    answers <code>404</code> and the switch refuses to turn on.</li>
@@ -6161,6 +6239,32 @@ do hold devices or nested groups, the assistant says how many and offers to list
    assistant never sees more than its user could.</li>
 </ol>
 <p>API keys (<code>fgr_</code> / <code>fgc_</code>) are refused — they act for no one.</p>
+<h3 id="context-owners">Context owners<a class="headerlink" href="#context-owners" title="Permanent link">&para;</a></h3>
+<p>A person who is <strong>Accountable or Responsible for a context</strong> but holds no Identity Atlas
+role (a department manager, an application owner —
+<a href="../../architecture/context-owner-access/">context-owner access</a>) may also use the MCP
+server, when the admin turns on <strong>Admin → Roles &amp; Permissions → Relative permissions →
+Context owners may also use the MCP server</strong> (next to the context-owner switch, which must
+be on too). They then see exactly what they see in the app, enforced by the same code:</p>
+<ul>
+<li>every <code>run_query</code> lists only the records they may open — their contexts' members,
+  what those members hold (or, for an application, who holds it), their sub-units. For
+  those records, member lists and counts are complete by name, as in the app; anything
+  more about a related record outside their part (its other fields, filtering on it) is not
+  available;</li>
+<li><code>search</code> and every name lookup find those records. Somebody outside their part, named
+  by their exact full name, is reported as <strong>existing but out of reach</strong> — name and type
+  only — so the assistant can say "she exists, but I can't show details" instead of "not
+  found". A name that exists nowhere is "not found";</li>
+<li><code>list_reports</code> / <code>run_report</code> offer only the two reports the app lets them download on
+  their own contexts (by id), and refuse anything else as if it did not exist;</li>
+<li><code>get_photos</code> returns photos of the people they may open and their own, as their
+  pages in the app show them; for anyone else it answers as for an unknown id;</li>
+<li>comparing with a reference record is not available to them.</li>
+</ul>
+<p>Somebody who holds any Identity Atlas permission is not treated as a context owner here,
+as in the app: without <strong>Use the MCP server</strong> they are refused. How this is enforced and
+tested: <a href="../../architecture/mcp-authorization/">MCP and relative permissions</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Data leaves the deployment</p>
 <p>What the assistant reads is sent to that assistant's vendor (Anthropic, OpenAI,
@@ -6272,19 +6376,19 @@ account, and the secret on its own gets no data.</p>
   signing in on that date until you give them a new one.</li>
 </ul>
 <p>With the Azure CLI, as an Application Administrator (replace the two ids and the host):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">API_APP_ID</span><span class="o">=</span>&lt;client<span class="w"> </span>id<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Identity<span class="w"> </span>Atlas<span class="w"> </span>app&gt;
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">SCOPE_ID</span><span class="o">=</span>&lt;id<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Mcp.Read<span class="w"> </span>scope,<span class="w"> </span>from<span class="w"> </span>step<span class="w"> </span><span class="m">1</span>&gt;
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">CLIENT_APP_ID</span><span class="o">=</span><span class="k">$(</span>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>--display-name<span class="w"> </span><span class="s2">"Identity Atlas MCP clients"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--sign-in-audience<span class="w"> </span>AzureADMyOrg<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--web-redirect-uris<span class="w"> </span><span class="s2">"https://claude.ai/api/mcp/auth_callback"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span>--public-client-redirect-uris<span class="w"> </span><span class="s2">"http://localhost"</span><span class="w"> </span><span class="s2">"http://127.0.0.1"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--query<span class="w"> </span>appId<span class="w"> </span>-o<span class="w"> </span>tsv<span class="k">)</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span><span class="w"> </span>--required-resource-accesses<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="s2">"[{\"resourceAppId\":\"</span><span class="nv">$API_APP_ID</span><span class="s2">\",\"resourceAccess\":[{\"id\":\"</span><span class="nv">$SCOPE_ID</span><span class="s2">\",\"type\":\"Scope\"}]}]"</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>az<span class="w"> </span>ad<span class="w"> </span>sp<span class="w"> </span>create<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>permission<span class="w"> </span>admin-consent<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>credential<span class="w"> </span>reset<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span><span class="w"> </span>--append<span class="w"> </span>--display-name<span class="w"> </span>assistants<span class="w"> </span>--years<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span>--query<span class="w"> </span>password<span class="w"> </span>-o<span class="w"> </span>tsv<span class="w"> </span>&gt;<span class="w"> </span>client-secret.txt<span class="w">   </span><span class="c1"># keep this file safe</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">API_APP_ID</span><span class="o">=</span>&lt;client<span class="w"> </span>id<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Identity<span class="w"> </span>Atlas<span class="w"> </span>app&gt;
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">SCOPE_ID</span><span class="o">=</span>&lt;id<span class="w"> </span>of<span class="w"> </span>the<span class="w"> </span>Mcp.Read<span class="w"> </span>scope,<span class="w"> </span>from<span class="w"> </span>step<span class="w"> </span><span class="m">1</span>&gt;
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nv">CLIENT_APP_ID</span><span class="o">=</span><span class="k">$(</span>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>create<span class="w"> </span>--display-name<span class="w"> </span><span class="s2">"Identity Atlas MCP clients"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--sign-in-audience<span class="w"> </span>AzureADMyOrg<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--web-redirect-uris<span class="w"> </span><span class="s2">"https://claude.ai/api/mcp/auth_callback"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--public-client-redirect-uris<span class="w"> </span><span class="s2">"http://localhost"</span><span class="w"> </span><span class="s2">"http://127.0.0.1"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--query<span class="w"> </span>appId<span class="w"> </span>-o<span class="w"> </span>tsv<span class="k">)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>update<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span><span class="w"> </span>--required-resource-accesses<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="s2">"[{\"resourceAppId\":\"</span><span class="nv">$API_APP_ID</span><span class="s2">\",\"resourceAccess\":[{\"id\":\"</span><span class="nv">$SCOPE_ID</span><span class="s2">\",\"type\":\"Scope\"}]}]"</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>az<span class="w"> </span>ad<span class="w"> </span>sp<span class="w"> </span>create<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>permission<span class="w"> </span>admin-consent<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>az<span class="w"> </span>ad<span class="w"> </span>app<span class="w"> </span>credential<span class="w"> </span>reset<span class="w"> </span>--id<span class="w"> </span><span class="s2">"</span><span class="nv">$CLIENT_APP_ID</span><span class="s2">"</span><span class="w"> </span>--append<span class="w"> </span>--display-name<span class="w"> </span>assistants<span class="w"> </span>--years<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span>--query<span class="w"> </span>password<span class="w"> </span>-o<span class="w"> </span>tsv<span class="w"> </span>&gt;<span class="w"> </span>client-secret.txt<span class="w">   </span><span class="c1"># keep this file safe</span>
 </code></pre></div>
 <h3 id="3-connect-an-assistant">3. Connect an assistant<a class="headerlink" href="#3-connect-an-assistant" title="Permanent link">&para;</a></h3>
 <p>Every assistant needs the same three values:</p>
@@ -6327,7 +6431,7 @@ account, and the secret on its own gets no data.</p>
 desktop app and on mobile. Charts and tables are drawn by Claude itself from the rows.</p>
 <p><strong>Claude Code</strong> (runs on the user's machine, so it also works for an installation that is
 only reachable internally):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>identity-atlas<span class="w"> </span>https://&lt;your<span class="w"> </span>host&gt;/mcp<span class="w"> </span>--client-id<span class="w"> </span>&lt;client<span class="w"> </span>id&gt;<span class="w"> </span>--callback-port<span class="w"> </span><span class="m">33418</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>identity-atlas<span class="w"> </span>https://&lt;your<span class="w"> </span>host&gt;/mcp<span class="w"> </span>--client-id<span class="w"> </span>&lt;client<span class="w"> </span>id&gt;<span class="w"> </span>--callback-port<span class="w"> </span><span class="m">33418</span>
 </code></pre></div>
 <p>then run <code>/mcp</code> in Claude Code to sign in.</p>
 <h4 id="chatgpt">ChatGPT<a class="headerlink" href="#chatgpt" title="Permanent link">&para;</a></h4>
@@ -6443,11 +6547,11 @@ follow the vendors' documentation; their menus change often, so if a label diffe
 the three values above (URL, client ID and secret, scope) are still all you need.</p>
 </div>
 <h2 id="how-sign-in-works">How sign-in works<a class="headerlink" href="#how-sign-in-works" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>assistant ──POST /mcp (no token)──────────────▶ Identity Atlas   401 + WWW-Authenticate: resource_metadata=…
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>assistant ──GET /.well-known/oauth-protected-resource/mcp──────▶ { authorization_servers: [Entra tenant], scopes_supported: [&lt;host&gt;/mcp/Mcp.Read] }
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>assistant ──sign the user in (OAuth + PKCE)───▶ Entra ID         access token for the user, scp = Mcp.Read
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>assistant ──POST /mcp (Bearer token)──────────▶ Identity Atlas   token checked: signature, tenant, issuer, audience,
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>                                                                  scope Mcp.Read, role → mcp.use; then the tool runs
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>assistant ──POST /mcp (no token)──────────────▶ Identity Atlas   401 + WWW-Authenticate: resource_metadata=…
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>assistant ──GET /.well-known/oauth-protected-resource/mcp──────▶ { authorization_servers: [Entra tenant], scopes_supported: [&lt;host&gt;/mcp/Mcp.Read] }
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>assistant ──sign the user in (OAuth + PKCE)───▶ Entra ID         access token for the user, scp = Mcp.Read
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>assistant ──POST /mcp (Bearer token)──────────▶ Identity Atlas   token checked: signature, tenant, issuer, audience,
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>                                                                  scope Mcp.Read, role → mcp.use; then the tool runs
 </code></pre></div>
 <p>This is delegated access: the token belongs to the signed-in user, and every query runs
 with that user's rights and is logged under their name. It is not Entra's

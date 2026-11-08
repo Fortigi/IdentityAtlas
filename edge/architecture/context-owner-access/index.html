@@ -16,7 +16,7 @@
         <link rel="prev" href="../../admin/authentication/">
       
       
-        <link rel="next" href="../../admin/data-tab/">
+        <link rel="next" href="../mcp-authorization/">
       
       
         
@@ -2652,10 +2652,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#reusing-this-scope-mcp" class="md-nav__link">
+  <a href="#reusing-this-scope-api-code" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reusing this scope (MCP)
+        Reusing this scope (API code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The MCP server
       
     </span>
   </a>
@@ -2704,6 +2715,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP and Relative Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -5967,10 +6006,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#reusing-this-scope-mcp" class="md-nav__link">
+  <a href="#reusing-this-scope-api-code" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reusing this scope (MCP)
+        Reusing this scope (API code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The MCP server
       
     </span>
   </a>
@@ -6145,17 +6195,21 @@ relates to:</p>
 <p>The <strong>Roles &amp; Permissions</strong> admin tab groups them in a <strong>Relative permissions</strong>
 section below the role table. Matrix sharing has
 no setting there and its behaviour is unchanged. Today the two are enforced
-separately: a context owner by the allow-list on this page, a share recipient
-by the share itself. A single data-level scope that matrix shares and the MCP
-server could also run under — "this caller may see these principals and
-resources" rather than "these endpoints" — is a later, separate track
-(<a href="https://github.com/Fortigi/IdentityAtlas/issues/1105">#1105</a>).</p>
+separately: a context owner by the allow-list and the tiers on this page (the
+MCP server reuses both — <a href="#the-mcp-server">The MCP server</a>), a share recipient
+by the share itself. Running matrix shares under the same data-level scope is a
+later, separate track (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1105">#1105</a>).</p>
 <h2 id="turning-it-on">Turning it on<a class="headerlink" href="#turning-it-on" title="Permanent link">&para;</a></h2>
 <p><strong>Admin → Roles &amp; Permissions → Relative permissions → Context
 owners</strong> (needs <code>admin.auth</code>). Off by default. The setting is stored in
 <code>WorkerConfig</code> as <code>CONTEXT_OWNER_ACCESS</code> and takes effect on the next request;
 no restart.</p>
-<p>API: <code>GET</code> / <code>PUT /api/admin/context-owner-access</code> with <code>{ "enabled": true }</code>.</p>
+<p>Below it, <strong>Context owners may also use the MCP server</strong> (<code>CONTEXT_OWNER_MCP</code>,
+off by default) lets the same people ask about their contexts from an AI
+assistant, under exactly the same scope — see <a href="#the-mcp-server">The MCP server</a>.
+It only has effect while the first switch is on.</p>
+<p>API: <code>GET</code> / <code>PUT /api/admin/context-owner-access</code> with <code>{ "enabled": true }</code>
+and/or <code>{ "mcp": true }</code>; a field left out keeps its value.</p>
 <h2 id="who-qualifies">Who qualifies<a class="headerlink" href="#who-qualifies" title="Permanent link">&para;</a></h2>
 <p>A signed-in user qualifies when <strong>all</strong> of these hold:</p>
 <ul>
@@ -6434,11 +6488,10 @@ are not on the list; the views carry on without them (no tag chips, no expand
 arrow on a nested group). The application matrix has no org roll-up: the
 roll-up groups people by their unit tree, and an application's tree is one of
 resources.</p>
-<h3 id="reusing-this-scope-mcp">Reusing this scope (MCP)<a class="headerlink" href="#reusing-this-scope-mcp" title="Permanent link">&para;</a></h3>
-<p>The MCP server (#1508) answers on behalf of the signed-in user and must apply
-exactly this scope. Everything it needs is exported from
-<code>app/api/src/auth/ownerAccess/index.js</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createOwnerAccess</span><span class="p">,</span><span class="w"> </span><span class="nx">ownerMatrixVerdict</span><span class="p">,</span><span class="w"> </span><span class="nx">annotateReferences</span><span class="p">,</span><span class="w"> </span><span class="nx">entityEndpointFor</span><span class="p">,</span><span class="w"> </span><span class="nx">refsFor</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../auth/ownerAccess/index.js'</span><span class="p">;</span>
+<h3 id="reusing-this-scope-api-code">Reusing this scope (API code)<a class="headerlink" href="#reusing-this-scope-api-code" title="Permanent link">&para;</a></h3>
+<p>Everything another surface needs to answer on an owner's behalf is exported
+from <code>app/api/src/auth/ownerAccess/index.js</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createOwnerAccess</span><span class="p">,</span><span class="w"> </span><span class="nx">ownerMatrixVerdict</span><span class="p">,</span><span class="w"> </span><span class="nx">annotateReferences</span><span class="p">,</span><span class="w"> </span><span class="nx">OPENABLE_SQL</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">'../auth/ownerAccess/index.js'</span><span class="p">;</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kd">const</span><span class="w"> </span><span class="nx">owner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">resolveContextOwner</span><span class="p">(</span><span class="nx">user</span><span class="p">);</span><span class="w">              </span><span class="c1">// auth/contextOwner.js — null for a non-owner</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kd">const</span><span class="w"> </span><span class="nx">access</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createOwnerAccess</span><span class="p">(</span><span class="nx">owner</span><span class="p">.</span><span class="nx">contextIds</span><span class="p">);</span><span class="w">         </span><span class="c1">// one per request</span>
@@ -6447,15 +6500,22 @@ exactly this scope. Everything it needs is exported from
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">await</span><span class="w"> </span><span class="nx">access</span><span class="p">.</span><span class="nx">accessibleIds</span><span class="p">(</span><span class="s1">'principal'</span><span class="p">,</span><span class="w"> </span><span class="nx">ids</span><span class="p">);</span><span class="w">              </span><span class="c1">// batch: the Set of ids that open</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="nx">ownerMatrixVerdict</span><span class="p">(</span><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">owner</span><span class="p">.</span><span class="nx">contextIds</span><span class="p">,</span><span class="w"> </span><span class="nx">contextTypes</span><span class="p">);</span><span class="w">   </span><span class="c1">// { ok, filter } for a matrix query</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">await</span><span class="w"> </span><span class="nx">annotateReferences</span><span class="p">(</span><span class="nx">body</span><span class="p">,</span><span class="w"> </span><span class="nx">refs</span><span class="p">,</span><span class="w"> </span><span class="nx">access</span><span class="p">);</span><span class="w">               </span><span class="c1">// mark references in a result</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nx">OPENABLE_SQL</span><span class="p">.</span><span class="nx">resource</span><span class="p">(</span><span class="s1">'t0."id"'</span><span class="p">,</span><span class="w"> </span><span class="s1">'$1::uuid[]'</span><span class="p">);</span><span class="w">             </span><span class="c1">// the same rule as an SQL predicate, for inside a query</span>
 </code></pre></div>
 <p>Kinds accept the data model's words (<code>principal</code>, <code>identity</code>, <code>resource</code>,
 <code>context</code>, <code>member</code>) and the UI's (<code>user</code>, <code>group</code>, <code>access-package</code>,
-<code>business-role</code>). A tool that returns an object should check <code>canOpen</code> first
-and refuse otherwise (the tiers are already the union over every context the
-owner holds — one access object covers a unit and an application alike); a tool
-that runs a matrix query should pass it through <code>ownerMatrixVerdict</code> and run
-only the filter it returns; a tool that lists references should return them all and
-mark each from <code>accessibleIds</code>, as the REST responses do.</p>
+<code>business-role</code>). <code>OPENABLE_SQL</code> is what the tier statements themselves are
+built from, so a query that embeds it agrees with <code>canOpen</code> by construction.</p>
+<h3 id="the-mcp-server">The MCP server<a class="headerlink" href="#the-mcp-server" title="Permanent link">&para;</a></h3>
+<p>With <strong>Context owners may also use the MCP server</strong> on, an owner can connect
+Claude, ChatGPT or Copilot (<a href="../../reference/mcp-server/#context-owners">MCP server</a>)
+and gets exactly the scope on this page: every query the assistant runs is
+compiled with <code>OPENABLE_SQL</code> on its own table, inside every relation and inside
+every relation column; name lookups and search are restricted the same way; a
+report runs only when this page's allow-list would let the owner download it.
+Every answer says it is restricted. Design, enforcement points and the
+regression suite that keeps REST and MCP in step:
+<a href="../mcp-authorization/">MCP and relative permissions</a>.</p>
 <h2 id="enforcement">Enforcement<a class="headerlink" href="#enforcement" title="Permanent link">&para;</a></h2>
 <p>Enforced by the API, not the UI:</p>
 <ul>
