@@ -43,7 +43,18 @@ function getUserAttributeEntries(data) {
   return buildAttributeEntries(data.attributes, data.attributes.extendedAttributesParsed, HIDDEN_FIELDS);
 }
 
-function UserHeader({ data }) {
+// Opens the Compare tab with this user, to pick one or two more to set beside it.
+function CompareButton({ userId, onOpenDetail }) {
+  if (!onOpenDetail) return null;
+  return (
+    <button type="button" onClick={() => onOpenDetail('compare', userId)}
+      className="ml-auto self-start px-2.5 py-1 rounded text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+      Compare with…
+    </button>
+  );
+}
+
+function UserHeader({ data, userId, onOpenDetail }) {
   const isDark = useIsDark();
   const { attributes, tags, lastActivity } = data;
   const typeClass = ACCOUNT_TYPE_COLORS[attributes.principalType] || ACCOUNT_TYPE_COLORS_DEFAULT;
@@ -71,6 +82,7 @@ function UserHeader({ data }) {
             <p className="text-xs text-gray-600 dark:text-gray-500">System: {attributes.systemDisplayName || attributes.systemId}</p>
           )}
         </div>
+        <CompareButton userId={userId} onOpenDetail={onOpenDetail} />
       </div>
       <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
         {attributes.jobTitle && <span>{attributes.jobTitle}</span>}
@@ -155,7 +167,7 @@ export default function UserDetailPage({ userId, cachedData, onCacheData, onClos
       graphCenterLabel="User"
       getTabs={getTabs}
       getAttributeEntries={getUserAttributeEntries}
-      renderHeader={(data) => <UserHeader data={data} />}
+      renderHeader={(data) => <UserHeader data={data} userId={userId} onOpenDetail={onOpenDetail} />}
       renderAttributesExtra={() => (
         <>
           <UserActivitySection userId={userId} authFetch={authFetch} onOpenDetail={onOpenDetail} />

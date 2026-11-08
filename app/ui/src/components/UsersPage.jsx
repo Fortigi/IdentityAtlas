@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import EntityListPage from './EntityListPage';
 import DeletedBadge from './DeletedBadge';
 import { formatDateOnly } from '@ui/utils/formatters';
+import { MAX_COMPARE, compareRouteId } from './compare/entityCompare.helpers';
 
 const FIELD_LABELS = {
   department: 'Department',
@@ -60,6 +61,19 @@ function writeTypeToHash(tab) {
   if (tab === 'all') params.delete('type'); else params.set('type', tab);
   const qs = params.toString();
   window.history.replaceState(null, '', `#${page}${qs ? '?' + qs : ''}`);
+}
+
+// Compare 2–3 selected principals side by side (the #compare tab).
+export function CompareSelectedButton({ ids, onOpenDetail }) {
+  const ok = ids.length >= 2 && ids.length <= MAX_COMPARE;
+  return (
+    <button type="button" disabled={!ok}
+      onClick={() => onOpenDetail?.('compare', compareRouteId(ids))}
+      title={ok ? 'Show the selected users side by side' : `Select 2 or ${MAX_COMPARE} to compare`}
+      className="px-3 py-1 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+      Compare
+    </button>
+  );
 }
 
 export default function UsersPage({ onOpenDetail }) {
@@ -138,6 +152,7 @@ export default function UsersPage({ onOpenDetail }) {
       baseFilters={baseFilters}
       customizeFilterFields={customizeFilterFields}
       onOpenDetail={onOpenDetail}
+      renderSelectionActions={(ids) => <CompareSelectedButton ids={ids} onOpenDetail={onOpenDetail} />}
     />
   );
 }

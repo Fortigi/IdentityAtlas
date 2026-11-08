@@ -113,6 +113,57 @@ describe('GET /api/user/:id/diff', () => {
   });
 });
 
+describe('GET /api/<kind>/:id/snapshot', () => {
+  it('returns the user as it is now, with labelled relationships and no history lookups', async () => {
+    stage();
+    const res = await request(app).get(`/api/user/${USER}/snapshot`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: USER, omitted: 0 });
+    expect(res.body.snapshot.attributes.department).toBe('Finance');
+    expect(res.body.snapshot.relationships.map(i => `${i.group}:${i.label}`))
+      .toEqual(['Business roles:Head of Sales', 'Groups:Finance Team']);
+    expect(query.mock.calls.some(([sql]) => sql.includes('WITH h AS'))).toBe(false);
+    expect(queryOne.mock.calls.some(([sql]) => sql.includes('"_history"'))).toBe(false);
+  });
+
+  it('reads current rows with the plain cap as the limit', async () => {
+    stage();
+    await request(app).get(`/api/user/${USER}/snapshot`);
+    const call = query.mock.calls.find(([sql]) => sql.includes('count(*) OVER ()') && sql.includes('"ResourceAssignments"'));
+    expect(call[1]).toEqual([USER, UNCHANGED_CAP]);
+  });
+
+  it('reads a resource from Resources with its members', async () => {
+    stage({ current: { id: GROUP, displayName: 'Finance Team' } });
+    const res = await request(app).get(`/api/resources/${GROUP}/snapshot`);
+    expect(res.status).toBe(200);
+    expect(queryOne.mock.calls[0][0]).toContain('FROM "Resources" t');
+    const ra = query.mock.calls.find(([sql]) => sql.includes('"ResourceAssignments"'));
+    expect(ra[0]).toContain('t."resourceId" = $1');
+  });
+
+  it('400 on a malformed id, 404 when the entity does not exist now', async () => {
+    expect((await request(app).get('/api/user/nope/snapshot')).status).toBe(400);
+    stage({ current: null });
+    expect((await request(app).get(`/api/identities/${USER}/snapshot`)).status).toBe(404);
+  });
+
+  it('500 when a query fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    queryOne.mockRejectedValue(new Error('boom'));
+    query.mockResolvedValue({ rows: [] });
+    const res = await request(app).get(`/api/access-package/${ROLE}/snapshot`);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to load snapshot');
+    spy.mockRestore();
+  });
+
+  it('has no contexts route', async () => {
+    expect((await request(app).get(`/api/contexts/${USER}/snapshot`)).status).toBe(404);
+    expect(queryOne).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /api/contexts/:id/diff', () => {
   it('has no relationship sources and reports that', async () => {
     stage({ current: { id: USER, displayName: 'Ctx' } });

@@ -18,16 +18,36 @@ vi.mock('@ui/components/adjustTree/AdjustTreePage', () => ({
   ),
 }));
 
+vi.mock('@ui/components/compare/EntityComparePage', () => ({
+  default: ({ compareId, onReplaceRoute }) => (
+    <div>
+      <span data-testid="compare-id">{compareId}</span>
+      <button type="button" onClick={() => onReplaceRoute('a,b,c')}>replace-probe</button>
+    </div>
+  ),
+}));
+
 function mount(page, cache = {}) {
   const closeDetailTab = vi.fn();
+  const replaceDetailTab = vi.fn();
   const onCacheData = vi.fn();
   renderWithProviders(
     <Suspense fallback={<span>loading</span>}>
-      <DetailRoute page={page} detailCacheRef={{ current: cache }} onCacheData={onCacheData} openDetailTab={vi.fn()} closeDetailTab={closeDetailTab} />
+      <DetailRoute page={page} detailCacheRef={{ current: cache }} onCacheData={onCacheData} openDetailTab={vi.fn()}
+        closeDetailTab={closeDetailTab} replaceDetailTab={replaceDetailTab} />
     </Suspense>,
   );
-  return { closeDetailTab };
+  return { closeDetailTab, replaceDetailTab };
 }
+
+describe('DetailRoute — compare', () => {
+  it('opens the compare page on the id list and lets it replace its own address', async () => {
+    const { replaceDetailTab } = mount('compare:a,b');
+    expect(await screen.findByTestId('compare-id')).toHaveTextContent('a,b');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'replace-probe' }));
+    expect(replaceDetailTab).toHaveBeenCalledWith('compare', 'a,b', 'a,b,c');
+  });
+});
 
 describe('DetailRoute — adjust-tree', () => {
   it('opens the Adjust tree page on the key after the first colon, with the cache hook', async () => {

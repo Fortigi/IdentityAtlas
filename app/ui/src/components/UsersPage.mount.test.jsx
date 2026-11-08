@@ -34,6 +34,33 @@ function renderPage(rows, onOpenDetail = () => {}, columns = []) {
 
 const ada = { id: 'u1', displayName: 'Ada Lovelace', userPrincipalName: 'ada@example.com', department: 'Engineering', jobTitle: 'Analyst' };
 
+describe('UsersPage — compare selected', () => {
+  const bob = { ...ada, id: 'u2', displayName: 'Bob Byron' };
+  const cy = { ...ada, id: 'u3', displayName: 'Cy Coder' };
+  const dee = { ...ada, id: 'u4', displayName: 'Dee Data' };
+  const select = (name) => fireEvent.click(screen.getByRole('checkbox', { name: `Select ${name}` }));
+
+  it('opens the compare tab with two or three selected, and not with one or four', async () => {
+    const onOpenDetail = vi.fn();
+    renderPage([ada, bob, cy, dee], onOpenDetail);
+    await screen.findByText('Ada Lovelace');
+
+    select('Ada Lovelace');
+    const compare = screen.getByRole('button', { name: 'Compare' });
+    expect(compare).toBeDisabled();
+
+    select('Bob Byron');
+    expect(compare).toBeEnabled();
+    select('Cy Coder');
+    fireEvent.click(compare);
+    expect(onOpenDetail).toHaveBeenCalledWith('compare', 'u1,u2,u3');
+
+    select('Dee Data');
+    expect(compare).toBeDisabled();
+    expect(compare).toHaveAttribute('title', 'Select 2 or 3 to compare');
+  });
+});
+
 describe('UsersPage rows', () => {
   it('renders a principal row and opens the detail with the user entity type', async () => {
     const onOpenDetail = vi.fn();

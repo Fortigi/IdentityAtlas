@@ -17,6 +17,7 @@ export function tabBadge(type) {
     case 'context-builder': return 'EDIT';
     case 'adjust-tree': return 'ADJ';
     case 'workbench':   return 'WB';
+    case 'compare':     return 'CMP';
     case 'access-package':
     default:            return 'AP';
   }

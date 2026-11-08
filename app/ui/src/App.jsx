@@ -15,7 +15,7 @@ import { FeaturesContext } from './contexts/FeaturesContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 import { resolvePageRoute } from './pageRegistry';
-import { isDetailPage, parseDetailRoute, relabelDetailTabs, closeFallbackPage, wizardOpening } from './App.helpers';
+import { isDetailPage, parseDetailRoute, relabelDetailTabs, replaceTabId, closeFallbackPage, wizardOpening } from './App.helpers';
 import AppHeader from './components/app/AppHeader';
 import AppMain from './components/app/AppMain';
 import AppFooter from './components/app/AppFooter';
@@ -216,6 +216,14 @@ export default function App() {
     delete detailCacheRef.current[tabKey];
   }, [navigate]);
 
+  // Give an open tab a new id in place (the Compare tab when its users change).
+  const replaceDetailTab = useCallback((type, oldId, newId) => {
+    if (!newId || newId === oldId) return;
+    setDetailTabs(prev => replaceTabId(prev, type, oldId, newId));
+    delete detailCacheRef.current[`${type}:${oldId}`];
+    navigate(`${type}:${newId}`);
+  }, [navigate]);
+
   // When navigating to a detail tab via URL that isn't tracked yet, add it
   useEffect(() => {
     const route = parseDetailRoute(page);
@@ -310,7 +318,7 @@ export default function App() {
     version: moduleVersion,
   };
 
-  const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab };
+  const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab, replaceDetailTab };
   const matrixProps = {
     rollup, data, matrixFilter, counts, managedFilter, setManagedFilter,
     shareUrl, refreshing, onOpenDetail: openDetailTab, setMatrixFilter,

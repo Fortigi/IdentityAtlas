@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isPresent, rowAt, attributeMap, resourceGroup, rowKey, sourceSnapshots,
-  buildDiffSnapshots, RELATIONSHIP_SOURCES, ENTITY_TABLE,
+  buildDiffSnapshots, buildCurrentSnapshot, RELATIONSHIP_SOURCES, ENTITY_TABLE,
 } from './snapshot.js';
 
 const USER = 'u-1';
@@ -87,7 +87,7 @@ describe('sourceSnapshots — held resources of a user', () => {
     expect(r.before.map(i => i.label)).toEqual(['Finance Team']);
     expect(r.after.map(i => i.label)).toEqual(['Head of Sales']);
     expect(r.after[0]).toMatchObject({
-      key: `heldResources:${raKey('br-1')}`, group: 'Business roles', kind: 'access-package',
+      key: 'heldResources:br-1|Direct', group: 'Business roles', kind: 'access-package',
       id: 'br-1', detail: 'Direct · governed',
     });
     expect(r.before[0]).toMatchObject({ group: 'Groups', kind: 'resource', detail: 'Direct' });
@@ -138,6 +138,60 @@ describe('relationship sources per entity kind', () => {
       .toMatchObject({ group: 'Linked accounts', label: 'carol-admin', detail: 'Admin' });
     expect(RELATIONSHIP_SOURCES.context).toEqual([]);
     expect(ENTITY_TABLE['access-package']).toBe('Resources');
+  });
+});
+
+describe('item keys — the same relationship lines up across two entities', () => {
+  // Two different users holding the same group the same way must produce the
+  // same key, or the Compare view shows every shared group as "only in A" and
+  // "only in B". Keys built from the history row key (which embeds the
+  // viewed entity's id) fail exactly this.
+  const keysOf = (source, rows) => sourceSnapshots(source, { current: rows, total: rows.length }, labels).after.map(i => i.key);
+
+  it('held resources: keyed on resource + how it is held, not on the holder', () => {
+    const carol = keysOf(heldResources, [ra('grp-1'), ra('grp-2', { assignmentType: 'Eligible' })]);
+    const dave = keysOf(heldResources, [{ resourceId: 'grp-1', principalId: 'u-2', assignmentType: 'Direct' }]);
+    expect(carol).toEqual(['heldResources:grp-1|Direct', 'heldResources:grp-2|Eligible']);
+    expect(dave).toEqual(['heldResources:grp-1|Direct']);
+  });
+
+  it('keeps Direct and Indirect of one resource apart within one entity', () => {
+    const keys = keysOf(heldResources, [ra('grp-1'), ra('grp-1', { assignmentType: 'Indirect' })]);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it('every other source keys on its counterpart only', () => {
+    const [members, children, parents] = RELATIONSHIP_SOURCES.resource;
+    const [accounts] = RELATIONSHIP_SOURCES.identity;
+    expect(keysOf(members, [{ resourceId: 'grp-9', principalId: 'p-1', assignmentType: 'Direct' }])).toEqual(['members:p-1|Direct']);
+    expect(keysOf(children, [{ parentResourceId: 'br-9', childResourceId: 'grp-1', relationshipType: 'Contains' }])).toEqual(['children:grp-1|Contains']);
+    expect(keysOf(parents, [{ parentResourceId: 'br-1', childResourceId: 'grp-9', relationshipType: 'Contains' }])).toEqual(['parents:br-1|Contains']);
+    expect(keysOf(identitySource, [{ identityId: 'id-1', principalId: 'p-9' }])).toEqual(['identity:id-1']);
+    expect(keysOf(accounts, [{ identityId: 'id-9', principalId: 'p-1' }])).toEqual(['accounts:p-1']);
+  });
+});
+
+describe('buildCurrentSnapshot', () => {
+  it('returns the entity as it is now: attributes, manager and current relationships', () => {
+    const row = { id: USER, displayName: 'Carol', department: 'Finance', managerId: 'mgr-new' };
+    const out = buildCurrentSnapshot({
+      row, labels,
+      sources: [{ source: heldResources, current: [ra('grp-1'), ra('br-1', { resourceType: 'BusinessRole' })], total: 5 }],
+    });
+    expect(out.snapshot).toMatchObject({ exists: true, deleted: false, attributes: { department: 'Finance' } });
+    expect(out.snapshot.relationships.map(i => `${i.group}:${i.label}`))
+      .toEqual(['Manager:Bob New', 'Groups:Finance Team', 'Business roles:Head of Sales']);
+    // 5 present, 2 listed → 3 left out by the cap.
+    expect(out.omitted).toBe(3);
+  });
+
+  it('ignores any history passed in — the current rows are the whole story', () => {
+    const out = buildCurrentSnapshot({
+      row: { id: USER }, labels,
+      sources: [{ source: heldResources, current: [ra('grp-1')], total: 1,
+        changes: [{ rowId: raKey('grp-2'), firstOp: 'U', firstPrev: ra('grp-2'), lastOp: 'D', lastData: ra('grp-2') }] }],
+    });
+    expect(out.snapshot.relationships.map(i => i.id)).toEqual(['grp-1']);
   });
 });
 

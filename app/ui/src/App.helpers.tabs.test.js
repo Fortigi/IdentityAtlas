@@ -1,5 +1,34 @@
 import { describe, it, expect } from 'vitest';
-import { relabelDetailTabs, isScopedContextPage } from './App.helpers';
+import {
+  relabelDetailTabs, isScopedContextPage, replaceTabId, parseDetailRoute, closeFallbackPage, detailTabIconBg,
+} from './App.helpers';
+
+describe('the compare tab', () => {
+  it('is a detail route whose id is the comma-separated ids, closing back to the users list', () => {
+    expect(parseDetailRoute('compare:a,b,c')).toEqual({ type: 'compare', id: 'a,b,c' });
+    expect(closeFallbackPage('compare')).toBe('principals');
+    expect(detailTabIconBg('compare')).toContain('bg-blue-100');
+  });
+});
+
+describe('replaceTabId', () => {
+  const tabs = [
+    { type: 'compare', id: 'a,b', displayName: 'Compare: Ann · Bob', returnPage: 'principals' },
+    { type: 'user', id: 'a,b', displayName: 'not a compare tab' },
+  ];
+
+  it('gives the compare tab its new id in place, keeping where it returns to, with the id as its label until named', () => {
+    const next = replaceTabId(tabs, 'compare', 'a,b', 'a,b,c');
+    expect(next[0]).toEqual({ type: 'compare', id: 'a,b,c', displayName: 'a,b,c', returnPage: 'principals' });
+    // Same id, other type: untouched.
+    expect(next[1]).toBe(tabs[1]);
+  });
+
+  it('drops the old tab when one with the new id is already open', () => {
+    const open = [...tabs, { type: 'compare', id: 'b', displayName: 'Compare: Bob' }];
+    expect(replaceTabId(open, 'compare', 'a,b', 'b')).toEqual([tabs[1], open[2]]);
+  });
+});
 
 describe('relabelDetailTabs', () => {
   const tabs = [

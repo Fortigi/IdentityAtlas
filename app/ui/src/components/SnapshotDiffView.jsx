@@ -88,7 +88,20 @@ export function AttributeDiffTable({ rows, beforeLabel, afterLabel }) {
   );
 }
 
-function ItemCell({ item, onOpenDetail }) {
+// Amber list of notes about what a comparison can't show. Renders nothing when
+// there are no notes. Shared by the Diff tab and the Compare view.
+export function NoteList({ notes }) {
+  if (notes.length === 0) return null;
+  return (
+    <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+      {notes.map(n => <li key={n}>{n}</li>)}
+    </ul>
+  );
+}
+
+// One relationship item: a link to its page (or a no-access name), plus how it
+// is held. Shared with the Compare view.
+export function ItemCell({ item, onOpenDetail }) {
   const target = KIND_TO_TAB[item.kind];
   const linkable = target && item.id && onOpenDetail;
   return (
