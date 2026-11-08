@@ -6,7 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../db/connection.js');
 const { query, queryOne } = await import('../db/connection.js');
 const {
-  CONTEXT_OWNER_ACCESS_KEY, isContextOwnerAccessEnabled, setContextOwnerAccess, resetContextOwnerSettingForTests,
+  CONTEXT_OWNER_ACCESS_KEY, CONTEXT_OWNER_MCP_KEY, isContextOwnerAccessEnabled, setContextOwnerAccess,
+  isContextOwnerMcpEnabled, getContextOwnerMcpSwitch, setContextOwnerMcp, resetContextOwnerSettingForTests,
 } = await import('./contextOwnerSetting.js');
 
 const savedUseSql = process.env.USE_SQL;
@@ -90,5 +91,42 @@ describe('setContextOwnerAccess', () => {
     await setContextOwnerAccess(true);
     expect(query).not.toHaveBeenCalled();
     expect(await isContextOwnerAccessEnabled()).toBe(true);
+  });
+});
+
+describe('the MCP switch for context owners', () => {
+  const stored = (values) => queryOne.mockImplementation(async (_sql, [key]) => (key in values ? { configValue: values[key] } : null));
+
+  it('is on only when BOTH the owner switch and the MCP switch are stored "true"', async () => {
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'true', [CONTEXT_OWNER_MCP_KEY]: 'true' });
+    expect(await isContextOwnerMcpEnabled()).toBe(true);
+  });
+
+  it('stays off while context-owner access is off, whatever the MCP switch says', async () => {
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'false', [CONTEXT_OWNER_MCP_KEY]: 'true' });
+    expect(await isContextOwnerMcpEnabled()).toBe(false);
+    expect(await getContextOwnerMcpSwitch()).toBe(true);
+  });
+
+  it('is off when only the owner switch is on, and when nothing is stored', async () => {
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'true' });
+    expect(await isContextOwnerMcpEnabled()).toBe(false);
+    resetContextOwnerSettingForTests();
+    stored({});
+    expect(await isContextOwnerMcpEnabled()).toBe(false);
+  });
+
+  it('is saved under its own key and does not touch the owner switch', async () => {
+    query.mockResolvedValue({ rows: [] });
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'true' });
+    await setContextOwnerMcp(true);
+    expect(query.mock.calls[0][1]).toEqual([CONTEXT_OWNER_MCP_KEY, 'true']);
+    expect(await isContextOwnerMcpEnabled()).toBe(true);
+    expect(await isContextOwnerAccessEnabled()).toBe(true);
+  });
+
+  it('refuses a value that is not a boolean, without writing', async () => {
+    await expect(setContextOwnerMcp(1)).rejects.toThrow(TypeError);
+    expect(query).not.toHaveBeenCalled();
   });
 });

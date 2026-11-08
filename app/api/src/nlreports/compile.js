@@ -8,6 +8,7 @@
 import { ENTITIES, fieldsOf } from './catalog.js';
 import { likeContains, likeEndsWith, likeStartsWith } from '../db/sqlParams.js';
 import { COUNT_COLUMN, resolveColumn } from './spec.js';
+import { scopePredicate } from './scope.js';
 
 import {
   COMPARE_COLUMNS, compareColumnLabel, compareColumnSql, compareConditions, comparePredicate,
@@ -29,7 +30,37 @@ function createContext(extFields) {
     refCtes: new Map(),
     fieldCtes: new Set(),
     extFields,
+    scopeRef: null,
   };
+}
+
+// ` AND <predicate>` restricting `alias` (a row of `entityName`'s table) to the
+// caller's row scope (scope.js), or '' for an unscoped query. Applied to the
+// root and to the target of every relation — in conditions and in columns — so
+// nothing the query reads or counts lies outside the scope.
+function scoped(entityName, alias, ctx) {
+  return ctx.scopeRef ? ` AND ${scopePredicate(ENTITIES[entityName].table, alias, ctx.scopeRef)}` : '';
+}
+
+// A relation's FROM / WHERE with the scope folded into the WHERE — unless the
+// read is name-only (see NAME_ONLY below).
+function relationFrom(entityName, relationName, outer, inner, ctx, { nameOnly = false } = {}) {
+  const rel = ENTITIES[entityName].relations[relationName];
+  const { from, where } = rel.from(outer, inner, ctx.alias);
+  return { rel, from, where: nameOnly ? where : `${where}${scoped(rel.target, inner, ctx)}` };
+}
+
+// What the app shows a context owner about the records a record they may open
+// is related to: every one of them BY NAME, and how many there are (a held
+// group's page lists all its members, the ones they may not open as grey text).
+// A scoped query reads exactly that: a name list, a count, and a related
+// record's name are not restricted. Everything that would say more — another
+// field of a related record, a condition on one (it would match on its
+// attributes), the ids behind a name list — stays inside the scope. The report's
+// own rows are always scoped, so a name only appears where the app shows it.
+function isNameOnly(colDef) {
+  return colDef.kind === 'manyNames' || colDef.kind === 'manyCount'
+    || (colDef.kind === 'oneRelationField' && colDef.field === 'displayName');
 }
 
 
@@ -87,16 +118,14 @@ function joinPredicates(parts, match) {
 }
 
 function conditionSql(entityName, c, alias, ctx) {
-  const entity = ENTITIES[entityName];
   if (c.type === 'field') {
     const field = fieldsOf(entityName, ctx.extFields)[c.field];
 
     return fieldPredicate(field, fieldExpr(field, alias, ctx), c.op, c.value, ctx);
   }
   if (c.type === 'relation') {
-    const rel = entity.relations[c.relation];
     const inner = ctx.alias();
-    const { from, where } = rel.from(alias, inner, ctx.alias);
+    const { rel, from, where } = relationFrom(entityName, c.relation, alias, inner, ctx);
     const innerPreds = c.conditions.map(ic => conditionSql(rel.target, ic, inner, ctx));
     const filter = innerPreds.length ? ` AND ${joinPredicates(innerPreds, c.match)}` : '';
     const exists = `EXISTS (SELECT 1 FROM ${from} WHERE ${where}${filter})`;
@@ -108,13 +137,11 @@ function conditionSql(entityName, c, alias, ctx) {
 }
 
 function columnSql(entityName, colDef, alias, ctx) {
-  const entity = ENTITIES[entityName];
   if (colDef.kind === 'field') return fieldExpr(fieldsOf(entityName, ctx.extFields)[colDef.field], alias, ctx);
 
   if (colDef.kind === 'compare') return compareColumnSql(entityName, ctx.firstCompare, colDef.sub, alias, ctx);
-  const rel = entity.relations[colDef.relation];
   const inner = ctx.alias();
-  const { from, where } = rel.from(alias, inner, ctx.alias);
+  const { rel, from, where } = relationFrom(entityName, colDef.relation, alias, inner, ctx, { nameOnly: isNameOnly(colDef) });
   if (colDef.kind === 'oneRelationField') {
     return `(SELECT ${fieldExpr(ENTITIES[rel.target].fields[colDef.field], inner, ctx)} FROM ${from} WHERE ${where} LIMIT 1)`;
   }
@@ -155,9 +182,8 @@ export function linkKind(entityName, colDef) {
  */
 function linkColumnSql(entityName, colDef, alias, ctx) {
   if (!linkKind(entityName, colDef)) return null;
-  const rel = ENTITIES[entityName].relations[colDef.relation];
   const inner = ctx.alias();
-  const { from, where } = rel.from(alias, inner, ctx.alias);
+  const { from, where } = relationFrom(entityName, colDef.relation, alias, inner, ctx);
   const pairs = ctx.alias();
   return `(SELECT jsonb_agg(jsonb_build_object('id', ${pairs}."id", 'name', ${pairs}."name") ORDER BY ${pairs}."name")
    FROM (SELECT DISTINCT ${inner}."id" AS "id", ${inner}."displayName" AS "name"
@@ -262,17 +288,31 @@ function groupedOrder(spec, root, ctx) {
 
 
 
+/** Why a scoped query refuses a comparison (see compileSpec). */
+export const SCOPED_COMPARE_ERROR = 'comparing with a reference record is not available within a limited scope';
+
 /**
  * @param {object} spec  a spec normalised by validateSpec()
  * @param {object} [extFields]  this deployment's discovered fields, by entity
+ * @param {object} [options]
+ * @param {object} [options.scope]  a row scope (scope.js createRowScope): only
+ *   records in it are read, counted or named. Omitted, the SQL is exactly what
+ *   it always was.
  * @returns {{ text: string, params: any[], columns: object[] }}
  */
-export function compileSpec(spec, extFields) {
+export function compileSpec(spec, extFields, { scope = null } = {}) {
   const entity = ENTITIES[spec.entity];
   const ctx = createContext(extFields);
   const root = ctx.alias();
   const compares = compareConditions(spec);
   if (compares.some(c => !c.reference.id)) throw new Error('compare references must be resolved before compiling');
+  // A comparison reads the reference record's own sets through compare.js,
+  // outside the relation path the scope is folded into. Refused rather than
+  // half-scoped.
+  if (scope && compares.length) throw new Error(SCOPED_COMPARE_ERROR);
+  // The scope's context ids are ONE parameter, taken first so every predicate
+  // refers to it; an unscoped query adds nothing and keeps its parameter order.
+  if (scope) ctx.scopeRef = `${ctx.param(scope.contextIds)}::uuid[]`;
   ctx.firstCompare = compares[0];
 
   // Select before conditions before order: each step can add a parameter or a CTE,
@@ -281,7 +321,7 @@ export function compileSpec(spec, extFields) {
   const { select, columns, groupClause } = grouped ? groupedSelect(spec, root, ctx) : rowSelect(spec, root, ctx);
 
   const preds = spec.conditions.map(c => conditionSql(spec.entity, c, root, ctx));
-  const where = `${entity.where(root)} AND ${joinPredicates(preds, spec.match)}`;
+  const where = `${entity.where(root)}${scoped(spec.entity, root, ctx)} AND ${joinPredicates(preds, spec.match)}`;
   const order = grouped ? groupedOrder(spec, root, ctx) : rowOrder(spec, root, ctx);
 
   // One extra row tells the caller the result was truncated.

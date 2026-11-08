@@ -46,66 +46,99 @@ export const HOLDER = 'holder';
 // context, whatever its type" — what a context's own member list holds.
 export const KINDS = Object.freeze(['principal', 'identity', 'resource', 'member']);
 
-// $1 = the owner's context ids, $2 = the candidate ids.
-const IN_SCOPE = `cm."contextId" = ANY($1::uuid[])`;
+// Every predicate below is a function of two SQL expressions, so the one
+// definition serves two callers:
+//   `id`     the object being judged — `x.id` for a batch of candidates
+//            (TIER_SQL below), a table column such as `t3."id"` when the scope
+//            is applied inside a query (nlreports/scope.js, the MCP server);
+//   `scope`  the owner's context ids as a uuid[] — `$1::uuid[]` here.
+// REST and MCP therefore cannot disagree about who opens what: they run the
+// same SQL text (contract-tests/authzSecurity.integration.test.js checks it).
+const inScope = (scope) => `cm."contextId" = ANY(${scope})`;
 
-// The team's accounts and the team's people, as sub-selects over $1.
-const TEAM_PRINCIPALS = `
-  SELECT cm."memberId" FROM "ContextMembers" cm WHERE ${IN_SCOPE} AND cm."memberType" = 'Principal'
+// The team's accounts and the team's people, as sub-selects over the scope.
+const teamPrincipals = (scope) => `
+  SELECT cm."memberId" FROM "ContextMembers" cm WHERE ${inScope(scope)} AND cm."memberType" = 'Principal'
   UNION ALL
   SELECT im."principalId" FROM "ContextMembers" cm
     JOIN "IdentityMembers" im ON im."identityId" = cm."memberId"
-   WHERE ${IN_SCOPE} AND cm."memberType" = 'Identity'`;
-const TEAM_IDENTITIES = `
-  SELECT cm."memberId" FROM "ContextMembers" cm WHERE ${IN_SCOPE} AND cm."memberType" = 'Identity'
+   WHERE ${inScope(scope)} AND cm."memberType" = 'Identity'`;
+const teamIdentities = (scope) => `
+  SELECT cm."memberId" FROM "ContextMembers" cm WHERE ${inScope(scope)} AND cm."memberType" = 'Identity'
   UNION ALL
   SELECT im."identityId" FROM "ContextMembers" cm
     JOIN "IdentityMembers" im ON im."principalId" = cm."memberId"
-   WHERE ${IN_SCOPE} AND cm."memberType" = 'Principal'`;
+   WHERE ${inScope(scope)} AND cm."memberType" = 'Principal'`;
 
 // A live assignment, matched by `holderMatch` (a predicate on a."principalId"
 // or a."identityId"), on a resource that is a member of an in-scope context.
 const LIVE = `a."deletedAt" IS NULL AND a."assignmentType" IN ('Direct', 'Indirect', 'Eligible')`;
-const holdsScopedResource = (from, holderMatch) => `EXISTS (SELECT 1 FROM ${from}
-     JOIN "ContextMembers" cm ON cm."memberId" = a."resourceId" AND cm."memberType" = 'Resource' AND ${IN_SCOPE}
+const holdsScopedResource = (scope, from, holderMatch) => `EXISTS (SELECT 1 FROM ${from}
+     JOIN "ContextMembers" cm ON cm."memberId" = a."resourceId" AND cm."memberType" = 'Resource' AND ${inScope(scope)}
     WHERE ${holderMatch} AND ${LIVE})`;
 
-// An account holds one itself, or through its person; a person holds one
-// itself, or through one of their accounts.
-const PRINCIPAL_HOLDS = `(${holdsScopedResource('"ResourceAssignments" a', 'a."principalId" = x.id')}
-        OR ${holdsScopedResource('"IdentityMembers" im JOIN "ResourceAssignments" a ON a."identityId" = im."identityId"', 'im."principalId" = x.id')})`;
-const IDENTITY_HOLDS = `(${holdsScopedResource('"ResourceAssignments" a', 'a."identityId" = x.id')}
-        OR ${holdsScopedResource('"IdentityMembers" im JOIN "ResourceAssignments" a ON a."principalId" = im."principalId"', 'im."identityId" = x.id')})`;
+const isMember = (id, scope, memberType) => `EXISTS (SELECT 1 FROM "ContextMembers" cm
+   WHERE ${inScope(scope)} AND cm."memberId" = ${id}${memberType ? ` AND cm."memberType" = '${memberType}'` : ''})`;
 
-const isMember = (memberType) => `EXISTS (SELECT 1 FROM "ContextMembers" cm
-   WHERE ${IN_SCOPE} AND cm."memberId" = x.id${memberType ? ` AND cm."memberType" = '${memberType}'` : ''})`;
-
-// An account or a person: 'team' when `team` holds, else 'holder' when `holds` does.
-const tiered = (team, holds) => `
-    SELECT x.id, CASE WHEN ${team} THEN '${TEAM}' ELSE '${HOLDER}' END AS tier
-      FROM unnest($2::uuid[]) AS x(id)
-     WHERE ${team} OR ${holds}`;
-
-export const TIER_SQL = {
-  principal: tiered(`(${isMember('Principal')}
+// 'team' for each kind: a member of an in-scope context, people crossing the
+// account/person link both ways.
+const TEAM_OF = {
+  principal: (id, scope) => `(${isMember(id, scope, 'Principal')}
         OR EXISTS (SELECT 1 FROM "IdentityMembers" im
                      JOIN "ContextMembers" cm ON cm."memberId" = im."identityId" AND cm."memberType" = 'Identity'
-                    WHERE im."principalId" = x.id AND ${IN_SCOPE}))`, PRINCIPAL_HOLDS),
-  identity: tiered(`(${isMember('Identity')}
+                    WHERE im."principalId" = ${id} AND ${inScope(scope)}))`,
+  identity: (id, scope) => `(${isMember(id, scope, 'Identity')}
         OR EXISTS (SELECT 1 FROM "IdentityMembers" im
                      JOIN "ContextMembers" cm ON cm."memberId" = im."principalId" AND cm."memberType" = 'Principal'
-                    WHERE im."identityId" = x.id AND ${IN_SCOPE}))`, IDENTITY_HOLDS),
-  resource: `
-    SELECT x.id, CASE WHEN ${isMember('Resource')} THEN '${TEAM}' ELSE '${HELD}' END AS tier
+                    WHERE im."identityId" = ${id} AND ${inScope(scope)}))`,
+  resource: (id, scope) => isMember(id, scope, 'Resource'),
+  member: (id, scope) => isMember(id, scope, null),
+};
+
+// The second tier: 'holder' for an account (itself or through its person) or a
+// person (itself or through one of their accounts); 'held' for a resource.
+const REACH_OF = {
+  principal: (id, scope) => `(${holdsScopedResource(scope, '"ResourceAssignments" a', `a."principalId" = ${id}`)}
+        OR ${holdsScopedResource(scope, '"IdentityMembers" im JOIN "ResourceAssignments" a ON a."identityId" = im."identityId"', `im."principalId" = ${id}`)})`,
+  identity: (id, scope) => `(${holdsScopedResource(scope, '"ResourceAssignments" a', `a."identityId" = ${id}`)}
+        OR ${holdsScopedResource(scope, '"IdentityMembers" im JOIN "ResourceAssignments" a ON a."principalId" = im."principalId"', `im."identityId" = ${id}`)})`,
+  resource: (id, scope) => `EXISTS (SELECT 1 FROM "ResourceAssignments" a
+                    WHERE a."resourceId" = ${id} AND ${LIVE}
+                      AND (a."principalId" IN (${teamPrincipals(scope)})
+                        OR a."identityId" IN (${teamIdentities(scope)})))`,
+};
+
+/**
+ * "May this owner open the object `id`?" as one SQL predicate per kind — the
+ * union of the tiers that open in full. A context opens when it is one of the
+ * scope's ids. `id` and `scope` are SQL expressions (see above), never values.
+ */
+export const OPENABLE_SQL = Object.freeze({
+  principal: (id, scope) => `(${TEAM_OF.principal(id, scope)} OR ${REACH_OF.principal(id, scope)})`,
+  identity: (id, scope) => `(${TEAM_OF.identity(id, scope)} OR ${REACH_OF.identity(id, scope)})`,
+  resource: (id, scope) => `(${TEAM_OF.resource(id, scope)} OR ${REACH_OF.resource(id, scope)})`,
+  context: (id, scope) => `${id} = ANY(${scope})`,
+});
+
+// $1 = the owner's context ids, $2 = the candidate ids.
+const BATCH_SCOPE = '$1::uuid[]';
+const X = 'x.id';
+
+// An account or a person: 'team' when the team predicate holds, else 'holder'.
+const tiered = (kind) => `
+    SELECT x.id, CASE WHEN ${TEAM_OF[kind](X, BATCH_SCOPE)} THEN '${TEAM}' ELSE '${HOLDER}' END AS tier
       FROM unnest($2::uuid[]) AS x(id)
-     WHERE ${isMember('Resource')}
-        OR EXISTS (SELECT 1 FROM "ResourceAssignments" a
-                    WHERE a."resourceId" = x.id AND a."deletedAt" IS NULL
-                      AND a."assignmentType" IN ('Direct', 'Indirect', 'Eligible')
-                      AND (a."principalId" IN (${TEAM_PRINCIPALS})
-                        OR a."identityId" IN (${TEAM_IDENTITIES})))`,
+     WHERE ${OPENABLE_SQL[kind](X, BATCH_SCOPE)}`;
+
+export const TIER_SQL = {
+  principal: tiered('principal'),
+  identity: tiered('identity'),
+  resource: `
+    SELECT x.id, CASE WHEN ${TEAM_OF.resource(X, BATCH_SCOPE)} THEN '${TEAM}' ELSE '${HELD}' END AS tier
+      FROM unnest($2::uuid[]) AS x(id)
+     WHERE ${OPENABLE_SQL.resource(X, BATCH_SCOPE)}`,
   member: `
-    SELECT x.id, '${TEAM}' AS tier FROM unnest($2::uuid[]) AS x(id) WHERE ${isMember(null)}`,
+    SELECT x.id, '${TEAM}' AS tier FROM unnest($2::uuid[]) AS x(id) WHERE ${TEAM_OF.member(X, BATCH_SCOPE)}`,
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
