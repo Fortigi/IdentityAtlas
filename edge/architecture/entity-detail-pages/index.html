@@ -1896,6 +1896,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compare-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare tab
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-a-new-entity-kind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6227,6 +6238,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compare-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare tab
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-a-new-entity-kind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6543,6 +6565,16 @@ kinds consistent.</p>
 <li>Before <code>historySince</code>, nothing is known. Rows loaded by a system's first sync have no insert event either, so a moment before that load shows those rows as already present. The tab shows a note when T is before <code>historySince</code>.</li>
 <li>Context membership (<code>ContextMembers</code>) is not history-tracked, so a context's diff covers its own attributes only.</li>
 </ul>
+<hr />
+<h2 id="compare-tab">Compare tab<a class="headerlink" href="#compare-tab" title="Permanent link">&para;</a></h2>
+<p>The Compare tab shows two or three users side by side, as they are now, with one column each. Where the Diff tab compares one entity at two moments, Compare looks at different entities at the same moment. It answers "these users look alike, so where do they differ?" It opens from <strong>Compare with…</strong> on a user's page, or from <strong>Compare</strong> on the Users list once 2–3 rows are selected. The ids live in the tab's address (<code>#compare:&lt;id&gt;,&lt;id&gt;[,&lt;id&gt;]</code>), so a comparison can be bookmarked or shared. Adding or removing a user gives the open tab a new address in place (<code>replaceTabId</code> in <code>App.helpers.js</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>GET /api/&lt;user|resources|access-package|identities&gt;/:id/snapshot
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>{ "id": "…", "omitted": 0, "snapshot": { "exists", "deleted", "attributes", "relationships": [item] } }
+</code></pre></div>
+<p>The snapshot has the same shape as one side of the diff, and it is built by the same code (<code>buildCurrentSnapshot</code> in <code>snapshot.js</code>). The UI fetches <strong>one snapshot per entity</strong>, so each is access-checked like any other detail read: the <code>/snapshot</code> paths are listed in <code>auth/ownerAccess/endpoints.js</code>. A multi-id endpoint would have needed its own owner-access rule.</p>
+<p><strong>Item keys never contain the viewed entity's own id.</strong> The key names the relationship from the entity's side only, for example <code>heldResources:&lt;resourceId&gt;|&lt;assignmentType&gt;</code>. So the same group held the same way by two users gets the same key, and the two land on one row. Within one entity the key is still unique, so the Diff tab is unaffected.</p>
+<p><code>compareSnapshots(snapshots)</code> (<code>components/compare/entityCompare.helpers.js</code>) marks each row <code>same</code> or <code>differs</code>. A relationship differs when one entity lacks it or holds it differently (<code>detail</code>). By default the view shows only the rows that differ, and it hides naming fields such as display name, UPN, e-mail and object ids, which differ between any two accounts by definition.</p>
 <hr />
 <h2 id="adding-a-new-entity-kind">Adding a new entity kind<a class="headerlink" href="#adding-a-new-entity-kind" title="Permanent link">&para;</a></h2>
 <p>To give a new entity kind its own detail page with the graph + recent-changes treatment:</p>
