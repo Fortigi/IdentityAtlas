@@ -83,8 +83,17 @@ echo
 
 # ── 1. Everything in the two PR workflows is aggregated ─────────────────────
 # `pr-summary` is excused because it IS a required context in its own right.
+#
+# `diff-coverage` is excused because it is ADVISORY on purpose, for now. It cannot be made blocking
+# while pure-JSX page shells produce expected reds: v8 does not line-instrument a big JSX `return`,
+# so a routing or layout edit fails on a line no test can reach. `app/ui/CLAUDE.md` documents that
+# red as expected, and the exclude set that would fix it is still open as #725. Only `*/App.jsx` is
+# excluded today. Requiring it before then would block ordinary UI work. Add it to ci-passed's
+# `needs:` and drop it from this list once #725 lands.
 assert "every pr.yml job is aggregated into CI Passed" "" \
-  "$(unaggregated "$WF/pr.yml" ci-passed pr-summary)"
+  "$(unaggregated "$WF/pr.yml" ci-passed pr-summary diff-coverage)"
+assert "the excused advisory job diff-coverage still exists (no stale excuse)" "diff-coverage" \
+  "$(jobs_in "$WF/pr.yml" | grep -x 'diff-coverage' || true)"
 assert "every pr-integration.yml job is aggregated into Integration CI Passed" "" \
   "$(unaggregated "$WF/pr-integration.yml" ci-integration-passed)"
 
@@ -97,17 +106,13 @@ assert "every pr-integration.yml job is aggregated into Integration CI Passed" "
 #   dor-deploy.yml     acts on a label. Not a gate.
 #   dor-reset.yml      acts on close. Not a gate.
 #   sbom-update.yml    acts on merge. Not a gate.
-#   diff-coverage.yml  ADVISORY on purpose, for now. It cannot be made blocking while pure-JSX
-#                      page shells produce expected reds: v8 does not line-instrument a big JSX
-#                      `return`, so a routing or layout edit fails on a line no test can reach.
-#                      `app/ui/CLAUDE.md` documents that red as expected, and the exclude set that
-#                      would fix it is still open as #725. Only `*/App.jsx` is excluded today.
-#                      Requiring it before then would block ordinary UI work. Move it into pr.yml
-#                      and into ci-passed's `needs:` once #725 lands.
+#
+# (Diff coverage used to be its own workflow here. It now lives in pr.yml as the advisory
+# `diff-coverage` job — see section 1 — reusing the suites' lcov instead of re-running them.)
 #
 # Add a new PR-triggered workflow and this fails until it is either aggregated or added here with
 # a reason. That decision is the point of the test.
-ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml diff-coverage.yml"
+ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
   grep -qE '^[[:space:]]+pull_request:' "$f" || continue

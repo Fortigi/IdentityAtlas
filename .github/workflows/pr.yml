@@ -30,8 +30,10 @@
 #  16. migration-immutability — migration hashes vs .ci/migration-hashes.json
 #  17. node-version — .nvmrc is the single source of truth for the Node major
 #  18. security-authz — authorization regression across REST and MCP (real PostgreSQL)
+#  19. diff-coverage — changed-line coverage from the lcov the suites above produced.
+#                      ADVISORY: the one job NOT aggregated into ci-passed (see the job).
 #
-# All of the above feed ci-passed, so none needs to be an individual required
+# All of the others feed ci-passed, so none needs to be an individual required
 # check — mark only ci-passed required, and it self-skips per the filter scopes.
 #
 # A gate belongs HERE, not in its own workflow. A workflow that filters on
@@ -525,9 +527,20 @@ jobs:
         working-directory: app/api
         run: npm ci
 
-      - name: Run contract tests
+      # With coverage, so the diff-coverage job below can judge API changed lines on
+      # unit + contract combined without running this suite a second time.
+      - name: Run contract tests (with coverage)
         working-directory: app/api
-        run: npm run test:contract
+        run: npm run test:contract -- --coverage
+
+      - name: Upload contract coverage (lcov)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: api-contract-coverage
+          path: app/api/coverage-contract/lcov.info
+          retention-days: 14
+          if-no-files-found: ignore
 
   # ── Stage 4b+: Authorization security regression ────────────────────────
   # Who may see what, across REST and MCP — its own named check so a security
@@ -597,6 +610,81 @@ jobs:
         # the API job — the aggregate vite.config.js floor above can't tell that one
         # file quietly regressed while another rose. See tools/coverage/ratchet.py.
         run: python3 tools/coverage/ratchet.py --lcov app/ui/coverage/lcov.info --prefix app/ui/
+
+      - name: Upload coverage (lcov)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ui-coverage
+          path: app/ui/coverage/lcov.info
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ── Stage 4d: Diff coverage (ADVISORY) ──────────────────────────────────
+  # The committed Vitest thresholds are GLOBAL — a new, barely-covered file hides
+  # behind the whole-suite average. This judges only a PR's CHANGED lines (80%),
+  # leaving legacy files alone. The API side combines UNIT and CONTRACT coverage,
+  # because routes and SQL are often exercised only by the contract suite.
+  #
+  # It reuses the lcov the three suites above already produced, instead of running
+  # them again — this used to be its own workflow (diff-coverage.yml) that re-ran
+  # API unit, contract and UI unit on two more runners for every push.
+  #
+  # ADVISORY on purpose: deliberately NOT in ci-passed's `needs:` (excused by name in
+  # test/ci-scripts/test-gate-wiring.sh). It cannot be made blocking while pure-JSX
+  # page shells produce expected reds — v8 does not line-instrument a big JSX
+  # `return`, so a routing or layout edit can fail on a line no test can reach
+  # (#725). A red here is a question to answer, not a gate to pass.
+  diff-coverage:
+    name: 'Diff coverage (advisory)'
+    needs: [unit-js, contract-tests, unit-ui]
+    # Only judge suites that actually passed: a failing suite's lcov is partial, and
+    # that failure is already reported by its own job.
+    if: |
+      always() &&
+      ((needs.unit-js.result == 'success' && needs.contract-tests.result == 'success') ||
+       needs.unit-ui.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FAIL_UNDER: '80'   # fraction of a PR's changed, coverage-eligible lines that must be covered
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # diff-cover needs history back to the PR's merge-base
+
+      - name: Install diff-cover
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python3 -m pip install --quiet diff_cover
+
+      - name: Download coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '*-coverage'   # api-coverage, api-contract-coverage, ui-coverage
+          path: cov
+
+      - name: 'Diff coverage: API (unit + contract)'
+        if: needs.unit-js.result == 'success' && needs.contract-tests.result == 'success'
+        run: |
+          # lcov SF paths are package-relative (src/...); make them repo-relative
+          # (app/api/src/...) so they align with git-diff paths.
+          sed 's#^SF:#SF:app/api/#' cov/api-coverage/lcov.info > /tmp/api-unit.lcov
+          sed 's#^SF:#SF:app/api/#' cov/api-contract-coverage/lcov.info > /tmp/api-contract.lcov
+          python3 -m diff_cover.diff_cover_tool /tmp/api-unit.lcov /tmp/api-contract.lcov \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --fail-under="${FAIL_UNDER}"
+
+      - name: 'Diff coverage: UI'
+        if: always() && needs.unit-ui.result == 'success'
+        run: |
+          sed 's#^SF:#SF:app/ui/#' cov/ui-coverage/lcov.info > /tmp/ui.lcov
+          # App.jsx is the top-level hash-router shell, exercised end-to-end by
+          # e2e/navigation.spec.js rather than line-instrumented by v8. See #669.
+          python3 -m diff_cover.diff_cover_tool /tmp/ui.lcov \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --exclude '*/App.jsx' \
+            --fail-under="${FAIL_UNDER}"
 
   # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
   # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
