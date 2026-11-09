@@ -31,8 +31,8 @@ jobs:
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-issues: write
       - name: Propose the build (reach the value gate)
