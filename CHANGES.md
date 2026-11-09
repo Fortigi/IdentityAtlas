@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Faster pull-request checks: the code-duplication check now scans the PR once and scans the base branch at the same time, instead of running three full scans one after another. The check gives the same verdicts and stops being the slowest step in PR Checks.
+
+## Changes in this PR
+
 - Added a Compare view: put two or three users side by side and see where their access and attributes differ. Open it with "Compare with…" on a user's page, or select 2–3 users on the Users list and click "Compare". By default it shows only the differences and hides names, e-mail addresses and IDs; both can be switched off. The comparison has its own link, so it can be bookmarked or shared.
 
 ## Changes in this PR

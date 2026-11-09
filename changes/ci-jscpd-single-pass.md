@@ -1,1 +1,0 @@
-- Faster pull-request checks: the code-duplication check now scans the PR once and scans the base branch at the same time, instead of running three full scans one after another. The check gives the same verdicts and stops being the slowest step in PR Checks.
