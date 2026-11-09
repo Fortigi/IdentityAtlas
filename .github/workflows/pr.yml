@@ -362,7 +362,7 @@ jobs:
   # Sharded over 4 runners: the single job was the slowest in PR Checks (~94s of
   # tests behind ~20s of coverage set-up/processing), dominated by a few heavy
   # files. tools/pester/PesterShards.ps1 assigns files heaviest-first using
-  # measured weights (test/unit/pester-weights.json); every shard measures coverage
+  # measured weights (.ci/pester-weights.json); every shard measures coverage
   # over the SAME product files, and `unit-tests` below merges them exactly (a
   # command is covered when any shard executed it) before applying the floor.
   # Changing the shard count: edit the matrix, SHARDS, and PESTER_SHARDS together.
@@ -398,7 +398,7 @@ jobs:
         run: |
           . ./tools/pester/PesterShards.ps1
           $root = (Get-Location).Path
-          $weights = (Get-Content test/unit/pester-weights.json -Raw | ConvertFrom-Json -AsHashtable).weights
+          $weights = (Get-Content .ci/pester-weights.json -Raw | ConvertFrom-Json -AsHashtable).weights
           $all = Get-ChildItem test/unit -Recurse -Filter '*.Tests.ps1' -File | ForEach-Object FullName
           $mine = @(Get-PesterShardFile -TestFile $all -Weight $weights -Count $env:SHARDS -Index $env:SHARD)
           if (-not $mine.Count) { throw "Shard $env:SHARD/$env:SHARDS was assigned no test files — lower the shard count." }

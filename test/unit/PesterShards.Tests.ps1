@@ -76,14 +76,14 @@ Describe 'Get-PesterShardFile' {
     }
 
     It 'lists only weights for test files that exist (a renamed file must not keep a stale entry)' {
-        $json = Get-Content (Join-Path $RepoRoot 'test' 'unit' 'pester-weights.json') -Raw | ConvertFrom-Json -AsHashtable
+        $json = Get-Content (Join-Path $RepoRoot '.ci' 'pester-weights.json') -Raw | ConvertFrom-Json -AsHashtable
         $existing = Get-ChildItem (Join-Path $RepoRoot 'test' 'unit') -Filter '*.Tests.ps1' -File | ForEach-Object Name
         $json.weights.Keys | Where-Object { $_ -notin $existing } | Should -BeNullOrEmpty
     }
 }
 
 Describe 'Get-PesterCoverageTarget' {
-    It 'measures product code of the SDK, risk scoring and crawler folders only' {
+    It 'measures product code of the SDK, risk scoring, crawler folders and the shared layer only' {
         $root = Join-Path $TestDrive 'repo'
         $files = @(
             'tools/powershell-sdk/Get-Thing.ps1', 'tools/powershell-sdk/Get-Thing.Tests.ps1',
@@ -91,12 +91,32 @@ Describe 'Get-PesterCoverageTarget' {
             'tools/crawlers/foo/crawler.json', 'tools/crawlers/foo/Start-FooCrawler.ps1',
             'tools/crawlers/foo/Test-FooCrawler.ps1', 'tools/crawlers/foo/Seed-Foo.ps1',
             'tools/crawlers/foo/dev/Try.ps1',
-            'tools/crawlers/shared/Shared.ps1'   # no crawler.json → not a crawler folder
+            'tools/crawlers/bar/Orphan.ps1',                  # no crawler.json and not shared: not product
+            # shared/ has no crawler.json but IS product: the library every crawler runs through
+            'tools/crawlers/shared/Invoke-CrawlerIngest.ps1',
+            'tools/crawlers/shared/Start-MockScimServer.ps1', # test scaffolding
+            'tools/crawlers/shared/Test-Helpers.ps1',         # test scaffolding
+            'tools/crawlers/shared/Shared.Tests.ps1'
         )
         foreach ($f in $files) { New-Item -ItemType File -Force -Path (Join-Path $root $f) | Out-Null }
 
         $got = Get-PesterCoverageTarget -Root $root | ForEach-Object { [System.IO.Path]::GetRelativePath($root, $_) -replace '\\', '/' }
-        $got | Should -Be @('tools/crawlers/foo/Start-FooCrawler.ps1', 'tools/powershell-sdk/Get-Thing.ps1', 'tools/riskscoring/Score.ps1')
+        $got | Should -Be @(
+            'tools/crawlers/foo/Start-FooCrawler.ps1', 'tools/crawlers/shared/Invoke-CrawlerIngest.ps1',
+            'tools/powershell-sdk/Get-Thing.ps1', 'tools/riskscoring/Score.ps1'
+        )
+    }
+
+    It 'is the definition both coverage workflows use, not an inline copy' {
+        # pr.yml and coverage.yml used to enumerate the files inline and drifted apart.
+        $root = Join-Path $PSScriptRoot '..' '..'
+        foreach ($wf in 'pr.yml', 'coverage.yml') {
+            $text = Get-Content (Join-Path $root '.github' 'workflows' $wf) -Raw
+            $text | Should -Match 'CodeCoverage\.Path\s*=\s*Get-PesterCoverageTarget' -Because "$wf must call the shared definition"
+            # The inline sweep both used to carry (the PSScriptAnalyzer step's own
+            # Get-ChildItem of tools/powershell-sdk is a different list, for linting).
+            $text | Should -Not -Match "Get-ChildItem\s+'tools/powershell-sdk'\s*,\s*'tools/riskscoring'" -Because "$wf must not enumerate the coverage files itself"
+        }
     }
 }
 

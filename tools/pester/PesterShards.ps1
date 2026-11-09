@@ -11,7 +11,7 @@
 
     Sharding: files are assigned greedily, heaviest first, to the currently lightest
     shard (longest-processing-time first). Weights are seconds measured in CI and kept
-    in test/unit/pester-weights.json. A file missing from that list gets the default
+    in .ci/pester-weights.json. A file missing from that list gets the default
     weight, so a new test file is never dropped, only possibly mis-balanced.
 
     Coverage: every shard measures the SAME product files (Get-PesterCoverageTarget), so
@@ -62,12 +62,25 @@ function Get-PesterShardFile {
 
 function Get-PesterCoverageTarget {
     <#
-    .SYNOPSIS  The product .ps1 files whose coverage the PR Pester floor measures.
+    .SYNOPSIS  The product .ps1 files whose Pester coverage is measured.
     .DESCRIPTION
-        PRODUCT code only: the SDK, risk scoring and every crawler folder (one with a
-        crawler.json). Tooling inside those dirs is dropped — self-test harnesses
-        (Test-*Crawler.ps1), data seeders (Seed-*), dev-only scripts and tests — the
-        same rationale as excluding *.test.js on the JS side.
+        The ONE definition, used by both the PR floor (pr.yml 'Unit Tests: Pester')
+        and the published figure (coverage.yml). They used to each enumerate the
+        files inline and had drifted: coverage.yml had learned to include
+        tools/crawlers/shared/ and the PR floor had not, so the gate and the docs
+        page described different code.
+
+        PRODUCT code only: the SDK, risk scoring, every crawler folder (one with a
+        crawler.json), and tools/crawlers/shared/. Tooling inside those dirs is
+        dropped — self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*),
+        dev-only scripts and tests — the same rationale as excluding *.test.js on
+        the JS side.
+
+        shared/ is enumerated separately because it has no crawler.json: it is the
+        library every crawler dot-sources, not a crawler. Keying the sweep on
+        crawler.json alone silently excluded the whole ingest/retry/batch layer, so
+        the figure described the crawlers without the code they all run through.
+        Its mock servers (Start-Mock*) and Test-Helpers are test scaffolding.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -77,6 +90,8 @@ function Get-PesterCoverageTarget {
     $candidates = @(
         Get-ChildItem (Join-Path $Root 'tools' 'powershell-sdk'), (Join-Path $Root 'tools' 'riskscoring') -Recurse -Filter '*.ps1' -File
         $crawlerDirs | ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File }
+        Get-ChildItem (Join-Path $Root 'tools' 'crawlers' 'shared') -Filter '*.ps1' -File |
+            Where-Object { $_.Name -notlike 'Start-Mock*' -and $_.Name -notlike 'Test-Helpers*' }
     )
     $candidates | Where-Object {
         $_.Name -notlike '*.Tests.ps1' -and
