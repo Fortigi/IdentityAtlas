@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9, split so that every scope finishes within its hour. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
+- Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.
+- Mutation scores now measure each file against its own tests: several scopes were scoring files against tests that never call them. A check now fails when a mutated file's own test is left out of its scope.
+- The API and UI reports mutation floors are reset to their first real measurements (85 and 79), and tracked back up in #1552 and #1550.
+
+## Changes in this PR
+
 - The load test now fails a pull request that makes the permissions matrix, the dashboard, the view refresh or a large import markedly slower. Each limit is about twice the slowest measured run; the previous limits let a twentyfold slowdown pass.
 - Each pull request's load-test run now compares its API benchmark against a recorded baseline. An endpoint more than 50% slower shows as a warning on the pull request, and the full benchmark report appears on the run's summary page and as a download.
 

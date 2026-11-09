@@ -1,4 +1,0 @@
-- Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9, split so that every scope finishes within its hour. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
-- Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.
-- Mutation scores now measure each file against its own tests: several scopes were scoring files against tests that never call them. A check now fails when a mutated file's own test is left out of its scope.
-- The API and UI reports mutation floors are reset to their first real measurements (85 and 79), and tracked back up in #1552 and #1550.
