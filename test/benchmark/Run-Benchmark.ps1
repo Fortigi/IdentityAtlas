@@ -32,6 +32,10 @@
 .PARAMETER RegressionPct
     Percentage increase in p95 that counts as a regression. Default: 25.
 
+.PARAMETER MinRegressionMs
+    A slowdown smaller than this many milliseconds is never a regression, however
+    large in percent: a 4 ms endpoint that takes 9 ms is noise. Default: 0.
+
 .PARAMETER FailOnRegression
     Exit with a non-zero code when any endpoint regresses more than
     RegressionPct. Off by default for local use; on for nightly.
@@ -47,6 +51,7 @@ Param(
     [string]$BaselineFile = (Join-Path $PSScriptRoot 'baseline.json'),
     [int]$Runs = 5,
     [int]$RegressionPct = 25,
+    [int]$MinRegressionMs = 0,
     [switch]$FailOnRegression,
     [string]$ApiKey
 )
@@ -312,9 +317,9 @@ function Read-BenchmarkBaseline {
 
 # Return the regression line for one endpoint, or nothing if within tolerance.
 function Get-BaselineRegression {
-    param([string]$Name, $Cur, $Base, [int]$Pct)
+    param([string]$Name, $Cur, $Base, [int]$Pct, [int]$MinMs = 0)
     $delta = if ($Base.p95Ms -gt 0) { [Math]::Round((($Cur.p95Ms - $Base.p95Ms) / $Base.p95Ms) * 100, 1) } else { 0 }
-    if ($delta -gt $Pct) {
+    if ($delta -gt $Pct -and ($Cur.p95Ms - $Base.p95Ms) -ge $MinMs) {
         return "$Name  p95 $($Base.p95Ms)ms -> $($Cur.p95Ms)ms (+$delta%)"
     }
 }
@@ -324,7 +329,7 @@ function Get-BenchmarkRegressions {
     foreach ($k in $script:clientTimings.Keys) {
         $base = $script:baseline.clientTimings.$k
         if ($null -eq $base) { continue }
-        $reg = Get-BaselineRegression -Name $k -Cur $script:clientTimings[$k] -Base $base -Pct $RegressionPct
+        $reg = Get-BaselineRegression -Name $k -Cur $script:clientTimings[$k] -Base $base -Pct $RegressionPct -MinMs $MinRegressionMs
         if ($reg) { $script:regressions += $reg }
     }
 }
@@ -427,7 +432,21 @@ function Write-BenchmarkMarkdown {
 }
 
 # ─── Final summary + exit code ──────────────────────────────────
+# In GitHub Actions: each regression as a warning annotation, which shows on the
+# pull request, and the report in the job summary, where it can be read without
+# opening the log or downloading the artifact.
+function Publish-BenchmarkToActions {
+    if ($env:GITHUB_ACTIONS -ne 'true') { return }
+    foreach ($r in $script:regressions) {
+        Write-Host "::warning title=Benchmark regression (p95)::$r"
+    }
+    if ($env:GITHUB_STEP_SUMMARY -and (Test-Path $mdOut)) {
+        Get-Content $mdOut -Raw | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8
+    }
+}
+
 function Complete-Benchmark {
+    Publish-BenchmarkToActions
     if ($script:regressions.Count -gt 0) {
         Write-Host "`nREGRESSIONS DETECTED:" -ForegroundColor Red
         foreach ($r in $script:regressions) { Write-Host "  $r" -ForegroundColor Red }
@@ -450,6 +469,9 @@ function Invoke-Benchmark {
     Write-BenchmarkMarkdown
     Complete-Benchmark
 }
+
+# Dot-sourced (test/unit/LoadTestLimits.Tests.ps1): define the functions only.
+if ($MyInvocation.InvocationName -eq '.') { return }
 
 $script:exitCode = 0
 Invoke-Benchmark

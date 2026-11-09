@@ -1021,6 +1021,18 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # BENCHMARK.md also goes to the job summary; the JSON is kept so a
+      # baseline refresh (test/benchmark/ci-baseline.json) can be built from
+      # runs rather than from log lines.
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: benchmark-report
+          path: test/nightly/results/benchmark/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: 'Test: Soak test (15 min)'
         shell: pwsh
         run: |
