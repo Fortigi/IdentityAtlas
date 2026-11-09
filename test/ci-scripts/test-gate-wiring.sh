@@ -117,6 +117,9 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #   dor-deploy.yml     acts on a label. Not a gate.
 #   dor-reset.yml      acts on close. Not a gate.
 #   sbom-update.yml    acts on merge (pull_request_target). Not a gate.
+#   dependabot-auto-merge.yml
+#                      pull_request_target on release/**: enables auto-merge on Dependabot PRs.
+#                      Not a gate.
 #   diff-coverage.yml  ADVISORY on purpose, for now. It cannot be made blocking while pure-JSX
 #                      page shells produce expected reds: v8 does not line-instrument a big JSX
 #                      `return`, so a routing or layout edit fails on a line no test can reach.
@@ -127,7 +130,7 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #
 # Add a new PR-triggered workflow and this fails until it is either aggregated or added here with
 # a reason. That decision is the point of the test.
-ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml diff-coverage.yml"
+ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml diff-coverage.yml dependabot-auto-merge.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
   grep -qE '^[[:space:]]+pull_request(_target)?:' "$f" || continue
