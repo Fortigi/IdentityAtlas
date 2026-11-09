@@ -360,6 +360,7 @@ export function exportFilename(reportName, extension, generatedAt, subject = nul
  */
 export function subjectFileName(subject) {
   return String(subject ?? '')
+    // eslint-disable-next-line no-control-regex -- stripping control characters is the point: not valid in a file name
     .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

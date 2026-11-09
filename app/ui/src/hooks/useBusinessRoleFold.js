@@ -35,7 +35,7 @@ function readStoredFolds(matrixKey) {
       if (saved.version === ROLE_FOLD_VERSION && Array.isArray(saved.folded)) return new Set(saved.folded);
       localStorage.removeItem(foldStorageKey(matrixKey));
     }
-  } catch {}
+  } catch { /* storage unavailable or corrupt: start unfolded */ }
   return new Set();
 }
 
@@ -46,7 +46,7 @@ function writeStoredFolds(matrixKey, folded) {
       version: ROLE_FOLD_VERSION,
       folded: [...folded],
     }));
-  } catch {}
+  } catch { /* storage unavailable: the fold just isn't remembered */ }
 }
 
 // Resource id a row stands for, normalised for case-insensitive matching against

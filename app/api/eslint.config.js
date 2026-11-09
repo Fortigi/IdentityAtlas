@@ -1,7 +1,27 @@
+import js from '@eslint/js';
+import globals from 'globals';
 import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 
 export default [
+  // ESLint's own correctness rules (no-undef, no-dupe-keys, no-unused-vars, ...),
+  // off until review item A3. app/ui/eslint.config.js uses the same set and options.
+  js.configs.recommended,
+  {
+    languageOptions: { globals: { ...globals.node } },
+    rules: {
+      // A leading underscore marks a value that is unused on purpose (a positional
+      // argument an interface requires, a destructured field being dropped), and
+      // `{ secret, ...rest }` is how a field is omitted. Everything else unused fails.
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        caughtErrors: 'all',
+        ignoreRestSiblings: true,
+      }],
+    },
+  },
   security.configs.recommended,
   {
     // app-bundle.mjs is a generated desktop bundle — not hand-written source

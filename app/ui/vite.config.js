@@ -30,6 +30,14 @@ export default defineConfig({
     // (see app/api/vitest.config.js); exclude here so the UI run doesn't
     // fail trying to load a dependency it doesn't have.
     exclude: [...configDefaults.exclude, '../../tools/crawlers/**/configValidation.test.js'],
+    // Worker threads, not forked processes. Most of this suite's time is per-file
+    // jsdom environment setup (199 mount tests); in threads that setup cost roughly
+    // halves and the suite runs ~35% faster, with identical results and coverage.
+    // Each file still gets its own module graph and jsdom (isolate stays on — turning
+    // it off breaks ~135 files that rely on a fresh environment). The one thing a
+    // worker thread cannot do is process.chdir(); src/test-utils/threadsPool.guard.test.js
+    // keeps that out of the suite.
+    pool: 'threads',
     coverage: {
       provider: 'v8',
       // json-summary feeds tools/coverage/aggregate_floors.py (coverage.yml).

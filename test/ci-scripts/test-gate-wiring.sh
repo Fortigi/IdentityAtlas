@@ -88,6 +88,26 @@ assert "every pr.yml job is aggregated into CI Passed" "" \
 assert "every pr-integration.yml job is aggregated into Integration CI Passed" "" \
   "$(unaggregated "$WF/pr-integration.yml" ci-integration-passed)"
 
+# ── 1b. Every check folded into static-gates still fails the job ────────────
+# static-gates runs several small checks as `continue-on-error` steps, so a failing check turns its
+# own step's CONCLUSION green. Only the final Verdict step, which reads each `steps.<id>.outcome`,
+# turns a failure back into a red job. A check step added without wiring its outcome into the
+# Verdict would therefore run, fail, and pass. Derived from the job, not listed.
+static_gates_block() { awk '/^  static-gates:/{s=1;print;next} s && /^  [a-z]/{exit} s{print}' "$WF/pr.yml"; }
+# ids of the steps that swallow their own failure
+coe_ids="$(static_gates_block | awk '
+  /^      - /            { if (coe && id != "") print id; id=""; coe=0 }
+  /^        id:/         { id=$2 }
+  /^        continue-on-error: true/ { coe=1 }
+  END                    { if (coe && id != "") print id }')"
+assert "static-gates has continue-on-error check steps (the job exists and is parsed)" "yes" \
+  "$([ "$(printf '%s\n' "$coe_ids" | grep -c .)" -ge 5 ] && echo yes || echo no)"
+unwired=""
+for id in $coe_ids; do
+  static_gates_block | grep -q "steps\.${id}\.outcome" || unwired="${unwired}${id} "
+done
+assert "every continue-on-error step in static-gates feeds the Verdict" "" "${unwired% }"
+
 # ── 2. No workflow gates a PR from outside those rollups ────────────────────
 # Everything that runs on `pull_request` must be listed here. The two aggregated workflows, plus:
 #

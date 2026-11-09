@@ -199,10 +199,8 @@ function ResourceNameCell({
 export default function MatrixGroupRow({
   group,
   users,
-  totalUsers,
   memberships,
   aggDirectCounts,
-  managedMap,
   managedApMap,
   apIdToIndex,
   accessPackages = [],

@@ -56,6 +56,38 @@ function Write-Result {
     }
 }
 
+# Limits a regression can fail. Each is about twice the slowest of nine green CI
+# runs (ubuntu-latest, 1.5M rows, Nov 2026), so runner noise passes and a 3x
+# slowdown of a typical run does not. The limits they replace (15 s matrix, 5 s
+# dashboard, none on ingest or view refresh) passed a 20x regression. Raise one
+# only with the measurements that justify it.
+$script:LoadTestLimits = @{
+    IngestMinutes      = 8     # measured 3.0 - 4.7 min
+    ViewRefreshSeconds = 60    # measured 21 - 31 s
+    MatrixSeconds      = 2     # median of 3; single requests measured 0.50 - 1.07 s
+    DashboardSeconds   = 0.5   # median of 3; single requests measured 0.09 - 0.16 s
+}
+
+# A timing checked against its limit. At the limit fails.
+function Write-LimitResult {
+    param([string]$Name, [double]$Value, [double]$Limit, [string]$Unit)
+    $shown = [math]::Round($Value, 2)
+    Write-Result $Name ($Value -lt $Limit) "time=$shown$Unit (limit=$Limit$Unit)"
+}
+
+# Median duration in seconds of $Count GETs of one path. One slow request on a
+# shared runner should not fail the run; a path that is slow every time should.
+function Measure-MedianSeconds {
+    param([string]$Path, [int]$Count = 3)
+    $times = foreach ($i in 1..$Count) {
+        $start = Get-Date
+        $null = Invoke-LocalApi -Path $Path
+        ((Get-Date) - $start).TotalSeconds
+    }
+    $sorted = @($times | Sort-Object)
+    return $sorted[[math]::Floor($sorted.Count / 2)]
+}
+
 function Invoke-LocalApi {
     param([string]$Path, [string]$Method = 'Get', [hashtable]$Body = $null)
     $uri = "$ApiBaseUrl$Path"
@@ -113,6 +145,7 @@ function Invoke-LoadTestIngest {
             -ErrorAction Stop
         $ingestDuration = ((Get-Date) - $ingestStart).TotalSeconds
         Write-Result 'LoadTest/CrawlerCompleted' $true "time=$([math]::Round($ingestDuration / 60, 1))min"
+        Write-LimitResult 'LoadTest/IngestDuration' ($ingestDuration / 60) $script:LoadTestLimits.IngestMinutes 'min'
     } catch {
         Write-Result 'LoadTest/CrawlerCompleted' $false $_.Exception.Message
         Write-Host "  Cannot continue — crawler failed." -ForegroundColor Red
@@ -169,9 +202,9 @@ function Test-LoadTestViewRefresh {
     Write-Host "  Step 4: Refreshing materialized views..." -ForegroundColor Cyan
     try {
         $refreshStart = Get-Date
-        $r = Invoke-LocalApi -Path '/ingest/refresh-views?wait=1' -Method 'Post'
+        $null = Invoke-LocalApi -Path '/ingest/refresh-views?wait=1' -Method 'Post'
         $refreshDuration = ((Get-Date) - $refreshStart).TotalSeconds
-        Write-Result 'LoadTest/ViewRefresh' $true "time=$([math]::Round($refreshDuration,1))s"
+        Write-LimitResult 'LoadTest/ViewRefresh' $refreshDuration $script:LoadTestLimits.ViewRefreshSeconds 's'
     } catch {
         Write-Result 'LoadTest/ViewRefresh' $false $_.Exception.Message
     }
@@ -181,11 +214,8 @@ function Test-LoadTestViewRefresh {
 function Test-LoadTestMatrixPerformance {
     Write-Host "  Step 5: Testing matrix query performance..." -ForegroundColor Cyan
     try {
-        $matrixStart = Get-Date
-        $null = Invoke-LocalApi -Path '/permissions?userLimit=25'
-        $matrixDuration = ((Get-Date) - $matrixStart).TotalSeconds
-        $ok = $matrixDuration -lt 15  # must respond within 15 seconds
-        Write-Result 'LoadTest/MatrixPerformance' $ok "time=$([math]::Round($matrixDuration, 2))s (limit=15s)"
+        $matrixDuration = Measure-MedianSeconds -Path '/permissions?userLimit=25'
+        Write-LimitResult 'LoadTest/MatrixPerformance' $matrixDuration $script:LoadTestLimits.MatrixSeconds 's'
     } catch {
         Write-Result 'LoadTest/MatrixPerformance' $false $_.Exception.Message
     }
@@ -202,7 +232,12 @@ function Invoke-LoadTestBenchmark {
     try {
         $benchLogFolder = Join-Path $LogFolder 'benchmark'
         if (-not (Test-Path $benchLogFolder)) { New-Item -ItemType Directory -Path $benchLogFolder -Force | Out-Null }
-        & $BenchmarkScript -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -OutputFolder $benchLogFolder -ErrorAction Stop
+        # p95 per endpoint against the CI baseline: a warning, not a failure. Five
+        # samples per endpoint on a shared runner are too noisy to block a merge on,
+        # but a 50% slowdown should be seen on the PR that caused it.
+        & $BenchmarkScript -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -OutputFolder $benchLogFolder `
+            -BaselineFile (Join-Path $RepoRoot 'test/benchmark/ci-baseline.json') `
+            -RegressionPct 50 -MinRegressionMs 50 -ErrorAction Stop
         Write-Result 'LoadTest/BenchmarkCompleted' $true ''
     } catch {
         Write-Result 'LoadTest/BenchmarkCompleted' $false $_.Exception.Message
@@ -213,11 +248,8 @@ function Invoke-LoadTestBenchmark {
 function Test-LoadTestDashboardPerformance {
     Write-Host "  Step 7: Dashboard-stats performance at scale..." -ForegroundColor Cyan
     try {
-        $dashStart = Get-Date
-        $null = Invoke-LocalApi -Path '/admin/dashboard-stats'
-        $dashDuration = ((Get-Date) - $dashStart).TotalSeconds
-        $ok = $dashDuration -lt 5  # reltuples path should be fast
-        Write-Result 'LoadTest/DashboardPerformance' $ok "time=$([math]::Round($dashDuration, 2))s (limit=5s)"
+        $dashDuration = Measure-MedianSeconds -Path '/admin/dashboard-stats'
+        Write-LimitResult 'LoadTest/DashboardPerformance' $dashDuration $script:LoadTestLimits.DashboardSeconds 's'
     } catch {
         Write-Result 'LoadTest/DashboardPerformance' $false $_.Exception.Message
     }
@@ -248,6 +280,9 @@ function Invoke-LoadAndBenchmark {
     Write-Host "`n  Load test complete." -ForegroundColor Green
     $script:loadTestExitCode = $script:standaloneFailures
 }
+
+# Dot-sourced (test/unit/LoadTestLimits.Tests.ps1): define the functions only.
+if ($MyInvocation.InvocationName -eq '.') { return }
 
 $script:loadTestExitCode = 0
 Invoke-LoadAndBenchmark

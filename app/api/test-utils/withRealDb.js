@@ -15,6 +15,7 @@ import pg from 'pg';
 import { readdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { cloneWorkerDatabases } from './contractWorkerDb.js';
 
 const { Pool } = pg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -47,13 +48,31 @@ async function runMigrations(pool) {
   }
 }
 
-export async function startDb() {
+// `cloneForWorkers`: after migrating, clone the database once per contract-suite
+// worker (contractWorkerDb.js). The migration pool is closed first because
+// Postgres refuses to use a database as a TEMPLATE while anyone is connected to it,
+// so the clones are made from the `postgres` maintenance database.
+export async function startDb({ cloneForWorkers = false } = {}) {
   const container = await new PostgreSqlContainer('postgres:16-alpine').start();
 
   const connectionString = container.getConnectionUri();
-  const pool = new Pool({ connectionString, max: 5 });
+  let pool = new Pool({ connectionString, max: 5 });
 
   await runMigrations(pool);
+
+  if (cloneForWorkers) {
+    const { rows } = await pool.query('SELECT current_database() AS db');
+    await pool.end();
+    const adminUrl = new URL(connectionString);
+    adminUrl.pathname = '/postgres';
+    const admin = new Pool({ connectionString: adminUrl.toString(), max: 1 });
+    try {
+      await cloneWorkerDatabases(admin, rows[0].db);
+    } finally {
+      await admin.end();
+    }
+    pool = new Pool({ connectionString, max: 1 });
+  }
 
   // Cap every connection to this database at a 10s statement timeout so a
   // runaway query (e.g. a recursive CTE over cyclic data) can't wedge the
