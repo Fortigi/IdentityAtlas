@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Pull requests whose runs receive no repository secrets, such as Dependabot dependency updates and pull requests from forks, no longer fail the integration checks for missing test credentials once those credentials are made mandatory; they are reported as skipped.
+
+## Changes in this PR
+
 - Fixed the nightly documentation and test-coverage reviews, which skipped every night because they could not see the previous day's changes. They now review every change merged in the last 24 hours, and fail visibly instead of skipping if the list of changes cannot be built.
 
 ## Changes in this PR
