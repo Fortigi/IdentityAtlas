@@ -112,6 +112,12 @@ Describe 'the baseline file' {
         $doc._comment | Should -Match 'Invoke-PSAnalyzerGate\.ps1 -Update'
     }
 
+    It 'writes LF line ends on every OS' {
+        $json = ConvertTo-PSAnalyzerBaseline -Counts @{ 'a.ps1|R|X' = 1 }
+        $json | Should -Not -Match "`r"
+        $json | Should -Match "`n"
+    }
+
     It 'reads an empty file as an empty baseline' {
         (ConvertFrom-PSAnalyzerBaseline -Json "  `n").Count | Should -Be 0
     }

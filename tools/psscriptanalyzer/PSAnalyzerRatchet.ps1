@@ -80,7 +80,8 @@ function ConvertFrom-PSAnalyzerBaseline {
     $counts
 }
 
-# @{ key = count } -> the committed JSON, sorted so a diff shows only what changed.
+# @{ key = count } -> the committed JSON, sorted so a diff shows only what changed,
+# with LF line ends on every OS (ConvertTo-Json writes CRLF on Windows).
 function ConvertTo-PSAnalyzerBaseline {
     param([Parameter(Mandatory)] [hashtable] $Counts)
     $files = [ordered] @{}
@@ -90,10 +91,10 @@ function ConvertTo-PSAnalyzerBaseline {
         if (-not $files[$path].Contains($rule)) { $files[$path][$rule] = [ordered] @{} }
         $files[$path][$rule][$id] = $Counts[$k]
     }
-    [ordered] @{
+    ([ordered] @{
         _comment = 'PSScriptAnalyzer ratchet baseline: findings that predate the gate, per file, rule and variable/parameter name. Only ever shrinks. Fix one, then run: pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1 -Update. See tools/psscriptanalyzer/PSAnalyzerRatchet.ps1.'
         files    = $files
-    } | ConvertTo-Json -Depth 5
+    } | ConvertTo-Json -Depth 5) -replace "`r`n", "`n"
 }
 
 # New = findings over their baselined count; Fixed = baselined slots no longer used.
