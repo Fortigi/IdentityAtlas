@@ -1,0 +1,4 @@
+- Pull request checks finish sooner: the PowerShell unit tests now run in four parallel parts, and their coverage is combined before the 90% coverage floor is checked.
+- The PowerShell coverage floor in pull request checks is raised from 90% to 91%, closer to the 92% the suite measures.
+- The PowerShell coverage checked on pull requests and the figure published on the coverage page now measure the same files, including the shared crawler library. They used to be listed separately and had drifted apart.
+- The four parallel parts stay evenly balanced on their own: test timings are refreshed after a merge whenever one part becomes noticeably slower than the others.
