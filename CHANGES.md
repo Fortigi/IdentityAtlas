@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the nightly documentation and test-coverage reviews, which skipped every night because they could not see the previous day's changes. They now review every change merged in the last 24 hours, and fail visibly instead of skipping if the list of changes cannot be built.
+
+## Changes in this PR
+
 - Pull request checks finish sooner: the PowerShell unit tests now run in four parallel parts, and their coverage is combined before the 90% coverage floor is checked.
 - The PowerShell coverage floor in pull request checks is raised from 90% to 91%, closer to the 92% the suite measures.
 - The PowerShell coverage checked on pull requests and the figure published on the coverage page now measure the same files, including the shared crawler library. They used to be listed separately and had drifted apart.
