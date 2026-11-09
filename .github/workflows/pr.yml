@@ -235,8 +235,10 @@ jobs:
             # of these, so `code` is false and both ratchets skip (they re-measure
             # the whole tree, so there's nothing new to check).
             code:
-              # The pinned PSComplexity version: a bump must re-measure the tree.
+              # The pinned PSComplexity version and its ceilings: a change to
+              # either must re-measure the tree.
               - '.ci/powershell-modules.json'
+              - '.pscomplexity.json'
               - '**/*.ps1'
               - '**/*.js'
               - '**/*.jsx'
@@ -965,6 +967,10 @@ jobs:
       needs.filter.outputs.code == 'true' ||
       needs.filter.result == 'failure'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # upload the PowerShell complexity SARIF log
+      actions: read           # upload-sarif reads the run it belongs to
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -995,11 +1001,26 @@ jobs:
           python3 -m pip install --quiet pytest
           python3 -m pytest tools/complexity/test_ratchet.py -q
 
+      # --ps-sarif: the same PowerShell measurement also writes PSComplexity's SARIF
+      # log of units over the .pscomplexity.json ceilings, uploaded below so the
+      # finding shows on the diff line, not only in this job's log.
       - name: Run cyclomatic-complexity ratchet
-        run: python3 tools/complexity/ratchet.py
+        run: python3 tools/complexity/ratchet.py --ps-sarif reports/pscomplexity.sarif
 
       - name: Run cognitive-complexity ratchet
         run: python3 tools/complexity/ratchet.py --metric cognitive
+
+      # always(): a run with a unit over the ceiling fails the ratchet, and that is
+      # exactly the run whose findings need showing. A pull request from a fork gets
+      # a read-only token and cannot upload, so it is skipped there.
+      - name: Upload PowerShell complexity findings to code scanning
+        if: >-
+          always() && hashFiles('reports/pscomplexity.sarif') != '' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          sarif_file: reports/pscomplexity.sarif
+          category: pscomplexity
 
   # ── Stage 12: CI-logic self-tests ─────────────────────────────────────────
   # The path-gate / crawler-scope / commit-range scripts in test/ci-scripts/

@@ -84,6 +84,13 @@ installed (`npm ci`). PowerShell and Python need no setup.
   `measure_ps.ps1` is a thin selector/formatter: it picks the production PS files and maps
   `Measure-PSComplexity`'s output to the ratchet's `{cc, cog}` contract. Run
   `measure_ps.ps1 -Path <file|dir>` to measure just that path.
+  The PowerShell ceilings are not in `ratchet.py`: they are `maxCyclomatic` / `maxCognitive`
+  in the repo-root `.pscomplexity.json`, PSComplexity's own config file. With
+  `ratchet.py --ps-sarif <file>` (or `measure_ps.ps1 -SarifPath <file>`) the same run
+  also has `Test-PSComplexity` write a SARIF log of every unit over those ceilings. CI
+  uploads it to code scanning (category `pscomplexity`): from the pull request's
+  complexity job, so a finding shows on the diff line, and from `coverage.yml` on
+  `main`, which is the analysis a pull request is compared with.
 - Python — `ratchet.py` itself (`ast`); both metrics in one parse.
 - JS / TS — ESLint, in a single pass: the built-in [`complexity`](https://eslint.org/docs/latest/rules/complexity)
   rule (cyclomatic) and [`eslint-plugin-sonarjs`](https://github.com/SonarSource/eslint-plugin-sonarjs)'s

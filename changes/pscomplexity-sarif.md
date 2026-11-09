@@ -1,0 +1,2 @@
+- A pull request that pushes a PowerShell function over the complexity ceiling now gets the finding on the line itself, through GitHub code scanning, as well as a failed complexity check. Each metric is its own rule, so cyclomatic and cognitive findings can be told apart.
+- The PowerShell complexity ceilings are now kept in one file, `.pscomplexity.json`, which both the complexity ratchet and the code-scanning findings read.

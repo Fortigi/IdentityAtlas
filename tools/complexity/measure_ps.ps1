@@ -26,7 +26,12 @@
 [CmdletBinding()]
 param(
     # Optional: measure only this file/dir (no production filtering) -- for ad-hoc use.
-    [string]$Path
+    [string]$Path,
+
+    # Optional: also run PSComplexity's gate over the same files and write its SARIF
+    # log here -- one result per unit over a ceiling in .pscomplexity.json, which code
+    # scanning shows on the pull request's diff. The JSON on stdout is unchanged.
+    [string]$SarifPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,6 +72,14 @@ $results = if ($files.Count) {
             cog  = $_.Cognitive
         }
     }
+}
+
+if ($SarifPath -and $files.Count) {
+    # The verdict is the ratchet's to give, so the gate's [bool] is dropped. Its warning
+    # and information streams are dropped too: under `pwsh -File` they reach stdout,
+    # where ratchet.py expects nothing but the JSON below.
+    $config = Join-Path $PSScriptRoot '..' '..' '.pscomplexity.json'
+    $null = Test-PSComplexity -Path $files.FullName -ConfigFile $config -SarifPath $SarifPath 3>$null 6>$null
 }
 
 @($results) | ConvertTo-Json -Depth 4 -Compress
