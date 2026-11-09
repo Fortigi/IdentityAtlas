@@ -44,6 +44,7 @@ on:
       - 'test/unit/**'
       - 'azure/**'
       - 'tools/complexity/**'
+      - 'tools/pester/**'
       - '.ci/psmutant.config.json'
       - 'tools/generate-coverage-doc.py'
       - '.github/workflows/coverage.yml'
@@ -122,34 +123,21 @@ jobs:
           $cfg.Run.Path = 'test/unit'
           $cfg.Run.PassThru = $true
           $cfg.CodeCoverage.Enabled = $true
-          # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
-          # that lives inside these dirs but isn't the crawler/SDK itself —
-          # self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*), and
-          # dev-only scripts. Same rationale as excluding *.test.js on the JS side.
-          #
-          # tools/crawlers/shared/ is enumerated separately because it has no
-          # crawler.json — it is the library every crawler dot-sources, not a
-          # crawler. Keying the crawler sweep on crawler.json silently excluded
-          # the whole shared ingest/retry/batch layer from the reported figure,
-          # so the headline described the crawlers without the code they all run
-          # through. Its mock servers (Start-Mock*) and Test-Helpers are test
-          # scaffolding and stay excluded, same as the other harnesses above.
-          $cfg.CodeCoverage.Path = @(
-            Get-ChildItem 'tools/powershell-sdk','tools/riskscoring' -Recurse -Filter '*.ps1' -File
-            (Get-ChildItem 'tools/crawlers' -Directory |
-              Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
-              ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File })
-            (Get-ChildItem 'tools/crawlers/shared' -Filter '*.ps1' -File |
-              Where-Object { $_.Name -notlike 'Start-Mock*' -and $_.Name -notlike 'Test-Helpers*' })
-          ) | Where-Object {
-            $_.Name -notlike '*.Tests.ps1' -and
-            $_.Name -notlike 'Test-*Crawler.ps1' -and
-            $_.Name -notlike 'Seed-*' -and
-            $_.FullName -notmatch '[\\/]dev[\\/]'
-          } | Select-Object -ExpandProperty FullName
+          # Measure PRODUCT code only — the same files the PR floor measures, from
+          # the one definition both use (what is in and out, and why shared/ is
+          # in, is documented on the function).
+          . ./tools/pester/PesterShards.ps1
+          $cfg.CodeCoverage.Path = Get-PesterCoverageTarget -Root (Get-Location).Path
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
-          Invoke-Pester -Configuration $cfg
+          $result = Invoke-Pester -Configuration $cfg
+          # Refresh the PR Checks shard weights from this run's per-file times, only
+          # when the current ones leave a shard >15% over the mean. .ci/ is outside
+          # this workflow's paths, so committing it doesn't re-trigger the run.
+          . ./tools/pester/PesterWeights.ps1
+          $null = Update-PesterWeightFile -Path .ci/pester-weights.json -Count 4 `
+            -Duration (Get-PesterFileDuration -Result $result) `
+            -Source "coverage.yml run $env:GITHUB_RUN_ID (one runner, coverage on)"
 
       # ── Convert each suite to HTML + Summary.json ──────────────────────────
       - name: Install ReportGenerator
@@ -229,12 +217,16 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/reference/coverage.md docs/coverage
+          git add docs/reference/coverage.md docs/coverage .ci/pester-weights.json
           if git diff --cached --quiet; then
             echo "Coverage unchanged — nothing to commit"
             exit 0
           fi
-          git commit -m "docs: update test coverage report"
+          msg="docs: update test coverage report"
+          if ! git diff --cached --quiet -- .ci/pester-weights.json; then
+            msg="$msg; rebalance Pester shards"
+          fi
+          git commit -m "$msg"
           # bump-version.yml may push to main on the same merge — rebase & retry.
           for attempt in 1 2 3 4 5; do
             if git push; then

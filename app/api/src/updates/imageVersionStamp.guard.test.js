@@ -31,12 +31,12 @@ const COMPOSE = 'docker-compose.yml';
 // Split a YAML block-sequence of build steps into one chunk per `- name:` item,
 // so a `build-args:` belonging to a *neighbouring* step can't satisfy this one.
 function buildSteps(yaml) {
-  const chunks = yaml.split(/\n(?=      - name: )/);
+  const chunks = yaml.split(/\n(?= {6}- name: )/);
   return chunks
     .filter((c) => /^\s*uses: docker\/build-push-action/m.test(c))
     .map((c) => ({
-      name: (c.match(/- name: (.+)/) || [, '(unnamed)'])[1].trim(),
-      dockerfile: (c.match(/^\s*file: \.\/(.+)$/m) || [, null])[1],
+      name: (c.match(/- name: (.+)/)?.[1] ?? '(unnamed)').trim(),
+      dockerfile: c.match(/^\s*file: \.\/(.+)$/m)?.[1] ?? null,
       text: c,
     }));
 }
@@ -87,10 +87,10 @@ describe('published images are stamped with one release version', () => {
     const compose = read(COMPOSE);
     // Each `build:` block in the dev compose must carry the arg too, so a locally
     // built stack doesn't show a phantom mismatch on Admin → Updates.
-    const services = compose.split(/\n(?=  \w[\w-]*:\n)/).filter((s) => /^\s{4}build:/m.test(s));
+    const services = compose.split(/\n(?= {2}\w[\w-]*:\n)/).filter((s) => /^\s{4}build:/m.test(s));
     expect(services.length).toBeGreaterThanOrEqual(2);
     for (const svc of services) {
-      const name = (svc.match(/^ {2}(\S+):/m) || [, '(unknown)'])[1];
+      const name = svc.match(/^ {2}(\S+):/m)?.[1] ?? '(unknown)';
       expect(svc, `compose service "${name}" builds without MODULE_VERSION`).toMatch(
         /args:\s*\n\s*MODULE_VERSION:/,
       );

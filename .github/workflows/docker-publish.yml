@@ -223,6 +223,39 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.qa.yml down -v 2>/dev/null || true
 
+      # ── CVE scan (review item A11): nothing is pushed with a fixable critical ──
+      # Grype over each smoke-tested image, before any push below. It fails on a
+      # CRITICAL vulnerability that has a fix available -- one a base-image or
+      # package bump would remove -- so it is found at publish time instead of by
+      # the next weekly Dependabot bump. Unfixed criticals are reported in the
+      # table but cannot be acted on, so they do not block. A finding that does not
+      # apply goes in .grype.yaml with its reason. The published tags are scanned
+      # weekly as well (image-scan.yml), for CVEs disclosed after publishing.
+
+      - name: Scan web image for CVEs
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: identity-atlas-web:qa
+          severity-cutoff: critical
+          only-fixed: true
+          output-format: table
+
+      - name: Scan worker image for CVEs
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: identity-atlas-worker:qa
+          severity-cutoff: critical
+          only-fixed: true
+          output-format: table
+
+      - name: Scan report-generator image for CVEs
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: identity-atlas-report-generator:qa
+          severity-cutoff: critical
+          only-fixed: true
+          output-format: table
+
       # ── Push images (only reached if smoke test passed) ─────────────
       # Push the EXACT images that were built, loaded and smoke-tested above by
       # retagging the local :qa images — NOT by rebuilding. A rebuild (even a

@@ -26,6 +26,15 @@ updates:
         patterns:
           - "github/codeql-action"
           - "github/codeql-action/*"
+      # Everything else in one weekly PR. Ten Dependabot PRs opened within two
+      # minutes each start a full PR Checks + Integration run (31 jobs), and on
+      # 5 Nov 2026 that queued every job in the org for 14 minutes. Actions are
+      # SHA-pinned and rarely break, so majors ride along here too. Dependabot puts
+      # a dependency in the FIRST group that matches, so codeql-action above stays
+      # its own (version-locked) PR.
+      actions:
+        patterns:
+          - "*"
 
   # Worker container (PowerShell)
   - package-ecosystem: "docker"
@@ -93,6 +102,18 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
+      # Catch-all for the rest: every remaining minor/patch bump in one weekly PR,
+      # instead of one PR (and one full CI run) per package — see the `actions`
+      # group above for the queueing cost. Listed LAST because Dependabot assigns a
+      # dependency to the first group that matches, so `vitest` keeps its pair
+      # together. Majors are left out on purpose: one breaking bump would hold every
+      # safe patch hostage in a red group, so a major still arrives as its own PR.
+      api-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # React UI dependencies
   - package-ecosystem: "npm"
@@ -139,6 +160,13 @@ updates:
           - "@eslint/*"
           - "eslint-plugin-*"
           - "globals"
+      # Catch-all, last on purpose — same reasoning as `api-minor-patch` above.
+      ui-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # ─── Maintained release line: release/5.9 ──────────────────────────────────
   #

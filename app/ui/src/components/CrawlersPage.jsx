@@ -383,11 +383,11 @@ export default function CrawlersPage({ onNavigate, features }) {
   // ── Fetchers ──────────────────────────────────────────────────
 
   const fetchStatus = useCallback(async () => {
-    try { const r = await authFetch('/api/admin/status'); if (r.ok) setStatus(await r.json()); } catch {}
+    try { const r = await authFetch('/api/admin/status'); if (r.ok) setStatus(await r.json()); } catch { /* polled again shortly; keep the last status */ }
   }, [authFetch]);
 
   const fetchConfigs = useCallback(async () => {
-    try { const r = await authFetch('/api/admin/crawler-configs'); if (r.ok) setConfigs(await r.json()); } catch {}
+    try { const r = await authFetch('/api/admin/crawler-configs'); if (r.ok) setConfigs(await r.json()); } catch { /* polled again shortly; keep the last list */ }
   }, [authFetch]);
 
   const fetchJobs = useCallback(async () => {
@@ -415,7 +415,7 @@ export default function CrawlersPage({ onNavigate, features }) {
         }
         return carried;
       });
-    } catch {}
+    } catch { /* polled again shortly; keep the last jobs */ }
   }, [authFetch]);
 
   // When any tracked job transitions from active → terminal, refresh the

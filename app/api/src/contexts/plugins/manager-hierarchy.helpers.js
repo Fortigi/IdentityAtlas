@@ -13,7 +13,7 @@ import RE2 from 're2';
 export function compileExcludeRegexes(patterns) {
   return (patterns || []).map((src, i) => {
     try { return new RE2(src, 'i'); }
-    catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`); }
+    catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`, { cause: e }); }
   });
 }
 

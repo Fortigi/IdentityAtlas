@@ -221,8 +221,6 @@ export default function DepartmentDetailPage({ departmentName, cachedData, onCac
           allMembers={allMembers}
           directRisk={directRisk}
           allRisk={allRisk}
-          subDepts={subDepts}
-          node={node}
           onOpenDetail={onOpenDetail}
         />
       )}

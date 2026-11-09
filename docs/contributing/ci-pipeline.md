@@ -27,12 +27,13 @@ When product changes are detected, a `filter` job uses `dorny/paths-filter` to p
 |---|---|---|
 | `lint-ps` | Lint: PSScriptAnalyzer | `tools/crawlers/**/*.ps1`, `tools/powershell-sdk/**`, `setup/**/*.ps1` |
 | `lint-js` | Lint: ESLint | `app/ui/src/**`, `tools/crawlers/**/*.jsx` |
-| `unit-tests` | Unit Tests: Pester | `tools/powershell-sdk/**`, `tools/crawlers/shared/**`, `setup/docker/Invoke-CrawlerJob.ps1`, `test/unit/**` |
+| `unit-tests-shard` + `unit-tests` | Unit Tests: Pester (shard N/4), then Unit Tests: Pester (merges shard coverage, applies the 90% floor) | `tools/powershell-sdk/**`, `tools/crawlers/shared/**`, `setup/docker/Invoke-CrawlerJob.ps1`, `test/unit/**`, `tools/pester/**` |
 | `unit-js` | Unit Tests: Vitest (API) — includes the [core ontology check](maintaining-the-ontology.md) | `app/api/src/**`, `ontology/**`, `docs/**` |
 | `contract-tests` | Contract Tests: Vitest + PostgreSQL | `app/api/src/**`, `app/api/contract-tests/**`, `app/api/test-utils/**`, `ontology/**` |
 | `unit-ui` | Unit Tests: Vitest (UI) | `app/ui/src/**`, `tools/crawlers/**/*.jsx` |
 | `node-launcher-ui-build` | Build: Node-launcher UI | `app/ui/src/**`, `tools/crawlers/**/*.jsx` |
-| `openapi` | Lint: OpenAPI spec | `app/api/src/openapi.yaml` |
+
+`static-gates` (**Lint: static gates**) is one job holding six small checks as steps, each with its own path gate: file-length ratchet (any source file), migration immutability (`app/api/src/db/migrations/**`), Node-version consistency (`.nvmrc`, workflows, Dockerfiles, `package.json`), OpenAPI lint (`app/api/src/openapi.yaml`), crawler-manifest completeness (every product change) and compiled Azure templates (`azure/**`). A failing check does not stop the others; the final **Verdict** step fails the job and lists which check failed in the job summary. They used to be six jobs, each paying a runner start for a few seconds of work.
 
 These four jobs have **no path gate** — they always run when there are product changes:
 
@@ -41,7 +42,6 @@ These four jobs have **no path gate** — they always run when there are product
 | `audit` | Audit: npm audit | npm vulnerability scan (known advisories) |
 | `supply-chain` | Audit: Supply-chain firewall (Socket) | Installs both Node projects through [Socket Firewall](https://github.com/SocketDev/sfw-free), blocking known-malicious packages with no CVE yet |
 | `hygiene` | PR Hygiene | Branch naming, PR description checks |
-| `crawler-manifest` | Lint: Crawler manifest completeness | Every crawler has a `crawler.json` |
 | `docs-nav` | Lint: Crawler docs registered in site nav | Every crawler has a docs entry in `mkdocs.yml` |
 
 ### Gate jobs
