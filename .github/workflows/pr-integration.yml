@@ -279,15 +279,24 @@ jobs:
       # variable turn the gap into a hard failure once the secrets are set. Runs
       # before the expensive image build so an enforced failure is fast. Fork PRs
       # never receive secrets — report and skip enforcement there rather than
-      # flag a non-existent misconfiguration.
+      # flag a non-existent misconfiguration. Dependabot PRs are the same case
+      # from inside the repo: their runs get only Dependabot secrets, so every
+      # TEST_* reads empty (seen on #1532's run) — enforcing there would fail
+      # every dependency bump. Not giving the test tenant's credentials to
+      # Dependabot is deliberate, so it is exempt like a fork.
       - name: Assert test secrets present
         env:
           IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           ENFORCE: ${{ vars.ENFORCE_TEST_SECRETS }}
         run: |
           required=(TEST_GRAPH_TENANT_ID TEST_GRAPH_CLIENT_ID TEST_GRAPH_CLIENT_SECRET TEST_LLM_API_KEY)
           if [ "$IS_SAME_REPO" != "true" ]; then
             echo "Fork PR — repository secrets are unavailable; the Entra/LLM suites will skip. Not enforced on forks." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+            echo "Dependabot PR — runs receive only Dependabot secrets; the Entra/LLM suites will skip. Not enforced on Dependabot PRs." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           missing=()
