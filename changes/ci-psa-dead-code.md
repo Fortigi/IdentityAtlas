@@ -1,0 +1,1 @@
+- The PowerShell lint check now flags unused variables and unused parameters in crawlers and the SDK. The ones that already existed are recorded in a baseline that only shrinks, so new dead code fails the check while the existing cases are cleaned up over time.
