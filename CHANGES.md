@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Container images are now scanned for known vulnerabilities before they are published: an image with a critical vulnerability that already has a fix is not pushed. The published images are also re-scanned weekly, and every finding is listed in the repository's Security tab.
+
+## Changes in this PR
+
 - The JavaScript lint check now runs ESLint's standard correctness rules (undefined names, duplicate keys, unused variables and more) on both the API and the UI, so typos and dead code are caught before review.
 - Errors that wrap another error (reading a secret file, the master key, a migration, an invalid name pattern, an LLM timeout) now keep the original error attached, so logs show the root cause.
 
