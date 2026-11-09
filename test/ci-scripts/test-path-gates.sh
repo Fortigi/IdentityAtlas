@@ -108,6 +108,7 @@ simulate_filter() {
     { [[ "$f" = "setup/docker/Dockerfile.powershell" ]] && load_soak="true"; } || true
     { [[ "$f" =~ ^docker-compose ]]                     && load_soak="true"; } || true
     { [[ "$f" =~ ^test/nightly/(Test-SoakTest|SoakTest\.Functions|Test-LoadAndBenchmark)\.ps1$ ]] && load_soak="true"; } || true
+    { [[ "$f" =~ ^test/benchmark/ ]]                    && load_soak="true"; } || true
 
   done <<< "$files"
 }
@@ -289,6 +290,8 @@ simulate_filter "test/nightly/SoakTest.Functions.ps1"
 assert "load-soak: runs (soak functions)" "true"  "$load_soak"
 simulate_filter "test/nightly/Test-LoadAndBenchmark.ps1"
 assert "load-soak: runs (load test)"     "true"  "$load_soak"
+simulate_filter "test/benchmark/ci-baseline.json"
+assert "load-soak: runs (benchmark baseline)" "true" "$load_soak"
 simulate_filter "test/nightly/Test-RiskScoring.ps1"
 assert "load-soak: skips (other nightly script)" "false" "$load_soak"
 

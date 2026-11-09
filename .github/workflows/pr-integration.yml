@@ -186,6 +186,7 @@ jobs:
               - 'test/nightly/Test-SoakTest.ps1'
               - 'test/nightly/SoakTest.Functions.ps1'
               - 'test/nightly/Test-LoadAndBenchmark.ps1'
+              - 'test/benchmark/**'
 
       # Dynamically detect which crawler types changed from the git diff.
       # No hardcoded type list — new crawlers are picked up automatically.

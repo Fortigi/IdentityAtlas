@@ -26,20 +26,30 @@ function Write-Result {
     }
 }
 
+# The first non-blank output line of a docker command, or $null when it fails.
+# All output is collected before any is looked at: piping a native command into
+# `Select-Object -First 1` stops it early and leaves $LASTEXITCODE unset, which
+# reads as a failure -- that made the first CI run report no web container while
+# the container was serving the load test.
+function Invoke-DockerLine {
+    param([string[]]$Arguments)
+    $out = @(& docker @Arguments 2>$null)
+    if ($LASTEXITCODE -ne 0) { return $null }
+    $line = $out | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+    if ($null -eq $line) { return $null }
+    return "$line".Trim()
+}
+
 # The id of the running container for a compose service, or $null.
 function Resolve-SoakContainer {
     param([string]$ComposeFile, [string]$Service = 'web')
-    $id = & docker compose -f $ComposeFile ps -q $Service 2>$null | Select-Object -First 1
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($id)) { return $null }
-    return $id.Trim()
+    return Invoke-DockerLine -Arguments @('compose', '-f', $ComposeFile, 'ps', '-q', $Service)
 }
 
 # One `docker stats` line for the container, as JSON text; $null when docker fails.
 function Invoke-DockerStats {
     param([string]$Container)
-    $line = & docker stats --no-stream --format '{{json .}}' $Container 2>$null | Select-Object -First 1
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($line)) { return $null }
-    return $line
+    return Invoke-DockerLine -Arguments @('stats', '--no-stream', '--format', '{{json .}}', $Container)
 }
 
 # Bytes in the usage half of docker's MemUsage ("95.1MiB / 7.75GiB"), or $null.

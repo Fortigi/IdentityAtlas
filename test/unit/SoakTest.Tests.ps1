@@ -62,6 +62,59 @@ Describe 'Get-WebContainerMemory' {
     }
 }
 
+Describe 'The docker calls, against a docker executable' {
+    # A real executable, not a Mock: the first CI run failed on how PowerShell
+    # handles a NATIVE command's output and exit code (Select-Object -First 1
+    # left $LASTEXITCODE unset), which a mocked PowerShell function cannot show.
+    BeforeAll {
+        $script:savedPath = $env:PATH
+        $bin = Join-Path $TestDrive 'bin'
+        New-Item -ItemType Directory -Path $bin -Force | Out-Null
+        if ($IsWindows) {
+            Set-Content (Join-Path $bin 'docker.cmd') -Value @(
+                '@echo off'
+                'if "%1"=="compose" echo.'
+                'if "%1"=="compose" echo c0ffee123'
+                'if "%1"=="stats" echo {"Name":"ia-web-1","MemUsage":"200MiB / 7.75GiB"}'
+                'if defined FAKE_DOCKER_EXIT exit /b %FAKE_DOCKER_EXIT%'
+                'exit /b 0'
+            )
+        } else {
+            $sh = Join-Path $bin 'docker'
+            Set-Content $sh -Value @(
+                '#!/bin/sh'
+                'case "$1" in'
+                '  compose) echo; echo c0ffee123 ;;'
+                '  stats) echo ''{"Name":"ia-web-1","MemUsage":"200MiB / 7.75GiB"}'' ;;'
+                'esac'
+                'exit ${FAKE_DOCKER_EXIT:-0}'
+            )
+            chmod +x $sh
+        }
+        $env:PATH = "$bin$([IO.Path]::PathSeparator)$env:PATH"
+    }
+    AfterAll {
+        $env:PATH = $script:savedPath
+    }
+    AfterEach {
+        $env:FAKE_DOCKER_EXIT = $null
+    }
+
+    It 'resolves the compose service to its container id' {
+        Resolve-SoakContainer -ComposeFile 'docker-compose.ci.yml' | Should -Be 'c0ffee123'
+    }
+
+    It 'reads the memory docker stats reports' {
+        Get-WebContainerMemory -Container 'c0ffee123' | Should -Be (200 * 1MB)
+    }
+
+    It 'returns nothing when docker exits non-zero' {
+        $env:FAKE_DOCKER_EXIT = '1'
+        Resolve-SoakContainer -ComposeFile 'docker-compose.ci.yml' | Should -BeNullOrEmpty
+        Get-WebContainerMemory -Container 'c0ffee123' | Should -BeNullOrEmpty
+    }
+}
+
 Describe 'Invoke-SoakTest' {
     BeforeEach {
         $results = @{}
