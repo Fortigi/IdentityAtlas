@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Pull-request CI uses six fewer runners per push: the file-length, migration-immutability, Node-version, OpenAPI, crawler-manifest and Azure-template checks now run as steps of one `Lint: static gates` job instead of six separate jobs. Each check keeps its own path scope, a failing check no longer hides the others, and the job summary lists which check failed. This shortens the queue when many PRs run at once.
+
+## Changes in this PR
+
 - Faster pull-request checks: the code-duplication check now scans the PR once and scans the base branch at the same time, instead of running three full scans one after another. The check gives the same verdicts and stops being the slowest step in PR Checks.
 
 ## Changes in this PR
