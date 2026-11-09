@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The load test now fails a pull request that makes the permissions matrix, the dashboard, the view refresh or a large import markedly slower. Each limit is about twice the slowest measured run; the previous limits let a twentyfold slowdown pass.
+- Each pull request's load-test run now compares its API benchmark against a recorded baseline. An endpoint more than 50% slower shows as a warning on the pull request, and the full benchmark report appears on the run's summary page and as a download.
+
+## Changes in this PR
+
 - The 15-minute soak test runs again on pull requests. It reads the web container's memory from the Docker host instead of an endpoint that was removed for security, and fails a run whose memory doubles.
 - A soak test that cannot read memory now fails, instead of skipping and reporting success.
 - The nightly run no longer checks the removed container-stats endpoint, which had failed every night since its removal.
