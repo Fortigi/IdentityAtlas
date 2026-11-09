@@ -5,6 +5,7 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { CONTRACT_WORKERS } from './test-utils/contractWorkerDb.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,17 +18,19 @@ export default defineConfig({
     // tests booting the real app against the testcontainers DB with auth enabled.
     include: ['contract-tests/**/*.contract.test.js', 'contract-tests/**/*.integration.test.js'],
     globalSetup: ['./test-utils/contractGlobalSetup.js'],
-    // Single worker: contract tests share one DB container; parallelism would
-    // require per-test isolation that adds complexity. Keep it simple.
+    // One container, one migrated database CLONED PER WORKER (contractWorkerDb.js);
+    // this setupFile points each worker's CONTRACT_DB_URL at its own clone.
+    //
+    // Files must never share a database while running: they race on global
+    // constraints (uq_RA_principal isn't systemId-scoped) and shared tables
+    // (ContextAlgorithms), which made the suite flaky while each file passed alone.
+    // That used to be solved by running the whole suite one file at a time on one
+    // database (~111 s in CI). Now each worker runs its files one at a time on ITS
+    // OWN database — the same sequential guarantee per database, four at once.
+    setupFiles: ['./test-utils/contractWorkerSetup.js'],
     pool: 'forks',
-    forks: { singleFork: true },
-    // singleFork puts every file in ONE process but does NOT serialise them —
-    // Vitest still interleaves files' async hooks/tests on the event loop, so
-    // multiple files hit the shared DB at once and race on global constraints
-    // (uq_RA_principal isn't systemId-scoped) and shared tables (ContextAlgorithms),
-    // which made the full suite flaky while each file passed alone. Files must run
-    // strictly one at a time against the single shared DB.
-    fileParallelism: false,
+    maxWorkers: CONTRACT_WORKERS,
+    fileParallelism: true,
     // Container startup + migrations take ~30-60s; allow enough headroom.
     testTimeout: 30000,
     hookTimeout: 120000,

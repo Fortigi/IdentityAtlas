@@ -14,7 +14,7 @@
 import { PRIOR_FEATURES_ENV, setFeature } from './global-setup.js';
 
 async function globalTeardown() {
-  let prior = {};
+  let prior;
   try {
     prior = JSON.parse(process.env[PRIOR_FEATURES_ENV] || '{}');
   } catch {

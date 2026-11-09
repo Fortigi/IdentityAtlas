@@ -11,12 +11,9 @@ if (useSql) {
   db = await import('../db/connection.js');
 }
 
-// ─── Auto-create category tables if they don't exist ─────────────
-let tablesReady = false;
-
 // In v5 the category tables are created by the migrations runner.
 // This function is a no-op kept for backward compatibility.
-async function ensureCategoryTables(_pool) { tablesReady = true; }
+async function ensureCategoryTables(_pool) {}
 export { ensureCategoryTables };
 
 const TAG_COLORS = [

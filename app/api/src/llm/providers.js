@@ -76,7 +76,7 @@ export async function llmFetch(url, options = {}) {
     return { ok: resp.ok, status: resp.status, bodyText };
   } catch (e) {
     if (e.name === 'AbortError') {
-      throw new Error(`LLM request timed out after ${Math.round(LLM_TIMEOUT_MS / 1000)}s`);
+      throw new Error(`LLM request timed out after ${Math.round(LLM_TIMEOUT_MS / 1000)}s`, { cause: e });
     }
     throw e;
   } finally {

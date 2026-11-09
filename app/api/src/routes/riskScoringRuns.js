@@ -65,7 +65,7 @@ router.get('/risk-scoring/runs', readRuns, async (_req, res) => {
         LIMIT 50`
     );
     res.json({ data: r.rows });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'List failed' });
   }
 });
@@ -78,7 +78,7 @@ router.get('/risk-scoring/runs/:id', readRuns, async (req, res) => {
     const r = await db.queryOne(`SELECT * FROM "ScoringRuns" WHERE id = $1`, [id]);
     if (!r) return res.status(404).json({ error: 'Not found' });
     res.json(r);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Get failed' });
   }
 });

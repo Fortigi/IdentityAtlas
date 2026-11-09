@@ -93,7 +93,7 @@ router.get('/access-package/:id/assignments', async (req, res) => {
       r = { rows: [] };
     }
     res.json(r.rows);
-  } catch (err) {
+  } catch {
     res.json([]);
   }
 });
@@ -149,7 +149,7 @@ router.get('/access-package/:id/reviews', async (req, res) => {
       ORDER BY "reviewedDateTime" DESC
     `, [req.params.id]);
     res.json(r.rows);
-  } catch (err) {
+  } catch {
     res.json([]);
   }
 });
@@ -174,7 +174,7 @@ router.get('/access-package/:id/requests', async (req, res) => {
         ORDER BY req."createdDateTime" DESC
       `, [req.params.id]);
     res.json(r.rows);
-  } catch (err) {
+  } catch {
     res.json([]);
   }
 });
