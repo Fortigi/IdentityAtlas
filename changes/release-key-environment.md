@@ -1,0 +1,1 @@
+- The key that lets release automation push to protected branches is now only available to workflows running on `main` or a release branch.

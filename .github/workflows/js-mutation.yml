@@ -128,6 +128,9 @@ jobs:
     # the merge below refuses to publish a partial picture and fails here too.
     if: always()
     runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
     timeout-minutes: 10
     permissions:
       contents: write # commits the refreshed scores to main

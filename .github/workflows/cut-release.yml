@@ -35,6 +35,9 @@ on:
 jobs:
   cut-release:
     runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
     permissions:
       contents: write
       id-token: write

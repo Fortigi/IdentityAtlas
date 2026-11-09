@@ -113,10 +113,10 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #
 #   codeql.yml         enforced, but by the ruleset's `code_scanning` rule rather than by a
 #                      required status check — which is why its check name must never be renamed.
-#   bump-version.yml   acts on merge. Not a gate.
+#   bump-version.yml   acts on merge (pull_request_target). Not a gate.
 #   dor-deploy.yml     acts on a label. Not a gate.
 #   dor-reset.yml      acts on close. Not a gate.
-#   sbom-update.yml    acts on merge. Not a gate.
+#   sbom-update.yml    acts on merge (pull_request_target). Not a gate.
 #   diff-coverage.yml  ADVISORY on purpose, for now. It cannot be made blocking while pure-JSX
 #                      page shells produce expected reds: v8 does not line-instrument a big JSX
 #                      `return`, so a routing or layout edit fails on a line no test can reach.
@@ -130,7 +130,7 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml diff-coverage.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
-  grep -qE '^[[:space:]]+pull_request:' "$f" || continue
+  grep -qE '^[[:space:]]+pull_request(_target)?:' "$f" || continue
   b="$(basename "$f")"
   case " $ALLOWED " in *" $b "*) continue ;; esac
   unlisted="${unlisted}${b} "
@@ -147,7 +147,7 @@ onprs=""
 for f in "$WF"/*-mutation.yml; do
   [ -e "$f" ] || continue
   found=$((found + 1))
-  grep -qE '^[[:space:]]+pull_request:' "$f" && onprs="${onprs}$(basename "$f") "
+  grep -qE '^[[:space:]]+pull_request(_target)?:' "$f" && onprs="${onprs}$(basename "$f") "
 done
 # Both mutation workflows must be found. Without this, renaming them to something the glob misses
 # would make the check below pass over an empty list — green, and testing nothing.
