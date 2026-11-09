@@ -33,7 +33,8 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      // json-summary feeds tools/coverage/aggregate_floors.py (coverage.yml).
+      reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.js'],
       // src/**/__mocks__/** is test infrastructure (vitest manual mocks), not
       // product code — keep it out of the coverage numbers.
@@ -42,8 +43,9 @@ export default defineConfig({
       // the PR Checks job) enforces — a change that drops unit coverage below
       // these fails CI. Set at measured minus 2, rounded down, so normal variance
       // doesn't flake but a real loss does. When you raise coverage, RAISE these
-      // too (never lower them). The per-file floors (.ci/coverage-baseline.json)
-      // rise on their own after every merge (coverage.yml); these are by hand.
+      // too (never lower them). Both these and the per-file floors
+      // (.ci/coverage-baseline.json) also rise on their own after every merge:
+      // coverage.yml runs tools/coverage/aggregate_floors.py on main's numbers.
       // Measured on this suite (unit only; contract tests add more), Nov 2026:
       // S92.7 B87.8 F94.6 L94.3.
       thresholds: {

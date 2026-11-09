@@ -1,2 +1,2 @@
 - Pull request checks now hold API and UI test coverage near today's level (about 90%) instead of the much lower floors set a year ago, so a change that drops coverage noticeably now fails.
-- Each file's minimum coverage now rises automatically after every merge, so improvements are locked in without anyone having to update the floors by hand.
+- Both the overall and each file's minimum coverage now rise automatically after every merge, so improvements are locked in without anyone having to update the floors by hand.

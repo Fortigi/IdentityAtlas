@@ -226,7 +226,10 @@ jobs:
       # main's new numbers. Only the UNIT lcov counts — the scope the gate checks.
       # --update never lowers a floor, so a failed or partial suite run (which can
       # only measure less) can't weaken the gate; it just raises nothing.
-      - name: Raise per-file coverage floors
+      # The aggregate Vitest thresholds rise the same way: measured minus 2,
+      # rounded down, never lower (tools/coverage/aggregate_floors.py). Neither
+      # config is in this workflow's `paths`, so the commit doesn't re-trigger it.
+      - name: Raise per-file and aggregate coverage floors
         continue-on-error: true
         run: |
           for scope in api ui; do
@@ -235,6 +238,14 @@ jobs:
               python3 tools/coverage/ratchet.py --lcov "$lcov" --prefix "app/$scope/" --update
             else
               echo "No $lcov — $scope floors left as they are"
+            fi
+          done
+          for pair in api:vitest.config.js ui:vite.config.js; do
+            scope="${pair%%:*}"; summary="app/$scope/coverage/coverage-summary.json"
+            if [ -s "$summary" ]; then
+              python3 tools/coverage/aggregate_floors.py --config "app/$scope/${pair#*:}" --summary "$summary"
+            else
+              echo "No $summary — $scope aggregate floors left as they are"
             fi
           done
 
@@ -251,7 +262,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/reference/coverage.md docs/coverage .ci/coverage-baseline.json
+          git add docs/reference/coverage.md docs/coverage .ci/coverage-baseline.json app/api/vitest.config.js app/ui/vite.config.js
           if git diff --cached --quiet; then
             echo "Coverage unchanged — nothing to commit"
             exit 0
@@ -259,6 +270,9 @@ jobs:
           msg="docs: update test coverage report"
           if ! git diff --cached --quiet -- .ci/coverage-baseline.json; then
             msg="$msg; raise per-file coverage floors"
+          fi
+          if ! git diff --cached --quiet -- app/api/vitest.config.js app/ui/vite.config.js; then
+            msg="$msg; raise aggregate coverage floors"
           fi
           git commit -m "$msg"
           # bump-version.yml may push to main on the same merge — rebase & retry.

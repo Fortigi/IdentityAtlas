@@ -32,15 +32,17 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, '../../tools/crawlers/**/configValidation.test.js'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      // json-summary feeds tools/coverage/aggregate_floors.py (coverage.yml).
+      reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.{js,jsx}'],
       exclude: ['src/**/*.test.{js,jsx}', 'src/main.jsx', 'src/test-utils/**'],
       // Coverage ratchet: a committed FLOOR enforced by the PR Checks job (which
       // runs `npm run test:coverage`). A change that drops UI coverage below
       // these fails CI. Set at measured minus 2, rounded down, so normal variance
       // doesn't flake but a real loss does; RAISE these when you raise coverage
-      // (never lower them). The per-file floors (.ci/coverage-baseline.json) rise
-      // on their own after every merge (coverage.yml); these are by hand.
+      // (never lower them). Both these and the per-file floors
+      // (.ci/coverage-baseline.json) also rise on their own after every merge:
+      // coverage.yml runs tools/coverage/aggregate_floors.py on main's numbers.
       // Measured Nov 2026: S89.7 B83.0 F88.3 L91.4.
       thresholds: {
         statements: 87,

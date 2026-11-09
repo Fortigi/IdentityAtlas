@@ -198,6 +198,9 @@ jobs:
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
+              # The coverage ratchets' own tests (test_ratchet.py,
+              # test_aggregate_floors.py) run in this job's per-file ratchet step.
+              - 'tools/coverage/**'
               # The desktop job worker's tests run in the API Vitest suite.
               - 'app/desktop/*.cjs'
               - 'app/desktop/*.test.js'
@@ -487,7 +490,7 @@ jobs:
         # tools/coverage/ratchet.py. Reads the deterministic unit lcov just produced.
         run: |
           python3 -m pip install --quiet pytest
-          python3 -m pytest tools/coverage/test_ratchet.py -q
+          python3 -m pytest tools/coverage/test_ratchet.py tools/coverage/test_aggregate_floors.py -q
           python3 tools/coverage/ratchet.py --lcov app/api/coverage/lcov.info --prefix app/api/
 
       - name: Upload coverage (lcov + text)
