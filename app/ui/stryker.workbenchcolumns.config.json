@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation measurement of the role workbench's people-as-columns view: WorkbenchColumnsGrid, its header rows and permission filters, the sticky table and its virtual rows, against their own mount and hook tests. Split out of stryker.workbenchui.config.json (Nov 2026, #1548). MEASURED (run 42611981685) with the people-as-columns view still in scope: 66.67% over 2,224 mutants in 53 minutes of the job's 60, so that view moved to stryker.workbenchcolumns.config.json. Same mutator settings. NOT YET MEASURED in this shape: no `break` until a run gives a number to set it a few points under.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.workbenchcolumns.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-ui-workbenchcolumns.json"
+  },
+  "mutate": [
+    "src/components/workbench/WorkbenchColumnsGrid.jsx",
+    "src/components/workbench/PeopleHeaderRows.jsx",
+    "src/components/workbench/PermissionFilters.jsx",
+    "src/components/workbench/PageStickyTable.jsx",
+    "src/components/workbench/usePageVirtualRows.js"
+  ],
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70
+  },
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false
+}

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 // Vitest config used only by the workbench components mutation run
-// (stryker.workbenchui.config.json): every mount and hook test in the folder. Standalone
+// (stryker.workbenchui.config.json): the page's mount and hook tests. Standalone
 // for the same sandbox reason as vitest.stryker.roles.config.js.
 export default defineConfig({
   plugins: [react()],
@@ -17,9 +17,6 @@ export default defineConfig({
       'src/components/workbench/useWorkbench.loadSaved.test.js',
       'src/components/workbench/CandidatePanel.mount.test.jsx',
       'src/components/workbench/GridAndPanel.mount.test.jsx',
-      'src/components/workbench/WorkbenchColumnsGrid.mount.test.jsx',
-      'src/components/workbench/PageStickyTable.mount.test.jsx',
-      'src/components/workbench/usePageVirtualRows.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

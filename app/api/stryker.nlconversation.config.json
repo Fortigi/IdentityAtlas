@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation measurement of the natural-language report builder's conversation side: follow-up questions (followUp.js), contradiction detection (contradictions.js), the autofix loop that repairs a failed spec and its activity and follow-up variants (autofix*.js), conversation state and storage (state.js, conversations.js), the prompt (prompt.js) and the language detection (language.js). Split out of stryker.nlreports.config.json (Nov 2026, #1548). That config mutated these files without any of their own tests in its include list, so their scores measured tests that never call them, and it ran 48 of the job's 60 minutes. Same mutator settings as that config, for the same reason (see stryker.reports.config.json). NOT YET MEASURED as a scope of its own: no `break` until the first weekly run gives a number to set it a few points under.",
+  "_comment": "Mutation measurement of the natural-language report builder's conversation side: follow-up questions (followUp.js), contradiction detection (contradictions.js), the autofix loop that repairs a failed spec and its activity and follow-up variants (autofix*.js), conversation state and storage (state.js, conversations.js), the prompt (prompt.js) and the language detection (language.js). Split out of stryker.nlreports.config.json (Nov 2026, #1548). That config mutated these files without any of their own tests in its include list, so their scores measured tests that never call them, and it ran 48 of the job's 60 minutes. Same mutator settings as that config, for the same reason (see stryker.reports.config.json). MEASURED in this shape (run 42611981685): 68.41% over 3,422 mutants in 4 minutes. MUTATION FLOOR: `break` 66, that score minus 2, a ratchet like every other floor -- raise it as the score rises, never lower it.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -27,7 +27,7 @@
   "thresholds": {
     "high": 90,
     "low": 70,
-    "break": null
+    "break": 66
   },
   "concurrency": 2,
   "timeoutMS": 60000,
