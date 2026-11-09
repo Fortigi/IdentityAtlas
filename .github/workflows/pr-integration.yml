@@ -10,16 +10,12 @@
 #   2. e2e          — Playwright browser tests (~5 min)
 #   3. load-soak    — 1.5M-row load test (~7 min) + 15-min soak test (~22 min)
 #
-# Note: load-soak currently finishes in ~8 min, not ~22, because the soak test
-# does not actually run. It takes a memory baseline from GET /admin/container-stats
-# and skips — recording a PASS — when that is unavailable, which is always: #213
-# removed the endpoint and the Docker socket mount it needed, because mounting
-# docker.sock into the web container was a host-takeover primitive. So a step
-# named "Soak test (15 min)" completes in 0 min and goes green. #721 tracks it.
-#
-# ~22 min is what this job should cost once the soak works again. Do NOT get
-# there by restoring the endpoint or the socket mount — that re-opens the hole
-# #213 closed. See #721 for the alternatives.
+# The soak reads the web container's memory with `docker stats` on the runner,
+# outside the container. It used to read it from the API's GET
+# /admin/container-stats, which #213 removed together with the docker.sock mount
+# it needed (a host-takeover primitive), and for months it skipped while
+# recording a PASS (#721). Do NOT restore the endpoint or the socket mount to
+# feed it. A missing memory reading now fails the step.
 #
 # Secret-dependent tests (Entra ID crawler, LLM risk scoring) skip gracefully
 # when GitHub Actions secrets are not configured. That skip is no longer silent:
@@ -185,6 +181,12 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+              # The job's own scripts: a change to the soak or the load test is
+              # only verified by running them.
+              - 'test/nightly/Test-SoakTest.ps1'
+              - 'test/nightly/SoakTest.Functions.ps1'
+              - 'test/nightly/Test-LoadAndBenchmark.ps1'
+              - 'test/benchmark/**'
 
       # Dynamically detect which crawler types changed from the git diff.
       # No hardcoded type list — new crawlers are picked up automatically.
@@ -275,46 +277,21 @@ jobs:
       # The Entra-crawler and LLM risk-scoring suites below run only when their
       # secret is set (`if: env.TEST_* != ''`); when it isn't they skip and the
       # job still records a PASS — a silent gap. Surface which suites will skip
-      # (run summary + warning annotations) instead of hiding it, and let a repo
-      # variable turn the gap into a hard failure once the secrets are set. Runs
-      # before the expensive image build so an enforced failure is fast. Fork PRs
-      # never receive secrets — report and skip enforcement there rather than
-      # flag a non-existent misconfiguration.
+      # and let a repo variable turn the gap into a hard failure. Runs before
+      # the expensive image build so an enforced failure is fast.
+      #
+      # A run that received NO repository secrets (fork PRs, Dependabot PRs —
+      # #1532) is reported, never failed. Which runs those are is decided by a
+      # canary, BOT_APP_ID, not by a list of authors: every release workflow
+      # needs it, so it is set whenever secrets reach a run at all. Only the
+      # boolean `!= ''` is passed, never the value. Logic and its tests:
+      # .github/scripts/assert_test_secrets.sh,
+      # test/ci-scripts/test-assert-test-secrets.sh.
       - name: Assert test secrets present
         env:
-          IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          SECRETS_REACHED: ${{ secrets.BOT_APP_ID != '' }}
           ENFORCE: ${{ vars.ENFORCE_TEST_SECRETS }}
-        run: |
-          required=(TEST_GRAPH_TENANT_ID TEST_GRAPH_CLIENT_ID TEST_GRAPH_CLIENT_SECRET TEST_LLM_API_KEY)
-          if [ "$IS_SAME_REPO" != "true" ]; then
-            echo "Fork PR — repository secrets are unavailable; the Entra/LLM suites will skip. Not enforced on forks." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          missing=()
-          for s in "${required[@]}"; do
-            if [ -z "${!s}" ]; then missing+=("$s"); fi
-          done
-          if [ ${#missing[@]} -eq 0 ]; then
-            echo "✅ All required test secrets are present — the Entra/LLM suites will run." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          {
-            echo "## ⚠️ Missing test secrets — some suites will skip"
-            echo
-            echo "These suites record a PASS **without running** because their secret is unset:"
-            for s in "${missing[@]}"; do echo "- \`$s\`"; done
-            echo
-            echo "Add them under **Settings → Secrets and variables → Actions** to exercise the Entra-crawler and LLM risk-scoring paths on \`main\` PRs."
-          } >> "$GITHUB_STEP_SUMMARY"
-          for s in "${missing[@]}"; do
-            echo "::warning title=Missing test secret::${s} is unset — its test suite will skip silently"
-          done
-          if [ "$ENFORCE" = "true" ]; then
-            echo "::error::ENFORCE_TEST_SECRETS=true and ${#missing[@]} required secret(s) missing — failing so the gap is caught, not skipped."
-            exit 1
-          fi
-          echo >> "$GITHUB_STEP_SUMMARY"
-          echo "_Set repository variable \`ENFORCE_TEST_SECRETS=true\` to make this a hard failure once secrets are configured._" >> "$GITHUB_STEP_SUMMARY"
+        run: bash .github/scripts/assert_test_secrets.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
@@ -720,8 +697,14 @@ jobs:
           $maxDepth = ($depths.Values | Measure-Object -Max).Maximum
 
           # ── Run ──────────────────────────────────────────────────────────────
+          # Per-crawler and per-depth wall time go to the job summary below. This step
+          # is ~80% of the integration job, and a depth waits for its SLOWEST crawler,
+          # so the summary is what tells you which crawler to make faster.
+          $timings      = [System.Collections.Generic.List[object]]::new()
+          $depthTimings = [System.Collections.Generic.List[object]]::new()
           $totalFailed = 0
           for ($depth = 0; $depth -le $maxDepth; $depth++) {
+            $depthStart = Get-Date
             $typesAtDepth = @($depths.GetEnumerator() | Where-Object Value -eq $depth | Select-Object -ExpandProperty Key)
             $jobs = @()
             $jobMeta = @{}  # job name → type (for scope check after Wait-Job)
@@ -760,9 +743,15 @@ jobs:
               $output | ForEach-Object { Write-Host $_ }
               $jobErrors | ForEach-Object { Write-Host $_ }
               $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
+              $asserting = $fullRun -or $testSet.Contains($type)
+              $result = if (-not $failed) { 'passed' } elseif ($asserting) { 'FAILED' } else { 'setup-only, failed' }
+              $timings.Add([pscustomobject]@{
+                Type = $type; Depth = $depth; Mode = $(if ($asserting) { 'assert' } else { 'setup-only' })
+                Seconds = [int][Math]::Round(($_.PSEndTime - $_.PSBeginTime).TotalSeconds)
+                Result = $result
+              })
               Remove-Job $_ -Force -ErrorAction SilentlyContinue
 
-              $asserting = $fullRun -or $testSet.Contains($type)
               if ($failed) {
                 if ($asserting) {
                   Write-Host "::error title=${type}::Test FAILED — see log above"
@@ -775,7 +764,28 @@ jobs:
               }
               Write-Host "::endgroup::"
             }
+            $depthTimings.Add([pscustomobject]@{
+              Depth = $depth; Crawlers = $jobs.Count
+              Seconds = [int][Math]::Round(((Get-Date) - $depthStart).TotalSeconds)
+            })
           }
+
+          # ── Timing summary ───────────────────────────────────────────────────
+          $md = [System.Text.StringBuilder]::new()
+          $null = $md.AppendLine('### Crawler integration timing')
+          $null = $md.AppendLine()
+          $null = $md.AppendLine('| Depth | Crawlers in parallel | Wall time (s) |')
+          $null = $md.AppendLine('|---|---|---|')
+          foreach ($d in $depthTimings) { $null = $md.AppendLine("| $($d.Depth) | $($d.Crawlers) | $($d.Seconds) |") }
+          $null = $md.AppendLine()
+          $null = $md.AppendLine('| Crawler | Depth | Mode | Duration (s) | Result |')
+          $null = $md.AppendLine('|---|---|---|---|---|')
+          foreach ($r in ($timings | Sort-Object Seconds -Descending)) {
+            $null = $md.AppendLine("| $($r.Type) | $($r.Depth) | $($r.Mode) | $($r.Seconds) | $($r.Result) |")
+          }
+          if ($env:GITHUB_STEP_SUMMARY) { $md.ToString() | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8 }
+          Write-Host $md.ToString()
+
           if ($totalFailed -gt 0) {
             Write-Host "$totalFailed crawler test file(s) failed" -ForegroundColor Red
             exit 1
@@ -1011,11 +1021,24 @@ jobs:
             -ApiKey '${{ steps.apikey.outputs.key }}'
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # BENCHMARK.md also goes to the job summary; the JSON is kept so a
+      # baseline refresh (test/benchmark/ci-baseline.json) can be built from
+      # runs rather than from log lines.
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: benchmark-report
+          path: test/nightly/results/benchmark/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: 'Test: Soak test (15 min)'
         shell: pwsh
         run: |
           & test/nightly/Test-SoakTest.ps1 `
             -ApiBaseUrl http://localhost:3001/api `
+            -ComposeFile docker-compose.ci.yml `
             -DurationMinutes 15
           if ($LASTEXITCODE -ne 0) { exit 1 }
 

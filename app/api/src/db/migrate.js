@@ -200,7 +200,7 @@ export async function runMigrations(_pool) {
         continue;
       }
       console.log('FAILED');
-      throw new Error(`Migration ${filename} failed: ${err.message}`);
+      throw new Error(`Migration ${filename} failed: ${err.message}`, { cause: err });
     }
   }
   console.log(`Migrations: complete (${available.length} total)`);

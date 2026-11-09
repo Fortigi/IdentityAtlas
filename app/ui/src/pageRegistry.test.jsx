@@ -44,7 +44,7 @@ describe('pageRegistry', () => {
   it('threads the context callbacks into each page as props', () => {
     expect(resolvePageRoute('dashboard')(ctx).props.onNavigate).toBe(ctx.navigate);
     expect(resolvePageRoute('sync-log')(ctx).props.navigate).toBe(ctx.navigate);
-    expect(resolvePageRoute('sync-log')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
+    expect(resolvePageRoute('sync-log')(ctx).props.onOpenDetail).toBeUndefined();
     expect(resolvePageRoute('principals')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
     expect(resolvePageRoute('access-packages')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
     expect(resolvePageRoute('identities')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);

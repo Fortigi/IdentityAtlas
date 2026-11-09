@@ -40,7 +40,7 @@ function Badge({ value, map }) {
   );
 }
 
-export default function SyncLogPage({ navigate, onOpenDetail }) {
+export default function SyncLogPage({ navigate }) {
   const { authFetch } = useAuth();
   const [logs, setLogs] = useState([]);
   const [runs, setRuns] = useState([]);

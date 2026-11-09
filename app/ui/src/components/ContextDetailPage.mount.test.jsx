@@ -552,7 +552,7 @@ describe('ContextDetailPage (mounted)', () => {
 
   it('renders the error state and retries on click', async () => {
     let calls = 0;
-    const authFetch = vi.fn(async (url, opts = {}) => {
+    const authFetch = vi.fn(async (url) => {
       if (String(url).includes('/api/contexts/ctx-1') &&
           !url.includes('/members') && !url.includes('/timeline')) {
         calls += 1;

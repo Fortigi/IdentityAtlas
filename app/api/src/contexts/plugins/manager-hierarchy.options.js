@@ -41,7 +41,7 @@ function resolveField(name, validCols, validExtKeys) {
 
 function compileTopTitle(pattern) {
   try { return new RE2(pattern, 'i'); }
-  catch (e) { throw new Error(`topJobTitle is not a valid pattern: ${e.message}`); }
+  catch (e) { throw new Error(`topJobTitle is not a valid pattern: ${e.message}`, { cause: e }); }
 }
 
 // The validated layout options. Throws on a parameter that cannot work.

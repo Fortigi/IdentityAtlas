@@ -5,7 +5,7 @@ import { getAccessPackageColor } from '@ui/utils/colors';
 import { bandRoles } from './workbench.roles';
 import { effectiveMembers, ruleFromView } from './workbench.rule';
 import { EMPTY_CANDIDATE } from './workbench.model';
-import { useWorkbenchData, useWorkbenchDraft, activeDraft } from './useWorkbench';
+import { useWorkbenchData, useWorkbenchDraft } from './useWorkbench';
 import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
 import { knowledgeGaps, knownNames } from './workbench.labels';
 import WorkbenchGrid from './WorkbenchGrid';

@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Seconds per Pester test file, measured in the 'Unit Tests: Pester' CI job (run 128767965254).",
+    "Used only to BALANCE the PR Checks shards (tools/pester/PesterShards.ps1); a file not listed weighs 0.3 s.",
+    "Stale numbers can only make the shards uneven, never skip a test. Refresh when one shard is clearly the slowest."
+  ],
+  "weights": {
+    "IdentityAtlas.Tests.ps1": 15.9,
+    "CSVCrawlerPhases.Tests.ps1": 15.7,
+    "AssertReleaseFromMain.Tests.ps1": 8.4,
+    "MockServerJob.Tests.ps1": 7.0,
+    "ComplexityMeasure.Tests.ps1": 6.1,
+    "DemoRealism.Tests.ps1": 5.5,
+    "WorkerJobIsolation.Tests.ps1": 2.9,
+    "Dispatcher.Tests.ps1": 2.4,
+    "EntraIDCrawlerPhases.Tests.ps1": 1.9,
+    "CrawlerHelpers.Tests.ps1": 1.6,
+    "SqlCrawlerFunctions.Tests.ps1": 1.5,
+    "CrawlerSecretOutput.Tests.ps1": 1.4,
+    "CSVCrawlerFunctions.Tests.ps1": 1.0,
+    "CrawlerIngest.Tests.ps1": 0.9,
+    "EntraIDCrawlerFunctions.Tests.ps1": 0.9
+  }
+}

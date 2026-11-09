@@ -17,8 +17,7 @@ if (useSql) {
 // ─── Auto-create tag tables if they don't exist ──────────────────
 // In v5 the tags + tag-assignments tables are created by the migrations
 // runner at startup. This function is a no-op kept for backward compatibility.
-let tablesReady = false;
-export async function ensureTagTables(_pool) { tablesReady = true; }
+export async function ensureTagTables(_pool) {}
 
 export const ENTITY_TO_TARGET = { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' };
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
