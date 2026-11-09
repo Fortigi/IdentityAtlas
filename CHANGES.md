@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The integration test run now reports how long each crawler's integration test took, and how long each dependency level waited, in its job summary, so the slowest crawler tests can be found and sped up.
+
+## Changes in this PR
+
 - Faster API contract tests in pull-request CI: the suite now runs four test files at a time, each worker against its own copy of the freshly migrated database, instead of one file at a time against a single shared database. Tests stay as isolated from each other as before.
 
 ## Changes in this PR
