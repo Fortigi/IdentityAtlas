@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Pull request checks now hold API and UI test coverage near today's level (about 90%) instead of the much lower floors set a year ago, so a change that drops coverage noticeably now fails.
+- Both the overall and each file's minimum coverage now rise automatically after every merge, so improvements are locked in without anyone having to update the floors by hand.
+
+## Changes in this PR
+
 - Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9, split so that every scope finishes within its hour. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
 - Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.
 - Mutation scores now measure each file against its own tests: several scopes were scoring files against tests that never call them. A check now fails when a mutated file's own test is left out of its scope.
