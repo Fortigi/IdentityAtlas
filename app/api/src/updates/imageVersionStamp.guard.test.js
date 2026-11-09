@@ -19,10 +19,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
+import { repoRoot as findCheckoutRoot } from '../lib/repoRoot.js';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = findCheckoutRoot();
 const read = (p) => readFileSync(join(repoRoot, p), 'utf8');
 
 const PUBLISH_WORKFLOW = '.github/workflows/docker-publish.yml';
