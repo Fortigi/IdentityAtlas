@@ -248,7 +248,7 @@ router.get('/risk-profiles/scraper-credentials', gate, async (_req, res) => {
       `SELECT id, label, "createdAt" FROM "Secrets" WHERE scope = 'scraper' ORDER BY id`
     );
     res.json(r.rows);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'List failed' });
   }
 });
@@ -277,7 +277,7 @@ router.delete('/risk-profiles/scraper-credentials/:id', gate, async (req, res) =
     const removed = await deleteSecret(req.params.id, SCRAPER_SECRET_SCOPE);
     if (!removed) return res.status(404).json({ error: 'Credential not found' });
     res.json({ ok: true });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Delete failed' });
   }
 });
@@ -423,7 +423,7 @@ router.get('/risk-classifiers/:id', gate, async (req, res) => {
     const r = await db.queryOne(`SELECT * FROM "RiskClassifiers" WHERE id = $1`, [id]);
     if (!r) return res.status(404).json({ error: 'Not found' });
     res.json(r);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Get failed' });
   }
 });
@@ -439,7 +439,7 @@ router.post('/risk-classifiers/:id/activate', gate, async (req, res) => {
     );
     if (!r) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true, id });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Activate failed' });
   }
 });
@@ -451,7 +451,7 @@ router.delete('/risk-classifiers/:id', gate, async (req, res) => {
   try {
     await db.query(`DELETE FROM "RiskClassifiers" WHERE id = $1`, [id]);
     res.json({ ok: true });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Delete failed' });
   }
 });

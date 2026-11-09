@@ -645,10 +645,8 @@ export default function MatrixView({
                     key={rowRenderKey(group)}
                     group={group}
                     users={colUsers}
-                    totalUsers={colUsers.length}
                     memberships={colMemberships}
                     aggDirectCounts={aggDirectCounts}
-                    managedMap={managedMap}
                     managedApMap={managedApMap}
                     apIdToIndex={apIdToIndex}
                     accessPackages={visibleAccessPackages}

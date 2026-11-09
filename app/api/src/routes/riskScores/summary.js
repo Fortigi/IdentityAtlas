@@ -51,7 +51,7 @@ export async function fetchRiskOverview(p, res) {
     LIMIT 1
   `, []);
 
-  let resourceTypeBreakdown = null;
+  let resourceTypeBreakdown;
   try {
     const typeResult = await timedQuery(p, 'risk-resource-types', res, `
       SELECT r."resourceType", COUNT(*) AS count, AVG(CAST(rs."riskScore" AS FLOAT)) AS "avgScore"

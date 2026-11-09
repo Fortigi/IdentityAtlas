@@ -112,7 +112,7 @@ describe('lookupCrawlerPresence', () => {
 
   it('coerces a null availability row to crawlerDataAvailable=false', async () => {
     const db = makeDb({ links: { 33: 1 } });
-    db.queryOne.mockImplementation(async (sql, params) => (
+    db.queryOne.mockImplementation(async (sql) => (
       sql.includes('"directorySystemId" FROM "Systems"') ? { directorySystemId: 1 } : null
     ));
     const out = await lookupCrawlerPresence(db, 't1', ['x'], null, 33);

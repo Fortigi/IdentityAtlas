@@ -121,7 +121,7 @@ test.describe('Matrix View', () => {
     }
   });
 
-  test('owner rows are separated with (Owner) suffix', async ({ page }) => {
+  test('owner rows are separated with (Owner) suffix', async () => {
     // Mock data should have owner memberships that create separate rows
     // Owner rows may or may not be visible depending on mock data and user limit
     // Just verify the page doesn't crash

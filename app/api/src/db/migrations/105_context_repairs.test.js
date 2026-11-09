@@ -19,7 +19,7 @@ describe('migration 105 — the owner marker and the old-092 repair', () => {
     for (const table of ['ContextMembers', 'ContextRoles', 'ContextRelationships']) {
       expect(squash(statements)).toContain(
         `ALTER TABLE "${table}" ADD CONSTRAINT "${table}_addedBy_check" CHECK ("addedBy" IN ('sync', 'algorithm', 'analyst', '${OWNER_ADDED_BY}')) NOT VALID;`);
-      const list = statements.match(new RegExp(`\"${table}_addedBy_check\"\\s+CHECK \\(\"addedBy\" IN \\(([^)]+)\\)`))[1];
+      const list = statements.match(new RegExp(`"${table}_addedBy_check"\\s+CHECK \\("addedBy" IN \\(([^)]+)\\)`))[1];
       expect(list.split(',').map(s => s.trim().replace(/'/g, ''))).toEqual(CONTEXT_MEMBER_ADDED_BY);
       expect(squash(statements)).toContain(`ALTER TABLE "${table}" DROP CONSTRAINT IF EXISTS "${table}_addedBy_check";`);
     }

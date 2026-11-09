@@ -55,7 +55,7 @@ export function decodeText(buffer) {
     swapped.swap16();
     return swapped.toString('utf16le');
   }
-  return buffer.toString('utf8').replace(/^﻿/, '');
+  return buffer.toString('utf8').replace(/^\uFEFF/, '');
 }
 
 const normaliseLines = (text) => text.replace(/\r\n?/g, '\n');
