@@ -40,15 +40,17 @@ export default defineConfig({
       exclude: ['src/**/*.test.js', 'src/**/__mocks__/**', 'src/index.js'],
       // Coverage ratchet: a committed FLOOR that `npm run test:coverage` (run in
       // the PR Checks job) enforces — a change that drops unit coverage below
-      // these fails CI. Set just under the current numbers so normal variance
-      // doesn't flake. When you raise coverage, RAISE these too (the same
-      // manual-ratchet discipline as the complexity baseline; never lower them).
-      // Measured on this suite (unit only; contract tests add more): S67.8 B59.9 F67.9 L71.2.
+      // these fails CI. Set at measured minus 2, rounded down, so normal variance
+      // doesn't flake but a real loss does. When you raise coverage, RAISE these
+      // too (never lower them). The per-file floors (.ci/coverage-baseline.json)
+      // rise on their own after every merge (coverage.yml); these are by hand.
+      // Measured on this suite (unit only; contract tests add more), Nov 2026:
+      // S92.7 B87.8 F94.6 L94.3.
       thresholds: {
-        statements: 67,
-        branches: 59,
-        functions: 67,
-        lines: 71,
+        statements: 90,
+        branches: 85,
+        functions: 92,
+        lines: 92,
       },
     },
   },

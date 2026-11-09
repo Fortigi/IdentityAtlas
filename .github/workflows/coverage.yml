@@ -17,7 +17,12 @@
 #      back — see those workflows.)
 #   4. Renders the curated docs page (docs/reference/coverage.md) from those
 #      summaries (tools/generate-coverage-doc.py).
-#   5. Commits docs/reference/coverage.md + docs/coverage/** back to main.
+#   5. Raises the per-file coverage floors (.ci/coverage-baseline.json) to what
+#      main's unit suites now measure — never lowers one (tools/coverage/ratchet.py
+#      --update), so a file's gain is locked in without anyone running a command.
+#   6. Commits docs/reference/coverage.md + docs/coverage/** (and the raised
+#      baseline) back to main. .ci/ is outside this workflow's paths filter, so
+#      the commit does not re-trigger it.
 #
 # Why commit into docs/ rather than publish a one-off artifact: the docs site is
 # versioned with mike (edge = main, stable = release tag). Committing the page and
@@ -216,6 +221,23 @@ jobs:
           python3 tools/complexity/ratchet.py --emit-complexity-json app/api > docs/coverage/api/complexity.json
           python3 tools/complexity/ratchet.py --emit-complexity-json app/ui > docs/coverage/ui/complexity.json
 
+      # ── Ratchet the per-file floors up ─────────────────────────────────────
+      # The PR gate (pr.yml) holds every file at its floor; this raises floors to
+      # main's new numbers. Only the UNIT lcov counts — the scope the gate checks.
+      # --update never lowers a floor, so a failed or partial suite run (which can
+      # only measure less) can't weaken the gate; it just raises nothing.
+      - name: Raise per-file coverage floors
+        continue-on-error: true
+        run: |
+          for scope in api ui; do
+            lcov="app/$scope/coverage/lcov.info"
+            if [ -s "$lcov" ]; then
+              python3 tools/coverage/ratchet.py --lcov "$lcov" --prefix "app/$scope/" --update
+            else
+              echo "No $lcov — $scope floors left as they are"
+            fi
+          done
+
       - name: Render coverage docs page
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -229,12 +251,16 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/reference/coverage.md docs/coverage
+          git add docs/reference/coverage.md docs/coverage .ci/coverage-baseline.json
           if git diff --cached --quiet; then
             echo "Coverage unchanged — nothing to commit"
             exit 0
           fi
-          git commit -m "docs: update test coverage report"
+          msg="docs: update test coverage report"
+          if ! git diff --cached --quiet -- .ci/coverage-baseline.json; then
+            msg="$msg; raise per-file coverage floors"
+          fi
+          git commit -m "$msg"
           # bump-version.yml may push to main on the same merge — rebase & retry.
           for attempt in 1 2 3 4 5; do
             if git push; then
