@@ -1,0 +1,50 @@
+{
+  "_comment": "Benchmark baseline for the Load & Soak Tests job (pr-integration.yml). Each p95Ms is the SLOWEST p95 that endpoint recorded across the nine green CI runs listed in _runs (ubuntu-latest, the 1.5M-row load-test dataset), so the 50% tolerance Test-LoadAndBenchmark.ps1 applies is 50% beyond the worst that runner noise has produced, not beyond a typical run. A regression is a warning on the pull request, not a failure. To refresh it: take the BENCHMARK p95 lines from recent green runs and keep the per-endpoint maximum. Do not paste in a run from your own machine: the comparison is only meaningful runner to runner.",
+  "timestamp": "2026-11-09",
+  "_runs": [
+    42248032514,
+    42250836963,
+    42595628885,
+    42598021374,
+    42604314440,
+    42612341807,
+    42613680581,
+    42619523318,
+    42623259142
+  ],
+  "clientTimings": {
+    "access-packages": {
+      "p95Ms": 880.9
+    },
+    "dashboard-stats": {
+      "p95Ms": 151.7
+    },
+    "identities-page1": {
+      "p95Ms": 62.2
+    },
+    "matrix-benchmark-tag": {
+      "p95Ms": 118.3
+    },
+    "matrix-unfiltered": {
+      "p95Ms": 1833.6
+    },
+    "resources-business": {
+      "p95Ms": 35.8
+    },
+    "resources-page1": {
+      "p95Ms": 76.7
+    },
+    "sync-log": {
+      "p95Ms": 23.9
+    },
+    "systems": {
+      "p95Ms": 612.8
+    },
+    "users-page1": {
+      "p95Ms": 190.9
+    },
+    "users-search": {
+      "p95Ms": 203.3
+    }
+  }
+}
