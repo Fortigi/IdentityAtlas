@@ -2,7 +2,8 @@ import { defineConfig } from 'vitest/config';
 import base from './vitest.config.js';
 
 // Vitest config for the natural-language reports mutation run (stryker.nlreports.config.json),
-// split out of the reports run (#1548). The nlreports tests moved here with the files they test.
+// split out of the reports run (#1548). The nlreports tests moved here with the files they test;
+// the conversation side's tests are in vitest.stryker.nlconversation.config.js.
 //
 // Explicit file list rather than a directory glob, same reason as the sibling stryker vitest
 // configs: Stryker copies app/api into a temp sandbox, so a test that reads the real
@@ -13,7 +14,7 @@ import base from './vitest.config.js';
 //
 // Listed instead of excluded: an excluded test that happened to be some mutant's only
 // killer would surface as a false survivor, which is worse than measuring less. Every test
-// here is a real killer for the five mutated files.
+// here is a real killer for the mutated files.
 
 export default defineConfig({
   ...base,
@@ -34,6 +35,7 @@ export default defineConfig({
       'src/nlreports/spec.test.js',
       'src/nlreports/terms.test.js',
       'src/nlreports/service.terms.test.js',
+      'src/nlreports/sentinels.test.js',
       'src/routes/nlReports.test.js',
     ],
     exclude: ['**/node_modules/**'],
