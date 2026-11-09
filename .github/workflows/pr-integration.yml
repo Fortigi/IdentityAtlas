@@ -720,8 +720,14 @@ jobs:
           $maxDepth = ($depths.Values | Measure-Object -Max).Maximum
 
           # ── Run ──────────────────────────────────────────────────────────────
+          # Per-crawler and per-depth wall time go to the job summary below. This step
+          # is ~80% of the integration job, and a depth waits for its SLOWEST crawler,
+          # so the summary is what tells you which crawler to make faster.
+          $timings      = [System.Collections.Generic.List[object]]::new()
+          $depthTimings = [System.Collections.Generic.List[object]]::new()
           $totalFailed = 0
           for ($depth = 0; $depth -le $maxDepth; $depth++) {
+            $depthStart = Get-Date
             $typesAtDepth = @($depths.GetEnumerator() | Where-Object Value -eq $depth | Select-Object -ExpandProperty Key)
             $jobs = @()
             $jobMeta = @{}  # job name → type (for scope check after Wait-Job)
@@ -760,9 +766,15 @@ jobs:
               $output | ForEach-Object { Write-Host $_ }
               $jobErrors | ForEach-Object { Write-Host $_ }
               $failed = $_.State -ne 'Completed' -or ($_.ChildJobs[0].State -ne 'Completed')
+              $asserting = $fullRun -or $testSet.Contains($type)
+              $result = if (-not $failed) { 'passed' } elseif ($asserting) { 'FAILED' } else { 'setup-only, failed' }
+              $timings.Add([pscustomobject]@{
+                Type = $type; Depth = $depth; Mode = $(if ($asserting) { 'assert' } else { 'setup-only' })
+                Seconds = [int][Math]::Round(($_.PSEndTime - $_.PSBeginTime).TotalSeconds)
+                Result = $result
+              })
               Remove-Job $_ -Force -ErrorAction SilentlyContinue
 
-              $asserting = $fullRun -or $testSet.Contains($type)
               if ($failed) {
                 if ($asserting) {
                   Write-Host "::error title=${type}::Test FAILED — see log above"
@@ -775,7 +787,28 @@ jobs:
               }
               Write-Host "::endgroup::"
             }
+            $depthTimings.Add([pscustomobject]@{
+              Depth = $depth; Crawlers = $jobs.Count
+              Seconds = [int][Math]::Round(((Get-Date) - $depthStart).TotalSeconds)
+            })
           }
+
+          # ── Timing summary ───────────────────────────────────────────────────
+          $md = [System.Text.StringBuilder]::new()
+          $null = $md.AppendLine('### Crawler integration timing')
+          $null = $md.AppendLine()
+          $null = $md.AppendLine('| Depth | Crawlers in parallel | Wall time (s) |')
+          $null = $md.AppendLine('|---|---|---|')
+          foreach ($d in $depthTimings) { $null = $md.AppendLine("| $($d.Depth) | $($d.Crawlers) | $($d.Seconds) |") }
+          $null = $md.AppendLine()
+          $null = $md.AppendLine('| Crawler | Depth | Mode | Duration (s) | Result |')
+          $null = $md.AppendLine('|---|---|---|---|---|')
+          foreach ($r in ($timings | Sort-Object Seconds -Descending)) {
+            $null = $md.AppendLine("| $($r.Type) | $($r.Depth) | $($r.Mode) | $($r.Seconds) | $($r.Result) |")
+          }
+          if ($env:GITHUB_STEP_SUMMARY) { $md.ToString() | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8 }
+          Write-Host $md.ToString()
+
           if ($totalFailed -gt 0) {
             Write-Host "$totalFailed crawler test file(s) failed" -ForegroundColor Red
             exit 1

@@ -1,0 +1,1 @@
+- The integration test run now reports how long each crawler's integration test took, and how long each dependency level waited, in its job summary, so the slowest crawler tests can be found and sped up.
