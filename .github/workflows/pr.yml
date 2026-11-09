@@ -889,30 +889,50 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check code duplication (aggregate threshold)
-        run: npx --yes jscpd@3 . --config .jscpd.json
-
-      # PR-delta: catch a NEW clone this PR introduces even when total duplication
-      # stays under the aggregate threshold (minTokens=50/minLines=10 means small
-      # pastes never move the 2% average). Compares clone counts head-vs-base and
-      # degrades to a warning (the aggregate check above still gates) if a report
-      # can't be parsed — so it can never make CI worse.
-      - name: Fail on new clones vs base
+      # ONE head scan does both jobs — jscpd still writes its JSON report when it
+      # exits 1 over the threshold — and the base scan runs IN PARALLEL from a git
+      # worktree. This used to be three sequential full scans (head for the
+      # threshold, head again and base for the delta), which made a lint check the
+      # ~3-minute critical path of PR Checks.
+      #
+      # Aggregate gate: fail if total duplication exceeds the threshold in .jscpd.json.
+      # PR-delta gate: catch a NEW clone this PR introduces even when the total stays
+      # under the aggregate threshold (minTokens=50/minLines=10 means small pastes never
+      # move the 2% average). Compares clone counts head-vs-base, and degrades to a
+      # warning (the aggregate check still gates) if a report can't be produced or
+      # parsed — so it can never make CI worse.
+      - name: Check code duplication (aggregate threshold + new clones vs base)
         run: |
           set -uo pipefail
-          clones() {
-            npx --yes jscpd@3 . --config .jscpd.json --threshold 100 \
-              --reporters json --output "$1" >/dev/null 2>&1 || true
-            node -e "try{console.log(require(process.cwd()+'/'+process.argv[1]+'/jscpd-report.json').statistics.total.clones)}catch(e){console.log(-1)}" "$1"
-          }
-          HEAD_CLONES=$(clones jscpd-head)
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" || true
-          git checkout -q FETCH_HEAD || true
-          BASE_CLONES=$(clones jscpd-base)
-          git checkout -q "${GITHUB_SHA}" 2>/dev/null || git checkout -q - 2>/dev/null || true
+          npm install -g --silent jscpd@3   # once: two concurrent `npx` installs race on the npx cache
+          clones() { node -e "try{console.log(require(process.argv[1]+'/jscpd-report.json').statistics.total.clones)}catch(e){console.log(-1)}" "$1"; }
+
+          BASE_DIR="$RUNNER_TEMP/jscpd-base-tree"
+          BASE_PID=""
+          if git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" && git worktree add -q --detach "$BASE_DIR" FETCH_HEAD; then
+            # The base is scanned with the BASE's own .jscpd.json, as before. --threshold 100:
+            # only the count is wanted here, never a failure.
+            ( cd "$BASE_DIR" && jscpd . --config .jscpd.json --threshold 100                 --reporters json --output "$RUNNER_TEMP/jscpd-base" >/dev/null 2>&1 ) &
+            BASE_PID=$!
+          fi
+
+          jscpd . --config .jscpd.json --reporters console,json --output "$RUNNER_TEMP/jscpd-head"
+          AGGREGATE_RC=$?
+          HEAD_CLONES=$(clones "$RUNNER_TEMP/jscpd-head")
+
+          BASE_CLONES=-1
+          if [ -n "$BASE_PID" ]; then
+            wait "$BASE_PID" || true
+            BASE_CLONES=$(clones "$RUNNER_TEMP/jscpd-base")
+          fi
+
+          if [ "$AGGREGATE_RC" -ne 0 ]; then
+            echo "::error::Total code duplication is above the threshold in .jscpd.json (see the report above)."
+            exit 1
+          fi
           echo "jscpd clones — base: ${BASE_CLONES}, head: ${HEAD_CLONES}"
           if [ "${HEAD_CLONES}" = "-1" ] || [ "${BASE_CLONES}" = "-1" ]; then
-            echo "::warning::jscpd delta check couldn't parse a report; relying on the aggregate threshold only."
+            echo "::warning::jscpd delta check couldn't produce or parse a report; relying on the aggregate threshold only."
             exit 0
           fi
           if [ "${HEAD_CLONES}" -gt "${BASE_CLONES}" ]; then
