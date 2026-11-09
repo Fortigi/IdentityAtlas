@@ -27,9 +27,13 @@ export default defineConfig({
       'src/components/contexts/people/PeopleSection.mount.test.jsx',
       'src/components/contexts/people/PersonClaims.mount.test.jsx',
       'src/components/contexts/page/ProfileBody.mount.test.jsx',
+      'src/components/contexts/page/unitProposals.test.js',
+      'src/components/contexts/page/ProposedRolesSection.mount.test.jsx',
       // The shared matrix badges (MatrixBadges.jsx), as the matrix renders them.
       'src/components/matrix/MatrixCell.mount.test.jsx',
       'src/components/matrix/MatrixLegend.test.js',
+      'src/components/matrix/proposedLens.test.js',
+      'src/components/matrix/ProposedMatrix.mount.test.jsx',
       'src/components/contexts/interviews/orgKnowledgeOff.mount.test.jsx',
       'src/components/EntityTimeline.helpers.test.js',
       'src/components/EntityTimeline.test.jsx',
