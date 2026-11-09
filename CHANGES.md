@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- The JavaScript lint check now runs ESLint's standard correctness rules (undefined names, duplicate keys, unused variables and more) on both the API and the UI, so typos and dead code are caught before review.
+- Errors that wrap another error (reading a secret file, the master key, a migration, an invalid name pattern, an LLM timeout) now keep the original error attached, so logs show the root cause.
+
+## Changes in this PR
+
 - Pull requests whose runs receive no repository secrets, such as Dependabot dependency updates and pull requests from forks, no longer fail the integration checks for missing test credentials once those credentials are made mandatory; they are reported as skipped.
 
 ## Changes in this PR
