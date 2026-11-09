@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The 15-minute soak test runs again on pull requests. It reads the web container's memory from the Docker host instead of an endpoint that was removed for security, and fails a run whose memory doubles.
+- A soak test that cannot read memory now fails, instead of skipping and reporting success.
+- The nightly run no longer checks the removed container-stats endpoint, which had failed every night since its removal.
+
+## Changes in this PR
+
 - Container images are now scanned for known vulnerabilities before they are published: an image with a critical vulnerability that already has a fix is not pushed. The published images are also re-scanned weekly, and every finding is listed in the repository's Security tab.
 
 ## Changes in this PR

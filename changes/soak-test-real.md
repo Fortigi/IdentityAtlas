@@ -1,3 +1,0 @@
-- The 15-minute soak test runs again on pull requests. It reads the web container's memory from the Docker host instead of an endpoint that was removed for security, and fails a run whose memory doubles.
-- A soak test that cannot read memory now fails, instead of skipping and reporting success.
-- The nightly run no longer checks the removed container-stats endpoint, which had failed every night since its removal.
