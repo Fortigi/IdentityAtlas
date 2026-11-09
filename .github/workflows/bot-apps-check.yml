@@ -10,16 +10,24 @@
 #                    bypass, so a sidekick that holds its key can never write to main.
 #
 # This workflow mints a token from each App and lists the repositories the installation can
-# reach. Run it after rotating a key or re-installing an App; it never pushes anything.
+# reach. It runs on every same-repo PR that touches a DoR workflow or this file, and by hand
+# after rotating a key or re-installing an App. It never pushes anything.
 name: Bot App check
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/bot-apps-check.yml
+      - .github/workflows/dor-*.yml
+      - .github/actions/dor-authorize/**
 
 permissions: {}
 
 jobs:
   check:
+    # Fork PRs carry no secrets, so the mint step could only fail there.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
