@@ -1,1 +1,0 @@
-- Faster API contract tests in pull-request CI: the suite now runs four test files at a time, each worker against its own copy of the freshly migrated database, instead of one file at a time against a single shared database. Tests stay as isolated from each other as before.

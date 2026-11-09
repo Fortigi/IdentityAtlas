@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Faster API contract tests in pull-request CI: the suite now runs four test files at a time, each worker against its own copy of the freshly migrated database, instead of one file at a time against a single shared database. Tests stay as isolated from each other as before.
+
+## Changes in this PR
+
 - Faster UI unit tests in pull-request CI: the UI test suite now runs in worker threads instead of separate processes, which roughly halves the per-file browser-environment setup that dominated its run time. Results and coverage are unchanged.
 
 ## Changes in this PR
