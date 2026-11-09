@@ -16,7 +16,8 @@
 #   * PSComplexity's PR runs the complexity ratchet (the pin file is in pr.yml's
 #     `code` filter). PSMutant runs only weekly, never on a PR, so for a PSMutant
 #     bump this workflow starts ps-mutation.yml on the PR's branch, which
-#     measures that branch without publishing.
+#     measures that branch without publishing (ps-mutation.yml checks out the
+#     ref it was dispatched on, and publishes from main only -- #1548).
 # ─────────────────────────────────────────────────────────────────────────────
 name: PowerShell module updates
 

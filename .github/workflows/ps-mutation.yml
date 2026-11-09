@@ -54,11 +54,9 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The run's own ref: main on the schedule, or the branch a manual run was
-          # started on -- which is how a PSMutant upgrade pull request is measured
-          # before it merges (ps-module-updates.yml starts that run). Checked out
-          # with the bot token so a main run can push the refreshed score back.
-          ref: ${{ github.ref }}
+          # Always main HEAD, checked out with the bot token so the publish step
+          # can push the refreshed score back.
+          ref: main
           token: ${{ steps.bot-token.outputs.token || github.token }}
 
       - name: Install pinned Pester + PSMutant
@@ -85,13 +83,11 @@ jobs:
           path: reports/ps-mutation.json
           if-no-files-found: ignore
 
-      # Publish the score to the coverage docs page -- from main only. A run on
-      # another branch measures that branch; its score is not main's.
+      # Publish the score to the coverage docs page (weekly / on-demand only).
       # Re-renders coverage.md from the ALREADY-COMMITTED per-suite summaries plus
       # the fresh mutation.json, so line/complexity numbers are preserved as-of the
       # last coverage.yml run and only the mutation column moves.
       - name: Publish mutation score to the coverage docs
-        if: github.ref == 'refs/heads/main'
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
