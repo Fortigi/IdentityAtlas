@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fewer, larger weekly dependency-update pull requests on `main`: all minor and patch bumps for the API and the UI now arrive together in one PR per package, and GitHub Actions bumps in one PR, instead of one PR per dependency. This ends the weekly burst of ten-plus simultaneous CI runs that queued everyone's checks for about 14 minutes. Major upgrades still arrive one at a time.
+
+## Changes in this PR
+
 - Pull-request CI uses six fewer runners per push: the file-length, migration-immutability, Node-version, OpenAPI, crawler-manifest and Azure-template checks now run as steps of one `Lint: static gates` job instead of six separate jobs. Each check keeps its own path scope, a failing check no longer hides the others, and the job summary lists which check failed. This shortens the queue when many PRs run at once.
 
 ## Changes in this PR
