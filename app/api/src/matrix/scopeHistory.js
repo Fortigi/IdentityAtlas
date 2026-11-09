@@ -188,7 +188,7 @@ function scopeWhere({ entity, stateAlias, block, validColumns, contextTypes, bin
     if (!Array.isArray(conds)) return;
     conds.forEach((cond) => {
       if (!cond || typeof cond !== 'object') return;
-      let clause = null;
+      let clause;
       if (cond.kind === 'context') {
         usedContext = true;
         clause = contextClause({

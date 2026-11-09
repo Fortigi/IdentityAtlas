@@ -201,7 +201,7 @@ test.describe('Account Linking — titled HR names and particle surnames (#1439)
   test.describe.configure({ mode: 'serial' });
 
   test.beforeAll(async () => {
-    let ok = false;
+    let ok;
     try { ok = await seed(); } catch { ok = false; }
     if (!ok) await unseed();
     seeded.ready = ok;

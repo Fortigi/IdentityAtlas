@@ -96,6 +96,7 @@ async function assertUploadableConfig(configId, res, req = null) {
 
 // Sanitize incoming filename — strip any path components, keep only the basename.
 function sanitizeFilename(name) {
+  // eslint-disable-next-line no-control-regex -- stripping control characters from an uploaded file name is the point
   const base = basename(name).replace(/[\x00-\x1f]/g, '').trim();
   if (!base || base.startsWith('.') || base.includes('..')) return null;
   return base;

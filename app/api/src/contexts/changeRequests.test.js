@@ -172,7 +172,7 @@ describe('reconcile and list', () => {
     const items = [{ id: 'a' }];
     const order = [];
     const db = {
-      query: vi.fn(async (sql, params) => {
+      query: vi.fn(async (sql) => {
         order.push(sql);
         if (sql === LIST_SQL) return { rows: items };
         if (sql === COUNTS_SQL) return { rows: [{ status: 'open', n: 4 }, { status: 'resolved', n: 1 }] };

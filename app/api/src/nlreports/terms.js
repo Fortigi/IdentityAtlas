@@ -103,7 +103,7 @@ let knownNamesCache = { at: 0, names: null };
 /** @returns {Promise<Set<string>>} normalised name tokens of the directory's users */
 export async function loadKnownNames(query) {
   if (knownNamesCache.names && Date.now() - knownNamesCache.at < KNOWN_NAMES_TTL_MS) return knownNamesCache.names;
-  let rows = [];
+  let rows;
   try {
     ({ rows = [] } = (await query(
       `SELECT DISTINCT lower(w) AS v
