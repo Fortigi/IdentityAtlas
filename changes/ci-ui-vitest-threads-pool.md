@@ -1,0 +1,1 @@
+- Faster UI unit tests in pull-request CI: the UI test suite now runs in worker threads instead of separate processes, which roughly halves the per-file browser-environment setup that dominated its run time. Results and coverage are unchanged.
