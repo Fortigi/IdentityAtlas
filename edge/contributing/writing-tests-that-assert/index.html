@@ -6366,9 +6366,23 @@ coverage cannot.</p>
 <p>Config: <code>.ci/psmutant.config.json</code>. Every eligible crawler file must be in
 <code>mutate</code> or in <code>exclusions</code> with a written reason, enforced by
 <code>test/unit/PSMutationScope.Tests.ps1</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Install-Module<span class="w"> </span>PSMutant<span class="w"> </span>-RequiredVersion<span class="w"> </span><span class="m">0</span>.4.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Install-Module<span class="w"> </span>PSMutant<span class="w"> </span>-RequiredVersion<span class="w"> </span><span class="m">0</span>.5.0
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Invoke-PSMutation<span class="w"> </span>-ConfigFile<span class="w"> </span>.ci/psmutant.config.json<span class="w"> </span>-SourceRoot<span class="w"> </span>.
 </code></pre></div>
+<p><strong>A test must pass under PSMutant, not only under plain Pester.</strong> PSMutant runs
+the mapped tests as a baseline and mutates nothing unless that baseline is green.
+It calls Pester from inside its own module, which changes two things a test can
+depend on without noticing. Two tests did, and the weekly run failed on them for
+eight weeks while PR Checks stayed green:</p>
+<ul>
+<li>Never write <code>Mock … -ModuleName $null</code>. Under PSMutant it puts the mock outside
+  the scope the dot-sourced functions live in, so the real command runs.
+  <code>test/unit/PSMutantCompat.Tests.ps1</code> fails on it.</li>
+<li>In a <code>-ParameterFilter</code>, test whether a parameter was passed with
+  <code>$PesterBoundParameters.ContainsKey('Name')</code>, not <code>-not $Name</code>. An unbound
+  parameter is not a variable in the filter, so <code>$Name</code> resolves up the caller
+  chain, which under PSMutant includes <code>Invoke-PSMutation -ConfigFile</code>.</li>
+</ul>
 <p><strong>Map a file to the cheapest suite that exercises it.</strong> The mapped tests run once
 per mutant — one mapping to a suite that starts a mock HTTP server took a
 baseline from 10s to 73s and made the run look hung.</p>
