@@ -165,6 +165,7 @@ jobs:
           filters: |
             ps:
               - 'tools/crawlers/**/*.ps1'
+              - 'tools/psmodules/**'
               - 'tools/powershell-sdk/**'
               - 'setup/**/*.ps1'
               - 'setup/IdentityAtlas.psm1'
@@ -183,6 +184,8 @@ jobs:
               # own definition must run the job it configures, not silently skip it (#1088).
               - '.ci/psmutant.config.json'
               - '.ci/psmutant-scope-baseline.json'
+              - '.ci/powershell-modules.json'
+              - 'tools/psmodules/**'
               - '.github/workflows/pr.yml'
             api:
               - 'app/api/src/**'
@@ -232,6 +235,8 @@ jobs:
             # of these, so `code` is false and both ratchets skip (they re-measure
             # the whole tree, so there's nothing new to check).
             code:
+              # The pinned PSComplexity version: a bump must re-measure the tree.
+              - '.ci/powershell-modules.json'
               - '**/*.ps1'
               - '**/*.js'
               - '**/*.jsx'
@@ -286,6 +291,7 @@ jobs:
           $paths = @(
             (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
             'tools/riskscoring',
+            'tools/psmodules',
             'tools/crawlers',
             'tools/csv-templates/transforms',
             'setup/docker',
@@ -977,10 +983,11 @@ jobs:
           npm ci --prefix app/api
           npm ci --prefix app/ui
 
-      # The PowerShell measurer is the published PSComplexity module.
+      # The PowerShell measurer is the published PSComplexity module, at the
+      # version .ci/powershell-modules.json pins.
       - name: Install PSComplexity (PowerShell complexity measurer)
         shell: pwsh
-        run: Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
+        run: ./tools/psmodules/Install-PinnedModule.ps1 PSComplexity
 
       # Validate the ratchet gate logic (Python) before it gates anything.
       - name: Test the ratchet gate logic
@@ -1026,6 +1033,7 @@ jobs:
           bash test/ci-scripts/test-dor-agent-sandbox.sh
           bash test/ci-scripts/test-dor-token-checkpoint.sh
           bash test/ci-scripts/test-release-prev-tag.sh
+          bash test/ci-scripts/test-ps-module-update-prs.sh
           bash test/ci-scripts/test-gate-wiring.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.

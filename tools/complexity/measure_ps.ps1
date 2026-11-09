@@ -31,10 +31,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if (-not (Get-Module PSComplexity -ListAvailable | Where-Object Version -ge '0.5.1')) {
-    Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
-}
-Import-Module PSComplexity
+# Exactly the version CI pins (.ci/powershell-modules.json), so a local run measures
+# what the gate measures even when several versions are installed side by side.
+. (Join-Path $PSScriptRoot '..' 'psmodules' 'PinnedModules.ps1')
+Install-PinnedModule -Name PSComplexity
 
 # All repository PowerShell is in scope. A path is measured unless it matches one of the
 # exclusion patterns (generated mirror, deps, build output, git worktrees, or non-source

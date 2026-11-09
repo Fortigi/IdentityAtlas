@@ -197,7 +197,7 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
+          ./tools/psmodules/Install-PinnedModule.ps1 PSComplexity
           $psDir = 'docs/coverage/powershell'
           New-Item -ItemType Directory -Path $psDir -Force | Out-Null
           & tools/complexity/measure_ps.ps1 | Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8

@@ -1,0 +1,68 @@
+# ─── PowerShell Gallery module updates ───────────────────────────────────────
+# Dependabot for the modules in .ci/powershell-modules.json, which Dependabot
+# itself cannot read (it has no PowerShell Gallery ecosystem).
+#
+# Weekly, it asks the gallery for each pinned module's newest stable version and,
+# for every module whose pin is behind, opens ONE pull request per module on a
+# fixed branch, deps/psmodule-<name>. A module is held back by listing the
+# version under its `skip` in the pin file, with the reason.
+#
+#   * One PR per module, so a PSComplexity bump that moves scores can't hold up
+#     a PSMutant fix, or the other way round.
+#   * A later release moves the same branch (force-push) and retitles the open
+#     PR, rather than stacking a second PR for the same module.
+#   * Pushed with the GitHub App token: a push made with GITHUB_TOKEN would not
+#     start the pull request's CI, and the PR would sit with no checks.
+#   * PSComplexity's PR runs the complexity ratchet (the pin file is in pr.yml's
+#     `code` filter). PSMutant runs only weekly, never on a PR, so for a PSMutant
+#     bump this workflow starts ps-mutation.yml on the PR's branch, which
+#     measures that branch without publishing.
+# ─────────────────────────────────────────────────────────────────────────────
+name: PowerShell module updates
+
+on:
+  schedule:
+    - cron: '0 5 * * 3' # Weekly, Wednesday 05:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ps-module-updates
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write   # start ps-mutation.yml on a PSMutant bump's branch
+
+jobs:
+  update:
+    name: Open update pull requests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.bot-token.outputs.token }}
+
+      - name: Ask the gallery for newer versions
+        id: list
+        shell: pwsh
+        run: |
+          $updates = ./tools/psmodules/Update-PinnedModule.ps1 -List
+          Write-Host "Updates: $updates"
+          "json=$updates" >> $env:GITHUB_OUTPUT
+
+      - name: Open or refresh one pull request per module
+        if: steps.list.outputs.json != '[]'
+        env:
+          UPDATES: ${{ steps.list.outputs.json }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          ACTIONS_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/ps_module_update_prs.sh

@@ -1,0 +1,4 @@
+- Upgraded the PowerShell complexity measurer to PSComplexity 0.7.1. Complexity numbers are unchanged: all 1,743 measured units score the same as under 0.5.1.
+- The PowerShell modules CI depends on (PSComplexity, PSMutant) are now pinned in one file, `.ci/powershell-modules.json`, instead of being repeated across workflows, scripts and docs, where they had drifted apart.
+- A weekly job now opens a pull request whenever the PowerShell Gallery has a newer version of a pinned module, one per module. A known-bad version can be held back with a written reason. For a PSMutant bump it also runs mutation testing on the pull request's branch.
+- PSMutant stays on 0.5.0 for now. Every release before 0.9.2 over-reports the mutation score, and 0.9.1 refuses this repository's run. The weekly job opens the 0.9.2 pull request as soon as that version is published.
