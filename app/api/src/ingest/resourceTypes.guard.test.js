@@ -14,9 +14,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { validateRecords } from './validation.js';
+import { repoRoot as findCheckoutRoot } from '../lib/repoRoot.js';
 
 // The renamed literals (migrations 052 and 058). Named only here (a test) and in
 // the migrations — never in production application code.
@@ -46,7 +46,7 @@ const resRec = (resourceType) => [{ displayName: 'r', resourceType }];
 const asgnRec = (resourceType) => [{ resourceId: R, principalId: P, assignmentType: 'Direct', resourceType }];
 const idRec = (resourceType) => [{ resourceId: R, identityId: P, assignmentType: 'Direct', resourceType }];
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = findCheckoutRoot();
 const SCAN_ROOTS = ['tools/crawlers', 'test/demo-dataset', 'test/benchmark'].map(r => join(repoRoot, r));
 
 function walk(dir) {

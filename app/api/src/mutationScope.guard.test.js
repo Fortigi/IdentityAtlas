@@ -14,10 +14,10 @@
 // decided on when it lands instead of accumulating quietly.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
-import { join, dirname, relative } from 'path';
-import { fileURLToPath } from 'url';
+import { join, relative } from 'path';
+import { repoRoot as findCheckoutRoot } from './lib/repoRoot.js';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const repoRoot = findCheckoutRoot();
 
 const SKIP_DIRS = new Set([
   'node_modules', '__tests__', 'test-utils', 'mock', 'coverage', 'dist', 'build',

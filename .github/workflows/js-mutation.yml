@@ -52,12 +52,33 @@ permissions:
   contents: read
 
 jobs:
+  # ── Which scopes exist ──────────────────────────────────────────────────────
+  # One matrix entry per app/{api,ui}/stryker.<name>.config.json, derived by
+  # .github/scripts/mutation_scopes.sh. This list was once written out by hand: it
+  # named 9 scopes while 21 configs existed, so the publish job (which demands a
+  # report for every config) failed every week. A new config now joins the run
+  # without an edit here.
+  scopes:
+    name: List mutation scopes
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: List Stryker configs
+        id: list
+        run: |
+          matrix="$(bash .github/scripts/mutation_scopes.sh)"
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   # ── Measure each scope, in parallel ─────────────────────────────────────────
   # One job per Stryker config rather than one job running them all: the check
   # names then say WHICH scope regressed without opening a log, and wall-clock is
   # the slowest scope instead of their sum.
   mutation:
     name: 'Mutation: ${{ matrix.scope.label }}'
+    needs: [scopes]
     runs-on: ubuntu-latest
     # 60. The UI scopes are an order of magnitude more expensive per mutant than
     # the API ones -- every mutant re-renders React under jsdom -- but no scope is
@@ -76,20 +97,11 @@ jobs:
       # regression would also leave the publish job with nothing to merge.
       fail-fast: false
       matrix:
-        scope:
-          - { pkg: api, name: auth,            label: 'API auth' }
-          - { pkg: api, name: effectiveaccess, label: 'API effective access' }
-          - { pkg: api, name: accountlinking,  label: 'API account linking' }
-          - { pkg: api, name: matrix,          label: 'API matrix' }
-          - { pkg: api, name: features,        label: 'API feature flags' }
-          - { pkg: ui,  name: pilot,           label: 'UI permissions + filter' }
-          - { pkg: ui,  name: hooks,           label: 'UI matrix hooks' }
-          - { pkg: ui,  name: listhooks,       label: 'UI list-page hook' }
-          - { pkg: ui,  name: roles,           label: 'UI business-role layer' }
+        scope: ${{ fromJSON(needs.scopes.outputs.matrix) }}
     steps:
+      # The triggering ref: main on the schedule, a branch when a fix is being
+      # tried with workflow_dispatch. Only main publishes (see the commit step).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
@@ -104,7 +116,7 @@ jobs:
 
       - name: Run mutation testing (enforced — fails below the config's break floor)
         working-directory: app/${{ matrix.scope.pkg }}
-        run: npm run test:mutation:${{ matrix.scope.name }}
+        run: npx stryker run ${{ matrix.scope.config }}
 
       # if: always() so a scope that fell below its floor still hands its report to
       # the publish job. The failing number is the one most worth reading, and the
@@ -142,7 +154,6 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
           token: ${{ steps.bot-token.outputs.token || github.token }}
 
       - name: Download API mutation reports
@@ -182,7 +193,10 @@ jobs:
             --out docs/reference/coverage.md \
             --commit "$GITHUB_SHA"
 
+      # Only main's scores are published; a dispatch on a branch stops at the
+      # merge above, which still proves every scope produced its report.
       - name: Commit mutation scores
+        if: github.ref == 'refs/heads/main'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -204,3 +218,22 @@ jobs:
           done
           echo "::error::Could not push mutation update after 5 attempts"
           exit 1
+
+  # ── Make a failed scheduled run visible ─────────────────────────────────────
+  # Nobody watches a weekly job's run list. Opens (or comments on) one issue per
+  # workflow; a manual run is being watched by whoever started it, so only the
+  # schedule alerts.
+  alert:
+    name: Alert on scheduled failure
+    needs: [scopes, mutation, publish]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/scheduled_failure_issue.sh "${{ github.workflow }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

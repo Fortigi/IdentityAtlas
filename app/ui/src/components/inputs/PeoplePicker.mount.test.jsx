@@ -59,6 +59,12 @@ describe('toPerson', () => {
   it('yields an empty key for a row that cannot sign in', () => {
     expect(toPerson(SVC).userKey).toBe('');
   });
+
+  it('names a nameless row after its sign-in name, then its mail, then nothing', () => {
+    expect(toPerson({ id: 'a', userPrincipalName: 'upn@contoso.com', email: 'mail@contoso.com' }).displayName).toBe('upn@contoso.com');
+    expect(toPerson({ id: 'b', email: 'mail@contoso.com' }).displayName).toBe('mail@contoso.com');
+    expect(toPerson({})).toEqual({ principalId: null, userKey: '', displayName: '' });
+  });
 });
 
 // A test chains several SETTLE waits, so its own budget must exceed one of them

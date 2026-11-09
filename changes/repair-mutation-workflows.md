@@ -1,0 +1,2 @@
+- Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
+- Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.

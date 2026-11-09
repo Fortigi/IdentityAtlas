@@ -34,9 +34,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
+import { repoRoot } from '../lib/repoRoot.js';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
-const REPO_ROOT = join(SRC, '..', '..', '..');
+const REPO_ROOT = repoRoot();
 
 function walk(dir, keep) {
   const out = [];
