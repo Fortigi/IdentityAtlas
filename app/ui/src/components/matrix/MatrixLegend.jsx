@@ -1,4 +1,3 @@
-import { TYPE_COLORS } from '@ui/utils/colors';
 import { MembershipBadge, BusinessRoleBadge } from './MatrixBadges';
 
 // On-screen key for the matrix. The grid encodes everything as single colored

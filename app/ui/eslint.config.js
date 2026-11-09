@@ -1,3 +1,4 @@
+import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
@@ -11,6 +12,23 @@ import noDuplicateDarkColor from './eslint-rules/no-duplicate-dark-color.js';
 
 export default [
   { ignores: ['dist', 'playwright-report', 'test-results', 'coverage'] },
+  // ESLint's own correctness rules (no-undef, no-dupe-keys, no-unused-vars, ...),
+  // off until review item A3. app/api/eslint.config.js uses the same set and options.
+  js.configs.recommended,
+  {
+    rules: {
+      // A leading underscore marks a value that is unused on purpose (a positional
+      // argument an interface requires, a destructured field being dropped), and
+      // `{ secret, ...rest }` is how a field is omitted. Everything else unused fails.
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        caughtErrors: 'all',
+        ignoreRestSiblings: true,
+      }],
+    },
+  },
   {
     // Register the sonarjs plugin WITHOUT enabling any of its rules, so the
     // `sonarjs/cognitive-complexity` rule id resolves when the complexity
@@ -85,8 +103,9 @@ export default [
     rules: { 'local/no-legacy-jargon': 'off' },
   },
   {
-    // Playwright E2E tests run in Node.js, not the browser
-    files: ['e2e/**/*.{js,ts}'],
+    // Playwright E2E tests, the unit tests (Vitest runs them in Node, jsdom or
+    // not) and the build/test configs all run in Node.js, not the browser.
+    files: ['e2e/**/*.{js,ts}', '**/*.test.{js,jsx}', '*.config.js', 'vitest.stryker*.js'],
     languageOptions: {
       globals: { ...globals.node },
     },

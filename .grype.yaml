@@ -1,0 +1,15 @@
+# Grype configuration, read by anchore/scan-action in docker-publish.yml and
+# image-scan.yml (review item A11). Both fail on a CRITICAL vulnerability with a
+# fix available in a published image.
+#
+# To accept a finding, add it below with WHY it does not apply and when to look
+# again -- an entry without a reason is an unexplained hole, and the review of the
+# PR that adds it is where that reason gets checked. Prefer fixing: most
+# fixable criticals go away with a base-image or package bump.
+#
+# ignore:
+#   - vulnerability: CVE-YYYY-NNNNN
+#     package:
+#       name: <package>
+#     # reason: <why it does not apply to Identity Atlas>; revisit <date or condition>
+ignore: []

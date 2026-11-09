@@ -56,7 +56,7 @@ const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh, features, ver
 // onRiskScoresRefresh, features, version }.
 export const PAGE_ROUTES = new Map([
   ['dashboard',       ({ navigate }) => <DashboardPage onNavigate={navigate} />],
-  ['sync-log',        ({ navigate, openDetailTab }) => <SyncLogPage navigate={navigate} onOpenDetail={openDetailTab} />],
+  ['sync-log',        ({ navigate }) => <SyncLogPage navigate={navigate} />],
   ['principals',      ({ openDetailTab }) => <UsersPage onOpenDetail={openDetailTab} />],
   ['resources',       GroupsRoute],
   ['groups',          GroupsRoute],
