@@ -73,10 +73,6 @@
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/adjust-tree/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/architecture-guidance-review-2026-09/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
@@ -105,23 +101,11 @@
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/change-requests/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/ci-scope-testing/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-assistant/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-interviews/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-owner-access/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
@@ -134,18 +118,6 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-redesign/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-templates-phase-b/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/context-upload/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/core-ontology/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
@@ -205,14 +177,6 @@
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/m1-brief/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/m1-discovery-and-design/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/matrix-scope-statistics/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
@@ -221,15 +185,7 @@
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/mcp-authorization/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/omada-crawler-datamodel/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/ownership-survey/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
@@ -269,19 +225,11 @@
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/architecture/template-ui/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/concepts/data-model/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/concepts/governance-model/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/concepts/ontology/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
@@ -294,10 +242,6 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/contributing/contribute/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/contributing/maintaining-the-ontology/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
@@ -409,19 +353,11 @@
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/core-model/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/coverage/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/experimental-features/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/reference/mcp-server/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
@@ -562,10 +498,6 @@
     </url>
     <url>
          <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/sharing-a-matrix/</loc>
-         <lastmod>2026-11-09</lastmod>
-    </url>
-    <url>
-         <loc>https://fortigi.github.io/IdentityAtlas/stable/ui/unit-report/</loc>
          <lastmod>2026-11-09</lastmod>
     </url>
     <url>
