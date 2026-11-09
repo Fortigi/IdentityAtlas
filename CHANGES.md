@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Faster UI unit tests in pull-request CI: the UI test suite now runs in worker threads instead of separate processes, which roughly halves the per-file browser-environment setup that dominated its run time. Results and coverage are unchanged.
+
+## Changes in this PR
+
 - Fewer, larger weekly dependency-update pull requests on `main`: all minor and patch bumps for the API and the UI now arrive together in one PR per package, and GitHub Actions bumps in one PR, instead of one PR per dependency. This ends the weekly burst of ten-plus simultaneous CI runs that queued everyone's checks for about 14 minutes. Major upgrades still arrive one at a time.
 
 ## Changes in this PR
