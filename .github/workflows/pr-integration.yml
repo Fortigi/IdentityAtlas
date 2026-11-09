@@ -10,16 +10,12 @@
 #   2. e2e          — Playwright browser tests (~5 min)
 #   3. load-soak    — 1.5M-row load test (~7 min) + 15-min soak test (~22 min)
 #
-# Note: load-soak currently finishes in ~8 min, not ~22, because the soak test
-# does not actually run. It takes a memory baseline from GET /admin/container-stats
-# and skips — recording a PASS — when that is unavailable, which is always: #213
-# removed the endpoint and the Docker socket mount it needed, because mounting
-# docker.sock into the web container was a host-takeover primitive. So a step
-# named "Soak test (15 min)" completes in 0 min and goes green. #721 tracks it.
-#
-# ~22 min is what this job should cost once the soak works again. Do NOT get
-# there by restoring the endpoint or the socket mount — that re-opens the hole
-# #213 closed. See #721 for the alternatives.
+# The soak reads the web container's memory with `docker stats` on the runner,
+# outside the container. It used to read it from the API's GET
+# /admin/container-stats, which #213 removed together with the docker.sock mount
+# it needed (a host-takeover primitive), and for months it skipped while
+# recording a PASS (#721). Do NOT restore the endpoint or the socket mount to
+# feed it. A missing memory reading now fails the step.
 #
 # Secret-dependent tests (Entra ID crawler, LLM risk scoring) skip gracefully
 # when GitHub Actions secrets are not configured. That skip is no longer silent:
@@ -185,6 +181,11 @@ jobs:
               - 'setup/docker/Invoke-CrawlerJob.ps1'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+              # The job's own scripts: a change to the soak or the load test is
+              # only verified by running them.
+              - 'test/nightly/Test-SoakTest.ps1'
+              - 'test/nightly/SoakTest.Functions.ps1'
+              - 'test/nightly/Test-LoadAndBenchmark.ps1'
 
       # Dynamically detect which crawler types changed from the git diff.
       # No hardcoded type list — new crawlers are picked up automatically.
@@ -1016,6 +1017,7 @@ jobs:
         run: |
           & test/nightly/Test-SoakTest.ps1 `
             -ApiBaseUrl http://localhost:3001/api `
+            -ComposeFile docker-compose.ci.yml `
             -DurationMinutes 15
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
