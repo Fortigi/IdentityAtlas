@@ -6225,9 +6225,9 @@
 <td><code>app/ui/src/**</code>, <code>tools/crawlers/**/*.jsx</code></td>
 </tr>
 <tr>
-<td><code>unit-tests</code></td>
-<td>Unit Tests: Pester</td>
-<td><code>tools/powershell-sdk/**</code>, <code>tools/crawlers/shared/**</code>, <code>setup/docker/Invoke-CrawlerJob.ps1</code>, <code>test/unit/**</code></td>
+<td><code>unit-tests-shard</code> + <code>unit-tests</code></td>
+<td>Unit Tests: Pester (shard N/4), then Unit Tests: Pester (merges shard coverage, applies the 90% floor)</td>
+<td><code>tools/powershell-sdk/**</code>, <code>tools/crawlers/shared/**</code>, <code>setup/docker/Invoke-CrawlerJob.ps1</code>, <code>test/unit/**</code>, <code>tools/pester/**</code></td>
 </tr>
 <tr>
 <td><code>unit-js</code></td>
