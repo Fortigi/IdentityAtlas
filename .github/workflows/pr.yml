@@ -1011,6 +1011,7 @@ jobs:
       - name: Run CI path-gate / crawler-scope / commit-range self-tests
         run: |
           bash test/ci-scripts/test-path-gates.sh
+          bash test/ci-scripts/test-assert-test-secrets.sh
           bash test/ci-scripts/test-crawler-scope.sh
           bash test/ci-scripts/test-commit-range.sh
           bash test/ci-scripts/test-dor-gate-notice.sh

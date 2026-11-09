@@ -1,1 +1,1 @@
-- Dependency-update pull requests from Dependabot no longer fail the integration checks for missing test credentials once those credentials are made mandatory; they are reported as skipped, as for pull requests from forks.
+- Pull requests whose runs receive no repository secrets, such as Dependabot dependency updates and pull requests from forks, no longer fail the integration checks for missing test credentials once those credentials are made mandatory; they are reported as skipped.
