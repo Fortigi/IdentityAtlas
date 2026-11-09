@@ -10,11 +10,15 @@
 # noticing. Adding a stryker.<name>.config.json now adds it to the run.
 #
 # Usage: mutation_scopes.sh [repo-root]   (default: current directory)
+#   ONLY=api-auth,ui-pilot   keep just these scopes (<pkg>-<name>), for a manual
+#                            dispatch that re-measures a few. An unknown name is an
+#                            error, so a typo can't silently measure nothing.
 set -euo pipefail
 
 root="${1:-.}"
-first=1
-printf '['
+only="${ONLY:-}"; only="${only// /}"
+entries=()
+seen=","
 for pkg in api ui; do
   for cfg in "$root"/app/"$pkg"/stryker.*.config.json; do
     [ -e "$cfg" ] || continue
@@ -23,10 +27,23 @@ for pkg in api ui; do
     case "$name" in
       *[!a-z0-9-]*|'') echo "mutation_scopes.sh: unexpected config name '$file'" >&2; exit 2 ;;
     esac
+    seen="$seen$pkg-$name,"
+    if [ -n "$only" ]; then
+      case ",$only," in *",$pkg-$name,"*) ;; *) continue ;; esac
+    fi
     label="$(printf '%s' "$pkg" | tr '[:lower:]' '[:upper:]') $name"
-    [ "$first" = 1 ] || printf ','
-    first=0
-    printf '{"pkg":"%s","name":"%s","label":"%s","config":"%s"}' "$pkg" "$name" "$label" "$file"
+    entries+=("$(printf '{"pkg":"%s","name":"%s","label":"%s","config":"%s"}' "$pkg" "$name" "$label" "$file")")
   done
 done
-printf ']\n'
+
+if [ -n "$only" ]; then
+  IFS=',' read -ra wanted <<<"$only"
+  for w in "${wanted[@]}"; do
+    [ -n "$w" ] || continue
+    if [[ "$seen" != *",$w,"* ]]; then
+      echo "mutation_scopes.sh: no scope '$w' (expected <pkg>-<name>, e.g. api-auth)" >&2; exit 2
+    fi
+  done
+fi
+
+( IFS=','; printf '[%s]\n' "${entries[*]:-}" )

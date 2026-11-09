@@ -46,6 +46,17 @@ set +e; bash "$SCOPES" "$R" >/dev/null 2>&1; rc=$?; set -e
 check "a config name that would break the JSON is refused (exit 2)" 2 "$rc"
 rm "$R/app/api/stryker.bad\"name.config.json"
 
+# ONLY: a manual dispatch re-measures just the named scopes.
+check "ONLY keeps just the named scopes, spaces allowed" \
+  '[{"pkg":"api","name":"matrix","label":"API matrix","config":"stryker.matrix.config.json"},{"pkg":"ui","name":"roles","label":"UI roles","config":"stryker.roles.config.json"}]' \
+  "$(ONLY='ui-roles, api-matrix' bash "$SCOPES" "$R")"
+check "ONLY matches the package too: api-pilot is not ui-pilot" \
+  2 "$(set +e; ONLY=api-pilot bash "$SCOPES" "$R" >/dev/null 2>&1; echo $?)"
+check "ONLY refuses a near-miss name instead of measuring nothing" \
+  2 "$(set +e; ONLY=api-aut bash "$SCOPES" "$R" >/dev/null 2>&1; echo $?)"
+check "an empty ONLY keeps every scope" \
+  4 "$(ONLY='' bash "$SCOPES" "$R" | grep -o '"name"' | wc -l | tr -d ' ')"
+
 # The real repo: every config there is in the matrix, and every matrix entry can be
 # run — the config file it names exists in its package.
 real="$(bash "$SCOPES" "$REPO_ROOT")"

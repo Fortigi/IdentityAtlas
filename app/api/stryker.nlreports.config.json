@@ -1,0 +1,62 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation measurement of the natural-language report builder: src/nlreports/** and its route, routes/nlReports.js. Split out of stryker.reports.config.json (Nov 2026, #1548), which with these files could not finish inside the weekly job's 60 minutes. Same mutator settings as that config, for the same reason (see its comment). NOT YET MEASURED as a scope of its own: no `break` until the first weekly run gives a number to set it a few points under. Then it is a ratchet like every other floor.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.nlreports.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-nlreports.json"
+  },
+  "mutate": [
+    "src/nlreports/compare.js",
+    "src/nlreports/compile.js",
+    "src/nlreports/scope.js",
+    "src/nlreports/contradictions.js",
+    "src/nlreports/language.js",
+    "src/nlreports/autofix.activity.js",
+    "src/nlreports/autofix.followup.js",
+    "src/nlreports/autofix.js",
+    "src/nlreports/followUp.js",
+    "src/nlreports/state.js",
+    "src/nlreports/caller.js",
+    "src/nlreports/sentinels.js",
+    "src/nlreports/conversations.js",
+    "src/nlreports/explain.js",
+    "src/nlreports/extFields.js",
+    "src/nlreports/llamacpp.js",
+    "src/nlreports/ollama.js",
+    "src/nlreports/prompt.js",
+    "src/nlreports/references.js",
+    "src/nlreports/savedReports.js",
+    "src/nlreports/service.js",
+    "src/nlreports/spec.js",
+    "src/nlreports/terms.js",
+    "src/routes/nlReports.js",
+    "src/nlreports/catalogPayload.js"
+  ],
+  "mutationExclusions": {
+    "src/nlreports/catalog.js": "Declaration, not logic: the entities/fields/relations an analyst may report on, each with a constant SQL template. With StringLiteral and ObjectLiteral off there is almost nothing behavioural left to mutate, and the part that can go wrong — a template that does not match the schema — is not observable in a unit test at all: it is caught by the contract test that compiles a definition for every field and relation and executes it against a real PostgreSQL. Mutating the surviving structure would measure the shape of a data table.",
+    "src/nlreports/llm.js": "Three lines of module selection: it re-exports chat/listModels/warm from either the llama.cpp client (what a deployment runs) or the Ollama client (kept for comparing models), chosen by one env var. Both clients ARE mutated. Every test of the layers above mocks this module, so a mutant that flips the selection is invisible by construction — the decision here is to test the clients, not the switch.",
+    "src/nlreports/settings.js": "A WorkerConfig read/write pair for the model name, plus one branch that short-circuits when the deployment fixes the model (the shipped configuration). The branch is asserted in routes/nlReports.test.js through the admin endpoints; the two SQL statements are the same shape as every other WorkerConfig accessor in the codebase and carry no logic to mutate."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": null
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}
