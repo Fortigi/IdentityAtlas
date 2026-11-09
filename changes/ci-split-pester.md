@@ -1,1 +1,2 @@
 - Pull request checks finish sooner: the PowerShell unit tests now run in four parallel parts, and their coverage is combined before the 90% coverage floor is checked.
+- The PowerShell coverage floor in pull request checks is raised from 90% to 91%, closer to the 92% the suite measures.

@@ -483,8 +483,8 @@ jobs:
           # PowerShell coverage floor — the "coverage never down" ratchet for the
           # PS side (the JS side already has committed vitest thresholds). RAISE
           # this when coverage rises; only ever lower it as a reviewed, justified
-          # change. Measured ~92.1%.
-          $FLOOR = 90.0
+          # change. Measured 92.1% merged over the shards (Nov 2026); floor = measured minus ~1.
+          $FLOOR = 91.0
           if ($pct -lt $FLOOR) {
             Write-Host "::error::Pester coverage $pct% is below the floor of $FLOOR%. Add tests for the PowerShell you changed, or lower the floor in pr.yml with justification."
             exit 1
