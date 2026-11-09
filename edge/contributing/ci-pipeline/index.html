@@ -6249,13 +6249,9 @@
 <td>Build: Node-launcher UI</td>
 <td><code>app/ui/src/**</code>, <code>tools/crawlers/**/*.jsx</code></td>
 </tr>
-<tr>
-<td><code>openapi</code></td>
-<td>Lint: OpenAPI spec</td>
-<td><code>app/api/src/openapi.yaml</code></td>
-</tr>
 </tbody>
 </table>
+<p><code>static-gates</code> (<strong>Lint: static gates</strong>) is one job holding six small checks as steps, each with its own path gate: file-length ratchet (any source file), migration immutability (<code>app/api/src/db/migrations/**</code>), Node-version consistency (<code>.nvmrc</code>, workflows, Dockerfiles, <code>package.json</code>), OpenAPI lint (<code>app/api/src/openapi.yaml</code>), crawler-manifest completeness (every product change) and compiled Azure templates (<code>azure/**</code>). A failing check does not stop the others; the final <strong>Verdict</strong> step fails the job and lists which check failed in the job summary. They used to be six jobs, each paying a runner start for a few seconds of work.</p>
 <p>These four jobs have <strong>no path gate</strong> — they always run when there are product changes:</p>
 <table>
 <thead>
@@ -6280,11 +6276,6 @@
 <td><code>hygiene</code></td>
 <td>PR Hygiene</td>
 <td>Branch naming, PR description checks</td>
-</tr>
-<tr>
-<td><code>crawler-manifest</code></td>
-<td>Lint: Crawler manifest completeness</td>
-<td>Every crawler has a <code>crawler.json</code></td>
 </tr>
 <tr>
 <td><code>docs-nav</code></td>
