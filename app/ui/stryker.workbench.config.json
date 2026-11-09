@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation measurement of the role workbench's logic (src/components/workbench/workbench.*.js): its model, labels, cells, roles, columns, rule, save, link, transposed view and permission filters, each against its own unit test. The components and hooks are stryker.workbenchui.config.json. Split out of stryker.contextinterviews.config.json (Nov 2026, #1548), which with these files could not finish inside the weekly job's 60 minutes, and then from its components. MEASURED (Nov 2026, run 42604306292), before this split: 62.63% over 4,100 mutants in 54 minutes 50 seconds of the job's 60, with only 9 of the folder's 17 tests listed -- workbench.transposed.js (12%), workbench.permissions.js (26%) and usePageVirtualRows.js (6%) were scored against tests that never call them, and every logic mutant paid for a full page mount. Kept apart, a logic mutant runs only unit tests. Same mutator settings as stryker.contextinterviews.config.json. NOT YET MEASURED in this shape: no `break` until a run gives a number to set it a few points under.",
+  "_comment": "Mutation measurement of the role workbench's logic (src/components/workbench/workbench.*.js): its model, labels, cells, roles, columns, rule, save, link, transposed view and permission filters, each against its own unit test. The components and hooks are stryker.workbenchui.config.json. Split out of stryker.contextinterviews.config.json (Nov 2026, #1548), which with these files could not finish inside the weekly job's 60 minutes, and then from its components. MEASURED (Nov 2026, run 42604306292), before this split: 62.63% over 4,100 mutants in 54 minutes 50 seconds of the job's 60, with only 9 of the folder's 17 tests listed -- workbench.transposed.js (12%), workbench.permissions.js (26%) and usePageVirtualRows.js (6%) were scored against tests that never call them, and every logic mutant paid for a full page mount. Kept apart, a logic mutant runs only unit tests. Same mutator settings as stryker.contextinterviews.config.json. MEASURED in this shape (run 42611981685): 90.05% over 1,876 mutants in 1 minute 51 seconds. MUTATION FLOOR: `break` 88, that score minus 2, and a ratchet like every other floor -- raise it as the score rises, never lower it.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": {
@@ -33,7 +33,8 @@
   },
   "thresholds": {
     "high": 90,
-    "low": 70
+    "low": 70,
+    "break": 88
   },
   "concurrency": 4,
   "timeoutMS": 60000,
