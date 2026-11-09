@@ -3,18 +3,19 @@
 //
 // Tab flags:
 //   feature   — only shown when that feature flag is enabled server-side.
-//               Enabling the feature (an admin action) IS the opt-in, so the tab
-//               surfaces automatically when it's on — it is NOT also `optional`
-//               (audit H-13: Risk Scores / Identities used to stay hidden behind
-//               a second per-user toggle even after the feature was turned on).
+//               An admin turning on an off-by-default feature (Risk Scores) is
+//               the opt-in, so its tab surfaces automatically (audit H-13).
 //   optional  — hidden by default; the user opts in via Settings → tabs, which
-//               adds the tab key to their `visibleTabs` preference. Reserved for
-//               always-available views that just declutter the nav (never combine
-//               with `feature`).
+//               adds the tab key to their `visibleTabs` preference.
 //
-// Systems, Reports and Sync Log are optional: most users live in the Matrix /
-// Principals / Contexts surfaces, so these admin-leaning views are off by
-// default and can be switched on per-user when needed.
+// Both flags may be combined: the tab then needs the feature on AND the user's
+// opt-in, and the Settings switch is only offered while the feature is on.
+// Identities is the one such tab — account linking is on by default, so the
+// flag alone would put it in front of everyone.
+//
+// Systems, Identities, Contexts and Sync Log are optional: not every deployment
+// links accounts or builds contexts, and the admin-leaning views are clutter for
+// most users. Reports is a default tab — everyone consumes reports.
 
 export const ALL_NAV_TABS = [
   { key: 'dashboard',        label: 'Dashboard' },
@@ -24,9 +25,9 @@ export const ALL_NAV_TABS = [
   { key: 'systems',          label: 'Systems',      optional: true },
   { key: 'access-packages',  label: 'Business Roles' },
   { key: 'risk-scores',      label: 'Risk Scores',  feature: 'riskScoring' },
-  { key: 'identities',       label: 'Identities',   feature: 'accountLinking' },
-  { key: 'contexts',         label: 'Contexts' },
-  { key: 'reports',          label: 'Reports',      optional: true },
+  { key: 'identities',       label: 'Identities',   feature: 'accountLinking', optional: true },
+  { key: 'contexts',         label: 'Contexts',     optional: true },
+  { key: 'reports',          label: 'Reports' },
   { key: 'sync-log',         label: 'Logs',         optional: true },
   { key: 'admin',            label: 'Admin' },
 ];

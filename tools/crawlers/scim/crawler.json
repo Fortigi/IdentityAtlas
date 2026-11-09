@@ -1,8 +1,13 @@
 {
   "type": "scim",
+  "emits": {
+    "principalTypes": ["User"],
+    "resourceTypes": ["Group"],
+    "contextTypes": [],
+    "open": ["principalType"]
+  },
   "displayName": "SCIM 2.0",
   "entryPoint": "Start-ScimCrawler.ps1",
-  "experimental": true,
   "dependsOn": [],
   "urlFields": ["baseUrl", "tokenEndpoint"],
   "configSchema": {

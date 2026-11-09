@@ -103,8 +103,16 @@ blast_radius_violations() {  # $1 = contract file, $2 = git range
     # change, not part of it, exactly like a changelog fragment. #943's build was stopped for
     # touching .ci/coverage-baseline.json, which no probe could reasonably have predicted and which
     # it had no choice but to write.
+    #
+    # The same holds for the files a change in an area touches as a matter of course (#1470): the
+    # shared e2e support files (specs are already exempt), test-utils, a layer's CLAUDE.md
+    # known-utilities list, and the Stryker mutation-testing file list. Reusing the shared e2e seed
+    # helper is what "reuse before creating" asks, and a new helper must be listed in CLAUDE.md and
+    # the Stryker config -- yet each stopped a correct build in Exceptions (#1461, #1468, #1469
+    # twice). The size ceiling still counts them, so a real scope blow-up is still caught.
     case "$f" in
       *.test.js|*.test.jsx|*.spec.js|*.Tests.ps1|changes/*|docs/*|.ci/*|*/package-lock.json|package-lock.json) continue ;;
+      app/ui/e2e/*|*/test-utils/*|CLAUDE.md|*/CLAUDE.md|stryker*.config.json|*/stryker*.config.json) continue ;;
     esac
     hit=no
     while IFS= read -r g; do

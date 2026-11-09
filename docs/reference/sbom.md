@@ -31,7 +31,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.7.1 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.7.2 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -56,8 +56,8 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
 | supertest | ^7.3.1 | HTTP integration testing | MIT |
-| eslint | ^10.13.0 | JavaScript linter | MIT |
-| eslint-plugin-security | ^4.2.0 | Security-focused lint rules | Apache 2.0 |
+| eslint | ^10.14.0 | JavaScript linter | MIT |
+| eslint-plugin-security | ^4.2.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
 
 ---
@@ -70,7 +70,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.3.1 | UI framework | MIT |
 | react-dom | ^19.3.1 | React DOM renderer | MIT |
-| vite | ^8.3.4 | Build tool and dev server | MIT |
+| vite | ^8.3.5 | Build tool and dev server | MIT |
 
 ### Styling
 
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.25.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.27.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -93,7 +93,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.15 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.25 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -105,13 +105,13 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.1.2 | Vite React plugin | MIT |
-| eslint | ^10.13.0 | JavaScript linter | MIT |
+| @vitejs/plugin-react | ^6.2.1 | Vite React plugin | MIT |
+| eslint | ^10.14.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
-| globals | ^17.13.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.64.0 | End-to-end testing framework | Apache 2.0 |
-| @axe-core/playwright | ^4.13.0 | Accessibility testing | MPL 2.0 |
+| globals | ^17.14.0 | Global variable definitions | MIT |
+| @playwright/test | ^1.64.1 | End-to-end testing framework | Apache 2.0 |
+| @axe-core/playwright | ^4.14.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |
 | @types/react-dom | ^19.3.0 | TypeScript type definitions for React DOM | MIT |

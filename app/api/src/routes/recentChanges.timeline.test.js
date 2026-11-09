@@ -144,6 +144,131 @@ describe('timelineRelationshipEvents', () => {
   });
 });
 
+// ─── Soft delete ─────────────────────────────────────────────────────
+// Principals, Resources and ResourceAssignments are soft-delete tables: a
+// removal is an UPDATE that stamps deletedAt. The timeline used to look for
+// 'D' only, so a removed role never appeared on a user's timeline.
+const softDel = (tableName, before, after, extra = {}) => ({
+  tableName, operation: 'U', changedAt: '2026-09-08T14:32:00Z',
+  prevData: { ...extra, deletedAt: before }, rowData: { ...extra, deletedAt: after },
+});
+
+describe('timeline — soft-deleted assignments', () => {
+  const asg = { resourceId: 'res-1', principalId: 'u', assignmentType: 'Direct' };
+
+  it('a stamped deletedAt reads as a removal on the user side, coloured as removed', () => {
+    const acc = mkAcc();
+    timelineAssignmentEvents(softDel('ResourceAssignments', null, '2026-09-08T14:32:00Z', asg), 'u', acc, labels);
+    expect(acc.events).toHaveLength(1);
+    expect(acc.events[0].summary).toBe('Removed from Finance App (Direct)');
+    expect(acc.events[0].operation).toBe('removed');
+    expect(acc.removedCount).toBe(1);
+    expect(acc.addedCount).toBe(0);
+  });
+
+  it('a cleared deletedAt reads as granted again on the resource side', () => {
+    const acc = mkAcc();
+    timelineAssignmentEvents(softDel('ResourceAssignments', '2026-09-01T00:00:00Z', null, asg), 'res-1', acc, labels);
+    expect(acc.events[0].summary).toBe('Bob User granted (Direct)');
+    expect(acc.events[0].operation).toBe('added');
+    expect(acc.addedCount).toBe(1);
+  });
+
+  it('an update that did not cross deletedAt is no event at all', () => {
+    const acc = mkAcc();
+    timelineAssignmentEvents({ tableName: 'ResourceAssignments', operation: 'U', changedAt: 'T',
+      prevData: { ...asg, state: 'a' }, rowData: { ...asg, state: 'b' } }, 'u', acc, labels);
+    expect(acc).toEqual(mkAcc());
+  });
+});
+
+describe('timeline — a held resource deleted in the source', () => {
+  const role = { id: 'br-old', displayName: 'Head of Finance', resourceType: 'BusinessRole' };
+
+  it('shows on the user timeline under the snapshot name, linking to the role', () => {
+    const acc = mkAcc();
+    timelineAttrEvents(softDel('Resources', null, '2026-09-08T14:32:00Z', role), 'u', acc, labels);
+    expect(acc.events).toHaveLength(1);
+    expect(acc.events[0]).toMatchObject({
+      summary: 'Head of Finance deleted in source', operation: 'removed',
+      counterpartyKind: 'access-package', counterpartyId: 'br-old', eventKind: 'assignment',
+    });
+    expect(acc.removedCount).toBe(1);
+  });
+
+  it('a restored held resource reads as restored and links to a plain resource', () => {
+    const acc = mkAcc();
+    timelineAttrEvents(softDel('Resources', '2026-09-01T00:00:00Z', null, { id: 'g1', displayName: 'Sales', resourceType: 'Group' }), 'u', acc, labels);
+    expect(acc.events[0]).toMatchObject({ summary: 'Sales restored in source', operation: 'added', counterpartyKind: 'resource' });
+    expect(acc.addedCount).toBe(1);
+  });
+
+  it('ignores a held resource that was only edited or newly created', () => {
+    const edited = mkAcc();
+    timelineAttrEvents({ tableName: 'Resources', operation: 'U', changedAt: 'T',
+      prevData: { ...role, displayName: 'Old' }, rowData: role }, 'u', edited, labels);
+    expect(edited).toEqual(mkAcc());
+    const created = mkAcc();
+    timelineAttrEvents({ tableName: 'Resources', operation: 'I', changedAt: 'T', rowData: role }, 'u', created, labels);
+    expect(created).toEqual(mkAcc());
+  });
+
+  it('falls back to the id when the snapshot has no name', () => {
+    const acc = mkAcc();
+    timelineAttrEvents(softDel('Resources', null, 'T', { id: 'x9' }), 'u', acc, labels);
+    expect(acc.events[0].summary).toBe('x9 deleted in source');
+  });
+});
+
+describe('timeline — the viewed entity itself soft-deleted', () => {
+  it('reads "Deleted in source" instead of a Deleted At attribute diff', () => {
+    const acc = mkAcc();
+    timelineAttrEvents(softDel('Resources', null, '2026-09-08T14:32:00Z', { id: 'br-old', displayName: 'X' }), 'br-old', acc, labels);
+    expect(acc.events.map(e => e.summary)).toEqual(['Deleted in source']);
+    expect(acc.events[0].operation).toBe('removed');
+    expect(acc.removedCount).toBe(1);
+    expect(acc.changedCount).toBe(0);
+  });
+
+  it('reads "Restored in source" when the stamp is cleared, alongside real attribute edits', () => {
+    const acc = mkAcc();
+    timelineAttrEvents({ tableName: 'Principals', operation: 'U', changedAt: 'T',
+      prevData: { id: 'u', deletedAt: 'T0', department: 'A' }, rowData: { id: 'u', deletedAt: null, department: 'B' } }, 'u', acc, labels);
+    expect(acc.events.map(e => e.summary)).toEqual(['Restored in source', 'Department: A → B']);
+    expect(acc.addedCount).toBe(1);
+    expect(acc.changedCount).toBe(1);
+  });
+});
+
+describe('timeline — relationships and identity links follow changeAction', () => {
+  const rel = { childResourceId: 'res-x', parentResourceId: 'res-1', relationshipType: 'Contains' };
+
+  it('a backfilled relationship column is no longer read as "Removed from"', () => {
+    const acc = mkAcc();
+    timelineRelationshipEvents({ tableName: 'ResourceRelationships', operation: 'U', changedAt: 'T',
+      prevData: { ...rel, roleName: null }, rowData: { ...rel, roleName: 'Member' } }, 'res-x', acc, labels);
+    expect(acc).toEqual(mkAcc());
+  });
+
+  it('a hard-deleted relationship reads as removed from both sides', () => {
+    const child = mkAcc();
+    timelineRelationshipEvents({ tableName: 'ResourceRelationships', operation: 'D', changedAt: 'T', rowData: rel }, 'res-x', child, labels);
+    expect(child.events[0].summary).toBe('Removed from Finance App (Contains)');
+    expect(child.removedCount).toBe(1);
+    const parent = mkAcc();
+    timelineRelationshipEvents({ tableName: 'ResourceRelationships', operation: 'D', changedAt: 'T',
+      rowData: { childResourceId: 'res-1', parentResourceId: 'res-p' } }, 'res-p', parent, labels);
+    expect(parent.events[0].summary).toBe('No longer contains Finance App');
+  });
+
+  it('an identity-link update that changed nothing relevant is skipped', () => {
+    const acc = mkAcc();
+    timelineIdentityMemberEvents({ tableName: 'IdentityMembers', operation: 'U', changedAt: 'T',
+      prevData: { identityId: 'id-1', principalId: 'u', confidence: 1 }, rowData: { identityId: 'id-1', principalId: 'u', confidence: 2 } }, 'u', acc, labels);
+    expect(acc).toEqual(mkAcc());
+  });
+});
+
 describe('timelineIdentityMemberEvents', () => {
   it('linked account is the counterparty when viewing the identity', () => {
     const acc = mkAcc();

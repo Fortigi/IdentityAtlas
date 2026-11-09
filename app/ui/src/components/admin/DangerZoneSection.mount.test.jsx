@@ -20,7 +20,7 @@ async function confirmAndClean(user) {
 describe('DangerZoneSection', () => {
   it('sends the explicit confirmation body the API requires (SEC-2026-09 H-07)', async () => {
     const onRefresh = vi.fn();
-    const authFetch = makeAuthFetch((url, opts) => {
+    const authFetch = makeAuthFetch((url) => {
       if (String(url).includes('/api/admin/clean-database')) return { message: 'Database cleaned', wiped: [{ table: 'Principals', rowsAffected: 3 }], skipped: [] };
       return undefined;
     });

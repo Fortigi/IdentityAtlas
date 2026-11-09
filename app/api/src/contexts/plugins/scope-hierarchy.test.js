@@ -48,3 +48,26 @@ describe('scope-hierarchy', () => {
     expect(members).toContainEqual({ contextExternalId: 'rg', memberId: 'res' });
   });
 });
+
+describe('scope-hierarchy — every node is a Scope', () => {
+  it('types the root and every node Scope, keeping the resource type as an attribute', async () => {
+    const { contexts } = await plugin.run({ scopeSystemId: 1, leafResourceTypes: [] }, ctx);
+    expect(new Set(contexts.map(c => c.contextType))).toEqual(new Set(['Scope']));
+    const byExt = Object.fromEntries(contexts.map(c => [c.externalId, c]));
+    expect(byExt.sub.extendedAttributes).toEqual({ resourceType: 'AzureSubscription' });
+    expect(byExt['scope-root'].extendedAttributes).toBeUndefined();
+    expect(plugin.contextCategory).toBe('Segment');
+    expect(plugin.contextTypes).toEqual(['Scope']);
+  });
+});
+
+describe('scope-hierarchy — soft-deleted resources', () => {
+  it('reads live scope nodes and follows edges to live children only', async () => {
+    await plugin.run({ scopeSystemId: 1 }, ctx);
+    const sqls = db.query.mock.calls.map((c) => c[0]);
+    expect(sqls.find((s) => !s.includes('ResourceRelationships')))
+      .toContain('"capabilityId" IS NULL AND "deletedAt" IS NULL');
+    expect(sqls.find((s) => s.includes('ResourceRelationships')))
+      .toMatch(/rc\."systemId" = \$1\s+AND rc\."deletedAt" IS NULL/);
+  });
+});

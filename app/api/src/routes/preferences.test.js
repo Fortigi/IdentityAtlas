@@ -6,11 +6,15 @@ import { OPTIONAL_TABS } from './preferences.js';
 // persisted as "enabled". It must stay in sync with the `optional` tabs in the
 // UI's utils/navTabs.js, or a user could toggle a tab on but never have it stick.
 describe('preferences OPTIONAL_TABS allowlist', () => {
-  it('lets users enable the Systems, Reports and Sync Log tabs', () => {
-    expect(OPTIONAL_TABS).toEqual(expect.arrayContaining(['systems', 'reports', 'sync-log']));
+  it('lets users enable the Systems, Identities, Contexts and Sync Log tabs', () => {
+    expect(OPTIONAL_TABS).toEqual(expect.arrayContaining(['systems', 'identities', 'contexts', 'sync-log']));
+  });
+
+  it('does not list Reports — it is a default tab, not an opt-in', () => {
+    expect(OPTIONAL_TABS).not.toContain('reports');
   });
 
   it('keeps the previously-optional tabs enable-able', () => {
-    expect(OPTIONAL_TABS).toEqual(expect.arrayContaining(['risk-scores', 'identities', 'performance', 'admin']));
+    expect(OPTIONAL_TABS).toEqual(expect.arrayContaining(['risk-scores', 'performance', 'admin']));
   });
 });

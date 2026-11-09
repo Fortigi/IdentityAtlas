@@ -14,9 +14,13 @@ import * as db from '../../db/connection.js';
 export default {
   name: 'department-from-principal',
   displayName: 'Department from Principal',
+  // The runner wraps the departments under one root (they are several roots otherwise).
+  rootDisplayName: 'Departments',
   description:
     'Creates one Department context per unique department value on Principals and assigns each principal as a member. Run after a CSV or Entra sync.',
   targetType: 'Principal',
+  contextCategory: 'OrganizationalUnit',
+  contextTypes: ['Department'],
   parametersSchema: {
     type: 'object',
     properties: {
@@ -29,8 +33,9 @@ export default {
   async run(params, ctx) {
     const scopeSystemId = params.scopeSystemId ? parseInt(params.scopeSystemId, 10) : null;
 
-    const whereClause = scopeSystemId ? `WHERE "systemId" = $1 AND department IS NOT NULL AND department <> ''`
-                                      : `WHERE department IS NOT NULL AND department <> ''`;
+    // Live principals only: a soft-deleted ("deletedAt") account is history.
+    const whereClause = scopeSystemId ? `WHERE "systemId" = $1 AND "deletedAt" IS NULL AND department IS NOT NULL AND department <> ''`
+                                      : `WHERE "deletedAt" IS NULL AND department IS NOT NULL AND department <> ''`;
     const queryArgs   = scopeSystemId ? [scopeSystemId] : [];
 
     const rows = (await db.query(

@@ -24,6 +24,8 @@ export default {
     'child context per category holding the matching groups. Lets you browse or filter by the ' +
     'kind of group.',
   targetType: 'Resource',
+  contextCategory: 'Segment',
+  contextTypes: ['EntraGroupCategory'],
   parametersSchema: {
     type: 'object',
     properties: {
@@ -39,7 +41,8 @@ export default {
       throw new Error('scopeSystemId must be an integer when provided');
     }
 
-    const conds = [`"resourceType" = 'Group'`, `"extendedAttributes" ->> 'groupCategory' IS NOT NULL`];
+    // Live groups only: a soft-deleted ("deletedAt") group is history.
+    const conds = [`"resourceType" = 'Group'`, '"deletedAt" IS NULL', `"extendedAttributes" ->> 'groupCategory' IS NOT NULL`];
     const qp = [];
     if (scopeSystemId !== null) { qp.push(scopeSystemId); conds.push(`"systemId" = $${qp.length}`); }
 
@@ -54,7 +57,7 @@ export default {
     }
 
     const rootExt = 'entra-groups-root';
-    const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'EntraGroupRoot' }];
+    const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'EntraGroupCategory' }];
     const members = [];
     const seen = new Map(); // category → externalId
     for (const r of rows) {

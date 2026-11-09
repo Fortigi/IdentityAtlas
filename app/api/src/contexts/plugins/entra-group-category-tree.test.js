@@ -24,7 +24,7 @@ describe('entra-group-category-tree', () => {
     const root = contexts.find((c) => c.externalId === 'entra-groups-root');
     expect(root).toBeDefined();
     expect(root.displayName).toBe('EntraID Groups');
-    expect(root.contextType).toBe('EntraGroupRoot');
+    expect(root.contextType).toBe('EntraGroupCategory');
 
     const exts = contexts.map((c) => c.externalId);
     expect(exts).toContain('category:Team');
@@ -65,5 +65,12 @@ describe('entra-group-category-tree', () => {
     const { contexts, members } = await plugin.run({}, ctx);
     expect(contexts).toEqual([]);
     expect(members).toEqual([]);
+  });
+});
+
+describe('entra-group-category-tree — soft-deleted groups', () => {
+  it('reads live groups only', async () => {
+    await plugin.run({}, ctx);
+    expect(db.query.mock.calls[0][0]).toContain(`"resourceType" = 'Group' AND "deletedAt" IS NULL`);
   });
 });

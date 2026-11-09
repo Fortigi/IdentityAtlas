@@ -20,6 +20,8 @@ export default {
   displayName: 'Active Directory OU Tree',
   description: 'Parses an LDAP distinguished name from Principals into a nested OU hierarchy. DC components are ignored; OU components (outer-to-inner) form the tree. Defaults to extendedAttributes.onPremisesDistinguishedName (Entra crawler convention).',
   targetType: 'Principal',
+  contextCategory: 'OrganizationalUnit',
+  contextTypes: ['OrganisationalUnit'],
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],
@@ -43,6 +45,7 @@ export default {
       SELECT id, "displayName", ${dnExpr} AS "dn"
         FROM "Principals"
        WHERE "systemId" = $1
+         AND "deletedAt" IS NULL  -- a soft-deleted principal is history, not an OU member
          AND ${dnExpr} IS NOT NULL
          AND ${dnExpr} <> ''
     `, [scopeSystemId])).rows;

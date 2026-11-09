@@ -89,7 +89,10 @@ const REGISTRY = [
   {
     key: 'manager', label: 'Manager', table: 'principals', card: 'one',
     from: null,
-    where: (a) => `${a}."managerId" IS NOT NULL`,
+    // A managerId pointing at a tombstoned principal is not a current manager.
+    // EXISTS on the primary key keeps the probe a flat semi-join.
+    where: (a) => `${a}."managerId" IS NOT NULL AND EXISTS (SELECT 1 FROM "Principals" mgr
+         WHERE mgr.id = ${a}."managerId" AND mgr."deletedAt" IS NULL)`,
   },
   {
     key: 'ownsAgents', label: 'Owns agents', table: 'principals', card: 'many',

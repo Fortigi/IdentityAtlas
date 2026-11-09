@@ -5,6 +5,10 @@
 // validates and normalises it on every evaluate and save); these helpers only keep the
 // draft tidy enough that what the analyst sees matches what the server will do.
 
+import { CATEGORY_META } from '@ui/utils/contextStyles';
+
+export const DEFAULT_TEMPLATE = 'LogicalApplication';
+
 export const EMPTY_RECIPE = Object.freeze({
   name: '',
   resourceTypes: ['Group'],
@@ -13,7 +17,34 @@ export const EMPTY_RECIPE = Object.freeze({
   include: [],
   exclude: [],
   structure: 'byTerm',
+  template: DEFAULT_TEMPLATE,
 });
+
+const isTemplate = (value) => Object.hasOwn(CATEGORY_META, value);
+
+/**
+ * The id of a new builder tab, carrying the Contexts tab it was started from:
+ * "new-LogicalApplication-1730000000000". Without a (known) template: "new-<time>".
+ */
+export function newBuilderId(template, now = Date.now()) {
+  return isTemplate(template) ? `new-${template}-${now}` : `new-${now}`;
+}
+
+/** The template a new builder tab starts with: the one in its id, else an application. */
+export function templateFromBuilderId(builderId) {
+  const part = String(builderId ?? '').split('-')[1];
+  return isTemplate(part) ? part : DEFAULT_TEMPLATE;
+}
+
+/**
+ * Apply the model's guess at the template, unless the analyst chose one themselves
+ * (or opened a saved context, whose template is a choice made earlier). An unknown
+ * guess changes nothing. Returns the recipe and whether the guess was applied.
+ */
+export function applyTemplateGuess(recipe, guess, chosenByAnalyst) {
+  if (chosenByAnalyst || !isTemplate(guess)) return { recipe, applied: false };
+  return { recipe: { ...recipe, template: guess }, applied: true };
+}
 
 export const MATCH_LABELS = {
   wordStart: 'word starts with',

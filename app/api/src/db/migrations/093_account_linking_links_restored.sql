@@ -1,0 +1,21 @@
+-- Migration 093: record how many held-back name-only matches a run re-linked.
+--
+-- Until #1460 the name-uniqueness guard counted a rival at either name level at
+-- once, so an account whose full name exactly one person is spelled was held for
+-- review — and any stored link of that class detached — as soon as somebody else
+-- merely shared its surname and first initial. Rivalry is now weighed at the
+-- level the match itself rests on, which releases that whole class: the first
+-- run after the upgrade re-links them automatically.
+--
+--   "linksRestored"  how many links the run newly created on a name that is
+--                    shared only at the weaker surname + initial level — the
+--                    matches the previous policy held for review. Counted on
+--                    creation only, so the figure reports the one-off restore
+--                    and settles back to 0 on later runs.
+--
+-- Nullable with no default, for the same reason as the 092 columns: NULL means
+-- "this run predates the feature", which must stay distinguishable from a run
+-- that looked and restored none. Adding a nullable column without a default
+-- does not rewrite the table.
+
+ALTER TABLE "AccountLinkingRuns" ADD COLUMN IF NOT EXISTS "linksRestored" INT;

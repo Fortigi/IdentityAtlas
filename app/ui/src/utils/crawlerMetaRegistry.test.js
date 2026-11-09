@@ -58,10 +58,15 @@ describe('the real discovered registry', () => {
     }
   });
 
-  it('ships at least one experimental type, and every one of them is in the registry', () => {
+  // A build may ship zero experimental types (it does today), so this asserts
+  // only what holds either way. The flag's filtering is covered on FIXTURES above.
+  it('every experimental type it reports is one of the discovered types, flagged', () => {
     const experimental = experimentalCrawlerTypes();
-    expect(experimental.length).toBeGreaterThan(0);
-    for (const t of experimental) expect(CRAWLER_TYPES).toContain(t);
+    for (const t of experimental) {
+      expect(CRAWLER_TYPES).toContain(t);
+      expect(t.experimental, t.id).toBe(true);
+    }
+    expect(experimental).toHaveLength(CRAWLER_TYPES.filter(t => t.experimental).length);
   });
 
   it('drops exactly the experimental types from the picker when the flag is off', () => {

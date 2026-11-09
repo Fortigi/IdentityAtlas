@@ -91,9 +91,21 @@ a setting (365 days by default).
     contacted. Data synced before this was added only shows reviewers who made a decision. Until the
     next full sync, nobody can show up as *Never responded*, and the report says so above the table.
 
+## The summary above the table
+
+Both reports show their breakdown on screen, above the table:
+
+- The two charts appear as bars with a legend. Adoption shows roles and members by status, and
+  Response shows reviewers and missed reviews by verdict.
+- The two pivots appear as grouped tables. Open a group to see what is in it.
+
+Click a status, a verdict or a group to narrow the table to those rows. **Show all rows** brings
+everything back.
+
 ## The Excel download
 
-**Download XLSX** opens on these tabs:
+**Download XLSX** is the main download button. CSV and JSON are in the menu next to it. The workbook
+opens on these tabs:
 
 1. **Summary**: the counts and the rule the statuses were judged by.
 2. **Charts**: two pie charts with their numbers beside them.

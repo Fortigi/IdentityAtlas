@@ -28,6 +28,8 @@ export const plugin = {
     'cluster per remaining token that appears in at least `minMembers` resources. ' +
     'A resource can belong to multiple clusters.',
   targetType: 'Resource',
+  contextCategory: 'Segment',
+  contextTypes: ['ResourceCluster'],
   parametersSchema: {
     type: 'object',
     properties: {
@@ -75,7 +77,8 @@ export const plugin = {
     const rows = (await db.query(
       `SELECT id, "displayName"
          FROM "Resources"
-        WHERE $1::int IS NULL OR "systemId" = $1`,
+        WHERE "deletedAt" IS NULL  -- a soft-deleted resource is history
+          AND ($1::int IS NULL OR "systemId" = $1)`,
       [scopeSystemId],
     )).rows;
 

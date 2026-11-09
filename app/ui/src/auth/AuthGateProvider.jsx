@@ -12,6 +12,7 @@ export default function AuthGate({ children }) {
     hasWildcard: true,        // open-mode default; flipped on /auth-me response
     loaded: false,
     me: null,                 // signed-in user mapped onto crawled data
+    contextOwner: null,       // { contexts } when let in as a context owner
   });
   const msalRef = useRef(null);
   const configRef = useRef(null);
@@ -186,6 +187,7 @@ export default function AuthGate({ children }) {
       hasWildcard: permState.hasWildcard,
       permissionsLoaded: permState.loaded,
       me: permState.me,
+      contextOwner: permState.contextOwner,
       refreshPermissions,
     }}>
       {/* Banner + app live in one min-h-screen flex column so the 100vh

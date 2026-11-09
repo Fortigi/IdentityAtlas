@@ -72,8 +72,8 @@ security boundary.
 
 ## Step 4 — Manage roles & permissions in the UI
 
-Once you're in as an admin, edit the live mapping under **Admin → Authentication →
-Roles & Permissions**. This maps each Entra ID app role to a set of permissions
+Once you're in as an admin, edit the live mapping under **Admin → Roles &
+Permissions** (its own tab, next to Authentication). This maps each Entra ID app role to a set of permissions
 from the fixed catalog, so "who can do what" changes without a code change.
 
 The seed mapping a fresh install ships with:
@@ -92,6 +92,31 @@ permission, so you can't accidentally revoke your own ability to manage roles.
     and admin gate. Read endpoints are not permission-gated, so a roleless user
     can still read data — set `AUTH_REQUIRED_ROLES` if you need to stop roleless
     users from signing in at all.
+
+### Relative permissions: letting context owners in
+
+The same **Admin → Roles & Permissions** tab has a second section below the
+role table, **Relative permissions**. It groups the access people get because of
+how they relate to the data, rather than a role in that table. It is always read-only and limited to the data they relate
+to. There are two kinds today:
+
+- **Context owners** — one checkbox. It lets the people who are **Accountable**
+  or **Responsible** for a context sign in without an Identity Atlas role. They
+  land directly on their own context page — read-only, with its report
+  download — and can also open all its sub-units at any depth (also those with
+  an owner of their own; that owner sees only their own part), a team or
+  application matrix, the pages of the people in it and of what they hold, and
+  for each member the *names* of what that member holds and which other contexts
+  it is in. Every other screen and endpoint stays
+  closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do
+  hold a role are not affected. It is off by default and takes effect without a
+  restart.
+- **Matrix-share recipients** — someone a matrix is shared with can open that
+  matrix without a role (see [Sharing a matrix](../ui/sharing-a-matrix.md)).
+  That is decided per share; there is no setting for it in this section.
+
+See [Context-owner access](../architecture/context-owner-access.md) for exactly
+what a context owner can see and how it is enforced.
 
 ---
 

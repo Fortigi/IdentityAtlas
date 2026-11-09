@@ -25,7 +25,7 @@
  * { test, expect } — see ConfigWizard.e2e.mjs in this folder for why.
  */
 
-import { E2E_API, E2E_BASE, deleteCrawlerConfigs, enableFeatureFlag } from '../shared/wizardE2EKit.mjs';
+import { E2E_API, E2E_BASE, deleteCrawlerConfigs } from '../shared/wizardE2EKit.mjs';
 
 const CONFIG_PREFIX = 'e2e-scim-naming-';
 
@@ -52,18 +52,8 @@ async function createConfig(displayName, extra) {
 
 export function register(test, expect) {
   test.describe('SCIM crawler card — which system it says it registers', () => {
-    /** @type {(() => Promise<void>)|null} */
-    let restoreFlag = null;
-
-    test.beforeAll(async () => {
-      // SCIM is experimental: with the flag off, POST /admin/crawler-configs
-      // answers 403 and no card exists to look at.
-      restoreFlag = await enableFeatureFlag('experimentalCrawlers');
-    });
-
     test.afterAll(async () => {
       await deleteCrawlerConfigs(name => name.startsWith(CONFIG_PREFIX));
-      if (restoreFlag) await restoreFlag();
     });
 
     /** The card of one crawler, and the "System:" line inside it. */

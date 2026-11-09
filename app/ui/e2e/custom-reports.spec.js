@@ -68,7 +68,7 @@ test.describe('custom reports', () => {
     await expect(page.getByRole('heading', { name: NAME, level: 2 })).toBeVisible({ timeout: 20000 });
     // Download buttons come from the API's advertised formats — a custom report
     // is served by the same route as a built-in one.
-    await expect(page.getByRole('button', { name: /CSV/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download XLSX' })).toBeVisible();
 
     // Edit from the report itself, change the description, save again.
     // Scoped to the report's own tab: the Reports list stays mounted in its tab and

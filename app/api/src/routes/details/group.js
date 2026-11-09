@@ -84,16 +84,19 @@ router.get('/group/:id/access-packages', async (req, res) => {
   if (!useSql) return res.json([]);
   try {
     const pool = await db.getPool();
+    // A business role soft-deleted in the source is history: kept in the list,
+    // flagged `deleted` + `deletedAt`, after the current ones.
     const r = await timedQuery(pool, 'group-access-packages', res, `
       SELECT DISTINCT
         rrs."parentResourceId" AS "resourceId",
         ap."displayName" AS "accessPackageName",
-        rrs."roleName"
+        rrs."roleName",
+        (ap."deletedAt" IS NOT NULL) AS "deleted", ap."deletedAt" AS "deletedAt"
       FROM "ResourceRelationships" rrs
       LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
       WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
         AND rrs."relationshipType" = 'Contains'
-      ORDER BY ap."displayName"
+      ORDER BY "deleted", ap."displayName"
     `, [req.params.id]);
     res.json(r.rows);
   } catch (err) {

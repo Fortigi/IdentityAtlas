@@ -30,8 +30,10 @@ export function clampTimelineDays(v) {
   return Math.min(1095, n);
 }
 
+// `operation` follows changeAction(): a soft delete (an UPDATE that stamps
+// deletedAt) is a removal, not a "change", so the UI colours it as one.
 export function toEvent(row, summary, counterparty) {
-  const op = row.operation === 'I' ? 'added' : row.operation === 'D' ? 'removed' : 'changed';
+  const op = changeAction(row) || 'changed';
   return {
     at: row.changedAt,
     operation: op,

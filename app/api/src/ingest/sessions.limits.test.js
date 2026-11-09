@@ -129,3 +129,31 @@ describe('startSession — caps, ownership and connection hygiene', () => {
     expect(del[1]).toEqual([[7]]);
   });
 });
+
+// A contexts session states its owners as Accountables at the end, inside the
+// session's own transaction (ingest/contextOwners.js) — before the COMMIT, so a
+// failure rolls the whole load back like any other end-of-session step.
+describe('endSession — synced owners become Accountables', () => {
+  const sqlOf = () => query.mock.calls.map((c) => String(c[0]));
+
+  it('reconciles a contexts session against its temp table before committing, and reports it', async () => {
+    const counts = { set: 2, replaced: 1, removed: 0, unresolved: 3 };
+    const base = query.getMockImplementation();
+    query.mockImplementation(async (sql, params) => (String(sql).includes('INSERT INTO "ContextRoles"')
+      ? { rows: [counts], rowCount: 1 } : base(sql, params)));
+    const { syncId } = await startSession(null, 'Contexts', KEYS, RECORDS, { crawlerId: 48 });
+    const res = await endSession(syncId, null, [], KEYS, { syncMode: 'delta' });
+    expect(res.accountable).toEqual(counts);
+    const all = sqlOf();
+    const at = all.findIndex((s) => s.includes('INSERT INTO "ContextRoles"'));
+    expect(all[at]).toMatch(/c\.id IN \(SELECT "id" FROM "_tmp_session_[0-9a-f]{16}"\)/);
+    expect(at).toBeLessThan(all.lastIndexOf('COMMIT'));
+  });
+
+  it('leaves context roles alone for any other table', async () => {
+    const { syncId } = await startSession(null, 'IdentityMembers', KEYS, RECORDS, { crawlerId: 49 });
+    const res = await endSession(syncId, null, [], KEYS, { syncMode: 'delta' });
+    expect(res).not.toHaveProperty('accountable');
+    expect(sqlOf().some((s) => s.includes('"ContextRoles"'))).toBe(false);
+  });
+});

@@ -76,6 +76,12 @@ const MAX_WIDTH = 60;
 const WIDTH_SAMPLE = 200;
 
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+// A column may ask for its own header colour (an ARGB string), to set a group of
+// columns apart — the unit report's organisational claims. Anything else gets the default.
+const ARGB = /^[0-9A-F]{8}$/i;
+export const headerFill = column => (ARGB.test(column?.headerFill ?? '')
+  ? { type: 'pattern', pattern: 'solid', fgColor: { argb: column.headerFill.toUpperCase() } }
+  : HEADER_FILL);
 const HEADER_FONT = { bold: true, size: 11, color: { argb: 'FF374151' } };
 const MUTED_FONT = { size: 10, color: { argb: 'FF6B7280' } };
 
@@ -140,12 +146,12 @@ export function splitConstantColumns(columns, rows, constantColumns, keep = []) 
 
 /**
  * The Summary tab: what this is, when it was computed, whatever the run
- * declared constant, and every notice the report returned — which is where a
- * summary lives now that a download can hold one. Its own tab, so the Data tab
- * is nothing but the table: row 1 is the header, and a pivot or filter built on
+ * declared constant, every notice the report returned — which is where a
+ * summary lives now that a download can hold one — and the run's detail
+ * blocks. Its own tab, so the Data tab is nothing but the table: row 1 is the header, and a pivot or filter built on
  * it by hand needs no range picking.
  */
-function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [] }) {
+function writeSummary(sheet, { displayName, generatedAt, total, notices = [], truncated, header = [], details }) {
   sheet.getColumn(1).width = SUMMARY_LABEL_WIDTH;
   sheet.getColumn(2).width = MAX_WIDTH;
   sheet.getCell('A1').value = String(displayName ?? 'Report');
@@ -179,6 +185,28 @@ function writeSummary(sheet, { displayName, generatedAt, total, notices = [], tr
     if (notice?.severity === 'warning') sheet.getCell(`A${row}`).font = { color: { argb: 'FF92400E' } };
     row += 1;
   }
+  writeDetails(sheet, details, row + 1);
+}
+
+/**
+ * The run's detail blocks — everything known about what it covers, such as
+ * each context of an Entitlement Pivot — below the notices: a bold title, then
+ * one label/value pair per row, the same two-cell shape as the header block.
+ */
+function writeDetails(sheet, details, start) {
+  let row = start;
+  for (const block of Array.isArray(details) ? details : []) {
+    sheet.getCell(`A${row}`).value = String(block?.title ?? '');
+    sheet.getCell(`A${row}`).font = { bold: true, size: 12 };
+    row += 1;
+    for (const entry of Array.isArray(block?.entries) ? block.entries : []) {
+      sheet.getCell(`A${row}`).value = String(entry?.label ?? '');
+      sheet.getCell(`A${row}`).font = { bold: true };
+      sheet.getCell(`B${row}`).value = entry?.value ?? null;
+      row += 1;
+    }
+    row += 1;
+  }
 }
 
 /** Every column key the declared pivots are built on. */
@@ -203,6 +231,7 @@ function pivotKeys(pivots) {
  */
 async function toXlsx({
   displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns, pivots = [],
+  details,
   charts = [],
 } = {}) {
   const workbook = new ExcelJS.Workbook();
@@ -215,7 +244,9 @@ async function toXlsx({
   // `columns` in the payload is untouched — the screen still shows all of them.
   const { header, body: columns } = splitConstantColumns(declared, rows, constantColumns, pivotKeys(pivots));
 
-  writeSummary(workbook.addWorksheet(SUMMARY_SHEET), { displayName, generatedAt, total, notices, truncated, header });
+  writeSummary(workbook.addWorksheet(SUMMARY_SHEET), {
+    displayName, generatedAt, total, notices, truncated, header, details,
+  });
   const headerRow = HEADER_ROW;
   const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
   // Charts read the rows, not the table, so a column the run held constant can
@@ -231,7 +262,7 @@ async function toXlsx({
     const cell = labelRow.getCell(i + 1);
     cell.value = column.label;
     cell.font = HEADER_FONT;
-    cell.fill = HEADER_FILL;
+    cell.fill = headerFill(column);
   });
   labelRow.commit?.();
 
@@ -310,11 +341,44 @@ export function resolveExportFormat(format) {
  * is slugged rather than trusted verbatim — it ends up inside a quoted
  * Content-Disposition header.
  */
-export function exportFilename(reportName, extension, generatedAt) {
+export function exportFilename(reportName, extension, generatedAt, subject = null) {
+  const day = /^\d{4}-\d{2}-\d{2}/.exec(String(generatedAt ?? ''))?.[0];
+  const name = subjectFileName(subject);
+  if (name) return `${name}${day ? ` ${day}` : ''}.${extension}`;
   const slug = String(reportName ?? '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '') || 'report';
-  const day = /^\d{4}-\d{2}-\d{2}/.exec(String(generatedAt ?? ''))?.[0];
   return `${FILENAME_PREFIX}-${slug}${day ? `-${day}` : ''}.${extension}`;
+}
+
+/**
+ * A run on ONE context is named after it — "SAP ERP 2026-10-22.xlsx" — because
+ * that is how the person who downloaded it will look for it. Characters Windows
+ * refuses in a filename, control characters and quotes go; the rest (spaces,
+ * accents) stays, and the header carries it RFC 5987-encoded (contentDisposition).
+ */
+export function subjectFileName(subject) {
+  return String(subject ?? '')
+    // eslint-disable-next-line no-control-regex -- stripping control characters is the point: not valid in a file name
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/, '')
+    .slice(0, 120);
+}
+
+/** The context a run is about when it covers exactly one, else null. */
+export function singleSubject(payload) {
+  const details = Array.isArray(payload?.details) ? payload.details : [];
+  return details.length === 1 ? details[0].contextName ?? null : null;
+}
+
+/**
+ * The Content-Disposition value: an ASCII `filename` every client reads, plus
+ * `filename*` with the real UTF-8 name for the ones that read it (browsers do).
+ */
+export function contentDisposition(filename) {
+  const ascii = filename.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').replace(/["\\]/g, '') || 'report';
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }

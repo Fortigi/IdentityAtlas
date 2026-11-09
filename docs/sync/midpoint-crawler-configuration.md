@@ -57,7 +57,7 @@ phase (e.g. to do a quick roles-only run, or to skip the heavy shadows phase).
 | `users` | ✅ on | `UserType` → **Identities** + a focus **Principal** |
 | `shadows` | ✅ on | Accounts + entitlements on connected systems (the slowest phase) |
 | `orgMembership` | ✅ on | `user.parentOrgRef` → **Context members** |
-| `assignments` | ✅ on | `user.assignment` → **ResourceAssignments** (`Governed`) |
+| `assignments` | ✅ on | `user.assignment` → **ResourceAssignments** (`Direct`, `governed=true`) |
 | `roleNesting` | ✅ on | `role.inducement` → **ResourceRelationships** (`Contains`) |
 | `reviews` | ✅ on | Certification campaigns → **CertificationDecisions** |
 

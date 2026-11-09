@@ -11,17 +11,31 @@
 //   - Contexts in the plugin output that don't exist yet get INSERT.
 //   - Existing contexts that still appear in the output get UPDATE.
 //   - Contexts previously produced by this (algorithm, scope) that are NOT
-//     in the new output get DELETE. Manual children grafted under a
-//     generated parent survive — the FK is ON DELETE CASCADE on parent, so
-//     we only delete rows we own (variant='generated').
+//     in the new output get DELETE. We only delete rows we own; a child that
+//     is not ours (a manual unit, an analyst-added one) still grafted under a
+//     deleted node is lifted to the top level first instead of being
+//     cascade-deleted with it. Children of a node that is still produced survive.
+//   - Afterwards the tree's adjustments (ContextTreeAdjustments) are applied
+//     again on top of the rebuilt tree.
 //   - Members with addedBy='algorithm' are fully replaced by the new set
 //     for contexts we own. Members with addedBy='analyst' or 'sync' survive.
+//   - Roles (who answers for a context) follow the same rule: the plugin's own
+//     (addedBy='algorithm') rows are replaced, an analyst's or a sync's survive.
+//   - Every node carries its template (contextCategory): the node's own, else
+//     the plugin's.
+//   - A run whose output has several roots is wrapped under one root named
+//     after the plugin (withPluginRoot), with a fixed externalId so re-runs
+//     reuse it. Nodes a previous run left as flat roots match on their own
+//     externalId as before and are re-parented under it.
 
 import * as db from '../../db/connection.js';
 import { randomUUID } from 'crypto';
 import { getPlugin } from './registry.js';
 import { wouldCreateCycle } from '../cycleGuard.js';
-import { buildNewIdMap, buildMemberInsertBatch } from './runner.helpers.js';
+import { refreshMemberCounts } from '../memberCounts.js';
+import { buildNewIdMap, buildMemberInsertBatch, buildRoleInsertBatch, producedMemberPairs, roleKeys, withPluginRoot, PLUGIN_ROOT_EXTERNAL_ID } from './runner.helpers.js';
+import { reapplyTree } from '../adjustments/service.js';
+import { generatedTreeKey } from '../adjustments/treeKey.js';
 
 // Second pass of reconcile: set parent pointers now that every target row exists.
 // Skips analyst-reparented nodes and unresolved parents, and — via wouldCreateCycle
@@ -160,13 +174,19 @@ export async function dryRun(pluginName, params) {
   };
 }
 
+// A run carries the key of the tree it built (null until it wrote one), so the
+// run tab can open that tree to adjust.
 export async function getRun(runId) {
-  return db.queryOne(`
-    SELECT r.*, a.name AS "algorithmName", a."displayName" AS "algorithmDisplayName", a."targetType"
+  const row = await db.queryOne(`
+    SELECT r.*, a.name AS "algorithmName", a."displayName" AS "algorithmDisplayName", a."targetType",
+           (SELECT COALESCE(c."sourceInstanceKey", '') FROM "Contexts" c WHERE c."sourceRunId" = r.id LIMIT 1) AS "builtInstanceKey"
       FROM "ContextAlgorithmRuns" r
       JOIN "ContextAlgorithms" a ON r."algorithmId" = a.id
      WHERE r.id = $1
   `, [runId]);
+  if (!row) return row;
+  const { builtInstanceKey, ...run } = row;
+  return { ...run, treeKey: builtInstanceKey == null ? null : generatedTreeKey(run.algorithmId, builtInstanceKey) };
 }
 
 export async function listRuns({ algorithmId = null, limit = 50 } = {}) {
@@ -239,19 +259,20 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
     //    only ever touches its own tree.
     const { existingRows, existingByExternalId, reparentedIds } =
       await loadExistingContexts(client, algorithmId, scopeSystemId, instanceKey);
+    const contexts = withPluginRoot(result.contexts, plugin, existingByExternalId.has(PLUGIN_ROOT_EXTERNAL_ID));
 
     // 2) Resolve every produced externalId to its final Contexts.id up front.
     //    Two passes follow because parents may appear after children in output.
-    const newByExternalId = buildNewIdMap(result.contexts, existingByExternalId);
+    const newByExternalId = buildNewIdMap(contexts, existingByExternalId);
 
     // 3a) First pass: INSERT/UPDATE every node with parentContextId = NULL.
-    await upsertContexts(client, result.contexts, {
+    await upsertContexts(client, contexts, {
       plugin, scopeSystemId, algorithmId, runId, instanceKey,
       newByExternalId, existingByExternalId, counts,
     });
 
     // 3b) Second pass: set parent pointers now that every target row exists.
-    await linkContextParents(client, result.contexts, newByExternalId, reparentedIds, plugin.name);
+    await linkContextParents(client, contexts, newByExternalId, reparentedIds, plugin.name);
 
     // Acyclicity is handled up front by linkContextParents (it skips a loop-closing
     // link, leaving the node a root) and guaranteed by migration 059's deferred
@@ -260,7 +281,7 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
 
     // 4) Remove contexts that previously belonged to this (algorithm, scope)
     //    but are no longer in the plugin's output.
-    await deleteStaleContexts(client, existingRows, result.contexts, counts);
+    await deleteStaleContexts(client, existingRows, contexts, counts);
 
     // 5) Members — we own rows with addedBy='algorithm' for produced contexts.
     const producedContextIds = [...newByExternalId.values()];
@@ -268,8 +289,15 @@ async function reconcile(plugin, algorithmId, runId, params, result, instanceKey
       newByExternalId, producedContextIds, targetType: plugin.targetType, counts,
     });
 
+    // 5b) Roles — same ownership rule as members.
+    await replaceOwnedRoles(client, result.roles || [], { newByExternalId, producedContextIds });
+
     // 6) Refresh direct + rolled-up member counts on every context we touched.
     await refreshMemberCounts(client, producedContextIds);
+
+    // 7) The analyst's adjustments of this tree, applied again on top of the
+    //    rebuilt base (docs/architecture/adjust-tree.md). No-op without any.
+    await reapplyTree(client, generatedTreeKey(algorithmId, instanceKey));
   });
 
   return counts;
@@ -316,22 +344,26 @@ async function updateContextRow(client, id, node, { plugin, runId }) {
        SET "displayName"         = CASE WHEN "userRenamed"    THEN "displayName"     ELSE $2 END,
            description           = $3,
            "contextType"         = $4,
+           "contextCategory"     = $7,
            "parentContextId"     = CASE WHEN "userReparented" THEN "parentContextId" ELSE NULL END,
            "extendedAttributes"  = $5,
            "sourceRunId"         = $6
      WHERE id = $1
-  `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId]);
+  `, [id, node.displayName, node.description || null, node.contextType || plugin.name, node.extendedAttributes || null, runId, categoryOf(node, plugin)]);
 }
 
 async function insertContextRow(client, id, node, { plugin, scopeSystemId, algorithmId, runId, instanceKey }) {
   await client.query(`
     INSERT INTO "Contexts"
       (id, variant, "targetType", "contextType", "displayName", description,
-       "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey")
-    VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11)
+       "parentContextId", "scopeSystemId", "sourceAlgorithmId", "sourceRunId", "externalId", "extendedAttributes", "sourceInstanceKey", "contextCategory")
+    VALUES ($1, 'generated', $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11, $12)
   `, [id, plugin.targetType, node.contextType || plugin.name, node.displayName, node.description || null,
-      scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey]);
+      scopeSystemId, algorithmId, runId, node.externalId, node.extendedAttributes || null, instanceKey, categoryOf(node, plugin)]);
 }
+
+// The template a node is written under: its own, else the plugin's, else none.
+const categoryOf = (node, plugin) => node.contextCategory ?? plugin.contextCategory ?? null;
 
 // 4) Delete contexts that previously belonged to this (algorithm, scope) but are
 // no longer in the plugin's output.
@@ -339,21 +371,33 @@ async function deleteStaleContexts(client, existingRows, contexts, counts) {
   const producedExternalIds = new Set(contexts.map(n => n.externalId));
   const stale = existingRows.filter(r => !producedExternalIds.has(r.externalId)).map(r => r.id);
   if (stale.length > 0) {
+    // What hangs under a vanished unit but is not the plugin's own — a unit an
+    // analyst added or moved there — is lifted to the top instead of being
+    // cascade-deleted with it; the adjustment that put it there reports it.
+    await client.query(`
+      UPDATE "Contexts" SET "parentContextId" = NULL
+       WHERE "parentContextId" = ANY($1::uuid[]) AND NOT (id = ANY($1::uuid[]))
+    `, [stale]);
     await client.query(`DELETE FROM "Contexts" WHERE id = ANY($1::uuid[])`, [stale]);
     counts.contextsRemoved = stale.length;
   }
 }
 
-// 5) Replace the algorithm-owned members of the produced contexts: wipe our
-// (addedBy='algorithm') rows, then re-insert in batches to avoid absurd parameter
-// counts on huge runs. Analyst/sync-added members are left untouched.
+// 5) Reconcile the algorithm-owned members of the produced contexts: remove our
+// (addedBy='algorithm') rows the run no longer produces, then insert the new ones
+// in batches (ON CONFLICT keeps the rows that stay). A refresh that changes
+// nothing writes nothing, so the membership history (migration 109) records only
+// real joins and leaves. Analyst/sync-added members are left untouched.
 async function replaceOwnedMembers(client, members, { newByExternalId, producedContextIds, targetType, counts }) {
   if (producedContextIds.length === 0) return;
 
+  const produced = producedMemberPairs(members, newByExternalId);
   const del = await client.query(`
-    DELETE FROM "ContextMembers"
-     WHERE "contextId" = ANY($1::uuid[]) AND "addedBy" = 'algorithm'
-  `, [producedContextIds]);
+    DELETE FROM "ContextMembers" cm
+     WHERE cm."contextId" = ANY($1::uuid[]) AND cm."addedBy" = 'algorithm'
+       AND NOT EXISTS (SELECT 1 FROM unnest($2::uuid[], $3::uuid[]) AS k("contextId", "memberId")
+                        WHERE k."contextId" = cm."contextId" AND k."memberId" = cm."memberId")
+  `, [producedContextIds, produced.contextIds, produced.memberIds]);
   counts.membersRemoved = del.rowCount || 0;
 
   let insertedNow = 0;
@@ -372,48 +416,30 @@ async function replaceOwnedMembers(client, members, { newByExternalId, producedC
   counts.membersAdded = insertedNow;
 }
 
-// 6) Refresh directMemberCount on every touched context, then roll up
-// totalMemberCount over each context's subtree (distinct members, so a person who
-// is a direct member of two sibling leaves in the same tree isn't double-counted).
-async function refreshMemberCounts(client, producedContextIds) {
+// 5b) Reconcile the algorithm-owned roles of the produced contexts. A role the
+// plugin still produces keeps its row (and its id, which a claim may point at);
+// only roles it no longer produces are removed, and new ones added. An analyst's
+// Accountable stays: the partial unique index refuses a second Accountable, and
+// ON CONFLICT DO NOTHING lets the plugin's row yield to it.
+async function replaceOwnedRoles(client, roles, { newByExternalId, producedContextIds }) {
   if (producedContextIds.length === 0) return;
-
-  // 6a) directMemberCount.
+  const keep = roleKeys(roles, newByExternalId);
   await client.query(`
-    UPDATE "Contexts" c
-       SET "directMemberCount" = COALESCE(m.cnt, 0),
-           "lastCalculatedAt"  = now() AT TIME ZONE 'utc'
-      FROM (
-        SELECT "contextId", COUNT(*)::int AS cnt
-          FROM "ContextMembers"
-         WHERE "contextId" = ANY($1::uuid[])
-         GROUP BY "contextId"
-      ) m
-     WHERE c.id = m."contextId"
-  `, [producedContextIds]);
-
-  // 6b) totalMemberCount over the subtree rooted at each context.
-  await client.query(`
-    WITH RECURSIVE subtree AS (
-      -- Seed: the context itself.
-      SELECT id AS root_id, id AS node_id
-        FROM "Contexts"
-       WHERE id = ANY($1::uuid[])
-      UNION
-      -- Walk down.
-      SELECT s.root_id, c.id
-        FROM "Contexts" c
-        JOIN subtree s ON c."parentContextId" = s.node_id
-    ),
-    totals AS (
-      SELECT s.root_id, COUNT(DISTINCT cm."memberId")::int AS cnt
-        FROM subtree s
-        LEFT JOIN "ContextMembers" cm ON cm."contextId" = s.node_id
-       GROUP BY s.root_id
-    )
-    UPDATE "Contexts" c
-       SET "totalMemberCount" = t.cnt
-      FROM totals t
-     WHERE c.id = t.root_id
-  `, [producedContextIds]);
+    DELETE FROM "ContextRoles" r
+     WHERE r."contextId" = ANY($1::uuid[]) AND r."addedBy" = 'algorithm'
+       AND NOT EXISTS (
+         SELECT 1 FROM unnest($2::uuid[], $3::text[], $4::text[]) AS k(ctx, holder, role)
+          WHERE k.ctx = r."contextId" AND k.role = r."role"
+            AND k.holder = COALESCE(r."principalId", r."identityId")::text)
+  `, [producedContextIds, keep.ctx, keep.holder, keep.role]);
+  const BATCH = 500;
+  for (let i = 0; i < roles.length; i += BATCH) {
+    const { values, params } = buildRoleInsertBatch(roles.slice(i, i + BATCH), newByExternalId);
+    if (values.length === 0) continue;
+    await client.query(`
+      INSERT INTO "ContextRoles" ("contextId", "principalId", "identityId", "role", "addedBy")
+      VALUES ${values.join(', ')}
+      ON CONFLICT DO NOTHING
+    `, params);
+  }
 }

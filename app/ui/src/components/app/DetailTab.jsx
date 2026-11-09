@@ -1,8 +1,10 @@
 import { tabBadge } from '@ui/utils/tabBadge';
 import { detailTabIconBg } from '@ui/App.helpers';
+import ContextTemplateIcon from '@ui/components/contexts/ContextTemplateIcon';
 
 // One dynamic detail tab (#user:id, #resource:id, …) in the app header nav,
-// with its type badge and a hover-revealed close button.
+// with its type badge and a hover-revealed close button. A context tab shows
+// its template's neutral icon (building, grid, …) instead of a letter.
 export default function DetailTab({ tab, active, onSelect, onClose }) {
   const icon = tabBadge(tab.type);
   const iconBg = detailTabIconBg(tab.type);
@@ -15,7 +17,9 @@ export default function DetailTab({ tab, active, onSelect, onClose }) {
           : 'bg-transparent text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
       }`}
     >
-      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-sm text-[9px] font-bold ${iconBg}`}>{icon}</span>
+      {tab.type === 'context'
+        ? <span className="inline-flex items-center justify-center w-4 h-4 text-gray-600 dark:text-gray-400" data-testid="detail-tab-template-icon"><ContextTemplateIcon category={tab.category} /></span>
+        : <span className={`inline-flex items-center justify-center w-4 h-4 rounded-sm text-[9px] font-bold ${iconBg}`}>{icon}</span>}
       <span className="truncate max-w-[140px]">{tab.displayName}</span>
       <span
         onClick={(e) => { e.stopPropagation(); onClose(tab.type, tab.id); }}

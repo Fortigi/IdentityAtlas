@@ -56,7 +56,7 @@ export function readKeyFile(path, fs = { readFileSync }) {
     throw new Error(
       `Master key file exists at ${path} but could not be read: ${err.message}. ` +
       'This usually means the file is owned by a different user than the web container. ' +
-      'Fix with: docker compose exec -u 0 web chown -R node:node /data'
+      'Fix with: docker compose exec -u 0 web chown -R node:node /data', { cause: err }
     );
   }
   if (!key) throw new Error(`Master key file ${path} is empty. Delete it and restart the web container to regenerate.`);
@@ -190,7 +190,7 @@ async function generateKey(d, primary) {
     // silently lose all secrets on the next container restart.
     throw new Error(
       `Could not persist master key to ${primary}: ${err.message}. ` +
-      'Set IDENTITY_ATLAS_MASTER_KEY explicitly in the compose env, or fix the volume permissions.'
+      'Set IDENTITY_ATLAS_MASTER_KEY explicitly in the compose env, or fix the volume permissions.', { cause: err }
     );
   }
   useKey(d, key, 'after key generation');

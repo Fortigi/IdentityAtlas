@@ -299,7 +299,7 @@ All category assignments as a flat list. Used by the Matrix view to determine co
 
 ## Tag Management
 
-Tags are free-form labels for users and resources. Unlike categories, an entity can have **multiple tags**, and tags are scoped by `entityType` (`user` or `group`). Tags read/write through `GraphTags` and `GraphTagAssignments`, which since the v6 Contexts redesign are **backward-compatibility views** over the unified `Contexts` model (`contextType='Tag'`), not standalone base tables.
+Tags are free-form labels for users and resources. Unlike categories, an entity can have **multiple tags**, and tags are scoped by `entityType` (`user`, `group`, `resource` or `identity`; `group` and `resource` both target Resources). Tags are stored as Contexts (`contextType='Tag'`) with their members in `ContextMembers`; reads go through `GraphTags` and `GraphTagAssignments`, which since the v6 Contexts redesign are **read-only backward-compatibility views** over that model, not standalone base tables.
 
 ### GET /api/tags
 
@@ -309,7 +309,7 @@ List all tags, optionally filtered by entity type.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `entityType` | string | `user` or `group`. Omit to return all tags. |
+| `entityType` | string | `user`, `group`, `resource` or `identity`. Omit to return all tags. |
 
 **Response**
 
@@ -349,7 +349,7 @@ Create a new tag.
 |---|---|---|
 | `name` | Yes | Must be unique within the same `entityType`. Max 200 characters. |
 | `color` | No | Hex color string (`#RRGGBB`). Validated with `/^#[0-9a-fA-F]{6}$/`. |
-| `entityType` | Yes | `user` or `group`. |
+| `entityType` | Yes | `user`, `group`, `resource` or `identity`. |
 
 **Response:** `201 Created` with the new tag object.
 
@@ -374,7 +374,7 @@ Update a tag's name and/or color. `entityType` cannot be changed.
 
 ### DELETE /api/tags/:id
 
-Delete a tag and cascade-remove all its assignments from `GraphTagAssignments`.
+Delete a tag (its `Contexts` row) and cascade-remove all its assignments from `ContextMembers`.
 
 **Response:** `204 No Content`
 
@@ -438,7 +438,7 @@ Bulk-assign a tag to all entities matching a server-side filter. Useful for tagg
 
 | Field | Required | Description |
 |---|---|---|
-| `entityType` | Yes | `user` or `group` — determines which table is queried |
+| `entityType` | Yes | `user`, `group`, `resource` or `identity` — determines which table is queried |
 | `search` | No | Full-text search on `displayName` / `userPrincipalName` |
 | `filters` | No | Attribute filters (same format as Matrix server-side filters) |
 

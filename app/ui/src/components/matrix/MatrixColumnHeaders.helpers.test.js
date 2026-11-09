@@ -4,6 +4,8 @@ import {
   computeGroupingCell,
   isApCategoryBoundary,
   apLeftBorderClass,
+  isProposedStart,
+  PROPOSED_GAP_CLASS,
   subjectTitle,
   subjectLabel,
   identityGlyph,
@@ -247,5 +249,21 @@ describe('subjectLabelMaxHeight', () => {
     // The accounts row is shorter than the names row and carries no badge.
     expect(subjectLabelMaxHeight({ inAccountsRow: true, isIdentity: false, hasCount: false }))
       .toBe(ACCOUNT_ROW_H - 5);
+  });
+});
+
+describe('where the proposed roles start', () => {
+  const aps = [{ categoryName: 'Business' }, { categoryName: null }, { categoryName: 'Proposed' }, { categoryName: 'Proposed' }];
+
+  it('is the first proposed role after a real one', () => {
+    expect(aps.map((_, i) => isProposedStart(aps, i))).toEqual([false, false, true, false]);
+    // Only proposed roles (Non-governed): the first band is the first band, no gap.
+    expect(isProposedStart([{ categoryName: 'Proposed' }], 0)).toBe(false);
+  });
+
+  it('opens a gap there instead of the grey boundary; the first band stays indigo', () => {
+    expect(apLeftBorderClass(2, true, true)).toBe(PROPOSED_GAP_CLASS);
+    expect(apLeftBorderClass(0, true, true)).toContain('indigo');
+    expect(apLeftBorderClass(1, true, false)).toContain('gray');
   });
 });

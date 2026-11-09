@@ -127,10 +127,10 @@ The data model supports importing authorization data from any system. Resources,
                          ┌───────────────┼───────────────┐
                          │               │               │
                     ┌────▼────┐    ┌─────▼─────┐   ┌─────▼─────┐
-                    │Resources│    │Principals │   │ OrgUnits  │
+                    │Resources│    │Principals │   │ Contexts  │
                     └────┬────┘    └─────┬─────┘   └───────────┘
                          │               │               ▲
-                    ┌────▼────────┐      │          orgUnitId
+                    ┌────▼────────┐      │        ContextMembers
                     │Resource     │◄─────┘         ┌─────┴─────┐
                     │Assignments  │  principalId   │Identities │
                     └─────────────┘                └─────┬─────┘
@@ -144,9 +144,11 @@ The data model supports importing authorization data from any system. Resources,
 **Tables:**
 - **Systems** — Connected authorization sources (EntraID, SharePoint, AzureRM, DevOps, etc.). A system that grants access to accounts sourced elsewhere points at that directory with `directorySystemId` (Azure RM → Entra ID). It may then *reference* the directory's Principals/Resources but never take ownership of them — the ingest enforces that, which is what stops two crawlers writing one objectId from overwriting each other. Auto-linked on `tenantId`; see `docs/sync/building-a-crawler.md` → "When your source reads a directory you don't own"
 - **Resources** — Any permission-granting resource (groups, roles, app roles, sites) **and** business roles (`resourceType='BusinessRole'`) with `extendedAttributes` JSON
-- **ResourceAssignments** — Who has access to what (`resourceId` + `principalId` + `assignmentType` ∈ {`Direct`, `Indirect`, `Eligible`}). Governance-driven assignments carry `governed=true`
-- **ResourceRelationships** — Resource-to-resource links (`Contains`, `GrantsAccessTo`). Business role resource grants use `relationshipType='Contains'`
-- **Principals** — User accounts from any system with `principalType` and `extendedAttributes` JSON
+- **ResourceAssignments** — Who has access to what (`resourceId` + `principalId` or `identityId` + `assignmentType` ∈ {`Direct`, `Indirect`, `Eligible`}). Governance-driven assignments carry `governed=true`
+- **ResourceRelationships** — Resource-to-resource links (see "Relationship types in use" below). Business role resource grants use `relationshipType='Contains'`
+- **Principals** — Accounts from any system with `principalType` (`User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`) and `extendedAttributes` JSON
+- **PrincipalRelationships** — Account-to-account responsibility links: `relatedPrincipalId` is the `Owner` / `Sponsor` of `principalId`
+- **Contexts** / **ContextMembers** — Groupings of identities, principals, resources or systems (see "Contexts" below)
 - **Identities** — Real persons aggregated from multiple accounts (account correlation)
 - **IdentityMembers** — Links identities to their principals across systems
 
@@ -163,6 +165,8 @@ The data model supports importing authorization data from any system. Resources,
 | `ApplicationPermission` | `SyncAppPermissions` phase | One synthetic resource per (clientSP, targetApiSP, appRole) — the app-only (admin-consented) permission an SP holds on another API (e.g. `Mail.Read` on Microsoft Graph). The app-only sibling of `DelegatedPermission`. Parent client app linked via `relationshipType='HasApplicationPermission'`. Held by the SP itself via a `Direct` assignment whose `principalType` is the holder's class (`ServicePrincipal` / `ManagedIdentity` / `AIAgent`) — this is how a managed identity's or AI agent's tenant-wide API access shows up |
 | `ServicePrincipalOwnership` | `SyncAppOwners` phase | Owners of an enterprise-app service principal. One resource per owned app, named after the app, linked to its `Application` via `relationshipType='HasAppOwnership'`. Each owner is a `Direct` assignment |
 | `ApplicationOwnership` | `SyncAppOwners` phase | Owners of an app registration — they can add a credential and authenticate *as* the app. Matched to the app's SP by `appId` and linked via `HasAppOwnership`. Each owner is a `Direct` assignment |
+| `GroupOwnership` | `SyncAssignments` phase | Owners of a group. One resource per owned group, named after the group, linked to it via `relationshipType='HasOwnership'`. Each owner is a `Direct` assignment |
+| `ResourceOwnership` | SQL connector | Owners of a resource loaded by the SQL connector, linked via `HasOwnership`; the owned resource's type is in `extendedAttributes.ownedResourceType` |
 | `AppRegistration` | `SyncAppRegistrations` phase | One per app registration (`id` = application object id; `appId` in `extendedAttributes` joins it to its service principal). Grants nothing and has no assignments — it carries the app's security set-up: credential metadata (never values), `isFallbackPublicClient`, redirect URIs, implicit grant, `requiredResourceAccess`, federated credentials |
 
 **Assignment types in use:**
@@ -176,9 +180,11 @@ The data model supports importing authorization data from any system. Resources,
 
 See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-display rules.
 
-**Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `HasApplicationPermission` (Application → ApplicationPermission), `HasOwnership` (group → GroupOwnership), `HasAppOwnership` (Application → Application/ServicePrincipal ownership), `GrantsAccessTo` (reserved).
+**Relationship types in use:** `Contains` (BusinessRole → group), `HasAppRole` (Application → AppRole), `DelegatesScope` (Application → DelegatedPermission), `HasApplicationPermission` (Application → ApplicationPermission), `HasOwnership` (group → GroupOwnership, SQL-connector resource → ResourceOwnership), `HasAppOwnership` (Application → Application/ServicePrincipal ownership), `GrantsAccessTo` (holding the parent implies access to the child; emitted by the CSV and SQL connectors and the demo dataset, no built-in crawler). All live in `ResourceRelationships`; account-to-account `Owner` / `Sponsor` links live in `PrincipalRelationships`.
 
 **Core + JSON pattern:** Frequently-queried attributes are real SQL columns; system-specific attributes live in `extendedAttributes` JSON.
+
+**Core ontology:** `ontology/core.ttl` (OWL/Turtle, namespace `https://identityatlas.io/ontology#`) is the formal description of all of the above — every core table, column, type value and relationship type. A change to the model (new column, relationship type, principal type, closed value list, ingest entity) must update it in the same PR: `npm run ontology:check` (app/api, also in CI) fails otherwise, and `npm run ontology:generate` refreshes the generated docs. See [`docs/contributing/maintaining-the-ontology.md`](docs/contributing/maintaining-the-ontology.md).
 
 **Backward compatibility:** Account and resource data lives in the universal `Principals` and `Resources` tables. The pre-v3.1 `GraphUsers` / `GraphGroups` tables are **gone from the schema** (never created by the v5 migrations) — there is no runtime fallback to them.
 
@@ -186,7 +192,7 @@ See [`docs/architecture/matrix.md`](docs/architecture/matrix.md) for the badge-d
 
 Contexts are a unified data surface. Single `Contexts` table with three variants (synced / generated / manual) and four target types (Identity / Resource / Principal / System). Membership lives in `ContextMembers`.
 
-Legacy tables — `OrgUnits`, `GraphResourceClusters`, `GraphResourceClusterMembers`, `Identities.contextId`, `GraphTags`, `GraphTagAssignments` — are gone. Tags are now `contextType='Tag'` Contexts (with backward-compat views). Clustering, org-chart derivation, tags, and business processes are all context-algorithm plugins that register at startup and emit generated Contexts.
+Legacy tables — `OrgUnits`, `GraphResourceClusters`, `GraphResourceClusterMembers`, `Identities.contextId`, `GraphTags`, `GraphTagAssignments` — are gone. Tags are now `contextType='Tag'` manual Contexts (with backward-compat `GraphTags` / `GraphTagAssignments` views). Clustering, org-chart (manager-hierarchy) derivation, departments, AD OUs and the other derived trees are context-algorithm plugins (13, in `app/api/src/contexts/plugins/registry.js`) that register at startup and emit generated Contexts. Contexts carry no manager, `department` or `memberCount` columns — a manager-hierarchy node records its manager only as its `externalId`.
 
 See `docs/architecture/context-redesign.md` for the design.
 

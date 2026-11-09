@@ -215,7 +215,25 @@ selfServiceCrawlersRouter.post('/crawlers/configs/:id/mark-delta-mode', requireW
 //   - Graph 410/400 on stored token → crawler DELETEs the row and retries full.
 //   - Operator forces full resync   → config.nextRunMode='full' triggers the
 //                                     crawler to DELETE the token at phase start.
-selfServiceCrawlersRouter.get('/crawlers/delta-tokens/:endpoint', async (req, res) => {
+//
+// Endpoint names contain slashes ("users/delta", "groups/delta/members-owners").
+// The crawler sends them URL-encoded as one segment, but a reverse proxy may
+// decode %2F back to "/" before the request reaches us — Azure App Service does.
+// So the route takes the rest of the path (`*endpoint`) and both forms resolve
+// to the same name.
+const DELTA_TOKEN_PATH = '/crawlers/delta-tokens/*endpoint';
+const DELTA_ENDPOINT_RE = /^[a-zA-Z0-9/_\-.:]+$/;
+
+// The validated endpoint name, or null when it is not an allowed one.
+// Permits alphanumerics + / - . : _ — matches Graph endpoint path fragments.
+function deltaTokenEndpoint(req) {
+  const raw = req.params.endpoint;
+  const endpoint = Array.isArray(raw) ? raw.join('/') : String(raw || '');
+  if (!DELTA_ENDPOINT_RE.test(endpoint) || endpoint.length > 200) return null;
+  return endpoint;
+}
+
+selfServiceCrawlersRouter.get(DELTA_TOKEN_PATH, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const systemId = parseInt(req.query.systemId, 10);
@@ -228,11 +246,8 @@ selfServiceCrawlersRouter.get('/crawlers/delta-tokens/:endpoint', async (req, re
   if (!crawlerHasSystemAccess(req, systemId)) {
     return res.status(403).json({ error: 'Crawler not authorized for this system' });
   }
-  // Permit alphanumerics + / - . : _ — matches Graph endpoint path fragments.
-  const endpoint = String(req.params.endpoint || '');
-  if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
-    return res.status(400).json({ error: 'Invalid endpoint format' });
-  }
+  const endpoint = deltaTokenEndpoint(req);
+  if (!endpoint) return res.status(400).json({ error: 'Invalid endpoint format' });
   try {
     const r = await db.query(
       `SELECT "token", "lastSyncAt", "recordsLastSeen"
@@ -248,13 +263,11 @@ selfServiceCrawlersRouter.get('/crawlers/delta-tokens/:endpoint', async (req, re
   }
 });
 
-selfServiceCrawlersRouter.put('/crawlers/delta-tokens/:endpoint', async (req, res) => {
+selfServiceCrawlersRouter.put(DELTA_TOKEN_PATH, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
-  const endpoint = String(req.params.endpoint || '');
-  if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
-    return res.status(400).json({ error: 'Invalid endpoint format' });
-  }
+  const endpoint = deltaTokenEndpoint(req);
+  if (!endpoint) return res.status(400).json({ error: 'Invalid endpoint format' });
   const { systemId, token, recordsLastSeen } = req.body || {};
   const sid = parseInt(systemId, 10);
   if (!Number.isInteger(sid) || sid <= 0) return res.status(400).json({ error: 'systemId is required' });
@@ -331,17 +344,15 @@ selfServiceCrawlersRouter.get('/crawlers/photo-state', async (req, res) => {
   }
 });
 
-selfServiceCrawlersRouter.delete('/crawlers/delta-tokens/:endpoint', async (req, res) => {
+selfServiceCrawlersRouter.delete(DELTA_TOKEN_PATH, async (req, res) => {
   if (!req.crawler) return res.status(401).json({ error: 'Not authenticated' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   const systemId = parseInt(req.query.systemId, 10);
   if (!Number.isInteger(systemId) || systemId <= 0) return res.status(400).json({ error: 'systemId query param required' });
   // Security (SEC-NEW-3): scope delta-token deletes to systems this crawler may access.
   if (!crawlerHasSystemAccess(req, systemId)) return res.status(403).json({ error: 'Crawler not authorized for this system' });
-  const endpoint = String(req.params.endpoint || '');
-  if (!/^[a-zA-Z0-9/_\-.:]+$/.test(endpoint) || endpoint.length > 200) {
-    return res.status(400).json({ error: 'Invalid endpoint format' });
-  }
+  const endpoint = deltaTokenEndpoint(req);
+  if (!endpoint) return res.status(400).json({ error: 'Invalid endpoint format' });
   try {
     await db.query(
       `DELETE FROM "DeltaTokens" WHERE "systemId" = $1 AND "endpoint" = $2`,

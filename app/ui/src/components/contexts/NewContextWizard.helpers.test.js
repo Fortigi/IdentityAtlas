@@ -2,15 +2,18 @@ import { describe, it, expect } from 'vitest';
 import {
   stepsFor, groupByTargetType, prettifyName, wizardSubtitle,
   seedParamsFromSchema, pluginMissingParams, computeRefreshTargets,
-  runLabel, runDisabled, nextLabel,
+  runLabel, runDisabled, nextLabel, schemaFieldKind, enumOptions,
 } from './NewContextWizard.helpers';
 
 describe('stepsFor', () => {
   it('returns the four-step plugin flow', () => {
-    expect(stepsFor('plugin').map(s => s.label)).toEqual(['Source', 'Pick plugin', 'Configure', 'Preview & run']);
+    expect(stepsFor('plugin').map(s => s.label)).toEqual(['Source', 'Pick a rule', 'Configure', 'Preview & run']);
   });
   it('returns the two-step manual flow', () => {
     expect(stepsFor('manual').map(s => s.label)).toEqual(['Source', 'Details']);
+  });
+  it('returns the four-step upload flow', () => {
+    expect(stepsFor('upload').map(s => s.label)).toEqual(['Source', 'File', 'Mapping', 'Preview & import']);
   });
   it('returns just the source step for anything else', () => {
     expect(stepsFor(null).map(s => s.label)).toEqual(['Source']);
@@ -44,7 +47,7 @@ describe('prettifyName', () => {
 
 describe('wizardSubtitle', () => {
   it('prompts for a source when none chosen', () => {
-    expect(wizardSubtitle(null, null)).toMatch(/Where should this tree/);
+    expect(wizardSubtitle(null, null)).toBe('Where should this come from?');
   });
   it('shows the plugin name once selected, else a prompt', () => {
     expect(wizardSubtitle('plugin', { displayName: 'Manager Hierarchy' })).toBe('Manager Hierarchy');
@@ -52,7 +55,8 @@ describe('wizardSubtitle', () => {
   });
   it('describes manual and import sources', () => {
     expect(wizardSubtitle('manual', null)).toMatch(/empty tree/);
-    expect(wizardSubtitle('import', null)).toMatch(/Import from a crawler/);
+    expect(wizardSubtitle('import', null)).toBe('Import from a system');
+    expect(wizardSubtitle('upload', null)).toBe('Your own list of organisation units or applications');
   });
 });
 
@@ -126,5 +130,40 @@ describe('footer labels / gates', () => {
     expect(nextLabel(1, 'import')).toBe('Open Crawlers →');
     expect(nextLabel(1, 'plugin')).toBe('Next ▸');
     expect(nextLabel(2, 'import')).toBe('Next ▸');
+  });
+});
+
+describe('schemaFieldKind', () => {
+  it('picks the field for each shape of the manager-hierarchy parameters', () => {
+    expect(schemaFieldKind('scopeSystemId', { type: 'integer' })).toBe('system');
+    expect(schemaFieldKind('topMode', { type: 'string', enum: ['auto', 'jobTitle', 'people'] })).toBe('enum');
+    expect(schemaFieldKind('topJobTitle', { type: 'string' })).toBe('text');
+    expect(schemaFieldKind('topPrincipalIds', { type: 'array', items: { type: 'string', format: 'uuid' } })).toBe('principalList');
+    expect(schemaFieldKind('owners', { type: 'array', 'x-picker': 'principal' })).toBe('principalList');
+    expect(schemaFieldKind('splitBy', { type: 'string', 'x-attributeSource': 'principal' })).toBe('attribute');
+    expect(schemaFieldKind('nameFields', { type: 'array', 'x-attributeSource': 'principal' })).toBe('attributeList');
+    expect(schemaFieldKind('splitMinMembers', { type: 'integer', default: 2 })).toBe('number');
+    expect(schemaFieldKind('ratio', { type: 'number' })).toBe('number');
+    expect(schemaFieldKind('notPlacedUnit', { type: 'boolean' })).toBe('boolean');
+    expect(schemaFieldKind('tags', { type: 'array', items: { type: 'string' } })).toBe('json');
+    expect(schemaFieldKind('options', { type: 'object' })).toBe('json');
+    expect(schemaFieldKind('anything')).toBe('text');
+  });
+
+  it('prefers the dropdown for an enum of any type', () => {
+    expect(schemaFieldKind('level', { type: 'integer', enum: [1, 2, 3] })).toBe('enum');
+  });
+});
+
+describe('enumOptions', () => {
+  it('labels each value from x-enumLabels, else makes the value readable', () => {
+    expect(enumOptions({ enum: ['auto', 'jobTitle'], 'x-enumLabels': { auto: 'Who has no manager' } })).toEqual([
+      { value: 'auto', label: 'Who has no manager' },
+      { value: 'jobTitle', label: 'Job Title' },
+    ]);
+    expect(enumOptions({ enum: ['manager', 'members'], 'x-enumLabels': ['The manager', 'The members'] }).map(o => o.label))
+      .toEqual(['The manager', 'The members']);
+    expect(enumOptions({ enum: [1, 2] })).toEqual([{ value: 1, label: '1' }, { value: 2, label: '2' }]);
+    expect(enumOptions({})).toEqual([]);
   });
 });

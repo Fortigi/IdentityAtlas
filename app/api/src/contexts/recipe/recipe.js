@@ -13,6 +13,7 @@
 // See docs/architecture/context-assistant.md.
 
 import { ENTITIES } from '../../nlreports/catalog.js';
+import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { escapeLike } from '../../db/sqlParams.js';
 
 export const MAX_TERMS = 40;
@@ -156,6 +157,8 @@ export function validateRecipe(raw) {
     include: normalizeIds(src.include, 'included', errors),
     exclude: normalizeIds(src.exclude, 'excluded', errors),
     structure: pick(src.structure, STRUCTURES, 'byTerm'),
+    // What the context IS (its template), chosen at save time; an application is the common case.
+    template: pick(src.template, CONTEXT_CATEGORIES, 'LogicalApplication'),
   };
   if (recipe.resourceTypes.length === 0) recipe.resourceTypes = ['Group'];
   // An object cannot be both: excluding wins, because it is the more deliberate choice.

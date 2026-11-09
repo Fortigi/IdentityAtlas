@@ -16,6 +16,8 @@ import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buil
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 import { repairManagerLinks, columnsHaveManagerLink } from './managerLinks.js';
+import { reconcileSessionAccountables } from './contextOwners.js';
+import { reapplyAfterSync } from '../contexts/adjustments/afterSync.js';
 
 const sessions = new Map();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
@@ -222,6 +224,11 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
     // manager simply had not arrived yet.
     const managerLinks = await repairManagerLinks(session.client, session.tableName, session.systemId,
                                                   columnsHaveManagerLink(session.activeColumns, session.tableName));
+    // Same point, same reason: a contexts session's owners become Accountables
+    // once the whole set is in (null for every other table).
+    const accountable = await reconcileSessionAccountables(session.client, session.tableName, session.tempTable);
+    // And the analyst's adjustments of the trees this source feeds, on top.
+    await reapplyAfterSync(session.client, session.tableName, session.systemId);
 
     await session.client.query('COMMIT');
 
@@ -233,6 +240,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
       syncId, inserted, updated, deleted,
       totalRecords: session.recordCount,
       ...(managerLinks ? { managerLinks } : {}),
+      ...(accountable ? { accountable } : {}),
     };
   } catch (err) {
     try { await session.client.query('ROLLBACK'); } catch { /* ignore */ }

@@ -23,6 +23,7 @@ It also backs the **public demo environment** and hides the **Capture-the-Flag**
 | `DemoConsent.ps1` | OAuth consent + shadow IT (flags 11–12) |
 | `DemoSap.ps1` | The SAP ERP system (flag 8) |
 | `DemoAzure.ps1` | The AzureRM system (flag 10) |
+| `DemoApplications.ps1` | Logical applications with their Accountable / Responsible (or a best-guess owner, or neither), and the Security Team as its resources — see [Logical Applications](#logical-applications) |
 | `DemoVolume.ps1` | **Opt-in** high-cardinality slice — see [The volume slice](#the-volume-slice-opt-in) |
 
 GUIDs are a pure function of a seed string (`New-DemoGuid`), so any part can reference another part's record without an ordering contract, and the whole dataset is byte-stable across runs.
@@ -149,6 +150,24 @@ Fortigi Demo Corp
 ```
 AU-Netherlands
 ```
+
+### Logical Applications
+
+`DemoApplications.ps1` groups the demo's **resources** into the business applications the company runs, as the IGA system's application catalogue lists them: seven synced `LogicalApplication` contexts (`targetType='Resource'`, owned by the IGA system, catalogue references `APP-0001`…`APP-0007`). Their roles (`Accountable` / `Responsible`) go in through `POST /api/ingest/context-roles`, as `addedBy='sync'`. Each application tells one part of the ownership story the context page shows:
+
+| Application | Members | Who answers for it |
+|---|---|---|
+| SAP ERP | SAP_SD_SALES, SAP_MM_VIEWER, SAP_BASIS_ADMIN | Accountable Clara Dijkstra; Responsible Victor Wang |
+| └ SAP ERP – Financial Accounting | SAP_FI_ACCOUNTANT, SAP-Finance-Role, SG-Finance, SG-Finance-Reports | Nobody — **best guess** Maria Novak, owner of 2 of the 4 |
+| Customer Relationship Management | SG-CRM-Users, SG-Sales, SG-Sales-SharePoint | Accountable David El-Amin; Responsible Paul Quinn |
+| IT Service Management | the three service desk groups, Ticketing-Agent, SG-Monitoring-Tools | Nobody — **best guess** Eva Fischer, owner of 3 of the 5 (Wendy Xu owns one too) |
+| Engineering Platform | the four Azure role assignments, SG-Engineering, FortigiGraph-App | Accountable Bob Chen; Responsible Fatih Gunay, Victor Wang |
+| Privileged Access Management | SG-Admin-Tier0, SG-PAM-Users, Global Administrator | Nobody — an owner of 1 of 3, below the 40 % threshold, so no suggestion |
+| Employee Portal & Intranet | SG-AllEmployees, SharePoint Admin, SG-Project-Atlas, Contoso Timesheets, User.Read | Nobody, and no owner at all — the empty state |
+
+The best guess is the API's (`app/api/src/contexts/roleSuggestion.js`): the account that owns the most of an application's resources through the ownership model, offered when it covers at least 40 %. The owners it finds are real group owners — `GroupOwnership` resources linked by `HasOwnership` — which is why this part also owns five existing groups (SG-Finance-Reports, the three service desk groups, SG-Monitoring-Tools).
+
+**Unit variants.** The Security Team is also emitted as **its resources**: `Security Team (resources)`, a `Team` context with `targetType='Resource'` holding SG-Admin-Tier0, SG-PAM-Users and Global Administrator, linked `SameUnitAs` to the people context through `POST /api/ingest/context-relationships`. That gives the Security Team's *Download report* card a resources variant to run the Entitlement Pivot on.
 
 ### Resources
 
@@ -303,7 +322,7 @@ report generator and the Ask assistant are measured in — see
 | | |
 |---|---|
 | People | ~600 staff over ten departments and ~55 teams, plus 40 guests from three partner companies, 30 leavers and a dozen non-human accounts |
-| Accounts per person | one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity |
+| Accounts per person | one to three: an Entra account, often an on-premises AD account, sometimes a CRM account, occasionally a separate admin account — all linked into one identity. Plus ~20 admin accounts under a second login convention that are deliberately **not** linked (see below) |
 | Systems | two more that keep their own accounts (on-premises AD, a CRM), beside Azure which keeps none and grants access to Entra principals |
 | Groups | ~180 in naming families (`License-*`, `SG-<dept>-*`, `SG-<team>-*`, `APP-*`, `PRJ-*`, `DL-*`, Teams groups), with security / mail-enabled flags, owners on about a quarter, six empty ones and one holding the whole company |
 | Nesting | all three kinds: a group inside a group (indirect memberships), Azure scope inheritance (a role on a resource group reaching everything inside it), and a business role synchronising groups and application roles to its holders |
@@ -329,6 +348,22 @@ on, and each is absent from the standard slice:
 - **Sign-ins spread** from today to over a year ago, including accounts that never signed in (a row
   with no timestamp) and accounts with no row at all. Those are different facts and the reports tell
   them apart.
+- **Admin accounts under two login conventions, one of which gives nothing away.** About 30 people
+  have the `adm-<email local part>` account the slice always had (`adm-femke.hogenbirk@…`), stamped
+  with their employee id and linked to them by the seed. Another ~20 have an
+  `adm-<first initial><surname>` one (`adm-fhogenbirk@…`) that carries **no** employee id, no
+  `givenName`/`surname`, no department and no link — its display name spells the login, not the
+  person. The login is then the only route from the account to its owner, which is what makes
+  Account Linking's login signal observable on stock demo data instead of needing a hand-seeded
+  fixture. One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so
+  `adm-svisser@…` fits several of them and must be **held for review** rather than linked. Every
+  login is the plain spelling of a name — where two people in the seeded range would share one, the
+  second is skipped rather than given the numbered spelling (`adm-svisser2@…`) a real directory hands
+  out, because a login with a trailing digit run is a shape the engine cannot yet read back to a name
+  ([#1468](https://github.com/Fortigi/IdentityAtlas/issues/1468)) and the account could only sit
+  orphaned. The two conventions are told apart by the dot: the older logins carry the one in their
+  owner's address, the newer ones have none. Asserted in `test/unit/DemoRealism.Tests.ps1` (the seed)
+  and `app/ui/e2e/account-linking-admin-logins.spec.js` (what a real run decides about them).
 
 **What it deliberately does NOT do.** It never touches anything above it: the same ids, the same
 ordering, the same 26-person company. Generating without the switch produces the standard dataset
@@ -508,16 +543,18 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
     "entityCounts": {
       "systems": 5,
       "principals": 45,
-      "resources": 46,
-      "resourceAssignments": 176,
-      "resourceRelationships": 27,
+      "resources": 52,
+      "resourceAssignments": 185,
+      "resourceRelationships": 32,
       "identities": 27,
       "identityMembers": 38,
-      "contexts": 9,
-      "contextMembers": 35,
+      "contexts": 17,
+      "contextMembers": 67,
       "governanceCatalogs": 2,
       "assignmentPolicies": 4,
-      "certificationDecisions": 3
+      "certificationDecisions": 3,
+      "contextRoles": 7,
+      "contextRelationships": 1
     }
   },
   "systems": [ ... ],
@@ -548,12 +585,14 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 |---|---|---|
 | Systems | 5 | Entra ID + HR + IGA + SAP ERP + AzureRM |
 | Principals | 45 | 26 employees + 1 disabled + 1 contractor + 1 `ServicePrincipal` + 1 `AIAgent` + 1 `SharedMailbox` + 1 IGA account + 10 SAP accounts + 3 app service principals |
-| Resources | 46 | Entra 10 + group-ownership 3 + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 |
-| ResourceAssignments | 176 | `Direct` + `Indirect` (role-derived) + `Eligible`; the `governed=true` ones are the business-role memberships |
-| ResourceRelationships | 27 | 21 Contains + 1 GrantsAccessTo + 3 HasOwnership + 2 DelegatesScope |
+| Resources | 52 | Entra 10 + group-ownership 8 (3 base + 5 for the applications) + business roles 7 + Sales 4 + role drift 3 + shared grants 2 + consent 4 + SAP 4 + Azure 9 + 1 empty group |
+| ResourceAssignments | 185 | `Direct` + `Indirect` (role-derived) + `Eligible`; the `governed=true` ones are the business-role memberships |
+| ResourceRelationships | 32 | 21 Contains + 1 GrantsAccessTo + 8 HasOwnership + 2 DelegatesScope |
 | Identities | 27 | 26 employees + 1 disabled |
 | IdentityMembers | 38 | 27 Entra + 1 IGA + 10 SAP |
-| Contexts | 9 | 1 root + 5 departments + 2 teams + 1 admin unit — all `variant='synced'` |
+| Contexts | 17 | 1 root + 5 departments + 2 teams + 1 admin unit + 7 logical applications + the Security Team as its resources — all `variant='synced'` |
+| ContextRoles | 7 | 3 Accountable + 4 Responsible on the logical applications, `addedBy='sync'` |
+| ContextRelationships | 1 | Security Team `SameUnitAs` Security Team (resources) |
 | GovernanceCatalogs | 2 | Employee + Privileged |
 | AssignmentPolicies | 4 | Auto-assign + Manager approval + Dual approval + Sales |
 | CertificationDecisions | 3 | 2 approve + 1 deny |
@@ -561,7 +600,7 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 These are **exact**, because the generator is deterministic. If one fails after a dataset change, that is the point: regenerate, confirm the new number is intended, and update it in the same PR.
 
 !!! note "Counting Contexts"
-    Filter on `variant='synced'` to get the 9 above. A bare `SELECT COUNT(*) FROM "Contexts"` returns more: the API creates `manual` Tag roots at bootstrap, and the context-algorithm plugins emit `generated` contexts once the worker runs (the `risky-consent` plugin adds two). Only the `synced` ones come from this dataset.
+    Filter on `variant='synced'` to get the 17 above. A bare `SELECT COUNT(*) FROM "Contexts"` returns more: the API creates `manual` Tag roots at bootstrap, and the context-algorithm plugins emit `generated` contexts once the worker runs (the `risky-consent` plugin adds two). Only the `synced` ones come from this dataset.
 
 ### Relationship Integrity
 
@@ -649,7 +688,11 @@ Reads `demo-company.json` and POSTs each section to the Ingest API in dependency
 6. ResourceRelationships
 7. Identities + IdentityMembers
 8. Governance (catalogs, policies, certifications)
-9. Refresh views
+9. Principal activity
+10. Context roles and context relationships (`/api/ingest/context-roles`, `/api/ingest/context-relationships`)
+11. Refresh views
+
+Contexts and their members, roles and links go up under the system that owns the context (`scopeSystemId`): the org tree under HR, the application catalogue under IGA, the admin unit under Entra.
 
 ### Step 3: Verification Script
 

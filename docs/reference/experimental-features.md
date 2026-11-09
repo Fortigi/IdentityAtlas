@@ -41,12 +41,12 @@ stored in the database, so it survives container restarts and redeployments.
 It controls whether crawler types marked
 experimental are offered in **Admin → Crawlers → Add Crawler**.
 
-| Crawler | What it connects to |
-|---|---|
-| [SCIM 2.0](../sync/scim.md) | Any SCIM 2.0 service provider — SAP Cloud Identity Services, Okta, a home-grown SCIM façade |
+This build ships **no experimental crawlers**, so the switch currently has no
+effect. The [SCIM 2.0](../sync/scim.md) crawler started out here and has since
+graduated to a regular crawler: it is always offered in Add Crawler.
 
-More connectors are expected to arrive this way — a generic OData crawler, for
-example. They all sit under this one switch rather than getting a switch each.
+New connectors may arrive this way in future. They all sit under this one switch
+rather than getting a switch each.
 
 ### What the switch does, precisely
 
@@ -173,6 +173,91 @@ plugin and needs no model. What stops is building and editing.
 
 It also does not stop or remove the model container: that is a deployment choice (a compose
 profile, or an Azure parameter), and it is shared with custom reports.
+
+---
+
+## MCP server
+
+Lets people connect an AI assistant — Claude, ChatGPT or Copilot — to Identity Atlas and
+ask it questions. The assistant signs in as that person through Entra ID and reads only
+what their role allows. See [MCP server](mcp-server.md) for the tools, the setup and the
+Entra app registration it needs. It is experimental because it is new, because the
+assistants' own sign-in support for Entra ID is still moving, and because what it reads
+leaves the deployment for the assistant's vendor.
+
+Environment variable: `FEATURE_MCP_SERVER=true`.
+
+### What the switch does, precisely
+
+**On** — `POST /mcp` and its discovery document
+(`/.well-known/oauth-protected-resource/mcp`) answer, for users whose role has **Use the
+MCP server** (`mcp.use`). The card shows the URL and scope to configure an assistant with,
+and the latest calls from the audit log.
+
+**Off** — both answer `404`. The switch refuses to turn on while sign-in is off: with no
+signed-in user there is no one for the assistant to act for.
+
+### What the switch does *not* do
+
+Turning it off does not revoke tokens the assistants already hold — they simply stop
+working, because the endpoint is gone. It does not delete the audit log either.
+
+---
+
+## Organisation knowledge
+
+What people say about an organisational unit or a logical application — who belongs, who
+left, who answers for it — read from an interview transcript or another source into
+**claims**, each with the quote it rests on, that an analyst confirms or rejects; and the
+**contradictions** between those claims and what the source systems say. See
+[Context interviews](../architecture/context-interviews.md). It is experimental because it is
+new, because the reading is done by a model, and because what a decision changes (a member
+marked former, a role set from a claim) is a new kind of fact on a unit.
+
+Environment variable: `FEATURE_ORG_KNOWLEDGE=true`.
+
+### What the switch does, precisely
+
+**On** — a unit's or an application's page shows **Upload interview** and **What we know**
+(claims to review, contradictions, previous members), the People block shows roles the
+interviews suggest, the members list marks who the interviews say left, a person's page
+shows **Mentioned in interviews**, and the context timeline carries the interview events.
+When a model is configured (`NL_REPORTS_LLM_URL`), **the text of what is uploaded is sent
+to it**.
+
+**Off** — all of that is hidden, and the API answers `404` on `/api/contexts/{id}/interviews…`,
+`/api/contexts/{id}/claims…`, `/api/contexts/{id}/previous-members` and
+`/api/contexts/claims/…`. Member lists show plain membership: a member a decision marked
+former is listed like any other, and no claim facts are attached.
+
+### What the switch does *not* do
+
+Turning it off **deletes nothing**: the sources, the claims and every decision are kept, and
+turning it back on restores them. A role an analyst confirmed from a claim stays the role it
+became — it is an ordinary Accountable or Responsible.
+
+---
+
+## Accountables from source owners (a setting, not experimental)
+
+Shown on the same tab, under **Contexts — what a sync sets on its own**, because it is
+switched the same way. When a source names the owner of a synced unit or application
+(`ownerUserId`: an account key, an employee number or an e-mail address), that account becomes the context's
+**Accountable** on every sync and follows the source when the owner changes. An Accountable
+an analyst chose, or one a crawler states directly, is never overwritten.
+
+Environment variable: `FEATURE_SOURCE_OWNER_ACCOUNTABLES=false` turns it off by default.
+It is **on** unless switched off.
+
+**Off** — a sync sets, replaces and removes no Accountable at all; the ones already there
+stay as they are.
+
+**…also match owners by name** (`FEATURE_SOURCE_OWNER_NAME_MATCH=true`, **off** by default):
+an owner the source names only by display name is matched to the one account with that
+name (accents, case and "Last, First" ignored). A name is a guess, so it is opt-in. While it
+is off, an Accountable an earlier sync set by name is removed at the next sync of that
+context. An uploaded list (Contexts → New context → Upload a list) matches its own owners by
+name either way, and shows each match in its preview before anything is written.
 
 ---
 

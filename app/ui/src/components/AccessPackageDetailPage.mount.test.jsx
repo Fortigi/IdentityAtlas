@@ -57,6 +57,22 @@ describe('AccessPackageDetailPage header', () => {
     expect(heading.parentElement).toHaveTextContent('Direct');
   });
 
+  // A role deleted in the source used to look identical to its live re-created
+  // twin of the same name; only an attribute row told them apart.
+  it('badges a role deleted in the source next to the name', async () => {
+    const body = pkg();
+    body.attributes.deletedAt = '2026-09-08T14:32:00Z';
+    renderPage({ body });
+    const heading = await screen.findByRole('heading', { name: 'Finance Access' });
+    expect(heading.parentElement).toHaveTextContent('Deleted in source');
+  });
+
+  it('shows no deleted badge for a live role', async () => {
+    renderPage();
+    const heading = await screen.findByRole('heading', { name: 'Finance Access' });
+    expect(heading.parentElement).not.toHaveTextContent('Deleted in source');
+  });
+
   it('surfaces an error when the package is missing', async () => {
     renderPage({ pkgOk: false });
     expect(await screen.findByText(/HTTP 404|could(n.t| not) load/i)).toBeInTheDocument();

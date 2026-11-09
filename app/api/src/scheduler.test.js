@@ -548,3 +548,35 @@ describe('fireScheduleIfDue — retrying an occurrence that found the config bus
     log.mockRestore();
   });
 });
+
+// The daily Trends snapshot must count what the dashboard counts: live rows only.
+// A deleted business role or a removed governed assignment is history.
+describe('captureDashboardSnapshotIfMissing', () => {
+  beforeEach(() => vi.resetModules());
+
+  function snapshotDb({ table = 'DashboardSnapshots', today = null } = {}) {
+    return {
+      queryOne: vi.fn(async (sql) => (/to_regclass/.test(sql) ? { t: table } : today)),
+      query: vi.fn(async () => {}),
+    };
+  }
+
+  it('writes exact counts that exclude soft-deleted rows', async () => {
+    const db = snapshotDb();
+    const { captureDashboardSnapshotIfMissing } = await loadScheduler(db);
+    await captureDashboardSnapshotIfMissing();
+    expect(db.query).toHaveBeenCalledOnce();
+    const sql = db.query.mock.calls[0][0];
+    expect(sql).toMatch(/"resourceType" = 'BusinessRole' AND "deletedAt" IS NULL/);
+    expect(sql).toMatch(/"governed" = true AND "deletedAt" IS NULL/);
+  });
+
+  it('writes nothing when today is already captured or the table is missing', async () => {
+    const done = snapshotDb({ today: { '?column?': 1 } });
+    await (await loadScheduler(done)).captureDashboardSnapshotIfMissing();
+    expect(done.query).not.toHaveBeenCalled();
+    const missing = snapshotDb({ table: null });
+    await (await loadScheduler(missing)).captureDashboardSnapshotIfMissing();
+    expect(missing.query).not.toHaveBeenCalled();
+  });
+});

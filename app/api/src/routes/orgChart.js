@@ -11,10 +11,16 @@
 
 import { Router } from 'express';
 import * as db from '../db/connection.js';
+import { MANAGER_HIERARCHY_ALGORITHM } from './contexts/shared.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Soft delete (migration 040): a manager or report removed from the source keeps
+// its Principals row as history. Both endpoints return it, but with `deleted` +
+// `deletedAt` so the UI can tell history from the current org line.
+const deletedCols = (a) => `(${a}."deletedAt" IS NOT NULL) AS "deleted", ${a}."deletedAt"`;
 
 // GET /api/org-chart/user/:id/manager
 router.get('/org-chart/user/:id/manager', async (req, res) => {
@@ -22,7 +28,8 @@ router.get('/org-chart/user/:id/manager', async (req, res) => {
   if (!useSql) return res.json({ manager: null });
   try {
     const row = await db.queryOne(
-      `SELECT m.id, m."displayName", m.email, m.department, m."jobTitle", m."companyName"
+      `SELECT m.id, m."displayName", m.email, m.department, m."jobTitle", m."companyName",
+              ${deletedCols('m')}
          FROM "Principals" p
          JOIN "Principals" m ON m.id = p."managerId"
         WHERE p.id = $1`,
@@ -36,17 +43,19 @@ router.get('/org-chart/user/:id/manager', async (req, res) => {
 });
 
 // GET /api/org-chart/user/:id/reports
-// Returns every Principal that lists this user as their managerId.
+// Returns every Principal that lists this user as their managerId — current
+// reports first, then soft-deleted ones (flagged) as history.
 router.get('/org-chart/user/:id/reports', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
   if (!useSql) return res.json({ reports: [], totalCount: 0 });
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 1000);
     const rows = (await db.query(
-      `SELECT id, "displayName", email, department, "jobTitle", "companyName"
-         FROM "Principals"
-        WHERE "managerId" = $1
-        ORDER BY "displayName"
+      `SELECT r.id, r."displayName", r.email, r.department, r."jobTitle", r."companyName",
+              ${deletedCols('r')}
+         FROM "Principals" r
+        WHERE r."managerId" = $1
+        ORDER BY "deleted", r."displayName"
         LIMIT $2`,
       [req.params.id, limit]
     )).rows;
@@ -59,15 +68,18 @@ router.get('/org-chart/user/:id/reports', async (req, res) => {
 
 // GET /api/org-chart  — DepartmentDetailPage probes this to know whether
 // org-chart data is available. Return availability based on whether the
-// manager-hierarchy plugin has produced anything.
+// manager-hierarchy plugin has produced anything — keyed on the producing
+// algorithm, not on the nodes' contextType.
 router.get('/org-chart', async (req, res) => {
   if (!useSql) return res.json({ available: false });
   try {
     const row = await db.queryOne(
       `SELECT count(*)::int AS n
-         FROM "Contexts"
-        WHERE "contextType" = 'ManagerHierarchy'
-          AND variant       = 'generated'`
+         FROM "Contexts" c
+         JOIN "ContextAlgorithms" a ON c."sourceAlgorithmId" = a.id
+        WHERE a.name    = $1
+          AND c.variant = 'generated'`,
+      [MANAGER_HIERARCHY_ALGORITHM]
     );
     res.json({ available: !!(row && row.n > 0) });
   } catch {

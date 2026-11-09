@@ -70,10 +70,8 @@ nothing the Contexts page doesn't already show, so there is no admin permission 
 
 ## UI
 
-Reports is an **optional** nav tab (`optional: true` in `utils/navTabs.js`, allowlisted in the API's
-`routes/preferences.js`): off by default, switched on per user under Settings → Visible Tabs, exactly
-like Systems and Logs. Hiding it only declutters the nav — `#reports` and `#report:<name>` stay
-reachable by URL either way.
+Reports is a **default** nav tab in `utils/navTabs.js`: every user sees it, and Settings → Visible
+Tabs offers no switch for it. `#reports` and `#report:<name>` are also reachable by URL.
 
 `components/ReportsPage.jsx` lists the reports from `GET /api/reports` and renders the selected one
 through a **form-renderer map** (`components/reports/formRenderers.js`) keyed on the report's `form`
@@ -85,8 +83,9 @@ know renders an explanatory panel rather than breaking the page.
 
 | Name | Form | What it lists |
 |------|------|---------------|
-| `orphaned-accounts` | `list` | Accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
-| `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
+| `orphaned-accounts` | `list` | Live accounts with no `IdentityMembers` row — i.e. belonging to no identity — excluding service principals, managed identities and AI agents, with the detected account type for each. |
+| `application-access-review` | `list` | *Entitlement Pivot* (slug kept from its first name, Application Access Review, so links and saved views keep working) — one row per resource of one or more contexts of resources (a logical application, a department, a tag; any resource type) — or of the resources the direct members of one or more units of accounts hold, counted among those members only (business roles left out; units of the two kinds cannot be mixed in one run), with the business roles that grant it and its holders split Direct vs via a role. The other columns, and the rows and filters of its two pivots, are **fields the reader picks** — see [Columns the reader picks](#columns-the-reader-picks). |
+| `unit-members` | `list` | *Unit report* — one row per member of one or more organisational units of accounts (`targetType` Principal) or of people (Identity; units of the two kinds cannot be mixed), direct members unless `includeSubUnits=true` (the subtree, each row naming its unit). Core columns, an **Entitlements** count — distinct non-role resources held through live assignments; for a person, across every account linked through `IdentityMembers` plus assignments on the person — and every member attribute as a column (the same union-and-cap helper as the pivot, `reports/attributeColumns.js` with `MEMBER_ATTRIBUTES`). Its first tab is the same per-context block as the pivot's (`reports/contextDetails.js`). Reads in `reports/unitMembers.js`: one member statement, one grouped count over the member id array. Three **Org claim** columns (Status, Role, Source; `headerFill` gives them their own header colour in the workbook) carry the People overview's word for each person, built by the overview's own rules (`contexts/interviews/people.js` — `knownPeople`, `buildPerson`) in `reports/unitClaims.js`; the people the claims name but the list does not list (not confirmed, left) follow the members as rows of their own, for the picked units only, with their entitlements counted in the same grouped read. One claim read for every unit in the run (`store.personClaimsIn`) plus one holder read per picked unit; the run's `ctx.claimStatuses` (`routes/reports.js` → `claimStatusesFor`) limits a reader or context owner to confirmed claims. Picked through the `unit-contexts` lookup (organisational units of accounts or people), a slice of the same `contextLookup.js` factory as `resource-contexts`. |
 | `access-review-adoption` | `list` | *Access Review Adoption* — one row per business role with when a **person** last reviewed it and a status (never reviewed, never by a person, latest not by a person, partly, too long ago, reviewed, in progress, new), worst first. Two pies and two pivots in the workbook. See [Access review adoption](../ui/access-review-adoption.md). |
 | `access-reviewer-response` | `list` | *Access Reviewer Response* — one row per reviewer: review rounds asked, answered by themselves, missed, and how they decided. Worst first. |
 
@@ -171,11 +170,14 @@ tenants) are left out unless `includeMicrosoft` is on.
 | `useThreatFeed` | on | Look up each appId in the OAuthSentry list (needs internet access; a failure becomes a notice, not an error) |
 | `inactiveDays` | 90 | When a high-reach app counts as unused |
 
-Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** via
-`app/api/src/accountlinking/orphanQuery.js`. That is deliberate: the report and the context answer
-the same question, so they must not be able to drift apart. Note that before account linking has run
-there are no `IdentityMembers` at all, so every account is legitimately listed — the report's
-description says so.
+Orphaned Accounts shares its definition with the `orphaned-accounts` **context plugin** and the
+account-linking engine via `app/api/src/accountlinking/orphanQuery.js`. That is deliberate: all three
+answer the same question, so they must not be able to drift apart — and they did, which is how the
+live-rows filter came to be missing from every one of them ([#1442](https://github.com/Fortigi/IdentityAtlas/issues/1442)).
+An account a sync has **removed** from its source is therefore not listed: a full sync tombstones it
+(`deletedAt`) rather than deleting the row, and a removed account is not an orphan waiting to be
+linked. Note that before account linking has run there are no `IdentityMembers` at all, so every live
+account is legitimately listed — the report's description says so.
 
 ## Parameters that mean an entity — `x-lookup`
 
@@ -238,14 +240,15 @@ than on a directory id — a different contract from "a list of entity ids".
 registered template is downloadable the moment it exists. Today: `csv`, `xlsx`, `json` — in that
 order, which is the order the UI offers them and the first is the default.
 
-A run produces two things a plain table cannot hold:
+A run produces three things a plain table cannot hold:
 
 | Field | What it is |
 |---|---|
 | `notices` | statements ABOUT the rows — what the numbers were computed from, which of them is a summary, when they stop being trustworthy |
 | `constantColumns` | column keys the run declares hold **one value throughout it** — the application a review is about, say |
+| `details` | titled blocks of label/value facts about what the run covers — the Entitlement Pivot returns one per context (see [What the first tab says about each context](#what-the-first-tab-says-about-each-context)) |
 
-Both used to be stripped from every download, on the rule "a download is the rows". That was really a
+The first two used to be stripped from every download, on the rule "a download is the rows". That was really a
 statement about CSV rather than about downloads: a CSV *is* a table, so anything above the header row
 breaks every parser that reads it. A workbook has room above the table and a reader who expects
 context there.
@@ -256,7 +259,7 @@ So the decision belongs to the format and is declared there:
 xlsx: { contentType: '…spreadsheetml.sheet', carriesContext: true, serialize: toXlsx },
 ```
 
-`routes/reports.js` strips both fields for every format that does not claim them, so **csv and json
+`routes/reports.js` strips all three for every format that does not claim them, so **csv and json
 are byte-for-byte what they were**. A future format (pdf, html) opts in the same way, and the route
 still never asks which report it is serving — only what the chosen format can hold. (The flag was
 `carriesNotices` while notices were the only such field; it is named for the category now that it
@@ -332,6 +335,29 @@ drawing on the Charts tab, one chart part per declaration, wired in after ExcelJ
 Like `pivots`, `charts` is metadata that `reportMetadata` carries, and a saved view inherits its
 report's. A report with no rows, or with no charts declared, gets no Charts tab.
 
+### The same summary on screen
+
+The `charts` and `pivots` declarations are not only for the workbook. The rows response carries them,
+and the `list` renderer draws them above the table (`components/reports/ReportSummary.jsx`, with the
+arithmetic in `summaryData.js`), so a reader sees the breakdown without downloading anything:
+
+- **Each chart** becomes a bar split by share, with a legend of every category, its count or sum,
+  and its percentage. The slices use the declared `colors`, in the same first-appearance order as the
+  workbook.
+- **Each pivot** becomes a grouped table, with tabs when there are several. There is one row per value
+  of the first `rows` key, holding its row count and the sum of each `values` column. A row opens to the
+  next `rows` key. Pivot `filters` stay a workbook control. Each level shows at most 50 groups and
+  counts the rest.
+- **Clicking** a slice or a group narrows the table below to its rows. A bar above the table states
+  the filter and offers **Show all rows**. A refresh or a parameter change clears it.
+
+Nothing here is per report: a new template that declares charts or pivots gets them on screen with
+no UI change.
+
+The download buttons follow from this. **Download XLSX** is the main button whenever the API offers
+the workbook, because only the workbook holds the summary, the pivots and the charts. The other
+advertised formats (CSV, JSON) sit in a menu next to it, for scripts and imports.
+
 ## Columns the reader picks
 
 A template's `columns` and `pivots` are a declaration, but a run may return its own: `run()` can
@@ -347,7 +373,7 @@ is turned into a heading and a value:
 | Key | What it reads |
 |---|---|
 | `context.name` / `.type` / `.description` / `.owner` | the context's own facts |
-| `entitlement.type` / `.system` / `.description` / `.owner` / `.ownerEmail` / `.eligibleAssignments` | the resource's own facts, its owner through the ownership model, its Eligible holders |
+| `entitlement.type` / `.system` / `.description` / `.owner` / `.ownerEmployeeId` / `.ownerEmail` / `.eligibleAssignments` | the resource's own facts, its owner (see [Entitlement owners](#entitlement-owners)), its Eligible holders |
 | `context.ext.<key>` | any scalar the context's source stored in `extendedAttributes` |
 | `entitlement.ext.<key>` | any scalar the resource's source stored in `extendedAttributes` |
 
@@ -364,7 +390,56 @@ This replaced a version with one customer's catalogue in the code: a `requestabl
 the rows into three sections, a certification frequency with its own typo check, and eight catalogue
 columns (CMDB reference, onboarding sector, …) read under every spelling that had been seen. On any
 other deployment those were empty, and a missing `requestable` silently put every entitlement in the
-"information only" section. Those values are now attributes like any other: pick them.
+"information only" section. Those values are now attributes like any other: pick them — or don't,
+see below.
+
+### Every entitlement attribute, without picking
+
+After the counts, a run adds one column per `extendedAttributes` key that at least one of its rows
+carries a value for (`reports/attributeColumns.js`), sorted by key and headed by the key as stored (an
+Entra extension key loses its `extension_<appId>_` prefix; a key whose heading would repeat another
+column's is headed *Attribute · &lt;key&gt;*). So a catalogue's own fields — a certification frequency,
+`requestable` — are in the file on any deployment with no per-customer configuration. A key already
+picked as a column is not repeated. `ownerId` / `ownerName` stay as raw columns even though the owner
+columns resolve them, so a reviewer sees what the source said. These columns are not pivot axes unless
+picked as such.
+
+Capped at **60** (`MAX_ATTRIBUTE_COLUMNS`): past that the run keeps the keys most rows carry and names
+the rest in a notice, which the workbook prints on its first tab. A key that cannot be a field key (a
+comma, a control character) is counted with the rest.
+
+### Entitlement owners
+
+`lib/resourceOwners.js` gives each row an owner — name, employee ID, e-mail — in this order (the
+context page's member list of resources uses the same module):
+
+1. **The ownership link**: entitlement → `HasOwnership` / `HasAppOwnership` → ownership resource → its
+   `Direct` holders → the Principal. Several owners are comma-joined.
+2. **The source's reference**, when there is no link: the `ownerId` attribute (any case, underscores
+   ignored), resolved like a synced context owner (`ingest/contextOwners.js`): `Principals.externalId`
+   (a live row first), else `Principals.employeeId` when exactly one live account has it.
+3. **As-is**: the source's `ownerName` (or the `ownerId` itself) as the name, with no employee ID or
+   e-mail.
+
+Two statements for the whole run, whatever the number of rows: the link read over the entitlement id
+array, and one reference read over the distinct `ownerId` values. This is what makes owners appear for
+an IdentityIQ catalogue loaded by the SQL crawler with "Owners from ownerId" left off.
+
+### What the first tab says about each context
+
+The run returns one `details` block per context (`reports/contextDetails.js`), which the xlsx
+serializer writes on the Summary tab below the notices:
+
+- **People**: the Accountable and every Responsible (name · employee ID · e-mail). With no Accountable
+  on an organisational unit or logical application, the **Suggested Accountable** and its reason, from
+  the same `suggestAccountable` the context page calls (an analyst's rejection holds). There is no
+  suggestion for a Responsible anywhere in the product, so none is shown.
+- **Every attribute**: the context's own columns (except temporal and pointer columns), then every
+  `extendedAttributes` key, nested values as JSON, each cell capped at Excel's 32,767 characters.
+
+Two reads cover all contexts (the contexts, their roles); the suggestion is per context and asked for
+at most 20 contexts in one run. csv and json downloads leave `details` out, like the notices; the rows
+endpoint carries it, and the Reports page does not show it yet.
 
 ## Saved views
 

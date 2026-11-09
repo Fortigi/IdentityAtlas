@@ -127,8 +127,12 @@ function Add-DemoRealismDirectoryRoles {
     $sysEntra = $State.SystemIds['entra']
     # ContainsKey, not a property test: most principal records have no jobTitle at
     # all, and StrictMode makes reading a missing key an error rather than $null.
+    # An employee id is required as well, which draws the privileged population
+    # from the admin accounts that belong to somebody only — the orphaned
+    # `adm-<initial><surname>` ones exist for the account-linking question and
+    # must not change who holds a directory role.
     $adminAccounts = @($State.Principals |
-        Where-Object { $_.ContainsKey('jobTitle') -and $_.jobTitle -eq 'Administrative account' } |
+        Where-Object { $_.ContainsKey('jobTitle') -and $_.jobTitle -eq 'Administrative account' -and $_.ContainsKey('employeeId') } |
         ForEach-Object { $_.id })
     $itPeople = @($State.Realism.ByDept['IT Support'] | ForEach-Object { Get-DemoPrincipalId $_.id })
     $everyone = @($State.Realism.People | ForEach-Object { Get-DemoPrincipalId $_.id })

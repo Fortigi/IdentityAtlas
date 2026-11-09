@@ -16,8 +16,8 @@ Identity Atlas can pull business roles, identities, accounts, role assignments, 
 | `Contextassignment` + direct Identity reference fields + `Employment` | **ContextMembers** |
 | `Resource` | **Resources** (type mapped from `ROLECATEGORY` via `resourceCategoryMapping`) |
 | `Resource.CHILDROLES` | **ResourceRelationships** (`Contains`) |
-| `Resourceassignment` | **ResourceAssignments** (`assignmentType=Governed`) |
-| `CalculatedAssignments` (Builtin OData) | **Principals** + **IdentityMembers** + **ResourceAssignments** (`Governed` or `Direct`, across all connected systems) |
+| `Resourceassignment` | **ResourceAssignments** (`assignmentType=Direct`, `governed=true`) |
+| `CalculatedAssignments` (Builtin OData) | **Principals** + **IdentityMembers** + **ResourceAssignments** (`Direct`, `governed=true`, across all connected systems) |
 
 > 📖 For the full phase-by-phase field mapping, shared state variables, and error-handling behavior, see **[Omada IGA Crawler — Data Model Reference](../architecture/omada-crawler-datamodel.md)**.
 

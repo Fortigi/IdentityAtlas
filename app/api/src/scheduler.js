@@ -197,7 +197,7 @@ export async function queueScheduledJob(configRow, scheduleIndex) {
 // UTC day (after the first successful insert ON CONFLICT does nothing).
 // Uses the same `pg_class.reltuples` fast-path as /admin/dashboard-stats
 // for the big tables, exact COUNT(*) for the small / filtered ones.
-async function captureDashboardSnapshotIfMissing() {
+export async function captureDashboardSnapshotIfMissing() {
   try {
     // Existence check via to_regclass — first install may not have the
     // table yet if migration 027 hasn't applied (unlikely, bootstrap runs
@@ -233,11 +233,12 @@ async function captureDashboardSnapshotIfMissing() {
         CURRENT_DATE,
         (SELECT COUNT(*)::int FROM "Systems"),
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Resources'), 0), 0)::int,
-        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole'),
+        -- Exact counts are live rows only, matching the dashboard (soft delete, migration 040).
+        (SELECT COUNT(*)::int FROM "Resources" WHERE "resourceType" = 'BusinessRole' AND "deletedAt" IS NULL),
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Principals'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Identities'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='ResourceAssignments'), 0), 0)::int,
-        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "governed" = true),
+        (SELECT COUNT(*)::int FROM "ResourceAssignments" WHERE "governed" = true AND "deletedAt" IS NULL),
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='ResourceRelationships'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='Contexts'), 0), 0)::int,
         GREATEST(COALESCE((SELECT est FROM estimates WHERE relname='IdentityMembers'), 0), 0)::int,

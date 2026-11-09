@@ -90,6 +90,7 @@ vi.mock('./matrix/shared.js', () => ({
 }));
 
 const { default: router } = await import('./permissions.js');
+const { TOTAL_USERS_SQL } = await import('./permissions/gridQuery.js');
 const app = mountRouter(router);
 
 const rs = (recordset) => ({ recordset });
@@ -137,6 +138,8 @@ describe('GET /api/permissions', () => {
     expect(res.body.managedByPackages).toEqual([
       { memberId: 'u1', resourceId: 'r1', groupId: 'r1', accessPackageIds: ['ap1', 'ap2'] },
     ]);
+    // The slider max counts live (not soft-deleted) user accounts only.
+    expect(stageQuery.mock.calls[1][0]).toBe(TOTAL_USERS_SQL);
   });
 
   it('swallows a missing AP view (42P01) and still returns data', async () => {
@@ -184,6 +187,18 @@ describe('GET /api/permissions', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(1);
     expect(res.body.managedByPackages[0].accessPackageIds).toEqual([]);
+    expect(stageQuery.mock.calls[1][0]).toBe(TOTAL_USERS_SQL);
+  });
+
+  it('top-N user-tag pre-filter resolves only live principals (empty → empty grid)', async () => {
+    poolRequestQuery.mockResolvedValueOnce(PRINCIPALS_EXISTS);
+    stageQuery.mockResolvedValueOnce(rs([]));   // tag resolve: no live user carries the tag
+    const filters = encodeURIComponent(JSON.stringify({ __userTag: 'VIP' }));
+    const res = await request(app).get(`/api/permissions?userLimit=5&filters=${filters}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ data: [], totalUsers: 0, managedByPackages: [] });
+    expect(stageQuery).toHaveBeenCalledTimes(1);
+    expect(stageQuery.mock.calls[0][0]).toMatch(/WHERE u\."deletedAt" IS NULL\s+LIMIT/);
   });
 
   it('500s when the main query rejects with a non-schema error', async () => {
@@ -211,6 +226,7 @@ describe('GET /api/permissions', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([{ resourceId: 'r1', memberId: 'u1' }]);
     expect(res.body.totalUsers).toBe(5);
+    expect(dbQuery.mock.calls[2][0]).toBe(TOTAL_USERS_SQL);
   });
 
   it('effective-access path with includeChildren falls through when no engine rows', async () => {
@@ -293,6 +309,11 @@ describe('GET /api/groups-with-nested', () => {
     const res = await request(app).get('/api/groups-with-nested');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ groupIds: ['g1', 'g2'] });
+    // Neither a soft-deleted assignment nor a soft-deleted capability resource
+    // may offer an expand affordance.
+    const sql = stageQuery.mock.calls[0][0];
+    expect(sql).toMatch(/ILIKE '%group%'\s+AND "deletedAt" IS NULL\s+UNION/);
+    expect(sql).toContain('AND r."deletedAt" IS NULL');
   });
 
   it('returns empty groupIds on query failure', async () => {
@@ -323,6 +344,11 @@ describe('GET /api/group/:groupId/nested-groups', () => {
     expect(res.status).toBe(200);
     expect(res.body.groups).toHaveLength(1);
     expect(res.body.memberships).toHaveLength(1);
+    // Only live assignments to live resources are followed.
+    const [groupsSql, membersSql] = stageQuery.mock.calls.map(c => c[0]);
+    expect(groupsSql).toContain('AND ra."deletedAt" IS NULL');
+    expect(groupsSql).toContain('AND r."deletedAt" IS NULL');
+    expect(membersSql).toContain('AND ra2."deletedAt" IS NULL');
   });
 
   it('returns empty shape on query failure', async () => {

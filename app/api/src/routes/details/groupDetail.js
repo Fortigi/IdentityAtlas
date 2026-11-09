@@ -44,7 +44,8 @@ export async function fetchGroupMemberCount(pool, res, groupId) {
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* view may not exist */ }
 }
 
-// 4. Access-package count (business roles that contain this group).
+// 4. Access-package count (business roles that contain this group). A role
+//    soft-deleted in the source is history — listed, flagged, not counted.
 export async function fetchGroupAccessPackageCount(pool, res, groupId) {
   try {
     const r = await timedQuery(pool, 'group-ap-count', res, `
@@ -52,6 +53,8 @@ export async function fetchGroupAccessPackageCount(pool, res, groupId) {
       FROM "ResourceRelationships" rrs
       WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
         AND rrs."relationshipType" = 'Contains'
+        AND NOT EXISTS (SELECT 1 FROM "Resources" ap
+                         WHERE ap.id = rrs."parentResourceId" AND ap."deletedAt" IS NOT NULL)
     `, [groupId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }

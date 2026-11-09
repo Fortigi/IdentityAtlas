@@ -9,7 +9,19 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { createParams, likeContains } from '../../db/sqlParams.js';
 import { buildSearchWhere, parseExtendedSearch, withMatchedOn } from '../../lib/entitySearch.js';
+import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, TARGET_TYPES } from './shared.js';
+import { loadContextRoles } from './roles.js';
+import { OWNER_PRINCIPAL_ORDER } from '../../ingest/contextOwners.js';
+import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
+import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
+import { loadPeople, loadListedPeople } from '../../contexts/interviews/peopleLoad.js';
+import { claimStatusesFor } from './interviews.js';
+import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
+import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
+import { OVERRIDE_COLUMNS, OVERRIDE_JOIN, withOverride } from '../../contexts/interviews/overrideRows.js';
+import { orgKnowledgeEnabled } from '../../featureFlags.js';
+import { SOFT_DELETE_TABLES } from '../../ingest/engine.js';
 
 const router = Router();
 
@@ -17,12 +29,25 @@ const VARIANTS = new Set(['synced', 'generated', 'manual']);
 
 // Map targetType → the table name where memberIds live. Used to filter the
 // member list to live rows only (stale member rows are left to a background
-// reconciler, not this endpoint).
+// reconciler, not this endpoint): the member must exist, and — for the tables
+// that carry a soft-delete tombstone (SOFT_DELETE_TABLES) — must not be deleted.
 const MEMBER_TABLE = {
   Identity:  'Identities',
   Resource:  'Resources',
   Principal: 'Principals',
   System:    'Systems',
+};
+
+// What a member row carries besides its name, per kind of member — the columns
+// the context's members table shows (email and job title for people and
+// accounts, type and description for resources). A resource's extendedAttributes
+// are read only for its owner reference and are not returned: a resource member
+// also gets holderCount and its owner, from contexts/resourceMemberFacts.js.
+export const MEMBER_COLUMNS = {
+  Identity:  'm.email, m."jobTitle", m.department',
+  Resource:  'm."resourceType", m.description, m.enabled, m."extendedAttributes"',
+  Principal: 'm.email, m."jobTitle", m."principalType", m."accountEnabled"',
+  System:    'm.description',
 };
 
 // How a member row joins its entity. ContextMembers."memberId" is a uuid, and so
@@ -53,6 +78,11 @@ export function memberJoinOn(targetType) {
 // Needs ix_Principals_externalId (migration 076); without it this is a
 // sequential scan of the whole Principals table per context row.
 //
+// The tie-break is OWNER_PRINCIPAL_ORDER, shared with the ingest that states a
+// synced owner as the context's Accountable (ingest/contextOwners.js), so the
+// owner shown here and the Accountable are the same account. (The ingest also
+// falls back to a unique employeeId, which this per-row join does not.)
+//
 // Exported so the tests can pin the shape rather than matching a substring.
 export const OWNER_COLUMNS = 'own.id AS "ownerPrincipalId", own."displayName" AS "ownerDisplayName"';
 
@@ -61,15 +91,14 @@ export const OWNER_JOIN = `
           SELECT p.id, p."displayName"
             FROM "Principals" p
            WHERE p."externalId" = c."ownerUserId"
-           ORDER BY (p."deletedAt" IS NULL) DESC,
-                    (p."systemId" IS NOT DISTINCT FROM c."scopeSystemId") DESC,
-                    p.id
+           ORDER BY ${OWNER_PRINCIPAL_ORDER}
            LIMIT 1
         ) own ON TRUE`;
 
 // ─── GET /api/contexts ───────────────────────────────────────────────
 // List all root contexts (parentContextId IS NULL). Optional filters:
-// ?targetType, ?variant, ?contextType, ?scopeSystemId.
+// ?targetType, ?variant, ?contextType, ?contextCategory (one of the four
+// templates), ?sourceAlgorithm (the producing plugin's name), ?scopeSystemId.
 //
 // ?search= looks at every level, not only the roots — the logical application
 // you are looking for by its CMDB reference usually sits under a catalogue —
@@ -85,6 +114,9 @@ export function buildContextListWhere(query, bind) {
   if (query.targetType && TARGET_TYPES.has(query.targetType)) eq('targetType', query.targetType);
   if (query.variant && VARIANTS.has(query.variant))           eq('variant', query.variant);
   if (query.contextType) eq('contextType', String(query.contextType).slice(0, 100));
+  if (CONTEXT_CATEGORIES.includes(query.contextCategory)) eq('contextCategory', query.contextCategory);
+  // The algorithm is joined as `a` by every caller of this WHERE.
+  if (query.sourceAlgorithm) clauses.push(`a.name = ${bind(String(query.sourceAlgorithm).slice(0, 100))}`);
   if (query.scopeSystemId) {
     const sys = parseInt(query.scopeSystemId, 10);
     if (!Number.isNaN(sys)) eq('scopeSystemId', sys);
@@ -101,12 +133,12 @@ router.get('/contexts', async (req, res) => {
     const { where, search, extended } = buildContextListWhere(req.query, bind);
 
     const r = await db.query(`
-      SELECT c.id, c.variant, c."targetType", c."contextType", c."displayName",
+      SELECT c.id, c.variant, c."targetType", c."contextType", c."contextCategory", c."displayName",
              c.description, c."scopeSystemId", c."sourceAlgorithmId", c."ownerUserId",
              c."createdByUser", c."externalId", c."directMemberCount", c."totalMemberCount",
              c."userRenamed", c."userReparented", c."sourceInstanceKey",
              c."lastCalculatedAt", c."createdAt", c."updatedAt",
-             s."displayName" AS "scopeSystemName",
+             s."displayName" AS "scopeSystemName", s."systemType" AS "scopeSystemType",
              a.name AS "sourceAlgorithmName",
              a."displayName" AS "sourceAlgorithmDisplayName",
              ${search ? 'c."parentContextId", c."extendedAttributes",' : ''}
@@ -146,7 +178,7 @@ router.get('/contexts/tree', async (req, res) => {
         -- CYCLE guard: a corrupt parent chain (A→B→A) would otherwise recurse
         -- forever. PG stops descending the moment an id repeats on the path.
         CYCLE id SET "isCycle" USING "cyclePath"
-        SELECT id, variant, "targetType", "contextType", "displayName", description,
+        SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
                "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
           FROM descendants
@@ -154,7 +186,7 @@ router.get('/contexts/tree', async (req, res) => {
       `, [rootParam])).rows;
     } else {
       rows = (await db.query(`
-        SELECT id, variant, "targetType", "contextType", "displayName", description,
+        SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName", description,
                "parentContextId", "scopeSystemId", "sourceAlgorithmId", "ownerUserId",
                "directMemberCount", "totalMemberCount", "userRenamed", "userReparented"
           FROM "Contexts"
@@ -197,13 +229,17 @@ router.get('/contexts/tree', async (req, res) => {
 });
 
 // ─── GET /api/contexts/:id ───────────────────────────────────────────
+// The detail carries the context's roles (Accountable / Responsible) too: the
+// detail page shows the template badge and the People block in one paint, and
+// the roles lookup is one indexed read per context. /contexts/:id/roles stays
+// for the People block's refresh after an add or remove.
 router.get('/contexts/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
-  if (!useSql) return res.json({ attributes: null, members: [], subContexts: [] });
+  if (!useSql) return res.json({ attributes: null, members: [], subContexts: [], roles: [] });
 
   try {
     const attr = await db.queryOne(`
-      SELECT c.*, s."displayName" AS "scopeSystemName",
+      SELECT c.*, s."displayName" AS "scopeSystemName", s."systemType" AS "scopeSystemType",
              a.name AS "sourceAlgorithmName",
              a."displayName" AS "sourceAlgorithmDisplayName",
              parent."displayName" AS "parentDisplayName",
@@ -217,17 +253,27 @@ router.get('/contexts/:id', async (req, res) => {
 
     if (!attr) return res.status(404).json({ error: 'Context not found' });
 
-    const members = await loadMembers(req.params.id, attr.targetType, { limit: 50 });
+    // A context of an uploaded list says where it came from: its first and latest upload.
+    if (attr.scopeSystemType === UPLOAD_SYSTEM_TYPE) Object.assign(attr, await uploadProvenance(db, attr.scopeSystemId));
+    // Members a decision marked former (still counted in directMemberCount: their source lists them).
+    const knowledge = await orgKnowledgeEnabled();
+    attr.overriddenMemberCount = knowledge ? await overriddenMemberCount(db, req.params.id) : 0;
+
+    const members = knowledge
+      ? await loadMembers(req.params.id, attr.targetType, { limit: 50 })
+      : plainMembers(await loadMembers(req.params.id, attr.targetType, { limit: 50, includeOverridden: true }));
 
     const subs = (await db.query(`
-      SELECT id, variant, "targetType", "contextType", "displayName",
+      SELECT id, variant, "targetType", "contextType", "contextCategory", "displayName",
              "directMemberCount", "totalMemberCount"
         FROM "Contexts"
        WHERE "parentContextId" = $1
        ORDER BY "displayName"
     `, [req.params.id])).rows;
 
-    res.json({ attributes: attr, members, subContexts: subs });
+    const roles = await loadContextRoles(req.params.id);
+
+    res.json({ attributes: attr, members, subContexts: subs, roles });
   } catch (err) {
     console.error('GET /contexts/:id failed:', err.message);
     res.status(500).json({ error: 'Failed to load context details' });
@@ -235,42 +281,88 @@ router.get('/contexts/:id', async (req, res) => {
 });
 
 // ─── GET /api/contexts/:id/members ───────────────────────────────────
-// Paginated members. Optional ?search filters on the member's display name.
+// Paginated members, as their source lists them. Optional ?search filters on the
+// member's display name. A member a decision marked former (contexts/interviews/
+// memberOverrides.js) is left out of the current members — `overriddenCount` says
+// how many — unless ?includeOverridden=true, which lists them too, each with
+// `overridden`. What the added sources say about the people of a unit is the
+// People overview's (GET /contexts/:id/people, below).
 router.get('/contexts/:id/members', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.json({ data: [], total: 0 });
 
   try {
-    const ctx = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [req.params.id]);
+    const ctx = await db.queryOne(`SELECT "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
     if (!ctx) return res.status(404).json({ error: 'Context not found' });
 
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 500);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const search = (req.query.search || '').toString().trim().slice(0, 200);
     const includeDescendants = req.query.include === 'descendants';
+    const knowledge = await orgKnowledgeEnabled();
+    const includeOverridden = req.query.includeOverridden === 'true' || !knowledge;
 
-    const { rows, total } = await loadMembers(req.params.id, ctx.targetType, {
-      limit, offset, search, withTotal: true, includeDescendants,
+    const { rows, total, overriddenCount } = await loadMembers(req.params.id, ctx.targetType, {
+      limit, offset, search, withTotal: true, includeDescendants, includeOverridden,
     });
-    res.json({ data: rows, total });
+    if (!knowledge) return res.json({ data: plainMembers(rows), total, overriddenCount: 0 });
+    res.json({ data: rows, total, overriddenCount });
   } catch (err) {
     console.error('GET /contexts/:id/members failed:', err.message);
     res.status(500).json({ error: 'Failed to load context members' });
   }
 });
 
+// ─── GET /api/contexts/:id/people ────────────────────────────────────
+// The People overview of an organisational unit or a logical application: one
+// row per person — the members its source lists, merged with what the added
+// sources say about people (role, history, membership claims), with one status
+// (current, cameBack, notConfirmed, leftDecided, left), their roles here, the
+// claims about them, the open contradictions they are in and what they still
+// hold. ?filter=current|former|all|decide, ?search, ?limit (100, max 500),
+// ?offset; `counts` holds every filter's count. A reader without
+// data.write.contexts (a context owner too) is answered from confirmed claims
+// only. Rules: contexts/interviews/people.js; reads: peopleLoad.js.
+// While organisation knowledge is off (featureFlags.js) the overview is plain
+// membership: every listed member (none left out as marked former), no claims.
+export const PEOPLE_DEPS = { db, loadMembers, loadRoles: loadContextRoles };
+const plainLoadMembers = async (contextId, targetType, opts) => {
+  const out = await loadMembers(contextId, targetType, { ...opts, includeOverridden: true });
+  return { ...out, rows: plainMembers(out.rows) };
+};
+export const LISTED_PEOPLE_DEPS = { db, loadMembers: plainLoadMembers, loadRoles: loadContextRoles };
+
+router.get('/contexts/:id/people', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json({ data: [], total: 0, counts: { current: 0, former: 0, all: 0, decide: 0 } });
+  try {
+    const ctx = await db.queryOne(`SELECT id, "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
+    if (!ctx) return res.status(404).json({ error: 'Context not found' });
+    if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
+      return res.status(400).json({ error: 'The people overview is for an organizational unit or a logical application.' });
+    }
+    res.json(await orgKnowledgeEnabled()
+      ? await loadPeople(PEOPLE_DEPS, ctx, req.query, claimStatusesFor(req))
+      : await loadListedPeople(LISTED_PEOPLE_DEPS, ctx, req.query));
+  } catch (err) {
+    console.error('GET /contexts/:id/people failed:', err.message);
+    res.status(500).json({ error: 'Failed to load the people' });
+  }
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false } = {}) {
-  const table = MEMBER_TABLE[targetType];
-  if (!table) return withTotal ? { rows: [], total: 0 } : [];
-
-  // When includeDescendants=true, we expand $1 into "this context plus every
-  // descendant" via a recursive CTE. The selected member rows are then
-  // de-duplicated on memberId (a person could theoretically be a direct
-  // member of two sub-contexts; we only want them once).
-  const contextSet = includeDescendants
-    ? `(
+// The SQL pieces that scope a member read to this context alone, or to it and
+// every descendant. With descendants, $1 expands into "this context plus every
+// descendant" via a recursive CTE, and the member rows are de-duplicated on
+// memberId (a person could be a direct member of two sub-contexts; we want them
+// once) — the DISTINCT adds a small sort cost but keeps counts and paging right.
+function memberScopeSql(includeDescendants) {
+  if (!includeDescendants) {
+    return { contextFilter: `cm."contextId" = $1`, distinct: '', orderPrefix: '', countExpr: '*' };
+  }
+  return {
+    contextFilter: `cm."contextId" IN (
         WITH RECURSIVE subtree AS (
           SELECT id FROM "Contexts" WHERE id = $1
           UNION ALL
@@ -279,51 +371,69 @@ async function loadMembers(contextId, targetType, { limit = 100, offset = 0, sea
         -- CYCLE guard: corrupt parent chains must not recurse forever.
         CYCLE id SET "isCycle" USING "cyclePath"
         SELECT id FROM subtree
-      )`
-    : null;
+      )`,
+    distinct: 'DISTINCT ON (m.id)',
+    orderPrefix: 'm.id, ',
+    countExpr: 'DISTINCT m.id',
+  };
+}
 
-  // Identity / Resource / Principal all have displayName. Systems have
-  // displayName too. Keep the projection uniform.
+// While organisation knowledge is off (featureFlags.js) a member list is plain
+// membership: every member, none marked former by a decision, no claim facts.
+export function plainMembers(rows) {
+  return rows.map(r => ({ ...r, overridden: null }));
+}
+
+// The search on the member's name, as a clause and its bind (appended to params).
+function searchFilter(search, params) {
+  if (!search) return '';
+  params.push(likeContains(search));
+  return ` AND m."displayName" ILIKE $${params.length} ESCAPE '\\'`;
+}
+
+// The current members and those a decision marked former, among the matching
+// rows (`from`: the FROM … WHERE of the page read, without the override filter).
+async function countMembers(from, countExpr, params, includeOverridden) {
+  const counts = await db.queryOne(`
+    SELECT COUNT(${countExpr}) FILTER (WHERE o.id IS NULL)::int AS current,
+           COUNT(${countExpr}) FILTER (WHERE o.id IS NOT NULL)::int AS overridden
+      ${from}
+  `, params);
+  const overriddenCount = counts?.overridden || 0;
+  return { total: (counts?.current || 0) + (includeOverridden ? overriddenCount : 0), overriddenCount };
+}
+
+export async function loadMembers(contextId, targetType, { limit = 100, offset = 0, search = '', withTotal = false, includeDescendants = false, includeOverridden = false } = {}) {
+  const table = MEMBER_TABLE[targetType];
+  if (!table) return withTotal ? { rows: [], total: 0, overriddenCount: 0 } : [];
+
+  // Every member table has displayName; the rest of the row is what the members
+  // table shows for that kind of member (MEMBER_COLUMNS).
   const params = [contextId];
-  let searchClause = '';
-  if (search) {
-    params.push(likeContains(search));
-    searchClause = ` AND m."displayName" ILIKE $${params.length} ESCAPE '\\'`;
-  }
+  const searchClause = searchFilter(search, params);
+  const { contextFilter, distinct, orderPrefix, countExpr } = memberScopeSql(includeDescendants);  // A context is a generated view of current state: a soft-deleted principal or
+  // resource is no longer a member, in the list or in the total.
+  const liveClause = SOFT_DELETE_TABLES.has(table) ? ' AND m."deletedAt" IS NULL' : '';
+  const from = `
+      FROM "ContextMembers" cm
+      JOIN "${table}" m ON ${memberJoinOn(targetType)}
+      ${OVERRIDE_JOIN}
+     WHERE ${contextFilter}
+       AND cm."memberType" = '${targetType}'${liveClause}
+       ${searchClause}`;
 
-  const contextFilter = includeDescendants
-    ? `cm."contextId" IN ${contextSet}`
-    : `cm."contextId" = $1`;
-
-  // When descendants are included we dedupe on memberId so siblings don't
-  // produce duplicates. The DISTINCT adds a small sort cost but matters for
-  // accurate counts and pagination.
-  const distinct = includeDescendants ? 'DISTINCT ON (m.id)' : '';
 
   const dataSql = `
-    SELECT ${distinct} m.id, m."displayName",
-           cm."addedBy", cm."addedAt"
-      FROM "ContextMembers" cm
-      JOIN "${table}" m ON ${memberJoinOn(targetType)}
-     WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
-       ${searchClause}
-     ORDER BY ${includeDescendants ? 'm.id, ' : ''}m."displayName"
+    SELECT ${distinct} m.id, m."displayName", ${MEMBER_COLUMNS[targetType]},
+           cm."addedBy", cm."addedAt", ${OVERRIDE_COLUMNS}
+      ${from} ${includeOverridden ? '' : 'AND o.id IS NULL'}
+     ORDER BY ${orderPrefix}m."displayName"
      LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}
   `;
-  const rows = (await db.query(dataSql, params)).rows;
+  const page = (await db.query(dataSql, params)).rows.map(withOverride);
+  const rows = targetType === 'Resource' ? await withResourceMemberFacts(page) : page;
   if (!withTotal) return rows;
-
-  const countSql = `
-    SELECT COUNT(${includeDescendants ? 'DISTINCT m.id' : '*'})::int AS total
-      FROM "ContextMembers" cm
-      JOIN "${table}" m ON ${memberJoinOn(targetType)}
-     WHERE ${contextFilter}
-       AND cm."memberType" = '${targetType}'
-       ${searchClause}
-  `;
-  const total = (await db.queryOne(countSql, params))?.total || 0;
-  return { rows, total };
+  return { rows, ...(await countMembers(from, countExpr, params, includeOverridden)) };
 }
 
 export default router;

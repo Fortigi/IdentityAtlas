@@ -3,6 +3,7 @@ import { ASSIGNMENT_TYPE_STYLES } from '@ui/utils/accessPackageStyles';
 import ComplianceStatusCell from './ComplianceStatusCell';
 import ReviewedByCell from './ReviewedByCell';
 import RowCategorySelect from './RowCategorySelect';
+import DeletedBadge from '@ui/components/DeletedBadge';
 
 // One business role row in the Business Roles table. Row click toggles the
 // checkbox; cells that carry their own controls stop propagation.
@@ -32,6 +33,7 @@ export default function AccessPackageRow({
         >
           {ap.displayName}
         </button>
+        {ap.deletedAt && <DeletedBadge at={ap.deletedAt} label="Deleted in source" className="ml-2" />}
       </td>
       <td className="px-3 py-2">
         {ap.assignmentType && (

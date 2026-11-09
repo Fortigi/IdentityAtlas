@@ -2,6 +2,7 @@
  * Normalization — Type coercion, deterministic GUID generation, extendedAttributes packing.
  */
 import crypto from 'crypto';
+import { categoryForContextType } from '../lib/contextCategories.js';
 
 /**
  * Generate a deterministic UUID v3-style GUID from a namespace prefix and external ID.
@@ -233,6 +234,15 @@ function packExtendedAttributes(normalized, extended) {
  * @param {number} options.systemId - System ID to set on each record
  * @returns {object[]} Normalized records
  */
+// A synced context names its type in the source's words (OrgUnit, Department …);
+// its template follows from that when the sender did not say. Only Contexts has
+// both columns, so keying off coreSet keeps this out of every other entity.
+function deriveContextCategory(normalized, coreSet) {
+  if (!coreSet.has('contextCategory') || normalized.contextCategory !== undefined || !normalized.contextType) return;
+  const category = categoryForContextType(normalized.contextType);
+  if (category) normalized.contextCategory = category;
+}
+
 export function normalizeRecords(records, coreColumns, options = {}) {
   const { idGeneration = 'native', idPrefix = '', systemId, systemPrefix } = options;
   const coreSet = new Set(coreColumns);
@@ -249,6 +259,7 @@ export function normalizeRecords(records, coreColumns, options = {}) {
       normalized.systemId = systemId;
     }
 
+    deriveContextCategory(normalized, coreSet);
     packExtendedAttributes(normalized, extended);
 
     return normalized;

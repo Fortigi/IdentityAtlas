@@ -26,7 +26,7 @@ export function parseParams(params) {
 // Returns the built contexts/members plus the count of distinct types for logging.
 export function buildTree(rows, rootName, allow) {
   const rootExt = 'ptype-root';
-  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'PrincipalTypeRoot' }];
+  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'PrincipalType' }];
   const members = [];
   const seen = new Map(); // value → externalId
   for (const r of rows) {
@@ -53,6 +53,8 @@ export default {
     'all managed identities / AI agents / service principals access?". Optionally restrict to chosen ' +
     'values (e.g. ManagedIdentity) and/or a single system.',
   targetType: 'Principal',
+  contextCategory: 'Segment',
+  contextTypes: ['PrincipalType'],
   parametersSchema: {
     type: 'object',
     properties: {
@@ -76,7 +78,8 @@ export default {
     }
 
     // Resolve the attribute from a real column first (e.g. principalType), then extendedAttributes.
-    const conds = [`COALESCE(to_jsonb(p.*) ->> $1, p."extendedAttributes" ->> $1) IS NOT NULL`];
+    // Live principals only: a soft-deleted ("deletedAt") account is history.
+    const conds = [`COALESCE(to_jsonb(p.*) ->> $1, p."extendedAttributes" ->> $1) IS NOT NULL`, 'p."deletedAt" IS NULL'];
     const qp = [attribute];
     if (systemId !== null) { qp.push(systemId); conds.push(`p."systemId" = $${qp.length}`); }
 

@@ -27,14 +27,14 @@ const ms = (ns) => Math.round((ns || 0) / 1e6);
 /**
  * @returns {Promise<{ content: string, timing: object }>}
  */
-export async function chat({ model, messages, schema }) {
+export async function chat({ model, messages, schema, maxTokens = 1200 }) {
   const body = {
     model,
     messages,
     stream: false,
     format: schema,
     keep_alive: KEEP_ALIVE,
-    options: { temperature: 0, num_ctx: 8192, num_predict: 1200 },
+    options: { temperature: 0, num_ctx: 8192, num_predict: maxTokens },
   };
   if (THINKING_MODEL.test(model)) body.think = false;
   const r = await call('/api/chat', body);

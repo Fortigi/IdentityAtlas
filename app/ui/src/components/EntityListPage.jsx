@@ -4,6 +4,7 @@ import useEntityPage from '@ui/hooks/useEntityPage';
 import FilterBar from './FilterBar';
 import EmptyState from './EmptyState';
 import ExtendedSearchToggle from './ExtendedSearchToggle';
+import IncludeDeletedToggle from './IncludeDeletedToggle';
 import { formatMatchedOn } from '@ui/utils/matchedOn';
 import { TAG_COLORS, tagPillStyle } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
@@ -23,6 +24,7 @@ import { useIsDark } from '@ui/contexts/ThemeContext';
  *   baseFilters         object passed to useEntityPage (optional, for sub-tab driven filters)
  *   customizeFilterFields  (fields) => fields — optional callback to filter/sort the filter dropdown
  *   onOpenDetail        (kind, id, name) => void
+ *   renderSelectionActions  (selectedIds: string[]) => JSX — extra buttons in the selection bar (optional)
  */
 export default function EntityListPage({
   title,
@@ -40,6 +42,7 @@ export default function EntityListPage({
   baseFilters = null,
   customizeFilterFields = null,
   onOpenDetail,
+  renderSelectionActions = null,
 }) {
   const { authFetch } = useAuth();
   const isDark = useIsDark();
@@ -173,13 +176,7 @@ export default function EntityListPage({
         <ExtendedSearchToggle checked={ep.extendedSearch} onChange={ep.setExtendedSearch} />
 
         {showIncludeDeleted && (
-          <label
-            className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer select-none"
-            title={`Also show ${label} that were deleted in the source system`}
-          >
-            <input type="checkbox" checked={ep.includeDeleted} onChange={e => ep.setIncludeDeleted(e.target.checked)} />
-            Include deleted
-          </label>
+          <IncludeDeletedToggle checked={ep.includeDeleted} onChange={ep.setIncludeDeleted} noun={label} />
         )}
 
         {ep.hasAnyFilter && (
@@ -200,6 +197,12 @@ export default function EntityListPage({
         <div className="flex items-center gap-3 mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm">
           <span className="font-medium text-blue-700 dark:text-blue-300">{ep.selected.size} selected</span>
           <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
+          {renderSelectionActions && (
+            <>
+              {renderSelectionActions([...ep.selected])}
+              <div className="border-l border-blue-200 dark:border-blue-700 h-5" />
+            </>
+          )}
           <select
             value={ep.actionTag}
             onChange={e => ep.setActionTag(e.target.value)}

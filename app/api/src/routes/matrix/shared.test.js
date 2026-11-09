@@ -15,7 +15,7 @@ vi.mock('../../db/columnCache.js', () => ({ getPrincipalColumns: async () => [],
 vi.mock('../../matrix/filterSql.js', () => ({ buildEntitySubquery: (...a) => buildEntity(...a), collectContextIds: () => [] }));
 
 const {
-  parseFilter, normaliseBlock, subjectScopeClauses, normaliseSortAttributes,
+  parseFilter, normaliseBlock, subjectScopeClauses, resourceScopeWhere, normaliseSortAttributes,
   buildSubqueries, runCount, scopeCounts, runBound, collectResources,
   clampRollupLevel, MAX_ROLLUP_LEVEL,
 } = await import('./shared.js');
@@ -108,11 +108,28 @@ describe('subjectScopeClauses', () => {
     expect(c.baseWhere).toContain('principalType');
   });
 
+  it('excludes soft-deleted principals from both the scoped count and the total', () => {
+    const c = subjectScopeClauses('principal', '(SELECT id FROM x)');
+    expect(c.where).toMatch(/^ WHERE "deletedAt" IS NULL AND /);
+    expect(c.baseWhere).toMatch(/^ WHERE "deletedAt" IS NULL AND /);
+  });
+
   it('does not exclude group accounts for identities and has no base filter', () => {
     const c = subjectScopeClauses('identity', null);
     expect(c.subjectTable).toBe('Identities');
     expect(c.where).toBe('');
     expect(c.baseWhere).toBe('');
+  });
+});
+
+describe('resourceScopeWhere', () => {
+  it('counts only live resources when there is no resource fragment', () => {
+    expect(resourceScopeWhere(null)).toBe(' WHERE "deletedAt" IS NULL');
+  });
+
+  it('narrows the live resources to the fragment when there is one', () => {
+    expect(resourceScopeWhere('(SELECT id FROM r)'))
+      .toBe(' WHERE "deletedAt" IS NULL AND id IN (SELECT id FROM r)');
   });
 });
 
@@ -160,7 +177,7 @@ describe('buildSubqueries', () => {
     // The rendering closure — not just the throwaway probe — must carry it.
     expect(resourceCalls().at(-1).extraClauses).toEqual([VISIBLE]);
     expect(built.hidesDefaultResourceTypes).toBe(true);
-    expect(built.resourceTotalWhere).toBe(` WHERE ${VISIBLE}`);
+    expect(built.resourceTotalWhere).toBe(` WHERE "deletedAt" IS NULL AND ${VISIBLE}`);
   });
 
   it('drops the clause when the matrix opts business roles back in', async () => {
@@ -171,7 +188,8 @@ describe('buildSubqueries', () => {
     expect(built.hidesDefaultResourceTypes).toBe(false);
     // …and the unscoped total stops excluding them too, so "X of Y resources"
     // counts exactly the rows that can render.
-    expect(built.resourceTotalWhere).toBe('');
+    // Soft-deleted resources stay out of the total either way.
+    expect(built.resourceTotalWhere).toBe(' WHERE "deletedAt" IS NULL');
   });
 
   it('drops the clause when the resource scope explicitly targets business roles', async () => {
@@ -232,7 +250,8 @@ describe('scopeCounts', () => {
     expect(out).toEqual({ subjectCount: 4, subjectTotal: 4, resourceCount: 4, resourceTotal: 4, assignmentCount: 4 });
     // The resource-count query has no IN clause when the resource fragment is null.
     const resourceCountSql = timedQ.mock.calls.find(c => c[1] === 'matrix-data-resource-count')[3];
-    expect(resourceCountSql).not.toContain('WHERE id IN');
+    expect(resourceCountSql).not.toContain('id IN');
+    expect(resourceCountSql).toContain('WHERE "deletedAt" IS NULL');
   });
 
   // The strip above the matrix read "0 cells" because /matrix/data never counted
@@ -262,14 +281,14 @@ describe('scopeCounts', () => {
     await scopeCounts({}, {}, 'principal', await buildSubqueries(parseFilter({ filter: {} })));
     // "X of Y resources" must never count rows the matrix cannot render.
     expect(totalSql()).toBe(
-      `SELECT COUNT(*)::int AS c FROM "Resources" WHERE ("resourceType" IS NULL OR "resourceType" NOT IN ('BusinessRole'))`);
+      `SELECT COUNT(*)::int AS c FROM "Resources" WHERE "deletedAt" IS NULL AND ("resourceType" IS NULL OR "resourceType" NOT IN ('BusinessRole'))`);
   });
 
   it('counts every resource in the total once business roles are shown', async () => {
     timedQ.mockResolvedValue({ rows: [{ c: 4 }] });
     await scopeCounts({}, {}, 'principal',
       await buildSubqueries(parseFilter({ filter: { includeBusinessRoles: true } })));
-    expect(totalSql()).toBe('SELECT COUNT(*)::int AS c FROM "Resources"');
+    expect(totalSql()).toBe('SELECT COUNT(*)::int AS c FROM "Resources" WHERE "deletedAt" IS NULL');
   });
 });
 

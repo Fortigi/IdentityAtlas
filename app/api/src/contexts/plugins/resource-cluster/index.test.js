@@ -146,3 +146,11 @@ describe('resource-cluster plugin run()', () => {
     expect(result.members).toEqual([]);
   });
 });
+
+describe('resource-cluster — soft-deleted resources', () => {
+  it('clusters live resources only', async () => {
+    const sqls = [];
+    await plugin.run({}, { db: { query: async (sql) => { sqls.push(sql); return { rows: [] }; } } });
+    expect(sqls[0]).toMatch(/WHERE "deletedAt" IS NULL[^\n]*\n\s+AND \(\$1::int IS NULL OR "systemId" = \$1\)/);
+  });
+});

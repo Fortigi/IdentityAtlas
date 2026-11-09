@@ -3,7 +3,9 @@
 // Replaces the retired correlation-ruleset endpoints. Account linking attaches
 // orphan accounts to existing Identities using an editable dictionary.
 //
-//   GET  /account-linking/config     — active config (or shipped defaults)
+//   GET  /account-linking/config     — the EFFECTIVE config: the saved rules
+//                                      merged over the shipped defaults (or the
+//                                      defaults themselves when nothing is saved)
 //   PUT  /account-linking/config     — upsert the single config row (admin)
 //   POST /account-linking/runs       — start a run (202 + run row); runs in bg
 //   GET  /account-linking/runs       — recent runs (newest first)
@@ -13,6 +15,7 @@ import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { runLinking } from '../accountlinking/engine.js';
 import { DEFAULT_RULES } from '../accountlinking/defaultRules.js';
+import { effectiveLinkingRules } from '../accountlinking/rulesMerge.js';
 import { requirePermission } from '../middleware/auth.js';
 import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
 
@@ -32,7 +35,11 @@ router.get('/account-linking/config', gate, async (_req, res) => {
     );
     if (!row) return res.json({ id: null, rules: DEFAULT_RULES, schedules: [], isActive: true, defaults: true });
     res.json({
-      id: row.id, rules: row.rules, schedules: row.schedules,
+      // The *effective* dictionary, not the stored one: the editor has to show
+      // what the engine runs, including signals shipped since this row was last
+      // saved (#1469). The merge is idempotent, so saving back what is shown
+      // changes nothing.
+      id: row.id, rules: effectiveLinkingRules(row.rules), schedules: row.schedules,
       isActive: row.isActive, updatedAt: row.updatedAt, updatedBy: row.updatedBy,
     });
   } catch (err) {

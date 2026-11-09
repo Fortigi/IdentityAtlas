@@ -10,9 +10,57 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
 import { DEFAULT_RULES } from './defaultRules.js';
-import { NON_HUMAN_PRINCIPAL_TYPES, fetchOrphanPrincipals, loadActiveLinkingRules } from './orphanQuery.js';
+import { effectiveLinkingRules } from './rulesMerge.js';
+import { PRE_LOGIN_NAME_FORM_RULES } from '../../test-utils/preShippedLinkingRules.js';
+import {
+  NON_HUMAN_PRINCIPAL_TYPES, ORPHAN_QUERY_PARAMS, orphanPrincipalsSql,
+  fetchOrphanPrincipals, loadActiveLinkingRules,
+} from './orphanQuery.js';
 
 beforeEach(() => { query.mockReset(); queryOne.mockReset(); });
+
+// ── orphanPrincipalsSql ──────────────────────────────────────────────────────
+//
+// The builder every orphan read goes through. Its whole job is that the three
+// row conditions — unlinked, live, human — are written once; a caller supplies
+// only a projection and cannot opt out of them.
+
+describe('orphanPrincipalsSql', () => {
+  it('always restricts to unlinked, live, human principals whatever the projection', () => {
+    const sql = orphanPrincipalsSql(`COUNT(*)::int AS n`);
+
+    expect(sql).toMatch(/SELECT COUNT\(\*\)::int AS n/);
+    expect(sql).toMatch(/LEFT JOIN "IdentityMembers" m ON m\."principalId" = p\."id"/);
+    expect(sql).toMatch(/m\."principalId" IS NULL/);
+    expect(sql).toMatch(/p\."deletedAt" IS NULL/);
+    expect(sql).toMatch(/COALESCE\(p\."principalType", ''\) <> ALL\(\$1::text\[\]\)/);
+  });
+
+  it('adds no join or trailing clause of its own when the caller passes none', () => {
+    // The engine's candidate load and orphan count call it bare, so a stray
+    // default join would silently change which rows either one sees.
+    const sql = orphanPrincipalsSql(`p."id"`);
+
+    expect(sql).not.toMatch(/LEFT JOIN "Systems"/);
+    expect(sql).not.toMatch(/ORDER BY/);
+  });
+
+  it('places a caller join before the WHERE and a caller tail after it', () => {
+    const sql = orphanPrincipalsSql(`p."id", s."displayName"`, {
+      joins: `LEFT JOIN "Systems" s ON s."id" = p."systemId"`,
+      tail: `ORDER BY p."id"`,
+    });
+
+    // Order is the correctness property: a join emitted after WHERE, or a tail
+    // before it, is a syntax error Postgres only reports at query time.
+    expect(sql.indexOf('LEFT JOIN "Systems"')).toBeLessThan(sql.indexOf('WHERE'));
+    expect(sql.indexOf('ORDER BY')).toBeGreaterThan(sql.indexOf('WHERE'));
+  });
+
+  it('binds $1 to exactly the non-human principal classes', () => {
+    expect(ORPHAN_QUERY_PARAMS).toEqual([NON_HUMAN_PRINCIPAL_TYPES]);
+  });
+});
 
 describe('fetchOrphanPrincipals', () => {
   it('selects principals with no IdentityMembers row, excluding the non-human types', async () => {
@@ -25,6 +73,18 @@ describe('fetchOrphanPrincipals', () => {
     // The exclusion is a bound parameter, not an interpolated literal.
     expect(sql).toMatch(/<> ALL\(\$1::text\[\]\)/);
     expect(params).toEqual([NON_HUMAN_PRINCIPAL_TYPES]);
+  });
+
+  it('restricts the orphan set to live principals — a soft-deleted account is not an orphan', async () => {
+    // A full sync stamps "deletedAt" on principals that vanished from the
+    // source rather than deleting the row, so every live-rows read has to
+    // filter it out. The behavioural proof is in the reports contract test;
+    // this pins the filter so it cannot be silently dropped from the one
+    // shared orphan definition.
+    query.mockResolvedValue({ rows: [] });
+    await fetchOrphanPrincipals();
+
+    expect(query.mock.calls[0][0]).toMatch(/(?:\w+\.)?"deletedAt" IS NULL/);
   });
 
   it('excludes exactly the three non-human principal classes', () => {
@@ -51,6 +111,20 @@ describe('loadActiveLinkingRules', () => {
     // Untouched default keys survive the merge.
     for (const key of Object.keys(DEFAULT_RULES)) expect(rules).toHaveProperty(key);
     expect(queryOne.mock.calls[0][0]).toMatch(/"AccountLinkingConfig"[\s\S]*"isActive" = true/);
+  });
+
+  it('merges a shipped signal into a saved dictionary that predates it (#1469)', async () => {
+    // The classification surfaces — the orphaned-accounts context plugin and the
+    // report — must read the same dictionary a run uses, or the report lists an
+    // account as outstanding work under rules the engine no longer applies. One
+    // merge, two consumers: this answers with what engine.js's loadRules answers.
+    queryOne.mockResolvedValue({ rules: PRE_LOGIN_NAME_FORM_RULES });
+
+    const rules = await loadActiveLinkingRules();
+
+    expect(rules.signals).toEqual(effectiveLinkingRules(PRE_LOGIN_NAME_FORM_RULES).signals);
+    expect(rules.signals.find(s => s.name === 'loginNameForm'))
+      .toEqual(DEFAULT_RULES.signals.find(s => s.name === 'loginNameForm'));
   });
 
   it('falls back to the defaults when no active config row exists', async () => {

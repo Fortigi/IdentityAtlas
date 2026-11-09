@@ -32,3 +32,22 @@ export async function deleteSystemScopedRows(pool, systemId) {
     await pool.query(`DELETE FROM "${table}" WHERE "${column}" = $1`, [systemId]);
   }
 }
+
+/**
+ * The whole afterAll of a contract file that booted the app and seeded one
+ * system: delete its rows, optionally re-refresh the permission matview so the
+ * next file doesn't see stale cells, close the pool, and drop the USE_SQL flag
+ * (singleFork — env mutations leak across files).
+ *
+ * @param {import('pg').Pool} pool
+ * @param {number|string} systemId
+ * @param {{ refreshPermissions?: boolean }} [opts]
+ */
+export async function closeSystemContract(pool, systemId, { refreshPermissions = false } = {}) {
+  await deleteSystemScopedRows(pool, systemId);
+  if (pool && refreshPermissions) {
+    await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
+  }
+  await pool?.end();
+  delete process.env.USE_SQL;
+}

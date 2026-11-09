@@ -37,7 +37,7 @@ export function applyFileSecrets(env = process.env, { names = FILE_SECRET_NAMES,
     try {
       value = readFile(filePath, 'utf8');
     } catch (err) {
-      throw new Error(`${name}_FILE is set but ${filePath} could not be read: ${err.code || err.message}`);
+      throw new Error(`${name}_FILE is set but ${filePath} could not be read: ${err.code || err.message}`, { cause: err });
     }
     value = value.replace(/\r?\n$/, '');
     if (!value) throw new Error(`${name}_FILE points at an empty file (${filePath})`);

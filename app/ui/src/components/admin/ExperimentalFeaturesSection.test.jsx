@@ -6,10 +6,21 @@
 //   • the experimental crawlers shipping in this build are listed by name
 //   • the switch POSTs the right feature name and the flipped value
 //   • the copy tells the operator that turning it off keeps existing crawlers
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createElement as h } from 'react';
+
+// Which shipped types are experimental changes over time — at times none are —
+// so the list is driven from a fixture registry the tests can swap, with the
+// REAL selector doing the filtering. Neutral ids: app/ui/ carries no type literals.
+const PREVIEW = { id: 'preview-one', name: 'Preview One', description: 'not yet proven', experimental: true };
+const STABLE = { id: 'stable-one', name: 'Stable One', description: 'an ordinary type' };
+const registry = vi.hoisted(() => ({ types: [] }));
+vi.mock('@ui/utils/crawlerMetaRegistry', async (importOriginal) => {
+  const real = await importOriginal();
+  return { ...real, experimentalCrawlerTypes: (types) => real.experimentalCrawlerTypes(types ?? registry.types) };
+});
+
 import ExperimentalFeaturesSection from './ExperimentalFeaturesSection';
-import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
 import {
   renderWithProviders,
   makeAuthFetch,
@@ -20,6 +31,7 @@ import {
 } from '@ui/test-utils/renderWithProviders';
 
 let reload;
+afterEach(() => { registry.types = []; });
 beforeEach(() => {
   // The toggle hard-reloads so the Crawlers tab re-reads the flag; jsdom can't navigate.
   reload = vi.fn();
@@ -34,11 +46,11 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports and contextAssistant follow matrixSharing for the same reason.
+// customReports, contextAssistant, mcpServer, orgKnowledge and the two source-owner settings follow matrixSharing for the same reason.
 function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing },
+      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, mcpServer: matrixSharing, sourceOwnerAccountables: matrixSharing, sourceOwnerNameMatch: matrixSharing, orgKnowledge: matrixSharing },
       version: EDGE_VERSION,
     }),
     { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
@@ -50,9 +62,9 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Four cards: experimental crawlers off; matrix sharing, custom reports and the context assistant on.
+    // Eight cards: experimental crawlers off; matrix sharing, custom reports, the context assistant, the MCP server, organisation knowledge and both source-owner settings on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(3);
+    expect(screen.getAllByText('Enabled')).toHaveLength(7);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -60,19 +72,24 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(3);
+    expect(screen.getAllByText('Disabled')).toHaveLength(7);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
-    // Read from the registry rather than naming a crawler: which types are
-    // experimental changes over time, and app/ui/ must carry no type literals.
-    const types = experimentalCrawlerTypes();
-    expect(types.length).toBeGreaterThan(0);
+    registry.types = [STABLE, PREVIEW];
     render(false);
-    for (const t of types) {
-      expect(await screen.findByText(t.name), t.id).toBeInTheDocument();
-      expect(screen.getByText(t.description), t.id).toBeInTheDocument();
-    }
+    expect(await screen.findByText(PREVIEW.name)).toBeInTheDocument();
+    expect(screen.getByText(PREVIEW.description)).toBeInTheDocument();
+    // Only the experimental one — an ordinary type is not "covered by the switch".
+    expect(screen.queryByText(STABLE.name)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ships no experimental crawlers/i)).not.toBeInTheDocument();
+  });
+
+  it('says the build ships no experimental crawlers when none are flagged', async () => {
+    registry.types = [STABLE];
+    render(false);
+    expect(await screen.findByText('This build ships no experimental crawlers.')).toBeInTheDocument();
+    expect(screen.queryByText(STABLE.name)).not.toBeInTheDocument();
   });
 
   it('explains that turning the flag off leaves an already-configured crawler running', async () => {
@@ -153,6 +170,46 @@ describe('ExperimentalFeaturesSection', () => {
       renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
         { auth: { authFetch: makeAuthFetch({}) } });
       expect(await screen.findByRole('switch', { name: 'Matrix sharing' })).toBeDisabled();
+    });
+  });
+
+  describe('Organisation knowledge', () => {
+    it('turns it ON by posting orgKnowledge:true, and says the text goes to the model', async () => {
+      const { authFetch } = render(true, undefined, false);
+      const sw = await screen.findByRole('switch', { name: 'Organisation knowledge' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'));
+      expect(screen.getByText(/the text of what is uploaded is sent/)).toBeInTheDocument();
+      await userEvent.click(sw);
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'orgKnowledge', enabled: true });
+    });
+  });
+
+  describe('Accountables from source owners', () => {
+    it('reads its own flag and turns it OFF by posting sourceOwnerAccountables:false', async () => {
+      const { authFetch } = render(true, undefined, true);
+      const sw = await screen.findByRole('switch', { name: 'Accountables from source owners' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'true'));
+      await userEvent.click(sw);
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'sourceOwnerAccountables', enabled: false });
+    });
+
+    it('the name match is its own switch: turning it ON posts sourceOwnerNameMatch:true', async () => {
+      const { authFetch } = render(false, undefined, false);
+      const sw = await screen.findByRole('switch', { name: '…also match owners by name' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'));
+      await userEvent.click(sw);
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'sourceOwnerNameMatch', enabled: true });
+    });
+
+    it('says that switching it off leaves every Accountable as it is', async () => {
+      render(false);
+      expect(await screen.findByText(/Turning this off leaves every Accountable as it is/)).toBeInTheDocument();
     });
   });
 

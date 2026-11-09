@@ -191,3 +191,29 @@ describe('manager-hierarchy plugin', () => {
     expect(memberOf(out, 'ic1-uuid')).toEqual(['root']);
   });
 });
+
+describe('manager-hierarchy — who answers for a team', () => {
+  it('states every manager as the Accountable of their own node, and nobody for the root', async () => {
+    const plugin = await loadPluginWithRows([
+      { id: 'mgr-uuid', displayName: 'Mia', managerId: null, department: 'Ops' },
+      { id: 'ic', displayName: 'Ian', managerId: 'mgr-uuid', department: 'Ops' },
+    ]);
+    const out = await plugin.run({ scopeSystemId: 1 }, {});
+    expect(out.roles).toEqual([{ contextExternalId: 'mgr-uuid', principalId: 'mgr-uuid', role: 'Accountable' }]);
+    expect(plugin.contextCategory).toBe('OrganizationalUnit');
+  });
+});
+
+describe('manager-hierarchy — soft-deleted principals', () => {
+  it('builds the tree from live principals only', async () => {
+    vi.resetModules();
+    const query = vi.fn(async () => ({ rows: [] }));
+    vi.doMock('../../db/columnCache.js', () => ({ getPrincipalColumns: vi.fn(async () => []) }));
+    vi.doMock('../../db/connection.js', () => ({ query }));
+    const { default: plugin } = await import('./manager-hierarchy.js');
+    await plugin.run({ scopeSystemId: 1 }, {});
+    const principalsSql = query.mock.calls.map(c => c[0])
+      .find(sql => /FROM "Principals"\s+WHERE "systemId" = \$1/.test(sql) && !/jsonb_object_keys/.test(sql));
+    expect(principalsSql).toMatch(/WHERE "systemId" = \$1\s+AND "deletedAt" IS NULL/);
+  });
+});

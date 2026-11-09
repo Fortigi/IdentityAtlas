@@ -61,11 +61,15 @@ async function accessPackageResourcesHandler(req, res) {
       //    (ap, resource) row shape — most callers want the grouped view.
       const result = await timedQuery(p, 'ap-groups', res, `
         WITH ac AS (
-          SELECT "resourceId", COUNT(*)::int AS cnt
-            FROM "ResourceAssignments"
-           WHERE ("state" = 'delivered' OR "state" IS NULL)
-             AND "governed" = true
-           GROUP BY "resourceId"
+          -- Live assignments held by live principals only (soft delete,
+          -- migration 040) — deleted rows are history, not current members.
+          SELECT ra."resourceId", COUNT(*)::int AS cnt
+            FROM "ResourceAssignments" ra
+            JOIN "Principals" pr ON pr.id = ra."principalId" AND pr."deletedAt" IS NULL
+           WHERE (ra."state" = 'delivered' OR ra."state" IS NULL)
+             AND ra."governed" = true
+             AND ra."deletedAt" IS NULL
+           GROUP BY ra."resourceId"
         )
         SELECT
           ap.id                            AS "accessPackageId",
@@ -96,12 +100,16 @@ async function accessPackageResourcesHandler(req, res) {
         LEFT JOIN "ResourceRelationships" rrs
                ON rrs."parentResourceId" = ap.id
               AND rrs."relationshipType" = 'Contains'
+              -- A child resource deleted in the source is no longer granted.
+              AND NOT EXISTS (SELECT 1 FROM "Resources" dr
+                               WHERE dr.id = rrs."childResourceId" AND dr."deletedAt" IS NOT NULL)
         LEFT JOIN "Resources" r ON rrs."childResourceId" = r.id
         LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
         LEFT JOIN ac ON ac."resourceId" = ap.id
         LEFT JOIN "GovernanceCategoryAssignments" ca ON ap.id::text = ca."resourceId"
         LEFT JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
         WHERE ap."resourceType" = 'BusinessRole'
+          AND ap."deletedAt" IS NULL
         GROUP BY ap.id, ap."displayName", ap."systemId", c."displayName",
                  ac.cnt, cat.id, cat."name", cat."color"
         ORDER BY ap."displayName"

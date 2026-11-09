@@ -711,6 +711,26 @@ describe('IdentityIQ presets match the real schema', () => {
     for (const q of statements.filter(s => s.target !== 'resources')) expect(q.ownership).toBeUndefined();
   });
 
+  // The owner becomes the logical application's Accountable in Identity Atlas.
+  // Some deployments leave "owner" empty and fill the application owner key
+  // instead (all keys lower case in spt_custom); the order is the point: "owner"
+  // wins whenever it is set, a blank one does not.
+  it('takes a logical application\'s owner from "owner", falling back to the application owner key', () => {
+    const apps = statements.filter(s => s.name === 'Logical applications');
+    expect(apps.length).toBeGreaterThan(0);
+    for (const q of apps) {
+      const sql = q.sql.replace(/--[^\n]*/g, '');
+      expect(sql.match(/AS ownerUserId/g)).toHaveLength(1);
+      const m = sql.match(/COALESCE\(\s*NULLIF\(LTRIM\(RTRIM\((.*?)\)\), ''\),\s*NULLIF\(LTRIM\(RTRIM\((.*?)\)\), ''\)\s*\) AS ownerUserId/s);
+      expect(m, `${q.preset} / ${q.name}`).not.toBeNull();
+      expect(m[1]).toContain('entry[@key="owner"]/@value');
+      expect(m[1]).not.toMatch(/applicationowner/i);
+      expect(m[2]).toContain('@key="applicationowner"');
+      // The attribute keeps the catalogue's own value next to it.
+      expect(sql).toMatch(/AS applicationOwner,/);
+    }
+  });
+
   // The grant statements are the only ones large enough for a full read to be an
   // event rather than an operation, so they are the only ones that read a window
   // — and therefore the only ones that need a sweep to see a removal at all.

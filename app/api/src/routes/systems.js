@@ -24,6 +24,10 @@ if (useSql) {
 // load-test dataset (1.5M assignments × 126 systems) that ran in 45 seconds
 // because each subquery scanned ResourceAssignments once per system. The
 // CTE version below does one pass per child table total.
+//
+// Every count is of CURRENT rows only: a full sync soft-deletes (sets
+// "deletedAt") what vanished from the source, and that history must not
+// inflate the totals shown on the Systems page.
 router.get('/systems', async (req, res) => {
   try {
     if (!useSql) return res.json([]);
@@ -35,11 +39,13 @@ router.get('/systems', async (req, res) => {
                json_agg(DISTINCT "resourceType") FILTER (WHERE "resourceType" IS NOT NULL)
                  AS "computedResourceTypes"
           FROM "Resources"
+         WHERE "deletedAt" IS NULL
          GROUP BY "systemId"
       ),
       princ_counts AS (
         SELECT "systemId", COUNT(*) AS "principalCount"
           FROM "Principals"
+         WHERE "deletedAt" IS NULL
          GROUP BY "systemId"
       ),
       ra_counts AS (
@@ -52,6 +58,7 @@ router.get('/systems', async (req, res) => {
                  AS "computedAssignmentTypes"
           FROM "ResourceAssignments" ra
          WHERE ra."systemId" IS NOT NULL
+           AND ra."deletedAt" IS NULL
          GROUP BY ra."systemId"
       )
       SELECT s.*,
@@ -82,18 +89,22 @@ router.get('/systems/:id', async (req, res) => {
     const p = await db.getPool();
     const result = await timedQuery(p, 'system-detail', res, `
         SELECT s.*,
-          (SELECT COUNT(*) FROM "Resources" r WHERE r."systemId" = s.id) AS "resourceCount",
-          (SELECT COUNT(*) FROM "Principals" p WHERE p."systemId" = s.id) AS "principalCount",
+          (SELECT COUNT(*) FROM "Resources" r
+           WHERE r."systemId" = s.id AND r."deletedAt" IS NULL) AS "resourceCount",
+          (SELECT COUNT(*) FROM "Principals" p
+           WHERE p."systemId" = s.id AND p."deletedAt" IS NULL) AS "principalCount",
           (SELECT COUNT(*) FROM "ResourceAssignments" ra
            INNER JOIN "Resources" r ON ra."resourceId" = r.id
-           WHERE r."systemId" = s.id) AS "assignmentCount",
+           WHERE r."systemId" = s.id AND ra."deletedAt" IS NULL) AS "assignmentCount",
           (SELECT json_agg(rt."resourceType")
            FROM (SELECT DISTINCT "resourceType" FROM "Resources"
-                 WHERE "systemId" = s.id AND "resourceType" IS NOT NULL) rt) AS "computedResourceTypes",
+                 WHERE "systemId" = s.id AND "resourceType" IS NOT NULL
+                   AND "deletedAt" IS NULL) rt) AS "computedResourceTypes",
           (SELECT json_agg(at."assignmentType")
            FROM (SELECT DISTINCT "assignmentType" FROM "ResourceAssignments" ra2
                  INNER JOIN "Resources" r2 ON ra2."resourceId" = r2.id
-                 WHERE r2."systemId" = s.id AND ra2."assignmentType" IS NOT NULL) at) AS "computedAssignmentTypes"
+                 WHERE r2."systemId" = s.id AND ra2."assignmentType" IS NOT NULL
+                   AND ra2."deletedAt" IS NULL) at) AS "computedAssignmentTypes"
         FROM "Systems" s
         WHERE s.id = $1
       `, [req.params.id]);
@@ -158,6 +169,8 @@ router.get('/systems/:id/owners', async (req, res) => {
         FROM "SystemOwners" so
         LEFT JOIN "Principals" u ON so."userId" = u.id
         WHERE so."systemId" = $1
+          -- a soft-deleted principal is no longer a current owner
+          AND u."deletedAt" IS NULL
         ORDER BY u."displayName"
       `, [req.params.id]);
     return res.json(result.rows);

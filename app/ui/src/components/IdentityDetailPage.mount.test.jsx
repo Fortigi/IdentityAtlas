@@ -143,6 +143,29 @@ describe('IdentityDetailPage (mounted)', () => {
     );
   });
 
+  it('switches to the Diff tab and shows the earlier state next to the current one', async () => {
+    const diff = {
+      at: '2026-09-01T00:00:00.000Z', historySince: null, relationshipsTracked: true, omittedUnchanged: 0,
+      before: { exists: true, deleted: false, attributes: { department: 'Sales' }, relationships: [] },
+      after: { exists: true, deleted: false, attributes: { department: 'Engineering' }, relationships: [
+        { key: 'accounts:x', group: 'Linked accounts', label: 'dana@corp.com', kind: 'user', id: 'p-1', detail: 'primary' },
+      ] },
+    };
+    // routes() matches by substring in order, and the bare detail key would
+    // catch /diff — so answer the diff first.
+    const base = routes();
+    const authFetch = vi.fn((url, opts) => (url.includes('/diff?') ? makeAuthFetch({ '/diff': diff })(url) : base(url, opts)));
+    renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    await screen.findByText('Dana Doe');
+    await user.click(screen.getByRole('tab', { name: /^Diff$/i }));
+
+    expect(await screen.findByText('Sales')).toBeInTheDocument();
+    expect(screen.getByText('Linked accounts')).toBeInTheDocument();
+    expect(authFetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/identities\/id-1\/diff\?at=/));
+  });
+
   it('shows the Risk tab when risk data + feature flag are present', async () => {
     renderWithProviders(h(IdentityDetailPage, baseProps), { auth: { authFetch: routes() } });
     const user = userEvent.setup();

@@ -146,6 +146,43 @@ describe('details — happy paths (200)', () => {
   }
 });
 
+// Soft delete: relationship lists keep history but flag it (deleted + deletedAt,
+// current first); the counts behind the detail bubbles include live rows only.
+// SQL-blind mock — this pins the shape; resourceAndRoleDetailHistory.contract.test.js
+// proves the behaviour against the real schema.
+describe('details — soft-deleted rows are flagged in lists and left out of counts', () => {
+  beforeEach(() => {
+    stageQuery.mockResolvedValue({ recordset: [GENERIC] });
+    dbQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+  });
+  const sqlFor = (label) => stageQuery.mock.calls.find((c) => c[1] === label)?.[3];
+
+  it.each([
+    ['/api/access-package/ID/assignments', 'ap-assignments', 'LEAST(a."deletedAt", u."deletedAt") AS "deletedAt"'],
+    ['/api/access-package/ID/resource-roles', 'ap-resource-roles', 'r."deletedAt" AS "deletedAt"'],
+    ['/api/group/ID/access-packages', 'group-access-packages', 'ap."deletedAt" AS "deletedAt"'],
+  ])('%s flags history', async (path, label, deletedAtExpr) => {
+    await request(app).get(path.replace('ID', VALID_ID));
+    const sql = sqlFor(label);
+    expect(sql).toContain('AS "deleted"');
+    expect(sql).toContain(deletedAtExpr);
+    expect(sql).toMatch(/ORDER BY "deleted",/);
+  });
+
+  it('access-package counts exclude deleted assignments, principals and contained resources', async () => {
+    await request(app).get(`/api/access-package/${VALID_ID}`);
+    const assignments = sqlFor('ap-assignment-count');
+    expect(assignments).toContain('a."deletedAt" IS NULL');
+    expect(assignments).toContain('p."deletedAt" IS NOT NULL');
+    expect(sqlFor('ap-group-count')).toContain('r."deletedAt" IS NOT NULL');
+  });
+
+  it('group business-role count excludes deleted roles', async () => {
+    await request(app).get(`/api/group/${VALID_ID}`);
+    expect(sqlFor('group-ap-count')).toContain('ap."deletedAt" IS NOT NULL');
+  });
+});
+
 // Error-handling branches of the split modules. A real (non-schema) error on the
 // PRIMARY query of each handler must surface as the handler's failure response —
 // a 500 for the detail/list endpoints, a graceful empty body for the lazy
@@ -242,6 +279,47 @@ describe('access-package detail — compliance status of the latest review insta
       expect(res.body.complianceStatus).toBe(expected);
     });
   }
+});
+
+// Soft delete on the user side (migration 040). SQL-blind mock — this pins the SQL
+// the user endpoints SEND: counts are of live counterparties / current grants,
+// the relationship list keeps history but flags it. The rows themselves are
+// checked by contract-tests/identityAndPeopleHistory.contract.test.js.
+describe('user endpoints — soft-deleted counterparties, reports and grants', () => {
+  const userSqlFor = (label) => stageQuery.mock.calls.find((c) => c[1] === label)?.[3];
+
+  beforeEach(() => {
+    stageQuery.mockResolvedValue({ recordset: [GENERIC] });
+    dbQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+  });
+
+  it('GET /user/:id counts only live counterparties, reports, grants and linked apps', async () => {
+    await request(app).get(`/api/user/${VALID_ID}`);
+    // The counterparty is the OTHER end of the link, and it must be live.
+    expect(userSqlFor('user-principal-relationships')).toMatch(
+      /JOIN "Principals" cp\s+ON cp\.id = CASE WHEN pr\."principalId"::text = \$1 THEN pr\."relatedPrincipalId" ELSE pr\."principalId" END\s+AND cp\."deletedAt" IS NULL/);
+    expect(userSqlFor('user-reports-count')).toContain('"managerId" = $1 AND "deletedAt" IS NULL');
+    const grants = userSqlFor('user-oauth2-grant-count');
+    expect(grants).toContain('a."deletedAt" IS NULL');
+    expect(grants).toContain('scope_res."deletedAt" IS NULL');
+    expect(userSqlFor('user-linked-resource')).toContain(`"resourceType" = 'Application' AND "deletedAt" IS NULL`);
+  });
+
+  it('GET /user/:id/principal-relationships flags a deleted counterparty and lists current ones first', async () => {
+    stageQuery.mockResolvedValueOnce({ rows: [{ principalId: 'b', deleted: false }, { principalId: 'a', deleted: true }] });
+    const res = await request(app).get(`/api/user/${VALID_ID}/principal-relationships?type=Owner`);
+    expect(res.body.map((r) => r.deleted)).toEqual([false, true]);
+    const sql = userSqlFor('user-principal-relationships-list');
+    expect(sql).toContain('(p."deletedAt" IS NOT NULL) AS "deleted", p."deletedAt"');
+    expect(sql).toContain('ORDER BY "deleted", p."displayName"');
+  });
+
+  it('GET /user/:id/oauth2-grants leaves out deleted grants and scopes', async () => {
+    await request(app).get(`/api/user/${VALID_ID}/oauth2-grants`);
+    const sql = userSqlFor('user-oauth2-grants');
+    expect(sql).toContain('a."deletedAt" IS NULL');
+    expect(sql).toContain('scope_res."deletedAt" IS NULL');
+  });
 });
 
 describe('GET /user/:id/activity', () => {

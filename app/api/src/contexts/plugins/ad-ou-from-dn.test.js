@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import * as db from '../../db/connection.js';
 import plugin, { _internal } from './ad-ou-from-dn.js';
+
+vi.mock('../../db/connection.js');   // picks up src/db/__mocks__/connection.js
 
 const { parseOuChain, resolveDnExpression } = _internal;
 
@@ -51,5 +54,13 @@ describe('ad-ou-from-dn plugin metadata', () => {
   });
   it('requires scopeSystemId', () => {
     expect(plugin.parametersSchema.required).toContain('scopeSystemId');
+  });
+});
+
+describe('ad-ou-from-dn — soft-deleted principals', () => {
+  it('walks live principals only', async () => {
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await plugin.run({ scopeSystemId: 2 }, { log: () => {} });
+    expect(db.query.mock.calls.at(-1)[0]).toMatch(/WHERE "systemId" = \$1\s+AND "deletedAt" IS NULL/);
   });
 });

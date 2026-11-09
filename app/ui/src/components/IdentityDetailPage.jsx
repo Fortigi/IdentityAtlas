@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useFeatures from '@ui/hooks/useFeatures';
 import EntityDetailPage from './EntityDetailPage';
+import InterviewMentions from './contexts/interviews/InterviewMentions';
 import RiskScoreSection from './RiskScoreSection';
 import LinkedAccountsPanel from './LinkedAccountsPanel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 
 const SYSTEM_COLS = new Set([
   'SysStartTime', 'SysEndTime', 'ValidFrom', 'ValidTo',
@@ -72,6 +74,8 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
   const [riskData, setRiskData] = useState(null);
   const [busyMember, setBusyMember] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // A read-only view (a context owner, a shared matrix) cannot change an account link.
+  const readOnly = useIsSharedView();
 
   useEffect(() => {
     (async () => {
@@ -104,6 +108,7 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       { key: 'attributes', label: 'Attributes', count: entries.length },
       { key: 'relationships', label: 'Relationships' },
       { key: 'timeline', label: 'Timeline' },
+      { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
   }, [features, riskData]);
@@ -125,12 +130,15 @@ export default function IdentityDetailPage({ identityId, cachedData, onCacheData
       renderHeader={(data) => <IdentityHeader data={data} onOpenDetail={onOpenDetail} />}
       headerCard
       renderRelationshipsExtra={(data) => (
-        <LinkedAccountsPanel
-          members={data.members || []}
-          busyMember={busyMember}
-          onOverride={overrideMember}
-          onOpenDetail={onOpenDetail}
-        />
+        <>
+          <LinkedAccountsPanel
+            members={data.members || []}
+            busyMember={busyMember}
+            onOverride={readOnly ? undefined : overrideMember}
+            onOpenDetail={onOpenDetail}
+          />
+          <InterviewMentions holder={{ identityId }} onOpenDetail={onOpenDetail} />
+        </>
       )}
       renderRisk={riskData ? () => (
         <RiskScoreSection attributes={riskData} entityType="identities" entityId={identityId} authFetch={authFetch} />

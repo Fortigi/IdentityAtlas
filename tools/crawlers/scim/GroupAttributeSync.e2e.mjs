@@ -35,7 +35,6 @@ import {
   E2E_API as API,
   E2E_BASE as BASE,
   deleteCrawlerConfigs,
-  enableFeatureFlag,
 } from '../shared/wizardE2EKit.mjs';
 
 // Config names this spec creates, so cleanup can find them again.
@@ -220,11 +219,8 @@ export function register(test, expect) {
     // Scoped inside the describe: every crawler's *.e2e.mjs registers into the
     // single app/ui/e2e/crawler-plugin-tests.spec.js file, so a file-level hook
     // would also fire for other crawlers' tests.
-    let restoreExperimental = async () => {};
-    test.beforeAll(async () => { restoreExperimental = await enableFeatureFlag('experimentalCrawlers'); });
     test.afterAll(async () => {
       await deleteCrawlerConfigs(name => name.startsWith(CONFIG_PREFIX));
-      await restoreExperimental();
     });
 
     test('extension-schema group attributes reach the group instead of syncing empty', async ({ page }) => {

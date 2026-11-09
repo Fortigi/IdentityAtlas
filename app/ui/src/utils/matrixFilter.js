@@ -187,3 +187,79 @@ export function matrixFilterFingerprint(filter) {
   for (const key of VIEW_STATE_KEYS) delete normalized[key];
   return canonical(normalized);
 }
+
+// ─── A matrix scoped to one context ─────────────────────────────────────────
+//
+// The `#matrix?filter=…` link that opens the matrix filtered on a context (and
+// its sub-contexts), spelled the way App.jsx's buildMatrixHash writes it. The
+// context lands on the side its members live on: a resource or system context
+// filters the resources, an identity or account context the subjects — and an
+// identity context switches the rows to identities, the only subjects it can
+// filter. App.jsx reads the filter from the URL when the page loads, so the
+// link is meant to open in a new tab.
+const contextCondition = ctx => ({ kind: 'context', contextId: ctx.id, includeChildren: true });
+const holdsResources = ctx => ctx.targetType === 'Resource' || ctx.targetType === 'System';
+const matrixHref = filter => `#matrix?${new URLSearchParams({ filter: JSON.stringify(filter) })}`;
+
+// The filter behind "View in matrix" on a context: a context of resources or
+// systems filters the resources, an identity or account context the subjects.
+function contextMatrixFilter(ctx) {
+  const cond = contextCondition(ctx);
+  const onResources = holdsResources(ctx);
+  return {
+    rowType: ctx.targetType === 'Identity' ? 'identity' : 'principal',
+    subject: { include: onResources ? [] : [cond], exclude: [] },
+    resource: { include: onResources ? [cond] : [], exclude: [] },
+  };
+}
+
+export function matrixHrefForContext(ctx) {
+  return matrixHref(contextMatrixFilter(ctx));
+}
+
+// Columns bounded by one context-of-resources condition, every holder a row.
+const resourceAxisFilter = cond => ({
+  rowType: 'principal',
+  orientation: 'rows-as-subjects',
+  subject: { include: [], exclude: [] },
+  resource: { include: [cond], exclude: [] },
+});
+
+// The matrix an application's owner reads: the context's resources (and its
+// sub-contexts') as COLUMNS, every account holding any of them as a row. The
+// subjects are left unfiltered — the grid only lists subjects with a cell in
+// the scoped resources, so "everyone who holds one of them" is what the rows
+// are. The rotated view has no department fold (RotatedMatrixView.jsx), so a
+// large application opens as a long list until it gets one.
+export function matrixHrefForResourceContext(ctx) {
+  return matrixHref(resourceAxisFilter(contextCondition(ctx)));
+}
+
+// The filter a unit's page opens the matrix with: an application or resource
+// unit by its resources, a unit of accounts or people by its members.
+export function unitMatrixFilter(ctx) {
+  return holdsResources(ctx) ? resourceAxisFilter(contextCondition(ctx)) : contextMatrixFilter(ctx);
+}
+
+export function matrixHrefForUnit(ctx) {
+  return matrixHref(unitMatrixFilter(ctx));
+}
+
+// The matrix a context owner opens from their context's page is EXACTLY the
+// one an analyst opens from it (unitMatrixFilter): the same rows, the same
+// views — the business-role band, governed cells and the groups a role
+// contains are drawn by the ordinary matrix (MatrixView), which a rotated
+// one-off grid did not do. With all sub-contexts: an owner answers for
+// everything below theirs. The API refuses any wider filter from an owner
+// (app/api/src/auth/ownerAccess/matrixFilter.js).
+export const teamMatrixFilter = unitMatrixFilter;
+
+// The org-unit roll-up of a unit's matrix: the unit's sub-units (at any depth)
+// as collapsible column groups above the people, rooted at the unit itself —
+// the "Sort by Manager Hierarchy" an analyst picks, on this unit's own tree.
+// Only for a unit of accounts or people (the roll-up groups the people axis);
+// any other context's filter comes back unchanged.
+export function withUnitHierarchy(filter, ctx) {
+  if (holdsResources(ctx)) return filter;
+  return { ...filter, sortHierarchy: { contextId: ctx.id } };
+}

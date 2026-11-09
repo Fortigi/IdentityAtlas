@@ -51,7 +51,6 @@ const UNDOCUMENTED_FILES = new Set([
   'bulkLists.js',
   'categories.js',
   'contextPlugins.js',
-  'contexts.js',
   'crawlerFiles.js',
   'dataExport.js',
   'details.js',
@@ -108,6 +107,9 @@ const INTENTIONALLY_UNDOCUMENTED = {
   // internal ingest / seed helpers (ingest.js)
   'POST /ingest/classify-business-role-assignments': 'internal-ingest',
   'POST /ingest/context-members': 'internal-ingest',
+  // Context roles + SameUnitAs links from a crawler (ingest/contextLinks.js).
+  'POST /ingest/context-relationships': 'internal-ingest',
+  'POST /ingest/context-roles': 'internal-ingest',
   'POST /ingest/matrix-default-filter': 'internal-ingest',
   'POST /ingest/principal-activity': 'internal-ingest',
   'POST /ingest/principals-presence': 'internal-ingest',
@@ -117,8 +119,8 @@ const INTENTIONALLY_UNDOCUMENTED = {
 };
 const ALLOWLISTED_OPS = new Set(Object.keys(INTENTIONALLY_UNDOCUMENTED));
 
-// Express `:param` -> OpenAPI `{param}` so the two sides compare apples to apples.
-const toOpenApiPath = (p) => p.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
+// Express `:param` / `*wildcard` -> OpenAPI `{param}` so the two sides compare apples to apples.
+const toOpenApiPath = (p) => p.replace(/[:*]([A-Za-z0-9_]+)/g, '{$1}');
 const key = (method, path) => `${method.toUpperCase()} ${path}`;
 
 // An Express Router is a middleware function carrying a `.stack` of layers. This

@@ -169,6 +169,63 @@ The `useRecentChanges` hook surfaces `addedCount`, `removedCount`, and an `added
 
 ---
 
+## Diff tab
+
+The Diff tab sits next to Timeline. The analyst picks a past moment T. The left column shows the entity as it was at T, the right column shows it now, and the rows are aligned like a two-file compare: every attribute (including flattened `extendedAttributes`) and every relationship, grouped (Manager, Business roles, Groups, Members, Contains, Part of, Linked accounts…).
+
+### Rebuilding the past from `_history`
+
+A `_history` row stores the row's state *before* the change in `prevData`. So the state of any row at T is the `prevData` of its **first change after T**. When nothing changed after T, it is the row as it is now. When that first change is an insert, the row did not exist at T. Soft-deleted rows (`deletedAt` set) count as absent.
+
+This works the same for the entity's own row and for every relationship row. It also holds when history began after the initial load (migration 073), because an untouched row simply reads as unchanged.
+
+### Endpoint shape
+
+```
+GET /api/<kind>/:id/diff?at=<ISO, in the past>
+
+{
+  "at": "2026-09-27T00:00:00.000Z",
+  "historySince": "2026-06-01T08:00:00Z",   // earliest _history row
+  "relationshipsTracked": true,             // false for contexts (ContextMembers isn't history-tracked)
+  "omittedUnchanged": 0,                    // unchanged relationship rows left out by the cap
+  "before": { "exists": true, "deleted": false, "attributes": { … }, "relationships": [item] },
+  "after":  { … same shape … }
+}
+item = { key, group, label, kind, id, detail }
+```
+
+The relationship sources per entity kind live in `routes/recentChanges/snapshot.js` (`RELATIONSHIP_SOURCES`), and each lookup is served by the migration-055 partial indexes. Unchanged relationship rows are read from the live table and capped at 2,000 per source. A capped row is left out of **both** sides, so the diff stays correct and the response reports how many were omitted.
+
+### One view for any two snapshots
+
+The UI never assumes the left side is the past. `diffSnapshots(before, after)` (`components/entityDiff.helpers.js`) compares any two snapshots of this shape, and `SnapshotDiffView` renders the result. To compare the current state with a *proposed* state later, build the proposed snapshot and pass it in. Neither the diff helper nor the view needs to change.
+
+### Caveats
+
+- Before `historySince`, nothing is known. Rows loaded by a system's first sync have no insert event either, so a moment before that load shows those rows as already present. The tab shows a note when T is before `historySince`.
+- Context membership (`ContextMembers`) is not history-tracked, so a context's diff covers its own attributes only.
+
+---
+
+## Compare tab
+
+The Compare tab shows two or three users side by side, as they are now, with one column each. Where the Diff tab compares one entity at two moments, Compare looks at different entities at the same moment. It answers "these users look alike, so where do they differ?" It opens from **Compare with…** on a user's page, or from **Compare** on the Users list once 2–3 rows are selected. The ids live in the tab's address (`#compare:<id>,<id>[,<id>]`), so a comparison can be bookmarked or shared. Adding or removing a user gives the open tab a new address in place (`replaceTabId` in `App.helpers.js`).
+
+```
+GET /api/<user|resources|access-package|identities>/:id/snapshot
+
+{ "id": "…", "omitted": 0, "snapshot": { "exists", "deleted", "attributes", "relationships": [item] } }
+```
+
+The snapshot has the same shape as one side of the diff, and it is built by the same code (`buildCurrentSnapshot` in `snapshot.js`). The UI fetches **one snapshot per entity**, so each is access-checked like any other detail read: the `/snapshot` paths are listed in `auth/ownerAccess/endpoints.js`. A multi-id endpoint would have needed its own owner-access rule.
+
+**Item keys never contain the viewed entity's own id.** The key names the relationship from the entity's side only, for example `heldResources:<resourceId>|<assignmentType>`. So the same group held the same way by two users gets the same key, and the two land on one row. Within one entity the key is still unique, so the Diff tab is unaffected.
+
+`compareSnapshots(snapshots)` (`components/compare/entityCompare.helpers.js`) marks each row `same` or `differs`. A relationship differs when one entity lacks it or holds it differently (`detail`). By default the view shows only the rows that differ, and it hides naming fields such as display name, UPN, e-mail and object ids, which differ between any two accounts by definition.
+
+---
+
 ## Adding a new entity kind
 
 To give a new entity kind its own detail page with the graph + recent-changes treatment:

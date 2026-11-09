@@ -169,3 +169,13 @@ describe('LinkedAccountsPanel (mounted)', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 });
+
+// A linked account deleted in the source stays listed (it is part of who the
+// person was) but must not pass for a live account.
+describe('LinkedAccountsPanel — deleted account', () => {
+  it('badges only the deleted account', () => {
+    renderPanel({ members: [scored, { ...sourceLinked, deleted: true, deletedAt: '2026-09-08T14:32:00Z' }] });
+    expect(within(rowFor('ddoe-adm')).getByText('Deleted in source')).toBeInTheDocument();
+    expect(within(rowFor('Dana Doe')).queryByText('Deleted in source')).not.toBeInTheDocument();
+  });
+});

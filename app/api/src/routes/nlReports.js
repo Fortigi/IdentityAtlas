@@ -24,8 +24,8 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../featureFlags.js';
-import { ENTITIES, OPERATORS, OPERATORS_BY_TYPE, fieldsOf } from '../nlreports/catalog.js';
-import { availableColumns, groupableFields } from '../nlreports/spec.js';
+import { ENTITIES } from '../nlreports/catalog.js';
+import { buildCatalogPayload } from '../nlreports/catalogPayload.js';
 import { loadExtFields } from '../nlreports/extFields.js';
 import { applyResolveChoice, ensureWarm, interpret, loadValues, runSpec, warmupState } from '../nlreports/service.js';
 import {
@@ -42,7 +42,6 @@ import {
 // other shared HTTP helpers now. Kept on this module so its own tests still import it here.
 export { parseInterpretRequest };
 import { getReportModel, setReportModel } from '../nlreports/settings.js';
-import { MEASURES, manyRelationsOf } from '../nlreports/compare.js';
 import { resolveNamedObjects, searchNames } from '../nlreports/references.js';
 import { PREVIOUS_SENTINEL, validateSpec } from '../nlreports/spec.js';
 import { carriedRecords, carryForward, narrowToPrevious, previousContextBlock, usedPrevious } from '../nlreports/followUp.js';
@@ -95,31 +94,7 @@ function fail(res, route, err, status = 500) {
 
 router.get('/nl-reports/catalog', builderGate, async (req, res) => {
   try {
-    const values = await loadValues();
-    // This deployment's own extendedAttributes fields are part of the catalog the
-    // builder offers: an attribute you can filter a list on is one you can build a
-    // report on. `discovered` travels with them so the UI can keep them apart from
-    // the fields every install has.
-    const extFields = await loadExtFields();
-    const entities = Object.fromEntries(Object.entries(ENTITIES).map(([name, e]) => [name, {
-      label: e.label,
-      table: e.table,
-      description: e.description,
-      compareRelations: manyRelationsOf(name),
-      defaultColumns: e.defaultColumns,
-      fields: Object.entries(fieldsOf(name, extFields)).map(([fname, f]) => ({
-        name: fname, label: f.label, type: f.type,
-        values: f.valuesFrom ? values[f.valuesFrom] || [] : undefined,
-        discovered: f.discovered || undefined,
-      })),
-      relations: Object.entries(e.relations).map(([rname, r]) => ({ name: rname, label: r.label, target: r.target, cardinality: r.cardinality })),
-      columns: availableColumns(name, extFields).map(({ key, label, discovered }) => ({ key, label, discovered })),
-      groupableFields: groupableFields(name, extFields),
-    }]));
-
-    const operators = Object.fromEntries(Object.entries(OPERATORS).map(([k, o]) => [k, { label: o.label, needsValue: o.needsValue }]));
-    const compareMeasures = Object.fromEntries(Object.entries(MEASURES).map(([k, m]) => [k, m.label]));
-    res.json({ entities, operators, operatorsByType: OPERATORS_BY_TYPE, compareMeasures });
+    res.json(await buildCatalogPayload());
   } catch (err) {
     fail(res, 'catalog', err);
   }

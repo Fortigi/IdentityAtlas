@@ -45,6 +45,13 @@ describe('GET /risk-scores summary', () => {
     expect(sqlFor('risk-scored-at')).toMatch(/LIMIT\s+1\b/);
   });
 
+  it('keeps soft-deleted principals and resources out of the top-10 and the type breakdown', async () => {
+    await request(app).get('/risk-scores');
+    expect(sqlFor('risk-top-users')).toContain('ON rs."entityId" = p.id AND p."deletedAt" IS NULL');
+    expect(sqlFor('risk-top-resources')).toContain('ON rs."entityId" = r.id AND r."deletedAt" IS NULL');
+    expect(sqlFor('risk-resource-types')).toContain('ON rs."entityId" = r.id AND r."deletedAt" IS NULL');
+  });
+
   it('aggregates tier distribution and totals into the summary object', async () => {
     responses = {
       'risk-tier-distribution': [

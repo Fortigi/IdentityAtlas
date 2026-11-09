@@ -16,12 +16,18 @@ import { requirePermission } from '../../middleware/auth.js';
 import { createParams } from '../../db/sqlParams.js';
 import { buildSearchWhere } from '../../lib/entitySearch.js';
 import { visibleResourceTypesSql } from '../../lib/resourceVisibility.js';
+import { NOT_TAG_ROOT_SQL } from '../../lib/tagRoot.js';
 import { useSql, db, ensureTagTables, buildFilterWhere, ENTITY_TO_TARGET, UUID_RE } from './shared.js';
 import { extractRelFilters, buildRelationshipWhere, storeForEntityType } from '../../lib/referenceFilters.js';
 import { extractSystemFilter, systemFilterWhere } from '../../lib/systemFilter.js';
 
 const router = Router();
 const writeTags = requirePermission('data.write.tags');
+
+// "A tag": a Tag context that is not the synthetic Tags root (lib/tagRoot.js).
+// Every read, update or delete of a tag by id goes through this predicate so
+// the root can neither be edited nor deleted as if it were a tag.
+const TAG_ROW_SQL = `"contextType" = 'Tag' AND ${NOT_TAG_ROOT_SQL}`;
 
 // Validate hex color format (#000000 – #ffffff)
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -81,7 +87,7 @@ router.post('/tags', writeTags, async (req, res) => {
 
     // Enforce name-uniqueness per target type (the old UQ_GraphTags_Name_Type constraint).
     const dup = await db.queryOne(
-      `SELECT id FROM "Contexts" WHERE "contextType" = 'Tag' AND "variant" = 'manual'
+      `SELECT id FROM "Contexts" WHERE ${TAG_ROW_SQL} AND "variant" = 'manual'
          AND "targetType" = $1 AND "displayName" = $2`,
       [targetType, name.trim()]
     );
@@ -126,7 +132,7 @@ router.patch('/tags/:id', writeTags, async (req, res) => {
     if (color && !HEX_COLOR_RE.test(color)) return res.status(400).json({ error: 'color must be a hex value like #3b82f6' });
 
     const existing = await db.queryOne(
-      `SELECT * FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      `SELECT * FROM "Contexts" WHERE id = $1 AND ${TAG_ROW_SQL}`,
       [id]
     );
     if (!existing) return res.status(404).json({ error: 'Tag not found' });
@@ -158,7 +164,7 @@ router.delete('/tags/:id', writeTags, async (req, res) => {
     const id = requireValidTagId(req, res);
     if (id === null) return;
     await db.query(
-      `DELETE FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      `DELETE FROM "Contexts" WHERE id = $1 AND ${TAG_ROW_SQL}`,
       [id]
     );
     res.json({ ok: true });
@@ -178,7 +184,7 @@ router.post('/tags/:id/assign', writeTags, async (req, res) => {
     if (entityIds.length > 500) return res.status(400).json({ error: 'Maximum 500 entity IDs per request' });
 
     const ctx = await db.queryOne(
-      `SELECT id, "targetType" FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      `SELECT id, "targetType" FROM "Contexts" WHERE id = $1 AND ${TAG_ROW_SQL}`,
       [id]
     );
     if (!ctx) return res.status(404).json({ error: 'Tag not found' });
@@ -296,7 +302,7 @@ router.post('/tags/:id/assign-by-filter', writeTags, async (req, res) => {
 
     // Resolve the tag's targetType for the INSERT below.
     const ctx = await db.queryOne(
-      `SELECT id, "targetType" FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag'`,
+      `SELECT id, "targetType" FROM "Contexts" WHERE id = $1 AND ${TAG_ROW_SQL}`,
       [tagId]
     );
     if (!ctx) return res.status(404).json({ error: 'Tag not found' });

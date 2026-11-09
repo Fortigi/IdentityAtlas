@@ -52,7 +52,6 @@ Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard
 | `-SyncResources` | On | Sync groups |
 | `-SyncAssignments` | On | Sync group memberships and owners |
 | `-SyncGovernance` | On | Sync catalogs, access packages, policies, reviews |
-| `-SyncContexts` | On | Sync calculated department contexts |
 | `-SyncPim` | Off | Sync PIM-eligible group memberships |
 | `-SyncDirectoryRoles` | Off | Sync Entra directory roles plus their active and PIM-eligible role assignments |
 | `-SyncAppRoles` | Off | Sync enterprise-app app-role assignments (direct, and expanded from groups) |
@@ -173,7 +172,7 @@ Grant these as **Application** permissions (not Delegated) on the App Registrati
 
 ## Schema Evolution
 
-The Ingest API adds columns to existing tables without dropping or recreating them. Any attribute returned by the Graph API can be captured:
+The Ingest API never alters the schema — the tables and their core columns are fixed by the database migrations. Any attribute returned by the Graph API can still be captured:
 
 - **Core attributes** get dedicated SQL columns (indexed, filterable)
 - **All remaining attributes** are stored in the `extendedAttributes` JSON column

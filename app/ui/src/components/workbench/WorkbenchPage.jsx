@@ -1,0 +1,236 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useIsDark } from '@ui/contexts/ThemeContext';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
+import { getAccessPackageColor } from '@ui/utils/colors';
+import { bandRoles } from './workbench.roles';
+import { effectiveMembers, ruleFromView } from './workbench.rule';
+import { EMPTY_CANDIDATE } from './workbench.model';
+import { useWorkbenchData, useWorkbenchDraft } from './useWorkbench';
+import { groupPeople, indexCells, accessCounts, cellsByResource as byResource, startsCrowded } from './workbench.model';
+import { knowledgeGaps, knownNames } from './workbench.labels';
+import WorkbenchGrid from './WorkbenchGrid';
+import WorkbenchColumnsGrid from './WorkbenchColumnsGrid';
+import { DEFAULT_ORIENTATION, orientationOf } from './workbench.transposed';
+import CandidatePanel from './CandidatePanel';
+import InvestigationBar from './InvestigationBar';
+import RoleSaveActions from './RoleSaveActions';
+import { useInvestigation } from './useInvestigation';
+import { useOpenLinked } from './useOpenLinked';
+import { parseWorkbenchRouteId } from './workbench.link';
+import { Toolbar, SelectionBar, FilterStrip } from './WorkbenchControls';
+import GridAndPanel from './GridAndPanel';
+import { PermissionStrip } from './PermissionFilters';
+import { contextIndex, visibleAccess, permissionFilterSummary, hasPermissionFilter } from './workbench.permissions';
+import { DEFAULT_COLUMNS, columnByKey, applyFilters, sortPeople, filterSummary, stickyOffsets } from './workbench.columns';
+
+// ─── Authorization workbench ─────────────────────────────────────────────
+// Opens from an organizational unit (#workbench:<unit id>): its people and what
+// they hold, seen through what is known of their work — the activities they
+// perform, their expertise, the duties they hold beside it (claims, with their
+// source and status). The analyst groups and sorts by those, selects clusters of
+// access, marks what belongs elsewhere, and composes a candidate role while the
+// impact shows in the grid. A hypothesis workspace: nothing changes access. The
+// work can be saved as an investigation on the unit and opened again (M2a,
+// InvestigationBar). Design: docs/architecture/m1-discovery-and-design.md.
+
+// minHolders null: automatic — 2 when the unit holds many things (startsCrowded), else 1.
+// People as columns by default (the matrix's orientation; workbench.transposed.js), or
+// as rows — one row per person (groupBy 'none'); people columns as in DEFAULT_COLUMNS.
+// The permissions shown: filtered like the people (permissionFilters, permissionSort),
+// held by at least minHolders and at most maxHolders people (workbench.permissions.js).
+const DEFAULT_VIEW = {
+  orientation: DEFAULT_ORIENTATION, groupBy: 'none', columns: DEFAULT_COLUMNS, filters: {}, sort: null, includeChildren: true,
+  minHolders: null, maxHolders: null, columnSearch: '', permissionFilters: {}, permissionSort: null,
+};
+
+// The workbench is part of organisation knowledge (Admin → Experimental, flag
+// orgKnowledge): while that is off a link to it says so and asks nothing.
+export default function WorkbenchPage(props) {
+  if (!useOrgKnowledge()) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white px-6 py-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+        The Authorization workbench is part of <strong>Organisation knowledge</strong>, which is off on this installation (Admin → Experimental).
+      </div>
+    );
+  }
+  return <Workbench {...props} />;
+}
+
+function Workbench({ contextId: routeId, onCacheData, onClose }) {
+  // The tab's id: the unit, or a link straight to one saved proposed role (workbench.link.js).
+  const { contextId, investigationId, proposalId } = parseWorkbenchRouteId(routeId);
+  const [view, setView] = useState(DEFAULT_VIEW);
+  const isDark = useIsDark();
+  const { data, loading, error, reload, send } = useWorkbenchData(contextId, view.includeChildren);
+  const [draft, dispatch] = useWorkbenchDraft();
+  const inv = useInvestigation({ contextId, send, view, setView, draft, dispatch, data, defaultView: DEFAULT_VIEW });
+  useOpenLinked({ ready: !!data, investigationId, proposalId, open: inv.open, dispatch });
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const unitName = data?.unit?.displayName;
+
+  useEffect(() => {
+    if (unitName) onCacheData?.(routeId, 'workbench', { displayName: `Workbench: ${unitName}` });
+  }, [unitName, routeId, onCacheData]);
+
+  // A unit whose people hold many things opens on what at least two of them share.
+  const shownView = useMemo(() => (data && view.minHolders === null ? { ...view, minHolders: startsCrowded(data) ? 2 : 1 } : view), [data, view]);
+  const derived = useMemo(() => derive(data, shownView), [data, shownView]);
+
+  // A proposed role's members: by its rule (plus exceptions), or chosen by hand. handMembers keeps the hand-chosen set.
+  const drafts = useMemo(() => (data ? draft.drafts.map(d => ({ ...d, handMembers: d.members, members: effectiveMembers(d, data.people) })) : []), [data, draft.drafts]);
+  const candidate = drafts.find(d => d.id === draft.activeId) ?? EMPTY_CANDIDATE;
+  const roles = useMemo(() => (derived ? bandRoles(data.columns, derived.cellsByResource, drafts, draft.activeId) : []), [derived, data, drafts, draft.activeId]);
+
+  if (!data) return <PageStatus loading={loading} error={error} onRetry={reload} />;
+  const color = (idx) => getAccessPackageColor(idx, isDark);
+  const setFilter = (key, filter) => setView(v => ({ ...v, filters: { ...v.filters, [key]: filter } }));
+  const onSort = (key) => setView(v => ({ ...v, sort: nextSort(v.sort, key) }));
+  const perms = {
+    allAccess: derived.allAccess, ctx: derived.ctx, filters: view.permissionFilters, sort: view.permissionSort,
+    onSort: (key) => setView(v => ({ ...v, permissionSort: nextSort(v.permissionSort, key) })),
+    onFilter: (key, f) => setView(v => ({ ...v, permissionFilters: { ...v.permissionFilters, [key]: f } })),
+  };
+  const shownColumns = view.columns.map(k => columnByKey.get(k));
+  const peopleColumns = { peopleColumns: shownColumns, offsets: stickyOffsets(shownColumns).offsets };
+
+  const act = async (fn) => {
+    setBusy(true); setActionError(null);
+    try { await fn(); await reload(); } catch (err) { setActionError(err.message); } finally { setBusy(false); }
+  };
+  const personProps = {
+    busy, knownNames: derived.knownNames,
+    onDecide: (claimId, status) => act(() => send(`/api/contexts/claims/${claimId}`, 'PATCH', { status })),
+    onAdd: (person, kind, value) => act(() => send(`/api/contexts/${contextId}/knowledge`, 'POST',
+      { kind, value, ...(person.identityId ? { identityId: person.identityId } : { principalId: person.principalId }) })),
+  };
+
+  return (
+    <div className="space-y-3">
+      <Header data={data} gaps={derived.gaps} shownColumns={derived.columns.length} onClose={onClose} loading={loading} />
+      <InvestigationBar inv={inv} />
+      <Toolbar view={shownView} setView={setView} perms={perms} />
+      {actionError && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">{actionError}</p>}
+      <FilterStrip shown={derived.shownPeople.length} total={data.people.length} summary={filterSummary(view.filters, data.people)}
+        onClear={(key) => setFilter(key, null)} onClearAll={() => setView(v => ({ ...v, filters: {} }))}
+        onSelectShown={() => dispatch({ type: 'select', keys: heldKeys(derived.shownPeople, derived), add: false })}
+        onAddShown={() => dispatch({ type: 'addMembers', people: derived.shownPeople.map(p => p.key) })}
+        onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}>
+        <PermissionStrip shown={derived.columns.length} total={derived.accessTotal}
+          summary={permissionFilterSummary(view.permissionFilters, derived.allAccess, derived.ctx)}
+          onClear={(key) => perms.onFilter(key, null)} onClearAll={() => setView(v => ({ ...v, permissionFilters: {} }))} />
+      </FilterStrip>
+      <SelectionBar selection={draft.selection} dispatch={dispatch} cellIndex={derived.cellIndex} groups={derived.groups} />
+      <GridAndPanel
+        grid={orientationOf(view) === 'rows' ? (
+          <WorkbenchGrid groups={derived.groups} columns={derived.columns} roles={roles} color={color} isDark={isDark}
+            cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
+            people={{ ...peopleColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, grouped: view.groupBy !== 'none' }} />
+        ) : (
+          <WorkbenchColumnsGrid people={derived.shownPeople} columns={derived.columns} columnsById={derived.columnsById} roles={roles} color={color}
+            cellIndex={derived.cellIndex} draft={draft} candidate={candidate} dispatch={dispatch} personProps={personProps}
+            header={{ peopleColumns: shownColumns, allPeople: data.people, filters: view.filters, sort: view.sort, onSort, onFilter: setFilter, perms }} />
+        )}
+        panel={(
+          <CandidatePanel draft={draft} dispatch={dispatch} data={data} cellIndex={derived.cellIndex} cellsByResource={derived.cellsByResource} roles={roles} color={color} saveLabel={saveLabel(inv)}
+            roleActions={({ candidate: role, problems }) => <RoleSaveActions inv={inv} candidate={role} problems={problems} unitName={data.unit.displayName} dispatch={dispatch} />}
+            candidate={candidate} unitName={data.unit.displayName} onUseAsRule={() => dispatch({ type: 'setRule', rule: ruleFromView(view) })}
+            peopleByKey={derived.peopleByKey} columnsById={derived.columnsById} visible={derived.visible} />
+        )} />
+    </div>
+  );
+}
+
+// Click a header: sort by it; again: the other way.
+function nextSort(sort, key) {
+  return sort?.key === key && sort.dir === 'asc' ? { key, dir: 'desc' } : { key, dir: 'asc' };
+}
+
+// The badge on the proposed roles: saved, changed since, or never saved.
+function saveLabel(inv) {
+  if (!inv.saved) return 'Draft · not saved';
+  return inv.dirty ? 'Draft · unsaved changes' : 'Draft · saved';
+}
+
+// The held cells of these people in the access columns shown.
+function heldKeys(people, derived) {
+  return people.flatMap(p => derived.columns.map(c => `${p.key}|${c.id}`)).filter(k => derived.cellIndex.has(k));
+}
+
+function derive(data, view) {
+  if (!data) return null;
+  const cellIndex = indexCells(data.cells);
+  const counts = accessCounts(data.cells);
+  const shownPeople = sortPeople(applyFilters(data.people, view.filters), view.sort);
+  const ctx = contextIndex(data.contexts);
+  const access = visibleAccess(data.columns, view, ctx);
+  return {
+    ctx,
+    allAccess: data.columns.filter(c => !c.isRole),
+    accessTotal: access.total,
+    // What the impact counts: the access shown, and the business roles (rows and bands, never filtered).
+    visible: hasPermissionFilter(view) ? new Set([...access.columns, ...data.columns.filter(c => c.isRole)].map(c => c.id)) : null,
+    cellIndex,
+    cellsByResource: byResource(data.cells),
+    shownPeople,
+    groups: view.groupBy === 'none'
+      ? [{ key: 'all', label: 'Everyone', count: shownPeople.length, rows: shownPeople.map(person => ({ person, repeat: false })) }]
+      : groupPeople(shownPeople, view.groupBy, 'name', (k) => counts.get(k) ?? 0),
+    columns: access.columns,
+    peopleByKey: new Map(data.people.map(p => [p.key, p])),
+    columnsById: new Map(data.columns.map(c => [c.id, c])),
+    gaps: knowledgeGaps(data.people),
+    knownNames: knownNames(data.people),
+  };
+}
+
+function Header({ data, gaps, shownColumns, onClose, loading }) {
+  const { unit, scope, people, columns, truncatedColumns } = data;
+  const accounts = people.reduce((n, p) => n + p.accounts.length, 0);
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Authorization workbench</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{unit.displayName}</h2>
+          <p className="text-xs text-gray-700 dark:text-gray-300">
+            {people.length} people ({accounts} accounts){scope.includeChildren && scope.units > 1 ? ` across ${scope.units} units` : ''} ·
+            {' '}{shownColumns} of {columns.length + truncatedColumns} things they hold shown · access as read {new Date(data.generatedAt).toLocaleString()}
+            {loading ? ' · refreshing…' : ''}
+          </p>
+          <p className="text-xs text-gray-700 dark:text-gray-300">
+            {gaps.noActivity} {gaps.noActivity === 1 ? 'person has' : 'people have'} no known activity · {gaps.proposed} proposed {gaps.proposed === 1 ? 'link' : 'links'} to check · {gaps.disputed} disputed
+          </p>
+          {scope.unresolved > 0 && (
+            <p role="status" className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
+              {scope.unresolved} {scope.unresolved === 1 ? 'member is' : 'members are'} no longer in their source (a later sync removed them) and {scope.unresolved === 1 ? 'is' : 'are'} left out.
+            </p>
+          )}
+          {(scope.truncatedPeople || truncatedColumns > 0) && (
+            <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
+              {scope.truncatedPeople ? `Only the first ${scope.maxPeople} people are shown. ` : ''}
+              {truncatedColumns > 0 ? `${truncatedColumns} rarely held columns are left out.` : ''}
+            </p>
+          )}
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" title="Proposed roles are hypotheses: saving keeps them for later, it never creates a role or grants access">
+            Hypotheses only — nothing here changes access
+          </span>
+          {onClose && <button type="button" onClick={onClose} className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">Close</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageStatus({ loading, error, onRetry }) {
+  if (loading && !error) return <p className="p-8 text-sm text-gray-600 dark:text-gray-400">Loading the workbench…</p>;
+  return (
+    <div role="alert" className="mx-auto mt-12 max-w-md rounded-lg border border-red-200 bg-red-50 p-6 dark:border-red-700 dark:bg-red-900/30">
+      <h2 className="text-lg font-semibold text-red-800 dark:text-red-300">Could not load the workbench</h2>
+      <p className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p>
+      <button type="button" onClick={onRetry} className="mt-3 text-sm text-blue-700 underline dark:text-blue-300">Try again</button>
+    </div>
+  );
+}

@@ -117,6 +117,12 @@ describe('GET /admin/dashboard-stats', () => {
     // SEC-2026-09 M-06: the built-in worker is excluded by its flag, not its name.
     expect(queryOne.mock.calls[0][0]).toContain('NOT "isBuiltIn"');
     expect(queryOne.mock.calls[0][0]).not.toContain('Built-in Worker');
+    // The exact counts are of live rows; a soft-deleted business role or
+    // assignment is history, not something the tenant currently has.
+    const sql = queryOne.mock.calls[0][0];
+    expect(sql).toMatch(/'BusinessRole' AND "deletedAt" IS NULL\)\s+AS "businessRoles"/);
+    expect(sql).toMatch(/"governed" = true AND "deletedAt" IS NULL\)\s+AS "governedAssignments"/);
+    expect(sql).toMatch(/"identityId" IS NOT NULL AND "deletedAt" IS NULL\)\s+AS "identityAssignments"/);
   });
 
   it('500 when the stats query rejects', async () => {

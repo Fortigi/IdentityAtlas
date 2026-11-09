@@ -13,7 +13,16 @@ import { query, queryOne } from '../db/connection.js';
 
 const runLinking = vi.fn(() => Promise.resolve());
 vi.mock('../accountlinking/engine.js', () => ({ runLinking: (...a) => runLinking(...a) }));
-vi.mock('../accountlinking/defaultRules.js', () => ({ DEFAULT_RULES: { sample: true } }));
+// A stand-in shipped dictionary, with two signals so the effective-dictionary
+// merge below has something to merge. The real merge (rulesMerge.js) runs
+// against this, so the test states what the ROUTE serves without restating the
+// merge's own rules — those are pinned in accountlinking/rulesMerge.test.js.
+vi.mock('../accountlinking/defaultRules.js', () => ({
+  DEFAULT_RULES: {
+    sample: true,
+    signals: [{ name: 'shippedEarly', type: 'exact', weight: 10 }, { name: 'shippedLater', type: 'loginName', weight: 55 }],
+  },
+}));
 
 const { default: router } = await import('./accountLinking.js');
 const app = mountRouter(router);
@@ -33,6 +42,27 @@ describe('GET /account-linking/config', () => {
     const res = await request(app).get('/api/account-linking/config');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 7, isActive: true, updatedBy: 'me' });
+  });
+
+  it('serves the EFFECTIVE dictionary, not the stored one (#1469)', async () => {
+    // The settings editor shows this response and Save writes it back, so a raw
+    // echo of the stored rules both hides the signals this tenant is missing and
+    // re-persists the stale list on the next Save. Here the tenant reweighted
+    // one shipped signal and saved before the second one existed: their weight
+    // stands, the signal they predate is added with its shipped definition.
+    queryOne.mockResolvedValueOnce({
+      id: 7, rules: { signals: [{ name: 'shippedEarly', type: 'exact', weight: 99 }], linkThreshold: 85 },
+      schedules: [], isActive: true, updatedAt: 't', updatedBy: 'me',
+    });
+    const res = await request(app).get('/api/account-linking/config');
+
+    expect(res.status).toBe(200);
+    expect(res.body.rules.signals).toEqual([
+      { name: 'shippedEarly', type: 'exact', weight: 99 },
+      { name: 'shippedLater', type: 'loginName', weight: 55 },
+    ]);
+    expect(res.body.rules.linkThreshold).toBe(85); // the tenant's own value is untouched
+    expect(res.body.rules.sample).toBe(true);      // …as are shipped keys they never saved
   });
 
   it('returns shipped defaults when no row exists', async () => {

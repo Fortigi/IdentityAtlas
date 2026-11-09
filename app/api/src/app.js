@@ -36,6 +36,7 @@ async function withMyPhoto(me) {
 }
 import { resolveModuleVersion } from './version.js';
 import { readFeatures } from './featureFlags.js';
+import { createMcpRouter } from './mcp/router.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { createRequestOriginGuard } from './middleware/requestOriginGuard.js';
 import { resolveTrustProxy, principalRateLimitKey } from './middleware/rateLimitKeys.js';
@@ -64,6 +65,7 @@ import nlReportsRouter from './routes/nlReports.js';
 import contextAssistantRouter from './routes/contextAssistant.js';
 import adminRouter from './routes/admin.js';
 import authRolesRouter from './routes/authRoles.js';
+import contextOwnerAccessRouter from './routes/contextOwnerAccess.js';
 import llmRouter from './routes/llm.js';
 import riskProfilesRouter from './routes/riskProfiles.js';
 import riskScoringRunsRouter from './routes/riskScoringRuns.js';
@@ -347,18 +349,29 @@ export function createApp() {
   //     auth/resolveMe.js.
   app.get('/api/auth-me', authMiddleware, async (req, res) => {
     if (!isAuthEnabled()) {
-      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [], me: null });
+      return res.json({ enabled: false, hasWildcard: true, roles: [], permissions: [], me: null, contextOwner: null });
     }
     const perms = req.user?.permissions || new Set();
     const hasWildcard = perms.has('*');
+    const owner = req.user?.contextOwner;
     res.json({
       enabled: true,
       roles: req.user?.roles || [],
       permissions: Array.from(perms).filter(p => p !== '*'),
       hasWildcard,
       me: await withMyPhoto(await resolveMe(req.user)),
+      // Set only for a caller let in as a context owner (middleware/contextOwnerMode.js):
+      // the contexts they answer for, which the UI opens instead of the app, and
+      // contextIds — those plus their variants — the scope the API enforces, so
+      // the UI only offers what will open.
+      contextOwner: owner ? { contexts: owner.contexts, contextIds: [...owner.contextIds] } : null,
     });
   });
+
+  // MCP endpoint for AI assistants (Claude, ChatGPT, Copilot) acting for the
+  // signed-in user, plus its OAuth discovery document. 404 unless sign-in and
+  // the mcpServer feature are both on — see mcp/router.js and mcp/auth.js.
+  app.use(createMcpRouter({ limiter: authedApiLimiter, version: moduleVersion }));
 
   // Everything below reads/writes the DB schema, so gate it while migrations run
   // (#696). Placed after the bootstrap endpoints above (which must stay 200) and
@@ -414,6 +427,8 @@ export function createApp() {
   // by admin.auth inside the router so it's editable only by someone whose own
   // mapping already grants it.
   app.use('/api', authMiddleware, authRolesRouter);
+  // The context-owner access switch on the same page — admin.auth per route.
+  app.use('/api', authMiddleware, contextOwnerAccessRouter);
   // adminRouter is a grab-bag of /admin/* endpoints with mixed permission needs
   // (read dashboards, write retention config, toggle feature flags, export curated
   // dumps, …). Every handler in routes/admin/*.js carries its own gate — none is

@@ -197,9 +197,7 @@ describe('AccessPackagesPage (mounted)', () => {
 
     await screen.findByText('Payroll Access');
 
-    // Row checkboxes: index 0 is the header select-all, 1..N are rows.
-    const checkboxes = screen.getAllByRole('checkbox');
-    await user.click(checkboxes[1]);
+    await user.click(screen.getByRole('checkbox', { name: 'Select Payroll Access' }));
 
     expect(await screen.findByText('1 selected')).toBeInTheDocument();
 
@@ -222,7 +220,7 @@ describe('AccessPackagesPage (mounted)', () => {
     const user = userEvent.setup();
 
     await screen.findByText('Payroll Access');
-    const headerCheckbox = screen.getAllByRole('checkbox')[0];
+    const headerCheckbox = screen.getByRole('checkbox', { name: 'Select all business roles on this page' });
     await user.click(headerCheckbox);
 
     expect(await screen.findByText('3 selected')).toBeInTheDocument();
@@ -314,6 +312,57 @@ describe('AccessPackagesPage (mounted)', () => {
 
     // On error the list stays empty -> empty state renders (loading clears).
     expect(await screen.findByText('No business roles found.')).toBeInTheDocument();
+  });
+
+  // Soft delete: business roles deleted in the source are hidden unless the
+  // "Include deleted" toggle is on; then they render with a Deleted badge.
+  it('omits includeDeleted and shows no Deleted badge by default', async () => {
+    const authFetch = routes();
+    renderWithProviders(h(AccessPackagesPage), { auth: { authFetch } });
+    await screen.findByText('Payroll Access');
+    const apCalls = authFetch.mock.calls.map(c => c[0]).filter(u => u.startsWith('/api/access-packages'));
+    expect(apCalls.every(u => !u.includes('includeDeleted'))).toBe(true);
+    expect(screen.getByRole('checkbox', { name: 'Include deleted' })).not.toBeChecked();
+    expect(screen.queryByText('Deleted in source')).not.toBeInTheDocument();
+  });
+
+  it('Include deleted refetches with includeDeleted=true and badges deleted roles', async () => {
+    const withDeleted = [
+      ...packages,
+      { id: 'ap4', displayName: 'Payroll Access', deletedAt: '2026-10-01T00:00:00Z', totalAssignments: 0, category: null },
+    ];
+    const authFetch = makeAuthFetch((url) => {
+      if (url.startsWith('/api/categories')) return categories;
+      const data = url.includes('includeDeleted=true') ? withDeleted : packages;
+      return { data, total: data.length };
+    });
+    renderWithProviders(h(AccessPackagesPage), { auth: { authFetch } });
+    const user = userEvent.setup();
+    await screen.findByText('Recruiting Access');
+
+    await user.click(screen.getByRole('checkbox', { name: 'Include deleted' }));
+
+    await waitFor(() => {
+      expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('includeDeleted=true'));
+    });
+    const badge = await screen.findByText('Deleted in source');
+    // The badge sits in the deleted role's row only — the live namesake has none.
+    expect(screen.getAllByText('Deleted in source')).toHaveLength(1);
+    const deletedRow = badge.closest('tr');
+    expect(within(deletedRow).getByRole('button', { name: 'Payroll Access' })).toBeInTheDocument();
+  });
+
+  it('passes includeDeleted to the Excel export', async () => {
+    const exportMod = await import('../utils/exportAccessPackagesToExcel');
+    const spy = vi.spyOn(exportMod, 'exportAccessPackagesToExcel').mockResolvedValue();
+    renderWithProviders(h(AccessPackagesPage), { auth: { authFetch: routes() } });
+    const user = userEvent.setup();
+    await screen.findByText('Payroll Access');
+
+    await user.click(screen.getByRole('checkbox', { name: 'Include deleted' }));
+    await user.click(screen.getByRole('button', { name: 'Export Excel' }));
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(expect.objectContaining({ includeDeleted: true })));
   });
 
   it('paginates when there are more results than one page', async () => {

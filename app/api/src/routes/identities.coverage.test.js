@@ -270,6 +270,51 @@ describe('GET /identities/by-user/:userId', () => {
   });
 });
 
+// ── Soft-deleted history (migration 040) ─────────────────────────────────────
+// The mocks are SQL-blind, so these pin the SQL each handler SENDS: counts keep
+// current access only, lists keep history but flag it. Whether the rows come
+// back right is contract-tests/identityAndPeopleHistory.contract.test.js's job.
+
+const sentSql = () => mockReq.query.mock.calls.map(([text]) => text);
+const sqlWith = (marker) => sentSql().find((t) => t.includes(marker));
+// The three live conditions of the matview, applied to assignment alias `a`.
+const liveGuard = (a) => [
+  `${a}."deletedAt" IS NULL`,
+  `dr.id = ${a}."resourceId"  AND dr."deletedAt" IS NOT NULL`,
+  `dp.id = ${a}."principalId" AND dp."deletedAt" IS NOT NULL`,
+];
+
+describe('identity endpoints — soft-deleted history', () => {
+  it('detail: counts exclude deleted assignments/resources/accounts; members carry the account deletion', async () => {
+    mockReq.query.mockResolvedValueOnce({ recordset: [{ id: VALID_ID }] });
+    await request(app).get(`/identities/${VALID_ID}`);
+    const groups = sqlWith('"groupCount"');
+    for (const clause of liveGuard('gm')) expect(groups).toContain(clause);
+    const aggregate = sqlWith(`'Governed'`);
+    for (const clause of liveGuard('ra')) expect(aggregate).toContain(clause);
+    expect(sqlWith('"systemDisplayName"')).toContain(`(u."deletedAt" IS NOT NULL) AS "deleted", u."deletedAt"`);
+  });
+
+  it('assignments: flags history with the earliest deletion and lists current rows first', async () => {
+    await request(app).get(`/identities/${VALID_ID}/assignments?type=Direct`);
+    const [sql] = sentSql();
+    expect(sql).toContain(`(ra."deletedAt" IS NOT NULL OR r."deletedAt" IS NOT NULL OR p."deletedAt" IS NOT NULL) AS "deleted"`);
+    expect(sql).toContain(`LEAST(ra."deletedAt", r."deletedAt", p."deletedAt") AS "deletedAt"`);
+    expect(sql).toMatch(/ORDER BY "deleted", r\."displayName"/);
+    expect(sql).not.toMatch(/ra\."deletedAt" IS NULL/); // history is kept, not filtered
+  });
+
+  it('account-matrix + by-user: every linked account carries its deletion', async () => {
+    await request(app).get(`/identities/${VALID_ID}/account-matrix`);
+    expect(sqlWith('AS "isPrimary"'))
+      .toContain(`(pr."deletedAt" IS NOT NULL) AS "deleted", pr."deletedAt"`);
+    mockReq.query.mockClear();
+    mockReq.query.mockResolvedValueOnce({ recordset: [{ identityId: VALID_ID2 }] });
+    await request(app).get(`/identities/by-user/${VALID_ID}`);
+    expect(sqlWith('"principalId" <> $2')).toContain(`(pr."deletedAt" IS NOT NULL) AS "deleted", pr."deletedAt"`);
+  });
+});
+
 // ── GET /identity-columns ────────────────────────────────────────────────────
 
 describe('GET /identity-columns', () => {

@@ -30,7 +30,8 @@ export function parseParams(params) {
 
 // Build the resources query: every in-scope resource that carries the grouping attribute.
 export function buildResourceQuery({ scopeSystemId, attribute, resourceType }) {
-  const conds = ['"systemId" = $1', '"extendedAttributes" ->> $2 IS NOT NULL'];
+  // Live resources only: a soft-deleted ("deletedAt") resource is history.
+  const conds = ['"systemId" = $1', '"deletedAt" IS NULL', '"extendedAttributes" ->> $2 IS NOT NULL'];
   const qp = [scopeSystemId, attribute];
   if (resourceType) { qp.push(resourceType); conds.push(`"resourceType" = $${qp.length}`); }
   return {
@@ -41,7 +42,10 @@ export function buildResourceQuery({ scopeSystemId, attribute, resourceType }) {
 
 // Build the capability-resources query used for the optional per-role leaves.
 export function buildCapabilityQuery({ scopeSystemId, attribute, resourceType }) {
-  const capConds = ['cap."systemId" = $1', 'cap."capabilityId" IS NOT NULL', `sc."extendedAttributes" ->> $2 IS NOT NULL`];
+  const capConds = [
+    'cap."systemId" = $1', 'cap."capabilityId" IS NOT NULL', 'cap."deletedAt" IS NULL', 'sc."deletedAt" IS NULL',
+    `sc."extendedAttributes" ->> $2 IS NOT NULL`,
+  ];
   const capQp = [scopeSystemId, attribute];
   if (resourceType) { capQp.push(resourceType); capConds.push(`sc."resourceType" = $${capQp.length}`); }
   return {
@@ -69,7 +73,7 @@ export function ensureTypeContext(seen, contexts, val, rootExt) {
 // Fold the attribute rows into the two-level tree (synthetic root + one child per distinct value).
 export function buildTree(rows, rootName) {
   const rootExt = 'type-root';
-  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'ResourceTypeRoot' }];
+  const contexts = [{ externalId: rootExt, displayName: rootName, contextType: 'ResourceType' }];
   const members = [];
   const seen = new Map(); // value → externalId
   for (const r of rows) {
@@ -139,6 +143,8 @@ export default {
     'one child context per distinct value, each holding the matching resources as members. Lets ' +
     'you ask "who can access any VM / any storage account?".',
   targetType: 'Resource',
+  contextCategory: 'Segment',
+  contextTypes: ['ResourceType', 'ResourcePlane', 'ResourceRole'],
   parametersSchema: {
     type: 'object',
     required: ['scopeSystemId'],

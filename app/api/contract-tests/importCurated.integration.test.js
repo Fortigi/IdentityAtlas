@@ -19,15 +19,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { bootContractApp } from '../test-utils/contractApp.js';
 
-vi.mock('../src/config/authConfig.js', async (importOriginal) => ({
-  ...(await importOriginal()),
-  isAuthEnabled: () => true,
-  getTenantId: () => 'test-tenant',
-  getClientId: () => 'test-client',
-  getJwksClient: () => ({}),
-  getRequiredRoles: () => null,
-  getRolePermissions: () => ({ 'role-admin': ['*'] }),
-}));
+vi.mock('../src/config/authConfig.js', async (importOriginal) =>
+  (await import('../test-utils/authConfigMock.js')).signInOnConfig(await importOriginal(), { 'role-admin': ['*'] }));
 vi.mock('jsonwebtoken', () => ({
   default: {
     verify: (token, _key, _opts, cb) => {

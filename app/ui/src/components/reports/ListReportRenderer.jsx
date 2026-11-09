@@ -2,6 +2,9 @@
 // columns the report declared. It knows nothing about any particular report —
 // the columns, the labels and the row keys all come from the API response.
 //
+// A report that declares charts or pivots gets them drawn above the table
+// (ReportSummary); clicking a slice or a group narrows the table to its rows.
+//
 // Paged locally. A report is one request returning every row (that is what
 // makes Refresh and the download agree), and one application's entitlement
 // review is tens of thousands of them — drawing that as one table locks the
@@ -12,30 +15,41 @@
 import { useCallback, useMemo, useState } from 'react';
 import EmptyState from '@ui/components/EmptyState';
 import Pagination from '@ui/components/Pagination';
+import ReportSummary from './ReportSummary';
+import { matchesFilter } from './summaryData';
 
 export const ROWS_PER_PAGE = 100;
 
 /** Which result set is on screen. A refresh re-runs the report, so `generatedAt` moves. */
 const runKey = (report) => `${report?.name ?? ''}|${report?.generatedAt ?? ''}`;
 
+const NO_FILTER = [];
+
 export default function ListReportRenderer({ report, onOpenDetail }) {
   const columns = report.columns || [];
-  const rows = useMemo(() => report.rows || [], [report.rows]);
+  const allRows = useMemo(() => report.rows || [], [report.rows]);
 
-  // The page is stored WITH the run it belongs to, and a page belonging to an
-  // older run reads as 0. A refresh or a parameter change replaces the rows, and
-  // staying on page 12 of a two-page result shows an empty table — but resetting
-  // it from an effect is a cascading render (and a lint error); deriving it is
-  // the same behaviour in one pass.
+  // The page and the summary filter are stored WITH the run they belong to, and
+  // ones belonging to an older run read as page 0 and no filter. A refresh or a
+  // parameter change replaces the rows, and staying on page 12 of a two-page
+  // result shows an empty table — but resetting it from an effect is a cascading
+  // render (and a lint error); deriving it is the same behaviour in one pass.
   const key = runKey(report);
-  const [paging, setPaging] = useState({ key, page: 0 });
-  const page = paging.key === key ? paging.page : 0;
+  const [state, setState] = useState({ key, page: 0, filter: NO_FILTER });
+  const { page, filter } = state.key === key ? state : { page: 0, filter: NO_FILTER };
   const setPage = useCallback(
-    (next) => setPaging(prev => {
-      const current = prev.key === key ? prev.page : 0;
-      return { key, page: typeof next === 'function' ? next(current) : next };
+    (next) => setState((prev) => {
+      const base = prev.key === key ? prev : { key, page: 0, filter: NO_FILTER };
+      return { ...base, page: typeof next === 'function' ? next(base.page) : next };
     }),
     [key],
+  );
+  // A new filter starts at the first page of what it leaves.
+  const setFilter = useCallback((next) => setState({ key, page: 0, filter: next }), [key]);
+
+  const rows = useMemo(
+    () => (filter.length ? allRows.filter(row => matchesFilter(row, filter)) : allRows),
+    [allRows, filter],
   );
 
   const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
@@ -45,7 +59,7 @@ export default function ListReportRenderer({ report, onOpenDetail }) {
     [rows, safePage],
   );
 
-  if (rows.length === 0) {
+  if (allRows.length === 0) {
     // A report that returned notices has already said why it is empty — it is
     // waiting for a parameter, a name matched nothing, an application has no
     // entitlements. Those notices are rendered above this table, so adding
@@ -64,6 +78,9 @@ export default function ListReportRenderer({ report, onOpenDetail }) {
 
   return (
     <div>
+      <ReportSummary report={report} filter={filter} onFilter={setFilter} />
+      <FilterBar filter={filter} columns={columns} shown={rows.length} total={allRows.length}
+        onClear={() => setFilter(NO_FILTER)} />
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <table className="min-w-full text-sm">
           <caption className="sr-only">{report.displayName}</caption>
@@ -98,6 +115,24 @@ export default function ListReportRenderer({ report, onOpenDetail }) {
         total={rows.length}
         pageSize={ROWS_PER_PAGE}
       />
+    </div>
+  );
+}
+
+// What the summary narrowed the table to, and the way back to every row.
+function FilterBar({ filter, columns, shown, total, onClear }) {
+  if (!filter.length) return null;
+  const labelFor = key => columns.find(c => c.key === key)?.label || key;
+  return (
+    <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+      <span>
+        Showing {shown} of {total} rows where{' '}
+        {filter.map(({ key, label }) => `${labelFor(key)} is "${label}"`).join(' and ')}
+      </span>
+      <button type="button" onClick={onClear}
+        className="rounded bg-white px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-gray-700">
+        Show all rows
+      </button>
     </div>
   );
 }

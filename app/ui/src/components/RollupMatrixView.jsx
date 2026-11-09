@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useResizableGridHeight from '@ui/hooks/useResizableGridHeight';
 import { attributeLabel, friendlyLabel } from '@ui/utils/formatters';
@@ -60,12 +60,16 @@ function orgShort(displayName) {
   return segs[segs.length - 1] || noMgr || dn;
 }
 
+// The suffix the API gives a unit's direct-members column (matrix/contextRollup.js).
+export const DIRECT_SUFFIX = ':direct';
+
 // Build the /matrix/data filter that drills into one rolled-up group to fetch
 // its direct members (context nodes match on membership; attribute/roles groups
 // on the attribute value).
 function buildDrillFilter(group, { filter, attribute, rolesOnly, contextMode }) {
   const scopeCond = contextMode
-    ? { kind: 'context', contextId: group, includeChildren: false }
+    // A unit's direct-members column ('<id>:direct') drills into that unit's own members.
+    ? { kind: 'context', contextId: String(group).replace(DIRECT_SUFFIX, ''), includeChildren: false }
     : { kind: 'attribute', field: attribute, values: [group] };
   const scopedSubject = {
     include: [...(filter.subject?.include || []), scopeCond],
@@ -159,6 +163,20 @@ function BreadcrumbNav({ contextMode, layered, breadcrumb, jumpToCrumb }) {
   );
 }
 
+// The hierarchy opens with the root unit's own people shown as columns (its
+// "direct members" column expanded) and its sub-units collapsed — once per
+// root, so collapsing it again sticks. Only in the hierarchy view (a layered
+// context roll-up with a root).
+function useOpenRootMembers({ contextMode, layered, rollupContextId, nodeMap, toggleGroup }) {
+  const rootDirect = contextMode && layered && rollupContextId ? `${String(rollupContextId).toLowerCase()}${DIRECT_SUFFIX}` : null;
+  const openedRoots = useRef(new Set());
+  useEffect(() => {
+    if (!rootDirect || openedRoots.current.has(rootDirect) || !nodeMap.has(rootDirect)) return;
+    openedRoots.current.add(rootDirect);
+    toggleGroup(rootDirect);
+  }, [rootDirect, nodeMap, toggleGroup]);
+}
+
 export default function RollupMatrixView({
   rollup, filter, counts, managedFilter, setManagedFilter, resourceContexts,
   refreshing, onOpenDetail, onAdjustFilter, onLoadSaved, onFilterChange, onShareView,
@@ -169,7 +187,7 @@ export default function RollupMatrixView({
     attribute, rollupContent = 'resources-and-roles', resources, groupValues,
     counts: directCounts, businessRoles = [], roleCounts = [], roleRows = [], cells = [],
     groupTotals = [], rollupKind = 'attribute', nodes = [], breadcrumb = [],
-    layered = false, layeredAttributes = false, maxDepth = 1,
+    layered = false, layeredAttributes = false, maxDepth = 1, rollupContextId,
   } = rollup;
   const subjectWord = filter?.rowType === 'identity' ? 'identities' : 'users';
   const contextMode = rollupKind === 'context';
@@ -294,6 +312,8 @@ export default function RollupMatrixView({
     }
     setExpanded(prev => new Set(prev).add(group));
   }, [expanded, cache, filter, attribute, authFetch, rolesOnly, contextMode]);
+
+  useOpenRootMembers({ contextMode, layered, rollupContextId, nodeMap, toggleGroup });
 
   // ── Context zoom: drill INTO a node (push it onto the drill path → the view
   // shows that node's children). Zooming OUT is via the breadcrumb. Expanding a
@@ -557,6 +577,31 @@ export default function RollupMatrixView({
       {isLast ? <div className="text-[10px] font-medium text-blue-700 dark:text-blue-300 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto" style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '110px', overflow: 'hidden', whiteSpace: 'nowrap' }} onClick={() => onOpenDetail?.(col.user.memberType === 'Identity' ? 'identity' : 'user', col.user.id, col.user.displayName)}>{col.user.displayName}</div> : null}
     </th>
   );
+  // One business-role (SOLL) column header — the flat and the layered header both
+  // draw these, so the role cells in the body always sit under their names.
+  const roleHeaderCell = (role, idx, extraClass = '') => (
+    <th
+      key={`role:${role.id}`}
+      className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 align-bottom${extraClass} ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : ''}`}
+      style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '40px', minWidth: '40px', height: '130px' }}
+      title={`Business role: ${role.displayName}`}
+    >
+      <div
+        className="text-[10px] font-medium text-gray-700 dark:text-gray-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto"
+        style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }}
+        onClick={() => onOpenDetail?.('access-package', role.id, role.displayName)}
+      >
+        {role.displayName}
+      </div>
+    </th>
+  );
+  // The business-role columns in a layered header: their names under the last
+  // header row, one spanning cell above them on the upper rows.
+  const layeredRoleCells = (L, isLast, stick) => {
+    if (visibleRoles.length === 0) return [];
+    if (isLast) return visibleRoles.map((role, idx) => roleHeaderCell(role, idx, stick));
+    return [<th key={`roles-${L}`} colSpan={visibleRoles.length} className="bg-gray-100 dark:bg-gray-800 border-r border-gray-300 dark:border-gray-600 px-1 py-1 text-left align-bottom text-[10px] font-medium text-gray-600 dark:text-gray-400">{L === 0 ? 'Business roles' : ''}</th>];
+  };
   // Build one header row's cells: corner, the per-column group/user headers, then
   // the trailing # + Description columns.
   const layeredHeaderRow = (L, isLast, indexed) => {
@@ -573,6 +618,7 @@ export default function RollupMatrixView({
       cells.push(th);
       i += span;
     }
+    cells.push(...layeredRoleCells(L, isLast, stick));
     cells.push(<th key={`num-${L}`} className={`border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ minWidth: '40px' }} title="Total count for this resource">{isLast ? <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}># ▼</div> : null}</th>);
     cells.push(<th key={`desc-${L}`} className={`border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-1 align-bottom text-xs text-gray-600 dark:text-gray-400 font-medium text-left${stick}${isLast ? ' z-20 border-b' : ''}`} style={{ minWidth: '420px' }}>{isLast ? 'Description' : ''}</th>);
     return cells;
@@ -681,22 +727,7 @@ export default function RollupMatrixView({
               })}
 
               {/* Business-role (SOLL) columns */}
-              {visibleRoles.map((role, idx) => (
-                <th
-                  key={`role:${role.id}`}
-                  className={`border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 align-bottom ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : ''}`}
-                  style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '40px', minWidth: '40px', height: '130px' }}
-                  title={`Business role: ${role.displayName}`}
-                >
-                  <div
-                    className="text-[10px] font-medium text-gray-700 dark:text-gray-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 mx-auto"
-                    style={{ writingMode: 'vertical-lr', textOrientation: 'mixed', transform: 'rotate(180deg)', maxHeight: '120px', overflow: 'hidden', whiteSpace: 'nowrap' }}
-                    onClick={() => onOpenDetail?.('access-package', role.id, role.displayName)}
-                  >
-                    {role.displayName}
-                  </div>
-                </th>
-              ))}
+              {visibleRoles.map((role, idx) => roleHeaderCell(role, idx))}
 
               {/* Trailing # (total) + Description columns — like the per-subject matrix. */}
               <th className="border-b border-l-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 px-1 py-1 align-bottom text-[10px] text-gray-600 dark:text-gray-400 font-medium" style={{ minWidth: '40px' }} title="Total count for this resource">

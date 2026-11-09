@@ -7,7 +7,7 @@
     dispatch pipeline, and verifies that the right data landed in the database.
 
     Covers the fixture-backed acceptance criteria:
-      0  feature gate    — creating a SCIM config is refused while experimental crawlers are off
+      0  no feature gate — creating a SCIM config works with experimental crawlers off
       1  happy path      — users, groups, Direct memberships, Contains nesting, Indirect rows
       2  opt-in picker   — only the selected extra attribute is stored, for users
                           AND groups, with the values served the compliant way:
@@ -216,25 +216,24 @@ foreach ($g in $groups) {
     $g[$MockScimGroupExtensionUrn] = @{ type = 'security'; description = "desc $runTag" }
 }
 
-# ── AC0: the experimental-crawler gate ───────────────────────────────────────
-# SCIM ships as an experimental crawler, so with the flag OFF the API must refuse
-# to create a config for it. Asserted first, and it also leaves the flag in the
-# state the rest of this file needs. Restored to OFF in the finally block so a
-# stack this test ran against is not left with the feature silently switched on.
-#
-# Note the CI stack sets FEATURE_EXPERIMENTAL_CRAWLERS=true (docker-compose.ci.yml),
-# so the stored override below has to actually BEAT that env var for this to pass —
-# which is the precedence rule worth asserting, not an accident of the default.
+# ── AC0: SCIM is no longer behind the experimental-crawler gate ──────────────
+# SCIM graduated from experimental, so the API must accept a SCIM config with the
+# experimental-crawlers flag explicitly OFF. The stored override beats any env var,
+# so this holds whatever the stack was started with. The flag stays OFF for the
+# rest of this file — nothing below needs it — and the finally block re-asserts
+# that so a stack this test ran against is not left with it switched on.
 Set-ExperimentalCrawlers -Enabled $false
+$gateConfigId = $null
 try {
-    Invoke-AtlasApi -Method POST -Path '/admin/crawler-configs' `
-        -Body @{ crawlerType = 'scim'; displayName = "scim-gate-$runTag"; config = @{ baseUrl = 'http://localhost:1'; authMethod = 'ApiToken'; apiToken = 'x' } } | Out-Null
-    Write-Result 'Scim/Gate — refused while experimental crawlers are off' $false '(the config was created anyway)'
+    # The same valid config every other check uses — this asserts the gate, not validation.
+    $gateConfigId = New-ScimConfig -Name "scim-gate-$runTag" -Port 1
+    Write-Result 'Scim/Gate — accepted while experimental crawlers are off' ([bool]$gateConfigId) '(no config id returned)'
 } catch {
     $status = $_.Exception.Response.StatusCode.value__
-    Write-Result 'Scim/Gate — refused while experimental crawlers are off' ($status -eq 403) "(HTTP $status; expected 403)"
+    Write-Result 'Scim/Gate — accepted while experimental crawlers are off' $false "(HTTP $status; expected 201)"
+} finally {
+    if ($gateConfigId) { try { Invoke-AtlasApi -Method DELETE -Path "/admin/crawler-configs/$gateConfigId" | Out-Null } catch {} }
 }
-Set-ExperimentalCrawlers -Enabled $true
 
 $mock = $null; $configId = $null; $otherConfigId = $null; $pagingMock = $null; $pagingConfigId = $null; $authMock = $null; $authConfigId = $null; $nameMock = $null; $nameConfigId = $null
 try {

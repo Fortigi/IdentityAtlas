@@ -19,6 +19,16 @@ import { GROUP_PRINCIPAL_TYPE } from '../../lib/principalTypes.js';
 // The shape returned when there's nothing to show (missing table, no tag matches).
 export const EMPTY_GRID = { data: [], totalUsers: 0, managedByPackages: [] };
 
+// Total user accounts — the matrix slider max. Live (not soft-deleted),
+// non-group principals only: a tombstoned account is history, not a user.
+// Shared by all three grid paths so the slider max agrees across them.
+export const TOTAL_USERS_SQL = `
+    SELECT COUNT(*)::int AS "totalUsers"
+    FROM "Principals"
+    WHERE "deletedAt" IS NULL
+      AND ("principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}')
+  `;
+
 // Columns always handled with explicit aliases (not included in dynamic list)
 const ALIASED_COLS = new Set(['displayName', 'userPrincipalName']);
 
@@ -150,9 +160,7 @@ export async function tryEffectiveAccessAtScopes({ resolvedContextFilters, dynam
     effRows.map((r) => r.displayName),
     effRows.map((r) => r.resourceType),
   ]);
-  const totalResult = await db.query(
-    `SELECT COUNT(*)::int AS "totalUsers" FROM "Principals" WHERE "principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}'`,
-  );
+  const totalResult = await db.query(TOTAL_USERS_SQL);
   return { data: fmt.rows, totalUsers: totalResult.rows[0].totalUsers, managedByPackages: [] };
 }
 
@@ -268,6 +276,7 @@ export async function runLimitedGridQuery({ p, res, userLimit, dynamicUserCols, 
           INNER JOIN "GraphTags" t ON ta."tagId" = t.id
            AND t."name" = ${nameP}
            AND t."entityType" = 'user'
+         WHERE u."deletedAt" IS NULL
          LIMIT ${limP}
       `, tp);
     preFilteredUserIds = tagUsersRes.rows.map(r => r.id);
@@ -334,11 +343,7 @@ export async function runLimitedGridQuery({ p, res, userLimit, dynamicUserCols, 
   `, params);
 
   // Total user count — cheap from Principals, no need to scan the view.
-  const totalResult = await timedQuery(p, 'perm-total-users', res, `
-    SELECT COUNT(*)::int AS "totalUsers"
-    FROM "Principals"
-    WHERE "principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}'
-  `, []);
+  const totalResult = await timedQuery(p, 'perm-total-users', res, TOTAL_USERS_SQL, []);
 
   // AP mapping — constrain to just the users we're about to return. In the
   // tag-filtered branch we already have the principal ID list. In the top-N
@@ -422,11 +427,7 @@ export async function runUnlimitedGridQuery({ p, res, dynamicUserCols, filterCla
   // Total user count — same query as the limited branch for consistency. Using
   // Principals count (not distinct memberIds in the result) so the slider max
   // stays stable whether or not a limit is applied.
-  const totalResult = await timedQuery(p, 'perm-total-users', res, `
-    SELECT COUNT(*)::int AS "totalUsers"
-    FROM "Principals"
-    WHERE "principalType" IS NULL OR "principalType" != '${GROUP_PRINCIPAL_TYPE}'
-  `, []);
+  const totalResult = await timedQuery(p, 'perm-total-users', res, TOTAL_USERS_SQL, []);
 
   // AP mapping is optional — fetch separately, swallow errors.
   let apMapping = [];

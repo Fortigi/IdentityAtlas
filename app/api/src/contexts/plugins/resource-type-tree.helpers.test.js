@@ -57,6 +57,8 @@ describe('resource-type-tree buildResourceQuery', () => {
     expect(text).toContain('"systemId" = $1');
     expect(text).toContain('"extendedAttributes" ->> $2 IS NOT NULL');
     expect(text).not.toContain('"resourceType" =');
+    // A soft-deleted resource is history, never a type-context member.
+    expect(text).toContain('"systemId" = $1 AND "deletedAt" IS NULL');
   });
 
   it('adds the resourceType condition bound as $3 when supplied', () => {
@@ -73,6 +75,9 @@ describe('resource-type-tree buildCapabilityQuery', () => {
     expect(text).toContain('cap."systemId" = $1');
     expect(text).toContain('cap."capabilityId" IS NOT NULL');
     expect(text).not.toContain('sc."resourceType" =');
+    // Neither a deleted capability nor a deleted scope node yields a role leaf.
+    expect(text).toContain('cap."deletedAt" IS NULL');
+    expect(text).toContain('sc."deletedAt" IS NULL');
   });
 
   it('adds the scope resourceType condition bound as $3 when supplied', () => {
@@ -106,7 +111,7 @@ describe('resource-type-tree buildTree', () => {
   it('creates a root plus one child context per distinct value', () => {
     const { rootExt, contexts, members, seen } = buildTree(rows, 'Resource Types');
     expect(rootExt).toBe('type-root');
-    expect(contexts[0]).toMatchObject({ externalId: 'type-root', displayName: 'Resource Types', contextType: 'ResourceTypeRoot' });
+    expect(contexts[0]).toMatchObject({ externalId: 'type-root', displayName: 'Resource Types', contextType: 'ResourceType' });
     const exts = contexts.map((c) => c.externalId);
     expect(exts).toContain('type:Microsoft.Compute/virtualMachines');
     expect(exts).toContain('type:Microsoft.Storage/storageAccounts');

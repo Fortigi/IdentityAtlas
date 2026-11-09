@@ -1,5 +1,582 @@
 ## Changes in this PR
 
+- The load test now fails a pull request that makes the permissions matrix, the dashboard, the view refresh or a large import markedly slower. Each limit is about twice the slowest measured run; the previous limits let a twentyfold slowdown pass.
+- Each pull request's load-test run now compares its API benchmark against a recorded baseline. An endpoint more than 50% slower shows as a warning on the pull request, and the full benchmark report appears on the run's summary page and as a download.
+
+## Changes in this PR
+
+- The 15-minute soak test runs again on pull requests. It reads the web container's memory from the Docker host instead of an endpoint that was removed for security, and fails a run whose memory doubles.
+- A soak test that cannot read memory now fails, instead of skipping and reporting success.
+- The nightly run no longer checks the removed container-stats endpoint, which had failed every night since its removal.
+
+## Changes in this PR
+
+- Container images are now scanned for known vulnerabilities before they are published: an image with a critical vulnerability that already has a fix is not pushed. The published images are also re-scanned weekly, and every finding is listed in the repository's Security tab.
+
+## Changes in this PR
+
+- The JavaScript lint check now runs ESLint's standard correctness rules (undefined names, duplicate keys, unused variables and more) on both the API and the UI, so typos and dead code are caught before review.
+- Errors that wrap another error (reading a secret file, the master key, a migration, an invalid name pattern, an LLM timeout) now keep the original error attached, so logs show the root cause.
+
+## Changes in this PR
+
+- Pull requests whose runs receive no repository secrets, such as Dependabot dependency updates and pull requests from forks, no longer fail the integration checks for missing test credentials once those credentials are made mandatory; they are reported as skipped.
+
+## Changes in this PR
+
+- Fixed the nightly documentation and test-coverage reviews, which skipped every night because they could not see the previous day's changes. They now review every change merged in the last 24 hours, and fail visibly instead of skipping if the list of changes cannot be built.
+
+## Changes in this PR
+
+- Pull request checks finish sooner: the PowerShell unit tests now run in four parallel parts, and their coverage is combined before the 90% coverage floor is checked.
+- The PowerShell coverage floor in pull request checks is raised from 90% to 91%, closer to the 92% the suite measures.
+- The PowerShell coverage checked on pull requests and the figure published on the coverage page now measure the same files, including the shared crawler library. They used to be listed separately and had drifted apart.
+- The four parallel parts stay evenly balanced on their own: test timings are refreshed after a merge whenever one part becomes noticeably slower than the others.
+
+## Changes in this PR
+
+- The integration test run now reports how long each crawler's integration test took, and how long each dependency level waited, in its job summary, so the slowest crawler tests can be found and sped up.
+
+## Changes in this PR
+
+- Faster API contract tests in pull-request CI: the suite now runs four test files at a time, each worker against its own copy of the freshly migrated database, instead of one file at a time against a single shared database. Tests stay as isolated from each other as before.
+
+## Changes in this PR
+
+- Faster UI unit tests in pull-request CI: the UI test suite now runs in worker threads instead of separate processes, which roughly halves the per-file browser-environment setup that dominated its run time. Results and coverage are unchanged.
+
+## Changes in this PR
+
+- Fewer, larger weekly dependency-update pull requests on `main`: all minor and patch bumps for the API and the UI now arrive together in one PR per package, and GitHub Actions bumps in one PR, instead of one PR per dependency. This ends the weekly burst of ten-plus simultaneous CI runs that queued everyone's checks for about 14 minutes. Major upgrades still arrive one at a time.
+
+## Changes in this PR
+
+- Pull-request CI uses six fewer runners per push: the file-length, migration-immutability, Node-version, OpenAPI, crawler-manifest and Azure-template checks now run as steps of one `Lint: static gates` job instead of six separate jobs. Each check keeps its own path scope, a failing check no longer hides the others, and the job summary lists which check failed. This shortens the queue when many PRs run at once.
+
+## Changes in this PR
+
+- Faster pull-request checks: the code-duplication check now scans the PR once and scans the base branch at the same time, instead of running three full scans one after another. The check gives the same verdicts and stops being the slowest step in PR Checks.
+
+## Changes in this PR
+
+- Added a Compare view: put two or three users side by side and see where their access and attributes differ. Open it with "Compare with…" on a user's page, or select 2–3 users on the Users list and click "Compare". By default it shows only the differences and hides names, e-mail addresses and IDs; both can be switched off. The comparison has its own link, so it can be bookmarked or shared.
+
+## Changes in this PR
+
+- Context owners — people who are Accountable or Responsible for a department, team or application — can now use the MCP server from Claude, ChatGPT or Microsoft 365 Copilot without an Identity Atlas role. They see exactly what they see in the app: their contexts, the people in them, what those people hold (or who holds an application), and their sub-units. An admin turns it on under Admin → Roles & Permissions → Relative permissions → "Context owners may also use the MCP server" (off by default, and only while context-owner access is on).
+- For a context owner, every question the assistant asks is limited to their scope inside the query itself: the records listed, filters, groupings and "did you mean" suggestions never reach past it. Reports are limited to the two reports they can download in the app, on their own contexts.
+- As in the app, a context owner's assistant sees the complete member list of a group they may open — people outside their part by name only — and a person outside their part, asked about by full name, is reported as existing but out of reach rather than as not found.
+- AI assistants can now get people's profile photos from Identity Atlas (for example to draw an org chart). A context owner gets the photos of the people they may open, and their own.
+- A context owner now sees their own profile photo in the header of their page, as other users do in the app's header.
+- Every MCP answer now says whether it is restricted ("scope"), separately from whether the row cap cut it off ("truncated"), so an assistant does not present "500 users you may see" as the size of the whole organisation.
+- Added an authorization security check to every pull request ("Security: authorization regression"), also run on every merge to main and weekly. It compares what the app and the MCP server show each kind of user, against a fixed test organisation, and tries known ways around the scope.
+
+## Changes in this PR
+
+- Context owners can now open a **Team matrix** from their unit's page: everyone in the unit as a row, and what each of them holds.
+- Context owners can open the full page — attributes, relationships, timeline, diff and (read-only) risk — of the people in their unit and of the groups and resources those people hold, and go back to their unit.
+- On those pages every reference is still listed (a group shows all its members); people and objects outside the owner's reach are shown in a lighter colour, marked "No access to details", instead of as links.
+- What a context owner may open is enforced by the API: any other detail page, a wider matrix filter, and every change are refused.
+- Application owners can now open an **Application matrix** from their application's page (its resources as columns, everyone who holds one as a row), and open the full page of each of those holders; what the holders have outside the application is shown by name only.
+- Someone who owns several contexts — for example a unit and an application — can switch between them and open each one's matrix, and may open everything any of their contexts gives access to.
+- Changed: a context owner now sees **every** unit below theirs, at any depth — also a sub-unit that has an owner of its own (that owner still sees only their own part). The unit report can now include those sub-units for an owner.
+- The team and application matrices are now the same matrix an analyst sees for that unit or application — including the business-role band, governed cells and the Governed / Non-governed / Gaps views — and the business roles can be opened; business roles nobody on the team holds stay out of view.
+- The team matrix opens grouped by the unit's sub-units, which can be expanded and collapsed as in the analyst's hierarchy view; "Group by unit" switches to the flat matrix with the business roles.
+- The owner's list of contexts shows what kind each one is (organisation unit, application, tag, segment) with an icon and a label.
+- The matrix grouped by a unit's hierarchy (for analysts and owners) now shows the people directly in a unit as a "direct members" column beside its sub-units, so nobody drops out and the totals add up; a unit without sub-units no longer shows an empty matrix; and the business roles are shown in that view too.
+- The matrix grouped by hierarchy opens with the unit's own people shown individually and its sub-units collapsed, and its business-role columns are labelled again.
+- The Authorization workbench now opens in the matrix's orientation: people as columns, access as rows. Business roles and proposed roles are rows with their entitlements nested under them in their colours, then "Other access". What is known of people (job title, activity, expertise, duty, …) sits in header rows above their columns, with the same filter and sort. A unit whose people hold hundreds of groups no longer scrolls sideways. **People as rows** is one click away, and the choice is saved with the investigation.
+- Filter the permissions in the Authorization workbench the way you filter the people: Resource name, Contexts, Type, System and Held by each have an Excel-like filter and sort.
+  - Contexts can show **only** the chosen tags or logical applications, or **hide** what is in them (e.g. hide everything tagged "Default access"). Choosing an application includes its sub-contexts.
+  - Held by now also takes **at most** (to spot outliers), and **Hide permissions only one person holds** is one click.
+  - A business role shows only the entitlements left by the filters, and says "(all hidden by filters)" when none are. A proposed role always keeps its own entitlements, marked "hidden by filter", so nothing is silently dropped from a proposal.
+  - The impact counts only what is shown, and says how many permissions the filters leave out.
+  - The filters are saved with the investigation. With people as rows they sit behind a **Permissions** menu.
+- The Authorization workbench has one vertical scrollbar, the page's. Its header rows stay at the top of the window as you scroll, and the proposed-role panel stays beside the grid. The header rows about people are compact (full values on hover), so many more permission rows fit on screen.
+- Added saving to the Authorization workbench: save your work on a unit as a named investigation (the columns and filters, the marks on cells and every proposed role) and open it again later from **Open…**.
+- The workbench now says whether your work is saved, and warns before opening another investigation over unsaved changes.
+- When you reopen an investigation, the workbench says how many cells of access changed since you saved it; your marks and proposed roles stay as saved.
+- A save is refused when someone else saved the same investigation after you opened it, naming who did, so nobody's work is silently overwritten.
+- Proposed roles are stored apart from real business roles: saving never creates a role, an assignment or access.
+- Saving an investigation also keeps how each proposed role is assigned: rule-based or requestable, its assignment rule, always-include / always-exclude, joiner and leaver choices, the approver and the "why" — all back on Open.
+- "Save role" and "Save and start the next role" at the end of the proposed role: it says what the role still needs (a name, its kind, an entitlement), asks the investigation's name the first time, and starts the next role with its kind to choose.
+- New **+ Proposed roles** toggle in the Matrix, next to All, Governed, Non-governed and Gaps. It adds the proposed roles saved in workbench investigations to whichever view you have, as "Draft: …" business roles in their own colours, with the real business roles still shown, so overlaps stand out. Pick one investigation or see them all. Off, the Matrix is exactly as before. The toggle is not saved with a matrix or a share link, and nothing here changes access.
+- A unit's page now has a **Proposed roles** section ("3 in 2 investigations") listing the roles saved in its Authorization workbench investigations: colour, name, kind, the rule in one sentence (or "chosen by hand"), how many people and entitlements, and where and by whom it was saved. Clicking one opens the workbench on that investigation with that role in the panel. The **Authorization workbench** button shows how many are proposed.
+- A unit's **What we know** now includes what its people do, know and hold (activities, expertise, duties), also when the interview was added on another unit (usually the parent), so the unit page and the workbench agree. Proposed ones can be reviewed there.
+- The Authorization workbench, saved investigations, the unit page's **Proposed roles** and the Matrix's **Proposed** view are part of **Organisation knowledge** (Admin → Experimental), which is off by default. With it off, the Matrix and the unit page look as before.
+- With **+ Proposed roles** on, the Draft roles come after the real business roles in the Matrix, set apart by a small gap under a "Proposed" label.
+
+## Changes in this PR
+
+- Added the Authorization workbench to organizational units: see the unit's people and what they hold, grouped by the activities they perform, their expertise or the duties they hold beside their work, select clusters of access and compose a candidate role (new, or an update to an existing business role) with its impact shown in the grid — covered, potential gain, outside the candidate, other context. Nothing in it changes access or is saved.
+- "Add information" now also proposes what people do, know and hold (activities, expertise, duties); confirming one links it to a shared, named object you can find again under Contexts.
+- Analysts can state a person's activity, expertise or duty by hand from the workbench, and confirm or reject proposed ones with their source and quote.
+- Added a synthetic demo dataset for the workbench (a fictional insurer's claims department).
+- The workbench shows access with the same D / I / E badges and business-role chip as the matrix; its own marks (covered, potential gain, outside the candidate, other context, unrelated, needs investigation) sit on top as a corner sign.
+- The workbench lists one row per person with Excel-like columns (name, job title, system data, activity, expertise, duty): filter any column by its values (multi-value: any match; proposed values in or out), sort by clicking a header, and add everyone shown to the candidate in one click.
+- The candidate shows as a Draft business role in the business-role band with the matrix's colours: what it covers in its colour, what it would add as the matrix's provisioning gap.
+- Several proposed roles at once, each its own Draft column; click one (in the band or the list) to edit it, remove one that is not right, and open an existing business role read-only with "Propose update".
+- Entitlements enter a proposed role only as the analyst selects them (cells, ranges, column headers); the panel shows how many members hold each.
+- Each proposed role says how it is assigned: rule-based (members follow an assignment rule built from the workbench filters, incl. "contains" text, with always-include / always-exclude and what happens to joiners and leavers) or requestable (who may request it, who approves, what happens when a holder leaves); with a "why", the rule as one sentence, and a note when the rule relies on organisational knowledge the IGA system does not hold.
+- The Authorization workbench demo data (Northwind) now puts its resources in contexts — a "Default access" tag, the "ClaimsSuite" application with an "Approvals" sub-context, and "Works council" — so the Contexts filter can be shown. The block can be applied on its own without touching saved investigations.
+- The Authorization workbench leaves out people whose account a sync removed, as the unit page's counts do.
+
+## Changes in this PR
+
+- A unit's (or an application's) page now has one **People** overview instead of separate Members, Previous members and "People & roles" lists: each person appears once, with one status (Current, Came back, Not confirmed, Left (decided), Left), their role here, where it comes from, how many entitlements they still hold, and Current / Former / All filters with counts.
+- What the sources say about a person shows as small icons on their row — dashed while proposed, solid once confirmed, a warning when two statements disagree. Hover or focus an icon to read the claim, the quote and its source; analysts confirm or reject it there, decide a contradiction with both statements side by side, or click to open the source at that quote.
+- Business readers and context owners now see the former people too, with what they still hold (from confirmed information only).
+- "Upload interview" is now **Add information**: besides an interview transcript you can add notes, a Word document, an Excel or CSV list (read one row at a time) or paste text, and saying who it is from is optional. The interviews list is now a **Sources** list.
+- The page header now holds the actions: **Download report** for everyone, **Add information** for analysts, and a ⋯ menu with View in matrix, Adjust tree, Edit, Copy link and Open as page. The Actions card grid and the Owner chip are gone; who answers for the unit (Accountable / Responsible) shows under the name.
+- Analysts get one line under the header — "n to decide · n to review · n to correct in the source" — whose links filter People to what needs a decision, open everything waiting for review in one drawer, or open the change requests.
+- "What we know" now holds only facts about the unit itself (description, properties, other names, More details), folded to one line; Sources, Change requests and the Timeline are folded sections further down the page.
+- The Unit report now has three **Org claim** columns — Status, Role and Source — saying what people told us about each person (as on the People overview), with unreviewed claims marked "(proposed)" and a light amber header to set them apart. People who left or are named but not listed now follow the members as rows of their own, with the entitlements they still hold, and the Summary tab explains the columns and counts current members, former people and proposed claims. Context owners see confirmed claims only.
+- A unit's **Timeline** now says what happened in words: who joined and who left (and through which list, sync or rule), Accountable and Responsible changes ("Accountable changed: Sophie Willems → Tom Bakker"), its people's job title, department, manager or account changes, renames and moves, tree adjustments, change requests, and what the sources decided. Filter it by People, Roles, Structure or Knowledge; a burst such as a list upload adding 40 people folds into one line you can open.
+- Who joins and leaves a unit is now recorded from this version on; earlier joins are read from when each member was added. A refreshed rule no longer rewrites unchanged members, so its counts say what actually changed.
+- **Sources** on a unit now also lists an interview or list added on another unit (usually the parent) that says something about this unit's people, marked "added on <that unit>"; you can view it there, and manage it on the unit it was added to.
+- The People overview, Add information, Sources and the unit report's organisational-claim columns are part of the experimental "Organisation knowledge" feature: while it is off a unit's People overview lists its members as the source lists them, and the unit report has no claim columns
+- Fixed: with Organisation knowledge off, a unit's or an application's page no longer shows a **What we know** section; its description, other kinds of member and More details are shown under **Details** instead.
+- Fixed: when someone leaves a unit, the history no longer stores their membership twice; earlier leaves are tidied up the same way.
+
+## Changes in this PR
+
+- Added the Adjust tree screen: correct a generated or imported tree (manager hierarchy, uploaded lists, logical applications) by dragging units and people, renaming, adding a grouping level, splitting a unit, and setting an (interim) manager
+- Corrections are kept as adjustments with who, when and why, survive every refresh and sync of the source, and can be undone one by one
+- When the source renames or re-keys a unit or a department, the adjustment asks for a decision and proposes where it went, instead of silently dropping or following it
+- Added a Needs attention list: split candidates, people that could not be placed, interim managers whose end date passed, and adjustments the source now agrees with
+- The manager hierarchy can now start from a chosen top (by job title or by person), name units after their people instead of their manager, split a manager's people by department, collect what does not fit in a Not placed unit, and leave out disabled accounts
+- Running a tree now opens it in the Adjust tree screen instead of a "done" message
+- Fixed: a unit added or moved by hand under a generated unit was deleted when the source dropped that unit; it is now kept at the top level
+- Adjust tree is part of the experimental "Organisation knowledge" feature: while it is off the option is hidden and its API answers 404; adjustments made earlier keep being applied after each sync
+
+## Changes in this PR
+
+- Added change requests: when you decide that a source is wrong ("the interview is right: Led left, even though the uploaded list still has him"), Identity Atlas now also records what should change in that source, such as "Remove Led from Klanten", for the uploaded list or system it came from.
+- Change requests close themselves: a request is resolved when the source no longer shows the old fact (for example, after a re-import without the person), and withdrawn when you undo the decision. A unit kept by hand in Identity Atlas raises none, because Identity Atlas is its own source.
+- Added a "Change requests" panel to the unit page, listing what the source still has to change (open first, with closed ones folded away), and a `GET /api/change-requests` endpoint with status, system and unit filters.
+- Change requests are part of the experimental "Organisation knowledge" feature: hidden, and not listed by the API, while it is off
+- Added interview uploads for organisational units and applications: upload a transcript (.txt, .docx, .vtt or .srt), say who was interviewed and when, and Identity Atlas lists what the interview says as claims — each with the verbatim quote it rests on — for review. Nothing is written until someone confirms it.
+- With the local model configured, claims are extracted automatically (in the background, with a status and a retry); without it the transcript is still stored and claims can be added by hand.
+- Confirming a claim adds it to the unit's description, sets one of its attributes, or makes the person its Accountable or Responsible — with the interview recorded as the source. An Accountable that is already set is never replaced without asking.
+- Interviews suggest roles: "I'm the owner, but Piet does the day-to-day" suggests the interviewee as Accountable and Piet as Responsible, in the People block next to the existing suggestion.
+- Added "What we know" to the page of a unit or application: what interviews established — description, properties and people with a timeline of their roles over the years — each with its source and quote, plus the claims still to review and the interviews themselves.
+- Account and person pages now list the units and applications whose interviews mention them.
+- Business readers and context owners see only confirmed claims; transcripts and review stay with the analyst.
+- Interview extraction now finds the person when the model shortens a name ("Vries" for "Piet de Vries" in the quote), and as a last resort matches a surname that only one user account has; both are marked "check the person".
+- Fewer interview claims are lost: a quote that differs only in case or punctuation is kept, a property without a name becomes a description, and a claim without a value takes its quote. The run's note now says why each remaining claim was left out.
+- Interview extraction waits as long as the report model does (15 minutes per answer by default, `INTERVIEW_LLM_TIMEOUT_MS` to change it), so a busy or slow model no longer makes it fail; the status says how long a long run has been going.
+- Interview extraction now focuses on what matters for access governance — people and their roles over time, who owns it, other names, the systems used and facts such as sector or contract — and skips small talk. Every claim is marked as relevant or less relevant; the review list shows the relevant ones first, folds the rest under "Less relevant", and offers "Reject all less relevant" and "Reject all descriptions".
+- Interviews now record who joined and who left ("Jan just left the account", "Karel worked on it in the early years"). A current member an interview says left is flagged in the members list ("Interview: left (last month)", with the quote), and a new "Previous members" section lists the people who left, with their role, the interview it comes from and the entitlements they still hold — highlighting those on the unit's own application. Confirming such a claim records the knowledge; it never changes the members.
+- The members lists of a unit or application show each person's role there as the interviews tell it, with the history on hover; claims still to review are shown dashed.
+- Interviews can name other names of a unit ("also known as", "or just"); a confirmed one is shown as "Also known as" on the page.
+- "What we know" is folded to one line ("7 facts · 3 people · 2 proposed to review") and opens on click; it stays open for that unit for the rest of the session.
+- Added a transcript view: "View transcript" shows the interview as a dialogue with every claim's quote highlighted (a colour per kind, the fill for proposed, confirmed or rejected), a legend, and the claim behind each highlight with Confirm and Reject. "In transcript" next to a claim jumps to its quote. Analysts only.
+- People an interview says left now show up under "Previous members" (and as "Interview: left" on a current member) even when the interview phrased it as a past role ("recently left", "inmiddels uitgestroomd", "no longer", "voormalig"), in English and Dutch; new interviews also record a proper "former member" claim for them. Someone nobody could match is still listed by the name as said, with "no account found".
+- A first name alone ("Ruud") is now also found among the people the unit's interviews already name, the members of related units (the same unit seen as another kind, its parent and siblings) and — only when exactly one account in the organisation has that first name — org-wide; always marked "check the person". "Ruud en Kees" / "Ruud and Kees" in one sentence are two people.
+- Interview extraction now reads "who left" against the whole sentence: someone the model marked as a former member while the sentence says they are involved now ("is sinds een jaar betrokken", "currently works") is proposed as a current member, marked "corrected: the sentence says current"; a sentence that says neither is flagged "unsure — read the quote"; the quote shown is the whole sentence, so the reason is visible.
+- Reading an interview again, or a second interview of the same unit, no longer proposes claims that were already confirmed, edited or rejected for that unit.
+- When people call a unit by another name than its stored one ("het Havenkantoor" for "HarbourOfficeNL"), interview extraction now proposes it as an "Also known as" name for review — never a person's name or another unit's name.
+- The other names of a unit or application now show in its facts as "Also known as": confirmed names plainly, names an interview proposes dashed with Confirm and Reject right there (analysts only). After a decision the page shows the change at once — no reload needed for an alias, a property or the description.
+- A person who left and came back now shows both stints: in the members list with their current role and a "rejoined · earlier: Junior developer" marker (the quote on hover), and under "Previous members" for the earlier stint ("Junior developer (earlier period)", with "now a member again" jumping to their current row). Interviews can also record "back again (rejoined)" as a membership status; "came back", "is weer terug", "kwam terug als", "is sinds … terug" are recognised in English and Dutch.
+- A unit's or application's Timeline now shows its interviews: the upload, how many claims were extracted, every claim decision ("Confirmed: …", "Rejected: …"), roles set from a claim ("Piet set as Responsible — from the interview with Anna, 2026-10-01") and the aliases, properties and description added from one. Business readers see confirmed decisions only.
+- The Timeline of a unit or application no longer comes up empty when only its "last updated" stamp kept changing.
+- Contradictions are now shown explicitly. When an interview says something that disagrees with what Identity Atlas holds — "Lotte left" while the uploaded member list still has her, someone else named as owner than the current Accountable, another value for an attribute, two interviews that say different things — "What we know" opens with a "Contradictions" panel showing both statements side by side with their sources (the interview, date and quote with "View in transcript"; the list or system with when it was last synced), and a badge on the page says how many wait. Analysts decide with an explicit choice ("The interview is right", "The list is right", "Both true, at different times", "Keep …"); the decision is recorded on the claims with who and when, leaves the panel and shows on the Timeline as "Decided: …". Readers see the contradictions without the choices. Claims that only add information keep the ordinary review.
+- Subtitle transcripts (.vtt / .srt) with nested markup are now cleaned completely, and transcripts or model answers with very long runs of spaces or quote marks no longer slow reading an interview down.
+- Deciding "the interview is right" for someone an interview says left, while the uploaded or synced member list still has them, now marks them as a former member: they leave the current members list (a note says "1 marked as former by a decision — show" and reveals them struck through), appear under Previous members with who decided, when, which source still lists them, what they still have access to and what to do in the source, and the facts say "12 in this unit (1 marked former)". The source's member list itself is not changed, and access is not removed.
+- A decision on an interview claim that changed nothing but the claim can be undone ("Undo decision" in Previous members): the contradiction opens again and the person is a current member again.
+- The unit report has a Status column: "current" or "marked former (decision)".
+- The Timeline shows "Decided: <name> is a former member (overrides <source>)".
+- Upgrade note: when a model server is configured (NL_REPORTS_LLM_URL), uploaded interview transcripts are sent to it to extract claims; the shipped overlay runs it inside your own stack, and with the variable unset nothing is sent
+- Interviews, claims, contradictions and the decisions on them are now an experimental feature, "Organisation knowledge" (Admin → Experimental), off by default: while it is off a unit's page is a plain unit page with plain membership, and nothing is deleted when it is switched off
+
+## Changes in this PR
+
+- Added interview uploads for organisational units and applications: upload a transcript (.txt, .docx, .vtt or .srt), say who was interviewed and when, and Identity Atlas lists what the interview says as claims — each with the verbatim quote it rests on — for review. Nothing is written until someone confirms it.
+- With the local model configured, claims are extracted automatically (in the background, with a status and a retry); without it the transcript is still stored and claims can be added by hand.
+- Confirming a claim adds it to the unit's description, sets one of its attributes, or makes the person its Accountable or Responsible — with the interview recorded as the source. An Accountable that is already set is never replaced without asking.
+- Interviews suggest roles: "I'm the owner, but Piet does the day-to-day" suggests the interviewee as Accountable and Piet as Responsible, in the People block next to the existing suggestion.
+- Added "What we know" to the page of a unit or application: what interviews established — description, properties and people with a timeline of their roles over the years — each with its source and quote, plus the claims still to review and the interviews themselves.
+- Account and person pages now list the units and applications whose interviews mention them.
+- Business readers and context owners see only confirmed claims; transcripts and review stay with the analyst.
+- Interview extraction now finds the person when the model shortens a name ("Vries" for "Piet de Vries" in the quote), and as a last resort matches a surname that only one user account has; both are marked "check the person".
+- Fewer interview claims are lost: a quote that differs only in case or punctuation is kept, a property without a name becomes a description, and a claim without a value takes its quote. The run's note now says why each remaining claim was left out.
+- Interview extraction waits as long as the report model does (15 minutes per answer by default, `INTERVIEW_LLM_TIMEOUT_MS` to change it), so a busy or slow model no longer makes it fail; the status says how long a long run has been going.
+- Interview extraction now focuses on what matters for access governance — people and their roles over time, who owns it, other names, the systems used and facts such as sector or contract — and skips small talk. Every claim is marked as relevant or less relevant; the review list shows the relevant ones first, folds the rest under "Less relevant", and offers "Reject all less relevant" and "Reject all descriptions".
+- Interviews now record who joined and who left ("Jan just left the account", "Karel worked on it in the early years"). A current member an interview says left is flagged in the members list ("Interview: left (last month)", with the quote), and a new "Previous members" section lists the people who left, with their role, the interview it comes from and the entitlements they still hold — highlighting those on the unit's own application. Confirming such a claim records the knowledge; it never changes the members.
+- The members lists of a unit or application show each person's role there as the interviews tell it, with the history on hover; claims still to review are shown dashed.
+- Interviews can name other names of a unit ("also known as", "or just"); a confirmed one is shown as "Also known as" on the page.
+- "What we know" is folded to one line ("7 facts · 3 people · 2 proposed to review") and opens on click; it stays open for that unit for the rest of the session.
+- Added a transcript view: "View transcript" shows the interview as a dialogue with every claim's quote highlighted (a colour per kind, the fill for proposed, confirmed or rejected), a legend, and the claim behind each highlight with Confirm and Reject. "In transcript" next to a claim jumps to its quote. Analysts only.
+- People an interview says left now show up under "Previous members" (and as "Interview: left" on a current member) even when the interview phrased it as a past role ("recently left", "inmiddels uitgestroomd", "no longer", "voormalig"), in English and Dutch; new interviews also record a proper "former member" claim for them. Someone nobody could match is still listed by the name as said, with "no account found".
+- A first name alone ("Ruud") is now also found among the people the unit's interviews already name, the members of related units (the same unit seen as another kind, its parent and siblings) and — only when exactly one account in the organisation has that first name — org-wide; always marked "check the person". "Ruud en Kees" / "Ruud and Kees" in one sentence are two people.
+- Interview extraction now reads "who left" against the whole sentence: someone the model marked as a former member while the sentence says they are involved now ("is sinds een jaar betrokken", "currently works") is proposed as a current member, marked "corrected: the sentence says current"; a sentence that says neither is flagged "unsure — read the quote"; the quote shown is the whole sentence, so the reason is visible.
+- Reading an interview again, or a second interview of the same unit, no longer proposes claims that were already confirmed, edited or rejected for that unit.
+- When people call a unit by another name than its stored one ("het Havenkantoor" for "HarbourOfficeNL"), interview extraction now proposes it as an "Also known as" name for review — never a person's name or another unit's name.
+- The other names of a unit or application now show in its facts as "Also known as": confirmed names plainly, names an interview proposes dashed with Confirm and Reject right there (analysts only). After a decision the page shows the change at once — no reload needed for an alias, a property or the description.
+- A person who left and came back now shows both stints: in the members list with their current role and a "rejoined · earlier: Junior developer" marker (the quote on hover), and under "Previous members" for the earlier stint ("Junior developer (earlier period)", with "now a member again" jumping to their current row). Interviews can also record "back again (rejoined)" as a membership status; "came back", "is weer terug", "kwam terug als", "is sinds … terug" are recognised in English and Dutch.
+- A unit's or application's Timeline now shows its interviews: the upload, how many claims were extracted, every claim decision ("Confirmed: …", "Rejected: …"), roles set from a claim ("Piet set as Responsible — from the interview with Anna, 2026-10-01") and the aliases, properties and description added from one. Business readers see confirmed decisions only.
+- The Timeline of a unit or application no longer comes up empty when only its "last updated" stamp kept changing.
+- Contradictions are now shown explicitly. When an interview says something that disagrees with what Identity Atlas holds — "Lotte left" while the uploaded member list still has her, someone else named as owner than the current Accountable, another value for an attribute, two interviews that say different things — "What we know" opens with a "Contradictions" panel showing both statements side by side with their sources (the interview, date and quote with "View in transcript"; the list or system with when it was last synced), and a badge on the page says how many wait. Analysts decide with an explicit choice ("The interview is right", "The list is right", "Both true, at different times", "Keep …"); the decision is recorded on the claims with who and when, leaves the panel and shows on the Timeline as "Decided: …". Readers see the contradictions without the choices. Claims that only add information keep the ordinary review.
+- Subtitle transcripts (.vtt / .srt) with nested markup are now cleaned completely, and transcripts or model answers with very long runs of spaces or quote marks no longer slow reading an interview down.
+- Deciding "the interview is right" for someone an interview says left, while the uploaded or synced member list still has them, now marks them as a former member: they leave the current members list (a note says "1 marked as former by a decision — show" and reveals them struck through), appear under Previous members with who decided, when, which source still lists them, what they still have access to and what to do in the source, and the facts say "12 in this unit (1 marked former)". The source's member list itself is not changed, and access is not removed.
+- A decision on an interview claim that changed nothing but the claim can be undone ("Undo decision" in Previous members): the contradiction opens again and the person is a current member again.
+- The unit report has a Status column: "current" or "marked former (decision)".
+- The Timeline shows "Decided: <name> is a former member (overrides <source>)".
+- Upgrade note: when a model server is configured (NL_REPORTS_LLM_URL), uploaded interview transcripts are sent to it to extract claims; the shipped overlay runs it inside your own stack, and with the variable unset nothing is sent
+- Interviews, claims, contradictions and the decisions on them are now an experimental feature, "Organisation knowledge" (Admin → Experimental), off by default: while it is off a unit's page is a plain unit page with plain membership, and nothing is deleted when it is switched off
+
+## Changes in this PR
+
+- Added a "Context owners" checkbox under Admin → Roles & Permissions → Relative permissions: when on, people who are Accountable or Responsible for a context can sign in without an Identity Atlas role and land directly on their own context page (read-only), with the report download on applications and on units of accounts or people they own (their own unit only, without sub-units).
+- Context owners can only see their own contexts and those contexts' variants; every other page and API endpoint is refused for them, and they cannot change anything.
+- People with an Identity Atlas role keep their normal access; with the checkbox off nothing changes.
+- The risk score override, "View in matrix", the "Coming soon" survey and review cards, "Copy link" and links to member, person and sub-unit pages are no longer offered inside read-only views (shared matrices and context-owner pages), where they could not be used.
+- Admin → Roles & Permissions now has a "Relative permissions" section below the role table, holding the Context owners checkbox — access people get because of how they relate to the data rather than an Identity Atlas role — and explains that matrix-share recipients are the other kind.
+- Context owners can now also open the sub-units of their contexts, except a sub-unit that has an Accountable or Responsible of its own (and everything below it); in-scope sub-units and parents open in place, the others stay plain text.
+- On a context owner's page each member can be expanded to show, by name only, the groups and resources it holds (with Direct, Indirect or Eligible), its business roles and the other contexts it is in — or, for a resource, who holds it — at most 50 names per group with the total; none of these names can be opened.
+- Every grouping (context) now carries its template — organisation, application, tag or segment — and the Contexts page groups trees that way, with the source of each tree as caption
+- An organisational unit or a logical application can record who answers for it: one accountable person (its manager or owner) and any number of responsible people; the manager hierarchy fills in the accountable manager of every team
+- A unit can exist as several groupings — its people, its accounts and its resources — each holding one kind of member, linked as variants of the same unit
+- The roots of generated trees no longer carry a type of their own; the Azure scope tree's nodes are scopes with the resource type as an attribute
+- The ontology (2.1.0) describes the template column, context roles and context relationships, and CI checks that every plugin's types sit under the template it declares
+- Context trees are now grouped by template (Organisation, Applications, Tags, Segments, Other) and show where each tree came from, the plugin or the source system, instead of the raw type name
+- A context's template is shown on its detail page; organisational units and applications list the people who answer for them (one accountable, any number responsible), which an analyst with write access can add or remove
+- The new-context wizard and the context editor let you choose a template; a new child starts on its parent's template
+- Moving a person between teams by drag and drop, and the matrix "By Manager Hierarchy" sort, now follow the manager-hierarchy plugin's trees rather than a type name
+- The context list can be filtered by template and by the plugin that built a tree; creating or editing a context lets you choose its template
+- The "Tags" root no longer appears as a tag of its own and cannot be renamed or deleted through the tag endpoints
+- The owner a source names for a synced grouping (for example a logical application's owner from IdentityIQ) now shows as its accountable person, matched to an account by its key or, failing that, by an employee number only one active account carries; a choice an analyst made is never overwritten by the next sync, and the context page says which system an accountable person came from
+- Existing databases get the accountable person filled in for synced groupings that name an owner and have none yet, once, on upgrade
+- The IdentityIQ preset with organisation extensions takes a logical application's owner from the application owner key when the catalogue's owner key is empty
+- Databases that already applied a migration under its earlier number keep it applied when the migration is renumbered, instead of running it again
+- Fixed: an accountable person a crawler sends for a grouping directly is no longer removed by the next contexts sync when the grouping itself names no owner; only the owner taken from the source's owner field follows that field, and existing databases are relabelled on upgrade
+- Upgrade note: the root types of generated trees are renamed (for example PrincipalTypeRoot → PrincipalType, ScopeHierarchy and the Azure scope types → Scope, TagGroup → Tag); saved filters, report parameters or API scripts that select contexts by one of the old type names need the new name
+- Databases that ran an early test build of the context templates (links between variants of a unit stored as "DedicatedTo") are brought level on upgrade: those links become "same unit as" links, a link stored both ways is kept once, and the change history of who answers for a unit is recorded
+- Added a setting under Admin → Experimental, "Accountables from source owners" (on by default): switched off, a sync no longer sets, changes or removes any accountable person from the owner a source names
+- Added "Upload a list" to New context tree: upload your own list of organisation units or applications (.csv or .xlsx) with owners, responsibles, members and extra attributes, and it becomes a context tree.
+- The upload makes a best guess of what each column means (name, key, owner, responsible, parent, members, attributes — Dutch and English headers); when the local AI model is configured it refines that guess, and every part of it can be changed before importing.
+- A preview shows what the import will do: new, changed and unchanged units, units no longer in the file, how many members matched, the first values that matched nothing, and rows that stop the import.
+- Members can be people, accounts or resources, several per cell or one per row; a list with two kinds of member (for example users and applications per customer) becomes two linked trees.
+- The owner column becomes the unit's Accountable (by e-mail address, employee number or account id); imported owners named by e-mail address are now resolved for every imported context.
+- Uploading the same list again updates the existing units instead of creating a new tree; units no longer in the file are kept unless you choose to remove them. An uploaded tree has a "Re-import…" action in its ⋯ menu.
+- A unit created from an upload shows on its page which file it came from, when and by whom it was uploaded, and when the list was last updated.
+- Fixed members of a list exported from SharePoint: a person or lookup column ("Alice Example;#27;#Bob Sample;#16") now yields every person in the cell instead of only the first; person claims and "Name <address>" are read as the address.
+- Owners and members named by display name now resolve to their account — ignoring accents, case, "Last, First" order and a trailing " | Organisation" — preferring user accounts over service principals with the same name. This also applies to owners delivered by crawlers.
+- The upload also accepts near misses (a typo in a name) when one account is clearly the closest; the preview lists every such fuzzy match as "value → account", and shows how owners and members matched (by address or id, by name, fuzzy, ambiguous, not found) before you import.
+- Upgrade note: an owner a crawler delivers for an imported grouping is now also matched by e-mail address and by display name (only when exactly one account matches), so groupings that had nobody accountable may get one on the next sync; check those once after upgrading
+- Re-importing a list now keeps a fuzzy-matched owner in step with the owner column like any other owner: it changes when the owner in the file changes and disappears when the cell is emptied
+- Added a second setting under Admin → Experimental, "…also match owners by name" (off by default): only when it is on does a sync make the account with the same display name a unit's or application's accountable person; an uploaded list still matches its owners by name in its preview
+- The demo dataset now includes seven logical applications (SAP ERP with its Financial Accounting module, Customer Relationship Management, IT Service Management, Engineering Platform, Privileged Access Management and Employee Portal & Intranet), each grouping the demo resources that belong to it.
+- Demo applications show every ownership case: three have an Accountable and Responsible set, two have none but suggest a best-guess owner from group ownership, one has an owner below the suggestion threshold, and one has no owner at all.
+- The demo's Security Team is also available as its resources and linked to the people team, so its "Download report" card has something to run on.
+- Crawlers can now send who is Accountable or Responsible for a context, and which contexts are one unit, through the ingest API; these are added without overwriting changes an analyst made.
+- Contexts now has a tab per template (Organisation, Applications, Tags, Segments), with counts; Organisation switches between People, Accounts and Resources trees, so each tree holds one kind of member
+- Organisational units and applications open with their key facts: who is accountable (the owner, for an application) and responsible, members, sub-units, and the unit's variants ("Contoso · People 12 · Accounts 15 · Resources 31"), each opening its own context
+- When nobody is accountable, the page suggests someone and says why — the manager of most of the unit's people or accounts, or the owner of most of its resources — with Confirm, Reject (never suggested again for that unit) and Choose someone else
+- A unit or application can download its Entitlement Pivot report straight from its page; a people or accounts unit uses its resources variant, or offers the matrix scoped to the unit when it has none
+- Contexts now shows the tab's trees as one tree on the left and the selected context on the right; selecting a unit, application, tag or segment no longer opens a new tab, and "Open as page" still does.
+- Variant and sub-context links on a context select it in place, switching between People, Accounts and Resources where needed, and each tab remembers what you last selected.
+- The suggested owner's reason reads naturally for small units ("manager of the only member", "all 5 members").
+- The context page no longer has an Attributes tab: every attribute now appears once at the top, with the less-used ones under a collapsible "More details", and editing a context moved to an Edit button in the header.
+- Accountable and Responsible are shown read-only with a small edit button that opens a pop-up to look people up, add, remove or clear them; the best guess's "Choose someone else" opens the same pop-up.
+- A context's member list now shows each member's details: e-mail, job title, type and status for accounts; e-mail, job title and department for people; type, description and status for resources.
+- Contexts tree panel lists trees under a heading per source (Imported · <system>, Derived · <rule in words>, Manager hierarchy, Created here) instead of a caption line and coloured dots
+- Each tree row shows one member count (everyone including sub-units), with the direct share in its tooltip; the kind badge is gone, and on Tags and Segments a root names its kind ("Tags · People")
+- Add sub-unit, rename and drag are offered only on trees whose edits are kept (not imported trees) and only to users who may change contexts; "+ New" likewise
+- Refresh (formerly Sync) and "Delete this tree…" moved into a ⋯ menu on the tree's root row; deleting asks for confirmation first
+- The People / Accounts / Resources switch moved into the tree panel header as "Show:", offers only kinds that have units and opens on the first one that has any
+- Filters use plain words: Source (Imported / Derived / Created here), System, and on Tags/Segments a Kind filter; the extended search is labelled "Also search other fields"
+- The template tabs no longer show tree counts; the List mode was removed from the panel
+- Empty states explain where units come from in plain words; the right pane says "Pick a unit on the left."
+- The "New context tree" wizard offers "Import from a system", "Derive from data" and "Create by hand", without colour bars
+- Tree rows no longer announce themselves as disabled to screen readers, and tree text is at least 12px
+- A unit's page now has two views: someone who cannot edit contexts sees a reading view (facts, the people who answer for it, actions, sub-units and members) without Edit, Timeline, raw details or member editing; someone who can edit sees the same page plus Edit, Add sub-unit, More details with the raw classification, the Timeline and an "Edit members" mode.
+- Opened on its own, a unit's page shows no app navigation to a reader, a breadcrumb of its parent units instead, and the unit's name as the browser tab title; every unit page has a "Copy link" button.
+- The row of classification badges under a unit's name is replaced by one sentence, such as "Department · imported from Fortigi Demo HR" or "Team · derived from who reports to whom in Fortigi Demo EntraID".
+- Accountable and Responsible are shown as a people block with initials and a line on what each role means; an empty role reads "Nobody is accountable yet." with a "Set accountable" button for editors.
+- A suggested Accountable now reads "Suggested: … · reason" with Confirm, "Not this person" and "Choose someone else".
+- The "Variants of this unit" section is renamed "This unit as" and only appears when the unit is also held as another kind of member.
+- The "Relationships" tab is gone: a unit lists its "Sub-units" and "Members" directly, and the member count in the facts card matches the list ("12 in this unit · 37 including sub-units") and jumps to it.
+- The members table hides columns that are empty for every member on the page, shows account types in words (Member, Guest, Service account) and reads as a card list on narrow screens; the add box says "Search people / accounts / resources to add" (no more "identitys").
+- Members derived by a rule are no longer offered a "Remove (will return)" action; in edit mode they say "from the rule", and a note explains which members stay.
+- The edit form of a unit has no separate Owner field, one Delete whose confirmation explains what happens, and no add-child form (use "Add sub-unit" in the header).
+- More details shows "Last updated" instead of "Last Calculated At"; the Timeline skips that bookkeeping stamp and shows dates readably.
+- A context tab in the app's tab strip shows its template's icon instead of the letter "C", and an analyst returns with "Back to Contexts".
+- The unit page's "Workflows" area is now **Actions**: "View in matrix" opens in a new tab (an application's resources as columns), and "Download entitlement report" gives an Excel file for applications and units of accounts.
+- The Entitlement Pivot can now run on a unit of accounts: it lists the resources the unit's members hold, counted among those members only.
+- The "Download entitlement report" card is now offered on applications only; organisational units (of people, accounts or resources) keep "View in matrix", and the "Reports are available on the accounts view" hint is gone. The Entitlement Pivot still runs on a unit of accounts from the Reports page.
+- A rule that derives several top-level units (one per department, one per risk tier) now puts them under one root named after the rule — the departments appear under "Departments" instead of six loose trees. Existing trees move under the new root on the next refresh, keeping their names, members and edits.
+- The Contexts tree names the rule that derived a tree ("Derived · Department from Principal"), and a derived unit's subtitle says which rule made it ("Department · derived by the Department from Principal rule").
+- A unit whose members cannot be loaded now says so instead of showing "No members found", and the detail pane shows "Loading…" while the trees are read instead of staying blank.
+- The Entitlement Pivot's Excel download now opens with everything known about each context it covers: every attribute the context page lists under "More details", who is Accountable and Responsible (with employee ID and e-mail), and — when nobody is Accountable yet — the suggested person and why.
+- The Entitlement Pivot shows the entitlement owner in three columns (name, employee ID, e-mail); when an entitlement has no owner link but its source named one (as the IdentityIQ preset stores in ownerId/ownerName), the owner is looked up from that, or shown as the source named them.
+- The Entitlement Pivot adds a column for every attribute the entitlements in the report carry (such as certification frequency or requestable), up to 60, without having to pick them; any beyond that are named on the Summary tab.
+- A logical application's (or any resource context's) member list now shows how many users hold each resource and who owns it (the owner's e-mail on hover), using the same owner lookup as the Entitlement Pivot.
+- New **Unit report** for organisational units of accounts or people: one row per member with their details, how many entitlements each holds (for a person, across their linked accounts) and every attribute their source stored; its Excel download opens with everything known about the unit, including who is accountable for it. Optionally includes the members of sub-units.
+- Units of accounts or people have a "Download unit report" action, also on the unit owner's read-only page.
+- "Edit members" is now offered only on contexts created in Identity Atlas, where both adding and removing members last; imported and rule-derived contexts no longer offer it, since their members would come back on the next refresh.
+- A report downloaded for one context is named after it and the day, e.g. "SAP ERP 2026-10-22.xlsx".
+- In an application's member list the Owner column comes before Users, and a resolved owner links to their account.
+- The Entitlement Pivot run on a name that belongs to both an application and a unit of accounts now reports on the application instead of refusing the run as a mix, and says so; pick the unit from the list to report on its members
+- Upgrade note: the Entitlement Pivot download has more columns than before (context details on the first tab, owner name / employee ID / e-mail, and the entitlements' own attributes) and is named after the context and the day; a script or workbook that reads it by column position or file name needs adjusting
+- Upgrade note: the Contexts List mode and the Attributes and Relationships tabs are gone; their information is on the unit page itself
+- The context assistant ("Describe it") now asks what the context is (application, organisation, tag or segment), starting from the Contexts tab it was opened from; the model suggests one from your description without ever overriding your own choice
+- The context assistant shows the suggested owner of what its search terms find before you save
+- The Entitlement Pivot's summary block no longer lists Identity Atlas's internal fields (its own id, variant, target type, sync instance key, edit flags and row timestamps); the source's reference, the owner it names and every other fact stay.
+
+## Changes in this PR
+
+- Added a "Context owners" checkbox under Admin → Roles & Permissions → Relative permissions: when on, people who are Accountable or Responsible for a context can sign in without an Identity Atlas role and land directly on their own context page (read-only), with the report download on applications and on units of accounts or people they own (their own unit only, without sub-units).
+- Context owners can only see their own contexts and those contexts' variants; every other page and API endpoint is refused for them, and they cannot change anything.
+- People with an Identity Atlas role keep their normal access; with the checkbox off nothing changes.
+- The risk score override, "View in matrix", the "Coming soon" survey and review cards, "Copy link" and links to member, person and sub-unit pages are no longer offered inside read-only views (shared matrices and context-owner pages), where they could not be used.
+- Admin → Roles & Permissions now has a "Relative permissions" section below the role table, holding the Context owners checkbox — access people get because of how they relate to the data rather than an Identity Atlas role — and explains that matrix-share recipients are the other kind.
+- Context owners can now also open the sub-units of their contexts, except a sub-unit that has an Accountable or Responsible of its own (and everything below it); in-scope sub-units and parents open in place, the others stay plain text.
+- On a context owner's page each member can be expanded to show, by name only, the groups and resources it holds (with Direct, Indirect or Eligible), its business roles and the other contexts it is in — or, for a resource, who holds it — at most 50 names per group with the total; none of these names can be opened.
+- Every grouping (context) now carries its template — organisation, application, tag or segment — and the Contexts page groups trees that way, with the source of each tree as caption
+- An organisational unit or a logical application can record who answers for it: one accountable person (its manager or owner) and any number of responsible people; the manager hierarchy fills in the accountable manager of every team
+- A unit can exist as several groupings — its people, its accounts and its resources — each holding one kind of member, linked as variants of the same unit
+- The roots of generated trees no longer carry a type of their own; the Azure scope tree's nodes are scopes with the resource type as an attribute
+- The ontology (2.1.0) describes the template column, context roles and context relationships, and CI checks that every plugin's types sit under the template it declares
+- Context trees are now grouped by template (Organisation, Applications, Tags, Segments, Other) and show where each tree came from, the plugin or the source system, instead of the raw type name
+- A context's template is shown on its detail page; organisational units and applications list the people who answer for them (one accountable, any number responsible), which an analyst with write access can add or remove
+- The new-context wizard and the context editor let you choose a template; a new child starts on its parent's template
+- Moving a person between teams by drag and drop, and the matrix "By Manager Hierarchy" sort, now follow the manager-hierarchy plugin's trees rather than a type name
+- The context list can be filtered by template and by the plugin that built a tree; creating or editing a context lets you choose its template
+- The "Tags" root no longer appears as a tag of its own and cannot be renamed or deleted through the tag endpoints
+- The owner a source names for a synced grouping (for example a logical application's owner from IdentityIQ) now shows as its accountable person, matched to an account by its key or, failing that, by an employee number only one active account carries; a choice an analyst made is never overwritten by the next sync, and the context page says which system an accountable person came from
+- Existing databases get the accountable person filled in for synced groupings that name an owner and have none yet, once, on upgrade
+- The IdentityIQ preset with organisation extensions takes a logical application's owner from the application owner key when the catalogue's owner key is empty
+- Databases that already applied a migration under its earlier number keep it applied when the migration is renumbered, instead of running it again
+- Fixed: an accountable person a crawler sends for a grouping directly is no longer removed by the next contexts sync when the grouping itself names no owner; only the owner taken from the source's owner field follows that field, and existing databases are relabelled on upgrade
+- Upgrade note: the root types of generated trees are renamed (for example PrincipalTypeRoot → PrincipalType, ScopeHierarchy and the Azure scope types → Scope, TagGroup → Tag); saved filters, report parameters or API scripts that select contexts by one of the old type names need the new name
+- Databases that ran an early test build of the context templates (links between variants of a unit stored as "DedicatedTo") are brought level on upgrade: those links become "same unit as" links, a link stored both ways is kept once, and the change history of who answers for a unit is recorded
+- Added a setting under Admin → Experimental, "Accountables from source owners" (on by default): switched off, a sync no longer sets, changes or removes any accountable person from the owner a source names
+- The demo dataset now includes seven logical applications (SAP ERP with its Financial Accounting module, Customer Relationship Management, IT Service Management, Engineering Platform, Privileged Access Management and Employee Portal & Intranet), each grouping the demo resources that belong to it.
+- Demo applications show every ownership case: three have an Accountable and Responsible set, two have none but suggest a best-guess owner from group ownership, one has an owner below the suggestion threshold, and one has no owner at all.
+- The demo's Security Team is also available as its resources and linked to the people team, so its "Download report" card has something to run on.
+- Crawlers can now send who is Accountable or Responsible for a context, and which contexts are one unit, through the ingest API; these are added without overwriting changes an analyst made.
+- Contexts now has a tab per template (Organisation, Applications, Tags, Segments), with counts; Organisation switches between People, Accounts and Resources trees, so each tree holds one kind of member
+- Organisational units and applications open with their key facts: who is accountable (the owner, for an application) and responsible, members, sub-units, and the unit's variants ("Contoso · People 12 · Accounts 15 · Resources 31"), each opening its own context
+- When nobody is accountable, the page suggests someone and says why — the manager of most of the unit's people or accounts, or the owner of most of its resources — with Confirm, Reject (never suggested again for that unit) and Choose someone else
+- A unit or application can download its Entitlement Pivot report straight from its page; a people or accounts unit uses its resources variant, or offers the matrix scoped to the unit when it has none
+- Contexts now shows the tab's trees as one tree on the left and the selected context on the right; selecting a unit, application, tag or segment no longer opens a new tab, and "Open as page" still does.
+- Variant and sub-context links on a context select it in place, switching between People, Accounts and Resources where needed, and each tab remembers what you last selected.
+- The suggested owner's reason reads naturally for small units ("manager of the only member", "all 5 members").
+- The context page no longer has an Attributes tab: every attribute now appears once at the top, with the less-used ones under a collapsible "More details", and editing a context moved to an Edit button in the header.
+- Accountable and Responsible are shown read-only with a small edit button that opens a pop-up to look people up, add, remove or clear them; the best guess's "Choose someone else" opens the same pop-up.
+- A context's member list now shows each member's details: e-mail, job title, type and status for accounts; e-mail, job title and department for people; type, description and status for resources.
+- Contexts tree panel lists trees under a heading per source (Imported · <system>, Derived · <rule in words>, Manager hierarchy, Created here) instead of a caption line and coloured dots
+- Each tree row shows one member count (everyone including sub-units), with the direct share in its tooltip; the kind badge is gone, and on Tags and Segments a root names its kind ("Tags · People")
+- Add sub-unit, rename and drag are offered only on trees whose edits are kept (not imported trees) and only to users who may change contexts; "+ New" likewise
+- Refresh (formerly Sync) and "Delete this tree…" moved into a ⋯ menu on the tree's root row; deleting asks for confirmation first
+- The People / Accounts / Resources switch moved into the tree panel header as "Show:", offers only kinds that have units and opens on the first one that has any
+- Filters use plain words: Source (Imported / Derived / Created here), System, and on Tags/Segments a Kind filter; the extended search is labelled "Also search other fields"
+- The template tabs no longer show tree counts; the List mode was removed from the panel
+- Empty states explain where units come from in plain words; the right pane says "Pick a unit on the left."
+- The "New context tree" wizard offers "Import from a system", "Derive from data" and "Create by hand", without colour bars
+- Tree rows no longer announce themselves as disabled to screen readers, and tree text is at least 12px
+- A unit's page now has two views: someone who cannot edit contexts sees a reading view (facts, the people who answer for it, actions, sub-units and members) without Edit, Timeline, raw details or member editing; someone who can edit sees the same page plus Edit, Add sub-unit, More details with the raw classification, the Timeline and an "Edit members" mode.
+- Opened on its own, a unit's page shows no app navigation to a reader, a breadcrumb of its parent units instead, and the unit's name as the browser tab title; every unit page has a "Copy link" button.
+- The row of classification badges under a unit's name is replaced by one sentence, such as "Department · imported from Fortigi Demo HR" or "Team · derived from who reports to whom in Fortigi Demo EntraID".
+- Accountable and Responsible are shown as a people block with initials and a line on what each role means; an empty role reads "Nobody is accountable yet." with a "Set accountable" button for editors.
+- A suggested Accountable now reads "Suggested: … · reason" with Confirm, "Not this person" and "Choose someone else".
+- The "Variants of this unit" section is renamed "This unit as" and only appears when the unit is also held as another kind of member.
+- The "Relationships" tab is gone: a unit lists its "Sub-units" and "Members" directly, and the member count in the facts card matches the list ("12 in this unit · 37 including sub-units") and jumps to it.
+- The members table hides columns that are empty for every member on the page, shows account types in words (Member, Guest, Service account) and reads as a card list on narrow screens; the add box says "Search people / accounts / resources to add" (no more "identitys").
+- Members derived by a rule are no longer offered a "Remove (will return)" action; in edit mode they say "from the rule", and a note explains which members stay.
+- The edit form of a unit has no separate Owner field, one Delete whose confirmation explains what happens, and no add-child form (use "Add sub-unit" in the header).
+- More details shows "Last updated" instead of "Last Calculated At"; the Timeline skips that bookkeeping stamp and shows dates readably.
+- A context tab in the app's tab strip shows its template's icon instead of the letter "C", and an analyst returns with "Back to Contexts".
+- The unit page's "Workflows" area is now **Actions**: "View in matrix" opens in a new tab (an application's resources as columns), and "Download entitlement report" gives an Excel file for applications and units of accounts.
+- The Entitlement Pivot can now run on a unit of accounts: it lists the resources the unit's members hold, counted among those members only.
+- The "Download entitlement report" card is now offered on applications only; organisational units (of people, accounts or resources) keep "View in matrix", and the "Reports are available on the accounts view" hint is gone. The Entitlement Pivot still runs on a unit of accounts from the Reports page.
+- A rule that derives several top-level units (one per department, one per risk tier) now puts them under one root named after the rule — the departments appear under "Departments" instead of six loose trees. Existing trees move under the new root on the next refresh, keeping their names, members and edits.
+- The Contexts tree names the rule that derived a tree ("Derived · Department from Principal"), and a derived unit's subtitle says which rule made it ("Department · derived by the Department from Principal rule").
+- A unit whose members cannot be loaded now says so instead of showing "No members found", and the detail pane shows "Loading…" while the trees are read instead of staying blank.
+- The Entitlement Pivot's Excel download now opens with everything known about each context it covers: every attribute the context page lists under "More details", who is Accountable and Responsible (with employee ID and e-mail), and — when nobody is Accountable yet — the suggested person and why.
+- The Entitlement Pivot shows the entitlement owner in three columns (name, employee ID, e-mail); when an entitlement has no owner link but its source named one (as the IdentityIQ preset stores in ownerId/ownerName), the owner is looked up from that, or shown as the source named them.
+- The Entitlement Pivot adds a column for every attribute the entitlements in the report carry (such as certification frequency or requestable), up to 60, without having to pick them; any beyond that are named on the Summary tab.
+- A logical application's (or any resource context's) member list now shows how many users hold each resource and who owns it (the owner's e-mail on hover), using the same owner lookup as the Entitlement Pivot.
+- New **Unit report** for organisational units of accounts or people: one row per member with their details, how many entitlements each holds (for a person, across their linked accounts) and every attribute their source stored; its Excel download opens with everything known about the unit, including who is accountable for it. Optionally includes the members of sub-units.
+- Units of accounts or people have a "Download unit report" action, also on the unit owner's read-only page.
+- "Edit members" is now offered only on contexts created in Identity Atlas, where both adding and removing members last; imported and rule-derived contexts no longer offer it, since their members would come back on the next refresh.
+- A report downloaded for one context is named after it and the day, e.g. "SAP ERP 2026-10-22.xlsx".
+- In an application's member list the Owner column comes before Users, and a resolved owner links to their account.
+- The Entitlement Pivot run on a name that belongs to both an application and a unit of accounts now reports on the application instead of refusing the run as a mix, and says so; pick the unit from the list to report on its members
+- Upgrade note: the Entitlement Pivot download has more columns than before (context details on the first tab, owner name / employee ID / e-mail, and the entitlements' own attributes) and is named after the context and the day; a script or workbook that reads it by column position or file name needs adjusting
+- Upgrade note: the Contexts List mode and the Attributes and Relationships tabs are gone; their information is on the unit page itself
+- The context assistant ("Describe it") now asks what the context is (application, organisation, tag or segment), starting from the Contexts tab it was opened from; the model suggests one from your description without ever overriding your own choice
+- The context assistant shows the suggested owner of what its search terms find before you save
+- The Entitlement Pivot's summary block no longer lists Identity Atlas's internal fields (its own id, variant, target type, sync instance key, edit flags and row timestamps); the source's reference, the owner it names and every other fact stay.
+
+## Changes in this PR
+
+- Added the Identity Atlas core ontology (`ontology/core.ttl`): a standard OWL/Turtle description of the built-in graph model — systems, accounts, resources, persons, contexts, the tables that connect them, every column, and every principal, resource, relationship and assignment type — that Protégé and other RDF/OWL tools can open directly
+- Added a generated Core Model Reference page to the documentation, listing every table, column, type value and relationship type with its meaning, plus a generated class diagram of the type hierarchy
+- The Entity Relationship Diagram on the Data Model page is now generated from the ontology, so it always matches the real schema (it previously showed columns that do not exist and missed the principal relationships table)
+- Corrected the PrincipalActivity description on the Data Model page (its columns and key)
+- CI now fails when the data model changes without the ontology — for example a new relationship type, principal type, column or allowed value — and when a data-model diagram in the docs drifts from it; run `npm run ontology:check` in `app/api` to check locally
+- The core ontology now also describes the context types Identity Atlas itself knows — manager hierarchy, departments, OUs, tags, the type and system trees, clusters and more — with what each one groups and which plugin makes it; the Core Model Reference lists them
+- Documented how the manager hierarchy is built: who is a member of which team, how the manager of a team is recorded, and what happens with unknown managers and reporting loops
+- Added "The Ontology, Visually" to the documentation: a picture of the whole model, one small team drawn as real data, excerpts of the schema file, download links, and how to open it in Protégé, WebVOWL or Python
+- Corrected documentation that still described retired assignment types (Governed, AppRoleViaGroup, OAuth2Grant), the old tag and risk-profile tables, and a few relationship cardinalities
+- The ontology and the documentation now list every account, resource and grouping type Identity Atlas writes — including the Azure types, OrgUnit, Location, CostCenter, LogicalApplication, Entitlement and Service — with the crawler or plugin that writes each one, drawn as type diagrams on "The Ontology, Visually"
+- The ontology now groups every type under one of 14 templates (Person, Software, Agent; Group, TechnicalRole, Permission, Application, Scope, BusinessRole, Other; OrganizationalUnit, LogicalApplication, Tag, Segment), records that owning something is a control permission linked to the object it controls, and declares who answers for an account (Personal, Shared, Autonomous) with a default per account type; the reference and the type diagrams show the template of every type
+- CI now enforces that every type has exactly one template, that what holding a resource reaches matches the effective-access engine, that every control permission is linked to what it controls, and that an account reaches a resource only through an assignment held Direct, Indirect or Eligible
+- Each crawler now declares the types it writes; CI fails when a crawler starts writing a type that is not in the ontology
+- CI now also fails when a context plugin starts writing a context type, or grouping a different kind of entity, that the ontology does not describe
+- The core ontology now describes Entra app registrations, so the app-registration data the Entra ID crawler collects is a recognised resource type
+
+## Changes in this PR
+
+- Custom reports are no longer cut off at 1,000 rows in downloads: the XLSX, CSV and JSON download now contains every row (up to 250,000).
+- A custom report that shows only its first 1,000 rows now offers a "Load all rows" button, so you can choose to wait for the complete list on screen.
+
+## Changes in this PR
+
+- Expanded the MCP server documentation with step-by-step setup for Claude, ChatGPT and Microsoft 365 Copilot (federated connector and Copilot Studio), including which plan or licence each needs, the redirect URI per assistant, and new troubleshooting entries.
+
+## Changes in this PR
+
+- Fixed an intermittently failing automated test for the Diff section; no change to the product itself
+
+## Changes in this PR
+
+- Added an MCP server (experimental, off by default): connect Claude, ChatGPT or Copilot to Identity Atlas and ask questions in plain language. The assistant signs in as you through Entra ID and only sees what your role allows.
+- The assistant can list and run the ready-made reports, answer free-form questions through the same safe report engine the Ask page uses (it never writes SQL), and find people, accounts, groups and applications by name. Every answer links back to the records in Identity Atlas.
+- Added the "Use the MCP server" permission, so admins decide per role who may connect an assistant. The MCP server can only be switched on while sign-in is enabled.
+- When an answer is cut off, the assistant is told the full count, so it says "119 groups" instead of presenting the first 100 as all of them. "Empty groups" means fully empty by default; groups that only hold devices or nested groups are mentioned separately.
+- Every call an assistant makes is recorded (who, which tool, how many rows), and the latest calls are shown under Admin → Experimental → MCP server, together with the URL to give the assistant.
+
+## Changes in this PR
+
+- Fixed the automated build pipeline stopping a correct fix for touching the files almost any change touches: the shared end-to-end seed helpers, shared test helpers, a layer's coding guide and the mutation-testing file list. These no longer count as reaching outside the certified scope; the size limit still counts them.
+
+## Changes in this PR
+
+- Added a **Diff** tab next to Timeline on the user, resource, business role, identity and context detail pages. Pick a moment in the past (1 day to 1 year ago, or any date) and see the item as it was then on the left and as it is now on the right, like a side-by-side file compare: every attribute, plus every relationship — manager, business roles, groups and other resources held, members, contained resources and linked accounts. Changed values are highlighted, added entries are shown in green on the right, removed entries in red on the left, and an "Only show differences" switch hides everything that stayed the same.
+
+## Changes in this PR
+
+- Fixed the user Timeline tab hanging on "Loading timeline…" on tenants with a large change history
+
+## Changes in this PR
+
+- Account Linking now places accounts from sources that show a person as "Surname, Initials" — the shape most ERP, finance and payroll exports use, with no address and no employee number. Such an account could never be attached to anybody before: the strongest evidence a name like `van Mourik, R.` can produce sat below the certainty bar, so the account was not even scored and stayed in Orphaned Accounts for ever.
+- All the initials count, not just the first. `Buskes, L.R.` is attached to the Laura Renée Buskes it singles out rather than being held beside the Lars Buskes who shares only the first letter, and initials that disagree in two places rule a person out instead of counting as a near miss.
+- An account whose initials fit more than one person is still held for review with the rival named, never given to whoever scored first — and the held-for-review card now says which name the rivals actually share, so a reviewer is not sent looking for a namesake who does not exist.
+- Where a name leaves two people, the context the account already carries can settle it: a department that is one of them and no other's, or a manager who is one of theirs. Context only narrows the choice the name allows — two namesakes in one department leave the account held, as before.
+- Linking confidence now reflects the corroboration a match actually has, and the recorded signals name it, so a low-confidence link made on initials alone is visible as exactly that. The certainty slider stays the one control for how much evidence a link needs: at 60 a unique surname-and-initial match stops linking, at 75 a unique full-name one does.
+- A link made on a unique full name is therefore recorded at 70 rather than 60, and lists the name's uniqueness among its signals. The link itself is unchanged — the engine has always required the name to point at one person — it now says so where an analyst can read it. Nothing that used to link stops linking, and nothing that was held for review is released.
+- Switching a signal off (weight 0) now also releases the links that were made on it. Previously it only applied to new matches, so an administrator who turned a signal off saw nothing change about the accounts it had already attached.
+- A link that a department or manager settled is no longer detached and re-created on every subsequent run, which churned the account's history and never let the run's "links removed" figure settle.
+
+## Changes in this PR
+
+- The **Reports** tab is now shown to every user by default; it no longer has to be switched on under Settings → Visible Tabs.
+- **Contexts** and **Identities** are now optional tabs, hidden by default. Switch them on per user under Settings → Visible Tabs (Identities only while account linking is enabled). The pages stay reachable by link either way.
+
+## Changes in this PR
+
+- The SCIM 2.0 crawler is no longer experimental: it now always appears in Admin → Crawlers → Add Crawler, without the Experimental badge and without having to switch on Admin → Experimental → Experimental crawlers first.
+
+## Changes in this PR
+
+- Fixed the Timeline on user, resource, business-role and identity pages never showing removed access. Removed assignments now appear as "Removed from …" (or "… removed" on the resource side), and access that comes back appears as added again.
+- A user's Timeline now shows when a role or resource they hold is deleted in the source ("… deleted in source"), even though their own assignment did not change.
+- When the entity itself is deleted or restored in the source, its Timeline now says "Deleted in source" / "Restored in source" instead of showing a "Deleted At" attribute change.
+- Fixed a Timeline entry that read "Removed from …" for a relationship that had only been updated.
+
+## Changes in this PR
+
+- Fixed a user's Business Roles showing roles that were deleted in the source as if the user still held them. A role that was deleted and re-created under the same name no longer appears twice, and the Business Roles count includes only the roles the user holds now.
+- Relationship lists on detail pages now keep history apart: assignments and roles that no longer exist in the source are collapsed under "Show N historical", labelled "Historical" with their deletion date, and left out of the relationship graph. A CSV export includes them only when they are expanded, with a Status column.
+- The detail page of a business role that was deleted in the source now shows a "Deleted in source" badge next to its name, as user and resource pages already did.
+- Relationship lists on resource, business-role, identity and user pages now keep anything deleted in the source apart from current access: members, assignees, business roles, parent resources, contained resources, owners, sponsors, direct reports, the manager and identity assignments show as "Historical" with their deletion date, collapsed under "Show N historical".
+- The counts behind those relationships (members by assignment type, business roles, parents, assignments, contained resources, owners, sponsors, direct reports, an identity's access and its accounts' group counts) now include only what still exists in the source.
+- The Business Roles page hides roles that were deleted in the source. A new "Include deleted" option shows them with a "Deleted in source" badge, and the Excel export follows the same option with a "Deleted At" column. Assignment totals count only current assignments of current accounts.
+- An identity's linked accounts show a "Deleted in source" badge on an account that no longer exists.
+- Systems, the dashboard, the daily Trends snapshot, matrix totals and scope figures, nested-group expansion, risk score lists and top-10s, and context member lists and counts no longer count users, resources or assignments deleted in the source.
+- Generated contexts (manager hierarchy, departments, account types, AD OUs, resource types, group categories, scope hierarchy, resource clusters) no longer place users or resources deleted in the source in their trees.
+- The matrix's business-role columns and the governance review-compliance figures no longer include business roles or groups deleted in the source.
+
+## Changes in this PR
+
+- Reports that come with charts or pivot tables in their Excel download (Access Review Adoption, Access Reviewer Response, Entitlement Pivot) now show that breakdown on screen too, above the table: a bar per chart with its counts and percentages, and the pivots as grouped tables you can open one level deeper.
+- Clicking a status, verdict or pivot group in that summary narrows the table to those rows. **Show all rows** brings everything back.
+- The report download is now one main **Download XLSX** button, because only the workbook carries the summary, pivots and charts. CSV and JSON are in a menu next to it.
+
+## Changes in this PR
+
+- Account Linking now recognises admin logins that a provisioning convention writes shorter than the person's name. An account logging in as `adm-ddongen` is attached to the Daniëlle van Dongen it names even though her name carries the particle, and `adm-wvelde` reaches the W. van der Velde-Bierma whose double surname it keeps one half of. Previously such an account matched no spelling of anybody's name, so it was never even compared to its owner: it stayed off the owner's Linked Accounts and sat in Orphaned Accounts indefinitely.
+- A login numbered to tell two namesakes apart is read as the name it numbers: `adm-svisser2` is now understood as the S. Visser's login it is, instead of being discarded because of the trailing digits. The digits are only dropped as a fallback, so an account whose address genuinely ends in a number (`jan2`) still belongs to the owner of that mailbox.
+- A shortened login never outranks the person actually called the shorter name. Where the tenant has both a D. Dongen and a Daniëlle van Dongen, `adm-ddongen` goes to the D. Dongen; the person whose name the convention shortened only claims it when nobody is really called that.
+- A shortened login never counts against the person an account's name spells out in full either. An account the directory calls "Melanie Schipper-Siemons" is attached to her, even where a Michelle Schipper answers to the shorter form it logs in as — a form carrying one letter of a given name is not a competing answer to the whole name.
+- A numbered account is never attached to the person who holds the un-numbered address. The account `p.h.nanhoe2` is no longer given to the Priya Nanhoe whose own mailbox is `p.h.nanhoe` — the number exists to tell the two apart. Where nobody else answers to the shortened form, the account is held for review and the run says the number is why, rather than naming a rival that does not exist.
+- A login built from half a double surname only reaches people who have one, and a review entry for a contested one now offers the owner of that surname. `adm-abecker` is still held where two people are called A. Becker outright, but the Andrea Neumann-Becker it belongs to is listed among the candidates instead of being left out of the choice entirely.
+- Shortened logins go through the same review as every other name match: one that fits more than one person is held for review on the run with the other candidates named, and one that names nobody in the directory is still attributed to nobody.
+
+## Changes in this PR
+
+- Fixed delta syncs always running as full syncs on Azure App Service deployments. Azure's front end changed the address the crawler uses to save its delta position, so the position was never stored and every scheduled delta (Entra ID and SQL Server) fell back to reading everything.
+
+## Changes in this PR
+
+- Fixed: Account Linking now applies newly shipped match signals to a tenant that has saved its settings. Saving the settings stores the whole dictionary shown in the editor, and that stored list used to replace the shipped one — so a tenant that had ever pressed Save (even only to move the certainty slider) never received a signal added in a later version, and admin accounts like `adm-fhogenbirk` whose owner is only findable through the login stayed orphaned with nothing on screen to explain why.
+- Your saved values are never overwritten by the merge: every weight, threshold, account type and account-type pattern you stored stays exactly as you saved it, and a signal you added yourself is kept. A signal your dictionary doesn't have is added with the weight this version ships it at.
+- To switch a signal off, set its `weight` to `0` — deleting it from the JSON no longer disables it, because an upgrade merges it back in. The Account Linking settings editor now says this, and shows the effective dictionary (your rules plus the shipped signals) rather than only the stored one, so what you read is what the next run uses.
+- The Orphaned Accounts report and context read the same effective dictionary as a run, so an account the engine can now place is no longer listed as outstanding analyst work.
+- The run that first applies a merged signal leaves existing links alone: a link already attached to a person is not detached and not re-scored just because the dictionary gained a signal.
+
+## Changes in this PR
+
+- The demo data's realism slice now seeds about 20 admin accounts under a second login convention, `adm-<first initial><surname>` (for example `adm-fhogenbirk@…`), beside the `adm-<email local part>` accounts it always had.
+- Those new accounts deliberately carry nothing that identifies their owner — no employee number, no name fields, no department and no ready-made link — so their login is the only route back to the person. That makes Account Linking's login signal visible on the stock demo data instead of needing a hand-built test fixture.
+- One of them is ambiguous on purpose: more than one demo person is called Sanne Visser, so `adm-svisser@…` fits several of them and shows up under "Name-only matches (held for review)" rather than being linked to the wrong one.
+- Where two people in the seeded range would share a login, only the first gets an account — the demo seeds no numbered logins such as `adm-svisser2@…`, which nothing can yet link back to a person.
+- The existing demo admin accounts, their employee numbers and their links are unchanged, as is every other person, group, role and assignment in the dataset — and generating the demo data without the realism slice still produces exactly the standard 26-person company.
+
+## Changes in this PR
+
+- Account Linking now reads an admin account's login as a person's name, not just as an address: an account logging in as `adm-fhogenbirk` is attached to the Fay Hogenbirk it names, even where her own mailbox follows a different convention (`f.h.hogenbirk`). Previously such an account was only ever linked if its display name happened to spell the person's name, so admin accounts stayed invisible on their owners and remained in Orphaned Accounts.
+- A login is treated as name evidence, not near-certain evidence: it links at a lower confidence than an exact address or employee-id match, and an admin login that fits more than one person (`adm-pmunck` for both a Petra and a Pieter Munck) is held for review on the run with the other candidate named, instead of being attached to whichever one it happened to score first.
+- Account Linking no longer adds up the same name twice. An account whose display name *and* login both spell its owner used to report near-certain confidence for what is one piece of evidence; the strongest name reading now stands on its own, so the confidence an account shows reflects how certain the match really is.
+- The new signal is visible and editable in Admin → Account Linking like every other, so a tenant can reweight it or remove it.
+- Accounts that supply no address at all (several ERP exports) are unchanged by this and still rely on their display name.
+
+## Changes in this PR
+
+- Fixed Account Linking removing a linked account from an identity after a sync had deleted that account. A link made on a name match alone is now kept as history once the account is gone, instead of being detached by the name-only cleanup and lost — the identity keeps the account and its access history.
+- A run's "links removed" figure now counts only links to accounts that still exist, so it no longer reports removals an analyst cannot act on or undo.
+- Links to live accounts are unaffected: a name-only link to an account somebody else answers to is still detached and held for review.
+
+## Changes in this PR
+
+- Account Linking now links an account whose full name exactly one person is spelled, even when other people share that surname and first initial — "Youssef El Mahdi" no longer waits for review because a Yasmina or a Yassin exists. A rival is weighed at the level the match itself rests on, so real namesakes (including one whose record carries a title) are still held.
+- The first run after this update re-links the accounts the previous behaviour held or detached. The run summary says how many, alongside the links it removed, so the change is visible rather than silent.
+- The "Name-only matches (held for review)" card now says *which* name the rivals share — the full name, or just the surname and first initial — instead of describing every hold the same way.
+
+## Changes in this PR
+
+- Fixed: Account Linking no longer treats accounts a sync has removed as orphans. A removed account (one a full sync no longer finds in its source system) is no longer scored, is never newly linked to an identity, and no longer counts towards "orphans remaining" on a run.
+- Fixed: a removed account can no longer be attached to the wrong person. Where linking first ran after a sync that had removed accounts, a leaver's account could be matched on the name alone to a *different*, still-employed colleague who shares that name — a namesake, or someone whose record still holds the leaver's surname — handing that colleague the leaver's account and every permission on it. Removed accounts are no longer linking candidates, so those links are not made.
+- Fixed: the Orphaned Accounts report and the Orphaned Accounts context no longer list accounts that have been removed from their source system, so a review is no longer spent on accounts that no longer exist.
+- Accounts that were already linked to a person before they were removed stay linked — removal never detaches history — and an account that reappears in a later sync becomes linkable again.
+- Security: updated bundled dependencies to clear four high-severity and two moderate advisories, covering denial-of-service and request-handling issues in file upload, HTTP client, schema validation and URI parsing libraries.
+
+## Changes in this PR
+
+- Account linking no longer links an account to a person on a display name that somebody else answers to. A name that identifies exactly one person still links on its own, so a source carrying nothing but display names (a badge system, many ERPs) keeps linking; a name shared with a second person — spelled the same, or sharing its surname and first initial — is held for review instead.
+- A near-identical namesake now counts: an account named "Jan Jansen" is no longer attached to the Jan Jansen in the directory while a Johannes Jansen, whose name is spelled a little differently, may be its real owner.
+- Each linking run reports how many name-only matches it held for review and lists them — the account, the identity it nearly linked to, the confidence, the signals, why it was held and who else answers to the name — in a new "Name-only matches (held for review)" card in Admin → Account Linking.
+- Name-only links made by earlier runs are re-examined on the next run: the ones the policy would no longer make are detached and re-evaluated, and the rest are left exactly where they are. Analyst-confirmed links and links supplied by a crawler are never touched.
+- The run-completion notice now also reports the name-only matches held for review and the name-only links removed.
+- A new "Link on a name match alone" setting next to the certainty slider holds back every name-only match, including unambiguous ones, for installations that want a name to never be evidence enough on its own. It is on by default, including on existing installations after upgrade.
+- Updated bundled dependencies to clear newly published advisories flagged by the dependency audit: high-severity fixes for `multer` (file-upload denial of service), `body-parser`, `undici` and `zod`, plus moderate fixes in `fast-uri`, `ip-address`, `iconv-lite` and `qs`.
+
+## Changes in this PR
+
 - Updated third-party dependencies of the API and web UI to versions that fix newly published security advisories (zod, body-parser, multer, undici, fast-uri, ip-address)
 
 ## Changes in this PR

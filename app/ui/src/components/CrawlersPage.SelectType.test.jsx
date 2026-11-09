@@ -4,18 +4,44 @@
 // The rule: an experimental crawler type is offered only while the flag is on,
 // and when it is offered it is visibly badged.
 //
-// Runs against the REAL discovered registry but names no crawler type — the
-// expected names are read from the registry, so this keeps working as types come
-// and go (and keeps app/ui/ free of type literals, which the crawler-manifest CI
-// gate requires). A type's own experimental flag is pinned in its own folder.
+// Runs the REAL registry selectors over a neutral fixture registry rather than
+// the discovered one: which shipped types are experimental changes over time —
+// at times none are — and a gate test must not go vacuous when that happens.
+// The fixture names no real crawler type, keeping app/ui/ free of type literals
+// (the crawler-manifest CI gate requires that). A type's own experimental flag
+// is pinned in its own folder.
 import { describe, it, expect, vi } from 'vitest';
 import { createElement as h } from 'react';
+
+const { REGISTRY } = vi.hoisted(() => ({
+  REGISTRY: [
+    { id: 'stable-one', name: 'Stable One', description: 'an ordinary type', available: true },
+    { id: 'preview-one', name: 'Preview One', description: 'not yet proven', experimental: true, available: true },
+    { id: 'stable-two', name: 'Stable Two', description: 'another ordinary type', available: true },
+  ],
+}));
+
+vi.mock('@ui/utils/crawlerMetaRegistry', async (importOriginal) => {
+  const real = await importOriginal();
+  return {
+    ...real,
+    CRAWLER_TYPES: REGISTRY,
+    experimentalCrawlerTypes: (types = REGISTRY) => real.experimentalCrawlerTypes(types),
+    selectableCrawlerTypes: (enabled, types = REGISTRY) => real.selectableCrawlerTypes(enabled, types),
+  };
+});
+
 import SelectType from './CrawlersPage.SelectType.jsx';
 import { experimentalCrawlerTypes, selectableCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
 import { renderWithProviders, screen, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const EXPERIMENTAL = experimentalCrawlerTypes();
 const STABLE = selectableCrawlerTypes(false);
+
+it('the fixture has both kinds, so every assertion below discriminates', () => {
+  expect(EXPERIMENTAL.map(t => t.id)).toEqual(['preview-one']);
+  expect(STABLE.map(t => t.id)).toEqual(['stable-one', 'stable-two']);
+});
 
 function render(experimentalEnabled, onSelect = vi.fn()) {
   renderWithProviders(h(SelectType, { onSelect, onCancel: vi.fn(), experimentalEnabled }));

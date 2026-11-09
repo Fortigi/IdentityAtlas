@@ -188,6 +188,51 @@ describe('self-service crawlers — happy paths (worker key)', () => {
     expect((await asWorker().delete('/api/crawlers/delta-tokens/users?systemId=1')).status).toBe(200);
   });
 
+  // Endpoint names contain slashes. The crawler sends them encoded (%2F), but a
+  // reverse proxy such as Azure App Service decodes %2F to "/" before the request
+  // arrives. Both forms must reach the handler and name the same stored row —
+  // before the fix the decoded form fell through to Express's 404.
+  describe('endpoint names with slashes (encoded or decoded by a proxy)', () => {
+    const endpointArg = () => query.mock.calls[0][1];
+    for (const [label, path] of [
+      ['encoded', 'groups%2Fdelta%2Fmembers-owners'],
+      ['decoded by a proxy', 'groups/delta/members-owners'],
+    ]) {
+      it(`GET reads the token for the full name (${label})`, async () => {
+        query.mockResolvedValue({ rows: [{ token: 'abc', lastSyncAt: null, recordsLastSeen: 3 }] });
+        const res = await asWorker().get(`/api/crawlers/delta-tokens/${path}?systemId=1`);
+        expect(res.status).toBe(200);
+        expect(res.body.token).toBe('abc');
+        expect(endpointArg()).toEqual([1, 'groups/delta/members-owners']);
+      });
+      it(`PUT stores the token under the full name (${label})`, async () => {
+        query.mockResolvedValue({ rowCount: 1 });
+        const res = await asWorker().put(`/api/crawlers/delta-tokens/${path}`).send({ systemId: 1, token: 'tok', recordsLastSeen: 7 });
+        expect(res.status).toBe(200);
+        expect(endpointArg()).toEqual([1, 'groups/delta/members-owners', 'tok', 7]);
+      });
+      it(`DELETE removes the token under the full name (${label})`, async () => {
+        query.mockResolvedValue({ rowCount: 1 });
+        const res = await asWorker().delete(`/api/crawlers/delta-tokens/${path}?systemId=1`);
+        expect(res.status).toBe(200);
+        expect(endpointArg()).toEqual([1, 'groups/delta/members-owners']);
+      });
+    }
+    it('rejects a name with a character outside the allowed set, on every verb', async () => {
+      const bad = '/api/crawlers/delta-tokens/users/del%20ta';
+      expect((await asWorker().get(`${bad}?systemId=1`)).status).toBe(400);
+      expect((await asWorker().put(bad).send({ systemId: 1, token: 'tok' })).status).toBe(400);
+      expect((await asWorker().delete(`${bad}?systemId=1`)).status).toBe(400);
+      expect(query).not.toHaveBeenCalled();
+    });
+    it('accepts a 200-character name and rejects 201', async () => {
+      const name = (n) => `users/${'a'.repeat(n - 6)}`;
+      query.mockResolvedValue({ rows: [] });
+      expect((await asWorker().get(`/api/crawlers/delta-tokens/${name(200)}?systemId=1`)).status).toBe(200);
+      expect((await asWorker().get(`/api/crawlers/delta-tokens/${name(201)}?systemId=1`)).status).toBe(400);
+    });
+  });
+
   // ── photo-state ────────────────────────────────────────────────────────
   // Tells the profile-photo phase which principals it has already resolved,
   // so it can skip them instead of asking Graph once per user per run.
