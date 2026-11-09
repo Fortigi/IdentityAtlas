@@ -18,6 +18,8 @@ on:
   schedule:
     - cron: '0 6 * * 2' # Weekly, Tuesday 06:00 UTC (after Monday's Dependabot bumps land)
   workflow_dispatch:
+  push: # TEMPORARY: measure the current images from this branch; removed before review
+    branches: [feature/ci-image-cve-scan]
 
 permissions:
   contents: read
