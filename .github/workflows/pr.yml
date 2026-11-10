@@ -164,6 +164,10 @@ jobs:
             ps:
               - 'tools/crawlers/**/*.ps1'
               - 'tools/powershell-sdk/**'
+              - 'tools/riskscoring/**'
+              - 'tools/csv-templates/transforms/**'
+              - 'tools/psscriptanalyzer/**'
+              - '.ci/psscriptanalyzer-baseline.json'
               - 'setup/**/*.ps1'
               - 'setup/IdentityAtlas.psm1'
             pester:
@@ -177,6 +181,7 @@ jobs:
               - 'test/unit/**'
               - 'azure/**'
               - 'tools/release/**'
+              - 'tools/psscriptanalyzer/**'
               - 'tools/pester/**'
               # Self-referencing, as coverage.yml does: editing the scope config or this job's
               # own definition must run the job it configures, not silently skip it (#1088).
@@ -272,53 +277,15 @@ jobs:
         shell: pwsh
         run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
 
+      # What is scanned, which rules are off and why, and the baseline ratchet all
+      # live in tools/psscriptanalyzer/ (unit-tested by
+      # test/unit/PSAnalyzerRatchet.Tests.ps1). The two dead-code rules,
+      # PSUseDeclaredVarsMoreThanAssignments and PSReviewUnusedParameter, are on:
+      # their existing hits sit in .ci/psscriptanalyzer-baseline.json, which only
+      # shrinks, and any new one fails here (review item A14).
       - name: Analyse PowerShell files
         shell: pwsh
-        run: |
-          # Scan all production PowerShell roots.
-          #
-          # Excluded paths:
-          #   test/               — test-harness scripts, not production code
-          #   setup/CreatePSD.ps1 — developer-only manifest regeneration tool with
-          #                         hardcoded local paths; not shipped in the container
-          #
-          # Excluded rules:
-          #   PSAvoidUsingWriteHost — Write-Host is the intentional logging mechanism
-          #                           throughout the crawler / worker codebase
-          $paths = @(
-            (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
-            'tools/riskscoring',
-            'tools/crawlers',
-            'tools/csv-templates/transforms',
-            'setup/docker',
-            'setup/IdentityAtlas.psm1'
-          )
-          $excludeRules = @(
-            'PSAvoidUsingWriteHost'                    # Write-Host is the intentional logging mechanism
-            'PSAvoidGlobalVars'                        # intentional: token caching uses globals across function calls
-            'PSUseShouldProcessForStateChangingFunctions'  # internal library functions, not interactive cmdlets
-            'PSUseBOMForUnicodeEncodedFile'            # Linux-first codebase; BOM is unnecessary
-            'PSUseSingularNouns'                       # internal naming convention; not module exports
-            'PSAvoidDefaultValueSwitchParameter'       # crawler phase switches default to $true intentionally
-            'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
-            'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
-            'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
-            'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
-          )
-          $results = @()
-          foreach ($p in $paths) {
-            if (Test-Path $p) {
-              $results += Invoke-ScriptAnalyzer -Path $p -Recurse `
-                -Severity Warning, Error `
-                -ExcludeRule $excludeRules
-            }
-          }
-          if ($results) {
-            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
-            Write-Host "::error::PSScriptAnalyzer found $($results.Count) issue(s)"
-            exit 1
-          }
-          Write-Host "PSScriptAnalyzer: no issues found" -ForegroundColor Green
+        run: pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1
 
   # ── Stage 2: JavaScript linting ──────────────────────────────────────────
   lint-js:
