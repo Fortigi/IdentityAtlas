@@ -1,0 +1,1 @@
+- Fixed a lint error in the Account Linking end-to-end tests that blocked dependency updates from merging
