@@ -15,7 +15,7 @@
     "AzureTemplateImages.Tests.ps1": 0.2,
     "BuildFGContexts.Tests.ps1": 0.1,
     "CapabilityId.Tests.ps1": 0.1,
-    "ComplexityMeasure.Tests.ps1": 4.8,
+    "MeasurePs.Tests.ps1": 4.8,
     "CrawlerDeltaToken.Tests.ps1": 0.2,
     "CrawlerHelpers.Tests.ps1": 2.6,
     "CrawlerIngest.Tests.ps1": 1.2,

@@ -108,7 +108,7 @@ The measurers gate the whole repo, so they're tested themselves:
 - **Python** — `test_ratchet.py` (pytest): the cyclomatic + cognitive `ast` computers
   (including a worked cognitive example) and the ratchet gate logic
   (`over_threshold` / `check` / `build_baseline`). Run: `python -m pytest tools/complexity/test_ratchet.py`.
-- **PowerShell** — `test/unit/ComplexityMeasure.Tests.ps1` (Pester): runs `measure_ps.ps1 -Path`
+- **PowerShell** — `test/unit/MeasurePs.Tests.ps1` (Pester): runs `measure_ps.ps1 -Path`
   over throwaway fixtures and asserts `cc` / `cog`. The cognitive cases **mirror** the Python
   ones (same worked example → cc 9 / cog 11) so the two measurers stay in agreement.
 
