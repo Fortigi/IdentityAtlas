@@ -62,7 +62,7 @@ import { randomUUID } from 'crypto';
 import {
   BASE, letterToken, withLinkingFixture, runAccountLinkingFromAdmin, latestCompletedRun,
   linkedAccountNames, linkedPrincipalIds, linkedAccountsPanel, orphanReport,
-  signalWeight, memberFor, heldMatchFor, heldPrincipalIds,
+  signalWeight, memberFor, heldPrincipalIds,
 } from './accountLinkingSeed';
 
 /** The issue this spec replays, which names the throwaway connector and system. */

@@ -1,5 +1,21 @@
 ## Changes in this PR
 
+- The Entra ID crawler integration test now fails CI when it cannot sign in, instead of reporting a pass under a printed failure.
+
+## Changes in this PR
+
+- Fixed a lint error in the Account Linking end-to-end tests that blocked dependency updates from merging
+
+## Changes in this PR
+
+- Release and beta images are only published when the tag's commit is on `main` or a release branch; a tag pushed from anywhere else is refused.
+
+## Changes in this PR
+
+- The automated build pipeline now runs under its own GitHub App, which cannot write to protected branches; only the release automation keeps that ability.
+
+## Changes in this PR
+
 - The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
 
 ## Changes in this PR
