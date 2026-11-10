@@ -1,6 +1,6 @@
 name: DoR authorize (org-member gate)
 description: >-
-  Mint an org-scoped token from the fortigi-ci-bot app and report whether an actor
+  Mint an org-scoped token from the fortigi-dor-bot app and report whether an actor
   is a Fortigi organization member. This is the mandatory gate for any DoR workflow
   that runs on issues / issue_comment in this PUBLIC repo — those events run with
   secrets for ANY commenter and are NOT covered by the fork-approval setting, so
@@ -10,10 +10,10 @@ description: >-
 
 inputs:
   app-id:
-    description: BOT app client id (pass secrets.BOT_APP_ID).
+    description: BOT app client id (pass secrets.DOR_BOT_APP_ID).
     required: true
   private-key:
-    description: BOT app private key (pass secrets.BOT_PRIVATE_KEY).
+    description: BOT app private key (pass secrets.DOR_BOT_PRIVATE_KEY).
     required: true
   actor:
     description: The GitHub login to check (pass github.actor).
