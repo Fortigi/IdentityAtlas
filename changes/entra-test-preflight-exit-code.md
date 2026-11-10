@@ -1,0 +1,1 @@
+- The Entra ID crawler integration test now fails CI when it cannot sign in, instead of reporting a pass under a printed failure.

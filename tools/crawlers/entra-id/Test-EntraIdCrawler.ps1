@@ -126,6 +126,14 @@ function Write-Result {
     }
 }
 
+# Stop after a failed pre-flight. A bare `return` at script scope ends the script with exit code 0
+# and skips the standalone `exit` at the bottom, so CI saw a PASS for a test that printed FAIL —
+# that is how an expired client secret went unnoticed for five weeks (Oct–Nov 2026). Standalone,
+# exit with the failure count; under a parent runner, return and let it read the recorded results.
+function Stop-AfterPreflightFailure {
+    if (-not $WriteResult) { exit [Math]::Max(1, $script:standaloneFailures) }
+}
+
 # ─── Credential loading ──────────────────────────────────────────
 function Get-TestGraphCreds {
     # 1. Environment variables take precedence so CI can inject without writing files.
@@ -331,6 +339,7 @@ try {
     if (-not $vr.valid) {
         Write-Result 'EntraID/Validate-Only' $false ($vr.error ?? 'validation returned valid=false')
         if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false 'pre-flight validation failed' }
+        Stop-AfterPreflightFailure
         return
     }
     $grantedProps = @($vr.permissions.PSObject.Properties | Where-Object { $_.Value })
@@ -348,6 +357,7 @@ try {
         $names = ($missingProps | ForEach-Object { $_.Name }) -join ', '
         Write-Result 'EntraID/Validate-Only/AllGranted' $false "missing: $names"
         if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false "pre-flight: $($missingProps.Count) permission(s) missing" }
+        Stop-AfterPreflightFailure
         return
     }
     if ($StrictPermissions) {
@@ -356,6 +366,7 @@ try {
 } catch {
     Write-Result 'EntraID/Validate-Only' $false $_.Exception.Message
     if ($WriteResult) { & $WriteResult 'EntraID-Crawler-Tests' $false 'pre-flight validation threw' }
+    Stop-AfterPreflightFailure
     return
 }
 
