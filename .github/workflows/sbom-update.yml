@@ -74,6 +74,10 @@ jobs:
         run: python3 tools/update-sbom-doc.py
 
       - name: Commit updated SBOM
+        env:
+          # Intermediate env var — the PR title is attacker-chosen text and must never be
+          # interpolated into the shell (same rule as the DoR workflows).
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -82,7 +86,7 @@ jobs:
             echo "SBOM unchanged — nothing to commit"
             exit 0
           fi
-          git commit -m "chore: update SBOM after ${{ github.event.pull_request.title }}"
+          git commit -m "chore: update SBOM after ${PR_TITLE}"
           # bump-version.yml pushes to main on the same merge — rebase & retry.
           for attempt in 1 2 3 4 5; do
             if git push; then

@@ -1,5 +1,45 @@
 ## Changes in this PR
 
+- The Entra ID crawler integration test now fails CI when it cannot sign in, instead of reporting a pass under a printed failure.
+
+## Changes in this PR
+
+- Fixed a lint error in the Account Linking end-to-end tests that blocked dependency updates from merging
+
+## Changes in this PR
+
+- Release and beta images are only published when the tag's commit is on `main` or a release branch; a tag pushed from anywhere else is refused.
+
+## Changes in this PR
+
+- The automated build pipeline now runs under its own GitHub App, which cannot write to protected branches; only the release automation keeps that ability.
+
+## Changes in this PR
+
+- The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
+
+## Changes in this PR
+
+- The PowerShell lint check now flags unused variables and unused parameters in crawlers and the SDK. The ones that already existed are recorded in a baseline that only shrinks, so new dead code fails the check while the existing cases are cleaned up over time.
+- Fixed: Account Linking now folds letters with diacritics to their base letter (Doğan → dogan, Daniëlle → danielle, Yıldırım → yildirim, Großmann → grossmann), instead of dropping them. An ASCII login, email address or ERP export — `adm-sdogan`, `danielle.dongen@…`, `Ozturk, O.R.` — matches the person's name again, so those accounts link instead of staying listed under Orphaned Accounts for ever.
+- Both sides of every comparison are folded the same way, so a name or login that already matched keeps matching, and an account showing only "Surname, Initials" has its initials read through the same fold as the name it is compared to.
+- Two people who differ only in their diacritics (Dogan and Doğan) now share one comparison name, so an account that fits both is held for review with the other person named — as any other pair of namesakes already was.
+- The optional realism demo slice now includes a staffer whose surname carries diacritics, with an admin account spelled the ASCII way a directory spells it, so the case can be seen on demo data.
+
+## Changes in this PR
+
+- Pull request checks now hold API and UI test coverage near today's level (about 90%) instead of the much lower floors set a year ago, so a change that drops coverage noticeably now fails.
+- Both the overall and each file's minimum coverage now rise automatically after every merge, so improvements are locked in without anyone having to update the floors by hand.
+
+## Changes in this PR
+
+- Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9, split so that every scope finishes within its hour. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
+- Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.
+- Mutation scores now measure each file against its own tests: several scopes were scoring files against tests that never call them. A check now fails when a mutated file's own test is left out of its scope.
+- The API and UI reports mutation floors are reset to their first real measurements (85 and 79), and tracked back up in #1552 and #1550.
+
+## Changes in this PR
+
 - The load test now fails a pull request that makes the permissions matrix, the dashboard, the view refresh or a large import markedly slower. Each limit is about twice the slowest measured run; the previous limits let a twentyfold slowdown pass.
 - Each pull request's load-test run now compares its API benchmark against a recorded baseline. An endpoint more than 50% slower shows as a warning on the pull request, and the full benchmark report appears on the run's summary page and as a download.
 

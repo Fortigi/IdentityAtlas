@@ -1,0 +1,154 @@
+{
+  "_comment": "PSScriptAnalyzer ratchet baseline: findings that predate the gate, per file, rule and variable/parameter name. Only ever shrinks. Fix one, then run: pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1 -Update. See tools/psscriptanalyzer/PSAnalyzerRatchet.ps1.",
+  "files": {
+    "setup/docker/Invoke-CrawlerJob.ps1": {
+      "PSReviewUnusedParameter": {
+        "Registry": 1
+      }
+    },
+    "tools/crawlers/azure-rm/Get-AzureRMHelpers.ps1": {
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "ARM_BASE_URL": 1
+      }
+    },
+    "tools/crawlers/azure-rm/Start-AzureRMCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "JobId": 1
+      }
+    },
+    "tools/crawlers/azure-rm/Test-AzureRMCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiBaseUrl": 1,
+        "ApiKey": 1,
+        "MaxRetries": 1
+      }
+    },
+    "tools/crawlers/csv/Start-CSVCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1,
+        "JobId": 1
+      },
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "Delimiter": 1,
+        "systemLookup": 1,
+        "SystemType": 1
+      }
+    },
+    "tools/crawlers/csv/Test-CSVCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiBaseUrl": 1,
+        "ApiKey": 1
+      }
+    },
+    "tools/crawlers/custom-connector/Test-CustomConnectorCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1
+      }
+    },
+    "tools/crawlers/demo/Start-DemoCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "JobId": 1
+      }
+    },
+    "tools/crawlers/entra-id/Test-EntraIdCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1,
+        "PerJobTimeoutSeconds": 1,
+        "ScenarioName": 1
+      }
+    },
+    "tools/crawlers/midpoint/MidpointCrawler.Phases.ps1": {
+      "PSReviewUnusedParameter": {
+        "PageSize": 1,
+        "ResourceSystemId": 1,
+        "ShadowOidToUserOid": 1,
+        "SyncedResourceIds": 1
+      }
+    },
+    "tools/crawlers/midpoint/Start-MidpointCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "JobId": 1
+      },
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "ArchetypeLabelsByOid": 1,
+        "CrossSystemEntities": 1,
+        "ResourceOidToName": 1
+      }
+    },
+    "tools/crawlers/mssql/Start-SqlCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1,
+        "JobId": 1
+      }
+    },
+    "tools/crawlers/mssql/Test-SqlCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1,
+        "CommandTimeout": 3,
+        "Connection": 3,
+        "Paged": 1,
+        "PageSize": 1,
+        "Timing": 1
+      },
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "JobId": 1
+      }
+    },
+    "tools/crawlers/odata/Start-ODataCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiBaseUrl": 1,
+        "ApiKey": 1,
+        "JobId": 1
+      },
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "Config": 1
+      }
+    },
+    "tools/crawlers/odata/Test-ODataCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiBaseUrl": 1,
+        "ApiKey": 1
+      }
+    },
+    "tools/crawlers/omada/OmadaCrawler.Phases.ps1": {
+      "PSReviewUnusedParameter": {
+        "SystemId": 1
+      }
+    },
+    "tools/crawlers/omada/Start-OmadaCrawler.ps1": {
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "ResourceCategoryMapping": 1,
+        "SyncMode": 1,
+        "TypeMappings": 1
+      }
+    },
+    "tools/crawlers/scim/ScimCrawler.Phases.ps1": {
+      "PSReviewUnusedParameter": {
+        "Mapping": 1,
+        "SelectedAttributes": 2
+      }
+    },
+    "tools/crawlers/scim/Start-ScimCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1,
+        "JobId": 1
+      }
+    },
+    "tools/crawlers/scim/Test-ScimCrawler.ps1": {
+      "PSReviewUnusedParameter": {
+        "ApiKey": 1
+      }
+    },
+    "tools/csv-templates/transforms/omada-to-identityatlas.ps1": {
+      "PSReviewUnusedParameter": {
+        "Delimiter": 1,
+        "SourceFolder": 1
+      }
+    },
+    "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1": {
+      "PSUseDeclaredVarsMoreThanAssignments": {
+        "AccessPackageId": 1
+      }
+    }
+  }
+}

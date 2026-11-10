@@ -19,8 +19,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { repoRoot } from '../lib/repoRoot.js';
 
-const REPO = join(import.meta.dirname, '..', '..', '..', '..');
+const REPO = repoRoot();
 const read = (p) => readFileSync(join(REPO, p), 'utf8');
 
 const DOCKERFILE = 'setup/docker/Dockerfile.report-generator';

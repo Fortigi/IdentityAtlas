@@ -10,12 +10,11 @@
 // Keep the functions pure and small — they are the ratcheted units.
 
 import { readdirSync, readFileSync, statSync } from 'fs';
-import { dirname, join, relative, posix } from 'path';
-import { fileURLToPath } from 'url';
+import { join, relative, posix } from 'path';
 import YAML from 'yaml';
+import { repoRoot } from '../lib/repoRoot.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = join(here, '../../../..');
+export const REPO_ROOT = repoRoot();
 export const DOCS_ROOT = join(REPO_ROOT, 'docs');
 export const MKDOCS = join(REPO_ROOT, 'mkdocs.yml');
 

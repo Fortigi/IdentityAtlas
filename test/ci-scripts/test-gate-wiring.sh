@@ -126,13 +126,15 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #   dor-deploy.yml     acts on a label. Not a gate.
 #   dor-reset.yml      acts on close. Not a gate.
 #   sbom-update.yml    acts on merge. Not a gate.
+#   bot-apps-check.yml ADVISORY. Proves both GitHub Apps still mint and reach only this repo when a
+#                      DoR workflow changes. Fork PRs skip it (no secrets), so it cannot be required.
 #
 # (Diff coverage used to be its own workflow here. It now lives in pr.yml as the advisory
 # `diff-coverage` job — see section 1 — reusing the suites' lcov instead of re-running them.)
 #
 # Add a new PR-triggered workflow and this fails until it is either aggregated or added here with
 # a reason. That decision is the point of the test.
-ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml"
+ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml bot-apps-check.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
   grep -qE '^[[:space:]]+pull_request:' "$f" || continue
