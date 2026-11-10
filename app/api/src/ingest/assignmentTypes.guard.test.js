@@ -13,9 +13,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { validateRecords } from './validation.js';
+import { repoRoot as findCheckoutRoot } from '../lib/repoRoot.js';
 
 const ALLOWED = ['Direct', 'Indirect', 'Eligible'];
 // Single source of truth: every assignmentType token the model has ever had.
@@ -33,7 +33,7 @@ const rec = (assignmentType) => [{ resourceId: R, principalId: P, assignmentType
 // Every place that emits assignmentType records into the ingest: the crawlers
 // and the test fixtures/seeders (the demo dataset + benchmark, which feed the
 // same ingest API and would be rejected by the narrowed validation).
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = findCheckoutRoot();
 const SCAN_ROOTS = ['tools/crawlers', 'test/demo-dataset', 'test/benchmark'].map(r => join(repoRoot, r));
 
 function walk(dir) {

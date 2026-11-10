@@ -88,6 +88,8 @@ $script:RealismPostNominals = @('MSc', 'BSc', 'MBA', 'LLM', 'PhD')
 #   * two people with the SAME full name, in different teams
 #   * Jansen beside Janssen, same given name — one letter apart
 #   * three surnames with particles
+#   * one surname carrying letters with diacritics, whose login an ASCII
+#     convention spells without them ("Doğan" -> adm-sdogan)
 $script:RealismNameCast = @(
     @{ Given = 'Jeroen'; Surname = 'Jansen' },      @{ Given = 'Jeroen'; Surname = 'Visser' }
     @{ Given = 'Jeroen'; Surname = 'de Vries' },    @{ Given = 'Jeroen'; Surname = 'van den Berg' }
@@ -95,6 +97,7 @@ $script:RealismNameCast = @(
     @{ Given = 'Sanne';  Surname = 'Visser' },      @{ Given = 'Sanne';  Surname = 'Visser' }
     @{ Given = 'Koen';   Surname = 'Jansen' },      @{ Given = 'Koen';   Surname = 'Janssen' }
     @{ Given = 'Iris';   Surname = 'van der Meer' }, @{ Given = 'Bas';   Surname = 'van Leeuwen' }
+    @{ Given = 'Sevgi';  Surname = 'Doğan' }
 )
 
 # The one admin login that is ambiguous on purpose. The cast above seeds two
@@ -103,6 +106,17 @@ $script:RealismNameCast = @(
 # review rather than linked. Pinned to a position rather than left to the bucket
 # draw, so the case is always in the data.
 $script:RealismAmbiguousAdminId = 'R0007'
+
+# And the one whose name carries letters a login cannot. Sevgi Doğan is cast
+# position 13, her admin login is `adm-sdogan`, and she is the only person in
+# the directory that login can be spelled after — so whether the account finds
+# her is entirely a question of whether the two sides fold `ğ` the same way
+# (#1480). Pinned for the same reason as the ambiguous one: the bucket draw
+# would otherwise decide whether the case is in the data at all.
+$script:RealismDiacriticAdminId = 'R0013'
+
+# The people who get a login-only admin account whatever their bucket says.
+$script:RealismForcedAdminIds = @($script:RealismAmbiguousAdminId, $script:RealismDiacriticAdminId)
 
 # "The person at position N has the same full name as the person at position M."
 # Seven more exact duplicates, spread over departments — about what a 600-person
@@ -331,7 +345,10 @@ function Get-DemoRealismEmail {
         # refuses to bind an empty collection to a mandatory parameter.
         [AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$Used
     )
-    $local = "$($Given.ToLower()).$(($Surname -replace '[^\p{L}]', '').ToLower())"
+    # Folded to ASCII first: a directory spells Sevgi Doğan's address
+    # sevgi.dogan@, and it is the login and address conventions — not the HR
+    # record — that drop the letter's accent (#1480).
+    $local = "$(ConvertTo-DemoAsciiName $Given).$((ConvertTo-DemoAsciiName $Surname) -replace '[^\p{L}]', '')"
     $candidate = $local
     $n = 1
     while (-not $Used.Add($candidate)) { $n++; $candidate = "$local$n" }
@@ -342,12 +359,18 @@ function Get-DemoRealismEmail {
 # is both the on-premises samAccountName convention and the one an admin account
 # is handed out under. Particles stay in ("jvandenberg"), because that is what
 # the convention really produces.
+#
+# Folded to ASCII before the initial is taken, because that is what a directory
+# does: Sevgi Doğan's admin login is `adm-sdogan` (#1480). Spelled with the
+# letter it would be a login no convention produces, and the whole point of
+# these accounts is that the login is the only evidence of whose they are.
 function Get-DemoRealismInitialSurname {
     param(
         [Parameter(Mandatory)][string]$Given,
         [Parameter(Mandatory)][string]$Surname
     )
-    return "$($Given.Substring(0, 1))$(($Surname -replace '[^\p{L}]', ''))".ToLower()
+    $initial = (ConvertTo-DemoAsciiName $Given).Substring(0, 1)
+    return "$initial$((ConvertTo-DemoAsciiName $Surname) -replace '[^\p{L}]', '')"
 }
 
 function Add-DemoRealismPeople {
@@ -543,7 +566,7 @@ function Add-DemoRealismLinkedAccounts {
     # is a shape of its own, and until the engine reads it the account could
     # only ever sit orphaned. `adm-svisser` is the ambiguous case the slice
     # wants, and the namesake behind it simply gets no second account.
-    if (($bucket -ge 92 -and $bucket -lt 96) -or $Person.id -eq $script:RealismAmbiguousAdminId) {
+    if (($bucket -ge 92 -and $bucket -lt 96) -or $script:RealismForcedAdminIds -contains $Person.id) {
         $login = "adm-$(Get-DemoRealismInitialSurname -Given $Person.given -Surname $Person.surname)"
         if ($State.Realism.AdminLogins.Add($login)) {
             Add-DemoRealismAdminAccount $State -Person $Person -IdSeed "principal-$($Person.id)-adm2" `

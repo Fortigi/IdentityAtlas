@@ -11,6 +11,8 @@
     pwsh tools/psmodules/Update-PinnedModule.ps1 -List
     pwsh tools/psmodules/Update-PinnedModule.ps1 -Name PSMutant -Version 0.9.2
 #>
+# -List is read through $PSCmdlet.ParameterSetName, never by name; it only selects the set.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'List', Justification = 'Selects the List parameter set; read via ParameterSetName.')]
 [CmdletBinding(DefaultParameterSetName = 'List')]
 param(
     [Parameter(ParameterSetName = 'List')][switch]$List,

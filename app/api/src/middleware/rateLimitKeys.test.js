@@ -16,6 +16,7 @@ describe('resolveTrustProxy', () => {
     expect(resolveTrustProxy({ TRUST_PROXY_HOPS: '2', BEHIND_TLS: 'true' })).toBe(2);
     expect(resolveTrustProxy({ TRUST_PROXY_HOPS: ' 0 ', BEHIND_TLS: 'true' })).toBe(false);
     expect(resolveTrustProxy({ TRUST_PROXY_HOPS: ' 3 ' })).toBe(3);
+    expect(resolveTrustProxy({ TRUST_PROXY_HOPS: '12' })).toBe(12); // two digits are allowed; 100 (below) is not
   });
 
   it('treats a malformed hop count as "trust nothing", never as true', () => {
@@ -28,6 +29,15 @@ describe('resolveTrustProxy', () => {
 describe('stripPort', () => {
   it('removes a port appended to an IPv4 address', () => {
     expect(stripPort('203.0.113.7:51544')).toBe('203.0.113.7');
+  });
+  it('leaves an IPv4 address with no port whole', () => {
+    // No colon at all: indexOf and lastIndexOf are both -1, so without the
+    // `colon !== -1` check this would slice off the last character.
+    expect(stripPort('203.0.113.7')).toBe('203.0.113.7');
+  });
+  it('treats the colon as a port separator only after a DOTTED address', () => {
+    // The dot has to be before the colon: "web:8.1" is not IPv4:port.
+    expect(stripPort('web:8.1')).toBe('web:8.1');
   });
   it('unwraps a bracketed IPv6 address with or without a port', () => {
     expect(stripPort('[2001:db8::1]:443')).toBe('2001:db8::1');

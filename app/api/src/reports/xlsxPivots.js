@@ -31,6 +31,7 @@ const BLANK = Symbol('blank');
 /** Text safe inside an XML attribute: escaped, and without the control characters XML 1.0 forbids. */
 export function xmlText(value) {
   return String(value)
+    // eslint-disable-next-line no-control-regex -- stripping the control characters XML 1.0 forbids is the point
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');

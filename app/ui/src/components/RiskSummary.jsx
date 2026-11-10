@@ -1,7 +1,7 @@
 import { TierBadge } from './DepartmentBadges';
 import { TIER_ORDER, TIER_DISPLAY, TIER_BAR_COLORS } from './departmentTiers';
 
-function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) {
+function buildSummaryText(directMembers, allMembers, directRisk, allRisk) {
   const parts = [];
   const direct = directMembers.length;
   const total = allMembers.length;
@@ -36,7 +36,7 @@ function buildSummaryText(directMembers, allMembers, directRisk, allRisk, node) 
   return parts.join(' ');
 }
 
-export default function RiskSummary({ directMembers, allMembers, directRisk, allRisk, subDepts, node, onOpenDetail }) {
+export default function RiskSummary({ directMembers, allMembers, directRisk, allRisk, onOpenDetail }) {
   const scored = allMembers.filter(m => m.riskScore != null);
   if (scored.length === 0) return null;
 
@@ -55,7 +55,7 @@ export default function RiskSummary({ directMembers, allMembers, directRisk, all
     .filter(s => s.count > 0);
   const totalScored = scored.length;
 
-  const summaryText = buildSummaryText(directMembers, allMembers, directRisk, allRisk, node);
+  const summaryText = buildSummaryText(directMembers, allMembers, directRisk, allRisk);
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">

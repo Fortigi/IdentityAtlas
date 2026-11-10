@@ -2112,8 +2112,14 @@ Describe 'Initialize-EntraCrawlerRun' {
 
         Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' | Out-Null
 
+        # "ConfigFile was not passed" is asked of $PesterBoundParameters, not as
+        # `-not $ConfigFile`: an unbound parameter is no variable in the filter, so the
+        # name resolves up the caller chain. Under PSMutant that chain includes
+        # Invoke-PSMutation -ConfigFile, the filter never matched, and the weekly
+        # mutation baseline failed on this test from 14 Sep onwards.
         Should -Invoke Get-FGAccessToken -Exactly 1 -ParameterFilter {
-            $TenantId -eq 'tid' -and $ClientId -eq 'cid' -and $ClientSecret -eq 'csecret' -and -not $ConfigFile
+            $TenantId -eq 'tid' -and $ClientId -eq 'cid' -and $ClientSecret -eq 'csecret' -and
+                -not $PesterBoundParameters.ContainsKey('ConfigFile')
         }
     }
 

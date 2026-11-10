@@ -159,6 +159,7 @@ const text = (v, max) => {
   return t ? t.slice(0, max) : null;
 };
 
+// eslint-disable-next-line no-control-regex -- matching control characters is the point: a claim may not carry them
 const CONTROL = /[\u0000-\u001f\u007f]/;
 const PERSON_KINDS = new Set(['role', 'roleHistory', 'membership', ...KNOWLEDGE_KINDS]);
 

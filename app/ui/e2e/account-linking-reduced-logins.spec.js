@@ -72,23 +72,18 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
 import {
-  BASE, loginOnlyLinkingBlocker, runAccountLinkingFromAdmin, latestCompletedRun,
+  BASE, letterToken, loginOnlyLinkingBlocker, runAccountLinkingFromAdmin, latestCompletedRun,
   linkedAccountNames, linkedPrincipalIds, linkedAccountsPanel, orphanReport, withLinkingFixture,
 } from './accountLinkingSeed';
 
 /** The issue this spec replays, which names the throwaway connector and system. */
 const ISSUE = '1468';
 
-/**
- * A per-run name token made of LETTERS only.
- *
- * A hex token would be wrong here and silently so: half of them end in a digit,
- * and a surname ending in a digit run turns every login spelled after it into a
- * numbered login. The digit case below would then pass on a surname rather than
- * on the number it is meant to be about, and the unnumbered cases would be
- * reading a spelling nobody provisioned.
- */
-const TOKEN = randomUUID().replace(/-/g, '').slice(0, 8).replace(/[0-9]/g, d => 'ghijklmnop'[Number(d)]);
+// Letters only, which matters more here than anywhere: this spec's whole point
+// includes the numbered-login cases, so a surname that ended in a digit run
+// would make them pass on the surname instead of on the number. See
+// `letterToken`.
+const TOKEN = letterToken();
 const DOMAIN = 'e2e-1468.example';
 
 // One surname stem per case, so no case can be answered by another's fixture.

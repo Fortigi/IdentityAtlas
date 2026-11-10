@@ -1,5 +1,88 @@
 ## Changes in this PR
 
+- The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
+
+## Changes in this PR
+
+- The PowerShell lint check now flags unused variables and unused parameters in crawlers and the SDK. The ones that already existed are recorded in a baseline that only shrinks, so new dead code fails the check while the existing cases are cleaned up over time.
+- Fixed: Account Linking now folds letters with diacritics to their base letter (Doğan → dogan, Daniëlle → danielle, Yıldırım → yildirim, Großmann → grossmann), instead of dropping them. An ASCII login, email address or ERP export — `adm-sdogan`, `danielle.dongen@…`, `Ozturk, O.R.` — matches the person's name again, so those accounts link instead of staying listed under Orphaned Accounts for ever.
+- Both sides of every comparison are folded the same way, so a name or login that already matched keeps matching, and an account showing only "Surname, Initials" has its initials read through the same fold as the name it is compared to.
+- Two people who differ only in their diacritics (Dogan and Doğan) now share one comparison name, so an account that fits both is held for review with the other person named — as any other pair of namesakes already was.
+- The optional realism demo slice now includes a staffer whose surname carries diacritics, with an admin account spelled the ASCII way a directory spells it, so the case can be seen on demo data.
+
+## Changes in this PR
+
+- Pull request checks now hold API and UI test coverage near today's level (about 90%) instead of the much lower floors set a year ago, so a change that drops coverage noticeably now fails.
+- Both the overall and each file's minimum coverage now rise automatically after every merge, so improvements are locked in without anyone having to update the floors by hand.
+
+## Changes in this PR
+
+- Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9, split so that every scope finishes within its hour. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
+- Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.
+- Mutation scores now measure each file against its own tests: several scopes were scoring files against tests that never call them. A check now fails when a mutated file's own test is left out of its scope.
+- The API and UI reports mutation floors are reset to their first real measurements (85 and 79), and tracked back up in #1552 and #1550.
+
+## Changes in this PR
+
+- The load test now fails a pull request that makes the permissions matrix, the dashboard, the view refresh or a large import markedly slower. Each limit is about twice the slowest measured run; the previous limits let a twentyfold slowdown pass.
+- Each pull request's load-test run now compares its API benchmark against a recorded baseline. An endpoint more than 50% slower shows as a warning on the pull request, and the full benchmark report appears on the run's summary page and as a download.
+
+## Changes in this PR
+
+- The 15-minute soak test runs again on pull requests. It reads the web container's memory from the Docker host instead of an endpoint that was removed for security, and fails a run whose memory doubles.
+- A soak test that cannot read memory now fails, instead of skipping and reporting success.
+- The nightly run no longer checks the removed container-stats endpoint, which had failed every night since its removal.
+
+## Changes in this PR
+
+- Container images are now scanned for known vulnerabilities before they are published: an image with a critical vulnerability that already has a fix is not pushed. The published images are also re-scanned weekly, and every finding is listed in the repository's Security tab.
+
+## Changes in this PR
+
+- The JavaScript lint check now runs ESLint's standard correctness rules (undefined names, duplicate keys, unused variables and more) on both the API and the UI, so typos and dead code are caught before review.
+- Errors that wrap another error (reading a secret file, the master key, a migration, an invalid name pattern, an LLM timeout) now keep the original error attached, so logs show the root cause.
+
+## Changes in this PR
+
+- Pull requests whose runs receive no repository secrets, such as Dependabot dependency updates and pull requests from forks, no longer fail the integration checks for missing test credentials once those credentials are made mandatory; they are reported as skipped.
+
+## Changes in this PR
+
+- Fixed the nightly documentation and test-coverage reviews, which skipped every night because they could not see the previous day's changes. They now review every change merged in the last 24 hours, and fail visibly instead of skipping if the list of changes cannot be built.
+
+## Changes in this PR
+
+- Pull request checks finish sooner: the PowerShell unit tests now run in four parallel parts, and their coverage is combined before the 90% coverage floor is checked.
+- The PowerShell coverage floor in pull request checks is raised from 90% to 91%, closer to the 92% the suite measures.
+- The PowerShell coverage checked on pull requests and the figure published on the coverage page now measure the same files, including the shared crawler library. They used to be listed separately and had drifted apart.
+- The four parallel parts stay evenly balanced on their own: test timings are refreshed after a merge whenever one part becomes noticeably slower than the others.
+
+## Changes in this PR
+
+- The integration test run now reports how long each crawler's integration test took, and how long each dependency level waited, in its job summary, so the slowest crawler tests can be found and sped up.
+
+## Changes in this PR
+
+- Faster API contract tests in pull-request CI: the suite now runs four test files at a time, each worker against its own copy of the freshly migrated database, instead of one file at a time against a single shared database. Tests stay as isolated from each other as before.
+
+## Changes in this PR
+
+- Faster UI unit tests in pull-request CI: the UI test suite now runs in worker threads instead of separate processes, which roughly halves the per-file browser-environment setup that dominated its run time. Results and coverage are unchanged.
+
+## Changes in this PR
+
+- Fewer, larger weekly dependency-update pull requests on `main`: all minor and patch bumps for the API and the UI now arrive together in one PR per package, and GitHub Actions bumps in one PR, instead of one PR per dependency. This ends the weekly burst of ten-plus simultaneous CI runs that queued everyone's checks for about 14 minutes. Major upgrades still arrive one at a time.
+
+## Changes in this PR
+
+- Pull-request CI uses six fewer runners per push: the file-length, migration-immutability, Node-version, OpenAPI, crawler-manifest and Azure-template checks now run as steps of one `Lint: static gates` job instead of six separate jobs. Each check keeps its own path scope, a failing check no longer hides the others, and the job summary lists which check failed. This shortens the queue when many PRs run at once.
+
+## Changes in this PR
+
+- Faster pull-request checks: the code-duplication check now scans the PR once and scans the base branch at the same time, instead of running three full scans one after another. The check gives the same verdicts and stops being the slowest step in PR Checks.
+
+## Changes in this PR
+
 - Added a Compare view: put two or three users side by side and see where their access and attributes differ. Open it with "Compare with…" on a user's page, or select 2–3 users on the Users list and click "Compare". By default it shows only the differences and hides names, e-mail addresses and IDs; both can be switched off. The comparison has its own link, so it can be bookmarked or shared.
 
 ## Changes in this PR

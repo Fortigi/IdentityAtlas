@@ -37,27 +37,16 @@ jobs:
       - name: Gather recent changes
         id: changes
         run: |
-          # Get commits from the last 24 hours (or since last tag if more useful)
-          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-              || date -u -v-24H '+%Y-%m-%dT%H:%M:%SZ')
-
-          COMMIT_LOG=$(git log --since="$SINCE" --pretty=format:"- %h %s" --no-merges)
-
-          if [ -z "$COMMIT_LOG" ]; then
-            echo "No commits in the last 24 hours — nothing to review"
+          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
+          # Exit 3 = no commits; any other non-zero (a broken diff) fails the step.
+          rc=0; bash .github/scripts/recent_changes.sh "$SINCE" /tmp || rc=$?
+          if [ "$rc" = 3 ]; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
+          elif [ "$rc" != 0 ]; then
+            exit "$rc"
           fi
-
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
-
-          # Also get the list of changed files
-          CHANGED_FILES=$(git diff --name-only "HEAD@{24 hours ago}" HEAD 2>/dev/null \
-              || git diff --name-only HEAD~10 HEAD)
-
-          # Save to files for the Claude Code step
-          echo "$COMMIT_LOG" > /tmp/recent_commits.txt
-          echo "$CHANGED_FILES" > /tmp/changed_files.txt
 
           echo "Recent commits:"
           cat /tmp/recent_commits.txt
@@ -75,7 +64,7 @@ jobs:
         # only ever emit files to .dor/out/** and are safe to redo from scratch). A rejected/unentitled
         # model (e.g. TRIAGE_LLM_MODEL pointing at a Max-gated model whose subscription lapsed — see
         # dor-agent.yml) still fails loudly below instead of silently producing "no PR needed" forever.
-        uses: anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d # v1
+        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model ${{ secrets.TRIAGE_LLM_MODEL }} --allowedTools Bash,Read,Write,Edit,Glob,Grep,Agent"

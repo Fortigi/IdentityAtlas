@@ -696,7 +696,7 @@ function Invoke-Phase4fSmoke {
         '/auth-config', '/features', '/admin/status', '/admin/auth-settings',
         '/admin/risk-profile', '/admin/classifiers', '/account-linking/config',
         '/admin/crawlers', '/admin/crawler-configs', '/admin/crawler-jobs',
-        '/admin/container-stats', '/systems', '/users', '/resources',
+        '/systems', '/users', '/resources',
         '/contexts', '/identities', '/access-package-groups', '/permissions',
         '/sync-log', '/preferences', '/perf', '/tags', '/categories',
         '/risk-scores', '/risk-scores/users', '/risk-scores/groups',
@@ -844,39 +844,6 @@ function Invoke-Phase4f5Vault {
         } catch {
             Write-Result 'Secrets-Vault' $false $_.Exception.Message
         }
-    }
-}
-
-# ── Phase 4f6: Container stats live ───────────────────────────
-function Write-ContainerServiceStats {
-    param($Containers)
-    foreach ($svc in @('web', 'worker', 'postgres')) {
-        $c = $Containers | Where-Object { $_.service -eq $svc }
-        if ($c) {
-            Write-Result "Container-Stats/$svc/Running" ($c.state -eq 'running') "state=$($c.state)"
-            Write-Result "Container-Stats/$svc/HasCPU" ($c.cpuPercent -ge 0) "cpu=$([math]::Round($c.cpuPercent, 1))%"
-            Write-Result "Container-Stats/$svc/HasMem" ($c.memUsageBytes -gt 0) "mem=$([math]::Round($c.memUsageBytes / 1MB, 1))MB"
-        } else {
-            Write-Result "Container-Stats/$svc/Running" $false 'not found in response'
-        }
-    }
-}
-
-function Invoke-Phase4f6ContainerStats {
-    Write-Phase "Phase 4f6: Container Stats Live"
-    try {
-        $stats = Invoke-RestMethod -Uri "$apiBaseUrl/admin/container-stats" -TimeoutSec 30
-        if ($stats.unavailable) {
-            Write-Result 'Container-Stats-Live' $false "Docker socket not accessible: $($stats.reason)"
-        } else {
-            $hasContainers = $stats.containers -and $stats.containers.Count -gt 0
-            Write-Result 'Container-Stats-Live' $hasContainers "containers=$($stats.containers.Count)"
-            if ($hasContainers) {
-                Write-ContainerServiceStats $stats.containers
-            }
-        }
-    } catch {
-        Write-Result 'Container-Stats-Live' $false $_.Exception.Message
     }
 }
 
@@ -1152,7 +1119,6 @@ function Invoke-Phase4Integration {
         Invoke-Phase4f3bDetailCounts $builtinApiKey
         Invoke-Phase4f4Correlation $builtinApiKey
         Invoke-Phase4f5Vault
-        Invoke-Phase4f6ContainerStats
         Invoke-Phase4f7CustomConnector
         Invoke-Phase4gEntra
         Invoke-Phase4hLlmSubstrate
@@ -1251,7 +1217,7 @@ function Invoke-Phase7Soak {
             else { Write-Host "  PASS  $Name  $Detail" -ForegroundColor Green }
         }.GetNewClosure()
         try {
-            & $soakScript -ApiBaseUrl $apiBaseUrl -DurationMinutes 15 -WriteResult $soakCallback
+            & $soakScript -ApiBaseUrl $apiBaseUrl -DurationMinutes 15 -ComposeFile $composePath -WriteResult $soakCallback
             $script:totalFailed += $soakFailedRef.Count
         } catch {
             Write-Result 'Soak-Test' $false $_.Exception.Message

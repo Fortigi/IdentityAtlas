@@ -19,11 +19,11 @@ function readStoredOrder(department) {
       // Discard stale order from an older version
       localStorage.removeItem(getStorageKey(department));
     }
-  } catch {}
+  } catch { /* storage unavailable or corrupt: use the default order */ }
   return null;
 }
 
-export function useMatrixRowOrder(department, defaultGroupIds) {
+export function useMatrixRowOrder(department) {
   const [rowOrder, setRowOrder] = useState(() => readStoredOrder(department));
 
   // Reload the saved order when the department changes. Done during render
@@ -45,7 +45,7 @@ export function useMatrixRowOrder(department, defaultGroupIds) {
         version: ROW_ORDER_VERSION,
         updatedAt: new Date().toISOString(),
       }));
-    } catch {}
+    } catch { /* storage unavailable: the order just isn't remembered */ }
   }, [rowOrder, department]);
 
   // Apply order to group list: use saved order, append any new groups at the end
@@ -79,7 +79,7 @@ export function useMatrixRowOrder(department, defaultGroupIds) {
     setRowOrder(null);
     try {
       localStorage.removeItem(getStorageKey(department));
-    } catch {}
+    } catch { /* storage unavailable: nothing stored to clear */ }
   }, [department]);
 
   return {
