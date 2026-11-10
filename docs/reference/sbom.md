@@ -31,7 +31,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.7.2 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.7.3 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -70,7 +70,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.3.1 | UI framework | MIT |
 | react-dom | ^19.3.1 | React DOM renderer | MIT |
-| vite | ^8.3.5 | Build tool and dev server | MIT |
+| vite | ^8.3.6 | Build tool and dev server | MIT |
 
 ### Styling
 
