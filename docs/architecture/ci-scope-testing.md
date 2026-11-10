@@ -545,3 +545,21 @@ jobs:
 - [ ] Short-term: per-crawler `::group::` log sections visible in the current single-step view before Phase 3 lands
 - [ ] Force-pushed or rebased branches run CI (commit-range skip does not false-negative on non-ancestor `before` SHA)
 - [ ] CI produces informative step summary when jobs are skipped (housekeeping message) or fail (per-job failure list)
+
+## Merge queue
+
+`main` merges through a GitHub merge queue. Approval adds a PR to the queue; the queue builds the PR on top of the **current** `main` and runs the required checks on that merge commit (`merge_group` event) before it lands.
+
+**Why:** a PR's own green run can be stale. #1493 passed ESLint on 27 Oct; #1554 enabled `@eslint/js` recommended on 9 Nov; #1493 merged on 10 Nov and `main` went red for every UI PR. Neither PR was wrong alone.
+
+**What runs in the queue** (decided 2026-11-10):
+
+| Workflow | In the queue |
+|---|---|
+| `pr.yml` (PR Checks) | Everything. `filter` marks every scope changed — the point is what changed on `main`, which the PR's path filter can't see. `PR Hygiene` is skipped: it judges the PR's own diff and labels, which already passed. |
+| `pr-integration.yml` | Nothing but the gate. `changes` reports no product changes, so the suites skip and `Integration CI Passed` passes. They ran on the PR. |
+| `codeql.yml` | Runs — the ruleset's `code_scanning` rule needs a result for the merge commit. |
+
+`test/ci-scripts/test-gate-wiring.sh` (section 5) fails if a workflow behind a required check loses its `merge_group` trigger; without it the queue waits for a check that never reports.
+
+**Rollout order:** merge the `merge_group` triggers first (inert until the queue exists), then enable "Require merge queue" on the `Protect main branch` ruleset. The reverse order stalls every queued PR.

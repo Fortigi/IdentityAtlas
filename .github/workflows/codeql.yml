@@ -22,6 +22,9 @@ on:
       - main
       - 'feature/**'
       - 'bugfixes/**'
+  # The ruleset's code_scanning rule also applies to merge-queue entries, so the
+  # queue needs a CodeQL result for its merge commit.
+  merge_group:
   schedule:
     - cron: '0 2 * * 1' # Weekly on Monday at 02:00 UTC
 
