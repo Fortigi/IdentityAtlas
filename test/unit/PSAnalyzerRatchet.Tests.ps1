@@ -53,8 +53,9 @@ Describe 'what the gate scans' {
 
     It 'lists the fixed roots even where the SDK folder is missing' {
         $paths = @(Get-PSAnalyzerPath -Root (Join-Path $TestDrive 'empty'))
-        $paths.Count | Should -Be 5
+        $paths.Count | Should -Be 6
         $paths[0] | Should -Be (Join-Path $TestDrive 'empty' 'tools/riskscoring')
+        $paths[1] | Should -Be (Join-Path $TestDrive 'empty' 'tools/psmodules')
     }
 
     It 'is what pr.yml runs, and the workflow no longer lists rules of its own' {
