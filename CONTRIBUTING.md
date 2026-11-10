@@ -87,11 +87,13 @@ npm run test:coverage
 Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser
 Install-Module PSScriptAnalyzer -Scope CurrentUser
 Invoke-Pester -Path test/unit
-Invoke-ScriptAnalyzer -Path tools/crawlers -Recurse -Severity Warning, Error
+pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1
 ```
 
-CI analyses more folders and excludes a fixed list of rules; the `lint-ps` job in
-`pr.yml` has the exact call.
+That is the exact check the `lint-ps` job in `pr.yml` runs: the folders, the
+excluded rules and why, and a baseline of findings that predate the dead-code
+rules (`.ci/psscriptanalyzer-baseline.json`). A new finding fails. When you fix
+a baselined one, run it again with `-Update` to take it out of the baseline.
 
 **Ratchets and other gates** (from the repository root)
 
