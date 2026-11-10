@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
+
+## Changes in this PR
+
 - The PowerShell lint check now flags unused variables and unused parameters in crawlers and the SDK. The ones that already existed are recorded in a baseline that only shrinks, so new dead code fails the check while the existing cases are cleaned up over time.
 - Fixed: Account Linking now folds letters with diacritics to their base letter (Doğan → dogan, Daniëlle → danielle, Yıldırım → yildirim, Großmann → grossmann), instead of dropping them. An ASCII login, email address or ERP export — `adm-sdogan`, `danielle.dongen@…`, `Ozturk, O.R.` — matches the person's name again, so those accounts link instead of staying listed under Orphaned Accounts for ever.
 - Both sides of every comparison are folded the same way, so a name or login that already matched keeps matching, and an account showing only "Surname, Initials" has its initials read through the same fold as the name it is compared to.
