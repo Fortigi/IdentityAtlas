@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Entra ID crawler integration test now fails CI when it cannot sign in, instead of reporting a pass under a printed failure.
+
+## Changes in this PR
+
 - Fixed a lint error in the Account Linking end-to-end tests that blocked dependency updates from merging
 
 ## Changes in this PR
