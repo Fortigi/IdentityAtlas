@@ -1,0 +1,1 @@
+- The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
