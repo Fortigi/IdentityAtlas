@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.27.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.28.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -93,7 +93,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.25 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.26 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -110,7 +110,7 @@ This document lists all major software components, dependencies, and infrastruct
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
 | globals | ^17.14.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.64.1 | End-to-end testing framework | Apache 2.0 |
+| @playwright/test | ^1.65.0 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.14.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |
