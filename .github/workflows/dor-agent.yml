@@ -101,17 +101,32 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Mint a Members:read token (who counts as a trusted commenter)
+        id: members
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-members: read
+
       # 1. FETCH (deterministic, read-only) — issue thread + backlog into files for the agent.
-      - name: Fetch issue thread + backlog
+      # The thread holds ONLY text by the requestor of record, org members, the author of a vouched
+      # issue and the pipeline's bots — the same filter the build agent reads through. This repo is
+      # public, so anyone can comment on an issue after it was vouched; this agent posts its summary
+      # as a pipeline bot, which the build agent trusts, so an unfiltered thread here would launder a
+      # stranger's text into the build spec (SEC-2026-11 F-53).
+      - name: Fetch issue thread (trusted authors only) + backlog
         env:
           GH_TOKEN: ${{ github.token }}
+          MEMBERS_TOKEN: ${{ steps.members.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p .dor/in .dor/out
-          gh issue view "$ISSUE" --repo "$REPO" \
-            --json number,title,body,author,labels,comments,assignees > .dor/in/issue.json
+          REQUESTOR="$(bash .github/scripts/dor_requestor_of_record.sh "$ISSUE")"
+          REQUESTOR="$REQUESTOR" bash .github/scripts/dor_trusted_spec.sh "$ISSUE" > .dor/in/issue.json
           gh issue list --repo "$REPO" --state open --limit 100 \
             --json number,title,labels > .dor/in/backlog.json
 
