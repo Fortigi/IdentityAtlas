@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The automated build pipeline now runs under its own GitHub App, which cannot write to protected branches; only the release automation keeps that ability.
+
+## Changes in this PR
+
 - The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
 
 ## Changes in this PR

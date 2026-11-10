@@ -1,1 +1,0 @@
-- The automated build pipeline now runs under its own GitHub App, which cannot write to protected branches; only the release automation keeps that ability.
