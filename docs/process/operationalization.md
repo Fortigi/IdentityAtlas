@@ -71,7 +71,7 @@ Legend: **in place** = exists and usable today · **partial** = exists but needs
 |---|-----------|--------|------------------------------|
 | 1 | Board — Projects #2 "IdentityAtlas — Feature Pipeline" (`PVT_kwDOAhfTz84Bern-`) | **in place** | 65 items; **Status** single-select (`PVTSSF_…zhZEAac`, 11 options) is the canonical phase; **Requested by** single-select (`PVTSSF_…zhZEFTM`, only 5 options) |
 | 2 | Phase/state labels | **in place** | 7 `state:*` labels + `ready-to-build` / `approved` / `build-done` gate labels |
-| 3 | BOT app token (`fortigi-ci-bot`) | **in place** | **org Projects R/W + Issues R/W + Members Read** (P1 + D1 granted & validated); minted via `actions/create-github-app-token@v3.2.0` |
+| 3 | BOT app token (`fortigi-dor-bot`, split from `fortigi-ci-bot` in Nov 2026 so the pipeline App has no ruleset bypass) | **in place** | **org Projects R/W + Issues R/W + Members Read** (P1 + D1 granted & validated); minted via `actions/create-github-app-token@v3.2.0` |
 | 4 | `claude-code-action` availability | **in place** | pinned `@6c0083bb… # v1`; `CLAUDE_CODE_OAUTH_TOKEN` present |
 | 5 | Merge / CI gates on `main` | **in place** | rulesets: 1 approval + CODEOWNERS (`@taekek`, `@wimvandenheijkant`) + required checks (PR Summary, CI Passed, Integration CI Passed) + CodeQL; squash-only |
 | 6 | Governance hardening (D5) | **in place** | "Actions can approve PRs" **unticked** (done); read-only `GITHUB_TOKEN` default staged pending a naked-workflow (`pr.yml`/`pr-integration.yml`) audit |
