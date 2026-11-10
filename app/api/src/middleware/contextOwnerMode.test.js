@@ -50,6 +50,8 @@ vi.mock('../db/connection.js');
 const { query, queryOne } = await import('../db/connection.js');
 const { resetContextOwnerSettingForTests } = await import('../auth/contextOwnerSetting.js');
 const { CONTEXT_OWNER_DENIED } = await import('../auth/contextOwnerScope.js');
+const { NO_ROLE_CODE } = await import('./auth.js');
+const { sweepRoutes, PUBLIC_ROUTES, NEVER_DATA, OWN_AUTH } = await import('../../test-utils/routeSweep.js');
 const { clearOwnerAccessCache } = await import('../auth/ownerAccess/index.js');
 const { TIER_SQL } = await import('../auth/ownerAccess/tiers.js');
 
@@ -82,6 +84,11 @@ const admin = as(['Admin'], '33333333-3333-4333-8333-333333333333');
 const setSwitch = (enabled) => request(app).put('/api/admin/context-owner-access').set(admin).send({ enabled });
 
 const denied = (res) => res.status === 403 && res.body?.error === CONTEXT_OWNER_DENIED;
+const noRole = (res) => res.status === 403 && res.body?.code === NO_ROLE_CODE;
+// What an owner may load whatever their scope (auth/contextOwnerScope.js): the
+// app shell, and the business-role catalogue — cut to the roles they may open
+// (see "reaches the business-role catalogue" below).
+const OWNER_SHELL = new Set(['GET /preferences', 'GET /attribute-labels', 'GET /access-package-groups']);
 
 beforeEach(async () => {
   cfg.enabled = true;
@@ -130,10 +137,10 @@ describe('the admin switch', () => {
   });
 });
 
-describe('switch off — nothing changes', () => {
-  it('a roleless owner still reads everything, as today, and nobody is resolved', async () => {
-    const res = await ownerGet('/api/contexts');
-    expect(res.status).not.toBe(403);
+describe('switch off — an owner is just a caller without a role', () => {
+  it('a roleless owner is refused like anyone without a role, and nobody is resolved', async () => {
+    // Before F-01 they read everything here: switching owner access OFF widened it.
+    expect(noRole(await ownerGet('/api/contexts'))).toBe(true);
     expect(owners.resolveContextOwner).not.toHaveBeenCalled();
   });
 
@@ -153,17 +160,31 @@ describe('switch on — a roleless caller who holds no context role', () => {
   beforeEach(async () => { await setSwitch(true); });
   const stranger = () => as([], '55555555-5555-4555-8555-555555555555');
 
-  it('keeps today\'s roleless read access', async () => {
-    const res = await request(app).get('/api/contexts').set(stranger());
-    expect(res.status).not.toBe(403);
+  it('is refused with "no role" after the owner check finds nothing (F-01)', async () => {
+    expect(noRole(await request(app).get('/api/contexts').set(stranger()))).toBe(true);
     expect(owners.resolveContextOwner).toHaveBeenCalled();
   });
 
-  it('keeps today\'s AUTH_REQUIRED_ROLES 403', async () => {
+  it('still gets auth-me, with nothing granted', async () => {
+    const res = await request(app).get('/api/auth-me').set(stranger());
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ permissions: [], hasWildcard: false, contextOwner: null });
+  });
+
+  it('keeps the AUTH_REQUIRED_ROLES 403', async () => {
     cfg.requiredRoles = ['IdentityAtlas.Read'];
     const res = await request(app).get('/api/contexts').set(stranger());
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Insufficient permissions');
+  });
+
+  it('a role that maps to data.read but is not a required role grants nothing, and auth-me says so', async () => {
+    cfg.requiredRoles = ['IdentityAtlas.Read'];
+    const reader = as(['Reader'], '66666666-6666-4666-8666-666666666666');
+    expect((await request(app).get('/api/contexts').set(reader)).status).toBe(403);
+    const me = await request(app).get('/api/auth-me').set(reader);
+    expect(me.status).toBe(200);
+    expect(me.body.permissions).toEqual([]);
   });
 
   it('gets contextOwner: null from auth-me', async () => {
@@ -496,5 +517,37 @@ describe('switch on — the team matrix', () => {
     expect(denied(res)).toBe(false);
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
+  });
+});
+
+// ── Whole-app sweeps (security review Nov 2026, F-01) ───────────────────────
+// Every route of the real app, called as one caller. A route added tomorrow is
+// swept too. Paths carry an all-zero uuid, which is in nobody's scope, so an
+// owner's own context pages are not in this sweep — the tests above cover them.
+describe('whole-app sweep — who reaches what without a role', () => {
+  const PUBLIC = new Set([...PUBLIC_ROUTES.keys(), ...NEVER_DATA]);
+  // MCP answers 404 while its feature flag is off, as it is in this suite.
+  const refusedAs = (check) => (res, r) => (OWN_AUTH.has(r.key) ? [401, 403, 404].includes(res.status) : check(res));
+
+  it('switch off: an owner is refused everywhere, like any caller without a role', async () => {
+    const leaked = await sweepRoutes(app, { headers: as([]), skip: PUBLIC, refused: refusedAs(noRole) });
+    expect(leaked).toEqual([]);
+  });
+
+  it('switch on: a caller who owns nothing is refused everywhere', async () => {
+    await setSwitch(true);
+    const stranger = as([], '55555555-5555-4555-8555-555555555555');
+    const leaked = await sweepRoutes(app, { headers: stranger, skip: PUBLIC, refused: refusedAs(noRole) });
+    expect(leaked).toEqual([]);
+  });
+
+  it('switch on: an owner reaches only their allow-list, and nothing outside their scope', async () => {
+    await setSwitch(true);
+    const leaked = await sweepRoutes(app, {
+      headers: as([]),
+      skip: new Set([...PUBLIC, ...OWNER_SHELL]),
+      refused: refusedAs((res) => res.status === 403 || res.status === 404),
+    });
+    expect(leaked).toEqual([]);
   });
 });

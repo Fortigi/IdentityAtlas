@@ -57,12 +57,13 @@ export const GATED_ENDPOINTS = {
 // ── Implicit permissions ────────────────────────────────────────────────────
 // Not enforced by a requirePermission() gate but by a different mechanism.
 // `data.read` is the "can sign in at all" permission: enforced as
-// authentication-required (any signed-in user can read), and read-only API
+// implicit: any caller who holds at least one permission can read (a caller
+// with none is refused by authMiddleware — F-01), and read-only API
 // tokens (fgr_) are granted it implicitly in middleware/auth.js. The matrix
 // test verifies it by confirming an UNauthenticated request is rejected (401).
 export const IMPLICIT_PERMISSIONS = {
   'data.read': {
-    reason: 'Authentication-required: any signed-in user can read, and fgr_ read tokens are granted it implicitly. No requirePermission gate.',
+    reason: 'Implicit: any caller holding at least one permission can read (a caller with none is refused outright), and fgr_ read tokens are granted it implicitly. No requirePermission gate.',
     probe: { method: 'GET', path: '/api/permissions' },
   },
 };

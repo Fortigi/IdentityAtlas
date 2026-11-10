@@ -37,7 +37,7 @@ function CreatedShare({ url, recipients }) {
       <p className="text-xs text-gray-600 dark:text-gray-400">
         Send this link to {recipients.length === 1 ? 'them' : 'them all'}. Only the {recipients.length}{' '}
         {recipients.length === 1 ? 'person' : 'people'} you picked can open it — they sign in with their
-        normal Microsoft account, no Identity Atlas role needed, and see this matrix read-only.
+        normal Microsoft account and see this matrix read-only. They need an Identity Atlas role, such as Servicedesk.
       </p>
       <p className="mt-3 break-all rounded border border-gray-200 bg-gray-50 p-2 font-mono text-[11px] text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
         {url}

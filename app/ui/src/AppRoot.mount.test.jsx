@@ -11,6 +11,7 @@ vi.mock('@ui/components/SharedMatrixPage', () => ({
   default: ({ token }) => <div data-testid="shared-shell">{token}</div>,
 }));
 vi.mock('@ui/components/ContextOwnerPage', () => ({ default: () => <div data-testid="owner-shell">owner</div> }));
+vi.mock('@ui/components/NoRolePage', () => ({ default: () => <div data-testid="no-role-shell">no role</div> }));
 
 const { default: AppRoot } = await import('./AppRoot');
 
@@ -89,6 +90,32 @@ describe('AppRoot — context owners', () => {
 
   it('does not wait in open mode', () => {
     renderWithProviders(<AppRoot />, { auth: { authEnabled: false, permissionsLoaded: false } });
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument();
+  });
+});
+
+describe('AppRoot — signed in without a role (F-01)', () => {
+  const noRole = {
+    authEnabled: true, permissionsLoaded: true, authMeAnswered: true,
+    hasWildcard: false, permissions: new Set(), contextOwner: null,
+  };
+
+  it('shows the no-role page instead of the app, whatever the hash', async () => {
+    window.location.hash = '#matrix';
+    renderWithProviders(<AppRoot />, { auth: noRole });
+    expect(await screen.findByTestId('no-role-shell')).toBeInTheDocument();
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument();
+  });
+
+  it('shows it for a share link too: the API would refuse the share', async () => {
+    window.location.hash = '#shared:fgs_abc';
+    renderWithProviders(<AppRoot />, { auth: noRole });
+    expect(await screen.findByTestId('no-role-shell')).toBeInTheDocument();
+    expect(screen.queryByTestId('shared-shell')).not.toBeInTheDocument();
+  });
+
+  it('keeps the app when auth-me failed rather than answered', () => {
+    renderWithProviders(<AppRoot />, { auth: { ...noRole, authMeAnswered: false } });
     expect(screen.getByTestId('app-shell')).toBeInTheDocument();
   });
 });
