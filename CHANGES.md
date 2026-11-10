@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed a lint error in the Account Linking end-to-end tests that blocked dependency updates from merging
+
+## Changes in this PR
+
 - Release and beta images are only published when the tag's commit is on `main` or a release branch; a tag pushed from anywhere else is refused.
 
 ## Changes in this PR
