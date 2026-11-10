@@ -17,7 +17,12 @@
 #      back — see those workflows.)
 #   4. Renders the curated docs page (docs/reference/coverage.md) from those
 #      summaries (tools/generate-coverage-doc.py).
-#   5. Commits docs/reference/coverage.md + docs/coverage/** back to main.
+#   5. Raises the per-file coverage floors (.ci/coverage-baseline.json) to what
+#      main's unit suites now measure — never lowers one (tools/coverage/ratchet.py
+#      --update), so a file's gain is locked in without anyone running a command.
+#   6. Commits docs/reference/coverage.md + docs/coverage/** (and the raised
+#      baseline) back to main. .ci/ is outside this workflow's paths filter, so
+#      the commit does not re-trigger it.
 #
 # Why commit into docs/ rather than publish a one-off artifact: the docs site is
 # versioned with mike (edge = main, stable = release tag). Committing the page and
@@ -204,6 +209,34 @@ jobs:
           python3 tools/complexity/ratchet.py --emit-complexity-json app/api > docs/coverage/api/complexity.json
           python3 tools/complexity/ratchet.py --emit-complexity-json app/ui > docs/coverage/ui/complexity.json
 
+      # ── Ratchet the per-file floors up ─────────────────────────────────────
+      # The PR gate (pr.yml) holds every file at its floor; this raises floors to
+      # main's new numbers. Only the UNIT lcov counts — the scope the gate checks.
+      # --update never lowers a floor, so a failed or partial suite run (which can
+      # only measure less) can't weaken the gate; it just raises nothing.
+      # The aggregate Vitest thresholds rise the same way: measured minus 2,
+      # rounded down, never lower (tools/coverage/aggregate_floors.py). Neither
+      # config is in this workflow's `paths`, so the commit doesn't re-trigger it.
+      - name: Raise per-file and aggregate coverage floors
+        continue-on-error: true
+        run: |
+          for scope in api ui; do
+            lcov="app/$scope/coverage/lcov.info"
+            if [ -s "$lcov" ]; then
+              python3 tools/coverage/ratchet.py --lcov "$lcov" --prefix "app/$scope/" --update
+            else
+              echo "No $lcov — $scope floors left as they are"
+            fi
+          done
+          for pair in api:vitest.config.js ui:vite.config.js; do
+            scope="${pair%%:*}"; summary="app/$scope/coverage/coverage-summary.json"
+            if [ -s "$summary" ]; then
+              python3 tools/coverage/aggregate_floors.py --config "app/$scope/${pair#*:}" --summary "$summary"
+            else
+              echo "No $summary — $scope aggregate floors left as they are"
+            fi
+          done
+
       - name: Render coverage docs page
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -217,12 +250,18 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/reference/coverage.md docs/coverage .ci/pester-weights.json
+          git add docs/reference/coverage.md docs/coverage .ci/pester-weights.json .ci/coverage-baseline.json app/api/vitest.config.js app/ui/vite.config.js
           if git diff --cached --quiet; then
             echo "Coverage unchanged — nothing to commit"
             exit 0
           fi
           msg="docs: update test coverage report"
+          if ! git diff --cached --quiet -- .ci/coverage-baseline.json; then
+            msg="$msg; raise per-file coverage floors"
+          fi
+          if ! git diff --cached --quiet -- app/api/vitest.config.js app/ui/vite.config.js; then
+            msg="$msg; raise aggregate coverage floors"
+          fi
           if ! git diff --cached --quiet -- .ci/pester-weights.json; then
             msg="$msg; rebalance Pester shards"
           fi

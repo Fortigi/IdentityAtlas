@@ -40,19 +40,23 @@ export default defineConfig({
     pool: 'threads',
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      // json-summary feeds tools/coverage/aggregate_floors.py (coverage.yml).
+      reporter: ['text', 'lcov', 'json-summary'],
       include: ['src/**/*.{js,jsx}'],
       exclude: ['src/**/*.test.{js,jsx}', 'src/main.jsx', 'src/test-utils/**'],
       // Coverage ratchet: a committed FLOOR enforced by the PR Checks job (which
       // runs `npm run test:coverage`). A change that drops UI coverage below
-      // these fails CI. Set just under current so normal variance doesn't flake;
-      // RAISE these when you raise coverage (never lower them — same discipline
-      // as the complexity baseline). Measured: S71.1 B62.4 F65.1 L74.5.
+      // these fails CI. Set at measured minus 2, rounded down, so normal variance
+      // doesn't flake but a real loss does; RAISE these when you raise coverage
+      // (never lower them). Both these and the per-file floors
+      // (.ci/coverage-baseline.json) also rise on their own after every merge:
+      // coverage.yml runs tools/coverage/aggregate_floors.py on main's numbers.
+      // Measured Nov 2026: S89.7 B83.0 F88.3 L91.4.
       thresholds: {
-        statements: 70,
-        branches: 61,
-        functions: 64,
-        lines: 73,
+        statements: 87,
+        branches: 81,
+        functions: 86,
+        lines: 89,
       },
     },
   },
