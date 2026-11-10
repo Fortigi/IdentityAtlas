@@ -1051,6 +1051,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Graded name matching + the name-uniqueness guard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-comparison-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The comparison token
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -5961,6 +5978,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Graded name matching + the name-uniqueness guard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-comparison-token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The comparison token
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -6211,6 +6245,10 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <td><code>effectiveLinkingRules(savedRules)</code> — the one merge of a tenant's saved rules over the shipped ones (see <a href="#the-effective-dictionary">The effective dictionary</a>).</td>
 </tr>
 <tr>
+<td><code>fold.js</code></td>
+<td><code>foldDiacritics</code> / <code>foldedToken</code> — the one fold every comparison token on both sides of a comparison goes through (see <a href="#the-comparison-token">The comparison token</a>).</td>
+</tr>
+<tr>
 <td><code>classifier.js</code></td>
 <td>Pure helpers: account-type classification, email-local-part / prefix handling, name parsing, graded name matching, and the login name forms (<code>loginToken</code> / <code>loginNameForms</code> / <code>loginFormMatch</code> / <code>loginSpellings</code> / <code>numberedAwayFrom</code>). Regex rules are compiled with <strong>RE2</strong> (linear-time, ReDoS-safe).</td>
 </tr>
@@ -6228,7 +6266,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 <tr>
 <td><code>initials.js</code></td>
-<td>Reading and comparing <em>all</em> the initials two names state, and <code>initialsRuleOut</code> — initials that disagree rule a person out rather than counting as a near miss.</td>
+<td>Reading and comparing <em>all</em> the initials two names state, and <code>initialsRuleOut</code> — initials that disagree rule a person out rather than counting as a near miss. Reads its letters through the same <code>fold.js</code> as the names it is weighed against.</td>
 </tr>
 <tr>
 <td><code>nameClaim.js</code></td>
@@ -6360,6 +6398,46 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <li><strong>The surname keeps its particles.</strong> In the <code>Given Surname</code> ordering the surname runs from the first particle (<code>van</code>, <code>de</code>, <code>den</code>, <code>der</code>, <code>ter</code>, <code>ten</code>, …) to the end of the name, including a hyphenated compound whose tail is a particle (<code>Schilder-van der Steen</code>). With no particle present it is the last token only, so inconsistently-recorded middle names still collapse (<code>John Michael Doe</code> → <code>{john, doe}</code>). Taking only the last token instead would reduce every <code>van den Berg</code> in a tenant to <code>berg</code>, and conflate <code>van der Steen</code> with <code>Schilder-van der Steen</code>.</li>
 </ol>
 <p>The title and particle lists live next to <code>QUALIFIER_RE</code> in <code>classifier.js</code>; they are not per-tenant editable today.</p>
+<h4 id="the-comparison-token">The comparison token<a class="headerlink" href="#the-comparison-token" title="Permanent link">&para;</a></h4>
+<p>Every name, login and email local part is reduced to a comparison token the same way (<code>foldedToken</code> in <code>fold.js</code>): lower-case, <strong>fold each letter to its ASCII base letter</strong>, then drop everything outside <code>[a-z0-9]</code>. The fold is Unicode NFKD with the combining marks removed, plus an explicit map for the letters NFKD leaves whole because they are not a base letter plus an accent — <code>ı→i</code>, <code>ł→l</code>, <code>ø→o</code>, <code>đ→d</code>, <code>ß→ss</code>, <code>æ→ae</code>, <code>œ→oe</code>, <code>þ→th</code>, <code>ð→d</code>. The <code>[a-z0-9]</code> strip stays as the final guard, so a script the fold has no base letter for still cannot reach a comparison half-folded.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Token</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Doğan</code></td>
+<td><code>dogan</code></td>
+</tr>
+<tr>
+<td><code>Daniëlle</code></td>
+<td><code>danielle</code></td>
+</tr>
+<tr>
+<td><code>Yıldırım</code></td>
+<td><code>yildirim</code></td>
+</tr>
+<tr>
+<td><code>Großmann</code></td>
+<td><code>grossmann</code></td>
+</tr>
+<tr>
+<td><code>İnönü</code></td>
+<td><code>inonu</code></td>
+</tr>
+</tbody>
+</table>
+<p>Why folding and not dropping: the two normalisers used to <em>delete</em> every character outside <code>[a-z0-9]</code>, so <code>Doğan</code> became <code>doan</code> and <code>Daniëlle</code> <code>danille</code>. Display name against display name still matched, because both sides lost the same letters — but one side of a comparison is routinely plain ASCII, since that is all a login, an email local part or an ERP export can carry. A directory spells Sevgi Doğan's admin account <code>adm-sdogan</code>, which reduces to <code>sdogan</code> while her name reduced to <code>sdoan</code>: the two could never meet, and every person whose name carries such a letter kept an unlinked account for ever (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1480">#1480</a>).</p>
+<p>One fold serves <strong>both</strong> sides of every comparison — the name side (<code>nameVariants</code>, the name keys), the login/address side (<code>loginToken</code>, <code>emailPrefix</code>) and the initials (<code>firstLetter</code> and the dotted-initials test in <code>initials.js</code>). That is the point rather than an implementation detail: folded on one side only, a name that already matched would stop matching, and an <code>initials.js</code> left unfolded reads Ömer's initial as <code>m</code> and rules out the very person the folded name matches.</p>
+<p>Two deliberate consequences:</p>
+<ul>
+<li><strong>Two people distinguishable only by their diacritics now collide.</strong> <code>Dogan</code> and <code>Doğan</code> are different families whose tokens are one word, so a login or name that fits both is exactly the namesake case the <a href="#graded-name-matching-the-name-uniqueness-guard">name-uniqueness guard</a> already holds for review — it is never handed to whichever scored first.</li>
+<li><strong>This is comparison-only.</strong> Nothing persisted stores these tokens (<code>IdentityMembers</code> keeps the raw <code>displayName</code>; <code>linkSignals</code> stores signal names), so there is no migration — the next run re-derives everything, and the cleanup re-judges existing name-only links against the corrected tokens with the run's <code>linksRemoved</code> / <code>linksRestored</code> counters making any one-off reshuffle visible.</li>
+</ul>
+<p>Unrelated, despite the shared name: <code>nlreports/references.js</code> has its own Unicode-<strong>preserving</strong> <code>normalizeName</code> (<code>Café Élan</code> → <code>caféélan</code>), and the report/UI slug helpers build display slugs, not comparison tokens. Neither is folded through here.</p>
 <p><code>nameMatchLevel</code> returns the strongest of:</p>
 <table>
 <thead>
