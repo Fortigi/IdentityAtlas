@@ -26,6 +26,11 @@ on:
       - '.github/workflows/diff-coverage.yml'
   workflow_dispatch:
 
+# Read-only: the workflow never comments or pushes, so it must not inherit the repository default
+# of a write-capable token.
+permissions:
+  contents: read
+
 concurrency:
   group: diff-coverage-${{ github.ref }}
   cancel-in-progress: true
