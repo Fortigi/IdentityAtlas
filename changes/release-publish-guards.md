@@ -1,1 +1,0 @@
-- Release and beta images are only published when the tag's commit is on `main` or a release branch; a tag pushed from anywhere else is refused.

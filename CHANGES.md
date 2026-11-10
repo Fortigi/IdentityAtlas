@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Release and beta images are only published when the tag's commit is on `main` or a release branch; a tag pushed from anywhere else is refused.
+
+## Changes in this PR
+
 - The automated build pipeline now runs under its own GitHub App, which cannot write to protected branches; only the release automation keeps that ability.
 
 ## Changes in this PR
