@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- A pull request that pushes a PowerShell function over the complexity ceiling now gets the finding on the line itself, through GitHub code scanning, as well as a failed complexity check. Each metric is its own rule, so cyclomatic and cognitive findings can be told apart.
+- The PowerShell complexity ceilings are now kept in one file, `.pscomplexity.json`, which both the complexity ratchet and the code-scanning findings read.
+- Each PowerShell mutant that no test catches now appears as a code-scanning alert on the line it changed. Alerts persist from week to week and close by themselves once a test starts catching the mutant, so the work of raising the mutation score has a visible list.
+
+## Changes in this PR
+
 - Upgraded the PowerShell complexity measurer to PSComplexity 0.7.1. Complexity numbers are unchanged: all 1,743 measured units score the same as under 0.5.1.
 - The PowerShell modules CI depends on (PSComplexity, PSMutant) are now pinned in one file, `.ci/powershell-modules.json`, instead of being repeated across workflows, scripts and docs, where they had drifted apart.
 - A weekly job now opens a pull request whenever the PowerShell Gallery has a newer version of a pinned module, one per module. A known-bad version can be held back with a written reason. For a PSMutant bump it also runs mutation testing on the pull request's branch.

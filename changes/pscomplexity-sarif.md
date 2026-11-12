@@ -1,3 +1,0 @@
-- A pull request that pushes a PowerShell function over the complexity ceiling now gets the finding on the line itself, through GitHub code scanning, as well as a failed complexity check. Each metric is its own rule, so cyclomatic and cognitive findings can be told apart.
-- The PowerShell complexity ceilings are now kept in one file, `.pscomplexity.json`, which both the complexity ratchet and the code-scanning findings read.
-- Each PowerShell mutant that no test catches now appears as a code-scanning alert on the line it changed. Alerts persist from week to week and close by themselves once a test starts catching the mutant, so the work of raising the mutation score has a visible list.
