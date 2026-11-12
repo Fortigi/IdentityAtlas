@@ -155,7 +155,8 @@ For the full guide and architecture notes: [docs/architecture/desktop-portable.m
 | midPoint (Evolveum) | Built-in crawler (REST API) | Identities, accounts, roles, entitlements, org units, certification decisions |
 | SQL Server databases | Built-in crawler (your own `SELECT` statements) | Identities, accounts, entitlements, role memberships, role composition |
 | Any SCIM 2.0 endpoint | Built-in crawler | Accounts and group memberships |
-| SailPoint, SAP/Pathlock, SharePoint, DevOps | CSV import | Business roles, resources, assignments, certifications |
+| SailPoint, SAP/Pathlock | CSV import | Business roles, role assignments, certifications, policies |
+| SharePoint, DevOps | CSV import | Resources, resource assignments, resource relationships |
 | Any system | CSV import or Ingest API (Custom Connector) | Principals, resources, assignments — any authorization data |
 
 ---
