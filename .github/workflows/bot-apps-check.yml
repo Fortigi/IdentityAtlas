@@ -1,0 +1,64 @@
+# ─── Bot App check ─────────────────────────────────────────────────────────────
+# The repository uses two GitHub Apps, deliberately kept apart:
+#
+#   fortigi-ci-bot   (BOT_APP_ID / BOT_PRIVATE_KEY)         — release automation. It is a
+#                    bypass actor on the `main` ruleset so bump-version, the coverage/SBOM/
+#                    mutation reports and the Cut workflows can push. Its key must only ever
+#                    be used by jobs on GitHub-hosted runners.
+#   fortigi-dor-bot  (DOR_BOT_APP_ID / DOR_BOT_PRIVATE_KEY) — the DoR pipeline. It opens PRs,
+#                    pushes implementation branches and moves the boards. It has NO ruleset
+#                    bypass, so a sidekick that holds its key can never write to main.
+#
+# This workflow mints a token from each App and lists the repositories the installation can
+# reach. It runs on every same-repo PR that touches a DoR workflow or this file, and by hand
+# after rotating a key or re-installing an App. It never pushes anything.
+name: Bot App check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/bot-apps-check.yml
+      - .github/workflows/dor-*.yml
+      - .github/actions/dor-authorize/**
+
+permissions: {}
+
+jobs:
+  check:
+    # Fork PRs carry no secrets, so the mint step could only fail there.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: fortigi-ci-bot (release automation)
+            app: ci
+          - name: fortigi-dor-bot (DoR pipeline)
+            app: dor
+    name: ${{ matrix.name }}
+    steps:
+      - name: Mint a token
+        id: token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ matrix.app == 'dor' && secrets.DOR_BOT_APP_ID || secrets.BOT_APP_ID }}
+          private-key: ${{ matrix.app == 'dor' && secrets.DOR_BOT_PRIVATE_KEY || secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-metadata: read
+
+      - name: List the repositories this installation can reach
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          APP: ${{ steps.token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          repos="$(gh api installation/repositories --jq '.repositories[].full_name' | sort)"
+          echo "App: ${APP}"
+          echo "Repositories:"
+          echo "$repos" | sed 's/^/  /'
+          if [ "$repos" != "Fortigi/IdentityAtlas" ]; then
+            echo "::error::${APP} is installed on more than this repository — restrict it to Fortigi/IdentityAtlas"
+            exit 1
+          fi

@@ -47,19 +47,35 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# The PowerShell ceilings live in .pscomplexity.json, the file PSComplexity's own gate
+# (Test-PSComplexity, which writes the SARIF log) reads, so the ratchet and the SARIF
+# findings cannot disagree about where the line is. 15 is PSComplexity's default for a
+# key the file leaves out.
+PSCX_CONFIG = os.path.join(REPO, ".pscomplexity.json")
+
+
+def ps_ceilings(path=PSCX_CONFIG):
+    """(maxCyclomatic, maxCognitive) from a .pscomplexity.json."""
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    return cfg.get("maxCyclomatic", 15), cfg.get("maxCognitive", 15)
+
+
+PS_MAX_CYCLOMATIC, PS_MAX_COGNITIVE = ps_ceilings()
+
 # Per-metric config: the unit field to gate, the language thresholds, the languages
 # that participate, and the baseline file. cyclomatic is the default (unchanged CI).
 METRICS = {
     "cyclomatic": {
         "field": "cc",
-        "thresholds": {"ps": 15, "py": 15, "js": 20},
+        "thresholds": {"ps": PS_MAX_CYCLOMATIC, "py": 15, "js": 20},
         "langs": ("ps", "py", "js"),
         "baseline": os.path.join(REPO, ".ci", "complexity-baseline.json"),
         "label": "cyclomatic complexity",
     },
     "cognitive": {
         "field": "cog",
-        "thresholds": {"ps": 15, "py": 15, "js": 15},
+        "thresholds": {"ps": PS_MAX_COGNITIVE, "py": 15, "js": 15},
         "langs": ("ps", "py", "js"),
         "baseline": os.path.join(REPO, ".ci", "cognitive-baseline.json"),
         "label": "cognitive complexity",
@@ -76,14 +92,18 @@ def relpath(p):
 
 
 # ─── PowerShell (measure_ps.ps1 emits cc + cog) ──────────────────────────────
-def measure_ps():
+def measure_ps(sarif=None):
+    """Per-unit PowerShell complexity. With `sarif`, measure_ps.ps1 also writes
+    PSComplexity's SARIF log of the units over the .pscomplexity.json ceilings there."""
     script = os.path.join(REPO, "tools", "complexity", "measure_ps.ps1")
     exe = shutil.which("pwsh") or shutil.which("powershell")
     if not exe:
         print("warning: pwsh not found - skipping PowerShell", file=sys.stderr)
         return []
-    out = subprocess.run([exe, "-NoProfile", "-File", script], cwd=REPO,
-                         capture_output=True, text=True)
+    cmd = [exe, "-NoProfile", "-File", script]
+    if sarif:
+        cmd += ["-SarifPath", os.path.abspath(sarif)]
+    out = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
     if out.returncode != 0:
         print("warning: measure_ps.ps1 failed:\n" + out.stderr[:800], file=sys.stderr)
         return []
@@ -510,6 +530,9 @@ def main():
                     help="with --update: also raise a ceiling / grandfather a newly over-threshold "
                          "unit, for an intentional, reviewed increase. Each one is printed.")
     ap.add_argument("--baseline", default=None, help="override the baseline path")
+    ap.add_argument("--ps-sarif", metavar="PATH", default=None,
+                    help="also write PSComplexity's SARIF log of PowerShell units over "
+                         "the .pscomplexity.json ceilings to PATH (for code scanning)")
     ap.add_argument("--emit-complexity-json", metavar="WORKSPACE", default=None,
                     help="print the full per-unit {file,unit,line,cc,cog} JSON for one JS "
                          "workspace's src (e.g. app/api) and exit — feeds the coverage docs, "
@@ -526,7 +549,7 @@ def main():
     metric = METRICS[args.metric]
     baseline_path = args.baseline or metric["baseline"]
 
-    units = measure_ps() + measure_py() + measure_js()
+    units = measure_ps(args.ps_sarif) + measure_py() + measure_js()
     over = over_threshold(units, metric)
     print_summary(args, metric, units, over)
 

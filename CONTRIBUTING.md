@@ -109,7 +109,8 @@ npx --yes jscpd@3 . --config .jscpd.json           # duplicated code
 ```
 
 The complexity ratchet also needs `npm ci` in `app/api` and `app/ui`, and the PowerShell
-module `PSComplexity` 0.5.1. The coverage ratchet reads the `lcov.info` that
+module `PSComplexity` at its pinned version
+(`pwsh tools/psmodules/Install-PinnedModule.ps1 PSComplexity`). The coverage ratchet reads the `lcov.info` that
 `npm run test:coverage` writes. A documentation change is checked with
 `pip install -r docs/requirements.txt` followed by `mkdocs build --strict`.
 
