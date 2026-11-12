@@ -1,0 +1,11 @@
+{
+  "_comment": "PowerShell Gallery modules CI installs, each at exactly one version. Install through tools/psmodules/Install-PinnedModule.ps1; never write a version anywhere else (test/unit/PinnedModules.Tests.ps1 fails on one). .github/workflows/ps-module-updates.yml opens a pull request each week for any module the gallery has a newer stable version of. A version that must not be taken goes under `skip` with its reason (\"0.9.1\" for one version, \"<0.9.2\" for every version below one); the updater passes over it and removes the entry once the pin has moved past it.",
+  "modules": {
+    "PSComplexity": {
+      "version": "0.7.1"
+    },
+    "PSMutant": {
+      "version": "0.9.2"
+    }
+  }
+}

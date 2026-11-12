@@ -32,7 +32,7 @@ ISSUE="${1:?usage: dor_trusted_spec.sh <issue-number>}"
 : "${REPO:?dor_trusted_spec: REPO (owner/name) required}"
 : "${MEMBERS_TOKEN:?dor_trusted_spec: MEMBERS_TOKEN (Members: read) required}"
 ORG="${ORG:-Fortigi}"
-PIPELINE_BOTS=" github-actions[bot] fortigi-ci-bot[bot] "
+PIPELINE_BOTS=" github-actions[bot] fortigi-ci-bot[bot] fortigi-dor-bot[bot] "
 
 case "$ISSUE" in ''|*[!0-9]*) echo "::error::dor_trusted_spec: issue must be a number, got '$ISSUE'" >&2; exit 1 ;; esac
 

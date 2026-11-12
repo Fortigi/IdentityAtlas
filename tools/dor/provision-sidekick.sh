@@ -17,8 +17,8 @@ set -uo pipefail
 # The BOT app's noreply identity — GitHub resolves a commit author by email, and an address that
 # matches no account makes every push look like an unknown contributor, which holds the PR's
 # workflow runs at `action_required`. Must match dor_build_lib.sh.
-GIT_NAME="fortigi-ci-bot[bot]"
-GIT_EMAIL="280718603+fortigi-ci-bot[bot]@users.noreply.github.com"
+GIT_NAME="fortigi-dor-bot[bot]"
+GIT_EMAIL="354609129+fortigi-dor-bot[bot]@users.noreply.github.com"
 NODE_MAJOR=22
 REPO_RAW="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main"
 FAIL=0
