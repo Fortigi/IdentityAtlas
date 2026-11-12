@@ -253,6 +253,6 @@ By default, any user in the tenant can sign in. A user without a role cannot adm
 
 1. **App Registration → App roles → Create app role** — besides `Admin` (Step 2), add the roles you need. Use the names Identity Atlas knows: `RoleMiner` and `Servicedesk` are built in, and you can map other names under **Admin → Roles & Permissions**. A role name that is not in that mapping grants nothing.
 2. **Enterprise applications → your app → Users and groups** — assign users / groups to those roles
-3. Azure portal → your Web App → **Environment variables** → set `AUTH_REQUIRED_ROLES` = `Admin,RoleMiner,Servicedesk` → **Apply** (the app restarts). Users without one of those roles are then refused by every endpoint.
+3. Azure portal → your Web App → **Environment variables** → set `AUTH_REQUIRED_ROLES` = `Admin,RoleMiner,Servicedesk` → **Apply** (the app restarts). Only users with at least one of those roles can sign in.
 
 This is advanced enough that it isn't on the deploy form — set it post-deploy from the Web App's Environment variables blade. Like the IDs in Step 3, a redeploy of Step 1 clears it, so set it again afterwards.
