@@ -13,6 +13,13 @@ dependencies — `index.html` inlines all CSS/JS; assets live in `assets/`.
 `app/ui/public/logo-dark.png` (the transparent logo). To regenerate, re-run the
 crop/resize used in issue #677 (System.Drawing / sharp) against that source.
 
+`assets/screenshot-*.webp` are product screenshots taken with Playwright from the public demo
+(`demo1.identityatlas.io`, synthetic data only), each in a `-light` and a `-dark` variant; the page
+shows the one that matches its theme. To refresh them, capture the same views at 1.5x device scale
+with the app theme set to light and to dark, crop out the open-mode banner, and convert to WebP
+(`ffmpeg -c:v libwebp -quality 74`). Check every capture for anything that is not demo data, and
+use a new file name when a picture changes (see the cache note below).
+
 `assets/explainer.mp4` is the one-minute explainer ("Trust starts with clarity"),
 self-hosted so the page needs no third-party player. It is the original export
 remuxed with `ffmpeg -c copy -movflags +faststart` so playback can start before the
