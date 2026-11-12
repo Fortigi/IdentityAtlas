@@ -113,8 +113,15 @@ if ($PSCmdlet.ParameterSetName -eq 'ByResourceGroup') {
 
 Write-Host "Crawler identity (principal ID): $PrincipalId" -ForegroundColor Cyan
 
-$graph = Invoke-GraphCli -Method GET -Url "$GraphUrl/servicePrincipals(appId='$GraphAppId')?`$select=id,appRoles"
-$held = @((Invoke-GraphCli -Method GET -Url "$GraphUrl/servicePrincipals/$PrincipalId/appRoleAssignments?`$top=999").value |
+# Microsoft Graph's own service principal in this tenant: its object ID and the
+# catalogue of application permissions. Through `az ad sp show` rather than a
+# raw URL — the appId='…' key syntax does not survive every shell's quoting.
+$graph = az ad sp show --id $GraphAppId --query '{id:id, appRoles:appRoles}' --only-show-errors | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or -not $graph.id) {
+    throw "Could not read the Microsoft Graph service principal. Are you signed in (az login) to the right tenant?"
+}
+
+$held = @((Invoke-GraphCli -Method GET -Url "$GraphUrl/servicePrincipals/$PrincipalId/appRoleAssignments").value |
         Where-Object { $_.resourceId -eq $graph.id } |
         ForEach-Object { $_.appRoleId })
 
