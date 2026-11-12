@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createElement as h } from 'react';
 import App from './App.jsx';
-import { renderWithProviders, makeAuthFetch, screen, userEvent } from '@ui/test-utils/renderWithProviders';
+import { renderWithProviders, makeAuthFetch, screen, userEvent, waitFor } from '@ui/test-utils/renderWithProviders';
 
 // App reads the global `fetch` for /api/version + /api/features (both swallowed
 // on error) and, via useTheme, localStorage. jsdom here provides neither, so
@@ -80,5 +80,98 @@ describe('App — the matrix tab with no matrix on screen', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'New matrix' }));
     expect(await screen.findByText('Create matrix')).toBeInTheDocument();
+  });
+});
+
+// The matrix keeps its filter in the URL, so a matrix can be bookmarked and
+// shared as a link. Both directions are covered here: what App writes to the
+// hash, and what it reads back from one.
+describe('App — the matrix filter in the URL', () => {
+  const DEFAULT_ID = 'df-1';
+  const orgDefault = (filter) => ({ id: DEFAULT_ID, name: 'Org default', filter });
+
+  const matrixAuth = (defaultFilter) => {
+    const authFetch = makeAuthFetch({
+      '/api/preferences': { visibleTabs: [] },
+      '/api/admin/dashboard-stats': { hasData: true },
+      '/api/matrix/default-filter': defaultFilter,
+      '/api/matrix/saved-filters': [{ id: 'sf-1', name: 'HR users', filter: { rowType: 'principal' } }],
+      '/api/matrix/columns': [],
+      '/api/matrix/data': { data: [], rowType: 'principal' },
+    });
+    return { authFetch, options: { auth: { authFetch } } };
+  };
+
+  // The hash as App itself would read it back: page, filter object, managed.
+  const readHash = () => {
+    const [page, query = ''] = window.location.hash.replace('#', '').split('?');
+    const params = new URLSearchParams(query);
+    return {
+      page,
+      filter: params.has('filter') ? JSON.parse(params.get('filter')) : null,
+      managed: params.get('managed'),
+    };
+  };
+
+  // The filters the matrix was actually loaded with, in order.
+  const loadedFilters = (authFetch) => authFetch.mock.calls
+    .filter(([url]) => String(url).includes('/api/matrix/data'))
+    .map(([, opts]) => JSON.parse(opts.body).filter);
+
+  it('writes the applied default filter and its managed lens to the hash', async () => {
+    window.location.hash = '#matrix';
+    const { options } = matrixAuth(orgDefault({ rowType: 'resource', managed: 'gaps' }));
+    renderWithProviders(h(App), options);
+
+    await waitFor(() => expect(readHash()).toEqual({
+      page: 'matrix',
+      // `managed` travels as its own parameter, not inside the filter; the
+      // filter is tagged with the default it came from.
+      filter: { rowType: 'resource', savedFilterId: DEFAULT_ID },
+      managed: 'gaps',
+    }));
+  });
+
+  it('leaves the managed lens out of the hash while it is the default "all"', async () => {
+    window.location.hash = '#matrix';
+    const { options } = matrixAuth(orgDefault({ rowType: 'principal' }));
+    renderWithProviders(h(App), options);
+
+    await waitFor(() => expect(readHash().filter).toEqual({ rowType: 'principal', savedFilterId: DEFAULT_ID }));
+    expect(window.location.hash).not.toContain('managed');
+  });
+
+  it('opens a shared link on the filter in its hash, not on the org default', async () => {
+    const shared = { rowType: 'resource', conditions: [{ field: 'department', value: 'Finance' }] };
+    window.location.hash = `#matrix?filter=${encodeURIComponent(JSON.stringify(shared))}&managed=unmanaged`;
+    const { authFetch, options } = matrixAuth(orgDefault({ rowType: 'principal' }));
+    renderWithProviders(h(App), options);
+
+    await waitFor(() => expect(loadedFilters(authFetch)).toEqual([shared]));
+    // The link's own state survives the URL sync: same filter, same lens, and
+    // no savedFilterId — the default was never applied over it.
+    await waitFor(() => expect(window.location.hash).toContain('managed=unmanaged'));
+    expect(readHash()).toEqual({ page: 'matrix', filter: shared, managed: 'unmanaged' });
+  });
+
+  it('ignores a filter it cannot parse and falls back to the list of matrices', async () => {
+    window.location.hash = '#matrix?filter=%7Bnot-json';
+    const { authFetch, options } = matrixAuth(null);
+    renderWithProviders(h(App), options);
+
+    expect(await screen.findByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    // The broken parameter is dropped from the URL rather than kept around.
+    await waitFor(() => expect(window.location.hash).toBe('#matrix'));
+    expect(loadedFilters(authFetch)).toEqual([]);
+  });
+
+  it('ignores a filter that is valid JSON but not an object', async () => {
+    window.location.hash = '#matrix?filter=42';
+    const { authFetch, options } = matrixAuth(null);
+    renderWithProviders(h(App), options);
+
+    expect(await screen.findByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    await waitFor(() => expect(window.location.hash).toBe('#matrix'));
+    expect(loadedFilters(authFetch)).toEqual([]);
   });
 });
