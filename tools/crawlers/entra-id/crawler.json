@@ -18,9 +18,10 @@
       "clientId":     { "type": "string" },
       "clientSecret": { "type": "string" }
     },
-    "if":   { "properties": { "authMethod": { "const": "ManagedIdentity" } }, "required": ["authMethod"] },
-    "then": {},
-    "else": { "required": ["clientId", "clientSecret"] }
+    "allOf": [
+      { "if": { "properties": { "authMethod": { "const": "ClientSecret" } } },
+        "then": { "required": ["clientId", "clientSecret"] } }
+    ]
   },
   "postSyncHooks": ["buildContexts", "accountCorrelation"]
 }
