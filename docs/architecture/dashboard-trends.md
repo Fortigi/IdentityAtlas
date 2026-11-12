@@ -47,13 +47,13 @@ Range selector: 30 days / 90 days / 1 year / 2 years.
 | `principals` | `INT` | Estimate |
 | `identities` | `INT` | Estimate |
 | `assignments` | `INT` | Estimate |
-| `governedAssignments` | `INT` | Exact `COUNT(*) WHERE assignmentType='Governed'` (indexed) |
+| `governedAssignments` | `INT` | Exact `COUNT(*) WHERE governed = true` (indexed) |
 | `relationships` | `INT` | Estimate |
 | `contexts` | `INT` | Estimate |
 | `identityMembers` | `INT` | Estimate |
 | `certifications` | `INT` | Estimate |
 
-The estimate vs. exact choice mirrors the live `/admin/dashboard-stats` endpoint: estimates are good enough for a trend line (well within a couple of percent), exact counts are reserved for filtered columns that need to be on-the-nose (`Governed` for the headline %, `BusinessRole` for the bare number).
+The estimate vs. exact choice mirrors the live `/admin/dashboard-stats` endpoint: estimates are good enough for a trend line (well within a couple of percent), exact counts are reserved for filtered columns that need to be on-the-nose (`governed` for the headline %, `BusinessRole` for the bare number).
 
 ## Snapshot capture — when and how
 

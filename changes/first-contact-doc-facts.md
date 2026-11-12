@@ -1,0 +1,5 @@
+- Fixed the supported-sources table in the README: Azure RBAC, Omada, midPoint, SQL Server and SCIM 2.0 are listed with their built-in crawlers instead of as CSV-only or not at all.
+- Fixed the "Bug report" and "Feature request" links on the Report an issue page, which opened a blank issue instead of the form.
+- Fixed the command-line example on the SQL crawler page, which pointed at a folder that does not exist.
+- Fixed in-page links in the documentation that no longer jumped to the right section.
+- Corrected the Dashboard trends page: governed assignments are counted by the governed flag, not by a retired assignment type.

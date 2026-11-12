@@ -149,10 +149,14 @@ For the full guide and architecture notes: [docs/architecture/desktop-portable.m
 
 | System | Sync Method | What Gets Synced |
 |--------|-------------|------------------|
-| Entra ID / Azure AD | Built-in Graph API sync | Users, groups, PIM eligibility, app roles, directory roles, access packages, access reviews |
-| Omada, SailPoint, SAP/Pathlock | CSV import | Business roles, role assignments, certifications, policies |
-| SharePoint, Azure RBAC, DevOps | CSV import | Resources, resource assignments, resource relationships |
-| Any system | CSV import or Ingest API | Principals, resources, assignments — any authorization data |
+| Entra ID / Azure AD | Built-in crawler (Microsoft Graph) | Users, groups, PIM eligibility, app roles, directory roles, access packages, access reviews |
+| Azure RBAC | Built-in crawler (Azure Resource Manager) | Management groups, subscriptions, resource groups and the role assignments on them |
+| Omada IGA | Built-in crawler (OData) | Identities, accounts, business roles, role assignments, connected systems |
+| midPoint (Evolveum) | Built-in crawler (REST API) | Identities, accounts, roles, entitlements, org units, certification decisions |
+| SQL Server databases | Built-in crawler (your own `SELECT` statements) | Identities, accounts, entitlements, role memberships, role composition |
+| Any SCIM 2.0 endpoint | Built-in crawler | Accounts and group memberships |
+| SailPoint, SAP/Pathlock, SharePoint, DevOps | CSV import | Business roles, resources, assignments, certifications |
+| Any system | CSV import or Ingest API (Custom Connector) | Principals, resources, assignments — any authorization data |
 
 ---
 
