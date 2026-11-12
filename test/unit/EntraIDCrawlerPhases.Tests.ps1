@@ -76,6 +76,8 @@ BeforeAll {
     # The real Graph auth function (mocked per test) so its parameter sets bind as in
     # production, + tenant id for system registration.
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'graph' 'Get-FGAccessToken.ps1')
+    # Connect-EntraCrawlerGraph — the sign-in Initialize-EntraCrawlerRun delegates to.
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Auth.ps1')
     $Global:TenantId = 'tenant-123'
 
     # The Graph SDK functions the phases call. Defined as stubs so Pester can Mock
@@ -2051,6 +2053,18 @@ Describe 'Resolve-EntraSyncConfig' {
 
 # ─── Initialize-EntraCrawlerRun ─────────────────────────────────────────────────
 Describe 'Initialize-EntraCrawlerRun' {
+
+    It 'hands the configured sign-in method and credentials to the sign-in' {
+        Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }
+        Mock Connect-EntraCrawlerGraph -MockWith { }
+        Mock Invoke-IngestAPI -ParameterFilter { $Endpoint -eq 'ingest/systems' } -MockWith { @{ systemIds = @(42) } }
+
+        Initialize-EntraCrawlerRun -ApiBaseUrl 'http://x/api' -ApiKey 'k' -TenantId 'tid' -ClientId 'cid' -ClientSecret 'csecret' -AuthMethod 'ManagedIdentity' | Out-Null
+
+        Should -Invoke Connect-EntraCrawlerGraph -Exactly 1 -ParameterFilter {
+            $AuthMethod -eq 'ManagedIdentity' -and $TenantId -eq 'tid' -and $ClientId -eq 'cid' -and $ClientSecret -eq 'csecret'
+        }
+    }
 
     It 'returns the systemId from ingest/systems' {
         Mock Invoke-RestMethod -ParameterFilter { $Uri -match 'whoami' } -MockWith { @{ displayName = 'Worker' } }

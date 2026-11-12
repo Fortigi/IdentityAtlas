@@ -8,7 +8,7 @@
  * → "JS/UI Testing" → "Testing a discover.js handler".
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import handler, { nextGraphLink } from './discover.js';
+import handler, { nextGraphLink, managedIdentityStatus, decodeTokenClaims, permissionsFromRoles } from './discover.js';
 
 function makeReqRes(body) {
   const req = { body };
@@ -40,6 +40,7 @@ const TOKEN_OK = ['/oauth2/v2.0/token', { ok: true, json: async () => ({ access_
 describe('entra-id discover.js handler', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it('returns 400 when type is missing or unrecognised', async () => {
@@ -124,6 +125,148 @@ describe('entra-id discover.js handler', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.valid).toBe(true);
       expect(res.body.permissions['User.Read.All']).toBe(false);
+    });
+  });
+
+  describe('managed identity', () => {
+    // An unsigned JWT with the given claims — the handler only decodes it.
+    const jwt = (claims) => `${Buffer.from('{"alg":"none"}').toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.sig`;
+    const IDENTITY_URL = 'http://127.0.0.1:41000/msi/token';
+    const withIdentity = () => {
+      vi.stubEnv('IDENTITY_ENDPOINT', `${IDENTITY_URL}?x=1`);
+      vi.stubEnv('IDENTITY_HEADER', 'hdr-secret');
+      vi.stubEnv('IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID', ' crawler-id ');
+    };
+    const withoutIdentity = () => {
+      vi.stubEnv('IDENTITY_ENDPOINT', '');
+      vi.stubEnv('IDENTITY_HEADER', '');
+      vi.stubEnv('IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID', '');
+    };
+    const identityCall = () => fetch.mock.calls.find(([u]) => String(u).startsWith(IDENTITY_URL));
+
+    describe('managedIdentityStatus', () => {
+      const full = { IDENTITY_ENDPOINT: 'http://x', IDENTITY_HEADER: 'h', IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID: ' id ' };
+
+      it('is available only when the endpoint, its header and a crawler identity are all there', () => {
+        expect(managedIdentityStatus(full)).toEqual({ available: true, clientId: 'id' });
+      });
+
+      it.each(Object.keys(full))('is unavailable without %s — and then names no identity', (missing) => {
+        expect(managedIdentityStatus({ ...full, [missing]: '' })).toEqual({ available: false, clientId: null });
+      });
+
+      it('a web app that only has its Key Vault identity does not count', () => {
+        expect(managedIdentityStatus({ IDENTITY_ENDPOINT: 'http://x', IDENTITY_HEADER: 'h' }).available).toBe(false);
+      });
+    });
+
+    it('decodeTokenClaims reads the payload and returns {} for anything that is not a JWT', () => {
+      expect(decodeTokenClaims(jwt({ tid: 'T', roles: ['a'] }))).toEqual({ tid: 'T', roles: ['a'] });
+      for (const bad of ['tok123', '', undefined, 'a.b.c']) expect(decodeTokenClaims(bad)).toEqual({});
+    });
+
+    it('permissionsFromRoles marks what the token carries, counting a ReadWrite variant as granted', () => {
+      const p = permissionsFromRoles(['User.Read.All', 'Group.ReadWrite.All', 'RoleManagement.ReadWrite.Directory', 'Mail.Send']);
+      expect(p['User.Read.All']).toBe(true);
+      expect(p['Group.Read.All']).toBe(true);
+      expect(p['RoleManagement.Read.Directory']).toBe(true);
+      expect(p['Directory.Read.All']).toBe(false);
+      expect(p['Mail.Send']).toBeUndefined(); // only the permissions the crawler needs are reported
+      expect(Object.values(permissionsFromRoles(undefined)).every((v) => v === false)).toBe(true);
+      expect(Object.keys(permissionsFromRoles(undefined)).length).toBeGreaterThan(8);
+    });
+
+    it("type 'authMethods' reports whether this deployment has a crawler identity", async () => {
+      withIdentity();
+      let { req, res } = makeReqRes({ type: 'authMethods' });
+      await handler(req, res, {});
+      expect(res.body).toEqual({ managedIdentity: { available: true, clientId: 'crawler-id' } });
+
+      withoutIdentity();
+      ({ req, res } = makeReqRes({ type: 'authMethods' }));
+      await handler(req, res, {});
+      expect(res.body).toEqual({ managedIdentity: { available: false, clientId: null } });
+    });
+
+    it('validate signs in through the identity endpoint, as the deployment identity, without any secret', async () => {
+      withIdentity();
+      stubFetch([
+        [IDENTITY_URL, { ok: true, json: async () => ({ access_token: jwt({ tid: 'tenant-9', roles: ['User.Read.All', 'AccessReview.ReadWrite.All'] }) }) }],
+        ['/v1.0/organization', { ok: true, json: async () => ({ value: [{ displayName: 'Contoso' }] }) }],
+      ]);
+      // A client ID / secret in the request must be ignored, not used.
+      const { req, res } = makeReqRes({ type: 'validate', config: { authMethod: 'ManagedIdentity', clientId: 'picked-by-caller', clientSecret: 's' } });
+      await handler(req, res, {});
+
+      expect(res.body.valid).toBe(true);
+      expect(res.body.authMethod).toBe('ManagedIdentity');
+      expect(res.body.tenantId).toBe('tenant-9');
+      expect(res.body.organization).toBe('Contoso');
+      expect(res.body.permissions['User.Read.All']).toBe(true);
+      expect(res.body.permissions['AccessReview.Read.All']).toBe(true);
+      expect(res.body.permissions['Group.Read.All']).toBe(false);
+      expect(res.body.objectTypes.length).toBeGreaterThan(0);
+
+      const [url, init] = identityCall();
+      const u = new URL(url);
+      expect(u.searchParams.get('client_id')).toBe('crawler-id');
+      expect(u.searchParams.get('resource')).toBe('https://graph.microsoft.com');
+      expect(u.searchParams.get('api-version')).toBe('2019-08-01');
+      expect(u.searchParams.get('x')).toBe('1'); // the endpoint's own query survives
+      expect(init.headers['X-IDENTITY-HEADER']).toBe('hdr-secret');
+      // Never falls through to the client-secret flow or the role-assignment lookup.
+      const urls = fetch.mock.calls.map(([x]) => String(x));
+      expect(urls.some((x) => x.includes('login.microsoftonline.com'))).toBe(false);
+      expect(urls.some((x) => x.includes('appRoleAssignments'))).toBe(false);
+    });
+
+    it('validate returns valid:false, without calling anything, when the deployment has no crawler identity', async () => {
+      withoutIdentity();
+      stubFetch([]);
+      const { req, res } = makeReqRes({ type: 'validate', config: { authMethod: 'ManagedIdentity' } });
+      await handler(req, res, {});
+      expect(res.statusCode).toBe(200);
+      expect(res.body.valid).toBe(false);
+      expect(res.body.error).toMatch(/no managed identity for crawlers/);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("validate surfaces the identity endpoint's own error", async () => {
+      withIdentity();
+      stubFetch([[IDENTITY_URL, { ok: false, status: 400, json: async () => ({ message: 'No User Assigned or Delegated Managed Identity found for specified ClientId' }) }]]);
+      const { req, res } = makeReqRes({ type: 'validate', config: { authMethod: 'ManagedIdentity' } });
+      await handler(req, res, {});
+      expect(res.body).toEqual({ valid: false, error: 'No User Assigned or Delegated Managed Identity found for specified ClientId' });
+    });
+
+    it('discovers attributes with the identity for an inline managed-identity config', async () => {
+      withIdentity();
+      stubFetch([
+        [IDENTITY_URL, { ok: true, json: async () => ({ access_token: 'mi-token' }) }],
+        ['/beta/users?$top=1', { ok: true, json: async () => ({ value: [{ id: 'u1', displayName: 'A' }] }) }],
+      ]);
+      const { req, res } = makeReqRes({ type: 'users', config: { authMethod: 'ManagedIdentity' } });
+      await handler(req, res, {});
+      expect(res.statusCode).toBe(200);
+      expect(res.body.sampleId).toBe('u1');
+      const sample = fetch.mock.calls.find(([u]) => String(u).includes('/beta/users?$top=1'));
+      expect(sample[1].headers.Authorization).toBe('Bearer mi-token');
+    });
+
+    it('a stored managed-identity config never reads a secret left in the vault', async () => {
+      withIdentity();
+      stubFetch([
+        [IDENTITY_URL, { ok: true, json: async () => ({ access_token: 'mi-token' }) }],
+        ['/beta/groups?$top=1', { ok: true, json: async () => ({ value: [{ id: 'g1' }] }) }],
+      ]);
+      const getConfigSecret = vi.fn().mockResolvedValue('left-over-secret');
+      const db = { queryOne: vi.fn().mockResolvedValue({ config: { authMethod: 'ManagedIdentity', tenantId: 't', clientId: 'old' } }) };
+      const { req, res } = makeReqRes({ type: 'groups', configId: 7 });
+      await handler(req, res, { db, getConfigSecret });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.sampleId).toBe('g1');
+      expect(getConfigSecret).not.toHaveBeenCalled();
+      expect(fetch.mock.calls.map(([u]) => String(u)).some((u) => u.includes('login.microsoftonline.com'))).toBe(false);
     });
   });
 

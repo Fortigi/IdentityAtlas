@@ -20,7 +20,9 @@
 .PARAMETER ConfigPath
     Path to the JSON job config written by the dispatcher (tenantId, clientId,
     clientSecret and the sync toggles). The Graph credentials are passed to
-    Get-FGAccessToken in memory; they are never written to another file.
+    Get-FGAccessToken in memory; they are never written to another file. With
+    authMethod 'ManagedIdentity' there is no clientSecret: the crawler signs in
+    with the managed identity attached to the worker (EntraIDCrawler.Auth.ps1).
 
 .PARAMETER SyncPrincipals
     Sync user principals (default: true)
@@ -121,6 +123,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerDeltaToken.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.Auth.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.DeltaSelect.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppRoles.ps1')
@@ -155,7 +158,7 @@ $script:phases = [System.Collections.Generic.List[object]]::new()
 
 $systemId = Initialize-EntraCrawlerRun -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -TenantId ([string]$RawConfig['tenantId']) `
     -ClientId ([string]$RawConfig['clientId']) -ClientSecret ([string]$RawConfig['clientSecret']) `
-    -ConfigName ([string]$RawConfig['_configName'])
+    -ConfigName ([string]$RawConfig['_configName']) -AuthMethod ([string]$RawConfig['authMethod'])
 
 # Resolve all sync toggles + attribute lists from the job config, then narrow a
 # delta run to the phases that read a Graph delta feed (see EntraIDCrawler.DeltaScope.ps1).
