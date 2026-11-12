@@ -1,7 +1,8 @@
 # Setting up authentication (SSO) & roles
 
-By default Identity Atlas runs in **open mode** — no sign-in, and every gate is a
-no-op. That is fine for a laptop or an isolated evaluation, but on any shared or
+By default the Docker stack runs in **open mode** — no sign-in, and every gate is a
+no-op (the Azure deployment is the exception: it requires sign-in from the first
+deploy, see the note in step 2). That is fine for a laptop or an isolated evaluation, but on any shared or
 networked deployment you want Entra ID single sign-on and role-based access. This
 guide walks through turning that on end to end, and — crucially — getting your
 first admin in without locking yourself out.
@@ -23,8 +24,12 @@ Authentication is Entra ID OIDC against an App Registration. In the Entra ID
 portal:
 
 1. **Register an application** (or reuse your existing one) and note its
-   **Application (client) ID** and your **Directory (tenant) ID**.
-2. **Expose an API** — accept the default Application ID URI `api://<client-id>`.
+   **Application (client) ID** and your **Directory (tenant) ID**. Under
+   **Authentication**, add a **Single-page application (SPA)** redirect URI that
+   is exactly the address you open Identity Atlas on, without a trailing slash
+   (for example `https://atlas.example.com`). Without it, sign-in fails.
+2. **Expose an API** — accept the default Application ID URI `api://<client-id>`
+   and add a scope named `access` (the app requests `api://<client-id>/access`).
    Identity Atlas only accepts access tokens whose audience is `api://<client-id>`;
    ID tokens are rejected, which is why this step is required.
 3. **Define app roles** on the registration — at minimum an `Admin` role.
@@ -54,9 +59,15 @@ renders a setup-required page until you provide them. Set them in your `.env` (o
 inline) and recreate the `web` container.
 
 !!! note "Azure App Service"
-    On the managed Azure App Service deployment, `AUTH_ENABLED=true` is set from
-    first boot and the platform manages sign-in, so the Docker CLI recovery steps
-    below don't apply. Roles & Permissions is still managed in the UI.
+    On the Azure App Service deployment, `AUTH_ENABLED=true` is set from the
+    first deploy, so you do step 1 after deploying: the app shows a setup page
+    until the tenant and client IDs are filled in as environment variables on
+    the Web App (see the [Azure walkthrough](../architecture/azure-deployment-walkthrough.md)).
+    Sign-in is still enforced by Identity Atlas itself, not by App Service
+    Authentication (Easy Auth). The Docker CLI recovery steps below don't apply:
+    to recover from a lockout, set `AUTH_ENABLED=false` on the Web App, fix the
+    role assignment, and set it back to `true`. Roles & Permissions is still
+    managed in the UI.
 
 ---
 

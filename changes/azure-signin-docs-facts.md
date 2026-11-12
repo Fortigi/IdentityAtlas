@@ -1,0 +1,5 @@
+- Fixed the Azure deployment pages so they agree with each other and with the product: sign-in is required from the first deploy, and the app shows a setup page until the Entra app is linked.
+- The Azure walkthrough now includes creating the `Admin` app role and assigning it to yourself. Without that step the first user could sign in but had no Admin tab.
+- Role names in the Azure walkthrough now match the built-in roles (`Admin`, `RoleMiner`, `Servicedesk`).
+- Corrected the list of Admin tabs on Azure (the Authentication tab is shown, not hidden) and removed the statement that there is no deploy workflow.
+- The authentication guide now mentions the SPA redirect URI and the `access` scope, and explains how to recover from a lockout on Azure.
