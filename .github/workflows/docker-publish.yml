@@ -88,6 +88,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.config.outputs.ref }}
+          fetch-depth: 0   # the on-main check below needs history
+
+      # A release or beta tag may only be published when its commit is on main or on a release
+      # line. The Cut workflows already refuse to create any other tag, but a tag pushed by hand
+      # (or by anything else holding a token with contents:write) would otherwise publish :latest
+      # straight from an arbitrary commit (security review Nov 2026, F-52).
+      - name: Refuse a release tag that is not on main or a release branch
+        if: steps.config.outputs.channel != 'main'
+        env:
+          REF: ${{ steps.config.outputs.ref }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main '+refs/heads/release/*:refs/remotes/origin/release/*'
+          for base in origin/main $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/release); do
+            if git merge-base --is-ancestor HEAD "$base"; then
+              echo "::notice::$REF is on $base — publishing"
+              exit 0
+            fi
+          done
+          echo "::error::$REF ($(git rev-parse --short HEAD)) is not on main or any release/* branch. Releases are cut from main through Actions → Cut Release; nothing else is published."
+          exit 1
 
       - name: Extract version
         id: version
