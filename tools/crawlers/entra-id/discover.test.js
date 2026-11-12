@@ -143,6 +143,9 @@ describe('entra-id discover.js handler', () => {
       vi.stubEnv('IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID', '');
     };
     const identityCall = () => fetch.mock.calls.find(([u]) => String(u).startsWith(IDENTITY_URL));
+    // The distinct hosts the handler called, in first-call order — the
+    // client-secret flow would add login.microsoftonline.com.
+    const calledHosts = () => [...new Set(fetch.mock.calls.map(([u]) => new URL(String(u)).hostname))];
 
     describe('managedIdentityStatus', () => {
       const full = { IDENTITY_ENDPOINT: 'http://x', IDENTITY_HEADER: 'h', IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID: ' id ' };
@@ -215,9 +218,8 @@ describe('entra-id discover.js handler', () => {
       expect(u.searchParams.get('x')).toBe('1'); // the endpoint's own query survives
       expect(init.headers['X-IDENTITY-HEADER']).toBe('hdr-secret');
       // Never falls through to the client-secret flow or the role-assignment lookup.
-      const urls = fetch.mock.calls.map(([x]) => String(x));
-      expect(urls.some((x) => x.includes('login.microsoftonline.com'))).toBe(false);
-      expect(urls.some((x) => x.includes('appRoleAssignments'))).toBe(false);
+      expect(calledHosts()).toEqual(['127.0.0.1', 'graph.microsoft.com']);
+      expect(fetch.mock.calls.some(([x]) => new URL(String(x)).pathname.endsWith('/appRoleAssignments'))).toBe(false);
     });
 
     it('validate returns valid:false, without calling anything, when the deployment has no crawler identity', async () => {
@@ -266,7 +268,7 @@ describe('entra-id discover.js handler', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.sampleId).toBe('g1');
       expect(getConfigSecret).not.toHaveBeenCalled();
-      expect(fetch.mock.calls.map(([u]) => String(u)).some((u) => u.includes('login.microsoftonline.com'))).toBe(false);
+      expect(calledHosts()).not.toContain('login.microsoftonline.com');
     });
   });
 

@@ -104,48 +104,79 @@ function Invoke-GraphCli {
     }
 }
 
-if ($PSCmdlet.ParameterSetName -eq 'ByResourceGroup') {
-    $PrincipalId = az identity list --resource-group $ResourceGroup --query "[?ends_with(name, '-mi-crawler')].principalId | [0]" --output tsv
-    if ($LASTEXITCODE -ne 0 -or -not $PrincipalId) {
+# The crawler identity (<prefix>-mi-crawler) of the deployment in a resource group.
+function Get-CrawlerIdentityPrincipalId {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$ResourceGroup)
+    $id = az identity list --resource-group $ResourceGroup --query "[?ends_with(name, '-mi-crawler')].principalId | [0]" --output tsv
+    if ($LASTEXITCODE -ne 0 -or -not $id) {
         throw "No crawler identity (<prefix>-mi-crawler) found in resource group '$ResourceGroup'. Deploy Identity Atlas there first, or pass -PrincipalId."
     }
-}
 
-Write-Host "Crawler identity (principal ID): $PrincipalId" -ForegroundColor Cyan
+    return $id
+}
 
 # Microsoft Graph's own service principal in this tenant: its object ID and the
 # catalogue of application permissions. Through `az ad sp show` rather than a
 # raw URL — the appId='…' key syntax does not survive every shell's quoting.
-$graph = az ad sp show --id $GraphAppId --query '{id:id, appRoles:appRoles}' --only-show-errors | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or -not $graph.id) {
-    throw "Could not read the Microsoft Graph service principal. Are you signed in (az login) to the right tenant?"
+function Get-GraphServicePrincipal {
+    [CmdletBinding()]
+    param()
+    $sp = az ad sp show --id $GraphAppId --query '{id:id, appRoles:appRoles}' --only-show-errors | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or -not $sp.id) {
+        throw "Could not read the Microsoft Graph service principal. Are you signed in (az login) to the right tenant?"
+    }
+
+    return $sp
 }
 
+# Grant one permission unless the identity already holds it. Returns $true when
+# it was granted now.
+function Grant-GraphPermission {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$Name,
+        [Parameter(Mandatory)] [string]$PrincipalId,
+        [Parameter(Mandatory)] $Graph,
+        [string[]]$Held,
+        [Parameter(Mandatory)] $Cmdlet
+    )
+    $role = $Graph.appRoles | Where-Object { $_.value -eq $Name -and $_.allowedMemberTypes -contains 'Application' } | Select-Object -First 1
+    if (-not $role) {
+        throw "Microsoft Graph has no application permission named '$Name'."
+    }
+
+    if ($Held -contains $role.id) {
+        Write-Host "  already granted  $Name" -ForegroundColor Green
+        return $false
+    }
+
+    if (-not $Cmdlet.ShouldProcess($Name, 'Grant Microsoft Graph application permission')) {
+        return $false
+    }
+
+    Invoke-GraphCli -Method POST -Url "$GraphUrl/servicePrincipals/$PrincipalId/appRoleAssignments" -Body @{
+        principalId = $PrincipalId
+        resourceId  = $Graph.id
+        appRoleId   = $role.id
+    } | Out-Null
+    Write-Host "  granted          $Name" -ForegroundColor Green
+    return $true
+}
+
+if ($PSCmdlet.ParameterSetName -eq 'ByResourceGroup') {
+    $PrincipalId = Get-CrawlerIdentityPrincipalId -ResourceGroup $ResourceGroup
+}
+
+Write-Host "Crawler identity (principal ID): $PrincipalId" -ForegroundColor Cyan
+
+$graph = Get-GraphServicePrincipal
 $held = @((Invoke-GraphCli -Method GET -Url "$GraphUrl/servicePrincipals/$PrincipalId/appRoleAssignments").value |
         Where-Object { $_.resourceId -eq $graph.id } |
         ForEach-Object { $_.appRoleId })
 
-$granted = 0
-foreach ($name in $GraphPermissions) {
-    $role = $graph.appRoles | Where-Object { $_.value -eq $name -and $_.allowedMemberTypes -contains 'Application' } | Select-Object -First 1
-    if (-not $role) {
-        throw "Microsoft Graph has no application permission named '$name'."
-    }
-
-    if ($held -contains $role.id) {
-        Write-Host "  already granted  $name" -ForegroundColor Green
-        continue
-    }
-
-    if ($PSCmdlet.ShouldProcess($name, 'Grant Microsoft Graph application permission')) {
-        Invoke-GraphCli -Method POST -Url "$GraphUrl/servicePrincipals/$PrincipalId/appRoleAssignments" -Body @{
-            principalId = $PrincipalId
-            resourceId  = $graph.id
-            appRoleId   = $role.id
-        } | Out-Null
-        Write-Host "  granted          $name" -ForegroundColor Green
-        $granted++
-    }
-}
+$granted = @($GraphPermissions | Where-Object {
+        Grant-GraphPermission -Name $_ -PrincipalId $PrincipalId -Graph $graph -Held $held -Cmdlet $PSCmdlet
+    }).Count
 
 Write-Host "Done: $granted permission(s) granted, $($GraphPermissions.Count - $granted) left as they were." -ForegroundColor Cyan
