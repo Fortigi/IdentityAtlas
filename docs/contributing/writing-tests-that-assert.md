@@ -145,7 +145,7 @@ Config: `.ci/psmutant.config.json`. Every eligible crawler file must be in
 `test/unit/PSMutationScope.Tests.ps1`.
 
 ```bash
-Install-Module PSMutant -RequiredVersion 0.5.0
+pwsh tools/psmodules/Install-PinnedModule.ps1 PSMutant   # the version CI pins
 Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .
 ```
 
