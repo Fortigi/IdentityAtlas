@@ -1,9 +1,13 @@
 # ─── Publish test coverage to the docs ───────────────────────────────────────
 # On every push to main that touches source or tests, this workflow:
-#   1. Runs each test suite with coverage:
+#   1. Gets each suite's coverage:
 #        - API  (app/api)  → Vitest v8, unit + contract → two lcov.info (merged)
 #        - UI   (app/ui)   → Vitest v8 → lcov.info
 #        - Pester (test/unit) → JaCoCo XML
+#      The JS suites are REUSED from the merged PR's PR Checks run when their
+#      content key matches main (see "Reuse coverage from PR Checks"), and only
+#      run here when it doesn't. Pester always runs here: its PR job measures a
+#      narrower file set (no tools/crawlers/shared) for its 90% floor.
 #   2. Converts each suite to a consistent browsable HTML report + a
 #      machine-readable Summary.json via ReportGenerator, under docs/coverage/.
 #   3. Measures code complexity and drops it beside each suite's summary as
@@ -61,6 +65,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read   # list and download the PR Checks coverage artifacts this run reuses
 
 jobs:
   coverage:
@@ -88,32 +93,67 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # ── API coverage (Vitest) ──────────────────────────────────────────────
+      # ── JS coverage: reuse the merged PR's, or run the suite ────────────────
+      # PR Checks uploads each JS suite's lcov under its CONTENT KEY
+      # (tools/coverage/suite-key.sh — a hash of every input that can change that
+      # suite's coverage), and only when the suite passed. If main's key for a suite
+      # matches an uploaded artifact, the inputs are byte-identical, so its coverage
+      # is identical: publish that file instead of spending minutes recomputing it.
+      # No match (main moved under the PR, artifact expired, API hiccup) → run the
+      # suite exactly as before. Reuse can make this faster, never different.
+      #
       # The API number reflects BOTH suites: unit tests (mocked DB) and contract
-      # tests (real PostgreSQL via testcontainers). They run under separate vitest
-      # configs into separate lcov dirs; ReportGenerator merges them below. Without
-      # the contract run, route files exercised only end-to-end (matrix/data,
-      # contexts, identities, resources, ingest engine, plugin runner) would read
+      # tests (real PostgreSQL via testcontainers), merged by ReportGenerator below.
+      # Without the contract run, route files exercised only end-to-end would read
       # as near-zero here even though they're well covered.
+      - name: Reuse coverage from PR Checks
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for suite in api-unit api-contract ui; do
+            case "$suite" in
+              api-unit)     dest=app/api/coverage ;;
+              api-contract) dest=app/api/coverage-contract ;;
+              ui)           dest=app/ui/coverage ;;
+            esac
+            key="$(bash tools/coverage/suite-key.sh "$suite")"
+            if bash tools/coverage/fetch-reusable.sh "cov-$suite-$key" "$dest"; then
+              echo "${suite//-/_}=hit" >> "$GITHUB_OUTPUT"
+              echo "- $suite: reused PR coverage (key $key)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- $suite: no PR coverage for key $key — ran the suite" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      # npm ci always runs: the JS complexity step below lints with the project's
+      # ESLint config, which needs node_modules even when no suite runs.
+      - name: Install API dependencies
+        working-directory: app/api
+        run: npm ci
+
       - name: API unit tests with coverage
+        if: steps.reuse.outputs.api_unit != 'hit'
         working-directory: app/api
         continue-on-error: true  # publish coverage even if a suite has a failure
-        run: |
-          npm ci
-          npm run test:coverage
+        run: npm run test:coverage
 
       - name: API contract tests with coverage
+        if: steps.reuse.outputs.api_contract != 'hit'
         working-directory: app/api
         continue-on-error: true  # testcontainers spins up postgres:16 on the runner
         run: npm run test:contract -- --coverage
 
       # ── UI coverage (Vitest) ───────────────────────────────────────────────
+      - name: Install UI dependencies
+        working-directory: app/ui
+        run: npm ci
+
       - name: UI tests with coverage
+        if: steps.reuse.outputs.ui != 'hit'
         working-directory: app/ui
         continue-on-error: true
-        run: |
-          npm ci
-          npm run test:coverage
+        run: npm run test:coverage
 
       # ── PowerShell coverage (Pester → JaCoCo) ──────────────────────────────
       # Coverage scope mirrors pr.yml's pester job exactly.
