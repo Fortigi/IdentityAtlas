@@ -1,0 +1,1 @@
+- Faster, cheaper pull-request CI: the advisory changed-line coverage check now reuses the coverage the API, contract and UI test suites already produce in PR Checks, instead of running all three suites a second time in a separate workflow (about 6 runner-minutes and two runners saved per push). It appears as the `Diff coverage (advisory)` job in PR Checks and stays non-blocking.
