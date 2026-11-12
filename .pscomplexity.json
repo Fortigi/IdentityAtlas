@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Fortigi/PSComplexity/main/schemas/v1/config.schema.json",
+  "_comment": "The PowerShell complexity ceilings, in one place. tools/complexity/ratchet.py reads its PowerShell thresholds from here, and Test-PSComplexity (run by measure_ps.ps1 -SarifPath) applies the same file when it writes the SARIF log code scanning shows on a pull request. Change a ceiling here and both move together.",
+  "schemaVersion": 1,
+  "maxCyclomatic": 15,
+  "maxCognitive": 15
+}

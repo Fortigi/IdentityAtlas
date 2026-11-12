@@ -23,6 +23,7 @@ function Get-PSAnalyzerPath {
     @(
         if (Test-Path $sdk) { Get-ChildItem $sdk -Directory | ForEach-Object FullName }
         'tools/riskscoring'
+        'tools/psmodules'
         'tools/crawlers'
         'tools/csv-templates/transforms'
         'setup/docker'
