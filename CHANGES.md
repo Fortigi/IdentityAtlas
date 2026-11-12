@@ -1,5 +1,21 @@
 ## Changes in this PR
 
+- Upgraded the PowerShell complexity measurer to PSComplexity 0.7.1. Complexity numbers are unchanged: all 1,743 measured units score the same as under 0.5.1.
+- The PowerShell modules CI depends on (PSComplexity, PSMutant) are now pinned in one file, `.ci/powershell-modules.json`, instead of being repeated across workflows, scripts and docs, where they had drifted apart.
+- A weekly job now opens a pull request whenever the PowerShell Gallery has a newer version of a pinned module, one per module. A known-bad version can be held back with a written reason. For a PSMutant bump it also runs mutation testing on the pull request's branch.
+- Upgraded the PowerShell mutation-testing tool to PSMutant 0.9.2. Earlier versions counted a fault as caught whenever a test file declaring its Pester version was run, even though that file had failed to load, so the reported mutation score was higher than the tests earned. The score now counts only faults a test actually catches: it falls from a reported 100% to 79%, and the mutation floor is reset from 85 to 77 until the surviving faults are covered.
+- The new PowerShell module tools are now checked by the PSScriptAnalyzer gate like the rest of the production scripts.
+
+## Changes in this PR
+
+- The Test Coverage docs page now updates faster after a merge: it reuses the API and UI coverage the pull request's checks already measured whenever the merged code is identical, and only re-runs a suite when it is not. No change to the published numbers.
+
+## Changes in this PR
+
+- Faster, cheaper pull-request CI: the advisory changed-line coverage check now reuses the coverage the API, contract and UI test suites already produce in PR Checks, instead of running all three suites a second time in a separate workflow (about 6 runner-minutes and two runners saved per push). It appears as the `Diff coverage (advisory)` job in PR Checks and stays non-blocking.
+
+## Changes in this PR
+
 - The Entra ID crawler integration test now fails CI when it cannot sign in, instead of reporting a pass under a printed failure.
 
 ## Changes in this PR
