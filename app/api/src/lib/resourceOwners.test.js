@@ -9,7 +9,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
 import { query } from '../db/connection.js';
-import { fetchOwners, groupOwners, ownerReference, referencedOwner } from './resourceOwners.js';
+import {
+  fetchOwners, fetchResourceOwners, groupOwners, linkedOwnerExistsSql, ownerReference, referencedOwner,
+} from './resourceOwners.js';
 
 const LINKED_SQL = '"parentResourceId" = ANY';
 const REFERENCE_SQL = 'unnest($1::text[])';
@@ -117,5 +119,63 @@ describe('fetchOwners', () => {
     expect(sql).toMatch(/by_employee_id[\s\S]*p\."employeeId" = r\.ref AND p\."deletedAt" IS NULL/);
     expect(sql).toMatch(/NOT EXISTS \(SELECT 1 FROM by_external_id x WHERE x\.ref = r\.ref\)/);
     expect(sql).toContain('HAVING count(*) = 1');
+  });
+});
+
+describe('fetchResourceOwners — one resource, one entry per person', () => {
+  it('lists every linked owner as its own entry and does not look at the reference', async () => {
+    stage({ linked: [
+      { id: 'r1', ownerId: 'p1', ownerName: 'A', ownerEmail: 'a@x', ownerEmployeeId: 'E1' },
+      { id: 'r1', ownerId: 'p2', ownerName: 'B', ownerEmail: null, ownerEmployeeId: null },
+    ] });
+    expect(await fetchResourceOwners(ent('r1', { ownerId: 'spt-17' }))).toEqual([
+      { principalId: 'p1', displayName: 'A', email: 'a@x', via: 'link' },
+      { principalId: 'p2', displayName: 'B', email: null, via: 'link' },
+    ]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0][1]).toEqual([['r1']]);
+  });
+
+  it('resolves the source reference to an account when there is no link', async () => {
+    stage({ references: [{ ref: 'spt-17', id: 'p9', displayName: 'Grace Hopper', email: 'g@x', employeeId: 'E-9' }] });
+    expect(await fetchResourceOwners(ent('r1', { ownerId: 'spt-17', ownerName: 'Stale Name' })))
+      .toEqual([{ principalId: 'p9', displayName: 'Grace Hopper', email: 'g@x', via: 'reference' }]);
+    expect(query.mock.calls.find(([sql]) => sql.includes(REFERENCE_SQL))[1]).toEqual([['spt-17']]);
+  });
+
+  it('shows the source\'s own name, else its id, when no account matches — with nobody to open', async () => {
+    stage();
+    expect(await fetchResourceOwners(ent('r1', { ownerId: 'spt-404', ownerName: 'Gone Person' })))
+      .toEqual([{ principalId: null, displayName: 'Gone Person', email: null, via: 'source' }]);
+    expect(await fetchResourceOwners(ent('r1', { ownerId: 'spt-404' })))
+      .toEqual([{ principalId: null, displayName: 'spt-404', email: null, via: 'source' }]);
+  });
+
+  it('takes a name without an id as-is, without asking who it resolves to', async () => {
+    stage();
+    expect(await fetchResourceOwners(ent('r1', { ownerName: 'Only A Name' })))
+      .toEqual([{ principalId: null, displayName: 'Only A Name', email: null, via: 'source' }]);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('is empty, after one read, for a resource nobody owns', async () => {
+    stage();
+    expect(await fetchResourceOwners(ent('r1', { requestable: true }))).toEqual([]);
+    expect(await fetchResourceOwners({ id: 'r2' })).toEqual([]);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('linkedOwnerExistsSql', () => {
+  it('is the live ownership chain, anchored on the caller\'s resource column', () => {
+    const sql = linkedOwnerExistsSql('r.id');
+    expect(sql).toMatch(/^SELECT 1/);
+    expect(sql).toMatch(/lo\."resourceType" IN \('GroupOwnership','ServicePrincipalOwnership','ApplicationOwnership','ResourceOwnership'\)/);
+    expect(sql).toContain('lo."deletedAt" IS NULL');
+    expect(sql).toContain(`lra."assignmentType" = 'Direct'`);
+    expect(sql).toContain('lra."deletedAt" IS NULL');
+    expect(sql).toContain('lp."deletedAt" IS NULL');
+    expect(sql).toMatch(/lrr\."relationshipType" IN \('HasOwnership','HasAppOwnership'\)/);
+    expect(sql).toMatch(/lrr\."parentResourceId" = r\.id$/);
   });
 });
