@@ -49,3 +49,38 @@ Describe 'measure_ps.ps1 shim contract' {
         ($script:out | Where-Object unit -eq '<script-body>') | Should -Not -BeNullOrEmpty
     }
 }
+
+Describe 'measure_ps.ps1 -SarifPath' {
+    BeforeAll {
+        $tmp = [System.IO.Path]::GetTempPath()
+        $script:big = Join-Path $tmp "cxbig-$([System.Guid]::NewGuid().ToString('N')).ps1"
+        $script:sarif = Join-Path $tmp "cxbig-$([System.Guid]::NewGuid().ToString('N')).sarif"
+        # 17 ifs: cyclomatic 18 and cognitive 17, both over the committed ceilings of 15.
+        $ifs = (0..16 | ForEach-Object { "    if (`$x -eq $_) { return $_ }" }) -join "`n"
+        "function Get-Big {`n    param(`$x)`n$ifs`n}`nfunction Get-Small { 1 }" | Set-Content $script:big
+        $script:raw = & pwsh -NoProfile -File $script:measurer -Path $script:big -SarifPath $script:sarif
+        $script:log = Get-Content $script:sarif -Raw | ConvertFrom-Json
+    }
+
+    AfterAll { Remove-Item $script:big, $script:sarif -ErrorAction SilentlyContinue }
+
+    It 'leaves stdout as nothing but the JSON the ratchet parses' {
+        # The gate warns and prints the config it used; under pwsh -File that would
+        # land in stdout ahead of the JSON and break ratchet.py's json.loads.
+        { ($script:raw -join "`n") | ConvertFrom-Json } | Should -Not -Throw
+        (($script:raw -join "`n") | ConvertFrom-Json).unit | Should -Contain 'Get-Big'
+    }
+
+    It 'reports the unit over both ceilings once per metric' {
+        $results = @($script:log.runs[0].results | Where-Object { $_.message.text -like 'Get-Big *' })
+        $results.ruleId | Sort-Object | Should -Be @('PSCxCognitive', 'PSCxCyclomatic')
+    }
+
+    It 'applies the ceilings in .pscomplexity.json' {
+        ($script:log.runs[0].results | Where-Object ruleId -eq 'PSCxCyclomatic').message.text | Should -Match 'ceiling of 15'
+    }
+
+    It 'reports nothing for a unit under the ceilings' {
+        $script:log.runs[0].results | Where-Object { $_.message.text -like 'Get-Small *' } | Should -BeNullOrEmpty
+    }
+}

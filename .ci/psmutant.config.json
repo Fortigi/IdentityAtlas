@@ -624,5 +624,6 @@
     "low": 70,
     "break": 77
   },
-  "reportPath": "reports/ps-mutation.json"
+  "reportPath": "reports/ps-mutation.json",
+  "sarifPath": "reports/ps-mutation.sarif"
 }

@@ -54,6 +54,8 @@ on:
       - 'azure/**'
       - 'tools/complexity/**'
       - 'tools/pester/**'
+      - '.pscomplexity.json'
+      - '.ci/powershell-modules.json'
       - '.ci/psmutant.config.json'
       - 'tools/generate-coverage-doc.py'
       - '.github/workflows/coverage.yml'
@@ -65,7 +67,8 @@ concurrency:
 
 permissions:
   contents: write
-  actions: read   # list and download the PR Checks coverage artifacts this run reuses
+  security-events: write  # upload the PowerShell complexity SARIF log
+  actions: read           # upload-sarif reads its run; also list and download the PR Checks coverage artifacts this run reuses
 
 jobs:
   coverage:
@@ -233,7 +236,20 @@ jobs:
           ./tools/psmodules/Install-PinnedModule.ps1 PSComplexity
           $psDir = 'docs/coverage/powershell'
           New-Item -ItemType Directory -Path $psDir -Force | Out-Null
-          & tools/complexity/measure_ps.ps1 | Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8
+          # -SarifPath: the same run also writes the SARIF log of units over the
+          # .pscomplexity.json ceilings. Uploaded below, it is main's code-scanning
+          # analysis, which a pull request's own upload (pr.yml) is compared with.
+          New-Item -ItemType Directory -Path reports -Force | Out-Null
+          & tools/complexity/measure_ps.ps1 -SarifPath reports/pscomplexity.sarif |
+            Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8
+
+      - name: Upload PowerShell complexity findings to code scanning
+        if: always() && hashFiles('reports/pscomplexity.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        with:
+          sarif_file: reports/pscomplexity.sarif
+          category: pscomplexity
 
       # ── JS/TS complexity (avg/max cyclomatic + cognitive for API + UI) ──────
       # The Node analogue of the PowerShell step above, reusing the SAME measurer
