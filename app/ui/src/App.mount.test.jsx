@@ -2,7 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createElement as h } from 'react';
 import App from './App.jsx';
-import { renderWithProviders, makeAuthFetch, screen, userEvent, waitFor } from '@ui/test-utils/renderWithProviders';
+import {
+  renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, waitFor, within, fireEvent,
+} from '@ui/test-utils/renderWithProviders';
+import { makeWizardFetch, gotoStep } from '@ui/test-utils/matrixWizardFixtures';
 
 // App reads the global `fetch` for /api/version + /api/features (both swallowed
 // on error) and, via useTheme, localStorage. jsdom here provides neither, so
@@ -173,5 +176,148 @@ describe('App — the matrix filter in the URL', () => {
     expect(await screen.findByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
     await waitFor(() => expect(window.location.hash).toBe('#matrix'));
     expect(loadedFilters(authFetch)).toEqual([]);
+  });
+});
+
+// The optional tabs a user switches on or off in the settings menu. The choice
+// is theirs, so it is saved with their preferences.
+describe('App — the optional tabs a user chooses to see', () => {
+  const navTab = (name) => screen.queryByRole('button', { name });
+  const savedTabs = (authFetch) => authFetch.mock.calls
+    .filter(([url, opts]) => String(url).includes('/api/preferences') && opts?.method === 'PUT')
+    .map(([, opts]) => JSON.parse(opts.body).visibleTabs);
+
+  it('shows the saved tabs, and saves each switch flipped in the settings menu', async () => {
+    window.location.hash = '#principals';
+    const authFetch = makeAuthFetch({ '/api/preferences': { visibleTabs: ['systems'] } });
+    renderWithProviders(h(App), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    // Until the preferences arrive nothing is hidden, so wait for Contexts to go.
+    await waitFor(() => expect(navTab('Contexts')).not.toBeInTheDocument());
+    expect(navTab('Systems')).toBeInTheDocument();
+
+    await user.click(screen.getByTitle('Settings'));
+    expect(screen.getByRole('switch', { name: 'Show Systems tab' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('switch', { name: 'Show Contexts tab' })).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(screen.getByRole('switch', { name: 'Show Contexts tab' }));
+    expect(navTab('Contexts')).toBeInTheDocument();
+    expect(navTab('Systems')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('switch', { name: 'Show Systems tab' }));
+    expect(navTab('Systems')).not.toBeInTheDocument();
+    expect(navTab('Contexts')).toBeInTheDocument();
+
+    expect(savedTabs(authFetch)).toEqual([['systems', 'contexts'], ['contexts']]);
+  });
+
+  it('hides the optional tabs when the preferences cannot be loaded', async () => {
+    window.location.hash = '#principals';
+    const authFetch = makeAuthFetch(async (url) => {
+      if (String(url).includes('/api/preferences')) throw new Error('offline');
+      return undefined;
+    });
+    renderWithProviders(h(App), { auth: { authFetch } });
+
+    // While loading the optional tabs are shown; a failed load must settle on
+    // "none chosen" instead of leaving the app in that loading state.
+    await waitFor(() => expect(navTab('Systems')).not.toBeInTheDocument());
+    expect(navTab('Contexts')).not.toBeInTheDocument();
+    expect(navTab('Matrix')).toBeInTheDocument();
+  });
+});
+
+describe('App — closing the settings menu', () => {
+  const openMenu = async (auth = {}) => {
+    window.location.hash = '#principals';
+    renderWithProviders(h(App), { auth: { ...prefsAuth.auth, ...auth } });
+    const user = userEvent.setup();
+    await user.click(await screen.findByTitle('Settings'));
+    expect(await screen.findByText('Theme')).toBeInTheDocument();
+    return user;
+  };
+
+  it('stays open for a click inside it and closes for a click outside it', async () => {
+    await openMenu();
+    fireEvent.mouseDown(screen.getByText('Visible Tabs'));
+    expect(screen.getByText('Theme')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText('Theme')).not.toBeInTheDocument();
+  });
+
+  it('closes and signs the user out on Sign out', async () => {
+    const logout = vi.fn();
+    const user = await openMenu({ logout });
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Theme')).not.toBeInTheDocument();
+  });
+});
+
+describe('App — the matrix cannot be loaded', () => {
+  it('replaces the app with the backend error and the reason the server gave', async () => {
+    const filter = { rowType: 'resource' };
+    window.location.hash = `#matrix?filter=${encodeURIComponent(JSON.stringify(filter))}`;
+    const authFetch = makeAuthFetch({
+      '/api/preferences': { visibleTabs: [] },
+      '/api/matrix/data': jsonResponse({ error: 'database unavailable' }, { ok: false, status: 503 }),
+    });
+    renderWithProviders(h(App), { auth: { authFetch } });
+
+    expect(await screen.findByRole('heading', { name: 'Backend not responding' }, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText('database unavailable')).toBeInTheDocument();
+    expect(screen.queryByTitle('Settings')).not.toBeInTheDocument();
+  });
+});
+
+describe('App — the matrix wizard', () => {
+  // The app's own endpoints, with everything the wizard asks for behind them.
+  const wizardAuth = () => {
+    const wizard = makeWizardFetch();
+    const routes = {
+      '/api/preferences': { visibleTabs: [] },
+      '/api/admin/dashboard-stats': { hasData: true },
+      '/api/matrix/default-filter': null,
+      '/api/matrix/data': { data: [], rowType: 'principal' },
+    };
+    const authFetch = makeAuthFetch(async (url, opts) => {
+      const key = Object.keys(routes).find((k) => String(url).includes(k));
+      return key ? jsonResponse(routes[key]) : wizard(url, opts);
+    });
+    return { auth: { authFetch } };
+  };
+
+  const openNewMatrix = async () => {
+    window.location.hash = '#matrix';
+    renderWithProviders(h(App), wizardAuth());
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New matrix' }));
+    expect(await screen.findByText('Create matrix')).toBeInTheDocument();
+    return user;
+  };
+
+  it('closes on Cancel and leaves the list of matrices as it was', async () => {
+    const user = await openNewMatrix();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Create matrix')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Open a matrix' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#matrix');
+  });
+
+  it('applies the matrix and the lens chosen in it, and closes', async () => {
+    const user = await openNewMatrix();
+    await gotoStep(user, 'Layout');
+    const lens = screen.getByRole('group', { name: 'Default lens' });
+    await user.click(within(lens).getByRole('button', { name: 'Gaps' }));
+    await gotoStep(user, 'Save & share');
+    await user.click(await screen.findByRole('button', { name: 'Show matrix' }));
+
+    expect(screen.queryByText('Create matrix')).not.toBeInTheDocument();
+    // The applied matrix is the one on screen now: it is what the URL carries.
+    await waitFor(() => expect(window.location.hash).toContain('managed=gaps'));
+    expect(window.location.hash).toContain('filter=');
+    expect(screen.queryByRole('heading', { name: 'Open a matrix' })).not.toBeInTheDocument();
   });
 });
