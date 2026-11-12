@@ -1,5 +1,67 @@
 ## Changes in this PR
 
+- A pull request that pushes a PowerShell function over the complexity ceiling now gets the finding on the line itself, through GitHub code scanning, as well as a failed complexity check. Each metric is its own rule, so cyclomatic and cognitive findings can be told apart.
+- The PowerShell complexity ceilings are now kept in one file, `.pscomplexity.json`, which both the complexity ratchet and the code-scanning findings read.
+- Each PowerShell mutant that no test catches now appears as a code-scanning alert on the line it changed. Alerts persist from week to week and close by themselves once a test starts catching the mutant, so the work of raising the mutation score has a visible list.
+
+## Changes in this PR
+
+- Upgraded the PowerShell complexity measurer to PSComplexity 0.7.1. Complexity numbers are unchanged: all 1,743 measured units score the same as under 0.5.1.
+- The PowerShell modules CI depends on (PSComplexity, PSMutant) are now pinned in one file, `.ci/powershell-modules.json`, instead of being repeated across workflows, scripts and docs, where they had drifted apart.
+- A weekly job now opens a pull request whenever the PowerShell Gallery has a newer version of a pinned module, one per module. A known-bad version can be held back with a written reason. For a PSMutant bump it also runs mutation testing on the pull request's branch.
+- Upgraded the PowerShell mutation-testing tool to PSMutant 0.9.2. Earlier versions counted a fault as caught whenever a test file declaring its Pester version was run, even though that file had failed to load, so the reported mutation score was higher than the tests earned. The score now counts only faults a test actually catches: it falls from a reported 100% to 79%, and the mutation floor is reset from 85 to 77 until the surviving faults are covered.
+- The new PowerShell module tools are now checked by the PSScriptAnalyzer gate like the rest of the production scripts.
+
+## Changes in this PR
+
+- The Test Coverage docs page now updates faster after a merge: it reuses the API and UI coverage the pull request's checks already measured whenever the merged code is identical, and only re-runs a suite when it is not. No change to the published numbers.
+
+## Changes in this PR
+
+- Faster, cheaper pull-request CI: the advisory changed-line coverage check now reuses the coverage the API, contract and UI test suites already produce in PR Checks, instead of running all three suites a second time in a separate workflow (about 6 runner-minutes and two runners saved per push). It appears as the `Diff coverage (advisory)` job in PR Checks and stays non-blocking.
+
+## Changes in this PR
+
+- The Entra ID crawler integration test now fails CI when it cannot sign in, instead of reporting a pass under a printed failure.
+
+## Changes in this PR
+
+- Fixed a lint error in the Account Linking end-to-end tests that blocked dependency updates from merging
+
+## Changes in this PR
+
+- Release and beta images are only published when the tag's commit is on `main` or a release branch; a tag pushed from anywhere else is refused.
+
+## Changes in this PR
+
+- The automated build pipeline now runs under its own GitHub App, which cannot write to protected branches; only the release automation keeps that ability.
+
+## Changes in this PR
+
+- The PR Hygiene check now requires a changed test that is about the changed code — named after a changed source file or its folder — instead of accepting any changed test, so an untested change can no longer pass by touching an unrelated test.
+
+## Changes in this PR
+
+- The PowerShell lint check now flags unused variables and unused parameters in crawlers and the SDK. The ones that already existed are recorded in a baseline that only shrinks, so new dead code fails the check while the existing cases are cleaned up over time.
+- Fixed: Account Linking now folds letters with diacritics to their base letter (Doğan → dogan, Daniëlle → danielle, Yıldırım → yildirim, Großmann → grossmann), instead of dropping them. An ASCII login, email address or ERP export — `adm-sdogan`, `danielle.dongen@…`, `Ozturk, O.R.` — matches the person's name again, so those accounts link instead of staying listed under Orphaned Accounts for ever.
+- Both sides of every comparison are folded the same way, so a name or login that already matched keeps matching, and an account showing only "Surname, Initials" has its initials read through the same fold as the name it is compared to.
+- Two people who differ only in their diacritics (Dogan and Doğan) now share one comparison name, so an account that fits both is held for review with the other person named — as any other pair of namesakes already was.
+- The optional realism demo slice now includes a staffer whose surname carries diacritics, with an admin account spelled the ASCII way a directory spells it, so the case can be seen on demo data.
+
+## Changes in this PR
+
+- Pull request checks now hold API and UI test coverage near today's level (about 90%) instead of the much lower floors set a year ago, so a change that drops coverage noticeably now fails.
+- Both the overall and each file's minimum coverage now rise automatically after every merge, so improvements are locked in without anyone having to update the floors by hand.
+
+## Changes in this PR
+
+- Fixed the weekly mutation-testing runs, which had been failing every week. The JavaScript run now measures all 21 configured scopes instead of 9, split so that every scope finishes within its hour. Both runs open, or comment on, a "Scheduled workflow failing" issue when a scheduled run fails, so a broken run is noticed the same day instead of weeks later.
+- Running a mutation workflow by hand on a branch now measures that branch instead of `main`, and no longer publishes its results.
+- Mutation scores now measure each file against its own tests: several scopes were scoring files against tests that never call them. A check now fails when a mutated file's own test is left out of its scope.
+- The API and UI reports mutation floors are reset to their first real measurements (85 and 79), and tracked back up in #1552 and #1550.
+
+## Changes in this PR
+
 - The load test now fails a pull request that makes the permissions matrix, the dashboard, the view refresh or a large import markedly slower. Each limit is about twice the slowest measured run; the previous limits let a twentyfold slowdown pass.
 - Each pull request's load-test run now compares its API benchmark against a recorded baseline. An endpoint more than 50% slower shows as a warning on the pull request, and the full benchmark report appears on the run's summary page and as a download.
 

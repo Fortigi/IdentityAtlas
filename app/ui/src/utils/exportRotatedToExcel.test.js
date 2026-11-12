@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { buildRotatedWorkbook } from './exportRotatedToExcel.js';
+import { describe, it, expect, vi } from 'vitest';
+import { buildRotatedWorkbook, exportRotatedToExcel } from './exportRotatedToExcel.js';
+import { triggerDownload } from './exportToExcel.helpers';
+
+// Only the download is replaced (it needs a DOM); the legend sheet stays real.
+vi.mock('./exportToExcel.helpers', async importOriginal => ({
+  ...(await importOriginal()),
+  triggerDownload: vi.fn().mockResolvedValue(undefined),
+}));
 
 // Two subjects × three resources; Alice holds two types on one resource
 // (rich text), Bob a single governed grant, and one cell stays empty — so a
@@ -34,6 +41,8 @@ describe('buildRotatedWorkbook', () => {
     const ws = buildRotatedWorkbook(makeOpts()).getWorksheet('Role Mining Matrix');
     expect(ws.getRow(1).values.slice(1)).toEqual(['Subjects', undefined, undefined, 'Group', 'Group', '(no type)']);
     expect(ws.getRow(2).values.slice(1)).toEqual(['Display Name', 'Department', 'Job Title', 'Finance App', 'HR Portal', 'CRM Role']);
+    // Both header rows are rotated over the resource columns, not only the names.
+    expect(ws.getCell(1, 4).alignment.textRotation).toBe(90);
     expect(ws.getCell(2, 4).alignment.textRotation).toBe(90);
     expect(ws.views[0]).toMatchObject({ state: 'frozen', xSplit: 3, ySplit: 2 });
   });
@@ -50,7 +59,9 @@ describe('buildRotatedWorkbook', () => {
     // Bob: only HR Portal, governed → blue fill; his ungoverned neighbours stay unfilled.
     expect(ws.getCell(4, 4).value).toBeNull();
     expect(ws.getCell(4, 5).value).toBe('D');
-    expect(ws.getCell(4, 5).fill.fgColor.argb).toBe('FFDBEAFE');
+    expect(ws.getCell(4, 5).fill).toEqual({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } });
+    // Bob has no job title: the cell is an empty string, not a placeholder.
+    expect(ws.getCell(4, 3).value).toBe('');
     expect(ws.getCell(3, 6).fill).toBeUndefined();
   });
 
@@ -65,5 +76,34 @@ describe('buildRotatedWorkbook', () => {
     const texts = [];
     legend.eachRow(r => r.eachCell(c => texts.push(c.value?.hyperlink || c.value)));
     expect(texts).toContain('https://atlas.example/m?x=1');
+  });
+
+  it('names the app as the workbook author', () => {
+    expect(buildRotatedWorkbook(makeOpts()).creator).toBe('Identity Atlas');
+  });
+
+  it('sizes the three info columns wide and exactly one narrow column per resource', () => {
+    const ws = buildRotatedWorkbook(makeOpts()).getWorksheet('Role Mining Matrix');
+    expect([1, 2, 3, 4, 5, 6, 7].map(c => ws.getColumn(c).width)).toEqual([32, 22, 22, 4, 4, 4, undefined]);
+  });
+
+  it('lists no active filters on the legend: the rotated export carries none', () => {
+    const legend = buildRotatedWorkbook(makeOpts()).getWorksheet('Legend');
+    const texts = [];
+    legend.eachRow(r => r.eachCell(c => texts.push(c.value)));
+    expect(texts).not.toContain('Active Filters');
+  });
+});
+
+describe('exportRotatedToExcel', () => {
+  it('stamps the creation time and downloads the workbook under the unfiltered name', async () => {
+    triggerDownload.mockClear();
+    const before = Date.now();
+    await exportRotatedToExcel(makeOpts());
+    expect(triggerDownload).toHaveBeenCalledTimes(1);
+    const [wb, activeFilters] = triggerDownload.mock.calls[0];
+    expect(wb.getWorksheet('Role Mining Matrix').getCell(3, 1).value).toBe('Alice Eng');
+    expect(wb.created.getTime()).toBeGreaterThanOrEqual(before);
+    expect(activeFilters).toEqual([]);
   });
 });

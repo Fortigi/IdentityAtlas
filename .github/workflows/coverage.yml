@@ -1,9 +1,13 @@
 # ─── Publish test coverage to the docs ───────────────────────────────────────
 # On every push to main that touches source or tests, this workflow:
-#   1. Runs each test suite with coverage:
+#   1. Gets each suite's coverage:
 #        - API  (app/api)  → Vitest v8, unit + contract → two lcov.info (merged)
 #        - UI   (app/ui)   → Vitest v8 → lcov.info
 #        - Pester (test/unit) → JaCoCo XML
+#      The JS suites are REUSED from the merged PR's PR Checks run when their
+#      content key matches main (see "Reuse coverage from PR Checks"), and only
+#      run here when it doesn't. Pester always runs here: its PR job measures a
+#      narrower file set (no tools/crawlers/shared) for its 90% floor.
 #   2. Converts each suite to a consistent browsable HTML report + a
 #      machine-readable Summary.json via ReportGenerator, under docs/coverage/.
 #   3. Measures code complexity and drops it beside each suite's summary as
@@ -17,7 +21,12 @@
 #      back — see those workflows.)
 #   4. Renders the curated docs page (docs/reference/coverage.md) from those
 #      summaries (tools/generate-coverage-doc.py).
-#   5. Commits docs/reference/coverage.md + docs/coverage/** back to main.
+#   5. Raises the per-file coverage floors (.ci/coverage-baseline.json) to what
+#      main's unit suites now measure — never lowers one (tools/coverage/ratchet.py
+#      --update), so a file's gain is locked in without anyone running a command.
+#   6. Commits docs/reference/coverage.md + docs/coverage/** (and the raised
+#      baseline) back to main. .ci/ is outside this workflow's paths filter, so
+#      the commit does not re-trigger it.
 #
 # Why commit into docs/ rather than publish a one-off artifact: the docs site is
 # versioned with mike (edge = main, stable = release tag). Committing the page and
@@ -45,6 +54,8 @@ on:
       - 'azure/**'
       - 'tools/complexity/**'
       - 'tools/pester/**'
+      - '.pscomplexity.json'
+      - '.ci/powershell-modules.json'
       - '.ci/psmutant.config.json'
       - 'tools/generate-coverage-doc.py'
       - '.github/workflows/coverage.yml'
@@ -56,6 +67,8 @@ concurrency:
 
 permissions:
   contents: write
+  security-events: write  # upload the PowerShell complexity SARIF log
+  actions: read           # upload-sarif reads its run; also list and download the PR Checks coverage artifacts this run reuses
 
 jobs:
   coverage:
@@ -86,32 +99,67 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # ── API coverage (Vitest) ──────────────────────────────────────────────
+      # ── JS coverage: reuse the merged PR's, or run the suite ────────────────
+      # PR Checks uploads each JS suite's lcov under its CONTENT KEY
+      # (tools/coverage/suite-key.sh — a hash of every input that can change that
+      # suite's coverage), and only when the suite passed. If main's key for a suite
+      # matches an uploaded artifact, the inputs are byte-identical, so its coverage
+      # is identical: publish that file instead of spending minutes recomputing it.
+      # No match (main moved under the PR, artifact expired, API hiccup) → run the
+      # suite exactly as before. Reuse can make this faster, never different.
+      #
       # The API number reflects BOTH suites: unit tests (mocked DB) and contract
-      # tests (real PostgreSQL via testcontainers). They run under separate vitest
-      # configs into separate lcov dirs; ReportGenerator merges them below. Without
-      # the contract run, route files exercised only end-to-end (matrix/data,
-      # contexts, identities, resources, ingest engine, plugin runner) would read
+      # tests (real PostgreSQL via testcontainers), merged by ReportGenerator below.
+      # Without the contract run, route files exercised only end-to-end would read
       # as near-zero here even though they're well covered.
+      - name: Reuse coverage from PR Checks
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for suite in api-unit api-contract ui; do
+            case "$suite" in
+              api-unit)     dest=app/api/coverage ;;
+              api-contract) dest=app/api/coverage-contract ;;
+              ui)           dest=app/ui/coverage ;;
+            esac
+            key="$(bash tools/coverage/suite-key.sh "$suite")"
+            if bash tools/coverage/fetch-reusable.sh "cov-$suite-$key" "$dest"; then
+              echo "${suite//-/_}=hit" >> "$GITHUB_OUTPUT"
+              echo "- $suite: reused PR coverage (key $key)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- $suite: no PR coverage for key $key — ran the suite" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      # npm ci always runs: the JS complexity step below lints with the project's
+      # ESLint config, which needs node_modules even when no suite runs.
+      - name: Install API dependencies
+        working-directory: app/api
+        run: npm ci
+
       - name: API unit tests with coverage
+        if: steps.reuse.outputs.api_unit != 'hit'
         working-directory: app/api
         continue-on-error: true  # publish coverage even if a suite has a failure
-        run: |
-          npm ci
-          npm run test:coverage
+        run: npm run test:coverage
 
       - name: API contract tests with coverage
+        if: steps.reuse.outputs.api_contract != 'hit'
         working-directory: app/api
         continue-on-error: true  # testcontainers spins up postgres:16 on the runner
         run: npm run test:contract -- --coverage
 
       # ── UI coverage (Vitest) ───────────────────────────────────────────────
+      - name: Install UI dependencies
+        working-directory: app/ui
+        run: npm ci
+
       - name: UI tests with coverage
+        if: steps.reuse.outputs.ui != 'hit'
         working-directory: app/ui
         continue-on-error: true
-        run: |
-          npm ci
-          npm run test:coverage
+        run: npm run test:coverage
 
       # ── PowerShell coverage (Pester → JaCoCo) ──────────────────────────────
       # Coverage scope mirrors pr.yml's pester job exactly.
@@ -188,10 +236,23 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
+          ./tools/psmodules/Install-PinnedModule.ps1 PSComplexity
           $psDir = 'docs/coverage/powershell'
           New-Item -ItemType Directory -Path $psDir -Force | Out-Null
-          & tools/complexity/measure_ps.ps1 | Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8
+          # -SarifPath: the same run also writes the SARIF log of units over the
+          # .pscomplexity.json ceilings. Uploaded below, it is main's code-scanning
+          # analysis, which a pull request's own upload (pr.yml) is compared with.
+          New-Item -ItemType Directory -Path reports -Force | Out-Null
+          & tools/complexity/measure_ps.ps1 -SarifPath reports/pscomplexity.sarif |
+            Set-Content (Join-Path $psDir 'complexity.json') -Encoding utf8
+
+      - name: Upload PowerShell complexity findings to code scanning
+        if: always() && hashFiles('reports/pscomplexity.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: reports/pscomplexity.sarif
+          category: pscomplexity
 
       # ── JS/TS complexity (avg/max cyclomatic + cognitive for API + UI) ──────
       # The Node analogue of the PowerShell step above, reusing the SAME measurer
@@ -207,6 +268,34 @@ jobs:
           python3 tools/complexity/ratchet.py --emit-complexity-json app/api > docs/coverage/api/complexity.json
           python3 tools/complexity/ratchet.py --emit-complexity-json app/ui > docs/coverage/ui/complexity.json
 
+      # ── Ratchet the per-file floors up ─────────────────────────────────────
+      # The PR gate (pr.yml) holds every file at its floor; this raises floors to
+      # main's new numbers. Only the UNIT lcov counts — the scope the gate checks.
+      # --update never lowers a floor, so a failed or partial suite run (which can
+      # only measure less) can't weaken the gate; it just raises nothing.
+      # The aggregate Vitest thresholds rise the same way: measured minus 2,
+      # rounded down, never lower (tools/coverage/aggregate_floors.py). Neither
+      # config is in this workflow's `paths`, so the commit doesn't re-trigger it.
+      - name: Raise per-file and aggregate coverage floors
+        continue-on-error: true
+        run: |
+          for scope in api ui; do
+            lcov="app/$scope/coverage/lcov.info"
+            if [ -s "$lcov" ]; then
+              python3 tools/coverage/ratchet.py --lcov "$lcov" --prefix "app/$scope/" --update
+            else
+              echo "No $lcov — $scope floors left as they are"
+            fi
+          done
+          for pair in api:vitest.config.js ui:vite.config.js; do
+            scope="${pair%%:*}"; summary="app/$scope/coverage/coverage-summary.json"
+            if [ -s "$summary" ]; then
+              python3 tools/coverage/aggregate_floors.py --config "app/$scope/${pair#*:}" --summary "$summary"
+            else
+              echo "No $summary — $scope aggregate floors left as they are"
+            fi
+          done
+
       - name: Render coverage docs page
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -220,12 +309,18 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/reference/coverage.md docs/coverage .ci/pester-weights.json
+          git add docs/reference/coverage.md docs/coverage .ci/pester-weights.json .ci/coverage-baseline.json app/api/vitest.config.js app/ui/vite.config.js
           if git diff --cached --quiet; then
             echo "Coverage unchanged — nothing to commit"
             exit 0
           fi
           msg="docs: update test coverage report"
+          if ! git diff --cached --quiet -- .ci/coverage-baseline.json; then
+            msg="$msg; raise per-file coverage floors"
+          fi
+          if ! git diff --cached --quiet -- app/api/vitest.config.js app/ui/vite.config.js; then
+            msg="$msg; raise aggregate coverage floors"
+          fi
           if ! git diff --cached --quiet -- .ci/pester-weights.json; then
             msg="$msg; rebalance Pester shards"
           fi

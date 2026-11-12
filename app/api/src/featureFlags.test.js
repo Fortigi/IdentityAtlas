@@ -251,3 +251,52 @@ describe('inherited property names are not flags (SEC-2026-09 L-15)', () => {
     });
   }
 });
+
+// One row per flag, so a new flag cannot ship without stating its default: the
+// first test fails until it is added here. Per-flag hand-written cases (above)
+// are how customReports and contextAssistant shipped with no test of their env
+// default at all — the weekly mutation run caught it, three weeks in a row.
+//   opt-in  = OFF unless the env var is exactly "true"
+//   opt-out = ON unless the env var is exactly "false"
+const ENV_DEFAULTS = {
+  riskScoring:             ['FEATURE_RISK_SCORING', 'opt-in'],
+  accountLinking:          ['FEATURE_ACCOUNT_LINKING', 'opt-out'],
+  experimentalCrawlers:    ['FEATURE_EXPERIMENTAL_CRAWLERS', 'opt-in'],
+  matrixSharing:           ['FEATURE_MATRIX_SHARING', 'opt-in'],
+  customReports:           ['FEATURE_CUSTOM_REPORTS', 'opt-in'],
+  contextAssistant:        ['FEATURE_CONTEXT_ASSISTANT', 'opt-in'],
+  mcpServer:               ['FEATURE_MCP_SERVER', 'opt-in'],
+  sourceOwnerAccountables: ['FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'opt-out'],
+  sourceOwnerNameMatch:    ['FEATURE_SOURCE_OWNER_NAME_MATCH', 'opt-in'],
+  orgKnowledge:            ['FEATURE_ORG_KNOWLEDGE', 'opt-in'],
+};
+
+describe('every flag: env default and stored override', () => {
+  it('declares a default for exactly the flags that exist', () => {
+    expect(Object.keys(ENV_DEFAULTS).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
+  });
+
+  for (const [name, [envVar, kind]] of Object.entries(ENV_DEFAULTS)) {
+    const fallback = kind === 'opt-out';           // the value with no env var and no row
+    const flipWord = fallback ? 'false' : 'true';  // the only word that flips it
+    const nearMiss = flipWord.toUpperCase();       // close, but not that word
+
+    it(`${name}: ${envVar} is ${kind}, and a stored choice beats it`, async () => {
+      const before = process.env[envVar];
+      try {
+        delete process.env[envVar];
+        expect(workerConfigKey(name)).toBe(envVar);
+        expect(await isFeatureEnabled(name)).toBe(fallback);
+        process.env[envVar] = nearMiss;
+        expect(await isFeatureEnabled(name)).toBe(fallback);
+        process.env[envVar] = flipWord;
+        expect(await isFeatureEnabled(name)).toBe(!fallback);
+        // The env var now says !fallback; a stored row saying fallback must win.
+        stageRows({ [envVar]: String(fallback) });
+        expect(await isFeatureEnabled(name)).toBe(fallback);
+      } finally {
+        if (before === undefined) delete process.env[envVar]; else process.env[envVar] = before;
+      }
+    });
+  }
+});

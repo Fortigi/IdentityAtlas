@@ -24,14 +24,14 @@ This document lists all major software components, dependencies, and infrastruct
 | express | ^5.3.0 | Web application framework | MIT |
 | pg | ^8.23.1 | PostgreSQL client | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.27.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.27.1 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.7.2 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.7.3 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
-| supertest | ^7.3.1 | HTTP integration testing | MIT |
+| supertest | ^7.3.2 | HTTP integration testing | MIT |
 | eslint | ^10.14.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.2.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
@@ -70,20 +70,20 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.3.1 | UI framework | MIT |
 | react-dom | ^19.3.1 | React DOM renderer | MIT |
-| vite | ^8.3.5 | Build tool and dev server | MIT |
+| vite | ^8.3.6 | Build tool and dev server | MIT |
 
 ### Styling
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | tailwindcss | ^4.3.0 | Utility-first CSS framework | MIT |
-| @tailwindcss/vite | ^4.3.3 | Vite plugin for Tailwind | MIT |
+| @tailwindcss/vite | ^4.3.5 | Vite plugin for Tailwind | MIT |
 
 ### Authentication & Authorization
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.27.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.29.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -93,7 +93,7 @@ This document lists all major software components, dependencies, and infrastruct
 | @dnd-kit/modifiers | ^9.0.0 | DnD position modifiers | MIT |
 | @dnd-kit/sortable | ^10.0.0 | Sortable list implementation | MIT |
 | @dnd-kit/utilities | ^3.2.2 | DnD utility functions | MIT |
-| @tanstack/react-virtual | ^3.14.25 | Virtual scrolling for large tables | MIT |
+| @tanstack/react-virtual | ^3.14.26 | Virtual scrolling for large tables | MIT |
 
 ### Data Export
 
@@ -110,7 +110,7 @@ This document lists all major software components, dependencies, and infrastruct
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
 | globals | ^17.14.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.64.1 | End-to-end testing framework | Apache 2.0 |
+| @playwright/test | ^1.65.0 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.14.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |

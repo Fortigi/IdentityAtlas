@@ -1,0 +1,53 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation measurement of the natural-language report builder's engine: the spec, its compiler and terms, references and scope, the service that runs a question, the model clients, saved reports, and the route, routes/nlReports.js. The conversation side (follow-ups, contradictions, autofix, conversation state, prompt, language) is stryker.nlconversation.config.json. Split out of stryker.reports.config.json (Nov 2026, #1548), which with these files could not finish inside the weekly job's 60 minutes. Same mutator settings as that config, for the same reason (see its comment). Then it is a ratchet like every other floor. MEASURED (Nov 2026, run 42604306292) at 56.18% over 7,715 mutants in 48 minutes, with the conversation files still in scope but none of their own tests in the include list -- the reports config this was split from never listed them, so autofix.followup.js (2%), language.js (0%) and prompt.js (22%) were scored against tests that never call them. That also put the run at 48 of the job's 60 minutes. Both fixed by moving those files, with their tests, to stryker.nlconversation.config.json; sentinels.test.js joined the include list here for the same reason. MEASURED in this shape (run 42611981685): 76.87% over 4,293 mutants in 19 minutes. MUTATION FLOOR: `break` 74, that score minus 2, a ratchet like every other floor -- raise it as the score rises, never lower it.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.nlreports.config.js"
+  },
+  "reporters": [
+    "clear-text",
+    "json"
+  ],
+  "jsonReporter": {
+    "fileName": "reports/stryker-nlreports.json"
+  },
+  "mutate": [
+    "src/nlreports/compare.js",
+    "src/nlreports/compile.js",
+    "src/nlreports/scope.js",
+    "src/nlreports/caller.js",
+    "src/nlreports/sentinels.js",
+    "src/nlreports/explain.js",
+    "src/nlreports/extFields.js",
+    "src/nlreports/llamacpp.js",
+    "src/nlreports/ollama.js",
+    "src/nlreports/references.js",
+    "src/nlreports/savedReports.js",
+    "src/nlreports/service.js",
+    "src/nlreports/spec.js",
+    "src/nlreports/terms.js",
+    "src/routes/nlReports.js",
+    "src/nlreports/catalogPayload.js"
+  ],
+  "mutationExclusions": {
+    "src/nlreports/catalog.js": "Declaration, not logic: the entities/fields/relations an analyst may report on, each with a constant SQL template. With StringLiteral and ObjectLiteral off there is almost nothing behavioural left to mutate, and the part that can go wrong — a template that does not match the schema — is not observable in a unit test at all: it is caught by the contract test that compiles a definition for every field and relation and executes it against a real PostgreSQL. Mutating the surviving structure would measure the shape of a data table.",
+    "src/nlreports/llm.js": "Three lines of module selection: it re-exports chat/listModels/warm from either the llama.cpp client (what a deployment runs) or the Ollama client (kept for comparing models), chosen by one env var. Both clients ARE mutated. Every test of the layers above mocks this module, so a mutant that flips the selection is invisible by construction — the decision here is to test the clients, not the switch.",
+    "src/nlreports/settings.js": "A WorkerConfig read/write pair for the model name, plus one branch that short-circuits when the deployment fixes the model (the shipped configuration). The branch is asserted in routes/nlReports.test.js through the admin endpoints; the two SQL statements are the same shape as every other WorkerConfig accessor in the codebase and carry no logic to mutate."
+  },
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": 74
+  },
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "disableTypeChecks": false,
+  "mutator": {
+    "excludedMutations": [
+      "StringLiteral",
+      "ObjectLiteral"
+    ]
+  }
+}

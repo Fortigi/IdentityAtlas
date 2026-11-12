@@ -83,8 +83,17 @@ echo
 
 # ── 1. Everything in the two PR workflows is aggregated ─────────────────────
 # `pr-summary` is excused because it IS a required context in its own right.
+#
+# `diff-coverage` is excused because it is ADVISORY on purpose, for now. It cannot be made blocking
+# while pure-JSX page shells produce expected reds: v8 does not line-instrument a big JSX `return`,
+# so a routing or layout edit fails on a line no test can reach. `app/ui/CLAUDE.md` documents that
+# red as expected, and the exclude set that would fix it is still open as #725. Only `*/App.jsx` is
+# excluded today. Requiring it before then would block ordinary UI work. Add it to ci-passed's
+# `needs:` and drop it from this list once #725 lands.
 assert "every pr.yml job is aggregated into CI Passed" "" \
-  "$(unaggregated "$WF/pr.yml" ci-passed pr-summary)"
+  "$(unaggregated "$WF/pr.yml" ci-passed pr-summary diff-coverage)"
+assert "the excused advisory job diff-coverage still exists (no stale excuse)" "diff-coverage" \
+  "$(jobs_in "$WF/pr.yml" | grep -x 'diff-coverage' || true)"
 assert "every pr-integration.yml job is aggregated into Integration CI Passed" "" \
   "$(unaggregated "$WF/pr-integration.yml" ci-integration-passed)"
 
@@ -120,17 +129,15 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #   dependabot-auto-merge.yml
 #                      pull_request_target on release/**: enables auto-merge on Dependabot PRs.
 #                      Not a gate.
-#   diff-coverage.yml  ADVISORY on purpose, for now. It cannot be made blocking while pure-JSX
-#                      page shells produce expected reds: v8 does not line-instrument a big JSX
-#                      `return`, so a routing or layout edit fails on a line no test can reach.
-#                      `app/ui/CLAUDE.md` documents that red as expected, and the exclude set that
-#                      would fix it is still open as #725. Only `*/App.jsx` is excluded today.
-#                      Requiring it before then would block ordinary UI work. Move it into pr.yml
-#                      and into ci-passed's `needs:` once #725 lands.
+#   bot-apps-check.yml ADVISORY. Proves both GitHub Apps still mint and reach only this repo when a
+#                      DoR workflow changes. Fork PRs skip it (no secrets), so it cannot be required.
+#
+# (Diff coverage used to be its own workflow here. It now lives in pr.yml as the advisory
+# `diff-coverage` job — see section 1 — reusing the suites' lcov instead of re-running them.)
 #
 # Add a new PR-triggered workflow and this fails until it is either aggregated or added here with
 # a reason. That decision is the point of the test.
-ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml diff-coverage.yml dependabot-auto-merge.yml"
+ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml bot-apps-check.yml dependabot-auto-merge.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
   grep -qE '^[[:space:]]+pull_request(_target)?:' "$f" || continue
