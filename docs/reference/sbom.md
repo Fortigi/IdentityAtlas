@@ -105,7 +105,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.2.1 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.3.0 | Vite React plugin | MIT |
 | eslint | ^10.14.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
