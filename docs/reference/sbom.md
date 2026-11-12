@@ -77,7 +77,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | tailwindcss | ^4.3.0 | Utility-first CSS framework | MIT |
-| @tailwindcss/vite | ^4.3.3 | Vite plugin for Tailwind | MIT |
+| @tailwindcss/vite | ^4.3.5 | Vite plugin for Tailwind | MIT |
 
 ### Authentication & Authorization
 
