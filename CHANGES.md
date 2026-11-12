@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Test Coverage docs page now updates faster after a merge: it reuses the API and UI coverage the pull request's checks already measured whenever the merged code is identical, and only re-runs a suite when it is not. No change to the published numbers.
+
+## Changes in this PR
+
 - Faster, cheaper pull-request CI: the advisory changed-line coverage check now reuses the coverage the API, contract and UI test suites already produce in PR Checks, instead of running all three suites a second time in a separate workflow (about 6 runner-minutes and two runners saved per push). It appears as the `Diff coverage (advisory)` job in PR Checks and stays non-blocking.
 
 ## Changes in this PR
