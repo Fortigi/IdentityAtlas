@@ -108,7 +108,7 @@ Column discovery for the matrix wizard. Returns every filterable column of the r
 
 `values` is the **alphabetically first page** of the column's distinct values — never an arbitrary subset. `truncated: true` means the column has more values than the page holds; use `/api/matrix/column-values` to reach them.
 
-The page holds 500 values by default. Set `MATRIX_VALUE_PAGE_SIZE` on the web container to change it (max `5000`) — lowering it is how the capped path is exercised on a deployment that has fewer than 500 distinct values in any column. See [Matrix architecture → Attribute values](../architecture/matrix.md#attribute-values--paged-discovery-not-a-silent-cap).
+The page holds 500 values by default. Set `MATRIX_VALUE_PAGE_SIZE` on the web container to change it (max `5000`) — lowering it is how the capped path is exercised on a deployment that has fewer than 500 distinct values in any column. See [Matrix architecture → Attribute values](../architecture/matrix.md#attribute-values-paged-discovery-not-a-silent-cap).
 
 ---
 
