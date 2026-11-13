@@ -156,6 +156,7 @@ nav:
           - Context-Owner Access: architecture/context-owner-access.md
           - MCP and Relative Permissions: architecture/mcp-authorization.md
           - Data & Maintenance: admin/data-tab.md
+          - Secrets and the Master Key: architecture/secrets-and-master-key.md
           - Automatic Updates: admin/auto-updates.md
           - Nightly Review: operations/nightly-review.md
       - Troubleshooting: reference/troubleshooting.md

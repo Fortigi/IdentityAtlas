@@ -1,0 +1,5 @@
+- Corrected the API reference overview: errors are returned as `{ "error": ... }`, the sign-in variables are `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, and the real rate limits and request-size limits per route group are listed
+- The API reference now points to the OpenAPI document served at `/api/docs` and lists the API areas that have no reference page yet
+- Corrected the Risk Scores API reference: removed the non-existent clusters endpoint, documented starting scoring runs and removing an override, and stated that a scoring run replaces earlier overrides
+- The Configuration page now lists every environment variable the containers read, grouped, with defaults; the outdated JSON config-file reference was removed
+- Moved the secrets vault and master-key material to its own page, "Secrets and the Master Key", and brought the LLM and risk-scoring internals page up to date with the four-layer engine and the current default model
