@@ -1,0 +1,138 @@
+{
+  "_comment": "Retired-vocabulary ratchet for docs/. Pages that still use a banned term (app/api/src/docs/docsJargon.js), with the number of occurrences per term. A count may only go DOWN; a new term or a new page fails the Unit Tests: Vitest (API) check. Fewer occurrences than listed never fail. Lower it with: cd app/api && npm run docs:baseline",
+  "pages": {
+    "admin/excel-powerquery-export.md": {
+      "SOLL": 1
+    },
+    "api/entities.md": {
+      "Org Unit": 1,
+      "SOLL": 1
+    },
+    "api/governance.md": {
+      "SOLL": 1
+    },
+    "api/matrix.md": {
+      "IST": 1,
+      "SOLL": 6
+    },
+    "architecture/context-owner-access.md": {
+      "Org Unit": 1
+    },
+    "architecture/context-templates-phase-b.md": {
+      "Org Unit": 1
+    },
+    "architecture/context-upload.md": {
+      "Org Unit": 1
+    },
+    "architecture/core-ontology.md": {
+      "Org Unit": 3
+    },
+    "architecture/crawler-architecture.md": {
+      "Org Unit": 1
+    },
+    "architecture/csv-import-schema.md": {
+      "Org Unit": 1
+    },
+    "architecture/demo-dataset.md": {
+      "OAuth2Grant": 1
+    },
+    "architecture/effective-access-engine.md": {
+      "AppRoleViaGroup": 1
+    },
+    "architecture/ingest-api.md": {
+      "AppRoleViaGroup": 1,
+      "DirectoryRoleEligible": 1,
+      "OAuth2Grant": 1,
+      "Start-FGSync": 1
+    },
+    "architecture/m1-brief.md": {
+      "Org Unit": 14
+    },
+    "architecture/matrix-scope-statistics.md": {
+      "IST": 1,
+      "SOLL": 4
+    },
+    "architecture/matrix.md": {
+      "AppRoleViaGroup": 1,
+      "DirectoryRoleEligible": 1,
+      "IST": 1,
+      "OAuth2Grant": 2,
+      "Org Unit": 1,
+      "SOLL": 9,
+      "assignmentType 'Owner'": 1
+    },
+    "architecture/omada-crawler-datamodel.md": {
+      "Org Unit": 12
+    },
+    "architecture/resource-assignments-identity-support.md": {
+      "AppRoleViaGroup": 2,
+      "OAuth2Grant": 2,
+      "assignmentType 'Governed'": 4
+    },
+    "concepts/data-model.md": {
+      "AppRoleViaGroup": 1,
+      "DirectoryRoleEligible": 1,
+      "OAuth2Grant": 1,
+      "Org Unit": 3
+    },
+    "concepts/governance-model.md": {
+      "IST": 7,
+      "SOLL": 7
+    },
+    "marketing/competitive-landscape.md": {
+      "IST": 2,
+      "SOLL": 2
+    },
+    "marketing/features.md": {
+      "IST": 1,
+      "SOLL": 1
+    },
+    "marketing/index.md": {
+      "IST": 1,
+      "SOLL": 1
+    },
+    "marketing/key-messages.md": {
+      "IST": 2,
+      "SOLL": 2
+    },
+    "marketing/use-cases.md": {
+      "IST": 2,
+      "SOLL": 2
+    },
+    "reference/sql-views.md": {
+      "IST": 1,
+      "SOLL": 1
+    },
+    "risk-scoring/overview.md": {
+      "Org Unit": 2
+    },
+    "start/glossary.md": {
+      "Org Unit": 1
+    },
+    "sync/csv-import.md": {
+      "IST": 1,
+      "Org Unit": 1,
+      "SOLL": 1
+    },
+    "sync/midpoint-crawler-configuration.md": {
+      "Org Unit": 3
+    },
+    "sync/midpoint.md": {
+      "Org Unit": 6
+    },
+    "sync/mssql.md": {
+      "Org Unit": 1
+    },
+    "sync/omada.md": {
+      "Org Unit": 5
+    },
+    "ui/contexts.md": {
+      "Org Unit": 2
+    },
+    "ui/overview.md": {
+      "IST": 1,
+      "Org Unit": 1,
+      "SOLL": 1
+    }
+  }
+}

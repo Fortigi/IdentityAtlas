@@ -17,6 +17,8 @@
     "lint": "eslint src/ --max-warnings 0",
     "ontology:check": "node src/ontology/cli.js check",
     "ontology:generate": "node src/ontology/cli.js generate",
+    "docs:check": "node src/docs/cli.js check",
+    "docs:baseline": "node src/docs/cli.js baseline",
     "build:node-launcher": "node ../desktop/scripts/build-node-launcher.mjs",
     "build:node-launcher:skip-ui": "node ../desktop/scripts/build-node-launcher.mjs --skip-ui-build",
     "build:node-launcher:postgres": "node ../desktop/scripts/build-node-launcher.mjs --with-postgres",
