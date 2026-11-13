@@ -2652,6 +2652,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../admin/backup-restore-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Back up, Restore & Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/auto-updates/" class="md-nav__link">
         
   
@@ -2776,13 +2804,41 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#debug-mode" class="md-nav__link">
+  <a href="#first-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Debug Mode
+        First start
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="First start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed-database-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed database password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#too-large-413" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Too large (413)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2844,6 +2900,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debug-output-for-command-line-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debug output for command-line runs
+      
+    </span>
+  </a>
   
 </li>
       
@@ -5888,13 +5955,41 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#debug-mode" class="md-nav__link">
+  <a href="#first-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Debug Mode
+        First start
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="First start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#changed-database-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changed database password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#too-large-413" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Too large (413)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -5956,6 +6051,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#debug-output-for-command-line-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debug output for command-line runs
+      
+    </span>
+  </a>
   
 </li>
       
@@ -6036,25 +6142,125 @@
 
 
 <h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h1>
-<p>This page covers debug mode, common error conditions, required permissions, and known operational constraints.</p>
-<hr />
-<h2 id="debug-mode">Debug Mode<a class="headerlink" href="#debug-mode" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas's PowerShell SDK functions emit detailed request/response output when <code>$Global:DebugMode</code> is set. Set it to any combination of the letters below before running any command.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'G'</span>   <span class="c"># GET requests — show URIs, page counts, item counts</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'P'</span>   <span class="c"># POST and PATCH requests — show URIs and request bodies</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'D'</span>   <span class="c"># DELETE requests</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'T'</span>   <span class="c"># Token operations — show token acquisition and refresh events</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'GP'</span>  <span class="c"># Multiple categories — combine any letters</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'GPT'</span> <span class="c"># All HTTP + token operations</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c"># Clear debug mode</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="nv">$null</span>
+<p>Start with the symptom you see. The first section covers what goes wrong on a new Docker deployment; the sections after it cover crawlers and permissions.</p>
+<p>Two commands answer most questions:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Is the app up, and has it finished preparing the database?</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>curl<span class="w"> </span>http://localhost:3001/api/health
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># What does the web container say?</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span>logs<span class="w"> </span>--tail<span class="w"> </span><span class="m">200</span><span class="w"> </span>web
 </code></pre></div>
-<p>Debug output writes to the host (not the pipeline), so it does not interfere with function return values.</p>
-<div class="admonition tip">
-<p class="admonition-title">Troubleshooting the Entra ID crawler</p>
-<p>Set <code>$Global:DebugMode = 'G'</code> before running <code>Start-EntraIDCrawler.ps1</code> to see every Graph API URI being called, including paginated continuation URLs.</p>
-</div>
+<hr />
+<h2 id="first-start">First start<a class="headerlink" href="#first-start" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>What you see</th>
+<th>Cause</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docker compose up</code> stops with <strong><code>POSTGRES_PASSWORD must be set</code></strong></td>
+<td>The compose file ships no default database password and refuses to start without one.</td>
+<td>Add a line <code>POSTGRES_PASSWORD=&lt;strong value&gt;</code> to the <code>.env</code> file next to the compose file, and run the command from that directory. The <a href="../../architecture/docker-setup/#install">install commands</a> generate one.</td>
+</tr>
+<tr>
+<td>The UI loads but shows errors; the web log repeats <strong><code>CRITICAL: database migration failed</code></strong> with <strong><code>password authentication failed</code></strong></td>
+<td><code>POSTGRES_PASSWORD</code> in <code>.env</code> is not the password the database was created with. The database keeps its first password; a new value in <code>.env</code> does not change it.</td>
+<td>See <a href="#changed-database-password">Changed database password</a>.</td>
+</tr>
+<tr>
+<td>Requests answer <strong><code>503</code></strong> <code>Schema migration in progress, please retry shortly</code></td>
+<td>The web container is still bringing the database up to date, or a migration is failing and being retried.</td>
+<td>Look at <code>/api/health</code>: <code>"schemaReady": false</code> confirms it. Give a first start or an upgrade a few minutes. If the log shows <code>CRITICAL: database migration failed</code>, see <a href="../../admin/backup-restore-upgrade/#if-a-migration-fails">If a migration fails</a>.</td>
+</tr>
+<tr>
+<td>After signing in: <strong>"You don't have access to Identity Atlas yet"</strong></td>
+<td>Your account has no role. A signed-in user without a role gets nothing.</td>
+<td>Have an administrator assign you an app role (<code>Admin</code>, <code>RoleMiner</code> or <code>Servicedesk</code>) on the Identity Atlas application in Entra ID, then sign out and in again. If nobody has the <code>Admin</code> role yet, follow <a href="../../admin/authentication/#recovering-from-a-lockout">Recovering from a lockout</a>.</td>
+</tr>
+<tr>
+<td>A setup page instead of the sign-in</td>
+<td><code>AUTH_ENABLED=true</code> is set, but <code>AUTH_TENANT_ID</code> or <code>AUTH_CLIENT_ID</code> is empty.</td>
+<td>Set all three and recreate the web container. See <a href="../../admin/authentication/">Setting up authentication</a>.</td>
+</tr>
+<tr>
+<td><strong><code>421</code></strong> <code>This host name is not allowed</code></td>
+<td>Authentication is off and the app is opened on a DNS name it does not know.</td>
+<td>Set <code>PUBLIC_BASE_URL</code> or <code>ALLOWED_HOSTS</code>. See <a href="../../architecture/docker-setup/#allowed-host-names">Allowed host names</a>.</td>
+</tr>
+<tr>
+<td>The web log says <strong><code>No master key found … A new key was NOT generated</code></strong></td>
+<td>The database holds encrypted credentials, but the key that decrypts them is missing, for example after restoring a database without its key.</td>
+<td>Put the key back: see <a href="../../admin/backup-restore-upgrade/#restore">Restore</a>, step 2.</td>
+</tr>
+<tr>
+<td><strong><code>413</code></strong> on an upload or in the matrix</td>
+<td>A size limit was reached. Which one depends on where it happens.</td>
+<td>See <a href="#too-large-413">Too large (413)</a>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="changed-database-password">Changed database password<a class="headerlink" href="#changed-database-password" title="Permanent link">&para;</a></h3>
+<p>The database stores its password in the <code>postgres_data</code> volume the first time it starts. Editing <code>POSTGRES_PASSWORD</code> afterwards changes what the web container <em>uses</em>, not what the database <em>expects</em>, and the web container can no longer connect.</p>
+<p>Pick one:</p>
+<ul>
+<li><strong>Put the original value back</strong> in <code>.env</code> and run <code>docker compose -f docker-compose.prod.yml up -d</code>.</li>
+<li>
+<p><strong>Make the database accept the new value.</strong> Connections from inside the database container need no password, so you can set it there. Replace the placeholder with the value from your <code>.env</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.prod.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>postgres<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>identity_atlas<span class="w"> </span>-d<span class="w"> </span>identity_atlas<span class="w"> </span>-c<span class="w"> </span><span class="s2">"ALTER USER identity_atlas PASSWORD '&lt;value from .env&gt;';"</span>
+</code></pre></div>
+<p>The web container connects on its next retry, within a minute. This command was written from the compose file and not run for this page.
+- <strong>Start over</strong>, if there is nothing in the database you want to keep: <code>docker compose -f docker-compose.prod.yml down -v</code> deletes all data, after which the next start creates the database with the password in <code>.env</code>.</p>
+</li>
+</ul>
+<h3 id="too-large-413">Too large (413)<a class="headerlink" href="#too-large-413" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Message</th>
+<th>Limit</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Uploading files for a file-based crawler</td>
+<td><code>A file is larger than the … per-file upload limit</code></td>
+<td>8 GiB per file by default</td>
+<td>Raise <code>UPLOAD_MAX_FILE_BYTES</code> (see <a href="../../architecture/docker-setup/#settings-the-compose-file-does-not-pass-on">Environment Variables</a>).</td>
+</tr>
+<tr>
+<td>Same</td>
+<td><code>This upload would exceed the storage quota for this crawler configuration</code></td>
+<td>Only when <code>UPLOAD_CONFIG_QUOTA_BYTES</code> is set</td>
+<td>Delete old files of that crawler, or raise the quota.</td>
+</tr>
+<tr>
+<td>Same, behind a reverse proxy</td>
+<td>An HTML error page from the proxy, not a JSON message</td>
+<td>The proxy's own request-size limit (nginx: 1 MB by default)</td>
+<td>Lift the limit in the proxy. See <a href="../../architecture/docker-setup/#behind-a-reverse-proxy-https">Behind a reverse proxy</a>.</td>
+</tr>
+<tr>
+<td>Opening the matrix</td>
+<td><code>This matrix has more than 400,000 assignments</code></td>
+<td>400,000 assignments in one per-subject grid</td>
+<td>Narrow the matrix with filters, sort by Manager Hierarchy, or roll up by an attribute.</td>
+</tr>
+<tr>
+<td>A custom connector posting to <code>/api/ingest</code></td>
+<td><code>413</code> on the request</td>
+<td>50 MB per request</td>
+<td>Send smaller batches.</td>
+</tr>
+</tbody>
+</table>
+<p>A related one: <code>507</code> <code>Not enough free disk space on the upload volume</code> means the host disk is nearly full, not that the file is too large.</p>
 <hr />
 <h2 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">&para;</a></h2>
 <table>
@@ -6208,11 +6414,29 @@ edit the crawler, tick it, and save.</p>
 <p>Config files are only needed when running crawler scripts outside the Docker worker container. In the standard Docker deployment, all configuration is managed through the in-browser wizard (Admin &gt; Crawlers).</p>
 <h3 id="config-file-not-found">Config file not found<a class="headerlink" href="#config-file-not-found" title="Permanent link">&para;</a></h3>
 <p>Crawler scripts require a <code>-ConfigFile</code> parameter pointing to a JSON config with Graph API credentials. The template is at <code>setup/config/tenantname.json.template</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">entra-id</span><span class="p">\</span><span class="nb">Start-EntraIDCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc..."</span> <span class="p">`</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">-ConfigFile</span> <span class="s1">'C:\Config\mycompany.json'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">entra-id</span><span class="p">\</span><span class="nb">Start-EntraIDCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc..."</span> <span class="p">`</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">-ConfigFile</span> <span class="s1">'C:\Config\mycompany.json'</span>
 </code></pre></div>
+<hr />
+<h2 id="debug-output-for-command-line-runs">Debug output for command-line runs<a class="headerlink" href="#debug-output-for-command-line-runs" title="Permanent link">&para;</a></h2>
+<p>When you run a crawler script from the command line, the PowerShell SDK functions emit detailed request/response output when <code>$Global:DebugMode</code> is set. Set it to any combination of the letters below before running the script. It has no effect on crawlers started from the UI.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'G'</span>   <span class="c"># GET requests — show URIs, page counts, item counts</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'P'</span>   <span class="c"># POST and PATCH requests — show URIs and request bodies</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'D'</span>   <span class="c"># DELETE requests</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'T'</span>   <span class="c"># Token operations — show token acquisition and refresh events</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'GP'</span>  <span class="c"># Multiple categories — combine any letters</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="s1">'GPT'</span> <span class="c"># All HTTP + token operations</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c"># Clear debug mode</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="nv">$Global:DebugMode</span> <span class="p">=</span> <span class="nv">$null</span>
+</code></pre></div>
+<p>Debug output writes to the host (not the pipeline), so it does not interfere with function return values.</p>
+<div class="admonition tip">
+<p class="admonition-title">Troubleshooting the Entra ID crawler</p>
+<p>Set <code>$Global:DebugMode = 'G'</code> before running <code>Start-EntraIDCrawler.ps1</code> to see every Graph API URI being called, including paginated continuation URLs.</p>
+</div>
 
 
 

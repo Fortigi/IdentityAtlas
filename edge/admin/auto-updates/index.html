@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/admin/auto-updates/">
       
       
-        <link rel="prev" href="../data-tab/">
+        <link rel="prev" href="../backup-restore-upgrade/">
       
       
         <link rel="next" href="../../operations/nightly-review/">
@@ -2634,6 +2634,34 @@
     
   
     Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backup-restore-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Back up, Restore & Upgrade
   
 
     
@@ -6209,13 +6237,17 @@ deployment.</p>
 <ul>
 <li><strong>PostgreSQL</strong> is pinned to <code>postgres:16-alpine</code> and is never rolled by the
   agent — database major-version upgrades are a deliberate, manual operation.</li>
-<li><strong>Schema migrations</strong> run automatically when the new web container starts, and
-  are <strong>fail-closed</strong>: if a migration fails the container refuses to start, so a
-  half-migrated database can't serve traffic.</li>
+<li><strong>Schema migrations</strong> run automatically when the new web container starts.
+  Until they are done the API answers <code>503</code> and no crawler runs. If a migration
+  fails, the container stays up, logs the cause and retries; each migration is
+  one transaction, so a failed one leaves nothing half-applied. See
+  <a href="../backup-restore-upgrade/#if-a-migration-fails">If a migration fails</a>.</li>
+<li><strong>Backups.</strong> The agent does not make one before it updates. Schedule your own;
+  see <a href="../backup-restore-upgrade/">Back up, restore and upgrade</a>.</li>
 </ul>
 <h2 id="keeping-components-in-step">Keeping components in step<a class="headerlink" href="#keeping-components-in-step" title="Permanent link">&para;</a></h2>
 <p>The agent updates <strong>web and worker together</strong> so they never drift apart, and the
-web container runs the schema migrations on boot (fail-closed). Detection of
+web container runs the schema migrations when it starts. Detection of
 web/worker/database version skew — a banner when a partial or interrupted update
 leaves components out of step — is surfaced on the Updates screen as well.</p>
 
