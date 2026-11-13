@@ -44,7 +44,7 @@ One `.xlsx` file with these sheets:
 | AssignmentRequests     | `GET /api/assignment-requests`      | Access request / approval workflow rows                  |
 | CertificationDecisions | `GET /api/certification-decisions`  | Access-review (certification) decisions — approve/deny/dontKnow outcomes |
 
-Between them these tabs carry the full governance (SOLL) layer, so an analyst
+Between them these tabs carry the full governance layer, so an analyst
 can rebuild **any** matrix the web UI shows — including the governed/non-governed
 split and the business-role → group grants — entirely in Excel: join
 `Assignments` to `Resources` on `resourceId`, and `ResourceRelationships`

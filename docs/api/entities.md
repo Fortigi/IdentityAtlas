@@ -333,7 +333,7 @@ Active governed assignments for a business role. Only assignments with `state='D
 
 ### GET /api/access-package/:id/resource-roles
 
-Resources granted by this business role (the SOLL definition — what resources a user gets when this role is assigned).
+Resources granted by this business role — what a user gets when the role is assigned.
 
 **Response**
 
