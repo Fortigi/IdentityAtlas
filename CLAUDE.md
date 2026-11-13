@@ -296,7 +296,7 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main`
 2. Use the fragment content from `changes/<branch-name>.md` as the PR description
-3. Requires 1 approval — merge when CI passes
+3. Requires 1 approval — then add it to the **merge queue** (`gh pr merge --squash --auto`, or "Merge when ready"). The queue re-runs PR Checks against the current `main` before it lands, because a PR's own green run can be weeks old. Integration tests are not re-run in the queue. See `docs/architecture/ci-scope-testing.md` → "Merge queue"
 4. After merge: `bump-version.yml` increments Minor + timestamp; `docker-publish.yml` pushes `:edge`
 
 ### Cutting a Release

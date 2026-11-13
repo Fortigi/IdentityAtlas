@@ -68,6 +68,12 @@ on:
       - 'release/**'
       - 'feature/**'
       - 'bugfixes/**'
+  # The merge queue re-runs this whole workflow against the PR merged onto the
+  # CURRENT main before it lands. A PR's own run can be weeks old: #1493 passed
+  # lint on 27 Oct, #1554 tightened the rules on 9 Nov, #1493 merged on 10 Nov
+  # and main went red. In the queue every scope runs (see `filter`) — the point
+  # is to catch what changed on main, which a path filter on the PR can't see.
+  merge_group:
 
 # Cancel superseded runs when a PR branch is pushed again, so a stale run can't
 # race the latest commit (or waste runners) (audit finding F4).
@@ -103,6 +109,11 @@ jobs:
 
       - id: check
         run: |
+          # Merge queue: there is no "push" to range over. Always run CI.
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
           # First push to a new branch: before is all-zeros. Always run CI.
           if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
             echo "result=true" >> "$GITHUB_OUTPUT"; exit 0
@@ -144,23 +155,31 @@ jobs:
     permissions:
       contents: read
       pull-requests: read   # dorny/paths-filter reads the PR's changed-file list via the API
+    # In the merge queue `f` is skipped and `all` marks every scope changed, so
+    # each output falls through to steps.all.outputs.v ('true').
     outputs:
-      ps:      ${{ steps.f.outputs.ps }}
-      pester:  ${{ steps.f.outputs.pester }}
-      api:     ${{ steps.f.outputs.api }}
-      ui:      ${{ steps.f.outputs.ui }}
-      openapi: ${{ steps.f.outputs.openapi }}
-      docs:    ${{ steps.f.outputs.docs }}
-      code:    ${{ steps.f.outputs.code }}
-      migrations:   ${{ steps.f.outputs.migrations }}
-      node_version: ${{ steps.f.outputs.node_version }}
-      azure:        ${{ steps.f.outputs.azure }}
+      ps:      ${{ steps.f.outputs.ps || steps.all.outputs.v }}
+      pester:  ${{ steps.f.outputs.pester || steps.all.outputs.v }}
+      api:     ${{ steps.f.outputs.api || steps.all.outputs.v }}
+      ui:      ${{ steps.f.outputs.ui || steps.all.outputs.v }}
+      openapi: ${{ steps.f.outputs.openapi || steps.all.outputs.v }}
+      docs:    ${{ steps.f.outputs.docs || steps.all.outputs.v }}
+      code:    ${{ steps.f.outputs.code || steps.all.outputs.v }}
+      migrations:   ${{ steps.f.outputs.migrations || steps.all.outputs.v }}
+      node_version: ${{ steps.f.outputs.node_version || steps.all.outputs.v }}
+      azure:        ${{ steps.f.outputs.azure || steps.all.outputs.v }}
       outcome: ${{ steps.f.outcome }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Merge queue — run every scope
+        id: all
+        if: github.event_name == 'merge_group'
+        run: echo "v=true" >> "$GITHUB_OUTPUT"
+
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v3
         id: f
+        if: github.event_name != 'merge_group'
         with:
           filters: |
             ps:
@@ -862,7 +881,9 @@ jobs:
   hygiene:
     name: 'PR Hygiene'
     needs: [changes]
-    if: needs.changes.outputs.has_product_changes == 'true'
+    # Skipped in the merge queue: it judges the PR's own diff and labels, which
+    # the queue doesn't change and which already passed on the PR.
+    if: github.event_name != 'merge_group' && needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -911,7 +932,7 @@ jobs:
 
           BASE_DIR="$RUNNER_TEMP/jscpd-base-tree"
           BASE_PID=""
-          if git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" && git worktree add -q --detach "$BASE_DIR" FETCH_HEAD; then
+          if git fetch --no-tags --depth=1 origin "${{ github.base_ref || github.event.merge_group.base_sha }}" && git worktree add -q --detach "$BASE_DIR" FETCH_HEAD; then
             # The base is scanned with the BASE's own .jscpd.json, as before. --threshold 100:
             # only the count is wanted here, never a failure.
             ( cd "$BASE_DIR" && jscpd . --config .jscpd.json --threshold 100                 --reporters json --output "$RUNNER_TEMP/jscpd-base" >/dev/null 2>&1 ) &
