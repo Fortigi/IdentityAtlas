@@ -38,10 +38,10 @@ The words used here are explained in the [glossary](../start/glossary.md). The f
 1. Go to **Admin → Crawlers** and click **Add Crawler**.
 2. Pick **Omada IGA**.
 3. **Connection.** Enter a **Crawler Name** and the **Omada Base URL**, pick the **Omada Version** and the **Authentication Method**. For an on-premises server, see [Network access](#network-access).
-4. **Credentials.** Fill in the fields for the method you picked.
+4. **Credentials.** Enter what the chosen method asks for — see [Credentials](#credentials) for the fields per method.
 5. **Sync Options.** Leave everything ticked for a complete picture. Check the **Context Object Types** and the **Resource Category Mapping**. The wizard reads `$metadata` from your Omada server and warns when an entity set or field name does not exist.
-6. **Schedule.** Add a schedule, or leave it empty to run by hand.
-7. Click **Add Crawler**. The crawler appears as a card. Click **Run Full** to load the data now.
+6. **Schedule.** Optional — see [Schedule and run crawlers](scheduling.md). Without a schedule, the crawler only runs when you start it.
+7. Save with **Add Crawler**, then start the first load with **Run Full** on the new card.
 
 ---
 
