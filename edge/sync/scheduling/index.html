@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://docs.identityatlas.io/stable/sync/midpoint-crawler-configuration/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/sync/scheduling/">
       
       
-        <link rel="prev" href="../midpoint/">
+        <link rel="prev" href="../custom-connector/">
       
       
-        <link rel="next" href="../mssql/">
+        <link rel="next" href="../../admin/authentication/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>midPoint Configuration Reference - Identity Atlas</title>
+        <title>Schedule and Run Crawlers - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#midpoint-crawler-configuration-reference" class="md-skip">
+        <a href="#schedule-and-run-crawlers" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              midPoint Configuration Reference
+              Schedule and Run Crawlers
             
           </span>
         </div>
@@ -2336,225 +2336,6 @@
                 
   
   
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#1-connection-authentication-required-no-usable-default" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        1. Connection &amp; authentication (required — no usable default)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. Connection &amp; authentication (required — no usable default)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#credentials-per-authentication-method" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credentials per authentication method
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-sync-scope-which-object-types-to-import-all-default-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Sync scope — which object types to import (all default ON)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#3-performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. Performance
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#4-role-classification-archetypemapping-default-every-role-businessrole" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. Role classification (archetypeMapping) (default = every role → BusinessRole)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#5-org-user-type-overrides-typemappings-advanced-defaults-preserve-current-behaviour" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        5. Org &amp; user type overrides (typeMappings) (advanced — defaults preserve current behaviour)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. Org &amp; user type overrides (typeMappings) (advanced — defaults preserve current behaviour)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#reading-a-mapping-row-left-side-vs-right-side" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reading a mapping row: left side vs. right side
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#org-context-type-typemappingsorgcontexttypemapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Org → context type (typeMappings.orgContextTypeMapping)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#user-principal-type-typemappingsidentitytypemapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        User → principal type (typeMappings.identityTypeMapping)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-scheduling-default-none-on-demand-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. Scheduling (default = none / on-demand only)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#7-complete-field-reference" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. Complete field reference
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#8-the-stored-config-object-export-import-command-line" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. The stored config object (export / import / command-line)
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
   
   
     <li class="md-nav__item">
@@ -2658,6 +2439,147 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schedule and Run Crawlers
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schedule and Run Crawlers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#run-a-crawler-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run a crawler by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-a-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add a schedule
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delta-or-full" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Delta or full
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-two-runs-collide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When two runs collide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-full-run-removes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a full run removes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-crawler-type-is-missing-from-add-crawler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A crawler type is missing from Add Crawler
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -5990,38 +5912,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-connection-authentication-required-no-usable-default" class="md-nav__link">
+  <a href="#run-a-crawler-by-hand" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Connection &amp; authentication (required — no usable default)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="1. Connection &amp; authentication (required — no usable default)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#credentials-per-authentication-method" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Credentials per authentication method
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#2-sync-scope-which-object-types-to-import-all-default-on" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. Sync scope — which object types to import (all default ON)
+        Run a crawler by hand
       
     </span>
   </a>
@@ -6029,10 +5923,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-performance" class="md-nav__link">
+  <a href="#add-a-schedule" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Performance
+        Add a schedule
       
     </span>
   </a>
@@ -6040,10 +5934,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-role-classification-archetypemapping-default-every-role-businessrole" class="md-nav__link">
+  <a href="#delta-or-full" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. Role classification (archetypeMapping) (default = every role → BusinessRole)
+        Delta or full
       
     </span>
   </a>
@@ -6051,60 +5945,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-org-user-type-overrides-typemappings-advanced-defaults-preserve-current-behaviour" class="md-nav__link">
+  <a href="#when-two-runs-collide" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Org &amp; user type overrides (typeMappings) (advanced — defaults preserve current behaviour)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="5. Org &amp; user type overrides (typeMappings) (advanced — defaults preserve current behaviour)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#reading-a-mapping-row-left-side-vs-right-side" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reading a mapping row: left side vs. right side
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#org-context-type-typemappingsorgcontexttypemapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Org → context type (typeMappings.orgContextTypeMapping)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#user-principal-type-typemappingsidentitytypemapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        User → principal type (typeMappings.identityTypeMapping)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#6-scheduling-default-none-on-demand-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. Scheduling (default = none / on-demand only)
+        When two runs collide
       
     </span>
   </a>
@@ -6112,10 +5956,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#7-complete-field-reference" class="md-nav__link">
+  <a href="#what-a-full-run-removes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. Complete field reference
+        What a full run removes
       
     </span>
   </a>
@@ -6123,10 +5967,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#8-the-stored-config-object-export-import-command-line" class="md-nav__link">
+  <a href="#a-crawler-type-is-missing-from-add-crawler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        8. The stored config object (export / import / command-line)
+        A crawler type is missing from Add Crawler
       
     </span>
   </a>
@@ -6227,541 +6071,152 @@
   
 
 
-<h1 id="midpoint-crawler-configuration-reference">midPoint Crawler — Configuration Reference<a class="headerlink" href="#midpoint-crawler-configuration-reference" title="Permanent link">&para;</a></h1>
-<p>This page documents every configuration field of the <strong>midPoint (Evolveum)</strong> crawler, its
-default value, and when you need to change it.</p>
-<blockquote>
-<p><strong>In short:</strong> the only thing you <em>must</em> provide is the <strong>connection</strong> — the base URL,
-authentication method, and credentials. <strong>Every other field ships with a sensible default</strong>
-that reproduces midPoint's standard mapping, so you can leave the rest untouched and a sync
-will "just work". Change the mapping fields only when you want to override how midPoint objects
-are classified in Identity Atlas.</p>
-</blockquote>
-<p>You configure the crawler in the UI under <strong>Admin → Crawlers → Add Crawler → midPoint (Evolveum)</strong>.
-The four wizard steps map 1:1 to the sections below.</p>
+<h1 id="schedule-and-run-crawlers">Schedule and run crawlers<a class="headerlink" href="#schedule-and-run-crawlers" title="Permanent link">&para;</a></h1>
+<p>Every crawler that pulls data — Entra ID, Azure Resource Manager, Omada, midPoint, SQL Database and SCIM — is scheduled and started the same way. This page describes that once; each connector page only adds what is specific to its source.</p>
+<p>Two crawler types have no schedule: <strong>CSV Import</strong> runs when you start it, and a <strong>Custom Connector</strong> pushes data whenever your own process decides to.</p>
 <hr />
-<h2 id="1-connection-authentication-required-no-usable-default">1. Connection &amp; authentication <em>(required — no usable default)</em><a class="headerlink" href="#1-connection-authentication-required-no-usable-default" title="Permanent link">&para;</a></h2>
-<p>This is the only part you always have to fill in.</p>
+<h2 id="run-a-crawler-by-hand">Run a crawler by hand<a class="headerlink" href="#run-a-crawler-by-hand" title="Permanent link">&para;</a></h2>
+<p>Go to <strong>Admin → Crawlers</strong>. Each crawler you added is a card with these buttons:</p>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Run Delta</strong></td>
+<td>Queues a delta run: read only what changed since the last successful run.</td>
+</tr>
+<tr>
+<td><strong>Run Full</strong></td>
+<td>Queues a full run: read everything again.</td>
+</tr>
+<tr>
+<td><strong>Force Stop</strong></td>
+<td>Replaces the two run buttons while a run is queued or running. Stops that run.</td>
+</tr>
+<tr>
+<td><strong>Configure</strong></td>
+<td>Reopens the wizard with the saved settings.</td>
+</tr>
+<tr>
+<td><strong>Export</strong></td>
+<td>Downloads the crawler's settings as a JSON file, without its secret.</td>
+</tr>
+<tr>
+<td><strong>Remove</strong></td>
+<td>Removes the crawler.</td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>Recent Jobs</strong> table below the cards shows each run with its mode (<code>full</code> or <code>delta</code>).</p>
+<hr />
+<h2 id="add-a-schedule">Add a schedule<a class="headerlink" href="#add-a-schedule" title="Permanent link">&para;</a></h2>
+<p>The last step of each wizard is <strong>Schedule</strong>. Click <strong>+ Add Schedule</strong> to add an entry, and add as many as you need — a common setup is a frequent delta plus one full run a day. A crawler with no schedule only runs when you click a run button.</p>
 <table>
 <thead>
 <tr>
 <th>Field</th>
-<th>Default</th>
-<th>Description</th>
+<th>Choices</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Crawler Name</strong> (<code>displayName</code>)</td>
-<td><code>midPoint (Evolveum)</code></td>
-<td>A label for this crawler in the UI. Pre-filled; change it if you run more than one midPoint connection.</td>
+<td><strong>Frequency</strong></td>
+<td><strong>Every few minutes</strong>, <strong>Hourly</strong>, <strong>Daily</strong> or <strong>Weekly</strong></td>
 </tr>
 <tr>
-<td><strong>Base URL</strong> (<code>baseUrl</code>)</td>
-<td>— <em>(required)</em></td>
-<td>Your midPoint URL, e.g. <code>https://midpoint.example.com/midpoint</code> or <code>…/midpoint/ws/rest</code>. A bare host also works (the crawler appends <code>/midpoint/ws/rest</code>).</td>
+<td><strong>Every</strong></td>
+<td>For <em>Every few minutes</em>: 5, 10, 15, 20 or 30 minutes</td>
 </tr>
 <tr>
-<td><strong>Authentication Method</strong> (<code>authMethod</code>)</td>
-<td><code>BasicAuth</code></td>
-<td>How the crawler authenticates to the midPoint REST API. One of <code>BasicAuth</code>, <code>ApiToken</code>, <code>OAuth2CC</code>, <code>OAuth2ROPC</code>.</td>
+<td><strong>Hour (UTC)</strong></td>
+<td>For <em>Daily</em> and <em>Weekly</em>: the hour of the day</td>
 </tr>
 <tr>
-<td><strong>Allow private network</strong> (<code>allowPrivateNetwork</code>)</td>
-<td><code>false</code></td>
-<td>Allow the base URL and token endpoint to resolve to a private or loopback address. Needed for an on-premises midPoint. Cloud-metadata and link-local addresses are always refused. See <a href="../midpoint/#network-access">Network access</a>.</td>
+<td><strong>Minute</strong></td>
+<td>For <em>Hourly</em>, <em>Daily</em> and <em>Weekly</em>: <code>:00</code>, <code>:15</code>, <code>:30</code> or <code>:45</code></td>
 </tr>
 <tr>
-<td><strong>Allow insecure HTTP</strong> (<code>allowInsecureHttp</code>)</td>
-<td><code>false</code></td>
-<td>Allow plain <code>http</code> for the base URL and token endpoint (credentials are sent unencrypted). See <a href="../midpoint/#network-access">Network access</a>.</td>
+<td><strong>Day</strong></td>
+<td>For <em>Weekly</em>: the day of the week</td>
+</tr>
+<tr>
+<td><strong>Mode</strong></td>
+<td><strong>Delta (fast)</strong> or <strong>Full (authoritative)</strong></td>
 </tr>
 </tbody>
 </table>
-<h3 id="credentials-per-authentication-method">Credentials per authentication method<a class="headerlink" href="#credentials-per-authentication-method" title="Permanent link">&para;</a></h3>
-<p>Which credential fields appear depends on the method you pick. None have defaults — you supply them.</p>
+<p>All times are <strong>UTC</strong>. An <em>Every few minutes</em> schedule runs on the clock: every 15 minutes means <code>:00</code>, <code>:15</code>, <code>:30</code> and <code>:45</code>.</p>
+<p>To change a schedule later, click <strong>Configure</strong> on the crawler's card and go to the <strong>Schedule</strong> step.</p>
+<hr />
+<h2 id="delta-or-full">Delta or full<a class="headerlink" href="#delta-or-full" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Method</th>
-<th>Required fields</th>
-<th>Use when</th>
+<th>Mode</th>
+<th>Reads</th>
+<th>Removes what the source no longer has</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>BasicAuth</strong></td>
-<td><code>username</code>, <code>password</code></td>
-<td>Standard midPoint user/service account (most common).</td>
+<td><strong>Full</strong></td>
+<td>Everything you selected in the wizard</td>
+<td>Yes</td>
 </tr>
 <tr>
-<td><strong>ApiToken</strong></td>
-<td><code>apiToken</code></td>
-<td>A static bearer token is issued for the crawler.</td>
-</tr>
-<tr>
-<td><strong>OAuth2CC</strong> (client credentials)</td>
-<td><code>tokenEndpoint</code>, <code>clientId</code>, <code>clientSecret</code></td>
-<td>Service-to-service OAuth2, no user context.</td>
-</tr>
-<tr>
-<td><strong>OAuth2ROPC</strong> (resource owner password)</td>
-<td><code>tokenEndpoint</code>, <code>clientId</code>, <code>clientSecret</code>, <code>username</code>, <code>password</code></td>
-<td>OAuth2 on behalf of a specific user.</td>
+<td><strong>Delta</strong></td>
+<td>Only what changed, where the source can report that</td>
+<td>Depends on the crawler</td>
 </tr>
 </tbody>
 </table>
-<blockquote>
-<p><strong>Editing later:</strong> secret fields (<code>password</code>, <code>apiToken</code>, <code>clientSecret</code>) show as <code>••••••••</code> and can
-be left <strong>blank to keep the stored value</strong>. Secrets are stored encrypted; the <code>clientSecret</code> lives
-in the secrets vault and is never written to the config in plain text.</p>
-</blockquote>
-<hr />
-<h2 id="2-sync-scope-which-object-types-to-import-all-default-on">2. Sync scope — which object types to import <em>(all default ON)</em><a class="headerlink" href="#2-sync-scope-which-object-types-to-import-all-default-on" title="Permanent link">&para;</a></h2>
-<p><code>selectedObjects</code> is a set of toggles, <strong>all enabled by default</strong>. Turn one off only to skip that
-phase (e.g. to do a quick roles-only run, or to skip the heavy shadows phase).</p>
+<p>Not every source can report changes. What a delta run does for each crawler:</p>
 <table>
 <thead>
 <tr>
-<th>Toggle (<code>selectedObjects.*</code>)</th>
-<th>Default</th>
-<th>What it imports</th>
+<th>Crawler</th>
+<th>A delta run…</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>systems</code></td>
-<td>✅ on</td>
-<td>Connected resources (<code>ResourceType</code>) that hold accounts → <strong>Systems</strong></td>
+<td>Entra ID</td>
+<td>reads changed users, service principals, groups and direct memberships. Everything else waits for the next full run — see <a href="../entra-id/#schedule-and-refresh">Connect Entra ID</a>.</td>
 </tr>
 <tr>
-<td><code>orgs</code></td>
-<td>✅ on</td>
-<td><code>OrgType</code> → <strong>Contexts</strong> (org hierarchy)</td>
+<td>SQL Database</td>
+<td>depends on how each query is set up — see <a href="../mssql/">SQL Server</a>.</td>
 </tr>
 <tr>
-<td><code>roles</code></td>
-<td>✅ on</td>
-<td><code>RoleType</code> → <strong>Resources</strong> (classified via §4)</td>
+<td>Azure Resource Manager, midPoint</td>
+<td>reads everything, but removes nothing.</td>
 </tr>
 <tr>
-<td><code>services</code></td>
-<td>✅ on</td>
-<td><code>ServiceType</code> → <strong>Resources</strong> (always type <code>Service</code>)</td>
-</tr>
-<tr>
-<td><code>users</code></td>
-<td>✅ on</td>
-<td><code>UserType</code> → <strong>Identities</strong> + a focus <strong>Principal</strong></td>
-</tr>
-<tr>
-<td><code>shadows</code></td>
-<td>✅ on</td>
-<td>Accounts + entitlements on connected systems (the slowest phase)</td>
-</tr>
-<tr>
-<td><code>orgMembership</code></td>
-<td>✅ on</td>
-<td><code>user.parentOrgRef</code> → <strong>Context members</strong></td>
-</tr>
-<tr>
-<td><code>assignments</code></td>
-<td>✅ on</td>
-<td><code>user.assignment</code> → <strong>ResourceAssignments</strong> (<code>Direct</code>, <code>governed=true</code>)</td>
-</tr>
-<tr>
-<td><code>roleNesting</code></td>
-<td>✅ on</td>
-<td><code>role.inducement</code> → <strong>ResourceRelationships</strong> (<code>Contains</code>)</td>
-</tr>
-<tr>
-<td><code>reviews</code></td>
-<td>✅ on</td>
-<td>Certification campaigns → <strong>CertificationDecisions</strong></td>
+<td>Omada, SCIM</td>
+<td>runs as a full run.</td>
 </tr>
 </tbody>
 </table>
-<blockquote>
-<p><strong>Recommendation:</strong> leave all on for a complete picture. Disabling <code>shadows</code> makes runs much
-faster but you lose account/entitlement (e.g. AD group membership) data.</p>
-</blockquote>
+<p>When in doubt, schedule at least one <strong>Full</strong> run a day.</p>
 <hr />
-<h2 id="3-performance">3. Performance<a class="headerlink" href="#3-performance" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Page size</strong> (<code>pageSize</code>)</td>
-<td><code>100</code></td>
-<td>Objects fetched per REST request. Leave at 100 unless you are tuning for very large datasets; smaller pages reduce worker memory, larger pages reduce round-trips.</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="4-role-classification-archetypemapping-default-every-role-businessrole">4. Role classification (<code>archetypeMapping</code>) <em>(default = every role → BusinessRole)</em><a class="headerlink" href="#4-role-classification-archetypemapping-default-every-role-businessrole" title="Permanent link">&para;</a></h2>
-<p>By default every <code>RoleType</code> becomes a <code>BusinessRole</code>. This table lets you override that <strong>per role</strong>,
-based on midPoint's own role classification.</p>
-<blockquote>
-<p><strong>Roles only — services are not classified.</strong> This mapping applies exclusively to <code>RoleType</code>
-objects. midPoint <code>ServiceType</code> objects are <strong>always</strong> imported as <code>Service</code> and cannot be remapped
-here. Consequently the <strong>Archetype</strong> dropdown lists only archetypes that apply to <em>roles</em>
-(<code>holderType = RoleType</code>); service archetypes and midPoint's task/report/case system archetypes are
-deliberately left out. (If service classification is ever needed, it would be a separate addition.)</p>
-</blockquote>
-<p><strong>How a role is matched (in order):</strong>
-1. <strong>Archetype</strong> — if the role has an archetype whose name matches a rule, that rule wins.
-2. <strong>Subtype</strong> — otherwise, if the role's subtype matches a rule, that rule applies.
-3. <strong>Catch-all</strong> — otherwise the rule with a blank archetype <em>and</em> blank subtype applies.
-4. <strong>Default</strong> — if nothing matches at all, the role becomes <code>BusinessRole</code>.</p>
-<p><strong>Default value:</strong> a single catch-all row → <code>BusinessRole</code>, i.e. identical to the old behaviour.</p>
-<blockquote>
-<p><strong>How the dropdown fields work.</strong> Every dropdown field in the wizard shows a chevron (▾). Click it
-(or start typing) to open the list of values discovered <strong>live</strong> from your midPoint server. The list
-always offers the <strong>default</strong> entry first, followed by the live values in <strong>alphabetical order</strong>, so
-even when midPoint has no values for that field you can still pick the default — or just type a
-free-text value. (Fields without a chevron, such as <em>Context type</em>, are plain free-text inputs.)</p>
-</blockquote>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Archetype</strong></td>
-<td>The midPoint archetype name (e.g. <em>Business role</em>, <em>Application role</em>). Live dropdown from your midPoint server — only archetypes that apply to <strong>roles</strong> are listed (midPoint's task/report/case system archetypes are filtered out). Leave blank (the default entry) for a subtype-only or catch-all rule.</td>
-</tr>
-<tr>
-<td><strong>Subtype</strong></td>
-<td>The role's <code>subtype</code> value — a free-text label set on the role in midPoint. Used as a fallback when no archetype matches. The dropdown suggests subtype values <strong>found on your objects</strong> (so it offers only the default if your midPoint uses no subtypes); you can also type a value.</td>
-</tr>
-<tr>
-<td><strong>Identity Atlas type</strong></td>
-<td>The resulting <code>resourceType</code>. One of <code>BusinessRole</code>, <code>Service</code>, <code>Resource</code>, <code>Application</code>, <code>AppRole</code>, <code>Entitlement</code>, <code>DelegatedPermission</code>.</td>
-</tr>
-</tbody>
-</table>
-<blockquote>
-<p><strong>Archetype vs. subtype.</strong> An <em>archetype</em> is a first-class object in midPoint (a catalog entry like
-"Application role" with its own policies/icon) — modern and structured. A <em>subtype</em> is just a free-text
-label on the object — older and lighter. The matching tries archetype first, then subtype, so the
-mapping works whether your environment classifies roles by archetypes, by subtypes, or by neither.</p>
-</blockquote>
-<p><strong>Example</strong> — treat application roles as <code>Application</code>, fall back to business roles:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"archetypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application role"</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"technical"</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Resource"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BusinessRole"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">]</span>
-</code></pre></div>
-<hr />
-<h2 id="5-org-user-type-overrides-typemappings-advanced-defaults-preserve-current-behaviour">5. Org &amp; user type overrides (<code>typeMappings</code>) <em>(advanced — defaults preserve current behaviour)</em><a class="headerlink" href="#5-org-user-type-overrides-typemappings-advanced-defaults-preserve-current-behaviour" title="Permanent link">&para;</a></h2>
-<p>Under <strong>Advanced type mappings</strong>. Two optional tables, each defaulting to a single catch-all that
-reproduces the standard behaviour.</p>
-<h3 id="reading-a-mapping-row-left-side-vs-right-side">Reading a mapping row: left side vs. right side<a class="headerlink" href="#reading-a-mapping-row-left-side-vs-right-side" title="Permanent link">&para;</a></h3>
-<p>Every row in these tables (and in the role classification of §4) has the same shape — a <strong>left
-side</strong> that is matched against your midPoint data, and a <strong>right side</strong> that is the resulting
-Identity Atlas type:</p>
+<h2 id="when-two-runs-collide">When two runs collide<a class="headerlink" href="#when-two-runs-collide" title="Permanent link">&para;</a></h2>
+<p>A crawler runs one job at a time.</p>
 <ul>
-<li><strong>Left = the value as it exists in midPoint.</strong> It is matched against the object's <code>subtype</code>
-  (for users also <code>employeeType</code>). The input is a <strong>live dropdown</strong> (click the ▾ chevron to open it):
-  it suggests the subtype values that actually occur in <em>your</em> midPoint (fetched from the server when
-  you open the step), and you can also type a value that isn't there yet. When your midPoint uses no
-  subtypes the list offers only the <strong>default/catch-all</strong> entry (a blank left side) — which is exactly
-  what you fall back to.</li>
-<li><strong>Right = an Identity Atlas type that you assign.</strong> This is <em>not</em> read from midPoint — these target
-  types are Identity Atlas concepts. midPoint has no notion of an Identity Atlas "context type" or
-  "principal type". You may give the right side the same name as the midPoint value (e.g. subtype
-  <code>department</code> → context type <code>Department</code>), but that is your choice, not an automatic copy.</li>
+<li>If an <em>Every few minutes</em> run comes due while the crawler is still busy, that occurrence is skipped. The next one runs as usual.</li>
+<li>If an <em>Hourly</em>, <em>Daily</em> or <em>Weekly</em> run comes due while the crawler is busy, it waits and starts as soon as the crawler is free, for up to an hour. A daily full run is therefore not lost because a short delta happened to be running.</li>
 </ul>
-<blockquote>
-<p><strong>No automatic pass-through.</strong> There is no mode that "uses each org's own subtype as its context
-type". You map each subtype explicitly (one row per value), plus one catch-all row (blank left
-side) for everything else. To turn five distinct subtypes into five different context types, add
-five rows.</p>
-</blockquote>
-<p>The two tables differ in how <em>free</em> the right side is:</p>
-<table>
-<thead>
-<tr>
-<th>Mapping</th>
-<th>Left side (from midPoint)</th>
-<th>Right side (Identity Atlas type)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Org → context type</td>
-<td>Org <code>subtype</code> — live dropdown, free-typeable</td>
-<td><strong>Free text</strong> — any label you choose (≤50 chars)</td>
-</tr>
-<tr>
-<td>User → principal type</td>
-<td>User <code>subtype</code>/<code>employeeType</code> — live dropdown, free-typeable</td>
-<td><strong>Fixed list</strong> — must be a valid principal type (validated)</td>
-</tr>
-</tbody>
-</table>
-<p>The right side of the <strong>user</strong> mapping is a closed dropdown because <code>principalType</code> is validated
-against Identity Atlas's known set; an arbitrary value would be rejected on import. The right side of
-the <strong>org</strong> mapping (<code>contextType</code>) has no such constraint, so it is a free text field and Identity
-Atlas stores whatever you type verbatim.</p>
-<h3 id="org-context-type-typemappingsorgcontexttypemapping">Org → context type (<code>typeMappings.orgContextTypeMapping</code>)<a class="headerlink" href="#org-context-type-typemappingsorgcontexttypemapping" title="Permanent link">&para;</a></h3>
-<p>Maps an <code>OrgType</code>'s subtype to a context type. <strong>Default:</strong> catch-all → <code>OrgUnit</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Org subtype</strong></td>
-<td><em>Left.</em> The org's <code>subtype</code> value — live dropdown from your midPoint, free-typeable. Blank = catch-all.</td>
-</tr>
-<tr>
-<td><strong>Context type</strong></td>
-<td><em>Right.</em> The resulting <code>contextType</code> — a free-text Identity Atlas label you choose (e.g. <code>OrgUnit</code>, <code>Department</code>, <code>Country</code>), stored verbatim.</td>
-</tr>
-</tbody>
-</table>
-<h3 id="user-principal-type-typemappingsidentitytypemapping">User → principal type (<code>typeMappings.identityTypeMapping</code>)<a class="headerlink" href="#user-principal-type-typemappingsidentitytypemapping" title="Permanent link">&para;</a></h3>
-<p>Maps a <code>UserType</code>'s subtype/<code>employeeType</code> to a principal type. <strong>Default:</strong> catch-all → <code>User</code>.</p>
-<table>
-<thead>
-<tr>
-<th>Column</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>User subtype</strong></td>
-<td><em>Left.</em> The user's <code>subtype</code>/<code>employeeType</code> value — live dropdown from your midPoint, free-typeable. Blank = catch-all.</td>
-</tr>
-<tr>
-<td><strong>Principal type</strong></td>
-<td><em>Right.</em> The resulting <code>principalType</code>, chosen from a fixed dropdown: <code>User</code>, <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>ExternalUser</code>, <code>SharedMailbox</code>.</td>
-</tr>
-</tbody>
-</table>
-<blockquote>
-<p><strong>Note:</strong> the same "left = midPoint subtype dropdown" applies to the <strong>Subtype</strong> column of the role
-classification in §4; only the <em>archetype</em> column there is filled from midPoint's archetype catalog
-rather than from observed subtype values.</p>
-</blockquote>
 <hr />
-<h2 id="6-scheduling-default-none-on-demand-only">6. Scheduling <em>(default = none / on-demand only)</em><a class="headerlink" href="#6-scheduling-default-none-on-demand-only" title="Permanent link">&para;</a></h2>
-<p><code>schedules</code> is empty by default — the crawler runs only when you click <strong>Run Now</strong>. Add one or more
-schedules to run it automatically.</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Default</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>syncMode</code></td>
-<td><code>full</code></td>
-<td><code>full</code> re-fetches everything and removes data this crawler owns that no longer exists in midPoint (reconcile). <code>delta</code> only adds/updates (upsert-only, no deletions) — faster, but stale rows are not cleaned up.</td>
-</tr>
-<tr>
-<td><code>frequency</code></td>
-<td><code>daily</code></td>
-<td><code>interval</code> (every few minutes), <code>hourly</code>, <code>daily</code>, or <code>weekly</code>.</td>
-</tr>
-<tr>
-<td><code>intervalMinutes</code></td>
-<td>—</td>
-<td>For <code>interval</code>: run every 5, 10, 15, 20 or 30 minutes.</td>
-</tr>
-<tr>
-<td><code>hour</code> / <code>minute</code></td>
-<td><code>2</code> / <code>0</code></td>
-<td>Time of day (UTC) for daily/weekly runs.</td>
-</tr>
-<tr>
-<td><code>day</code></td>
-<td>—</td>
-<td>Day of week for <code>weekly</code> (0 = Sunday … 6 = Saturday).</td>
-</tr>
-</tbody>
-</table>
-<blockquote>
-<p>Use a daily/weekly <strong>full</strong> sync for correctness; add an optional more-frequent <strong>delta</strong> if you want
-fresher data between full runs.</p>
-</blockquote>
+<h2 id="what-a-full-run-removes">What a full run removes<a class="headerlink" href="#what-a-full-run-removes" title="Permanent link">&para;</a></h2>
+<p>A full run compares what it just read with what the same crawler loaded before. Anything the source no longer has is removed from Identity Atlas. The comparison is limited to the crawler's own system, so one crawler never removes another crawler's data.</p>
+<p>Removed accounts, resources and assignments are not erased at once: they are marked as deleted, kept for a retention period, and come back if the source shows them again. See <a href="../../architecture/soft-delete/">Soft-delete</a>.</p>
 <hr />
-<h2 id="7-complete-field-reference">7. Complete field reference<a class="headerlink" href="#7-complete-field-reference" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Default</th>
-<th>Required?</th>
-<th>Section</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>displayName</code></td>
-<td><code>midPoint (Evolveum)</code></td>
-<td>recommended</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>baseUrl</code></td>
-<td>—</td>
-<td><strong>yes</strong></td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>authMethod</code></td>
-<td><code>BasicAuth</code></td>
-<td><strong>yes</strong></td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>username</code></td>
-<td>—</td>
-<td>for BasicAuth / OAuth2ROPC</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>password</code></td>
-<td>—</td>
-<td>for BasicAuth / OAuth2ROPC</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>apiToken</code></td>
-<td>—</td>
-<td>for ApiToken</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>clientId</code></td>
-<td>—</td>
-<td>for OAuth2CC / OAuth2ROPC</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>clientSecret</code></td>
-<td>—</td>
-<td>for OAuth2CC / OAuth2ROPC</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>tokenEndpoint</code></td>
-<td>—</td>
-<td>for OAuth2CC / OAuth2ROPC</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>allowPrivateNetwork</code></td>
-<td><code>false</code></td>
-<td>for a private / on-premises address</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>allowInsecureHttp</code></td>
-<td><code>false</code></td>
-<td>for a plain-http URL</td>
-<td>1</td>
-</tr>
-<tr>
-<td><code>selectedObjects.*</code> (10 toggles)</td>
-<td>all <code>true</code></td>
-<td>no</td>
-<td>2</td>
-</tr>
-<tr>
-<td><code>pageSize</code></td>
-<td><code>100</code></td>
-<td>no</td>
-<td>3</td>
-</tr>
-<tr>
-<td><code>archetypeMapping</code></td>
-<td><code>[{ "": "" → BusinessRole }]</code></td>
-<td>no</td>
-<td>4</td>
-</tr>
-<tr>
-<td><code>typeMappings.orgContextTypeMapping</code></td>
-<td><code>[{ "" → OrgUnit }]</code></td>
-<td>no</td>
-<td>5</td>
-</tr>
-<tr>
-<td><code>typeMappings.identityTypeMapping</code></td>
-<td><code>[{ "" → User }]</code></td>
-<td>no</td>
-<td>5</td>
-</tr>
-<tr>
-<td><code>schedules</code></td>
-<td><code>[]</code> (on-demand)</td>
-<td>no</td>
-<td>6</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="8-the-stored-config-object-export-import-command-line">8. The stored config object (export / import / command-line)<a class="headerlink" href="#8-the-stored-config-object-export-import-command-line" title="Permanent link">&para;</a></h2>
-<blockquote>
-<p><strong>You don't enter JSON in the wizard.</strong> The wizard form generates this config object for you and
-stores it. These examples are only relevant when you work with the config <em>outside</em> the wizard:
-when you <strong>Export</strong> a crawler to a JSON file and <strong>Import</strong> it again (e.g. to copy it between
-environments), or when you run the crawler directly from the command line with a config file
-(<code>Start-MidpointCrawler.ps1 -ConfigPath &lt;file.json&gt;</code>). They also show which wizard field maps to
-which config key. Secrets shown as <code>••••••</code> are stored encrypted, not in the exported file.</p>
-</blockquote>
-<p><strong>Minimal</strong> — connect and import everything with default mappings (the recommended starting point):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://midpoint.example.com/midpoint"</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BasicAuth"</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"svc-identityatlas"</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"••••••"</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
-</code></pre></div>
-<p><strong>Advanced</strong> — custom role classification, a daily full sync, and shadows disabled:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://midpoint.example.com/midpoint"</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BasicAuth"</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"svc-identityatlas"</span><span class="p">,</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"••••••"</span><span class="p">,</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">"pageSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span><span class="nt">"selectedObjects"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"shadows"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nt">"archetypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application role"</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BusinessRole"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">"typeMappings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="nt">"identityTypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"contractor"</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ExternalUser"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">    </span><span class="p">]</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span><span class="nt">"schedules"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"syncMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"full"</span><span class="p">,</span><span class="w"> </span><span class="nt">"frequency"</span><span class="p">:</span><span class="w"> </span><span class="s2">"daily"</span><span class="p">,</span><span class="w"> </span><span class="nt">"hour"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">"minute"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="p">}</span>
-</code></pre></div>
-<hr />
-<p>See also: <a href="../midpoint/">Syncing from midPoint (Evolveum)</a> for what gets imported and the overall data model.</p>
+<h2 id="a-crawler-type-is-missing-from-add-crawler">A crawler type is missing from Add Crawler<a class="headerlink" href="#a-crawler-type-is-missing-from-add-crawler" title="Permanent link">&para;</a></h2>
+<p>The <strong>Add Crawler</strong> list is built from the crawler definitions the web container finds at startup. In the Docker image they are in <code>/app/crawlers</code>. If you run the web container with your own setup, the <code>CRAWLER_MANIFESTS_DIR</code> environment variable must point to the folder that holds them — see <a href="../../architecture/docker-setup/">Docker setup</a>.</p>
+<p>Crawler types marked <strong>Experimental</strong> are listed only while <strong>Experimental crawlers</strong> is turned on under <strong>Admin → Experimental</strong>. A crawler you already added keeps running when that is turned off.</p>
 
 
 

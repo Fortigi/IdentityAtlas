@@ -513,10 +513,6 @@
          <lastmod>2026-11-13</lastmod>
     </url>
     <url>
-         <loc>https://docs.identityatlas.io/stable/sync/midpoint-crawler-configuration/</loc>
-         <lastmod>2026-11-13</lastmod>
-    </url>
-    <url>
          <loc>https://docs.identityatlas.io/stable/sync/midpoint/</loc>
          <lastmod>2026-11-13</lastmod>
     </url>
@@ -530,6 +526,10 @@
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/overview/</loc>
+         <lastmod>2026-11-13</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.identityatlas.io/stable/sync/scheduling/</loc>
          <lastmod>2026-11-13</lastmod>
     </url>
     <url>

@@ -16,7 +16,7 @@
         <link rel="prev" href="../csv-import/">
       
       
-        <link rel="next" href="../../admin/authentication/">
+        <link rel="next" href="../scheduling/">
       
       
         
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#custom-connector-push-mode-ingest" class="md-skip">
+        <a href="#custom-connector-push-api" class="md-skip">
           Skip to content
         </a>
       
@@ -2339,34 +2339,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../midpoint-crawler-configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../mssql/" class="md-nav__link">
         
   
@@ -2547,6 +2519,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schedule and Run Crawlers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -6005,7 +6005,7 @@
   
 
 
-<h1 id="custom-connector-push-mode-ingest">Custom Connector (Push-Mode Ingest)<a class="headerlink" href="#custom-connector-push-mode-ingest" title="Permanent link">&para;</a></h1>
+<h1 id="custom-connector-push-api">Custom Connector (Push API)<a class="headerlink" href="#custom-connector-push-api" title="Permanent link">&para;</a></h1>
 <p>A <strong>Custom Connector</strong> lets any system push authorization data into Identity Atlas over HTTP — in any language — without shipping a scheduled crawler. Your integration fetches data from its source, shapes it into Identity Atlas records, and POSTs batches to the <a href="../../architecture/ingest-api/">Ingest API</a>. The API handles validation, bulk merge, scoped delete detection, and audit history. There is no SQL access and no PowerShell requirement — just an API key and an HTTP client.</p>
 <p>Use a custom connector when the source system already runs its own export or webhook process and you want it to push directly, rather than have Identity Atlas pull on a schedule. For scheduled pull crawlers, see <a href="../building-a-crawler/">Building a Crawler</a>.</p>
 <hr />
@@ -6013,7 +6013,7 @@
 <p><strong>You cannot mint your own key.</strong> Ingest keys are issued by an administrator — either through the UI or the admin API:</p>
 <ul>
 <li><strong>UI:</strong> Admin → Crawlers → <strong>Add Crawler</strong> → pick <strong>Custom Connector</strong>. The plaintext key is shown <strong>once</strong> at creation time; copy it immediately.</li>
-<li><strong>Admin API:</strong> an administrator (holding an Entra ID admin JWT) calls <code>POST /api/admin/crawlers</code>, which returns the plaintext key once in the response.</li>
+<li><strong>Admin API:</strong> an administrator — signed in as described in <a href="../../admin/authentication/">Authentication &amp; SSO</a> — calls <code>POST /api/admin/crawlers</code>, which returns the plaintext key once in the response.</li>
 </ul>
 <p>Keys look like <code>fgc_&lt;random&gt;</code> — the <code>fgc_</code> prefix marks them as crawler tokens (distinct from the Entra ID JWTs the read API uses). Only a salted hash is stored server-side, so a lost key cannot be recovered — it must be rotated (see below). Store the key in a secret vault, never in source control.</p>
 <div class="admonition note">

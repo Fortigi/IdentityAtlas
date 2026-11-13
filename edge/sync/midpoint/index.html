@@ -16,7 +16,7 @@
         <link rel="prev" href="../../architecture/omada-crawler-datamodel/">
       
       
-        <link rel="next" href="../midpoint-crawler-configuration/">
+        <link rel="next" href="../mssql/">
       
       
         
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#syncing-from-midpoint-evolveum" class="md-skip">
+        <a href="#connect-midpoint" class="md-skip">
           Skip to content
         </a>
       
@@ -2371,10 +2371,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-imported" class="md-nav__link">
+  <a href="#what-you-get" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Gets Imported
+        What you get
       
     </span>
   </a>
@@ -2382,10 +2382,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prerequisites
+        Before you start
       
     </span>
   </a>
@@ -2393,22 +2393,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-a-sync" class="md-nav__link">
+  <a href="#add-the-crawler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running a Sync
+        Add the crawler
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Running a Sync">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Settings">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#via-the-ui-recommended" class="md-nav__link">
+  <a href="#connection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Via the UI (recommended)
+        Connection
       
     </span>
   </a>
@@ -2416,32 +2427,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#via-the-command-line" class="md-nav__link">
+  <a href="#credentials" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Via the command line
+        Credentials
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Configuration">
-      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#network-access" class="md-nav__link">
@@ -2455,10 +2449,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sync-phase-toggles-selectedobjects" class="md-nav__link">
+  <a href="#objects-mapping-what-to-read" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sync phase toggles (selectedObjects)
+        Objects &amp; Mapping: what to read
       
     </span>
   </a>
@@ -2466,10 +2460,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#role-classification-archetypemapping" class="md-nav__link">
+  <a href="#objects-mapping-role-classification" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Role classification (archetypeMapping)
+        Objects &amp; Mapping: role classification
       
     </span>
   </a>
@@ -2477,10 +2471,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#org-user-type-overrides-typemappings" class="md-nav__link">
+  <a href="#objects-mapping-advanced-type-mappings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Org &amp; user type overrides (typeMappings)
+        Objects &amp; Mapping: advanced type mappings
       
     </span>
   </a>
@@ -2493,10 +2487,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-scope" class="md-nav__link">
+  <a href="#schedule-and-refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Scope
+        Schedule and refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-refresh-removes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a refresh removes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
       
     </span>
   </a>
@@ -2514,38 +2530,49 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#deep-dive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deep dive
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deep dive">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-settings-as-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The settings as a file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#further-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Further reading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../midpoint-crawler-configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2650,6 +2677,34 @@
     
   
     Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schedule and Run Crawlers
   
 
     
@@ -5990,10 +6045,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-gets-imported" class="md-nav__link">
+  <a href="#what-you-get" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Gets Imported
+        What you get
       
     </span>
   </a>
@@ -6001,10 +6056,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
+  <a href="#before-you-start" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Prerequisites
+        Before you start
       
     </span>
   </a>
@@ -6012,22 +6067,33 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-a-sync" class="md-nav__link">
+  <a href="#add-the-crawler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running a Sync
+        Add the crawler
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Running a Sync">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Settings">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#via-the-ui-recommended" class="md-nav__link">
+  <a href="#connection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Via the UI (recommended)
+        Connection
       
     </span>
   </a>
@@ -6035,32 +6101,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#via-the-command-line" class="md-nav__link">
+  <a href="#credentials" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Via the command line
+        Credentials
       
     </span>
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Configuration">
-      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#network-access" class="md-nav__link">
@@ -6074,10 +6123,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#sync-phase-toggles-selectedobjects" class="md-nav__link">
+  <a href="#objects-mapping-what-to-read" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Sync phase toggles (selectedObjects)
+        Objects &amp; Mapping: what to read
       
     </span>
   </a>
@@ -6085,10 +6134,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#role-classification-archetypemapping" class="md-nav__link">
+  <a href="#objects-mapping-role-classification" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Role classification (archetypeMapping)
+        Objects &amp; Mapping: role classification
       
     </span>
   </a>
@@ -6096,10 +6145,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#org-user-type-overrides-typemappings" class="md-nav__link">
+  <a href="#objects-mapping-advanced-type-mappings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Org &amp; user type overrides (typeMappings)
+        Objects &amp; Mapping: advanced type mappings
       
     </span>
   </a>
@@ -6112,10 +6161,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#data-scope" class="md-nav__link">
+  <a href="#schedule-and-refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Data Scope
+        Schedule and refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-refresh-removes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a refresh removes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
       
     </span>
   </a>
@@ -6130,6 +6201,45 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deep-dive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deep dive
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deep dive">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-settings-as-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The settings as a file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#further-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Further reading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -6227,244 +6337,355 @@
   
 
 
-<h1 id="syncing-from-midpoint-evolveum">Syncing from midPoint (Evolveum)<a class="headerlink" href="#syncing-from-midpoint-evolveum" title="Permanent link">&para;</a></h1>
-<p>Identity Atlas can pull authorization and IGA data from a <strong>midPoint</strong> instance via the midPoint REST API. The crawler maps midPoint objects onto the Identity Atlas universal data model — identities, principals, resources, assignments, org units, and certification decisions.</p>
+<h1 id="connect-midpoint">Connect midPoint<a class="headerlink" href="#connect-midpoint" title="Permanent link">&para;</a></h1>
+<p>The midPoint crawler reads roles, services, users, org structure, the accounts and groups on connected systems, and certification decisions from a <strong>midPoint</strong> (Evolveum) installation through its REST API. It only reads; nothing is changed in midPoint.</p>
+<p><strong>Use this when</strong> midPoint is your identity governance platform and you want its roles, role assignments and connected systems in Identity Atlas.</p>
+<p>Only the connection — address, sign-in method and credentials — has to be filled in. Every other setting has a default that gives a complete import.</p>
 <hr />
-<h2 id="what-gets-imported">What Gets Imported<a class="headerlink" href="#what-gets-imported" title="Permanent link">&para;</a></h2>
+<h2 id="what-you-get">What you get<a class="headerlink" href="#what-you-get" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>midPoint object</th>
-<th>Identity Atlas</th>
+<th>In midPoint</th>
+<th>In Identity Atlas</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>ResourceType</code> (connected systems with accounts)</td>
-<td><strong>Systems</strong></td>
+<td>Resources (connected systems) that hold accounts or groups</td>
+<td>Systems</td>
 </tr>
 <tr>
-<td><code>OrgType</code></td>
-<td><strong>Contexts</strong> (type <code>OrgUnit</code>, with hierarchy)</td>
+<td>Orgs</td>
+<td>Contexts, with their hierarchy. Type <code>OrgUnit</code> unless you map it otherwise</td>
 </tr>
 <tr>
-<td><code>RoleType</code></td>
-<td><strong>Resources</strong> (type <code>BusinessRole</code>); role inducements → <code>ResourceRelationships</code> (<code>Contains</code>) — both role-to-role (<code>targetRef</code>) and role-to-AD-group (<code>construction</code>, e.g. birthright bundles)</td>
+<td>Roles</td>
+<td>Resources. Business roles by default; you can classify them by archetype or subtype</td>
 </tr>
 <tr>
-<td><code>ServiceType</code></td>
-<td><strong>Resources</strong> (type <code>Service</code>)</td>
+<td>Role inducements</td>
+<td>What each role contains: other roles and services, and the groups a role grants on a connected system</td>
 </tr>
 <tr>
-<td><code>UserType</code> (persons/focuses)</td>
-<td><strong>Identities</strong> + a focus Principal + <code>IdentityMembers</code></td>
+<td>Services</td>
+<td>Resources of type <code>Service</code></td>
 </tr>
 <tr>
-<td><code>ShadowType</code> <code>kind=account</code></td>
-<td><strong>Principals</strong> (accounts on connected systems)</td>
+<td>Users</td>
+<td>Identities, each with one account for the midPoint user itself</td>
 </tr>
 <tr>
-<td><code>ShadowType</code> <code>kind=entitlement</code></td>
-<td><strong>Resources</strong> (type <code>Entitlement</code>, e.g. AD groups)</td>
+<td>Account shadows</td>
+<td>Accounts on the connected systems, linked to the identity that owns them</td>
 </tr>
 <tr>
-<td>Account → entitlement membership</td>
-<td><strong>ResourceAssignments</strong> (type <code>Direct</code>)</td>
+<td>Entitlement shadows (for example AD groups)</td>
+<td>Resources of type <code>Entitlement</code></td>
 </tr>
 <tr>
-<td><code>user.assignment[]</code> → Role/Service</td>
-<td><strong>ResourceAssignments</strong> (type <code>Direct</code>, <code>governed=true</code>, <code>grant=direct</code>)</td>
+<td>An account's membership of an entitlement</td>
+<td><strong>Direct</strong> assignments</td>
 </tr>
 <tr>
-<td><code>user.roleMembershipRef[]</code> → Role/Service</td>
-<td><strong>ResourceAssignments</strong> (type <code>Direct</code>, <code>governed=true</code>, <code>grant=inherited</code>) — captures birthright / nested / archetype-inherited memberships, not just directly-assigned ones</td>
+<td>A user's assignments to roles and services</td>
+<td><strong>Direct</strong> assignments, marked <strong>governed</strong></td>
 </tr>
 <tr>
-<td><code>user.parentOrgRef[]</code></td>
-<td><strong>ContextMembers</strong> (org unit membership)</td>
+<td>A user's complete role membership as midPoint computed it</td>
+<td><strong>Direct</strong>, <strong>governed</strong> assignments for the roles the user holds without a direct assignment — through role nesting, an archetype or an org</td>
+</tr>
+<tr>
+<td>A user's orgs</td>
+<td>Context members</td>
 </tr>
 <tr>
 <td>Access certification campaigns</td>
-<td><strong>CertificationDecisions</strong></td>
+<td>Review decisions</td>
 </tr>
 </tbody>
 </table>
-<p>midPoint OIDs (UUIDs) are reused directly as <code>id</code>/<code>externalId</code> in Identity Atlas, so every record is traceable back to the source object.</p>
+<p>Every record keeps its midPoint OID, so it can be traced back to the source object. The words used here are explained in the <a href="../../start/glossary/">glossary</a>.</p>
 <hr />
-<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
 <ul>
-<li>midPoint 4.x or 4.9+ (4.9 is recommended; <code>referenceAttributes</code> for AD group memberships requires 4.9)</li>
-<li>A user or service account with REST API access</li>
-<li>Identity Atlas worker container (or standalone PowerShell 7)</li>
+<li><strong>A midPoint installation</strong> whose REST API the Identity Atlas worker can reach.</li>
+<li><strong>A user or service account</strong> that may read through the REST API.</li>
+<li><strong>Group memberships</strong> are read in both forms midPoint uses: the reference attributes introduced in midPoint 4.9, and the associations of earlier versions.</li>
 </ul>
+<p>midPoint usually runs on your own network. Read <a href="#network-access">Network access</a> before you start, or the address will be refused.</p>
 <hr />
-<h2 id="running-a-sync">Running a Sync<a class="headerlink" href="#running-a-sync" title="Permanent link">&para;</a></h2>
-<h3 id="via-the-ui-recommended">Via the UI (recommended)<a class="headerlink" href="#via-the-ui-recommended" title="Permanent link">&para;</a></h3>
+<h2 id="add-the-crawler">Add the crawler<a class="headerlink" href="#add-the-crawler" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Navigate to <strong>Admin → Crawlers</strong></li>
-<li>Click <strong>Add Crawler</strong> and select <strong>midPoint (Evolveum)</strong></li>
-<li>Fill in the connection details (see <a href="#configuration">Configuration</a> below)</li>
-<li>Click <strong>Save</strong> and then <strong>Run now</strong>, or set a schedule</li>
+<li>Go to <strong>Admin → Crawlers</strong> and click <strong>Add Crawler</strong>.</li>
+<li>Pick <strong>midPoint (Evolveum)</strong>.</li>
+<li><strong>Connection.</strong> Enter a <strong>Crawler Name</strong> and the <strong>midPoint Base URL</strong>, tick the <strong>Network access</strong> options you need, and pick the <strong>Authentication Method</strong>.</li>
+<li><strong>Credentials.</strong> Fill in the fields for the method you picked.</li>
+<li><strong>Objects &amp; Mapping.</strong> Leave every object type ticked for a complete picture. Optionally classify roles and map org and user types — the lists are filled from your midPoint server.</li>
+<li><strong>Schedule.</strong> Add a schedule, or leave it empty to run by hand.</li>
+<li>Click <strong>Add Crawler</strong>. The crawler appears as a card. Click <strong>Run Full</strong> to load the data now.</li>
 </ol>
-<h3 id="via-the-command-line">Via the command line<a class="headerlink" href="#via-the-command-line" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">.\</span><span class="n">tools</span><span class="p">\</span><span class="n">crawlers</span><span class="p">\</span><span class="n">midpoint</span><span class="p">\</span><span class="nb">Start-MidpointCrawler</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">-ApiBaseUrl</span> <span class="s2">"http://localhost:3001/api"</span> <span class="p">`</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">-ApiKey</span> <span class="s2">"fgc_abc123..."</span> <span class="p">`</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">-JobId</span> <span class="n">0</span> <span class="p">`</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">-ConfigPath</span> <span class="s2">".\myconfig.json"</span>
-</code></pre></div>
-<p>The <code>ApiKey</code> is the worker API key shown on the <strong>Admin → Settings</strong> page.</p>
 <hr />
-<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<blockquote>
-<p>📖 For a full field-by-field reference with every default value, see
-<strong><a href="../midpoint-crawler-configuration/">midPoint Crawler — Configuration Reference</a></strong>.
-In short: only the connection (base URL + auth) is mandatory; every other field has a
-sensible default and can be left as-is.</p>
-</blockquote>
+<h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
+<h3 id="connection">Connection<a class="headerlink" href="#connection" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Required</th>
-<th>Description</th>
+<th>Wizard label</th>
+<th>Meaning</th>
+<th>Default</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>baseUrl</code></td>
-<td>Yes</td>
-<td>midPoint base URL, e.g. <code>https://midpoint.example.com/midpoint</code> or <code>.../midpoint/ws/rest</code></td>
+<td><strong>Crawler Name</strong></td>
+<td>The name on the crawler's card. Change it when you connect more than one midPoint.</td>
+<td>midPoint (Evolveum)</td>
 </tr>
 <tr>
-<td><code>authMethod</code></td>
-<td>Yes</td>
-<td>One of <code>BasicAuth</code>, <code>ApiToken</code>, <code>OAuth2CC</code>, <code>OAuth2ROPC</code></td>
+<td><strong>midPoint Base URL</strong></td>
+<td>For example <code>https://midpoint.example.com/midpoint</code> or <code>…/midpoint/ws/rest</code>. A bare host also works.</td>
+<td>Empty</td>
 </tr>
 <tr>
-<td><code>username</code></td>
-<td>BasicAuth / OAuth2ROPC</td>
-<td>midPoint username</td>
+<td><strong>Network access</strong></td>
+<td><strong>Allow private network</strong> and <strong>Allow insecure HTTP</strong> — see <a href="#network-access">Network access</a>.</td>
+<td>Both off</td>
 </tr>
 <tr>
-<td><code>password</code></td>
-<td>BasicAuth / OAuth2ROPC</td>
-<td>midPoint password</td>
-</tr>
-<tr>
-<td><code>apiToken</code></td>
-<td>ApiToken</td>
-<td>Static bearer token</td>
-</tr>
-<tr>
-<td><code>clientId</code></td>
-<td>OAuth2CC / OAuth2ROPC</td>
-<td>OAuth2 client ID</td>
-</tr>
-<tr>
-<td><code>clientSecret</code></td>
-<td>OAuth2CC / OAuth2ROPC</td>
-<td>OAuth2 client secret</td>
-</tr>
-<tr>
-<td><code>tokenEndpoint</code></td>
-<td>OAuth2CC / OAuth2ROPC</td>
-<td>OAuth2 token endpoint URL</td>
-</tr>
-<tr>
-<td><code>allowPrivateNetwork</code></td>
-<td>No (default <code>false</code>)</td>
-<td>Allow <code>baseUrl</code> / <code>tokenEndpoint</code> to resolve to a private or loopback address — set this for a server on your own network. See <a href="#network-access">Network access</a></td>
-</tr>
-<tr>
-<td><code>allowInsecureHttp</code></td>
-<td>No (default <code>false</code>)</td>
-<td>Allow plain <code>http</code> for <code>baseUrl</code> / <code>tokenEndpoint</code>. Credentials are then sent unencrypted. See <a href="#network-access">Network access</a></td>
-</tr>
-<tr>
-<td><code>pageSize</code></td>
-<td>No (default 100)</td>
-<td>Number of records per REST page</td>
-</tr>
-<tr>
-<td><code>syncShadows</code></td>
-<td>No (default true)</td>
-<td>Set to <code>false</code> to skip account/entitlement shadow sync</td>
-</tr>
-<tr>
-<td><code>selectedObjects</code></td>
-<td>No</td>
-<td>Object with boolean flags to enable/disable individual sync phases (see below)</td>
+<td><strong>Authentication Method</strong></td>
+<td>How the crawler signs in — see the next table.</td>
+<td>HTTP Basic Auth</td>
 </tr>
 </tbody>
 </table>
+<h3 id="credentials">Credentials<a class="headerlink" href="#credentials" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Authentication Method</th>
+<th>Fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>HTTP Basic Auth</strong></td>
+<td><strong>Username</strong>, <strong>Password</strong></td>
+</tr>
+<tr>
+<td><strong>API Token</strong></td>
+<td><strong>API Token</strong></td>
+</tr>
+<tr>
+<td><strong>OAuth2 Client Credentials</strong></td>
+<td><strong>Token Endpoint URL</strong>, <strong>Client ID</strong>, <strong>Client Secret</strong></td>
+</tr>
+<tr>
+<td><strong>OAuth2 ROPC</strong></td>
+<td><strong>Username</strong>, <strong>Password</strong>, <strong>Token Endpoint URL</strong>, <strong>Client ID</strong>, <strong>Client Secret</strong></td>
+</tr>
+</tbody>
+</table>
+<p>When you edit a crawler, leave a secret field blank to keep the stored value.</p>
 <h3 id="network-access">Network access<a class="headerlink" href="#network-access" title="Permanent link">&para;</a></h3>
-<p>midPoint is usually installed on your own network, often as <code>http://midpoint:8080/midpoint</code>.
-Such a URL is refused until you tick <strong>Allow private network</strong> (the host resolves to a
-private address) and <strong>Allow insecure HTTP</strong> (plain <code>http</code>) on the wizard's Connection step —
-or set <code>allowPrivateNetwork</code> / <code>allowInsecureHttp</code> to <code>true</code> in the stored config. A midPoint
-reachable over public https needs neither. Details and the upgrade note:
-<a href="../../reference/troubleshooting/#crawler-url-rejected">Crawler URL rejected</a>.</p>
-<h3 id="sync-phase-toggles-selectedobjects">Sync phase toggles (<code>selectedObjects</code>)<a class="headerlink" href="#sync-phase-toggles-selectedobjects" title="Permanent link">&para;</a></h3>
-<p>All phases are enabled by default. To disable individual phases:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://midpoint.example.com/midpoint"</span><span class="p">,</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BasicAuth"</span><span class="p">,</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"administrator"</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"password"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">"selectedObjects"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"reviews"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">"roleNesting"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">}</span>
-</code></pre></div>
-<p>Available phase flags: <code>systems</code>, <code>orgs</code>, <code>roles</code>, <code>services</code>, <code>users</code>, <code>shadows</code>, <code>orgMembership</code>, <code>assignments</code>, <code>roleNesting</code>, <code>reviews</code>.</p>
-<h3 id="role-classification-archetypemapping">Role classification (<code>archetypeMapping</code>)<a class="headerlink" href="#role-classification-archetypemapping" title="Permanent link">&para;</a></h3>
-<p>By default every <code>RoleType</code> becomes a <code>BusinessRole</code>. You can override this per <strong>archetype</strong> (matched first) or <strong>subtype</strong> (fallback) — useful when midPoint distinguishes business, application, and technical roles by archetype. A row with both <code>archetype</code> and <code>subtype</code> blank is the catch-all. (This classifier applies to roles only; <code>ServiceType</code> objects are always synced as <code>Service</code>.)</p>
-<p>In the wizard, the archetype and subtype dropdowns are populated <strong>live</strong> from the connected midPoint server.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"archetypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application Role"</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"technical"</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Resource"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BusinessRole"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
-</code></pre></div>
-<p><code>resourceType</code> is one of <code>BusinessRole</code>, <code>Service</code>, <code>Resource</code>, <code>Application</code>, <code>AppRole</code>, <code>Entitlement</code>, <code>DelegatedPermission</code>.</p>
-<h3 id="org-user-type-overrides-typemappings">Org &amp; user type overrides (<code>typeMappings</code>)<a class="headerlink" href="#org-user-type-overrides-typemappings" title="Permanent link">&para;</a></h3>
-<p>Map an <code>OrgType</code> subtype to a context type, or a <code>UserType</code> subtype/<code>employeeType</code> to a principal type. Blank key = catch-all. Defaults reproduce the historical behaviour (org → <code>OrgUnit</code>, user → <code>User</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"typeMappings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">"orgContextTypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"orgSubtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"department"</span><span class="p">,</span><span class="w"> </span><span class="nt">"contextType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Department"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"orgSubtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"contextType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OrgUnit"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="p">],</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">"identityTypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"contractor"</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ExternalUser"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="p">]</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">}</span>
-</code></pre></div>
-<p><code>principalType</code> is one of <code>User</code>, <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>ExternalUser</code>, <code>SharedMailbox</code>.</p>
-<blockquote>
-<p>Leaving <code>archetypeMapping</code> and <code>typeMappings</code> at their defaults (or omitting them) produces exactly the same output as before these options existed.</p>
-</blockquote>
+<p>An address such as <code>http://midpoint:8080/midpoint</code> is refused until you tick <strong>Allow private network</strong> (the host is on your own network) and <strong>Allow insecure HTTP</strong> (plain <code>http</code>) on the Connection step. A midPoint reachable over public https needs neither. The same applies to an OAuth2 token endpoint. What is checked, and what stays blocked whatever you tick: <a href="../../reference/troubleshooting/#crawler-url-rejected">Crawler URL rejected</a>.</p>
+<h3 id="objects-mapping-what-to-read">Objects &amp; Mapping: what to read<a class="headerlink" href="#objects-mapping-what-to-read" title="Permanent link">&para;</a></h3>
+<p>All are on by default. Turn one off only to skip that part of the import.</p>
+<table>
+<thead>
+<tr>
+<th>Wizard label</th>
+<th>What it reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Systems</strong></td>
+<td>Connected resources, as systems</td>
+</tr>
+<tr>
+<td><strong>Orgs</strong></td>
+<td>Orgs, as contexts</td>
+</tr>
+<tr>
+<td><strong>Roles</strong></td>
+<td>Roles, as resources</td>
+</tr>
+<tr>
+<td><strong>Services</strong></td>
+<td>Services, as resources</td>
+</tr>
+<tr>
+<td><strong>Users</strong></td>
+<td>Users, as identities with an account</td>
+</tr>
+<tr>
+<td><strong>Shadows</strong></td>
+<td>Accounts and entitlements on the connected systems, and who is a member of what. The slowest part</td>
+</tr>
+<tr>
+<td><strong>Org membership</strong></td>
+<td>Which user belongs to which org</td>
+</tr>
+<tr>
+<td><strong>Assignments</strong></td>
+<td>Role and service assignments</td>
+</tr>
+<tr>
+<td><strong>Role nesting</strong></td>
+<td>What each role contains</td>
+</tr>
+<tr>
+<td><strong>Reviews</strong></td>
+<td>Certification campaigns and their decisions</td>
+</tr>
+<tr>
+<td><strong>Page size</strong></td>
+<td>Objects per request to midPoint. Default 100</td>
+</tr>
+</tbody>
+</table>
+<p>Turning <strong>Shadows</strong> off makes a run much shorter, but you lose the accounts and group memberships on the connected systems. The groups a role grants are found among those entitlements, so <strong>Role nesting</strong> needs <strong>Shadows</strong> to link a role to its groups.</p>
+<h3 id="objects-mapping-role-classification">Objects &amp; Mapping: role classification<a class="headerlink" href="#objects-mapping-role-classification" title="Permanent link">&para;</a></h3>
+<p><strong>Role classification (archetype → resource type)</strong> decides what kind of resource each midPoint role becomes. By default every role becomes a business role.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Archetype</strong></td>
+<td>The name of a midPoint archetype. The list shows the archetypes on your server that apply to roles. Leave it at <em>(any / catch-all)</em> for a rule on subtype only.</td>
+</tr>
+<tr>
+<td><strong>Subtype (fallback)</strong></td>
+<td>The role's subtype in midPoint, used when no archetype rule matches. The list shows the subtypes found on your roles; you can also type one.</td>
+</tr>
+<tr>
+<td><strong>Identity Atlas type</strong></td>
+<td><code>BusinessRole</code>, <code>Service</code>, <code>Resource</code>, <code>Application</code>, <code>AppRole</code>, <code>Entitlement</code> or <code>DelegatedPermission</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>A role is matched in this order:</p>
+<ol>
+<li>a rule whose <strong>Archetype</strong> is the role's archetype;</li>
+<li>otherwise a rule whose <strong>Subtype</strong> is the role's subtype;</li>
+<li>otherwise the rule with both left blank — the catch-all;</li>
+<li>otherwise it becomes a business role.</li>
+</ol>
+<p>This applies to roles only. midPoint services always become resources of type <code>Service</code>.</p>
+<h3 id="objects-mapping-advanced-type-mappings">Objects &amp; Mapping: advanced type mappings<a class="headerlink" href="#objects-mapping-advanced-type-mappings" title="Permanent link">&para;</a></h3>
+<p>Click <strong>Advanced type mappings (orgs, users)</strong> to open two more tables. Each row has a value from midPoint on the left and the Identity Atlas type it becomes on the right. A row with the left side blank is the catch-all. There is no automatic copy: add one row per value you want to treat differently.</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Left: from midPoint</th>
+<th>Right: in Identity Atlas</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Org → context type</strong></td>
+<td><strong>Org subtype</strong> — pick from the subtypes on your server, or type one</td>
+<td><strong>Context type</strong> — any name you choose, such as <code>Department</code> or <code>Country</code></td>
+<td>Every org → <code>OrgUnit</code></td>
+</tr>
+<tr>
+<td><strong>User → principal type</strong></td>
+<td><strong>User subtype</strong> — the user's subtype or employee type</td>
+<td><strong>Principal type</strong> — <code>User</code>, <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>ExternalUser</code> or <code>SharedMailbox</code></td>
+<td>Every user → <code>User</code></td>
+</tr>
+</tbody>
+</table>
 <hr />
-<h2 id="data-scope">Data Scope<a class="headerlink" href="#data-scope" title="Permanent link">&para;</a></h2>
-<p>Each sync run is <strong>safely scoped</strong>: the crawler only deletes data it owns (matched by <code>systemId</code>). Data from other crawlers (Entra, Omada, CSV) is never touched.</p>
+<h2 id="schedule-and-refresh">Schedule and refresh<a class="headerlink" href="#schedule-and-refresh" title="Permanent link">&para;</a></h2>
+<p>Schedules and the run buttons work as for every crawler: see <a href="../scheduling/">Schedule and run crawlers</a>.</p>
+<p>midPoint is read completely on every run. The difference between the two modes is only what gets removed: a <strong>Full</strong> run removes what midPoint no longer has, a <strong>Delta</strong> run only adds and updates. Schedule a full run daily or weekly.</p>
+<hr />
+<h2 id="what-a-refresh-removes">What a refresh removes<a class="headerlink" href="#what-a-refresh-removes" title="Permanent link">&para;</a></h2>
+<p>A full run removes the accounts, resources, assignments, role contents and contexts that are no longer in midPoint, limited to the systems this crawler loaded. Data from other crawlers is never touched. See <a href="../scheduling/#what-a-full-run-removes">What a full run removes</a>.</p>
+<p>Systems, identities, the links between identities and accounts, context members and review decisions are only added and updated, in both modes.</p>
+<hr />
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Read-only.</strong> Nothing is written back to midPoint.</li>
+<li><strong>Every run reads everything.</strong> midPoint is not asked for changes only.</li>
+<li><strong>Services cannot be reclassified.</strong> They are always type <code>Service</code>.</li>
+<li><strong>Other shadows are skipped.</strong> Only account and entitlement shadows are read.</li>
+</ul>
 <hr />
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<p><strong>midPoint not visible in "Add Crawler"</strong>
-The <code>CRAWLER_MANIFESTS_DIR</code> environment variable on the web container must point to the folder containing the crawler manifests. See <a href="../../architecture/docker-setup/">Docker setup</a>.</p>
-<p><strong>Save, discovery or the job fails with <em>baseUrl rejected</em> or <em>tokenEndpoint rejected</em></strong>
-The URL uses <code>http</code> or resolves to a private, loopback or cloud-metadata address. midPoint usually runs on-premises: enable <strong>Allow private network</strong>, and <strong>Allow insecure HTTP</strong> only if it is served over plain http (e.g. <code>http://midpoint:8080</code>) — see <a href="#network-access">Network access</a>.</p>
-<p><strong>Shadow search returns 500</strong>
-Shadow search requires <code>?options=raw</code>. This is handled automatically by the crawler; if you see 500 errors, check your midPoint version (4.x required).</p>
-<p><strong><code>buildContexts</code> post-sync hook returns 404</strong>
-The <code>refresh-contexts</code> endpoint was renamed in a recent version. This is a non-critical warning — the crawl succeeds and data is correct; org unit contexts are built on the next scheduled context refresh.</p>
-<p><strong>AD group memberships not imported</strong>
-midPoint 4.9+ stores account→group relationships as <code>shadow.referenceAttributes.group[]</code>. Earlier versions use <code>association[]</code>. The crawler reads both forms, but <code>referenceAttributes</code> requires midPoint 4.9+.</p>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause / fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Saving, the Objects &amp; Mapping step or the job says <em>baseUrl rejected</em> or <em>tokenEndpoint rejected</em></td>
+<td>The address uses <code>http</code> or is a private address. Tick <strong>Allow private network</strong>, and <strong>Allow insecure HTTP</strong> only if midPoint has no https — see <a href="#network-access">Network access</a>.</td>
+</tr>
+<tr>
+<td>The Objects &amp; Mapping step says <em>Could not reach midPoint — enter values manually</em></td>
+<td>The wizard could not sign in to midPoint to fill the lists. Check the address and credentials. You can still type archetype and subtype names yourself.</td>
+</tr>
+<tr>
+<td>A role does not show the groups it grants</td>
+<td><strong>Shadows</strong> is off, so the groups were not loaded. Turn it on and run a full run.</td>
+</tr>
+<tr>
+<td>Accounts and group memberships on connected systems are missing</td>
+<td><strong>Shadows</strong> is off.</td>
+</tr>
+<tr>
+<td><strong>midPoint (Evolveum)</strong> is not in the <strong>Add Crawler</strong> list</td>
+<td>See <a href="../scheduling/#a-crawler-type-is-missing-from-add-crawler">A crawler type is missing</a>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="deep-dive">Deep dive<a class="headerlink" href="#deep-dive" title="Permanent link">&para;</a></h2>
+<h3 id="the-settings-as-a-file">The settings as a file<a class="headerlink" href="#the-settings-as-a-file" title="Permanent link">&para;</a></h3>
+<p>You do not type JSON in the wizard. The <strong>Export</strong> button on a crawler's card downloads its settings as a JSON file without its secrets, and <strong>Import</strong> on the Crawlers page loads such a file — handy for copying a crawler to another installation. Its <code>config</code> part looks like this for a crawler with custom role classification, shadows turned off and a daily full run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"baseUrl"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://midpoint.example.com/midpoint"</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">"authMethod"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BasicAuth"</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">"username"</span><span class="p">:</span><span class="w"> </span><span class="s2">"svc-identityatlas"</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">"pageSize"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">"selectedObjects"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"shadows"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">"archetypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application role"</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Application"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"archetype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"subtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BusinessRole"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">"typeMappings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nt">"orgContextTypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"orgSubtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">"department"</span><span class="p">,</span><span class="w"> </span><span class="nt">"contextType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Department"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"orgSubtype"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"contextType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OrgUnit"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="p">],</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">"identityTypeMapping"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"contractor"</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ExternalUser"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">      </span><span class="p">{</span><span class="w"> </span><span class="nt">"userType"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="p">,</span><span class="w"> </span><span class="nt">"principalType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"User"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="p">]</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">  </span><span class="nt">"schedules"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">"syncMode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"full"</span><span class="p">,</span><span class="w"> </span><span class="nt">"frequency"</span><span class="p">:</span><span class="w"> </span><span class="s2">"daily"</span><span class="p">,</span><span class="w"> </span><span class="nt">"hour"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">"minute"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">  </span><span class="p">]</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="further-reading">Further reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../scheduling/">Schedule and run crawlers</a></li>
+<li><a href="../../architecture/crawler-architecture/">Crawler architecture</a></li>
+</ul>
 
 
 
