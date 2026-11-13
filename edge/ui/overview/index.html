@@ -6703,6 +6703,15 @@
 <li><strong>System filter:</strong> restrict to a specific connected system</li>
 <li><strong>Tag management:</strong> same as the Principals (Users) page</li>
 </ul>
+<p><strong>Who owns a resource.</strong> A resource's page names its owner in the header, as a link to
+that person, and offers an <strong>Owners</strong> node on the Relationships tab. The owner is the
+ownership link the source provides (a group's owners in Entra ID, or a SQL statement with
+<strong>Owners from ownerId</strong> ticked); where there is no such link, it is the owner the source
+names on the resource itself (<code>ownerId</code> / <code>ownerName</code>), matched to an account by its key
+or employee number. An owner no account matches is shown by the name the source gives,
+without a link. The same ownership is visible from the other side: a person's
+Relationships tab has an <strong>Owned Resources</strong> node listing what they own (the first 1,000
+by name; the number on the node is the full count).</p>
 <hr />
 <h3 id="filtering-by-references-relationships">Filtering by references (relationships)<a class="headerlink" href="#filtering-by-references-relationships" title="Permanent link">&para;</a></h3>
 <p>The <strong>Add filter</strong> dropdown on the Users and Resources pages lists reference
