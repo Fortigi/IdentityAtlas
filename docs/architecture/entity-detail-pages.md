@@ -6,6 +6,8 @@ outcome: You can take any entity apart: attributes, memberships and how it chang
 
 # Entity Detail Pages
 
+> This page describes how the detail pages are built. To learn how to use them, see **[Reading a detail page](../ui/detail-pages.md)**.
+
 !!! info "Before this page"
     Assumes you have read **[The app at a glance](../ui/overview.md)**.
     Brand new? Start at [The words you need first](../start/glossary.md).
