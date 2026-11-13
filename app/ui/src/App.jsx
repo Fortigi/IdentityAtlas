@@ -5,7 +5,7 @@ import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'r
 // and matrix auto-open effects below can dispatch instead of setState.
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
-import { useHashPage } from './hooks/useHashPage';
+import { useHashPage, currentHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
@@ -198,7 +198,12 @@ export default function App() {
 
   const closeDetailTab = useCallback((type, id) => {
     const tabKey = `${type}:${id}`;
-    const isActive = window.location.hash.replace('#', '') === tabKey;
+    // Compare against the decoded page key, the same reader the rest of the
+    // shell uses. The raw hash keeps characters the browser percent-encodes in
+    // the fragment ('#department:Human%20Resources'), while the tab key is the
+    // decoded form — comparing the two made closing the tab you were looking
+    // at skip the navigation back (#1601).
+    const isActive = currentHashPage() === tabKey;
     setDetailTabs(prev => {
       const idx = prev.findIndex(t => `${t.type}:${t.id}` === tabKey);
       const closing = prev[idx];
