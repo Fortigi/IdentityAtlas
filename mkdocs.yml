@@ -198,7 +198,7 @@ nav:
           - Authorization Workbench (M1 design): architecture/m1-discovery-and-design.md
           - Authorization Workbench (M1 brief): architecture/m1-brief.md
           - Crawler Architecture: architecture/crawler-architecture.md
-          - SQL Connector Delta Loading: architecture/sql-connector-delta.md
+          - SQL Connector Internals: architecture/sql-connector-internals.md
           - Reports: architecture/reports.md
           - Custom Reports Internals: architecture/custom-reports.md
           - Context Assistant Internals: architecture/context-assistant.md
