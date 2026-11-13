@@ -1,0 +1,1 @@
+- Updated the September 2026 security assessment page: the 48 findings whose fixes have merged now show as fixed, with the merge date of each remediation pull request.
