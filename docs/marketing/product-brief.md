@@ -54,4 +54,4 @@ is ever sent to an external service.
 > source, runs in Docker, one-click into Azure.
 
 *Sources: [README](https://github.com/Fortigi/IdentityAtlas), [docs home](../index.md),
-[supported systems](../index.md#supported-source-systems).*
+[supported systems](../index.md#what-connects-to-what).*

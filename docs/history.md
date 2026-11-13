@@ -75,7 +75,7 @@ The v5 rewrite was executed in a single ~2-week feature branch (`feature/univers
 
 - **Full-text LLM integration.** Phase 1 of what was previously "call-LLM-via-PowerShell" — a provider abstraction, the secrets vault, a conversational profile refinement wizard, and the first two layers of the scoring engine ported to JavaScript. The risk-scoring PowerShell functions in `tools/riskscoring/` were retired; the directory contains stubs so the module loader doesn't fail, but all real logic moved to `app/api/src/riskscoring/`.
 
-- **Automated nightly review.** A new `Run-NightlyAndReview.ps1` wrapper runs the existing nightly suite and, only when something fails, invokes Claude (via the Claude Code CLI in fix-it mode, or via the Anthropic API in analysis-only mode) to investigate and propose or apply fixes. All-green runs cost zero LLM tokens.
+- **Automated nightly review.** The nightly suite (`test/nightly/Run-NightlyLocal.ps1`) gained a review step: only when something fails, Claude investigates and proposes or applies fixes. All-green runs cost zero LLM tokens. The review runs as a scheduled Claude Code session using `test/nightly/scheduled-review-prompt.md`.
 
 - **The product was renamed.** "FortigiGraph" made sense for a PowerShell wrapper around Microsoft Graph. It made less sense for a full identity-governance platform that also imports CSV data from SAP, Omada, ServiceNow, etc. The rename to **Identity Atlas** happened alongside the postgres migration — the project root stays at `FortigiGraph/` for one more development cycle to avoid breaking existing clones.
 
