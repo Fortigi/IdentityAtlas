@@ -149,7 +149,7 @@ function Resolve-SqlQuerySlot {
         # (an ownership resource + HasOwnership + a Direct assignment) instead of
         # leaving it as an attribute. Off by default and on no other target: it
         # costs three rows per owned resource, which is a decision an operator
-        # takes per statement — docs/sync/mssql.md -> "What owners cost".
+        # takes per statement — docs/sync/mssql.md -> "Owners".
         ownership        = ($target -eq 'resources' -and [bool]$Slot.ownership)
         assignmentType   = $assignmentType
         governed         = [bool]$Slot.governed
@@ -300,7 +300,7 @@ function Get-SqlConnectionString {
     # then never read, silently. A replica is only safe once the overlap
     # (watermarkOverlapSeconds) exceeds the worst replica lag, which is a
     # deployment decision somebody has to take rather than one this line should
-    # take for them. See docs/architecture/sql-connector-delta.md.
+    # take for them. See docs/architecture/sql-connector-internals.md.
     return $b.ConnectionString
 }
 

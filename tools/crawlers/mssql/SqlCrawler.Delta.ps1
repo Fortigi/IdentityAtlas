@@ -25,7 +25,7 @@
 
     Timestamps are epoch MILLISECONDS written by the application — `numeric`
     columns holding 13-digit values, confirmed against the production source
-    (assumption A1 in docs/architecture/sql-connector-delta.md). `@Since` is
+    (see docs/architecture/sql-connector-internals.md). `@Since` is
     therefore bound as a bigint. A statement whose watermark column does not
     convert to one is reported and its token is NOT written, so it keeps reading
     in full rather than advancing a mark it cannot compare.

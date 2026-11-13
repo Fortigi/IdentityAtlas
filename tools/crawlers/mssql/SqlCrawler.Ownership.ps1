@@ -31,7 +31,7 @@
 
       * It does not run unless the slot asks for it (`ownership: true`). Three
         extra rows per owned resource is not free at the sizes this crawler is
-        built for — see docs/sync/mssql.md -> "What owners cost".
+        built for — see docs/sync/mssql.md -> "Owners".
       * It does not invent an owner. A value matching no account this run read
         emits nothing, and is counted and reported by value, so "the owner
         column resolves for almost nothing" is visible rather than silent.
@@ -233,7 +233,7 @@ function ConvertTo-SqlOwnershipRecords {
 # resources statement therefore leaves all three windowed, and none of them may
 # be reconciled — reconciling them would remove the owner links of every resource
 # outside this run's window. See "Reconcile follows completeness" in
-# docs/architecture/sql-connector-delta.md.
+# docs/architecture/sql-connector-internals.md.
 function New-SqlOwnershipStreams {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [hashtable]$State, [bool]$Complete = $true)
