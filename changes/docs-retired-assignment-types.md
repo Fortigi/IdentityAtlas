@@ -1,0 +1,1 @@
+- Documentation: the matrix architecture, scope statistics, style guide, SQL views and API reference pages now describe only the three assignment types (Direct, Indirect, Eligible), with ownership as its own resource and governance as a flag, and use "governed / non-governed" and "business-role columns" wording throughout.

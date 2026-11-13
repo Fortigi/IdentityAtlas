@@ -24,7 +24,7 @@ Rationale: green is who we *are* (it echoes the logo); blue is what you *click*.
 | Info | `bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300` |
 
 ### Domain palettes (don't re-invent — import these)
-- `utils/colors.js` — `TYPE_COLORS` (membership-type badges D/I/E/O/G/A/R), `AP_COLORS`/`AP_COLORS_DARK` + `getAccessPackageColor`, `TAG_COLORS`.
+- `utils/colors.js` — `TYPE_COLORS` (membership-type badges D/I/E), `AP_COLORS`/`AP_COLORS_DARK` + `getAccessPackageColor`, `TAG_COLORS`.
 - `utils/tierStyles.js` — risk-tier styles (the reference for a complete light+dark token set).
 - `utils/accessPackageStyles.js` — assignment-policy badges.
 - `utils/contextStyles.js` — context variant/target badges.
@@ -71,7 +71,7 @@ Use the left column in all user-facing text. Banned terms are enforced by `local
 | **Context** | "OU" / "Org Unit" | Contexts replaced OrgUnits in v6 |
 | **Users** | bare "Principal" in UI chrome | "Principal" is the data-model term; gloss it when shown |
 | **Resource** | "Group" (in icons/types) | Groups are one kind of resource |
-| Membership types | unlabelled letters | D Direct · I Indirect · E Eligible · O Owner · G Governed · A OAuth2 · R App-role (always provide the matrix legend) |
+| Membership types | unlabelled letters | D Direct · I Indirect · E Eligible — the only three (always provide the matrix legend). Ownership is a D on its own ownership row; governed access shows as the business role's colour, not a letter |
 
 ## 6. Typography & spacing
 
