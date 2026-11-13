@@ -4806,6 +4806,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#merge-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merge queue
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -6426,6 +6437,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#merge-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merge queue
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -7186,6 +7208,34 @@
 <li>[ ] Force-pushed or rebased branches run CI (commit-range skip does not false-negative on non-ancestor <code>before</code> SHA)</li>
 <li>[ ] CI produces informative step summary when jobs are skipped (housekeeping message) or fail (per-job failure list)</li>
 </ul>
+<h2 id="merge-queue">Merge queue<a class="headerlink" href="#merge-queue" title="Permanent link">&para;</a></h2>
+<p><code>main</code> merges through a GitHub merge queue. Approval adds a PR to the queue; the queue builds the PR on top of the <strong>current</strong> <code>main</code> and runs the required checks on that merge commit (<code>merge_group</code> event) before it lands.</p>
+<p><strong>Why:</strong> a PR's own green run can be stale. #1493 passed ESLint on 27 Oct; #1554 enabled <code>@eslint/js</code> recommended on 9 Nov; #1493 merged on 10 Nov and <code>main</code> went red for every UI PR. Neither PR was wrong alone.</p>
+<p><strong>What runs in the queue</strong> (decided 2026-11-10):</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>In the queue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pr.yml</code> (PR Checks)</td>
+<td>Everything. <code>filter</code> marks every scope changed — the point is what changed on <code>main</code>, which the PR's path filter can't see. <code>PR Hygiene</code> is skipped: it judges the PR's own diff and labels, which already passed.</td>
+</tr>
+<tr>
+<td><code>pr-integration.yml</code></td>
+<td>Nothing but the gate. <code>changes</code> reports no product changes, so the suites skip and <code>Integration CI Passed</code> passes. They ran on the PR.</td>
+</tr>
+<tr>
+<td><code>codeql.yml</code></td>
+<td>Runs — the ruleset's <code>code_scanning</code> rule needs a result for the merge commit.</td>
+</tr>
+</tbody>
+</table>
+<p><code>test/ci-scripts/test-gate-wiring.sh</code> (section 5) fails if a workflow behind a required check loses its <code>merge_group</code> trigger; without it the queue waits for a check that never reports.</p>
+<p><strong>Rollout order:</strong> merge the <code>merge_group</code> triggers first (inert until the queue exists), then enable "Require merge queue" on the <code>Protect main branch</code> ruleset. The reverse order stalls every queued PR.</p>
 
 
 

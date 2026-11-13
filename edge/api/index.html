@@ -6306,12 +6306,12 @@
 <tr>
 <td><code>TRUST_PROXY_HOPS</code></td>
 <td>No</td>
-<td>Number of reverse proxies in front of the container whose <code>X-Forwarded-For</code> is trusted to identify the client (used for rate limiting and audit logs). Defaults to <code>1</code> when <code>BEHIND_TLS=true</code> or <code>TRUST_PROXY=true</code>, otherwise <code>0</code> (the connection address is the client). Set it to the real hop count, e.g. <code>2</code> for Front Door in front of App Service; set <code>0</code> to turn it off.</td>
+<td>Number of reverse proxies in front of the container whose <code>X-Forwarded-For</code> is trusted to identify the client (used for rate limiting and audit logs). Defaults to <code>1</code> when <code>BEHIND_TLS=true</code> or <code>TRUST_PROXY=true</code>, otherwise <code>0</code> (the connection address is the client). Set it to the real hop count, e.g. <code>2</code> for Front Door in front of App Service; set <code>0</code> to turn it off. When requests arrive with <code>X-Forwarded-For</code> while no proxy is trusted, the API logs a warning once and does not apply the pre-sign-in failure limit to them, because every client behind that proxy shares one address.</td>
 </tr>
 <tr>
 <td><code>PUBLIC_BASE_URL</code></td>
-<td>No</td>
-<td>Authoritative public URL of the deployment (e.g. <code>https://atlas.example.com</code>). When set, the Excel workbook export embeds this instead of deriving the URL from request headers. <strong>Recommended for any deployment reached through a proxy, tunnel, or Azure</strong> — it removes any dependency on (spoofable) <code>Host</code>/<code>X-Forwarded-*</code> headers.</td>
+<td>No (required for MCP)</td>
+<td>Authoritative public URL of the deployment (e.g. <code>https://atlas.example.com</code>). When set, the Excel workbook export embeds this instead of deriving the URL from request headers. <strong>The MCP server needs it</strong>: the address AI assistants sign in for is taken from this setting only, never from the request, so without it <code>/mcp</code> answers <code>503</code> and Admin → Experimental says what to set. A value that is not a plain <code>http(s)://</code> URL (or that holds credentials, a query or a fragment) counts as unset. <strong>Recommended for any deployment reached through a proxy, tunnel, or Azure</strong> — it removes any dependency on (spoofable) <code>Host</code>/<code>X-Forwarded-*</code> headers.</td>
 </tr>
 <tr>
 <td><code>TRUST_PROXY</code></td>

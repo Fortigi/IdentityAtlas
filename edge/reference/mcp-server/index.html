@@ -6403,7 +6403,7 @@ Experimental</strong>.</p>
 </tr>
 <tr>
 <td><strong><code>PUBLIC_BASE_URL</code></strong> set to that address</td>
-<td>The server tells the assistant where to sign in and which resource to ask for, built from this address. Behind a reverse proxy, set it (or <code>TRUST_PROXY</code>) so the address is the public one.</td>
+<td><strong>Required.</strong> The server tells the assistant where to sign in and which resource to ask for, and accepts only tokens issued for this address. It never takes the address from the request, so without this setting <code>/mcp</code> answers <code>503</code> and the <strong>MCP server</strong> card says what to set. With Docker Compose, put it in the <code>.env</code> file next to <code>docker-compose.prod.yml</code>.</td>
 </tr>
 <tr>
 <td><strong>Sign-in on, the feature on, the permission on a role</strong></td>
@@ -6716,6 +6716,10 @@ app's own tokens (scope <code>access</code>) and app-only tokens are refused, be
 <tr>
 <td>The assistant has no <code>run_query</code></td>
 <td>The user's role lacks <strong>Ask questions in plain language</strong>.</td>
+</tr>
+<tr>
+<td><code>503</code> with "PUBLIC_BASE_URL is not set"</td>
+<td>The feature is on but the public address is not configured. Set <code>PUBLIC_BASE_URL</code> and restart the web container.</td>
 </tr>
 <tr>
 <td><code>401 invalid_token</code></td>
