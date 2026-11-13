@@ -6173,7 +6173,7 @@
 <p>This page is the <strong>public, sanitised record</strong> of that review: scope, method, every finding with its severity and remediation pull request, the regression check against June, and the controls that were confirmed sound. Step-by-step exploit detail is deliberately left out. The code changes in the linked pull requests are the technical reference.</p>
 <div class="admonition info">
 <p class="admonition-title">Why we publish this</p>
-<p>A governance product should be transparent about its own security. Every finding that calls for a code change has a remediation pull request open against <code>main</code>. The remaining four are accepted or tracked separately. The status column is reconciled on <code>main</code> after those pull requests merge.</p>
+<p>A governance product should be transparent about its own security. Of the 53 findings, 48 are fixed by pull requests merged to <code>main</code>, one is partially addressed, two are accepted or by design, and two are planned. The status column is reconciled on <code>main</code> after pull requests merge.</p>
 </div>
 <hr />
 <h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
@@ -6272,7 +6272,7 @@
 <blockquote>
 <p><strong>Maintenance note — do not edit the status cells on a feature or bugfix branch.</strong> As with the <a href="../assessment/">June assessment</a>, statuses are reconciled in a single pass on <code>main</code> after pull requests merge, so branches do not conflict on the same rows.</p>
 </blockquote>
-<p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🔍 <strong>Fix in review</strong> (pull request open) · 🟦 <strong>By design / accepted</strong> · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Planned</strong>.</p>
+<p>Status legend: ✅ <strong>Fixed</strong> (merged) · 🟦 <strong>By design / accepted</strong> · 🟨 <strong>Partially addressed</strong> · 🔧 <strong>Planned</strong>.</p>
 <h3 id="critical">Critical<a class="headerlink" href="#critical" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -6289,7 +6289,7 @@
 <td>C-01</td>
 <td>Ingest</td>
 <td>A crawler credential could remove every connected system, and all data beneath it, through the system-registration endpoint. One shipped crawler exercised the same code path during normal runs.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1200">#1200</a></td>
 </tr>
 </tbody>
@@ -6310,49 +6310,49 @@
 <td>H-01</td>
 <td>Vault</td>
 <td>The LLM administrator role could resolve any stored secret, not only scraper credentials, and delete any secret.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>H-02</td>
 <td>Vault / worker</td>
 <td>The crawler administrator role could bind another crawler configuration's stored client secret to a job pointing at an arbitrary endpoint.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>H-03</td>
 <td>SSRF</td>
 <td>The outbound URL guard did not recognise IPv4 addresses written in IPv6 notation, allowing requests to internal and metadata addresses.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1198">#1198</a></td>
 </tr>
 <tr>
 <td>H-04</td>
 <td>Ingest</td>
 <td>A crawler scoped to one system could overwrite, soft-delete or forge records belonging to other systems, and could set fields reserved for the server and analysts.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1200">#1200</a></td>
 </tr>
 <tr>
 <td>H-05</td>
 <td>CI automation</td>
 <td>Automated build agents ran with shell access on self-hosted runners, held repository credentials, and received every comment on a public issue as input.</td>
-<td>🔍 Fix in review · runner isolation and branch-ruleset changes are manual follow-ups</td>
+<td>✅ Fixed · runner isolation and branch-ruleset changes are manual follow-ups</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1194">#1194</a></td>
 </tr>
 <tr>
 <td>H-06</td>
 <td>Azure</td>
 <td>The Azure template derived the database administrator password from non-secret deployment identifiers, and the database accepted connections from all Azure address space.</td>
-<td>🔍 Fix in review · Entra ID database sign-in deferred</td>
+<td>✅ Fixed · Entra ID database sign-in deferred</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1197">#1197</a></td>
 </tr>
 <tr>
 <td>H-07</td>
 <td>Web (auth off)</td>
 <td>With authentication off, a web page visited by the operator could trigger destructive administrative actions, and DNS rebinding could read data.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 </tbody>
@@ -6373,98 +6373,98 @@
 <td>M-01</td>
 <td>Authorization</td>
 <td>The read-token restriction on administrative paths was bypassable through path casing, and several administrative read endpoints had no permission gate.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>M-02</td>
 <td>Vault / SSRF</td>
 <td>Connector credentials followed an endpoint change without re-entry, and connection tests followed redirects and posted credentials to an unvalidated token endpoint.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/1198">#1198</a></td>
 </tr>
 <tr>
 <td>M-03</td>
 <td>Worker</td>
 <td>Crawler base and token URLs were not validated on the worker side.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1198">#1198</a></td>
 </tr>
 <tr>
 <td>M-04</td>
 <td>Availability</td>
 <td>Unauthenticated requests could force large body parsing and repeated key hashing before crawler authentication completed.</td>
-<td>🔍 Fix in review · longer key prefix deferred</td>
+<td>✅ Fixed · longer key prefix deferred</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>M-05</td>
 <td>Ingest</td>
 <td>Several crawler endpoints were unscoped: tenant-wide re-classification and view refresh, the default matrix filter, the sync log, a presence lookup, and job progress.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1200">#1200</a></td>
 </tr>
 <tr>
 <td>M-06</td>
 <td>Authorization</td>
 <td>The crawler administrator role could create a crawler credential with worker-level permissions, and the built-in worker was identified only by its display name.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>M-07</td>
 <td>Availability</td>
 <td>Crawler ingest sessions could exhaust the database connection pool.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1200">#1200</a></td>
 </tr>
 <tr>
 <td>M-08</td>
 <td>Deployment</td>
 <td>The vault master key was stored on a volume shared with the worker, which ran as root.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1197">#1197</a></td>
 </tr>
 <tr>
 <td>M-09</td>
 <td>Availability</td>
 <td>Rate limits were keyed on the client address without proxy awareness, so all users behind a reverse proxy shared one limit.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>M-10</td>
 <td>Vault</td>
 <td>Some connector credential types were stored in plaintext at configuration level.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>M-11</td>
 <td>Worker</td>
 <td>A failed upstream fetch in one crawler could be reported as an empty result, removing that system's group memberships.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
 <td>M-12</td>
 <td>SSRF</td>
 <td>A context-plugin feed URL was fetched without the SSRF guard or a size limit.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1198">#1198</a></td>
 </tr>
 <tr>
 <td>M-13</td>
 <td>UI</td>
 <td>Spreadsheet formula neutralisation was missing in one newer CSV exporter. This is a regression of June finding M-05.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>M-14</td>
 <td>Deployment</td>
 <td>Containers lacked privilege and resource restrictions, images were not digest-pinned, and builds carried no provenance.</td>
-<td>🔍 Fix in review · read-only root filesystems deferred</td>
+<td>✅ Fixed · read-only root filesystems deferred</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1197">#1197</a></td>
 </tr>
 </tbody>
@@ -6485,133 +6485,133 @@
 <td>L-01</td>
 <td>Authorization</td>
 <td>The role-mapping self-lockout guard was skipped for full administrators.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>L-02</td>
 <td>Information disclosure</td>
 <td>Performance metrics exposed other users' request URLs.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>L-03</td>
 <td>Availability</td>
 <td>Signing-key lookups had no request rate limit.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>L-04</td>
 <td>Vault</td>
 <td>Encrypted secrets were not cryptographically bound to their record.</td>
-<td>🔍 Fix in review · ciphertext from before the upgrade remains transplantable</td>
+<td>✅ Fixed · ciphertext from before the upgrade remains transplantable</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>L-05</td>
 <td>Vault</td>
 <td>There was no master-key rotation tool, and the documented workaround printed secrets.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>L-06</td>
 <td>Portable build</td>
 <td>Job credentials were passed on the worker process command line.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
 <td>L-07</td>
 <td>Worker</td>
 <td>A client secret temp file was not removed when a crawler run failed.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
 <td>L-08</td>
 <td>Worker</td>
 <td>Credential state persisted between jobs in the worker process.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
 <td>L-09</td>
 <td>Worker</td>
 <td>A dormant scheduler path evaluated command strings. This is a carry-over from June.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
 <td>L-10</td>
 <td>Worker</td>
 <td>No test guarded against secrets being written to job transcripts.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
 <td>L-11</td>
 <td>Availability</td>
 <td>Concurrent risk-scoring runs and LLM generation were not throttled.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>L-12</td>
 <td>Integrity</td>
 <td>The update-intent record accepted an unvalidated version string.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>L-13</td>
 <td>Availability</td>
 <td>File uploads had no per-configuration quota on a shared volume. The 1 GB per-file limit is intentional.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>L-14</td>
 <td>Query hygiene</td>
 <td>Search inputs did not escape <code>LIKE</code> wildcards.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>L-15</td>
 <td>Robustness</td>
 <td>Prototype property names in sort and lookup parameters caused server errors.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>L-16</td>
 <td>Availability</td>
 <td>Unbounded extended-attribute key counts made column discovery expensive.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1200">#1200</a></td>
 </tr>
 <tr>
 <td>L-17</td>
 <td>Web</td>
 <td>The Content-Security-Policy allowed a Microsoft Graph origin that the browser never uses.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>L-18</td>
 <td>UI</td>
 <td>Imported link attributes were labelled as Entra ID links regardless of host.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 </tr>
 <tr>
 <td>L-19</td>
 <td>Azure / CI</td>
 <td>Key Vault, Storage and App Service defaulted to public network access. One unused workflow was not SHA-pinned, and two workflows declared no token permissions.</td>
-<td>🟨 Partially addressed (in review) · Key Vault and Storage stay publicly reachable outside private-network mode</td>
+<td>🟨 Partially addressed · Key Vault and Storage stay publicly reachable outside private-network mode</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1194">#1194</a>, <a href="https://github.com/Fortigi/IdentityAtlas/pull/1197">#1197</a></td>
 </tr>
 </tbody>
@@ -6630,31 +6630,31 @@
 <tr>
 <td>I-01</td>
 <td>Dependency hygiene: a moderate advisory in a transitive dependency that is not reachable, a vestigial install hook, and an unused package.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1194">#1194</a></td>
 </tr>
 <tr>
 <td>I-02</td>
 <td>Build tooling leftovers, covered together with I-01.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1194">#1194</a></td>
 </tr>
 <tr>
 <td>I-03</td>
 <td>Crawler keys were held unhashed as in-memory cache keys.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 </tr>
 <tr>
 <td>I-04</td>
 <td>Secrets were passed to containers as plain environment variables.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1197">#1197</a></td>
 </tr>
 <tr>
 <td>I-05</td>
 <td>One connection-test handler returned internal error text.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1198">#1198</a></td>
 </tr>
 <tr>
@@ -6672,7 +6672,7 @@
 <tr>
 <td>I-08</td>
 <td>Three recursive queries relied on a write-time cycle check alone.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
@@ -6684,13 +6684,13 @@
 <tr>
 <td>I-10</td>
 <td>Usage text contained real-looking GUIDs.</td>
-<td>🔍 Fix in review</td>
+<td>✅ Fixed</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 </tr>
 <tr>
 <td>I-11</td>
 <td>Minor worker configuration inconsistencies.</td>
-<td>🔍 Fix in review · one sub-item did not reproduce</td>
+<td>✅ Fixed · one sub-item did not reproduce</td>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 </tr>
 <tr>
@@ -6709,6 +6709,7 @@
 <th>PR</th>
 <th>Scope</th>
 <th>Findings</th>
+<th>Merged</th>
 </tr>
 </thead>
 <tbody>
@@ -6716,41 +6717,49 @@
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1200">#1200</a></td>
 <td>Enforce the per-system boundary on crawler ingest</td>
 <td>C-01, H-04, M-05, M-07, L-16</td>
+<td>16 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1196">#1196</a></td>
 <td>Close vault read paths and harden crawler credential custody</td>
 <td>H-01, H-02, M-02, M-06, M-10, L-04, L-05, I-03</td>
+<td>15 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1198">#1198</a></td>
 <td>Close SSRF guard bypasses and validate worker-side URLs</td>
 <td>H-03, M-02, M-03, M-12, I-05</td>
+<td>14 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1193">#1193</a></td>
 <td>Structural read-token guard, gate administrative reads, query hygiene</td>
 <td>M-01, L-01, L-02, L-03, L-12, L-14, L-15, I-08, I-10</td>
+<td>14 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1199">#1199</a></td>
 <td>Request-layer hardening, exporter and CSP fixes</td>
 <td>H-07, M-04, M-09, M-13, L-11, L-13, L-17, L-18</td>
+<td>16 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1194">#1194</a></td>
 <td>Sandbox automated build agents, CI permissions, dependency tidy-up</td>
 <td>H-05, L-19, I-01, I-02</td>
+<td>14 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1197">#1197</a></td>
 <td>Azure credentials and networking, master key isolation, container hardening</td>
 <td>H-06, M-08, M-14, L-19, I-04</td>
+<td>16 Sep 2026</td>
 </tr>
 <tr>
 <td><a href="https://github.com/Fortigi/IdentityAtlas/pull/1195">#1195</a></td>
 <td>Worker and crawler fail-safes and credential hygiene</td>
 <td>M-11, L-06, L-07, L-08, L-09, L-10, I-11</td>
+<td>14 Sep 2026</td>
 </tr>
 </tbody>
 </table>
