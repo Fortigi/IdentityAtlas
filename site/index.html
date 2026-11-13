@@ -105,6 +105,16 @@
     @media (prefers-reduced-motion: no-preference) { .hero-art img { animation: float 7s ease-in-out infinite; } }
     @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 
+    /* ── Product screenshots (light + dark variant of each; the theme picks one) ── */
+    .shot { display: block; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border-strong); box-shadow: var(--shadow-lg); background: var(--bg-elev); }
+    .shot.dark-only, html.dark .shot.light-only { display: none; }
+    html.dark .shot.dark-only { display: block; }
+    .shot img { display: block; width: 100%; height: auto; }
+    figure.shot-fig { margin: 0; }
+    .shot-fig figcaption { margin-top: 12px; font-size: .9rem; color: var(--fg-subtle); text-align: center; }
+    figure.hero-shot { position: relative; z-index: 1; margin-top: 56px; }
+    .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 26px; }
+
     /* ── Watch (explainer video) ───────────────────────────── */
     .watch .sec-head { max-width: 640px; margin: 0 auto 32px; text-align: center; }
     .video-frame {
@@ -208,6 +218,7 @@
     .cta-band h2 { font-size: clamp(1.8rem, 3.4vw, 2.5rem); font-weight: 800; }
     .cta-band p { margin: 16px auto 0; max-width: 52ch; color: var(--fg-muted); font-size: 1.08rem; }
     .cta-band .hero-cta { justify-content: center; }
+    .cta-band .contact { margin-top: 30px; font-size: 1rem; }
 
     /* ── Footer ────────────────────────────────────────────── */
     footer.ft { border-top: 1px solid var(--border); background: var(--bg-soft); padding: 56px 0 40px; }
@@ -231,7 +242,7 @@
       .hero-inner { grid-template-columns: 1fr; }
       .hero-art { order: -1; }
       .hero-art img { width: 200px; }
-      .g-3, .channels, .trust-grid, .runs, .promises, .ft-top { grid-template-columns: 1fr; }
+      .g-3, .channels, .trust-grid, .runs, .promises, .shots, .ft-top { grid-template-columns: 1fr; }
       .g-2 { grid-template-columns: 1fr; }
     }
     @media (max-width: 720px) {
@@ -266,6 +277,7 @@
         <a class="nlink" href="#how">How to start</a>
         <a class="nlink" href="#trust">Trust</a>
         <a class="nlink" href="/demo/">Live demo</a>
+        <a class="nlink" href="#contact">Contact</a>
         <a class="nlink" href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener">Docs ↗</a>
         <div class="nav-cta">
           <a class="icon-btn" href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener" aria-label="View source on GitHub" title="GitHub">
@@ -315,6 +327,13 @@
           <div class="glow" aria-hidden="true"></div>
           <img src="assets/mark.png" alt="Identity Atlas logo — a shield woven into a neural network" width="360" height="360" />
         </div>
+      </div>
+      <div class="wrap">
+        <figure class="shot-fig hero-shot">
+            <a class="shot light-only" href="assets/screenshot-matrix-light.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-matrix-light.webp" alt="The Identity Atlas access matrix: resources as rows, users grouped by department as columns, and a badge in each cell showing whether the access is direct, indirect or eligible" width="1980" height="1146" loading="lazy" decoding="async" /></a>
+            <a class="shot dark-only" href="assets/screenshot-matrix-dark.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-matrix-dark.webp" alt="The Identity Atlas access matrix: resources as rows, users grouped by department as columns, and a badge in each cell showing whether the access is direct, indirect or eligible" width="1980" height="1146" loading="lazy" decoding="async" /></a>
+          <figcaption>The access matrix, shown on the synthetic demo dataset. <a href="/demo/">Explore it in the live demo</a>.</figcaption>
+        </figure>
       </div>
     </section>
 
@@ -428,7 +447,7 @@
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
             <h3>Visual access review</h3>
-            <p>Explore access by user, role, resource or system. See how each permission was granted — directly, through a group, as an owner, through PIM eligibility, through governance or through an application role. Designed for the way analysts, support teams and resource owners investigate access.</p>
+            <p>Explore access by user, role, resource or system. See how each permission is held — directly, indirectly through a group, or as a PIM-eligible assignment — and whether it is governed by a business role. Designed for the way analysts, support teams and resource owners investigate access.</p>
           </div>
           <div class="card reveal">
             <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/><path d="M12 2a10 10 0 0 0-3 19.5"/></svg></div>
@@ -440,6 +459,24 @@
             <h3>Multi-system and open</h3>
             <p>Connect out of the box to Entra ID, Azure RBAC, Omada and midPoint through dedicated crawlers. SailPoint data can be imported through CSV. Identity Atlas is MIT-licensed and runs in your own environment.</p>
           </div>
+        </div>
+
+        <div class="shots">
+          <figure class="shot-fig reveal">
+            <a class="shot light-only" href="assets/screenshot-user-light.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-user-light.webp" alt="A user detail page with a relationship graph: the user in the centre, linked to counts of direct, indirect and eligible access, business roles, contexts, identity and manager" width="1500" height="1125" loading="lazy" decoding="async" /></a>
+            <a class="shot dark-only" href="assets/screenshot-user-dark.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-user-dark.webp" alt="A user detail page with a relationship graph: the user in the centre, linked to counts of direct, indirect and eligible access, business roles, contexts, identity and manager" width="1500" height="1125" loading="lazy" decoding="async" /></a>
+            <figcaption>Every user, resource and business role has a detail page with its relationships and history.</figcaption>
+          </figure>
+          <figure class="shot-fig reveal">
+            <a class="shot light-only" href="assets/screenshot-report-light.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-report-light.webp" alt="The Access Outside Roles report: a table of accounts with direct assignments on resources that a business role also grants" width="1500" height="1125" loading="lazy" decoding="async" /></a>
+            <a class="shot dark-only" href="assets/screenshot-report-dark.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-report-dark.webp" alt="The Access Outside Roles report: a table of accounts with direct assignments on resources that a business role also grants" width="1500" height="1125" loading="lazy" decoding="async" /></a>
+            <figcaption>Standard reports answer recurring questions and download as Excel.</figcaption>
+          </figure>
+          <figure class="shot-fig reveal">
+            <a class="shot light-only" href="assets/screenshot-wizard-light.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-wizard-light.webp" alt="The Add Crawler wizard listing source types such as Azure Resource Manager, CSV Import, Custom Connector, Demo Data, Microsoft Graph, midPoint, SQL Database and Omada IGA" width="1500" height="1125" loading="lazy" decoding="async" /></a>
+            <a class="shot dark-only" href="assets/screenshot-wizard-dark.webp" target="_blank" rel="noopener" aria-label="Open the full-size screenshot"><img src="assets/screenshot-wizard-dark.webp" alt="The Add Crawler wizard listing source types such as Azure Resource Manager, CSV Import, Custom Connector, Demo Data, Microsoft Graph, midPoint, SQL Database and Omada IGA" width="1500" height="1125" loading="lazy" decoding="async" /></a>
+            <figcaption>Connect a source in the browser: pick a crawler type and follow the wizard.</figcaption>
+          </figure>
         </div>
 
         <div class="sec-head reveal" style="margin-top:56px; margin-bottom:24px;">
@@ -523,8 +560,8 @@
 <span class="tok-c"># Start Identity Atlas</span>
 <span class="tok-cmd">docker</span> compose <span class="tok-flag">-f</span> docker-compose.prod.yml up <span class="tok-flag">-d</span> <span class="tok-flag">--pull</span> always
 
-<span class="tok-c"># Open Identity Atlas and add your first crawler</span>
-<span class="tok-c"># http://localhost:3001 → Admin → Crawlers → Add Crawler</span></code></pre>
+<span class="tok-c"># Open http://localhost:3001 → Admin → Crawlers</span>
+<span class="tok-c"># Click "Load Demo Data" to explore with sample data, or "Add Crawler" to connect your own systems</span></code></pre>
         </div>
 
         <p style="margin-top:24px; color:var(--fg-muted);">
@@ -601,6 +638,11 @@
               Star on GitHub
             </a>
           </div>
+          <p class="contact" id="contact">
+            Want to talk to someone, or need help? Email us at
+            <a href="mailto:support@identityatlas.io"><strong>support@identityatlas.io</strong></a>.
+            Paid support with an SLA and priority feature development are available.
+          </p>
         </div>
       </div>
     </section>
@@ -628,7 +670,8 @@
         <div class="ft-col">
           <h4>Resources</h4>
           <a href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener">Documentation ↗</a>
-          <a href="https://fortigi.github.io/IdentityAtlas/stable/contributing/report-an-issue/" target="_blank" rel="noopener">Support ↗</a>
+          <a href="mailto:support@identityatlas.io">Contact us</a>
+          <a href="https://fortigi.github.io/IdentityAtlas/stable/contributing/report-an-issue/" target="_blank" rel="noopener">Report an issue ↗</a>
           <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener">Source on GitHub ↗</a>
           <a href="https://fortigi.github.io/IdentityAtlas/stable/history/" target="_blank" rel="noopener">Project history ↗</a>
           <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE" target="_blank" rel="noopener">MIT License ↗</a>

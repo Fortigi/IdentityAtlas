@@ -1,5 +1,7 @@
 // Who owns a resource — shared by the Entitlement Pivot report (one row per
-// entitlement) and the context page's list of resource members.
+// entitlement), the context page's list of resource members and the resource's
+// own detail page (fetchResourceOwners). The reverse question — what does this
+// person own — is lib/ownedResources.js, built on the same two routes.
 //
 // Two places an owner can come from, tried in this order per entitlement:
 //
@@ -26,7 +28,7 @@ import { OWNERSHIP_RELATIONSHIP_TYPES_SQL, OWNERSHIP_TYPES_SQL } from './ownersh
 // One row per (entitlement, owner) rather than a pre-aggregated string, because
 // "how many distinct people own anything here" cannot be recovered from an
 // aggregate that has already collapsed each entitlement's owners.
-async function fetchLinkedOwners(ids) {
+async function linkedOwnerRows(ids) {
   const { rows } = await db.query(
     `SELECT DISTINCT rr."parentResourceId" AS id, p.id AS "ownerId",
             p."displayName" AS "ownerName", p.email AS "ownerEmail", p."employeeId" AS "ownerEmployeeId"
@@ -41,7 +43,31 @@ async function fetchLinkedOwners(ids) {
       WHERE rr."relationshipType" IN ${OWNERSHIP_RELATIONSHIP_TYPES_SQL}
         AND rr."parentResourceId" = ANY($1::uuid[])
       ORDER BY rr."parentResourceId", p."displayName"`, [ids]);
-  return groupOwners(rows);
+  return rows;
+}
+
+async function fetchLinkedOwners(ids) {
+  return groupOwners(await linkedOwnerRows(ids));
+}
+
+/**
+ * `EXISTS` body: "this resource has at least one owner by the ownership LINK".
+ * The same live chain as linkedOwnerRows, for a caller that has to leave out
+ * every resource the link already answers for (lib/ownedResources.js).
+ * `resourceIdSql` is a column reference written by the caller, never input.
+ */
+export function linkedOwnerExistsSql(resourceIdSql) {
+  return `SELECT 1
+            FROM "ResourceRelationships" lrr
+            JOIN "Resources" lo ON lo.id = lrr."childResourceId"
+             AND lo."resourceType" IN ${OWNERSHIP_TYPES_SQL}
+             AND lo."deletedAt" IS NULL
+            JOIN "ResourceAssignments" lra ON lra."resourceId" = lo.id
+             AND lra."assignmentType" = 'Direct'
+             AND lra."deletedAt" IS NULL
+            JOIN "Principals" lp ON lp.id = lra."principalId" AND lp."deletedAt" IS NULL
+           WHERE lrr."relationshipType" IN ${OWNERSHIP_RELATIONSHIP_TYPES_SQL}
+             AND lrr."parentResourceId" = ${resourceIdSql}`;
 }
 
 /**
@@ -90,7 +116,7 @@ export function ownerReference(entitlement) {
 }
 
 // Each reference → the account it names, in one statement for all of them.
-async function resolveReferences(refs) {
+export async function resolveReferences(refs) {
   if (!refs.length) return new Map();
   const { rows } = await db.query(
     `WITH refs AS (SELECT DISTINCT unnest($1::text[]) AS ref),
@@ -152,4 +178,27 @@ export async function fetchOwners(entitlements) {
     if (owner) owners.set(id, owner);
   }
   return owners;
+}
+
+/**
+ * The owners of ONE resource, one entry per person, for its detail page:
+ * `{ principalId, displayName, email, via }`. `via` says how we know — 'link'
+ * (the ownership link), 'reference' (the source's ownerId, resolved to an
+ * account) or 'source' (only the source's own words; `principalId` is null, so
+ * there is nobody to open). Same order of preference as fetchOwners.
+ */
+export async function fetchResourceOwners(resource) {
+  const linked = await linkedOwnerRows([resource.id]);
+  if (linked.length) {
+    return linked.map(row => ({
+      principalId: row.ownerId, displayName: row.ownerName ?? null, email: row.ownerEmail ?? null, via: 'link',
+    }));
+  }
+  const { ref, name } = ownerReference(resource);
+  if (!ref && !name) return [];
+  const account = ref ? (await resolveReferences([ref])).get(ref) : null;
+  if (account) {
+    return [{ principalId: account.id, displayName: account.displayName ?? null, email: account.email ?? null, via: 'reference' }];
+  }
+  return [{ principalId: null, displayName: name ?? ref, email: null, via: 'source' }];
 }

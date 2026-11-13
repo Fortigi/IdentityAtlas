@@ -9,7 +9,7 @@ outcome: You can save and share a matrix in one act, see and change who it is sh
 !!! info "Before this page"
     Assumes you have read **[Reading the Matrix](../architecture/matrix.md)** and can build a matrix in the wizard.
 
-You have configured a matrix that answers a question someone else has: a manager who wants to see their team's access, an application owner who wants to see who can reach their resource. Sharing turns that matrix into a link. The recipient signs in with their normal Microsoft account — **no Identity Atlas role required** — and sees the matrix and nothing else: no navigation, no dashboard, no wizard, no export buttons. They can click a resource or a person and read the detail page, then come back.
+You have configured a matrix that answers a question someone else has: a manager who wants to see their team's access, an application owner who wants to see who can reach their resource. Sharing turns that matrix into a link. The recipient signs in with their normal Microsoft account — they need an Identity Atlas role, such as **Servicedesk** — and sees the matrix and nothing else: no navigation, no dashboard, no wizard, no export buttons. They can click a resource or a person and read the detail page, then come back.
 
 !!! note "Experimental — switched off by default"
     Matrix sharing is an [experimental feature](../reference/experimental-features.md#matrix-sharing). An administrator turns it on under **Admin → Experimental → Matrix sharing**. While it is off, none of the controls on this page appear and share links do not open.
@@ -84,14 +84,14 @@ Revoking is immediate and permanent for that link — the recipient sees the "no
 
 ## What sharing does *not* do
 
-- **It does not narrow the recipient's data access.** The bare shell is a UI simplification, not a data boundary: a recipient is a signed-in reader, and a technically capable one could query other read endpoints while signed in. Share with people you would be comfortable giving read access to — for genuinely scoped access, wait for the matrix-scoping work tracked under [#1105](https://github.com/Fortigi/IdentityAtlas/issues/1105).
+- **It does not grant or narrow data access.** The bare shell is a UI simplification, not a data boundary: a recipient is a signed-in reader with a role of their own, and a technically capable one could query other read endpoints while signed in. Share with people you would be comfortable giving read access to — for genuinely scoped access, wait for the matrix-scoping work tracked under [#1105](https://github.com/Fortigi/IdentityAtlas/issues/1105).
 - **It does not send e-mail.** Copy the link and send it however you normally would.
 - **It does not expire.** There is no time limit; stop sharing when you're done.
 - **It does not freeze the view.** Recipients track the live saved matrix, by design. If you need somebody to keep seeing a particular slice, save that slice under its own name and share that.
 
 ## Deployment caveats (auth-enabled installs)
 
-Sharing relies on a *roleless* tenant user being able to sign in and read. Two deployment settings break that, deliberately, and sharing does not weaken either:
+A recipient needs an Identity Atlas role. Since November 2026 a signed-in user without one is refused every endpoint, share links included, and sees a page asking them to request a role. Give recipients the **Servicedesk** role (read only) or another role that includes `data.read`. Two more settings narrow who can open a link, and sharing does not weaken either:
 
 - **`AUTH_REQUIRED_ROLES`** — when set, the API rejects users who hold none of the listed app roles before any share logic runs. On such a deployment your recipients need one of those roles.
 - **"Assignment required?" on the Entra app** — when enabled, a user who isn't assigned to the app cannot sign in at all, so they cannot open a share link.

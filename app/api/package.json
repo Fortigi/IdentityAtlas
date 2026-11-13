@@ -44,7 +44,7 @@
     "eslint-plugin-security": "^4.2.1",
     "eslint-plugin-sonarjs": "4.2.2",
     "n3": "^2.13.12",
-    "supertest": "^7.3.1",
+    "supertest": "^7.3.2",
     "vitest": "^5.0.0"
   },
   "dependencies": {
@@ -60,7 +60,7 @@
     "jwks-rsa": "^4.1.0",
     "multer": "^2.4.0",
     "pg": "^8.23.1",
-    "re2": "^1.27.0",
+    "re2": "^1.27.1",
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.9.1"
   },

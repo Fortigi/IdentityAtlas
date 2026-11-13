@@ -23,7 +23,7 @@ This architecture means the worker container has **no database driver** — all 
 
 Navigate to **Admin → Crawlers** and configure an Entra ID crawler. The wizard walks you through:
 
-1. Enter your Tenant ID, Client ID, and Client Secret
+1. Enter your Tenant ID, Client ID, and Client Secret — or, in an Azure deployment, choose **Managed identity** ([no secret at all](#signing-in-without-a-secret-managed-identity))
 2. Validate permissions (the wizard checks each required Graph permission)
 3. Select which entity types to sync
 4. Configure optional identity filters and custom attributes
@@ -167,6 +167,30 @@ Grant these as **Application** permissions (not Delegated) on the App Registrati
 
 !!! tip
     The in-browser wizard validates all these permissions automatically — it shows a green/red checklist of which ones are granted.
+
+## Signing in without a secret (managed identity)
+
+A client secret has to be stored, can leak, and expires. When Identity Atlas runs in Azure ([Azure deployment](../architecture/azure-deployment.md)) the crawler can sign in with a **managed identity** instead. There is then no secret anywhere: Azure hands a token only to code running inside the Identity Atlas containers, and nothing needs renewing.
+
+The Azure deployment creates the identity for you (`<prefix>-mi-crawler`) and attaches it to the worker and the web app. It starts with **no permissions**. To use it:
+
+1. **Grant it the Graph permissions.** A managed identity cannot be given Microsoft Graph permissions in the Azure Portal, so use the script. Sign in with the Azure CLI as a Privileged Role Administrator or Global Administrator, then:
+
+    ```powershell
+    ./azure/Grant-CrawlerIdentityGraphPermissions.ps1 -ResourceGroup <resource group of the deployment>
+    ```
+
+    It grants the read-only permissions from the table above — nothing that can write — and skips the ones already granted, so it is safe to run again.
+
+2. **Add the crawler.** In **Admin → Crawlers → Add Crawler → Microsoft Graph**, choose **Managed identity** as the sign-in method. There is nothing else to fill in on that step: the wizard validates the identity and shows which permissions it holds.
+
+Things to know:
+
+- **Same tenant only.** A managed identity reads the tenant the Azure deployment lives in. To read another tenant, use an app registration.
+- **Grant before you validate.** Azure caches a managed identity's token. Permissions granted before the first validation or crawl work straight away; granted afterwards, they can take an hour or more to appear. The wizard reads the permissions from the token itself, so what it shows is what the crawler will really get.
+- **Azure only.** The option appears only where the deployment has a crawler identity. A Docker installation outside Azure keeps using an app registration.
+- **Who can use it.** Any Identity Atlas administrator who can add a crawler can add one that signs in as this identity — there is no secret to know. The identity's permissions are read-only.
+- **Switching an existing crawler.** Edit the crawler and choose **Managed identity**. The client secret stored for it is no longer used; delete the app registration's secret in Entra ID once the crawler runs.
 
 ---
 

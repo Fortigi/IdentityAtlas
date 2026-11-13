@@ -43,6 +43,7 @@ export default defineConfig({
       'src/reports/attributeColumns.test.js',
       'src/reports/contextDetails.test.js',
       'src/lib/resourceOwners.test.js',
+      'src/lib/ownedResources.test.js',
       'src/lib/ownershipTypes.test.js',
       'src/contexts/resourceMemberFacts.test.js',
       'src/routes/lookups.test.js',

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "14765428134518033351"
+      "templateHash": "3534540880565691815"
     }
   },
   "parameters": {
@@ -618,7 +618,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "14956609084503564297"
+              "templateHash": "8104140559624264791"
             }
           },
           "parameters": {
@@ -649,6 +649,12 @@
               "apiVersion": "2023-01-31",
               "name": "[format('{0}-mi-deployscript', parameters('namePrefix'))]",
               "location": "[parameters('location')]"
+            },
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}-mi-crawler', parameters('namePrefix'))]",
+              "location": "[parameters('location')]"
             }
           ],
           "outputs": {
@@ -671,6 +677,22 @@
             "deployScriptIdentityPrincipalId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-deployscript', parameters('namePrefix'))), '2023-01-31').principalId]"
+            },
+            "crawlerIdentityId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-crawler', parameters('namePrefix')))]"
+            },
+            "crawlerIdentityPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-crawler', parameters('namePrefix'))), '2023-01-31').principalId]"
+            },
+            "crawlerIdentityClientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-mi-crawler', parameters('namePrefix'))), '2023-01-31').clientId]"
+            },
+            "crawlerIdentityName": {
+              "type": "string",
+              "value": "[format('{0}-mi-crawler', parameters('namePrefix'))]"
             }
           }
         }
@@ -1480,6 +1502,12 @@
           "identityId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.webIdentityId.value]"
           },
+          "crawlerIdentityId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.crawlerIdentityId.value]"
+          },
+          "crawlerIdentityClientId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.crawlerIdentityClientId.value]"
+          },
           "keyVaultUri": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvUri.value]"
           },
@@ -1526,7 +1554,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "7964829706269690446"
+              "templateHash": "5052132923975999461"
             }
           },
           "parameters": {
@@ -1581,6 +1609,18 @@
               "type": "string",
               "metadata": {
                 "description": "Managed identity resource ID for KV references + future Azure RBAC"
+              }
+            },
+            "crawlerIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Crawler identity (resource ID): the managed identity crawlers sign in to Microsoft Graph with. Attached here too because the crawler wizard tests the connection from the web app."
+              }
+            },
+            "crawlerIdentityClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID of the crawler identity."
               }
             },
             "keyVaultUri": {
@@ -1709,7 +1749,7 @@
             "linuxFxVersion": "[format('DOCKER|{0}', parameters('image'))]",
             "privateNetworking": "[not(empty(parameters('vnetIntegrationSubnetId')))]",
             "privateRegistry": "[not(empty(parameters('pullIdentityId')))]",
-            "siteIdentities": "[union(createObject(format('{0}', parameters('identityId')), createObject()), if(variables('privateRegistry'), createObject(format('{0}', parameters('pullIdentityId')), createObject()), createObject()))]",
+            "siteIdentities": "[union(createObject(format('{0}', parameters('identityId')), createObject(), format('{0}', parameters('crawlerIdentityId')), createObject()), if(variables('privateRegistry'), createObject(format('{0}', parameters('pullIdentityId')), createObject()), createObject()))]",
             "workerRule": "[if(empty(parameters('workerSubnetId')), createArray(), createArray(createObject('name', 'allow-worker-subnet', 'action', 'Allow', 'priority', 90, 'vnetSubnetResourceId', parameters('workerSubnetId'))))]",
             "restrictionsDefaultAction": "[if(or(equals(parameters('ipSecurityRestrictionsDefaultAction'), 'Deny'), not(empty(parameters('allowedIpCidrs')))), 'Deny', 'Allow')]"
           },
@@ -1754,7 +1794,7 @@
                   "acrUserManagedIdentityID": "[if(variables('privateRegistry'), parameters('pullIdentityClientId'), null())]",
                   "ipSecurityRestrictionsDefaultAction": "[variables('restrictionsDefaultAction')]",
                   "ipSecurityRestrictions": "[concat(variables('workerRule'), variables('ipRules'))]",
-                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', format('https://{0}', parameters('registryServer'))), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', parameters('entraTenantId')), createObject('name', 'AUTH_CLIENT_ID', 'value', parameters('entraClientId')), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('pgPasswordSecretUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('reportGeneratorKeySecretUri'))))))]",
+                  "appSettings": "[concat(createArray(createObject('name', 'DOCKER_REGISTRY_SERVER_URL', 'value', format('https://{0}', parameters('registryServer'))), createObject('name', 'WEBSITES_PORT', 'value', '3001'), createObject('name', 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', 'value', 'false'), createObject('name', 'WEBSITES_CONTAINER_START_TIME_LIMIT', 'value', '1800'), createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'USE_SQL', 'value', 'true'), createObject('name', 'PORT', 'value', '3001'), createObject('name', 'BEHIND_TLS', 'value', 'true'), createObject('name', 'AUTH_ENABLED', 'value', 'true'), createObject('name', 'AUTH_TENANT_ID', 'value', parameters('entraTenantId')), createObject('name', 'AUTH_CLIENT_ID', 'value', parameters('entraClientId')), createObject('name', 'IDENTITY_ATLAS_MASTER_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0}secrets/identityatlas-master-key/)', parameters('keyVaultUri'))), createObject('name', 'POSTGRES_PASSWORD', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('pgPasswordSecretUri'))), createObject('name', 'POSTGRES_HOST', 'value', parameters('pgFqdn')), createObject('name', 'POSTGRES_PORT', 'value', '5432'), createObject('name', 'POSTGRES_DB', 'value', parameters('pgDatabaseName')), createObject('name', 'POSTGRES_USER', 'value', parameters('pgUsername')), createObject('name', 'PGSSLMODE', 'value', 'require'), createObject('name', 'AZURE_KEY_VAULT_URI', 'value', parameters('keyVaultUri')), createObject('name', 'IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID', 'value', parameters('crawlerIdentityClientId'))), if(empty(parameters('reportGeneratorUrl')), createArray(), createArray(createObject('name', 'FEATURE_CUSTOM_REPORTS', 'value', 'true'), createObject('name', 'NL_REPORTS_LLM_URL', 'value', parameters('reportGeneratorUrl')), createObject('name', 'NL_REPORTS_LLM_API_KEY', 'value', format('@Microsoft.KeyVault(SecretUri={0})', parameters('reportGeneratorKeySecretUri'))))))]",
                   "azureStorageAccounts": {
                     "uploads": {
                       "type": "AzureFiles",
@@ -2321,6 +2361,12 @@
           },
           "registryServer": "[if(variables('privateRegistry'), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role'), '2025-04-01').outputs.loginServer.value), createObject('value', 'ghcr.io'))]",
           "pullIdentityId": "[if(variables('privateRegistry'), createObject('value', reference(resourceId('Microsoft.Resources/deployments', 'registry-pull-identity'), '2025-04-01').outputs.identityId.value), createObject('value', ''))]",
+          "crawlerIdentityId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.crawlerIdentityId.value]"
+          },
+          "crawlerIdentityClientId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.crawlerIdentityClientId.value]"
+          },
           "webAppHostname": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'app-service'), '2025-04-01').outputs.appHostname.value]"
           },
@@ -2338,7 +2384,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "6440374303475994734"
+              "templateHash": "16973773471721497373"
             }
           },
           "parameters": {
@@ -2388,6 +2434,18 @@
                 "description": "Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry."
               }
             },
+            "crawlerIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Crawler identity (resource ID): the managed identity crawlers sign in to Microsoft Graph with."
+              }
+            },
+            "crawlerIdentityClientId": {
+              "type": "string",
+              "metadata": {
+                "description": "Client ID of the crawler identity."
+              }
+            },
             "webAppHostname": {
               "type": "string",
               "metadata": {
@@ -2410,7 +2468,8 @@
             }
           },
           "variables": {
-            "privateRegistry": "[not(empty(parameters('pullIdentityId')))]"
+            "privateRegistry": "[not(empty(parameters('pullIdentityId')))]",
+            "workerIdentities": "[union(createObject(format('{0}', parameters('crawlerIdentityId')), createObject()), if(variables('privateRegistry'), createObject(format('{0}', parameters('pullIdentityId')), createObject()), createObject()))]"
           },
           "resources": [
             {
@@ -2418,7 +2477,10 @@
               "apiVersion": "2024-10-02-preview",
               "name": "[format('{0}-worker', parameters('namePrefix'))]",
               "location": "[parameters('location')]",
-              "identity": "[if(variables('privateRegistry'), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('pullIdentityId')), createObject())), null())]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": "[variables('workerIdentities')]"
+              },
               "properties": {
                 "managedEnvironmentId": "[parameters('envId')]",
                 "configuration": {
@@ -2438,6 +2500,10 @@
                         {
                           "name": "WEB_API_URL",
                           "value": "[format('https://{0}/api', parameters('webAppHostname'))]"
+                        },
+                        {
+                          "name": "IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID",
+                          "value": "[parameters('crawlerIdentityClientId')]"
                         }
                       ],
                       "volumeMounts": [
@@ -2478,6 +2544,7 @@
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('_acrIdParts')[2], variables('_acrIdParts')[4]), 'Microsoft.Resources/deployments', 'acr-pull-role')]",
         "[resourceId('Microsoft.Resources/deployments', 'aca-env')]",
+        "[resourceId('Microsoft.Resources/deployments', 'identities')]",
         "[resourceId('Microsoft.Resources/deployments', 'registry-pull-identity')]",
         "[resourceId('Microsoft.Resources/deployments', 'app-service')]"
       ]
@@ -3191,6 +3258,20 @@
         "description": "Key Vault URI."
       },
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvUri.value]"
+    },
+    "crawlerIdentityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the managed identity crawlers can sign in to Microsoft Graph with. It has no permissions until you grant them: azure/Grant-CrawlerIdentityGraphPermissions.ps1."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.crawlerIdentityName.value]"
+    },
+    "crawlerIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Object (principal) ID of the crawler identity — the value Grant-CrawlerIdentityGraphPermissions.ps1 takes."
+      },
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'identities'), '2025-04-01').outputs.crawlerIdentityPrincipalId.value]"
     },
     "postgresFqdn": {
       "type": "string",

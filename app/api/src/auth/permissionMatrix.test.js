@@ -82,6 +82,8 @@ vi.mock('../db/connection.js', () => {
 });
 
 const { createApp } = await import('../app.js');
+const { NO_ROLE_ERROR, NO_ROLE_CODE } = await import('../middleware/auth.js');
+const { listRoutes, sweepPath, sweepRoutes, PUBLIC_ROUTES, NEVER_DATA, OWN_AUTH } = await import('../../test-utils/routeSweep.js');
 const app = createApp();
 
 // Bearer header for a token that resolves to exactly `perms`.
@@ -113,7 +115,7 @@ describe('permission enforcement matrix — each gated permission gates ONLY its
   }
 });
 
-describe('data.read is enforced as authentication-required (implicit, not a requirePermission gate)', () => {
+describe('data.read is implicit: any caller holding a permission reads (no requirePermission gate)', () => {
   const probe = IMPLICIT_PERMISSIONS['data.read'].probe;
   it('401 for an unauthenticated request', async () => {
     const res = await call(app, probe, undefined);
@@ -298,9 +300,10 @@ const NEWLY_GATED_READS = [
 describe('formerly authentication-only reads now carry a permission gate', () => {
   for (const { path, allow, deny } of NEWLY_GATED_READS) {
     it(`GET ${path}: a signed-in user whose roles map to nothing is refused (403)`, async () => {
+      // Refused before the route's own gate since F-01: no permission, no entry.
       const res = await call(app, { method: 'GET', path }, 'Bearer roles:totally-unmapped-role');
       expect(res.status).toBe(403);
-      expect(res.body.error).toBe('Insufficient permissions');
+      expect(res.body.error).toBe(NO_ROLE_ERROR);
     });
 
     it(`GET ${path}: allowed for [${allow}]`, async () => {
@@ -391,5 +394,75 @@ describe('asking a question and building a report are separate rights', () => {
     // resource action, so it did not move with the read routes.
     expect((await call(app, { method: 'POST', path: '/api/nl-reports/warm' }, bearer(['data.read.reports']))).status).toBe(403);
     expect((await call(app, { method: 'POST', path: '/api/nl-reports/warm' }, bearer(['data.write.reports']))).status).not.toBe(403);
+  });
+});
+
+// ── Deny by default (security review Nov 2026, F-01) ────────────────────────
+// A signed-in caller whose roles map to no permission, and who owns no context,
+// used to pass authMiddleware and read every ungated route: 122 of the app's
+// routes answered them with data. Now every route refuses them with one 403,
+// except the public routes pinned in test-utils/routeSweep.js.
+const ROLELESS = 'Bearer roles:totally-unmapped-role';
+const isNoRole = (res) => res.status === 403 && res.body?.code === NO_ROLE_CODE;
+
+describe('deny by default — a signed-in caller with no permission reaches nothing (F-01)', () => {
+  const routes = listRoutes(app);
+
+  it('the sweep sees the whole app, not an empty list', () => {
+    expect(routes.length).toBeGreaterThan(300);
+    const keys = routes.map((r) => r.key);
+    for (const known of ['GET /contexts', 'GET /resources', 'GET /identities', 'POST /matrix/data', 'GET /api/auth-me']) {
+      expect(keys).toContain(known);
+    }
+  });
+
+  it('every non-public route answers 403 "no role" — no data, no handler reached', async () => {
+    const leaked = await sweepRoutes(app, {
+      headers: { Authorization: ROLELESS },
+      skip: new Set([...PUBLIC_ROUTES.keys(), ...NEVER_DATA]),
+      refused: (res, r) => (OWN_AUTH.has(r.key) ? [401, 403].includes(res.status) : isNoRole(res)),
+    });
+    expect(leaked).toEqual([]);
+  });
+
+  it('the routes that stay open never return data', async () => {
+    for (const key of NEVER_DATA) {
+      const [method, path] = key.split(' ');
+      const res = await call(app, { method, path: sweepPath(path) }, ROLELESS);
+      expect(res.status, key).toBeGreaterThanOrEqual(400);
+    }
+  });
+
+  it('every pinned exception is a route the app really serves — no stale entry', () => {
+    const keys = new Set(routes.map((r) => r.key));
+    for (const key of [...PUBLIC_ROUTES.keys(), ...NEVER_DATA, ...OWN_AUTH]) expect(keys.has(key), key).toBe(true);
+  });
+
+  it('auth-me answers a roleless caller with nothing granted, so the app shows the no-role screen', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/auth-me' }, ROLELESS);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ enabled: true, permissions: [], hasWildcard: false, contextOwner: null });
+  });
+
+  it('a caller with no roles claim at all is refused the same way', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/contexts' }, 'Bearer no-roles-claim');
+    expect(isNoRole(res)).toBe(true);
+    expect(res.body.error).toBe(NO_ROLE_ERROR);
+  });
+
+  it('the refusal holds in any path casing', async () => {
+    for (const path of ['/api/CONTEXTS', '/api/Resources', '/api/identities/']) {
+      expect(isNoRole(await call(app, { method: 'GET', path }, ROLELESS)), path).toBe(true);
+    }
+  });
+
+  it('one permission is enough to get past it (the route\'s own gate decides from there)', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/contexts' }, bearer(['data.read']));
+    expect(res.status).not.toBe(403);
+  });
+
+  it('an unauthenticated request is still 401, not the no-role 403', async () => {
+    const res = await call(app, { method: 'GET', path: '/api/contexts' }, undefined);
+    expect(res.status).toBe(401);
   });
 });

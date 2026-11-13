@@ -26,7 +26,7 @@ The **foundation prerequisites are in place** — board #2 (Status = canonical p
 
 **Kill-switch.** Every DoR workflow is **inert until repo variable `DOR_ENABLED=true`** — the whole set can merge and be smoke-tested before anything runs.
 
-**Live board — which issue is in which phase:** [github.com/orgs/Fortigi/projects/2](https://github.com/orgs/Fortigi/projects/2) (grouped by **Status**, the canonical phase). The [end-to-end map](#end-to-end-map--build-side-design-v2--pooled-sidekicks) below is its legend.
+**Live board — which issue is in which phase:** [github.com/orgs/Fortigi/projects/2](https://github.com/orgs/Fortigi/projects/2) (grouped by **Status**, the canonical phase). The [end-to-end map](#end-to-end-map-build-side-design-v2-pooled-sidekicks) below is its legend.
 
 ### Roles → GitHub identity
 
@@ -36,7 +36,7 @@ The **foundation prerequisites are in place** — board #2 (Status = canonical p
 | **Design board** (architect + designer) | technical approach + form: registry-vs-engine, additive-vs-mutate, integrate-vs-standalone | `WimvandenHeijkant`, `TaekeK` |
 | **Product board** (the value GO + final merge go/no-go) | desirability / product coherence — the GO | `WimvandenHeijkant`, `TaekeK`, `robb536` — **any one suffices; nobody else may pass the value gate** |
 | **Builder (AI)** | runs the Phase-A interview + Phase-B probe (later: builds) | Claude via `claude-code-action` |
-| **Unknown requestor** (non-member opens an issue) | — | **deterministic triage** (no AI): post a notice, assign Wim/Taeke/Rob, label `needs-vouch`, stop. A maintainer restarts it by **vouching** — see [External requests](definition-of-ready.md#external-requests--the-vouch) |
+| **Unknown requestor** (non-member opens an issue) | — | **deterministic triage** (no AI): post a notice, assign Wim/Taeke/Rob, label `needs-vouch`, stop. A maintainer restarts it by **vouching** — see [External requests](definition-of-ready.md#external-requests-the-vouch) |
 
 ### AI usage per workflow
 

@@ -13,7 +13,7 @@
  * what an empty-but-wildcard state would do.
  */
 export function degradedPermState() {
-  return { permissions: new Set(), roles: [], hasWildcard: false, loaded: true, me: null, contextOwner: null };
+  return { permissions: new Set(), roles: [], hasWildcard: false, loaded: true, answered: false, me: null, contextOwner: null };
 }
 
 /**
@@ -32,6 +32,7 @@ export function permStateFromAuthMe(body) {
     roles: body?.roles || [],
     hasWildcard: !!body?.hasWildcard,
     loaded: true,
+    answered: true,
     me: body?.me || null,
     contextOwner: body?.contextOwner || null,
   };
@@ -48,4 +49,17 @@ export function isContextOwnerSession({ permissionsLoaded, hasWildcard, permissi
   if (!permissionsLoaded || hasWildcard) return false;
   if (permissions && permissions.size > 0) return false;
   return Array.isArray(contextOwner?.contexts) && contextOwner.contexts.length > 0;
+}
+
+/**
+ * True when the signed-in user has no Identity Atlas role and owns no context:
+ * the API refuses them everything but /api/auth-me (security review Nov 2026,
+ * F-01), so AppRoot shows the "no role" page instead of a screen of errors.
+ * Only when auth-me really answered — a failed call (`answered: false`) is a
+ * different problem and keeps the degraded app.
+ */
+export function isNoRoleSession({ authEnabled, permissionsLoaded, authMeAnswered, hasWildcard, permissions, contextOwner } = {}) {
+  if (!authEnabled || !permissionsLoaded || !authMeAnswered || hasWildcard) return false;
+  if (permissions && permissions.size > 0) return false;
+  return !(Array.isArray(contextOwner?.contexts) && contextOwner.contexts.length > 0);
 }

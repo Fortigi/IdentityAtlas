@@ -1,0 +1,4 @@
+- **Breaking:** with sign-in enabled, users without an Identity Atlas role no longer see any data. Before, anyone in the tenant who could sign in could read everything unless assignment was required on the Entra application or `AUTH_REQUIRED_ROLES` was set. Give people who should read the **Servicedesk** role (or another role); context owners keep their own access as before.
+- Users signed in without a role now see a page that explains they have no role and what to ask their administrator for, instead of empty screens.
+- Matrix share links now need the recipient to hold a role, such as Servicedesk.
+- The startup warning about `AUTH_REQUIRED_ROLES` not being set is gone, because leaving it unset no longer exposes data.

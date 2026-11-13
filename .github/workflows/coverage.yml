@@ -73,6 +73,9 @@ permissions:
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
     steps:
       - name: Generate bot token
         id: bot-token
@@ -246,7 +249,7 @@ jobs:
       - name: Upload PowerShell complexity findings to code scanning
         if: always() && hashFiles('reports/pscomplexity.sarif') != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           sarif_file: reports/pscomplexity.sarif
           category: pscomplexity

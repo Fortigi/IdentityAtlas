@@ -1,0 +1,2 @@
+- A resource's page now shows its owner: named in the header as a link to that person, and as an **Owners** node on the Relationships tab. It is the same owner the context page already showed — the ownership link from the source, or otherwise the owner the source names on the resource.
+- A person's page now shows what they own: an **Owned Resources** node on the Relationships tab lists the resources they are the owner of.
