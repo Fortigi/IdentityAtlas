@@ -134,6 +134,7 @@ nav:
   # ── Operator territory: deploy it, connect real systems, keep it healthy.
   - Set up & run:
       - Deploy:
+          - Choose a Deployment: deploy/choose-a-deployment.md
           - Docker Setup: architecture/docker-setup.md
           - Azure Deployment Walkthrough: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
@@ -142,6 +143,7 @@ nav:
           - Scaling & Load Testing: architecture/scaling.md
           - "Scale Rehearsal: 41 M Assignments": architecture/scale-rehearsal.md
       - Connect your systems:
+          - Overview: sync/overview.md
           - Entra ID: sync/entra-id.md
           - Azure Resource Manager: sync/azure-rm.md
           - Omada IGA: sync/omada.md
