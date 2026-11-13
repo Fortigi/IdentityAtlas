@@ -7,7 +7,7 @@ outcome: You can save and share a matrix in one act, see and change who it is sh
 # Share a matrix with someone in your organisation
 
 !!! info "Before this page"
-    Assumes you have read **[Reading the Matrix](../architecture/matrix.md)** and can build a matrix in the wizard.
+    Assumes you have read **[Reading the Matrix](../architecture/matrix.md)** and can [build a matrix](build-a-matrix.md) in the wizard.
 
 You have configured a matrix that answers a question someone else has: a manager who wants to see their team's access, an application owner who wants to see who can reach their resource. Sharing turns that matrix into a link. The recipient signs in with their normal Microsoft account — they need an Identity Atlas role, such as **Servicedesk** — and sees the matrix and nothing else: no navigation, no dashboard, no wizard, no export buttons. They can click a resource or a person and read the detail page, then come back.
 
