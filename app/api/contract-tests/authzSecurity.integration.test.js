@@ -92,6 +92,8 @@ const kindOf = (key) => {
 };
 
 beforeAll(async () => {
+  // MCP only runs with its public address configured (mcp/resource.js, F-08).
+  process.env.PUBLIC_BASE_URL = 'https://atlas.example.com';
   ({ agent, pool } = await bootContractApp());
   fx = await seedSecurityFixture(pool);
   for (const key of SWITCHES) {
@@ -118,6 +120,7 @@ afterAll(async () => {
   clearOwnerAccessCache();
   await pool?.end();
   delete process.env.USE_SQL;
+  delete process.env.PUBLIC_BASE_URL;
 });
 
 // ─── 1. One scope, two interfaces ─────────────────────────────────────────

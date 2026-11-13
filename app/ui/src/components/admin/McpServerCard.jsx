@@ -4,7 +4,10 @@
 // Copilot) read data on behalf of the signed-in user, and — while it is on —
 // what to give an assistant (the URL and scope) and what assistants have done
 // recently (the audit log, GET /api/admin/mcp). The server refuses to switch it
-// on while sign-in is off; that refusal is shown under the switch.
+// on while sign-in is off; that refusal is shown under the switch. Switched on
+// without PUBLIC_BASE_URL, the endpoint refuses every call (the token audience
+// comes from that setting only), so the card says what to set instead of
+// showing a URL.
 import { useEffect, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import useFeatureToggle from '@ui/hooks/useFeatureToggle';
@@ -33,6 +36,15 @@ function Field({ label, value }) {
     <div className="mt-2 text-sm">
       <span className="text-gray-600 dark:text-gray-400">{label}: </span>
       <code className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 break-all">{value}</code>
+    </div>
+  );
+}
+
+function NotConfigured() {
+  return (
+    <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded text-sm text-amber-800 dark:text-amber-200">
+      Not reachable yet: set <code>PUBLIC_BASE_URL</code> to the public address of this installation
+      (for example <code>https://atlas.example.com</code>) and restart. Until then every assistant is refused.
     </div>
   );
 }
@@ -89,8 +101,12 @@ export default function McpServerCard({ features }) {
       </p>
       {enabled && status && (
         <>
-          <Field label="Server URL" value={status.url} />
-          <Field label="Scope" value={status.scope} />
+          {status.configured === false ? <NotConfigured /> : (
+            <>
+              <Field label="Server URL" value={status.url} />
+              <Field label="Scope" value={status.scope} />
+            </>
+          )}
           <h4 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">Recent activity</h4>
           <RecentCalls calls={status.calls || []} />
         </>
