@@ -102,7 +102,7 @@ trip), so a change in the tree takes effect immediately.
 
 | One object's detail reads — `/api/user/:id` (and its memberships, contexts, activity, timeline, diff, …), `/api/identities/:id` (…), `/api/resources/:id`, `/api/group/:id`, `/api/access-package/:id` (…), `/api/org-chart/user/:id/manager|reports`, `/api/identities/by-user/:id`, `/api/risk-scores/{users,identities,groups,resources,business-roles}/:id` | the object opens in full for this owner (see [Exploring the team](#exploring-the-team)); the list is `auth/ownerAccess/endpoints.js` |
 | `/api/access-package-groups` — the business-role catalogue the matrix maps roles to their groups with | always, but the response is cut to the business roles the owner may open (`auth/ownerAccess/responses.js`): those their team holds, or that are themselves in scope — never the whole catalogue |
-| `POST /api/matrix/data` — the one POST, a read | the filter is bound to the owner's team (see [The team matrix](#the-team-matrix)) |
+| `POST /api/matrix/data` — the one POST, a read | the filter is bound to the owner's team (see [The team matrix](#the-team-and-application-matrices)) |
 
 Everything else — any other path, and every non-GET (but the team matrix) — answers
 `403 { "error": "Context owners can only open their own context" }`.

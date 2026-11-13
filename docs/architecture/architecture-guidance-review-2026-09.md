@@ -28,7 +28,7 @@ with a templated comment that already lists 2–3 concrete options. **None have 
 any kind** — not even a rejection. This is an unanswered ratification queue, not an open architecture
 question. The single highest-leverage fix available is a process one — a batch "design triage" pass,
 or a "ratify by silence after N days unless objected" rule — and it is **not** something a sharper
-architecture document can fix on its own. See [Impact estimate](#impact-estimate) for how this
+architecture document can fix on its own. See [Impact estimate](#3-impact-estimate) for how this
 changes the numbers.
 
 That said, the review also found genuine content gaps, one real doc-vs-doc contradiction, and one
