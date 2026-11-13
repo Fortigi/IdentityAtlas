@@ -1,5 +1,11 @@
 {
   "type": "mssql",
+  "emits": {
+    "principalTypes": ["User"],
+    "resourceTypes": ["ResourceOwnership", "Entitlement", "BusinessRole"],
+    "contextTypes": ["LogicalApplication"],
+    "open": ["principalType", "resourceType", "contextType"]
+  },
   "displayName": "SQL Database",
   "entryPoint": "Start-SqlCrawler.ps1",
   "dependsOn": [],

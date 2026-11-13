@@ -154,7 +154,7 @@ function MyThing() {
 ```
 
 - `confirm(opts) → Promise<boolean>` and `prompt(opts) → Promise<string|null>` render as modals (reusing `ModalPrimitives`). Always `await` them; converting a handler that called `confirm()` means making it `async`.
-- `toast(message, opts)` / `alert(message, opts)` are fire-and-forget toasts (`variant`: `info`/`success`/`error`/`warning`).
+- `toast(message, opts)` / `alert(message, opts)` are fire-and-forget toasts (`variant`: `info`/`success`/`error`/`warning`). `action: { label, onClick }` adds one button (e.g. Undo) that runs once and closes the toast.
 - `opts`: `message`, `title?`, `confirmLabel?`, `cancelLabel?`, `danger?` (red confirm button), `defaultValue?`/`placeholder?` (prompt), `width?`.
 - **Testing**: drive the dialog like a real user — click the confirm button by its `confirmLabel`, or type into the prompt's textbox then click confirm. See `components/DialogProvider.mount.test.jsx`.
 

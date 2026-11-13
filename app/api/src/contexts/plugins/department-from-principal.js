@@ -14,9 +14,13 @@ import * as db from '../../db/connection.js';
 export default {
   name: 'department-from-principal',
   displayName: 'Department from Principal',
+  // The runner wraps the departments under one root (they are several roots otherwise).
+  rootDisplayName: 'Departments',
   description:
     'Creates one Department context per unique department value on Principals and assigns each principal as a member. Run after a CSV or Entra sync.',
   targetType: 'Principal',
+  contextCategory: 'OrganizationalUnit',
+  contextTypes: ['Department'],
   parametersSchema: {
     type: 'object',
     properties: {

@@ -48,7 +48,7 @@ describe('principal-type-tree buildTree', () => {
     const { contexts, members, typeCount } = buildTree(rows, 'Principal Types', new Set());
     const exts = contexts.map((c) => c.externalId);
     expect(exts[0]).toBe('ptype-root');
-    expect(contexts[0]).toMatchObject({ displayName: 'Principal Types', contextType: 'PrincipalTypeRoot' });
+    expect(contexts[0]).toMatchObject({ displayName: 'Principal Types', contextType: 'PrincipalType' });
     expect(exts).toContain('ptype:ManagedIdentity');
     expect(exts).toContain('ptype:ServicePrincipal');
     expect(exts).toContain('ptype:User');

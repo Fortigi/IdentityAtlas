@@ -15,7 +15,7 @@ import { FeaturesContext } from './contexts/FeaturesContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 import { resolvePageRoute } from './pageRegistry';
-import { isDetailPage, parseDetailRoute, pickDisplayName, closeFallbackPage, wizardOpening } from './App.helpers';
+import { isDetailPage, parseDetailRoute, relabelDetailTabs, replaceTabId, closeFallbackPage, wizardOpening } from './App.helpers';
 import AppHeader from './components/app/AppHeader';
 import AppMain from './components/app/AppMain';
 import AppFooter from './components/app/AppFooter';
@@ -180,20 +180,10 @@ export default function App() {
   const onCacheData = useCallback((id, type, partialData) => {
     const key = `${type}:${id}`;
     detailCacheRef.current[key] = { ...detailCacheRef.current[key], ...partialData };
-    // When a detail page loads its entity data, update the tab label from the
-    // display name embedded in the payload. This fixes the case where a tab was
-    // opened via direct URL navigation and only had the UUID as a placeholder.
-    const displayName = pickDisplayName(partialData);
-    if (displayName) {
-      // Match by id only (not type) because some routes use different type keys:
-      // e.g. #group: opens ResourceDetailPage which calls onCacheData with type='resource'
-      // but the tab was created with type='group'.
-      setDetailTabs(prev => prev.map(t =>
-        t.id === id && t.displayName === id
-          ? { ...t, displayName }
-          : t
-      ));
-    }
+    // When a detail page loads its entity data, update the tab from the payload:
+    // its display name (a tab opened by URL only had the id) and, for a
+    // context, its template (the tab's icon). See relabelDetailTabs.
+    setDetailTabs(prev => relabelDetailTabs(prev, id, partialData));
   }, []);
 
   const openDetailTab = useCallback((type, id, displayName) => {
@@ -224,6 +214,14 @@ export default function App() {
       return remaining;
     });
     delete detailCacheRef.current[tabKey];
+  }, [navigate]);
+
+  // Give an open tab a new id in place (the Compare tab when its users change).
+  const replaceDetailTab = useCallback((type, oldId, newId) => {
+    if (!newId || newId === oldId) return;
+    setDetailTabs(prev => replaceTabId(prev, type, oldId, newId));
+    delete detailCacheRef.current[`${type}:${oldId}`];
+    navigate(`${type}:${newId}`);
   }, [navigate]);
 
   // When navigating to a detail tab via URL that isn't tracked yet, add it
@@ -320,7 +318,7 @@ export default function App() {
     version: moduleVersion,
   };
 
-  const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab };
+  const detailRouteProps = { page, detailCacheRef, onCacheData, openDetailTab, closeDetailTab, replaceDetailTab };
   const matrixProps = {
     rollup, data, matrixFilter, counts, managedFilter, setManagedFilter,
     shareUrl, refreshing, onOpenDetail: openDetailTab, setMatrixFilter,

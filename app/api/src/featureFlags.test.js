@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./db/connection.js');
 import { queryOne } from './db/connection.js';
 
-const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature } =
+const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature, orgKnowledgeEnabled } =
   await import('./featureFlags.js');
 
 // Stage WorkerConfig rows by key, e.g. { FEATURE_RISK_SCORING: 'true' }.
@@ -21,6 +21,7 @@ function stageRows(rows) {
 const ENV_KEYS = [
   'USE_SQL', 'FEATURE_RISK_SCORING', 'FEATURE_ACCOUNT_LINKING',
   'FEATURE_ACCOUNT_CORRELATION', 'FEATURE_EXPERIMENTAL_CRAWLERS', 'FEATURE_MATRIX_SHARING',
+  'FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'FEATURE_SOURCE_OWNER_NAME_MATCH', 'FEATURE_ORG_KNOWLEDGE',
 ];
 let saved;
 
@@ -81,6 +82,36 @@ describe('env-var defaults (no stored override)', () => {
     expect(await isFeatureEnabled('riskScoring')).toBe(false);
     process.env.FEATURE_RISK_SCORING = 'true';
     expect(await isFeatureEnabled('riskScoring')).toBe(true);
+  });
+
+  it('sourceOwnerAccountables is ON unless the env var says exactly "false"', async () => {
+    expect(workerConfigKey('sourceOwnerAccountables')).toBe('FEATURE_SOURCE_OWNER_ACCOUNTABLES');
+    expect(await isFeatureEnabled('sourceOwnerAccountables')).toBe(true);
+    process.env.FEATURE_SOURCE_OWNER_ACCOUNTABLES = 'no';   // not exactly "false"
+    expect(await isFeatureEnabled('sourceOwnerAccountables')).toBe(true);
+    process.env.FEATURE_SOURCE_OWNER_ACCOUNTABLES = 'false';
+    expect(await isFeatureEnabled('sourceOwnerAccountables')).toBe(false);
+    stageRows({ FEATURE_SOURCE_OWNER_ACCOUNTABLES: 'true' });   // a stored choice beats the env var
+    expect(await isFeatureEnabled('sourceOwnerAccountables')).toBe(true);
+  });
+
+  it('sourceOwnerNameMatch is OFF unless the env var says exactly "true"', async () => {
+    expect(workerConfigKey('sourceOwnerNameMatch')).toBe('FEATURE_SOURCE_OWNER_NAME_MATCH');
+    expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(false);
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'yes';   // not exactly "true"
+    expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(false);
+    process.env.FEATURE_SOURCE_OWNER_NAME_MATCH = 'true';
+    expect(await isFeatureEnabled('sourceOwnerNameMatch')).toBe(true);
+  });
+
+  it('orgKnowledge is OFF unless the env var says exactly "true", and a stored choice wins', async () => {
+    expect(workerConfigKey('orgKnowledge')).toBe('FEATURE_ORG_KNOWLEDGE');
+    expect(await isFeatureEnabled('orgKnowledge')).toBe(false);
+    expect(await orgKnowledgeEnabled()).toBe(false);
+    process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    expect(await orgKnowledgeEnabled()).toBe(true);
+    stageRows({ FEATURE_ORG_KNOWLEDGE: 'false' });
+    expect(await orgKnowledgeEnabled()).toBe(false);
   });
 
   it('accountLinking is ON unless explicitly disabled — including via the legacy env var', async () => {
@@ -167,7 +198,10 @@ describe('readFeatures', () => {
     process.env.FEATURE_EXPERIMENTAL_CRAWLERS = 'true';
     const payload = await readFeatures();
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
-    expect(payload).toEqual({ riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false, customReports: false, contextAssistant: false });
+    expect(payload).toEqual({
+      riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false,
+      customReports: false, contextAssistant: false, mcpServer: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false, orgKnowledge: false,
+    });
   });
 });
 
@@ -214,6 +248,55 @@ describe('inherited property names are not flags (SEC-2026-09 L-15)', () => {
     it(`workerConfigKey(${name}) is null and the flag resolves off`, async () => {
       expect(workerConfigKey(name)).toBeNull();
       await expect(isFeatureEnabled(name)).resolves.toBe(false);
+    });
+  }
+});
+
+// One row per flag, so a new flag cannot ship without stating its default: the
+// first test fails until it is added here. Per-flag hand-written cases (above)
+// are how customReports and contextAssistant shipped with no test of their env
+// default at all — the weekly mutation run caught it, three weeks in a row.
+//   opt-in  = OFF unless the env var is exactly "true"
+//   opt-out = ON unless the env var is exactly "false"
+const ENV_DEFAULTS = {
+  riskScoring:             ['FEATURE_RISK_SCORING', 'opt-in'],
+  accountLinking:          ['FEATURE_ACCOUNT_LINKING', 'opt-out'],
+  experimentalCrawlers:    ['FEATURE_EXPERIMENTAL_CRAWLERS', 'opt-in'],
+  matrixSharing:           ['FEATURE_MATRIX_SHARING', 'opt-in'],
+  customReports:           ['FEATURE_CUSTOM_REPORTS', 'opt-in'],
+  contextAssistant:        ['FEATURE_CONTEXT_ASSISTANT', 'opt-in'],
+  mcpServer:               ['FEATURE_MCP_SERVER', 'opt-in'],
+  sourceOwnerAccountables: ['FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'opt-out'],
+  sourceOwnerNameMatch:    ['FEATURE_SOURCE_OWNER_NAME_MATCH', 'opt-in'],
+  orgKnowledge:            ['FEATURE_ORG_KNOWLEDGE', 'opt-in'],
+};
+
+describe('every flag: env default and stored override', () => {
+  it('declares a default for exactly the flags that exist', () => {
+    expect(Object.keys(ENV_DEFAULTS).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
+  });
+
+  for (const [name, [envVar, kind]] of Object.entries(ENV_DEFAULTS)) {
+    const fallback = kind === 'opt-out';           // the value with no env var and no row
+    const flipWord = fallback ? 'false' : 'true';  // the only word that flips it
+    const nearMiss = flipWord.toUpperCase();       // close, but not that word
+
+    it(`${name}: ${envVar} is ${kind}, and a stored choice beats it`, async () => {
+      const before = process.env[envVar];
+      try {
+        delete process.env[envVar];
+        expect(workerConfigKey(name)).toBe(envVar);
+        expect(await isFeatureEnabled(name)).toBe(fallback);
+        process.env[envVar] = nearMiss;
+        expect(await isFeatureEnabled(name)).toBe(fallback);
+        process.env[envVar] = flipWord;
+        expect(await isFeatureEnabled(name)).toBe(!fallback);
+        // The env var now says !fallback; a stored row saying fallback must win.
+        stageRows({ [envVar]: String(fallback) });
+        expect(await isFeatureEnabled(name)).toBe(fallback);
+      } finally {
+        if (before === undefined) delete process.env[envVar]; else process.env[envVar] = before;
+      }
     });
   }
 });

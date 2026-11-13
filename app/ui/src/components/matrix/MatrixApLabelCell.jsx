@@ -1,16 +1,17 @@
 import { getAccessPackageColor } from '@ui/utils/colors';
-import { isApCategoryBoundary, apLeftBorderClass } from './MatrixColumnHeaders.helpers';
+import { isApCategoryBoundary, apLeftBorderClass, isProposedStart, PROPOSED_GAP_STYLE } from './MatrixColumnHeaders.helpers';
 
 // Access-package label cell on the pinned names row — carries the rotated AP
 // name and opens the access-package detail on click.
 export default function MatrixApLabelCell({ accessPackages, idx, isDark, rowSpan, onOpenDetail }) {
   const isCategoryBoundary = isApCategoryBoundary(accessPackages, idx);
+  const proposedStart = isProposedStart(accessPackages, idx);
   const ap = accessPackages[idx];
   return (
     <th
       rowSpan={rowSpan}
-      className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${apLeftBorderClass(idx, isCategoryBoundary)}`}
-      style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px', height: '100px', verticalAlign: 'bottom' }}
+      className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${apLeftBorderClass(idx, isCategoryBoundary, proposedStart)}`}
+      style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px', height: '100px', verticalAlign: 'bottom', ...(proposedStart ? PROPOSED_GAP_STYLE : {}) }}
       title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
     >
       <div

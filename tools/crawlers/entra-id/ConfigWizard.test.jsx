@@ -24,6 +24,19 @@ describe('Entra ID crawler ConfigWizard', () => {
     expect(html).toContain('Client Secret');
   });
 
+  it('does not offer a sign-in method until the deployment reports a crawler identity', () => {
+    expect(render()).not.toContain('Sign-in method');
+  });
+
+  it('opens a managed-identity crawler without the client ID / secret fields', () => {
+    const html = render({ isEdit: true, initialConfig: { id: 1, displayName: 'Existing', tenantId: 't', authMethod: 'ManagedIdentity' } });
+    expect(html).toContain('Sign-in method');
+    expect(html).not.toContain('Client Secret');
+    expect(html).not.toContain('Tenant ID');
+    // No stored secret to fall back on, so the step always validates live.
+    expect(html).toContain('Validate &amp; Next');
+  });
+
   it('shows "Edit Microsoft Graph Crawler" in edit mode', () => {
     const html = render({ isEdit: true, initialConfig: { id: 1, displayName: 'Existing', tenantId: 't', clientId: 'c' } });
     expect(html).toContain('Edit Microsoft Graph Crawler');

@@ -104,6 +104,69 @@ describe('ContextBuilderPage', () => {
       .toHaveAttribute('title', 'Keep at least one term, or include an object by hand.');
   });
 
+  it('starts as the template of the Contexts tab it was opened from', async () => {
+    mount({ builderId: 'new-OrganizationalUnit-1' });
+    await screen.findByText(/The local model is not available/);
+    expect(screen.getByRole('combobox', { name: 'Template' })).toHaveValue('OrganizationalUnit');
+  });
+
+  it('a plain new builder is an application, and the chosen template is what Create sends', async () => {
+    const { authFetch } = mount();
+    await screen.findByText(/The local model is not available/);
+    expect(screen.getByRole('combobox', { name: 'Template' })).toHaveValue('LogicalApplication');
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Locaties' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Template' }), { target: { value: 'Segment' } });
+    fireEvent.change(screen.getByLabelText('Add a search term'), { target: { value: 'inkoop' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add term' }));
+    await waitFor(() => expect(screen.getByText('2 objects in the context')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Create context' }));
+
+    await waitFor(() => expect(authFetch.mock.calls.some(([u]) => u.includes('/save'))).toBe(true));
+    expect(JSON.parse(authFetch.mock.calls.find(([u]) => u.includes('/save'))[1].body).recipe.template).toBe('Segment');
+  });
+
+  it('shows the suggested owner of what the terms find', async () => {
+    const owner = { principalId: 'p1', displayName: 'Anna Jansen', reason: 'owns all 2 resources', count: 2, total: 2 };
+    mount({ authFetch: ROUTES({ 'context-assistant/evaluate': { ...EVALUATION, suggestedOwner: owner } }) });
+    await screen.findByText(/The local model is not available/);
+    expect(screen.queryByTestId('suggested-owner')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Add a search term'), { target: { value: 'inkoop' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add term' }));
+    expect(await screen.findByTestId('suggested-owner')).toHaveTextContent('Suggested owner: Anna Jansen — owns all 2 resources.');
+  });
+
+  describe('the model\'s guess at the template', () => {
+    const MODEL_ROUTES = (template) => ROUTES({
+      'context-assistant/status': { available: true, warm: 'ready' },
+      'context-assistant/warm': { state: 'ready' },
+      'context-assistant/interpret': {
+        kind: 'terms', name: 'Salarisadministratie', template, notes: [],
+        terms: [{ text: 'salaris', key: 'salaris', match: 'wordStart', state: 'accepted', origin: 'model', own: true, why: 'name' }],
+      },
+    });
+    async function describe_(text) {
+      fireEvent.change(await screen.findByLabelText('Describe the context'), { target: { value: text } });
+      fireEvent.click(screen.getByRole('button', { name: 'Propose terms' }));
+    }
+
+    it('replaces the tab\'s default and says it came from the model', async () => {
+      mount({ builderId: 'new-LogicalApplication-1', authFetch: MODEL_ROUTES('OrganizationalUnit') });
+      await describe_('salarisadministratie');
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Template' })).toHaveValue('OrganizationalUnit'));
+      expect(screen.getByText('suggested by the model')).toBeInTheDocument();
+    });
+
+    it('never overrides a template the analyst chose', async () => {
+      mount({ authFetch: MODEL_ROUTES('OrganizationalUnit') });
+      fireEvent.change(await screen.findByRole('combobox', { name: 'Template' }), { target: { value: 'Tag' } });
+      await describe_('salarisadministratie');
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Salarisadministratie'));
+      expect(screen.getByRole('combobox', { name: 'Template' })).toHaveValue('Tag');
+      expect(screen.queryByText('suggested by the model')).toBeNull();
+    });
+  });
+
   it('the scope settings change what is searched', async () => {
     const { authFetch } = mount();
     await screen.findByText(/The local model is not available/);

@@ -5,6 +5,7 @@ import {
   makeAuthFetch,
   jsonResponse,
   screen,
+  fireEvent,
 } from '@ui/test-utils/renderWithProviders';
 import ResourceDetailPage from '@ui/components/ResourceDetailPage';
 
@@ -27,7 +28,7 @@ const resource = (over = {}) => ({
 });
 
 // Serves /api/resources/:id, and optionally 404s it so the /api/group/:id fallback is exercised.
-function renderPage({ body = resource(), resourcesOk = true, groupBody = null } = {}) {
+function renderPage({ body = resource(), resourcesOk = true, groupBody = null, onOpenDetail = () => {} } = {}) {
   const seen = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
@@ -41,7 +42,7 @@ function renderPage({ body = resource(), resourcesOk = true, groupBody = null } 
     return undefined;
   });
   const r = renderWithProviders(
-    <ResourceDetailPage resourceId="r1" onClose={() => {}} onOpenDetail={() => {}} />,
+    <ResourceDetailPage resourceId="r1" onClose={() => {}} onOpenDetail={onOpenDetail} />,
     { auth: { authFetch } },
   );
   return { ...r, seen };
@@ -125,5 +126,58 @@ describe('ResourceDetailPage risk tab', () => {
     renderPage();
     expect(await screen.findByText('Finance Admins')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /^Risk$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('ResourceDetailPage owner', () => {
+  const withOwners = (owners) => ({ ...resource(), owners });
+
+  it('names the owner in the header and opens their page on click', async () => {
+    const onOpenDetail = vi.fn();
+    renderPage({
+      body: withOwners([{ principalId: 'p1', displayName: 'Ada Lovelace', email: 'ada@x', via: 'link' }]),
+      onOpenDetail,
+    });
+
+    const owner = await screen.findByRole('button', { name: 'Ada Lovelace' });
+    expect(screen.getByText('Owner:')).toBeInTheDocument();
+    expect(owner).toHaveAttribute('title', 'Owner in the source system');
+    fireEvent.click(owner);
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'p1', 'Ada Lovelace');
+  });
+
+  it('lists several owners, and says when one was matched from the name the source gave', async () => {
+    renderPage({ body: withOwners([
+      { principalId: 'p1', displayName: 'Ada Lovelace', via: 'link' },
+      { principalId: 'p2', displayName: null, via: 'reference' },
+    ]) });
+
+    expect(await screen.findByText('Owners:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    // No name on the account: its id still gives something to click.
+    expect(screen.getByRole('button', { name: 'p2' }))
+      .toHaveAttribute('title', 'Named as owner by the source system, matched to this account');
+  });
+
+  it('shows an owner only the source knows as plain text, with nothing to open', async () => {
+    renderPage({ body: withOwners([{ principalId: null, displayName: 'Gone Person', via: 'source' }]) });
+
+    const owner = await screen.findByText('Gone Person');
+    expect(owner).toHaveAttribute('title', 'Named as owner by the source system; no account we hold matches');
+    expect(screen.queryByRole('button', { name: 'Gone Person' })).not.toBeInTheDocument();
+  });
+
+  it('says nothing about an owner when the resource has none', async () => {
+    renderPage({ body: withOwners([]) });
+    expect(await screen.findByText('Finance Admins')).toBeInTheDocument();
+    expect(screen.queryByText(/^Owners?:$/)).not.toBeInTheDocument();
+    renderPage();
+    expect(screen.queryByText(/^Owners?:$/)).not.toBeInTheDocument();
+  });
+
+  it('offers the owners in the relationship graph', async () => {
+    renderPage({ body: withOwners([{ principalId: 'p1', displayName: 'Ada Lovelace', via: 'link' }]) });
+    fireEvent.click(await screen.findByRole('tab', { name: /Relationships/i }));
+    expect(await screen.findByText('Owners')).toBeInTheDocument();
   });
 });

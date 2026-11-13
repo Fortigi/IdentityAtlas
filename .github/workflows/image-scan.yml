@@ -1,0 +1,84 @@
+# ─── Weekly CVE scan of the published images ─────────────────────────────────
+# docker-publish.yml scans each image before pushing it, so nothing ships with a
+# fixable critical. That says nothing about CVEs disclosed AFTER a tag was
+# published -- and :latest can stay the current release for weeks. This scans
+# the tags people actually pull, every week (review item A11):
+#
+#   - every finding goes to the repository's Security tab (code scanning, SARIF),
+#     one category per image, so it is tracked and closes when fixed;
+#   - a CRITICAL with a fix available fails the run, the same rule as at publish
+#     time, with the same .grype.yaml for findings that do not apply.
+#
+# Not on pull_request: it scans published images, not the PR's code, so it can
+# neither gate nor be fixed by a PR (see test/ci-scripts/test-gate-wiring.sh).
+# ─────────────────────────────────────────────────────────────────────────────
+name: Image CVE scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 2' # Weekly, Tuesday 06:00 UTC (after Monday's Dependabot bumps land)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: 'Scan: ${{ matrix.image }}:${{ matrix.tag }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read         # pull from ghcr.io
+      security-events: write # upload SARIF to code scanning
+    strategy:
+      # One image's findings must not hide the others'.
+      fail-fast: false
+      matrix:
+        image: [identity-atlas, identity-atlas-worker, identity-atlas-report-generator]
+        tag: [latest, edge]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan ghcr.io/fortigi/${{ matrix.image }}:${{ matrix.tag }}
+        id: scan
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: ghcr.io/fortigi/${{ matrix.image }}:${{ matrix.tag }}
+          severity-cutoff: critical
+          only-fixed: true
+          output-format: sarif
+
+      # always(): the findings are most worth recording on the run that failed.
+      - name: Upload findings to the Security tab
+        if: always() && steps.scan.outputs.sarif != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+          category: image-${{ matrix.image }}-${{ matrix.tag }}
+
+  # Nobody watches a weekly run list. Opens (or comments on) one issue for this
+  # workflow, through the script the mutation workflows use. Guarded on the script
+  # existing so this workflow does not depend on the order PRs merge in.
+  alert:
+    name: Alert on scheduled failure
+    needs: [scan]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Open or update the failure issue
+        if: hashFiles('.github/scripts/scheduled_failure_issue.sh') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/scheduled_failure_issue.sh "${{ github.workflow }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -1,4 +1,5 @@
 import MatrixCell from './MatrixCell';
+import { BUSINESS_ROLE_CHIP_CLASS } from './MatrixBadges';
 import CellMarkerStrip from './CellMarkerStrip';
 import MatrixContextsCell from './MatrixContextsCell';
 import { CELL_BOX_STYLE } from './cellMarkers';
@@ -6,6 +7,7 @@ import {
   cellDeviation, heldOutsideRole, holdsBusinessRole, NO_DEVIATION, NO_HELD_OUTSIDE,
 } from './coverageDeviation';
 import { getAccessPackageColor } from '@ui/utils/colors';
+import { isApCategoryBoundary, apLeftBorderClass, isProposedStart, PROPOSED_GAP_STYLE } from './MatrixColumnHeaders.helpers';
 import { getApRoleBadge } from '@ui/utils/accessPackageStyles';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 
@@ -81,7 +83,7 @@ function RoleOwnerChip({ owners, onOpenDetail }) {
       onClick={(e) => { e.stopPropagation(); onOpenDetail?.('resource', first.id, first.name); }}
       title={title}
       aria-label={title}
-      className="flex-shrink-0 ml-1 px-1 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700 dark:hover:bg-indigo-900/50"
+      className={`${BUSINESS_ROLE_CHIP_CLASS} ml-1 text-[10px] hover:bg-indigo-100 dark:hover:bg-indigo-900/50`}
     >
       {label}
     </button>
@@ -197,10 +199,8 @@ function ResourceNameCell({
 export default function MatrixGroupRow({
   group,
   users,
-  totalUsers,
   memberships,
   aggDirectCounts,
-  managedMap,
   managedApMap,
   apIdToIndex,
   accessPackages = [],
@@ -372,14 +372,13 @@ export default function MatrixGroupRow({
         const apKey = `${lookupGid}|${ap.id.toLowerCase()}`;
         const roleName = apGroupMap?.get(apKey);
         const hasMapping = !!roleName;
-        const prevCat = idx > 0 ? (accessPackages[idx - 1].categoryName || null) : undefined;
-        const curCat = ap.categoryName || null;
-        const isCategoryBoundary = idx === 0 || prevCat !== curCat;
+        const proposedStart = isProposedStart(accessPackages, idx);
         return (
           <td
             key={ap.id}
-            className={`px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700 ${idx === 0 ? 'border-l-2 border-l-indigo-300 dark:border-l-indigo-500' : isCategoryBoundary ? 'border-l-2 border-l-gray-400 dark:border-l-gray-500' : ''}`}
+            className={`px-0 py-0 text-center border-r border-b border-gray-100 dark:border-gray-700 ${apLeftBorderClass(idx, isApCategoryBoundary(accessPackages, idx), proposedStart)}`}
             style={{
+              ...(proposedStart ? PROPOSED_GAP_STYLE : {}),
               backgroundColor: hasMapping ? getAccessPackageColor(idx, isDark) : undefined,
               minWidth: '24px',
               width: '24px',

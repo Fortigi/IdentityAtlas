@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from 'react';
 import { Field } from './ModalPrimitives';
-import { prettifyName } from './NewContextWizard.helpers';
+import { prettifyName, schemaFieldKind } from './NewContextWizard.helpers';
+import { EnumField, AttributeField, PrincipalListField } from './NewContextSchemaFields';
 import { attributeLabel } from '@ui/utils/formatters';
 
 // useState-equivalent backed by useReducer (value + functional updates):
@@ -9,9 +10,43 @@ import { attributeLabel } from '@ui/utils/formatters';
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 
 // ─── Dead-simple JSON-Schema-to-form renderer ─────────────────────────────────
-// Flat object of string / integer / array properties. scopeSystemId gets a
-// system picker; array params flagged "x-attributeSource":"principal" get the
-// attribute dropdown picker; other arrays/objects fall back to a JSON textarea.
+// Flat object of string / integer / boolean / array properties. scopeSystemId
+// gets a system picker; a string `enum` a dropdown (labels from
+// "x-enumLabels" when given); params flagged "x-attributeSource":"principal" the
+// attribute picker (one for a string, a list for an array); an array of uuids
+// ("items": { "format": "uuid" }) a person picker; other arrays/objects fall
+// back to a JSON textarea. schemaFieldKind() picks which.
+const INPUT = 'w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600';
+
+const FIELDS = {
+  system: ({ value, set, systems }) => (
+    <select value={value ?? ''} onChange={e => set(e.target.value ? parseInt(e.target.value, 10) : '')} className={INPUT}>
+      <option value="">(select a system)</option>
+      {systems.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
+    </select>
+  ),
+  number: ({ value, set }) => (
+    <input type="number" value={value ?? ''} onChange={e => set(e.target.value === '' ? '' : Number(e.target.value))} className={INPUT} />
+  ),
+  boolean: ({ value, set }) => (
+    <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+      <input type="checkbox" checked={value !== false} onChange={e => set(e.target.checked)} />
+      <span>{value !== false ? 'On' : 'Off'}</span>
+    </label>
+  ),
+  enum: ({ value, set, spec }) => <EnumField value={value} spec={spec} onChange={set} className={INPUT} />,
+  attribute: ({ value, set, principalAttrs }) => (
+    <AttributeField value={typeof value === 'string' ? value : ''} options={principalAttrs} onChange={set} className={INPUT} />
+  ),
+  attributeList: ({ value, set, principalAttrs }) => (
+    <AttributeListField value={Array.isArray(value) ? value : []} options={principalAttrs} onChange={set} />
+  ),
+  principalList: ({ name, value, set }) => <PrincipalListField inputId={`param-${name}`} value={Array.isArray(value) ? value : []} onChange={set} />,
+  text: ({ value, set, spec }) => (
+    <input value={value ?? ''} onChange={e => set(e.target.value)} placeholder={spec.default != null ? String(spec.default) : ''} className={INPUT} />
+  ),
+};
+
 export default function JsonSchemaForm({ schema, values, onChange, systems, principalAttrs = { columns: [], extended: [] } }) {
   if (!schema?.properties) {
     return <p className="text-xs text-gray-500 dark:text-gray-400">This plugin takes no parameters.</p>;
@@ -22,70 +57,16 @@ export default function JsonSchemaForm({ schema, values, onChange, systems, prin
   function setField(name, val) { onChange({ ...values, [name]: val }); }
 
   return entries.map(([name, spec]) => {
-    const isRequired = required.has(name);
-    const label = `${prettifyName(name)}${isRequired ? ' *' : ''}`;
+    const label = `${prettifyName(name)}${required.has(name) ? ' *' : ''}`;
     const help = spec.description;
-
-    if (name === 'scopeSystemId') {
-      return (
-        <Field key={name} label={label} help={help}>
-          <select
-            value={values[name] ?? ''}
-            onChange={e => setField(name, e.target.value ? parseInt(e.target.value, 10) : '')}
-            className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-          >
-            <option value="">(select a system)</option>
-            {systems.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
-          </select>
-        </Field>
-      );
-    }
-    if (spec.type === 'integer' || spec.type === 'number') {
-      return (
-        <Field key={name} label={label} help={help}>
-          <input
-            type="number"
-            value={values[name] ?? ''}
-            onChange={e => setField(name, e.target.value === '' ? '' : Number(e.target.value))}
-            className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-          />
-        </Field>
-      );
-    }
-    if (spec.type === 'boolean') {
-      return (
-        <Field key={name} label={label} help={help}>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={values[name] !== false} onChange={e => setField(name, e.target.checked)} />
-            <span>{values[name] !== false ? 'On' : 'Off'}</span>
-          </label>
-        </Field>
-      );
-    }
-    if (spec.type === 'array' && spec['x-attributeSource'] === 'principal') {
-      return (
-        <Field key={name} label={label} help={help}>
-          <AttributeListField
-            value={Array.isArray(values[name]) ? values[name] : []}
-            options={principalAttrs}
-            onChange={val => setField(name, val)}
-          />
-        </Field>
-      );
-    }
-    if (spec.type === 'array' || spec.type === 'object') {
-      return (
-        <JsonField key={name} label={label} help={help} spec={spec} value={values[name]} onChange={val => setField(name, val)} />
-      );
+    const kind = schemaFieldKind(name, spec);
+    const set = val => setField(name, val);
+    if (kind === 'json') {
+      return <JsonField key={name} label={label} help={help} spec={spec} value={values[name]} onChange={set} />;
     }
     return (
       <Field key={name} label={label} help={help}>
-        <input
-          value={values[name] ?? ''}
-          onChange={e => setField(name, e.target.value)}
-          placeholder={spec.default != null ? String(spec.default) : ''}
-          className="w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
-        />
+        {FIELDS[kind]({ name, value: values[name], set, spec, systems, principalAttrs })}
       </Field>
     );
   });

@@ -1,16 +1,27 @@
 {
   "type": "entra-id",
+  "emits": {
+    "principalTypes": ["User", "ServicePrincipal", "ManagedIdentity", "AIAgent"],
+    "resourceTypes": ["Group", "GroupOwnership", "BusinessRole", "Application", "DelegatedPermission", "AppRole", "EntraDirectoryRole", "ApplicationPermission", "ServicePrincipalOwnership", "ApplicationOwnership", "AppRegistration"],
+    "contextTypes": [],
+    "open": []
+  },
   "displayName": "Microsoft Entra ID",
   "entryPoint": "Start-EntraIDCrawler.ps1",
   "dependsOn": [],
   "configSchema": {
     "type": "object",
-    "required": ["tenantId", "clientId", "clientSecret"],
+    "required": ["tenantId"],
     "properties": {
       "tenantId":     { "type": "string" },
+      "authMethod":   { "enum": ["ClientSecret", "ManagedIdentity"], "description": "How the crawler signs in to Microsoft Graph. Absent means ClientSecret. ManagedIdentity uses the identity the Azure deployment attaches to the worker — no secret exists." },
       "clientId":     { "type": "string" },
       "clientSecret": { "type": "string" }
-    }
+    },
+    "allOf": [
+      { "if": { "properties": { "authMethod": { "const": "ClientSecret" } } },
+        "then": { "required": ["clientId", "clientSecret"] } }
+    ]
   },
   "postSyncHooks": ["buildContexts", "accountCorrelation"]
 }

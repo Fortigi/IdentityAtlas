@@ -13,23 +13,25 @@
 # Jobs:
 #   1. lint-ps    — PSScriptAnalyzer on all PowerShell files
 #   2. lint-js    — ESLint on the frontend (app/ui)
-#   3. unit-tests — Pester tests with code coverage report
-#   4. unit-js    — Vitest tests for the API (validation, middleware, docs structure)
+#   3. unit-tests — Pester tests in 4 parallel shards, merged code coverage
+#   4. unit-js    — Vitest tests for the API (validation, middleware, docs structure,
+#                   core ontology check)
 #   5. unit-ui    — Vitest tests for the UI
 #   6. node-launcher-ui-build — crawler wizard bundle check
-#   7. openapi    — Spectral lint on app/api/src/openapi.yaml
+#   7. static-gates — six small checks as steps of one job: file-length ratchet,
+#                   migration immutability, Node-version consistency, OpenAPI lint,
+#                   crawler-manifest completeness, compiled Azure templates
 #   8. audit      — npm audit on frontend and API packages
 #   9. hygiene    — tests + changelog fragment required for code changes
-#  10. crawler-manifest — CrawlerMeta.js completeness check
-#  11. duplication — jscpd clone detection; threshold in .jscpd.json
-#  12. filesize   — file-length ratchet (folded in from filesize.yml)
-#  13. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
-#  14. ci-scripts — self-tests for the path gates and the DoR scripts
-#  15. docs-build — MkDocs --strict, so a PR can't break the nav or a cross-link
-#  16. migration-immutability — migration hashes vs .ci/migration-hashes.json
-#  17. node-version — .nvmrc is the single source of truth for the Node major
+#  10. duplication — jscpd clone detection; threshold in .jscpd.json
+#  11. complexity — cyclomatic + cognitive complexity ratchet (from complexity.yml)
+#  12. ci-scripts — self-tests for the path gates and the DoR scripts
+#  13. docs-build — MkDocs --strict, so a PR can't break the nav or a cross-link
+#  14. security-authz — authorization regression across REST and MCP (real PostgreSQL)
+#  15. diff-coverage — changed-line coverage from the lcov the suites above produced.
+#                      ADVISORY: the one job NOT aggregated into ci-passed (see the job).
 #
-# All of the above feed ci-passed, so none needs to be an individual required
+# All of the others feed ci-passed, so none needs to be an individual required
 # check — mark only ci-passed required, and it self-skips per the filter scopes.
 #
 # A gate belongs HERE, not in its own workflow. A workflow that filters on
@@ -163,7 +165,12 @@ jobs:
           filters: |
             ps:
               - 'tools/crawlers/**/*.ps1'
+              - 'tools/psmodules/**'
               - 'tools/powershell-sdk/**'
+              - 'tools/riskscoring/**'
+              - 'tools/csv-templates/transforms/**'
+              - 'tools/psscriptanalyzer/**'
+              - '.ci/psscriptanalyzer-baseline.json'
               - 'setup/**/*.ps1'
               - 'setup/IdentityAtlas.psm1'
             pester:
@@ -177,10 +184,14 @@ jobs:
               - 'test/unit/**'
               - 'azure/**'
               - 'tools/release/**'
+              - 'tools/psscriptanalyzer/**'
+              - 'tools/pester/**'
               # Self-referencing, as coverage.yml does: editing the scope config or this job's
               # own definition must run the job it configures, not silently skip it (#1088).
               - '.ci/psmutant.config.json'
               - '.ci/psmutant-scope-baseline.json'
+              - '.ci/powershell-modules.json'
+              - 'tools/psmodules/**'
               - '.github/workflows/pr.yml'
             api:
               - 'app/api/src/**'
@@ -196,11 +207,16 @@ jobs:
               - 'app/api/vitest.config.js'
               - 'app/api/vitest.contract.config.js'
               - 'app/api/eslint.config.js'
+              # The coverage ratchets' own tests (test_ratchet.py,
+              # test_aggregate_floors.py) run in this job's per-file ratchet step.
+              - 'tools/coverage/**'
               # The desktop job worker's tests run in the API Vitest suite.
               - 'app/desktop/*.cjs'
               - 'app/desktop/*.test.js'
               # So do the scale test fixture generator's.
               - 'tools/scale-dataset/**'
+              # The core ontology is checked by the API suite (unit check + contract test).
+              - 'ontology/**'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -221,11 +237,17 @@ jobs:
               - 'docs/**'
               - 'mkdocs.yml'
               - 'app/api/src/docs/**'
+              # docs/concepts/ontology.md quotes ontology/*.ttl verbatim.
+              - 'ontology/**'
             # Any source file the file-length / complexity ratchets measure, keyed
             # by extension. A docs-only / version-bump / baseline PR matches none
             # of these, so `code` is false and both ratchets skip (they re-measure
             # the whole tree, so there's nothing new to check).
             code:
+              # The pinned PSComplexity version and its ceilings: a change to
+              # either must re-measure the tree.
+              - '.ci/powershell-modules.json'
+              - '.pscomplexity.json'
               - '**/*.ps1'
               - '**/*.js'
               - '**/*.jsx'
@@ -264,53 +286,15 @@ jobs:
         shell: pwsh
         run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
 
+      # What is scanned, which rules are off and why, and the baseline ratchet all
+      # live in tools/psscriptanalyzer/ (unit-tested by
+      # test/unit/PSAnalyzerRatchet.Tests.ps1). The two dead-code rules,
+      # PSUseDeclaredVarsMoreThanAssignments and PSReviewUnusedParameter, are on:
+      # their existing hits sit in .ci/psscriptanalyzer-baseline.json, which only
+      # shrinks, and any new one fails here (review item A14).
       - name: Analyse PowerShell files
         shell: pwsh
-        run: |
-          # Scan all production PowerShell roots.
-          #
-          # Excluded paths:
-          #   test/               — test-harness scripts, not production code
-          #   setup/CreatePSD.ps1 — developer-only manifest regeneration tool with
-          #                         hardcoded local paths; not shipped in the container
-          #
-          # Excluded rules:
-          #   PSAvoidUsingWriteHost — Write-Host is the intentional logging mechanism
-          #                           throughout the crawler / worker codebase
-          $paths = @(
-            (Get-ChildItem 'tools/powershell-sdk' -Directory | Select-Object -ExpandProperty FullName)
-            'tools/riskscoring',
-            'tools/crawlers',
-            'tools/csv-templates/transforms',
-            'setup/docker',
-            'setup/IdentityAtlas.psm1'
-          )
-          $excludeRules = @(
-            'PSAvoidUsingWriteHost'                    # Write-Host is the intentional logging mechanism
-            'PSAvoidGlobalVars'                        # intentional: token caching uses globals across function calls
-            'PSUseShouldProcessForStateChangingFunctions'  # internal library functions, not interactive cmdlets
-            'PSUseBOMForUnicodeEncodedFile'            # Linux-first codebase; BOM is unnecessary
-            'PSUseSingularNouns'                       # internal naming convention; not module exports
-            'PSAvoidDefaultValueSwitchParameter'       # crawler phase switches default to $true intentionally
-            'PSUseProcessBlockForPipelineCommand'      # these functions are not designed for pipeline use
-            'PSAvoidUsingEmptyCatchBlock'              # empty catches are intentional for non-critical operations
-            'PSUseDeclaredVarsMoreThanAssignments'     # investigate separately; too noisy for CI gate
-            'PSReviewUnusedParameter'                  # some parameters are kept for dispatcher API compatibility
-          )
-          $results = @()
-          foreach ($p in $paths) {
-            if (Test-Path $p) {
-              $results += Invoke-ScriptAnalyzer -Path $p -Recurse `
-                -Severity Warning, Error `
-                -ExcludeRule $excludeRules
-            }
-          }
-          if ($results) {
-            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
-            Write-Host "::error::PSScriptAnalyzer found $($results.Count) issue(s)"
-            exit 1
-          }
-          Write-Host "PSScriptAnalyzer: no issues found" -ForegroundColor Green
+        run: pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1
 
   # ── Stage 2: JavaScript linting ──────────────────────────────────────────
   lint-js:
@@ -352,13 +336,24 @@ jobs:
         run: npm run lint
 
   # ── Stage 3: Pester unit tests ───────────────────────────────────────────
-  unit-tests:
-    name: 'Unit Tests: Pester'
+  # Sharded over 4 runners: the single job was the slowest in PR Checks (~94s of
+  # tests behind ~20s of coverage set-up/processing), dominated by a few heavy
+  # files. tools/pester/PesterShards.ps1 assigns files heaviest-first using
+  # measured weights (.ci/pester-weights.json); every shard measures coverage
+  # over the SAME product files, and `unit-tests` below merges them exactly (a
+  # command is covered when any shard executed it) before applying the floor.
+  # Changing the shard count: edit the matrix, SHARDS, and PESTER_SHARDS together.
+  unit-tests-shard:
+    name: 'Unit Tests: Pester (shard ${{ matrix.shard }}/4)'
     needs: [filter]
     if: |
       needs.filter.outputs.pester == 'true' ||
       needs.filter.result == 'failure'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -372,11 +367,23 @@ jobs:
             Install-Module Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
           }
 
-      - name: Run Pester tests with coverage
+      - name: Run Pester shard with coverage
         shell: pwsh
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: 4
         run: |
+          . ./tools/pester/PesterShards.ps1
+          $root = (Get-Location).Path
+          $weights = (Get-Content .ci/pester-weights.json -Raw | ConvertFrom-Json -AsHashtable).weights
+          $all = Get-ChildItem test/unit -Recurse -Filter '*.Tests.ps1' -File | ForEach-Object FullName
+          $mine = @(Get-PesterShardFile -TestFile $all -Weight $weights -Count $env:SHARDS -Index $env:SHARD)
+          if (-not $mine.Count) { throw "Shard $env:SHARD/$env:SHARDS was assigned no test files — lower the shard count." }
+          Write-Host "Shard $env:SHARD/$env:SHARDS runs $($mine.Count) of $($all.Count) test files:"
+          $mine | ForEach-Object { Write-Host "  $(Split-Path $_ -Leaf)" }
+
           $cfg = New-PesterConfiguration
-          $cfg.Run.Path = 'test/unit'
+          $cfg.Run.Path = $mine
           $cfg.Run.PassThru = $true
           $cfg.Output.Verbosity = 'Detailed'
           # TestResult (JUnit/NUnit) export is deliberately OFF. Pester's XML writers don't sanitize
@@ -386,21 +393,8 @@ jobs:
           # captured test output only; both formats and both 5.7.1/5.9.0 crash the same way. Nothing
           # consumed pester-results.xml, and Output.Verbosity already logs every test's outcome.
           $cfg.CodeCoverage.Enabled = $true
-          # Measure PRODUCT code only. Enumerate the .ps1 files and drop tooling
-          # that lives inside these dirs but isn't the crawler/SDK itself —
-          # self-test harnesses (Test-*Crawler.ps1), data seeders (Seed-*), and
-          # dev-only scripts. Same rationale as excluding *.test.js on the JS side.
-          $cfg.CodeCoverage.Path = @(
-            Get-ChildItem 'tools/powershell-sdk','tools/riskscoring' -Recurse -Filter '*.ps1' -File
-            (Get-ChildItem 'tools/crawlers' -Directory |
-              Where-Object { Test-Path (Join-Path $_.FullName 'crawler.json') } |
-              ForEach-Object { Get-ChildItem $_.FullName -Recurse -Filter '*.ps1' -File })
-          ) | Where-Object {
-            $_.Name -notlike '*.Tests.ps1' -and
-            $_.Name -notlike 'Test-*Crawler.ps1' -and
-            $_.Name -notlike 'Seed-*' -and
-            $_.FullName -notmatch '[\\/]dev[\\/]'
-          } | Select-Object -ExpandProperty FullName
+          # Every shard measures the same product files, so their coverage merges exactly.
+          $cfg.CodeCoverage.Path = Get-PesterCoverageTarget -Root $root
           $cfg.CodeCoverage.OutputPath = 'pester-coverage.xml'
           $cfg.CodeCoverage.OutputFormat = 'JaCoCo'
           $result = Invoke-Pester -Configuration $cfg
@@ -410,26 +404,68 @@ jobs:
             Write-Host '::error::Invoke-Pester returned no result object — it threw before returning (see the error above). The test outcome is UNKNOWN, not a pass.'
             exit 1
           }
-          $pct = [Math]::Round($result.CodeCoverage.CoveragePercent, 1)
-          Write-Host "Coverage: $pct%"
+          New-Item -ItemType Directory -Force pester-shard | Out-Null
+          ConvertTo-PesterShardRecord -Result $result -Root $root |
+            ConvertTo-Json -Depth 3 -Compress | Set-Content "pester-shard/shard-$env:SHARD.json"
           if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload shard coverage
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: pester-shard-${{ matrix.shard }}
+          path: pester-shard/
+          retention-days: 3
+
+  # Merges the shards' coverage and applies the PowerShell floor. Keeps the old
+  # job's id and check name, so the Pester result still reads as one check.
+  unit-tests:
+    name: 'Unit Tests: Pester'
+    needs: [filter, unit-tests-shard]
+    if: |
+      always() && needs.unit-tests-shard.result != 'skipped'
+    runs-on: ubuntu-latest
+    env:
+      PESTER_SHARDS: 4
+    steps:
+      - name: Require every shard to pass
+        if: needs.unit-tests-shard.result != 'success'
+        run: |
+          echo "::error::A Pester shard failed or was cancelled (result: ${{ needs.unit-tests-shard.result }}). See the 'Unit Tests: Pester (shard N/4)' jobs."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download shard coverage
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: pester-shard-*
+          path: pester-shard
+          merge-multiple: true
+
+      - name: Merge coverage and apply the floor
+        shell: pwsh
+        run: |
+          . ./tools/pester/PesterShards.ps1
+          $files = @(Get-ChildItem pester-shard -Filter 'shard-*.json' -File)
+          if ($files.Count -ne [int]$env:PESTER_SHARDS) {
+            Write-Host "::error::Expected $env:PESTER_SHARDS Pester shard records, found $($files.Count). Coverage would be incomplete."
+            exit 1
+          }
+          $merged = Merge-PesterShardRecord -Record @($files | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json })
+          $pct = [Math]::Round($merged.Percent, 1)
+          Write-Host "Tests: $($merged.Tests) over $($merged.Shards) shards, $($merged.Failed) failed."
+          Write-Host "Coverage: $pct% ($($merged.Covered) / $($merged.Analyzed) commands)"
+          "Pester: $($merged.Tests) tests over $($merged.Shards) shards, coverage **$pct%** ($($merged.Covered) / $($merged.Analyzed) commands)" >> $env:GITHUB_STEP_SUMMARY
+          if ($merged.Failed -gt 0) { exit 1 }
           # PowerShell coverage floor — the "coverage never down" ratchet for the
           # PS side (the JS side already has committed vitest thresholds). RAISE
           # this when coverage rises; only ever lower it as a reviewed, justified
-          # change. Measured ~91.9%.
-          $FLOOR = 90.0
+          # change. Measured 92.1% merged over the shards (Nov 2026); floor = measured minus ~1.
+          $FLOOR = 91.0
           if ($pct -lt $FLOOR) {
             Write-Host "::error::Pester coverage $pct% is below the floor of $FLOOR%. Add tests for the PowerShell you changed, or lower the floor in pr.yml with justification."
             exit 1
           }
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: pester-results
-          path: pester-coverage.xml
-          retention-days: 14
 
   # ── Stage 4: API unit tests (Vitest) ────────────────────────────────────
   unit-js:
@@ -462,9 +498,35 @@ jobs:
         working-directory: app/api
         run: npm ci
 
+      # ontology/core.ttl must agree with the ingest registries, the ownership /
+      # visibility lists and the docs diagrams (docs/architecture/core-ontology.md).
+      # Also asserted inside the suite (src/ontology/ontology.guard.test.js); this
+      # step just names the failure. The real-database half is a contract test.
+      - name: Core ontology check
+        working-directory: app/api
+        run: npm run ontology:check
+
       - name: Run Vitest (with coverage)
+        id: tests
         working-directory: app/api
         run: npm run test:coverage
+
+      # Named after the suite's CONTENT KEY (tools/coverage/suite-key.sh: a hash of every
+      # input that can change this suite's coverage), and uploaded only when the suite
+      # PASSED. After merge, coverage.yml computes the same key for main and publishes this
+      # exact file instead of running the suite again (CI review B8).
+      - name: Content key
+        id: key
+        if: always() && steps.tests.outcome == 'success'
+        run: echo "key=$(bash tools/coverage/suite-key.sh api-unit)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload coverage (lcov)
+        if: always() && steps.tests.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: cov-api-unit-${{ steps.key.outputs.key }}
+          path: app/api/coverage/lcov.info
+          retention-days: 14
 
       - name: Per-file coverage ratchet (API)
         # Committed per-file line-coverage floor (.ci/coverage-baseline.json) so an
@@ -473,16 +535,8 @@ jobs:
         # tools/coverage/ratchet.py. Reads the deterministic unit lcov just produced.
         run: |
           python3 -m pip install --quiet pytest
-          python3 -m pytest tools/coverage/test_ratchet.py -q
+          python3 -m pytest tools/coverage/test_ratchet.py tools/coverage/test_aggregate_floors.py -q
           python3 tools/coverage/ratchet.py --lcov app/api/coverage/lcov.info --prefix app/api/
-
-      - name: Upload coverage (lcov + text)
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: api-coverage
-          path: app/api/coverage/
-          retention-days: 14
 
   # ── Stage 4b: Contract tests (Vitest + testcontainers) ──────────────────
   # Runs *.contract.test.js files against a real PostgreSQL container spun up
@@ -511,9 +565,61 @@ jobs:
         working-directory: app/api
         run: npm ci
 
-      - name: Run contract tests
+      # With coverage, so the diff-coverage job below can judge API changed lines on
+      # unit + contract combined without running this suite a second time.
+      - name: Run contract tests (with coverage)
         working-directory: app/api
-        run: npm run test:contract
+        run: npm run test:contract -- --coverage
+
+      # Named after the suite's CONTENT KEY (tools/coverage/suite-key.sh: a hash of every
+      # input that can change this suite's coverage), and uploaded only when the suite
+      # PASSED. After merge, coverage.yml computes the same key for main and publishes this
+      # exact file instead of running the suite again (CI review B8).
+      - name: Content key
+        id: key
+        run: echo "key=$(bash tools/coverage/suite-key.sh api-contract)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload contract coverage (lcov)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: cov-api-contract-${{ steps.key.outputs.key }}
+          path: app/api/coverage-contract/lcov.info
+          retention-days: 14
+
+  # ── Stage 4b+: Authorization security regression ────────────────────────
+  # Who may see what, across REST and MCP — its own named check so a security
+  # regression is unmistakable on the PR page (docs/architecture/mcp-authorization.md).
+  # The unit half (scope rules, every MCP tool's owner policy, the sign-in gate)
+  # and the PostgreSQL half (contract-tests/authzSecurity.integration.test.js:
+  # eight personas, REST and MCP compared object by object, adversarial probes
+  # with admin positive controls). No external LLM: every MCP tool is called
+  # directly with fixed inputs. Some of these also run in unit-js / contract-tests;
+  # the duplication is the price of a check that cannot be mistaken for another.
+  security-authz:
+    name: 'Security: authorization regression'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.api == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: app/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/api
+        run: npm ci
+
+      - name: Run the authorization security suite
+        working-directory: app/api
+        run: npm run test:security
 
   # ── Stage 4c: UI unit tests (Vitest) ────────────────────────────────────
   unit-ui:
@@ -538,6 +644,7 @@ jobs:
         run: npm ci
 
       - name: Run Vitest (with coverage ratchet)
+        id: tests
         working-directory: app/ui
         # Coverage-enabled so the committed thresholds floor in vite.config.js is
         # enforced — a change that drops UI coverage below the floor fails here.
@@ -548,6 +655,109 @@ jobs:
         # the API job — the aggregate vite.config.js floor above can't tell that one
         # file quietly regressed while another rose. See tools/coverage/ratchet.py.
         run: python3 tools/coverage/ratchet.py --lcov app/ui/coverage/lcov.info --prefix app/ui/
+
+      # Named after the suite's CONTENT KEY (tools/coverage/suite-key.sh: a hash of every
+      # input that can change this suite's coverage), and uploaded only when the suite
+      # PASSED. After merge, coverage.yml computes the same key for main and publishes this
+      # exact file instead of running the suite again (CI review B8).
+      - name: Content key
+        id: key
+        if: always() && steps.tests.outcome == 'success'
+        run: echo "key=$(bash tools/coverage/suite-key.sh ui)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload coverage (lcov)
+        if: always() && steps.tests.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: cov-ui-${{ steps.key.outputs.key }}
+          path: app/ui/coverage/lcov.info
+          retention-days: 14
+
+  # ── Stage 4d: Diff coverage (ADVISORY) ──────────────────────────────────
+  # The committed Vitest thresholds are GLOBAL — a new, barely-covered file hides
+  # behind the whole-suite average. This judges only a PR's CHANGED lines (80%),
+  # leaving legacy files alone. The API side combines UNIT and CONTRACT coverage,
+  # because routes and SQL are often exercised only by the contract suite.
+  #
+  # It reuses the lcov the three suites above already produced, instead of running
+  # them again — this used to be its own workflow (diff-coverage.yml) that re-ran
+  # API unit, contract and UI unit on two more runners for every push.
+  #
+  # ADVISORY on purpose: deliberately NOT in ci-passed's `needs:` (excused by name in
+  # test/ci-scripts/test-gate-wiring.sh). It cannot be made blocking while pure-JSX
+  # page shells produce expected reds — v8 does not line-instrument a big JSX
+  # `return`, so a routing or layout edit can fail on a line no test can reach
+  # (#725). A red here is a question to answer, not a gate to pass.
+  diff-coverage:
+    name: 'Diff coverage (advisory)'
+    needs: [unit-js, contract-tests, unit-ui]
+    # Only judge suites that actually passed: a failing suite's lcov is partial, and
+    # that failure is already reported by its own job.
+    if: |
+      always() &&
+      ((needs.unit-js.result == 'success' && needs.contract-tests.result == 'success') ||
+       needs.unit-ui.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FAIL_UNDER: '80'   # fraction of a PR's changed, coverage-eligible lines that must be covered
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # diff-cover needs history back to the PR's merge-base
+
+      - name: Install diff-cover
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          python3 -m pip install --quiet diff_cover
+
+      # One download per suite, each merged into its own fixed folder. A single
+      # `cov-*` download is not safe here: download-artifact only creates the
+      # per-artifact subfolder when MORE than one artifact matches, so a UI-only
+      # PR (one artifact) landed its lcov at cov/lcov.info and the step below
+      # could not find cov/cov-ui-*/lcov.info.
+      - name: 'Download coverage: API unit'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: 'cov-api-unit-*'
+          path: cov/api-unit
+          merge-multiple: true
+
+      - name: 'Download coverage: API contract'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: 'cov-api-contract-*'
+          path: cov/api-contract
+          merge-multiple: true
+
+      - name: 'Download coverage: UI'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: 'cov-ui-*'
+          path: cov/ui
+          merge-multiple: true
+
+      - name: 'Diff coverage: API (unit + contract)'
+        if: needs.unit-js.result == 'success' && needs.contract-tests.result == 'success'
+        run: |
+          # lcov SF paths are package-relative (src/...); make them repo-relative
+          # (app/api/src/...) so they align with git-diff paths.
+          sed 's#^SF:#SF:app/api/#' cov/api-unit/lcov.info > /tmp/api-unit.lcov
+          sed 's#^SF:#SF:app/api/#' cov/api-contract/lcov.info > /tmp/api-contract.lcov
+          python3 -m diff_cover.diff_cover_tool /tmp/api-unit.lcov /tmp/api-contract.lcov \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --fail-under="${FAIL_UNDER}"
+
+      - name: 'Diff coverage: UI'
+        if: always() && needs.unit-ui.result == 'success'
+        run: |
+          sed 's#^SF:#SF:app/ui/#' cov/ui/lcov.info > /tmp/ui.lcov
+          # App.jsx is the top-level hash-router shell, exercised end-to-end by
+          # e2e/navigation.spec.js rather than line-instrumented by v8. See #669.
+          python3 -m diff_cover.diff_cover_tool /tmp/ui.lcov \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --exclude '*/App.jsx' \
+            --fail-under="${FAIL_UNDER}"
 
   # ── Stage 4c: Node-launcher UI build (crawler wizard bundling) ──────────
   # The portable/desktop build (app/desktop/scripts/build-node-launcher.mjs)
@@ -577,28 +787,6 @@ jobs:
 
       - name: Build UI via the node-launcher pipeline
         run: node app/desktop/scripts/build-node-launcher.mjs --ui-only
-
-  # ── Stage 5: OpenAPI spec linting ───────────────────────────────────────
-  openapi:
-    name: 'Lint: OpenAPI spec'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.openapi == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        with:
-          node-version: '24'
-
-      - name: Install Spectral
-        run: npm install -g @stoplight/spectral-cli
-
-      - name: Lint openapi.yaml
-        run: spectral lint app/api/src/openapi.yaml
 
   # ── Stage 6: Dependency audit ────────────────────────────────────────────
   audit:
@@ -686,85 +874,313 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SKIP_HYGIENE: ${{ contains(github.event.pull_request.labels.*.name, 'skip-hygiene') }}
-        run: |
-          set -euo pipefail
+        # The rules live in the script so test/ci-scripts/test-pr-hygiene.sh can
+        # exercise them. Besides "a test changed", the test must be ABOUT the code
+        # that changed (review item A13): touching any unrelated test no longer passes.
+        run: git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | bash .github/scripts/pr_hygiene.sh
 
-          CHANGED=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
-          echo "Changed files:"; echo "${CHANGED}" | sed 's/^/  /'
-
-          # Product (non-test) source that ought to be covered by a test.
-          # .sql = schema migrations (cover with a contract test); .mjs = the
-          # desktop build/launcher scripts. Both previously slipped the gate.
-          CODE=$(echo "${CHANGED}" | grep -E \
-            -e '^app/api/src/.*\.js$' \
-            -e '^app/api/src/.*\.sql$' \
-            -e '^app/.*\.mjs$' \
-            -e '^app/ui/src/.*\.(js|jsx)$' \
-            -e '^tools/.*\.ps1$' \
-            -e '^setup/docker/.*\.ps1$' \
-            | grep -vE '\.(test|spec)\.(js|jsx)$' || true)
-
-          # Anything that counts as a test.
-          TESTS=$(echo "${CHANGED}" | grep -E \
-            -e '\.(test|spec)\.(js|jsx)$' \
-            -e '^app/ui/e2e/' \
-            -e '^test/' \
-            -e '\.Tests\.ps1$' \
-            -e '/Test-[^/]+\.ps1$' \
-            -e '/Start-Mock[^/]+\.ps1$' || true)
-
-          # Changelog fragment (the project mandates one per branch).
-          FRAGMENT=$(echo "${CHANGED}" | grep -E '^changes/.*\.md$' || true)
-
-          # Accumulate the human-readable reasons; severity is decided at the end
-          # so the 'skip-hygiene' bypass can downgrade them from error to warning.
-          REASONS=""
-          add_reason() { REASONS="${REASONS}${REASONS:+$'\n'}$1"; }
-
-          if [ -n "${CODE}" ]; then
-            if [ -z "${TESTS}" ]; then
-              add_reason "Source code changed but no test files were added or modified. Add or extend a test: *.test.js (API), app/ui/e2e/*.spec.js (UI), *.Tests.ps1 (Pester unit), or Test-*.ps1 (crawler integration)."
-            fi
-            if [ -z "${FRAGMENT}" ]; then
-              add_reason "Code changed but no changelog fragment found. Add a bullet to changes/<branch>.md (never edit CHANGES.md)."
-            elif ! grep -qE '^[[:space:]]*[-*][[:space:]]+[^[:space:]]' ${FRAGMENT}; then
-              # A fragment file exists but is empty / has no bullet — that silently
-              # satisfied the gate before. Require at least one real bullet line.
-              add_reason "A changelog fragment exists but has no bullet line. Add at least one '- ...' bullet describing the change to: ${FRAGMENT}"
-            fi
-          else
-            echo "No product code changed — tests/changelog not required."
-          fi
-
-          if [ -n "${REASONS}" ]; then
-            if [ "${SKIP_HYGIENE}" = "true" ]; then
-              # Observable bypass: the job runs, records what was waived, and passes.
-              echo "::warning::PR hygiene requirements NOT met, but BYPASSED via the 'skip-hygiene' label. The following would otherwise block merge:"
-              printf '%s\n' "${REASONS}" | sed 's/^/  - /'
-              echo "This bypass is intentional and is now recorded in this job's log rather than the job being silently skipped."
-              exit 0
-            fi
-            while IFS= read -r reason; do echo "::error::PR hygiene: ${reason}"; done <<< "${REASONS}"
-            echo "If this change genuinely needs neither, a maintainer can add the 'skip-hygiene' label."
-            exit 1
-          fi
-          echo "PR hygiene OK."
-
-  # ── Stage 8: Crawler manifest completeness ──────────────────────────────────
-  # Every user-facing crawler must have a CrawlerMeta.js. A crawler type must
-  # not appear as a hardcoded string or a stray type-named file anywhere in core
-  # — neither app/ui/ nor app/api/src/ — everything type-specific lives in
-  # tools/crawlers/<type>/ and core discovers it via the manifest (see #368).
-  # Library crawlers (used only as dependsOn, e.g. odata) are exempt.
-  crawler-manifest:
-    name: 'Lint: Crawler manifest completeness'
+  # ── Stage 10: Code duplication threshold ─────────────────────────────────
+  # Fails if overall duplication exceeds the threshold in .jscpd.json.
+  # Threshold is 2% (above the 1.65% baseline after dedup phases 1-4). Lower it
+  # progressively as further dedup refactor phases land in main.
+  duplication:
+    name: 'Lint: Code duplication (jscpd)'
     needs: [changes]
     if: needs.changes.outputs.has_product_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check CrawlerMeta.js presence and no crawler-specific drift into app/ui or app/api
+      # ONE head scan does both jobs — jscpd still writes its JSON report when it
+      # exits 1 over the threshold — and the base scan runs IN PARALLEL from a git
+      # worktree. This used to be three sequential full scans (head for the
+      # threshold, head again and base for the delta), which made a lint check the
+      # ~3-minute critical path of PR Checks.
+      #
+      # Aggregate gate: fail if total duplication exceeds the threshold in .jscpd.json.
+      # PR-delta gate: catch a NEW clone this PR introduces even when the total stays
+      # under the aggregate threshold (minTokens=50/minLines=10 means small pastes never
+      # move the 2% average). Compares clone counts head-vs-base, and degrades to a
+      # warning (the aggregate check still gates) if a report can't be produced or
+      # parsed — so it can never make CI worse.
+      - name: Check code duplication (aggregate threshold + new clones vs base)
+        run: |
+          set -uo pipefail
+          npm install -g --silent jscpd@3   # once: two concurrent `npx` installs race on the npx cache
+          clones() { node -e "try{console.log(require(process.argv[1]+'/jscpd-report.json').statistics.total.clones)}catch(e){console.log(-1)}" "$1"; }
+
+          BASE_DIR="$RUNNER_TEMP/jscpd-base-tree"
+          BASE_PID=""
+          if git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" && git worktree add -q --detach "$BASE_DIR" FETCH_HEAD; then
+            # The base is scanned with the BASE's own .jscpd.json, as before. --threshold 100:
+            # only the count is wanted here, never a failure.
+            ( cd "$BASE_DIR" && jscpd . --config .jscpd.json --threshold 100                 --reporters json --output "$RUNNER_TEMP/jscpd-base" >/dev/null 2>&1 ) &
+            BASE_PID=$!
+          fi
+
+          jscpd . --config .jscpd.json --reporters console,json --output "$RUNNER_TEMP/jscpd-head"
+          AGGREGATE_RC=$?
+          HEAD_CLONES=$(clones "$RUNNER_TEMP/jscpd-head")
+
+          BASE_CLONES=-1
+          if [ -n "$BASE_PID" ]; then
+            wait "$BASE_PID" || true
+            BASE_CLONES=$(clones "$RUNNER_TEMP/jscpd-base")
+          fi
+
+          if [ "$AGGREGATE_RC" -ne 0 ]; then
+            echo "::error::Total code duplication is above the threshold in .jscpd.json (see the report above)."
+            exit 1
+          fi
+          echo "jscpd clones — base: ${BASE_CLONES}, head: ${HEAD_CLONES}"
+          if [ "${HEAD_CLONES}" = "-1" ] || [ "${BASE_CLONES}" = "-1" ]; then
+            echo "::warning::jscpd delta check couldn't produce or parse a report; relying on the aggregate threshold only."
+            exit 0
+          fi
+          if [ "${HEAD_CLONES}" -gt "${BASE_CLONES}" ]; then
+            echo "::error::This PR introduces $((HEAD_CLONES - BASE_CLONES)) new code clone(s) (base ${BASE_CLONES} -> head ${HEAD_CLONES}) below the aggregate threshold. Extract the shared code instead (Reuse before creating)."
+            exit 1
+          fi
+
+  # ── Stage 14: Complexity ratchet (cyclomatic + cognitive) ────────────────
+  # Per-unit complexity baselines that only ratchet down. Same `code` scope and
+  # ci-passed membership as the file-length ratchet. See tools/complexity/ratchet.py.
+  complexity:
+    name: 'Complexity ratchet'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.code == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # upload the PowerShell complexity SARIF log
+      actions: read           # upload-sarif reads the run it belongs to
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            app/api/package-lock.json
+            app/ui/package-lock.json
+
+      # ESLint (with the project's configs/plugins) is the JS/TS measurer, so the
+      # workspaces it lints must have their dependencies installed.
+      - name: Install JS dependencies
+        run: |
+          npm ci --prefix app/api
+          npm ci --prefix app/ui
+
+      # The PowerShell measurer is the published PSComplexity module, at the
+      # version .ci/powershell-modules.json pins.
+      - name: Install PSComplexity (PowerShell complexity measurer)
+        shell: pwsh
+        run: ./tools/psmodules/Install-PinnedModule.ps1 PSComplexity
+
+      # Validate the ratchet gate logic (Python) before it gates anything.
+      - name: Test the ratchet gate logic
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/complexity/test_ratchet.py -q
+
+      # --ps-sarif: the same PowerShell measurement also writes PSComplexity's SARIF
+      # log of units over the .pscomplexity.json ceilings, uploaded below so the
+      # finding shows on the diff line, not only in this job's log.
+      - name: Run cyclomatic-complexity ratchet
+        run: python3 tools/complexity/ratchet.py --ps-sarif reports/pscomplexity.sarif
+
+      - name: Run cognitive-complexity ratchet
+        run: python3 tools/complexity/ratchet.py --metric cognitive
+
+      # always(): a run with a unit over the ceiling fails the ratchet, and that is
+      # exactly the run whose findings need showing. A pull request from a fork gets
+      # a read-only token and cannot upload, so it is skipped there.
+      - name: Upload PowerShell complexity findings to code scanning
+        if: >-
+          always() && hashFiles('reports/pscomplexity.sarif') != '' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: reports/pscomplexity.sarif
+          category: pscomplexity
+
+  # ── Stage 12: CI-logic self-tests ─────────────────────────────────────────
+  # The path-gate / crawler-scope / commit-range scripts in test/ci-scripts/
+  # encode the expected behaviour of the path filters and skip logic in this
+  # workflow and pr-integration.yml. Run them so a change that breaks those
+  # assumptions is caught here instead of silently mis-scoping CI (audit F6).
+  # Cheap (bash, seconds) — synthetic inputs, no real git diff needed.
+  ci-scripts:
+    name: 'CI: path-gate / scope self-tests'
+    needs: [changes]
+    if: needs.changes.outputs.has_product_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run CI path-gate / crawler-scope / commit-range self-tests
+        run: |
+          bash test/ci-scripts/test-path-gates.sh
+          bash test/ci-scripts/test-assert-test-secrets.sh
+          bash test/ci-scripts/test-crawler-scope.sh
+          bash test/ci-scripts/test-commit-range.sh
+          bash test/ci-scripts/test-dor-gate-notice.sh
+          bash test/ci-scripts/test-dor-reconcile-liveness.sh
+          bash test/ci-scripts/test-dor-reconcile-selfheal.sh
+          bash test/ci-scripts/test-dor-push-lease.sh
+          bash test/ci-scripts/test-dor-finalize-merged-pr.sh
+          bash test/ci-scripts/test-dor-sidekick-claim.sh
+          bash test/ci-scripts/test-dor-sparse-workspace.sh
+          bash test/ci-scripts/test-dor-run-touched-tests.sh
+          bash test/ci-scripts/test-dor-drop-workflow-labels.sh
+          bash test/ci-scripts/test-dor-trusted-spec.sh
+          bash test/ci-scripts/test-dor-agent-sandbox.sh
+          bash test/ci-scripts/test-dor-token-checkpoint.sh
+          bash test/ci-scripts/test-release-prev-tag.sh
+          bash test/ci-scripts/test-ps-module-update-prs.sh
+          bash test/ci-scripts/test-pr-hygiene.sh
+          bash test/ci-scripts/test-mutation-scripts.sh
+          bash test/ci-scripts/test-recent-changes.sh
+          bash test/ci-scripts/test-gate-wiring.sh
+          bash test/ci-scripts/test-coverage-reuse.sh
+
+      # The two Python tools that render and feed the Test Coverage docs page.
+      # Both are run only by post-merge workflows (coverage.yml, js-mutation.yml),
+      # so without this step a PR could break the page and nothing would say so
+      # until it had already landed on main — which is how these tests came to
+      # exist and never run. The ratchet gates test their own logic in their own
+      # jobs; these have no gate job to live in, so they live here.
+      - name: Test the coverage-docs tooling
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/test_generate_coverage_doc.py \
+                            tools/mutation/test_stryker_to_mutation_json.py -q
+
+      # Runs only from cut-release.yml / cut-hotfix.yml, so nothing else would
+      # exercise it until a release was already being cut — and a release is a
+      # bad place to discover that the notes generator throws.
+      - name: Test the release-notes dependency delta
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tools/release-notes/test_dependency_delta.py -q
+
+  # ── Stage 15: Docs site build (strict) ────────────────────────────────────
+  # `docs.yml` publishes the site, but it only runs on push to main — so until
+  # now a PR could break the nav, an internal cross-link or a link to a source
+  # file and nobody found out until it was already merged and deployed.
+  #
+  # --strict promotes MkDocs' warnings to errors. That covers a nav entry
+  # pointing at a file that does not exist, and any relative link that resolves
+  # to nothing inside the docs tree — including `../../app/...` links to repo
+  # source, which cannot work in the published site (only docs/** is copied).
+  # Link to source with an absolute https://github.com/Fortigi/IdentityAtlas/blob/main/…
+  # URL instead; that is already the convention in ~70 places.
+  #
+  # Same `docs` scope the filter already defines for exactly this purpose.
+  docs-build:
+    name: 'Docs: MkDocs build (strict)'
+    needs: [filter]
+    if: |
+      needs.filter.outputs.docs == 'true' ||
+      needs.filter.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.x'
+
+      # The same pinned toolchain docs.yml deploys with, so a PR cannot pass here
+      # and then fail on main.
+      - name: Install the docs toolchain
+        run: pip install -r docs/requirements.txt
+
+      - name: Build the site with warnings as errors
+        run: mkdocs build --strict --site-dir /tmp/docs-site
+
+  # ── Static gates: six small checks in one job ───────────────────────────
+  # File-length ratchet, migration immutability, Node-version consistency, OpenAPI
+  # lint, crawler-manifest completeness and the compiled Azure templates. Each does
+  # 5-20 s of work; as six separate jobs each also paid a 15-20 s runner start +
+  # checkout and held its own runner slot — six slots per push for about a minute
+  # of work, which is what queued every job for 14 minutes on a Dependabot burst.
+  #
+  # Each check is still scoped by its own path filter (step `if:`), still runs even
+  # when an earlier one fails (`continue-on-error`), and the Verdict step fails the
+  # job if ANY of them failed, with a per-check table in the job summary. When the
+  # path filter itself errors (`needs.filter.result != 'success'`) every check runs.
+  # test/ci-scripts/test-gate-wiring.sh asserts every check step feeds the Verdict.
+  static-gates:
+    name: 'Lint: static gates'
+    needs: [changes, filter]
+    if: ${{ !cancelled() && needs.changes.outputs.has_product_changes == 'true' }}
+    runs-on: ubuntu-latest   # git, python3, node, az and jq are preinstalled on the runner
+    env:
+      ALL: ${{ needs.filter.result != 'success' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pytest
+        run: python3 -m pip install --quiet pytest
+
+      # ── File-length ratchet (scope: code) ──────────────────────────────────
+      - name: 'File-length ratchet'
+        id: filesize
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.code == 'true')
+        continue-on-error: true
+        run: |
+          # Validate the ratchet gate logic before it gates anything.
+          python3 -m pytest tools/filesize/test_ratchet.py -q
+          # The report generator image runs this supervisor as its main process: it
+          # loads the model on demand and unloads it when idle. Standard library only.
+          python3 -m pytest setup/docker/report-generator/test_supervisor.py -q
+          python3 tools/filesize/ratchet.py
+
+      # ── Migration immutability (scope: migrations) ─────────────────────────
+      - name: 'Migration immutability gate'
+        id: migrations
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.migrations == 'true')
+        continue-on-error: true
+        run: |
+          python3 -m pytest tools/migrations/test_ratchet.py -q
+          python3 tools/migrations/ratchet.py
+
+      # ── Node-version consistency (scope: node_version) ─────────────────────
+      # .nvmrc is the single source of truth for the Node major. Fails if any
+      # `node-version:` in a workflow, `FROM node:<v>` in a Dockerfile, or
+      # `engines.node` in a package.json declares a different major.
+      - name: 'Node-version gate'
+        id: node_version
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.node_version == 'true')
+        continue-on-error: true
+        run: |
+          python3 -m pytest tools/node-version/test_ratchet.py -q
+          python3 tools/node-version/ratchet.py
+
+      # ── OpenAPI lint (scope: openapi) ───────────────────────────────────────
+      - name: Setup Node.js (for Spectral)
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.openapi == 'true')
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
+      - name: 'Lint: OpenAPI spec'
+        id: openapi
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.openapi == 'true')
+        continue-on-error: true
+        run: |
+          npm install -g @stoplight/spectral-cli
+          spectral lint app/api/src/openapi.yaml
+
+      # ── Crawler manifest completeness (every product-change push) ──────────
+      - name: 'Lint: Crawler manifest completeness'
+        id: crawler_manifest
+        if: always()
+        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -828,279 +1244,17 @@ jobs:
           if [ "$FAIL" = "1" ]; then exit 1; fi
           echo "Crawler manifest check passed."
 
-  # ── Stage 10: Code duplication threshold ─────────────────────────────────
-  # Fails if overall duplication exceeds the threshold in .jscpd.json.
-  # Threshold is 2% (above the 1.65% baseline after dedup phases 1-4). Lower it
-  # progressively as further dedup refactor phases land in main.
-  duplication:
-    name: 'Lint: Code duplication (jscpd)'
-    needs: [changes]
-    if: needs.changes.outputs.has_product_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check code duplication (aggregate threshold)
-        run: npx --yes jscpd@3 . --config .jscpd.json
-
-      # PR-delta: catch a NEW clone this PR introduces even when total duplication
-      # stays under the aggregate threshold (minTokens=50/minLines=10 means small
-      # pastes never move the 2% average). Compares clone counts head-vs-base and
-      # degrades to a warning (the aggregate check above still gates) if a report
-      # can't be parsed — so it can never make CI worse.
-      - name: Fail on new clones vs base
-        run: |
-          set -uo pipefail
-          clones() {
-            npx --yes jscpd@3 . --config .jscpd.json --threshold 100 \
-              --reporters json --output "$1" >/dev/null 2>&1 || true
-            node -e "try{console.log(require(process.cwd()+'/'+process.argv[1]+'/jscpd-report.json').statistics.total.clones)}catch(e){console.log(-1)}" "$1"
-          }
-          HEAD_CLONES=$(clones jscpd-head)
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" || true
-          git checkout -q FETCH_HEAD || true
-          BASE_CLONES=$(clones jscpd-base)
-          git checkout -q "${GITHUB_SHA}" 2>/dev/null || git checkout -q - 2>/dev/null || true
-          echo "jscpd clones — base: ${BASE_CLONES}, head: ${HEAD_CLONES}"
-          if [ "${HEAD_CLONES}" = "-1" ] || [ "${BASE_CLONES}" = "-1" ]; then
-            echo "::warning::jscpd delta check couldn't parse a report; relying on the aggregate threshold only."
-            exit 0
-          fi
-          if [ "${HEAD_CLONES}" -gt "${BASE_CLONES}" ]; then
-            echo "::error::This PR introduces $((HEAD_CLONES - BASE_CLONES)) new code clone(s) (base ${BASE_CLONES} -> head ${HEAD_CLONES}) below the aggregate threshold. Extract the shared code instead (Reuse before creating)."
-            exit 1
-          fi
-
-  # ── Stage 13: File-length ratchet ────────────────────────────────────────
-  # Enforces the CLAUDE.md "split before ~1000 lines" rule via a per-file baseline
-  # that only shrinks. Runs only when a measured source file changed (the `code`
-  # scope); part of ci-passed, so it blocks merge without a separate required
-  # check. See tools/filesize/ratchet.py.
-  filesize:
-    name: 'File-length ratchet'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.code == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Validate the ratchet gate logic (Python) before it gates anything.
-      - name: Test the ratchet gate logic
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/filesize/test_ratchet.py -q
-
-      # The report generator image runs this supervisor as its main process: it loads
-      # the model on demand and unloads it when idle. Standard library only.
-      - name: Test the report generator supervisor
-        run: python3 -m pytest setup/docker/report-generator/test_supervisor.py -q
-
-      - name: Run file-length ratchet
-        run: python3 tools/filesize/ratchet.py
-
-  # ── Stage 14: Complexity ratchet (cyclomatic + cognitive) ────────────────
-  # Per-unit complexity baselines that only ratchet down. Same `code` scope and
-  # ci-passed membership as the file-length ratchet. See tools/complexity/ratchet.py.
-  complexity:
-    name: 'Complexity ratchet'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.code == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: |
-            app/api/package-lock.json
-            app/ui/package-lock.json
-
-      # ESLint (with the project's configs/plugins) is the JS/TS measurer, so the
-      # workspaces it lints must have their dependencies installed.
-      - name: Install JS dependencies
-        run: |
-          npm ci --prefix app/api
-          npm ci --prefix app/ui
-
-      # The PowerShell measurer is the published PSComplexity module.
-      - name: Install PSComplexity (PowerShell complexity measurer)
-        shell: pwsh
-        run: Install-Module PSComplexity -RequiredVersion 0.5.1 -Force -Scope CurrentUser
-
-      # Validate the ratchet gate logic (Python) before it gates anything.
-      - name: Test the ratchet gate logic
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/complexity/test_ratchet.py -q
-
-      - name: Run cyclomatic-complexity ratchet
-        run: python3 tools/complexity/ratchet.py
-
-      - name: Run cognitive-complexity ratchet
-        run: python3 tools/complexity/ratchet.py --metric cognitive
-
-  # ── Stage 12: CI-logic self-tests ─────────────────────────────────────────
-  # The path-gate / crawler-scope / commit-range scripts in test/ci-scripts/
-  # encode the expected behaviour of the path filters and skip logic in this
-  # workflow and pr-integration.yml. Run them so a change that breaks those
-  # assumptions is caught here instead of silently mis-scoping CI (audit F6).
-  # Cheap (bash, seconds) — synthetic inputs, no real git diff needed.
-  ci-scripts:
-    name: 'CI: path-gate / scope self-tests'
-    needs: [changes]
-    if: needs.changes.outputs.has_product_changes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Run CI path-gate / crawler-scope / commit-range self-tests
-        run: |
-          bash test/ci-scripts/test-path-gates.sh
-          bash test/ci-scripts/test-crawler-scope.sh
-          bash test/ci-scripts/test-commit-range.sh
-          bash test/ci-scripts/test-dor-gate-notice.sh
-          bash test/ci-scripts/test-dor-reconcile-liveness.sh
-          bash test/ci-scripts/test-dor-reconcile-selfheal.sh
-          bash test/ci-scripts/test-dor-push-lease.sh
-          bash test/ci-scripts/test-dor-finalize-merged-pr.sh
-          bash test/ci-scripts/test-dor-sidekick-claim.sh
-          bash test/ci-scripts/test-dor-sparse-workspace.sh
-          bash test/ci-scripts/test-dor-run-touched-tests.sh
-          bash test/ci-scripts/test-dor-drop-workflow-labels.sh
-          bash test/ci-scripts/test-dor-trusted-spec.sh
-          bash test/ci-scripts/test-dor-agent-sandbox.sh
-          bash test/ci-scripts/test-dor-token-checkpoint.sh
-          bash test/ci-scripts/test-release-prev-tag.sh
-          bash test/ci-scripts/test-gate-wiring.sh
-
-      # The two Python tools that render and feed the Test Coverage docs page.
-      # Both are run only by post-merge workflows (coverage.yml, js-mutation.yml),
-      # so without this step a PR could break the page and nothing would say so
-      # until it had already landed on main — which is how these tests came to
-      # exist and never run. The ratchet gates test their own logic in their own
-      # jobs; these have no gate job to live in, so they live here.
-      - name: Test the coverage-docs tooling
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/test_generate_coverage_doc.py \
-                            tools/mutation/test_stryker_to_mutation_json.py -q
-
-      # Runs only from cut-release.yml / cut-hotfix.yml, so nothing else would
-      # exercise it until a release was already being cut — and a release is a
-      # bad place to discover that the notes generator throws.
-      - name: Test the release-notes dependency delta
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/release-notes/test_dependency_delta.py -q
-
-  # ── Stage 15: Docs site build (strict) ────────────────────────────────────
-  # `docs.yml` publishes the site, but it only runs on push to main — so until
-  # now a PR could break the nav, an internal cross-link or a link to a source
-  # file and nobody found out until it was already merged and deployed.
-  #
-  # --strict promotes MkDocs' warnings to errors. That covers a nav entry
-  # pointing at a file that does not exist, and any relative link that resolves
-  # to nothing inside the docs tree — including `../../app/...` links to repo
-  # source, which cannot work in the published site (only docs/** is copied).
-  # Link to source with an absolute https://github.com/Fortigi/IdentityAtlas/blob/main/…
-  # URL instead; that is already the convention in ~70 places.
-  #
-  # Same `docs` scope the filter already defines for exactly this purpose.
-  docs-build:
-    name: 'Docs: MkDocs build (strict)'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.docs == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.x'
-
-      # The same pinned toolchain docs.yml deploys with, so a PR cannot pass here
-      # and then fail on main.
-      - name: Install the docs toolchain
-        run: pip install -r docs/requirements.txt
-
-      - name: Build the site with warnings as errors
-        run: mkdocs build --strict --site-dir /tmp/docs-site
-
-  # ── Stage 17: Migration immutability ─────────────────────────────────────
-  # "Never edit an existing migration — add a new file." The migration runner
-  # tracks applied files by NAME only (no checksum), so a silent edit to an
-  # applied migration would never re-run and would diverge environments. Hashes
-  # every migration against .ci/migration-hashes.json and fails on any change or
-  # deletion. See tools/migrations/ratchet.py.
-  migration-immutability:
-    name: Migration immutability gate
-    needs: [filter]
-    if: |
-      needs.filter.outputs.migrations == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Validate the gate logic (Python) before it gates anything.
-      - name: Test the gate logic
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/migrations/test_ratchet.py -q
-
-      - name: Run migration immutability gate
-        run: python3 tools/migrations/ratchet.py
-
-  # ── Stage 18: Node-version consistency ───────────────────────────────────
-  # .nvmrc is the single source of truth for the Node major. Fails if any
-  # `node-version:` in a workflow, `FROM node:<v>` in a Dockerfile, or
-  # `engines.node` in a package.json declares a different major — so nothing can
-  # silently revert to an older Node. See tools/node-version/ratchet.py.
-  node-version:
-    name: Node-version gate
-    needs: [filter]
-    if: |
-      needs.filter.outputs.node_version == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # git + python3 are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Validate the gate logic (Python) before it gates anything.
-      - name: Test the gate logic
-        run: |
-          python3 -m pip install --quiet pytest
-          python3 -m pytest tools/node-version/test_ratchet.py -q
-
-      - name: Run node-version gate
-        run: python3 tools/node-version/ratchet.py
-
-  # ── Stage 19: Compiled Azure templates match their Bicep source ──────────
-  # The Deploy to Azure button and every release package deploy the COMPILED
-  # azure/main.json and main-auth.json, not the .bicep files — so a .bicep change
-  # without a rebuild ships nothing, and a hand edit to the .json ships something
-  # no source describes. Rebuilt here with the Bicep version that produced the
-  # committed file (its metadata names it), so a newer compiler cannot turn this
-  # red on its own. No Azure sign-in: building needs none.
-  azure-templates:
-    name: 'Azure: compiled templates match Bicep'
-    needs: [filter]
-    if: |
-      needs.filter.outputs.azure == 'true' ||
-      needs.filter.result == 'failure'
-    runs-on: ubuntu-latest   # az CLI and jq are preinstalled on the GitHub runner
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Rebuild and compare
+      # ── Compiled Azure templates match Bicep (scope: azure) ────────────────
+      # The Deploy to Azure button and every release package deploy the COMPILED
+      # azure/main.json and main-auth.json, not the .bicep files — so a .bicep change
+      # without a rebuild ships nothing, and a hand edit to the .json ships something
+      # no source describes. Rebuilt with the Bicep version that produced the
+      # committed file (its metadata names it), so a newer compiler cannot turn this
+      # red on its own. No Azure sign-in: building needs none.
+      - name: 'Azure: compiled templates match Bicep'
+        id: azure
+        if: always() && (env.ALL == 'true' || needs.filter.outputs.azure == 'true')
+        continue-on-error: true
         run: |
           set -euo pipefail
           stale=0
@@ -1119,6 +1273,35 @@ jobs:
           done
           exit $stale
 
+      # ── Verdict ─────────────────────────────────────────────────────────────
+      # `continue-on-error` turns each step's CONCLUSION green, so read the
+      # OUTCOMES. An out-of-scope step has outcome 'skipped'.
+      - name: Verdict
+        if: always()
+        env:
+          OUTCOMES: >-
+            File-length=${{ steps.filesize.outcome }}
+            Migration-immutability=${{ steps.migrations.outcome }}
+            Node-version=${{ steps.node_version.outcome }}
+            OpenAPI=${{ steps.openapi.outcome }}
+            Crawler-manifest=${{ steps.crawler_manifest.outcome }}
+            Azure-templates=${{ steps.azure.outcome }}
+        run: |
+          failed=""
+          { echo "| Check | Outcome |"; echo "|---|---|"; } >> "$GITHUB_STEP_SUMMARY"
+          for kv in $OUTCOMES; do
+            name="${kv%%=*}"; outcome="${kv#*=}"
+            echo "| $name | ${outcome:-skipped} |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$outcome" != "success" ] && [ "$outcome" != "skipped" ] && [ -n "$outcome" ]; then
+              failed="$failed $name"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Static gate(s) failed:$failed — open that step's log above."
+            exit 1
+          fi
+          echo "All in-scope static gates passed."
+
   # ── Gate: single required check for branch protection ───────────────────
   # Replaces the individual job requirements in branch protection. Update branch
   # protection to require only "ci-passed" — not each individual job name.
@@ -1135,24 +1318,21 @@ jobs:
       - filter
       - lint-ps
       - lint-js
+      - unit-tests-shard
       - unit-tests
       - unit-js
       - contract-tests
+      - security-authz
       - unit-ui
       - node-launcher-ui-build
-      - openapi
       - audit
       - supply-chain
       - hygiene
-      - crawler-manifest
       - duplication
-      - filesize
       - complexity
+      - static-gates
       - ci-scripts
       - docs-build
-      - migration-immutability
-      - node-version
-      - azure-templates
     if: always()
     runs-on: ubuntu-latest
     steps:

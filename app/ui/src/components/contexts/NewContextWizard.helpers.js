@@ -5,11 +5,15 @@
 // Steps shown in the indicator, by chosen source.
 export function stepsFor(source) {
   if (source === 'plugin') return [
-    { n: 1, label: 'Source' }, { n: 2, label: 'Pick plugin' },
+    { n: 1, label: 'Source' }, { n: 2, label: 'Pick a rule' },
     { n: 3, label: 'Configure' }, { n: 4, label: 'Preview & run' },
   ];
   if (source === 'manual') return [
     { n: 1, label: 'Source' }, { n: 2, label: 'Details' },
+  ];
+  if (source === 'upload') return [
+    { n: 1, label: 'Source' }, { n: 2, label: 'File' },
+    { n: 3, label: 'Mapping' }, { n: 4, label: 'Preview & import' },
   ];
   return [{ n: 1, label: 'Source' }];
 }
@@ -29,13 +33,42 @@ export function prettifyName(name) {
   return name.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
 }
 
+const isAttributeSource = (spec) => spec['x-attributeSource'] === 'principal';
+const isUuidList = (spec) => spec.type === 'array' && (spec.items?.format === 'uuid' || spec['x-picker'] === 'principal');
+
+// Which field the parameter form draws for one schema property. Checked in
+// order: the system picker, a dropdown of the allowed values (`enum`), the
+// attribute pickers, the person picker for a list of ids, then by type.
+export function schemaFieldKind(name, spec = {}) {
+  if (name === 'scopeSystemId') return 'system';
+  if (Array.isArray(spec.enum)) return 'enum';
+  if (spec.type === 'integer' || spec.type === 'number') return 'number';
+  if (spec.type === 'boolean') return 'boolean';
+  if (isAttributeSource(spec)) return spec.type === 'array' ? 'attributeList' : 'attribute';
+  if (isUuidList(spec)) return 'principalList';
+  if (spec.type === 'array' || spec.type === 'object') return 'json';
+  return 'text';
+}
+
+// The choices of an `enum` parameter as { value, label }: the label from
+// "x-enumLabels" (a { value: label } map, or an array in the enum's order),
+// else the value made readable ("jobTitle" → "Job Title").
+export function enumOptions(spec = {}) {
+  const labels = spec['x-enumLabels'];
+  return (spec.enum || []).map((value, i) => {
+    const given = Array.isArray(labels) ? labels[i] : labels?.[value];
+    return { value, label: given || prettifyName(String(value)) };
+  });
+}
+
 // Modal subtitle text for the current source / selection.
 export function wizardSubtitle(source, selected) {
-  if (!source) return 'Where should this tree come from?';
+  if (!source) return 'Where should this come from?';
   if (source === 'plugin') return selected ? selected.displayName : 'Build a tree from existing data';
   if (source === 'manual') return 'Start an empty tree you’ll curate yourself';
   if (source === 'describe') return 'Build a tree from search terms, in its own tab';
-  return 'Import from a crawler';
+  if (source === 'upload') return 'Your own list of organisation units or applications';
+  return 'Import from a system';
 }
 
 // Seed a plugin's params object from its schema defaults.

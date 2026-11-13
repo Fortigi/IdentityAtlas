@@ -45,17 +45,25 @@ export const GATED_ENDPOINTS = {
   'admin.read-tokens':     { method: 'GET',  path: '/api/admin/read-tokens' },
   'admin.feature-flags':   { method: 'POST', path: '/api/admin/features/toggle', body: { key: 'RISK_SCORING', enabled: false } },
   'admin.auth':            { method: 'GET',  path: '/api/admin/roles' },
+  // The MCP endpoint lives outside /api and checks the token itself
+  // (mcp/auth.js): it also needs the Mcp.Read scope and the mcpServer feature,
+  // both of which permissionMatrix.test.js provides.
+  'mcp.use':               {
+    method: 'POST', path: '/mcp',
+    body: { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'matrix-test', version: '1' } } },
+  },
 };
 
 // ── Implicit permissions ────────────────────────────────────────────────────
 // Not enforced by a requirePermission() gate but by a different mechanism.
 // `data.read` is the "can sign in at all" permission: enforced as
-// authentication-required (any signed-in user can read), and read-only API
+// implicit: any caller who holds at least one permission can read (a caller
+// with none is refused by authMiddleware — F-01), and read-only API
 // tokens (fgr_) are granted it implicitly in middleware/auth.js. The matrix
 // test verifies it by confirming an UNauthenticated request is rejected (401).
 export const IMPLICIT_PERMISSIONS = {
   'data.read': {
-    reason: 'Authentication-required: any signed-in user can read, and fgr_ read tokens are granted it implicitly. No requirePermission gate.',
+    reason: 'Implicit: any caller holding at least one permission can read (a caller with none is refused outright), and fgr_ read tokens are granted it implicitly. No requirePermission gate.',
     probe: { method: 'GET', path: '/api/permissions' },
   },
 };

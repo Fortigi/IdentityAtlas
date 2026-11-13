@@ -11,7 +11,9 @@ export default function AuthGate({ children }) {
     roles: [],
     hasWildcard: true,        // open-mode default; flipped on /auth-me response
     loaded: false,
+    answered: false,          // true once /auth-me itself answered (not a failure)
     me: null,                 // signed-in user mapped onto crawled data
+    contextOwner: null,       // { contexts } when let in as a context owner
   });
   const msalRef = useRef(null);
   const configRef = useRef(null);
@@ -185,7 +187,9 @@ export default function AuthGate({ children }) {
       roles: permState.roles,
       hasWildcard: permState.hasWildcard,
       permissionsLoaded: permState.loaded,
+      authMeAnswered: permState.answered,
       me: permState.me,
+      contextOwner: permState.contextOwner,
       refreshPermissions,
     }}>
       {/* Banner + app live in one min-h-screen flex column so the 100vh

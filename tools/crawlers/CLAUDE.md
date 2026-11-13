@@ -11,7 +11,7 @@ Drop a folder into `tools/crawlers/<type>/` with `crawler.json` + entry point. N
 
 ```
 tools/crawlers/<type>/
-├── crawler.json                ← required manifest
+├── crawler.json                ← required manifest (incl. `emits`: the principal/resource/context types it writes — checked against ontology/core.ttl)
 ├── Start-<Type>Crawler.ps1     ← entry point (thin: orchestration only)
 ├── <Type>Crawler.Functions.ps1 ← optional: dot-sourced reusable helpers (Pester-unit-tested)
 ├── <Type>Crawler.Transform.ps1 ← optional: dot-sourced pure record-shapers (Pester-unit-tested)

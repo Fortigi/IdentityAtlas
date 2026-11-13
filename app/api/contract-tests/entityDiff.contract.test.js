@@ -57,6 +57,10 @@ beforeAll(async () => {
   await assign(keptRole);
   await assign(removedRole);
 
+  // T travels as a JavaScript Date, which keeps milliseconds only. Without the
+  // pause, the setup rows above can fall in T's own millisecond, land after the
+  // truncated T and so be missing from the "before" side.
+  await pool.query(`SELECT pg_sleep(0.002)`);
   at = (await pool.query(`SELECT clock_timestamp() AS t`)).rows[0].t;
 
   await pool.query(`UPDATE "Principals" SET "department" = 'Finance', "managerId" = $2 WHERE "id" = $1`, [userId, newMgr]);
@@ -99,6 +103,35 @@ describe('GET /user/:id/diff', () => {
     expect(res.body.before.exists).toBe(false);
     expect(res.body.before.relationships).toEqual([]);
     expect(res.body.after.exists).toBe(true);
+  });
+});
+
+describe('GET /user/:id/snapshot — the Compare view', () => {
+  it('shows each user as it is now, with a shared role under the same key for both', async () => {
+    const daveId = await insertPrincipal('Dave Compare', oldMgr);
+    await pool.query(
+      `INSERT INTO "ResourceAssignments" ("resourceId", "principalId", "assignmentType", "principalType", "systemId", "resourceType")
+       VALUES ($1, $2, 'Direct', 'User', $3, 'BusinessRole')`,
+      [keptRole, daveId, systemId],
+    );
+    const [carol, dave] = await Promise.all([
+      agent.get(`/api/user/${userId}/snapshot`),
+      agent.get(`/api/user/${daveId}/snapshot`),
+    ]);
+    expect(carol.status).toBe(200);
+    expect(carol.body.snapshot.attributes.department).toBe('Finance');
+    // Now: the removed role is gone, the added one is there.
+    expect(labels(carol.body.snapshot)).toEqual([
+      'Business roles:Diff Added Role', 'Business roles:Diff Kept Role', 'Manager:Bob New',
+    ]);
+    const keyOf = (body, label) => body.snapshot.relationships.find(i => i.label === label)?.key;
+    expect(keyOf(dave.body, 'Diff Kept Role')).toBe(keyOf(carol.body, 'Diff Kept Role'));
+    expect(keyOf(carol.body, 'Diff Kept Role')).toBe(`heldResources:${keptRole}|Direct`);
+  });
+
+  it('404 for a user that does not exist', async () => {
+    const res = await agent.get('/api/user/00000000-0000-4000-8000-000000000000/snapshot');
+    expect(res.status).toBe(404);
   });
 });
 

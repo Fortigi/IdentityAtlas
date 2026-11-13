@@ -34,7 +34,11 @@ describe('GET /api/reports', () => {
     for (const entry of res.body.data) {
       expect(entry.form).toBe('list');
       expect(entry.columns.length).toBeGreaterThan(0);
-      for (const col of entry.columns) expect(col).toEqual({ key: expect.any(String), label: expect.any(String) });
+      for (const { headerFill, ...col } of entry.columns) {
+        expect(col).toEqual({ key: expect.any(String), label: expect.any(String) });
+        // A column's own header colour, when it has one, is an ARGB string the workbook can use.
+        if (headerFill !== undefined) expect(headerFill).toMatch(/^[0-9A-F]{8}$/);
+      }
       expect(entry.parametersSchema).toBeTruthy();
       // The client offers the formats the server actually serves, rather than
       // assuming them.
@@ -73,6 +77,40 @@ describe('GET /api/reports/:name/rows', () => {
     }
   });
 
+  it('lifts the row cap only when asked, and never hands allRows to the template as a parameter', async () => {
+    const run = vi.fn(async (_params, ctx) => (ctx.allRows
+      ? { rows: [{ a: 1 }, { a: 2 }] }
+      : { rows: [{ a: 1 }], truncated: true, canLoadAllRows: true }));
+    const unregister = registerReport({ name: 'zz-liftable', displayName: 'Liftable', form: 'list', columns: [{ key: 'a', label: 'A' }], run });
+    try {
+      const capped = (await request(app).get('/api/reports/zz-liftable/rows?x=1').expect(200)).body;
+      expect(capped).toMatchObject({ total: 1, truncated: true, canLoadAllRows: true });
+      expect(run).toHaveBeenLastCalledWith({ x: '1' }, expect.objectContaining({ allRows: false }));
+
+      const all = (await request(app).get('/api/reports/zz-liftable/rows?x=1&allRows=true').expect(200)).body;
+      expect(all).toMatchObject({ total: 2, truncated: false, canLoadAllRows: false });
+      expect(run).toHaveBeenLastCalledWith({ x: '1' }, expect.objectContaining({ allRows: true }));
+
+      // Anything but the literal "true" is no request to wait.
+      await request(app).get('/api/reports/zz-liftable/rows?allRows=1').expect(200);
+      expect(run).toHaveBeenLastCalledWith({}, expect.objectContaining({ allRows: false }));
+    } finally {
+      unregister();
+    }
+  });
+
+  it('offers no Load all for a complete run, even when the template claims it could', async () => {
+    const unregister = registerReport({
+      name: 'zz-claims', displayName: 'Claims', form: 'list', columns: [{ key: 'a', label: 'A' }],
+      async run() { return { rows: [{ a: 1 }], truncated: false, canLoadAllRows: true }; },
+    });
+    try {
+      expect((await request(app).get('/api/reports/zz-claims/rows').expect(200)).body.canLoadAllRows).toBe(false);
+    } finally {
+      unregister();
+    }
+  });
+
   it('returns an empty result — not an error — when the report finds nothing', async () => {
     const res = await request(app).get('/api/reports/orphaned-accounts/rows').expect(200);
     expect(res.body.rows).toEqual([]);
@@ -98,6 +136,48 @@ describe('GET /api/reports/:name/rows', () => {
   });
 });
 
+describe('what a run is told about its reader', () => {
+  it('passes the claim statuses the reader may see — in open mode every non-rejected one — to rows and downloads alike', async () => {
+    const seen = [];
+    const unregister = registerReport({
+      name: 'reader-aware-report', displayName: 'Reader Aware', description: 'Records its context.', form: 'list',
+      parametersSchema: { type: 'object', required: [], properties: {} },
+      columns: [{ key: 'a', label: 'A' }],
+      run: async (params, ctx) => { seen.push(ctx); return { rows: [] }; },
+    });
+    try {
+      await request(app).get('/api/reports/reader-aware-report/rows').expect(200);
+      await request(app).get('/api/reports/reader-aware-report/export?format=csv').expect(200);
+    } finally {
+      unregister();
+    }
+    // And whether organisation knowledge is on: off by default, so the unit report drops its claim columns.
+    // The row-cap choice travels in the same context: the screen did not ask, the download always does.
+    expect(seen).toEqual([
+      { claimStatuses: ['proposed', 'confirmed', 'edited'], orgKnowledge: false, allRows: false },
+      { claimStatuses: ['proposed', 'confirmed', 'edited'], orgKnowledge: false, allRows: true },
+    ]);
+  });
+
+  it('tells the run when organisation knowledge is on', async () => {
+    const seen = [];
+    const unregister = registerReport({
+      name: 'knowledge-aware-report', displayName: 'Knowledge Aware', description: 'Records its context.', form: 'list',
+      parametersSchema: { type: 'object', required: [], properties: {} },
+      columns: [{ key: 'a', label: 'A' }],
+      run: async (params, ctx) => { seen.push(ctx.orgKnowledge); return { rows: [] }; },
+    });
+    process.env.FEATURE_ORG_KNOWLEDGE = 'true';
+    try {
+      await request(app).get('/api/reports/knowledge-aware-report/rows').expect(200);
+    } finally {
+      delete process.env.FEATURE_ORG_KNOWLEDGE;
+      unregister();
+    }
+    expect(seen).toEqual([true]);
+  });
+});
+
 describe('GET /api/reports/:name/export', () => {
   let unregister;
 
@@ -119,7 +199,7 @@ describe('GET /api/reports/:name/export', () => {
 
     expect(res.headers['content-type']).toMatch(/^text\/csv/);
     expect(res.headers['content-disposition']).toMatch(
-      /^attachment; filename="identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv"$/);
+      /^attachment; filename="identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv"; filename\*=UTF-8''identity-atlas-downloadable-report-\d{4}-\d{2}-\d{2}\.csv$/);
     expect(res.text).toBe('"Thing","Count"\r\n"widget","3"');
   });
 
@@ -127,23 +207,38 @@ describe('GET /api/reports/:name/export', () => {
     const res = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
     expect(res.headers['content-type']).toMatch(/^application\/json/);
-    expect(res.headers['content-disposition']).toMatch(/filename=".*\.json"$/);
+    expect(res.headers['content-disposition']).toMatch(/filename=".*\.json";/);
     expect(JSON.parse(res.text)).toMatchObject({
       name: 'downloadable-report', total: 1, rows: [{ thing: 'widget', count: 3 }],
     });
+  });
+
+  it('always downloads every row, whether or not the screen asked for them', async () => {
+    const run = vi.fn(async (_params, ctx) => (ctx.allRows
+      ? { rows: [{ a: 1 }, { a: 2 }] }
+      : { rows: [{ a: 1 }], truncated: true, canLoadAllRows: true }));
+    const unregisterCapped = registerReport({ name: 'zz-capped-download', displayName: 'Capped download', form: 'list', columns: [{ key: 'a', label: 'A' }], run });
+    try {
+      const res = await request(app).get('/api/reports/zz-capped-download/export?format=csv&allRows=false&x=1').expect(200);
+      expect(res.text).toBe('"A"\r\n"1"\r\n"2"');
+      expect(run).toHaveBeenCalledWith({ x: '1' }, expect.objectContaining({ allRows: true }));
+    } finally {
+      unregisterCapped();
+    }
   });
 
   it('downloads exactly what the rows endpoint served — same columns, same rows', async () => {
     const rows = await request(app).get('/api/reports/downloadable-report/rows').expect(200);
     const download = await request(app).get('/api/reports/downloadable-report/export?format=json').expect(200);
 
-    // `notices` and `constantColumns` are the deliberate differences: both are
-    // context ABOUT the rows rather than part of them, and json does not claim
-    // to carry context. Everything else must match byte for byte.
-    const { generatedAt: a, notices, constantColumns, ...served } = rows.body;
+    // `notices`, `constantColumns` and `details` are the deliberate differences:
+    // all three are context ABOUT the rows rather than part of them, and json
+    // does not claim to carry context. Everything else must match byte for byte.
+    const { generatedAt: a, notices, constantColumns, details, ...served } = rows.body;
     const { generatedAt: b, ...downloaded } = JSON.parse(download.text);
     expect(notices).toEqual([]);
     expect(constantColumns).toEqual([]);
+    expect(details).toEqual([]);
     expect(downloaded).toEqual(served);
     expect(Date.parse(a)).not.toBeNaN();
     expect(Date.parse(b)).not.toBeNaN();
@@ -233,6 +328,47 @@ describe('GET /api/reports/:name/export', () => {
       expect(headerLabels(await sheetNamed(xlsx.body, 'Data'), 'Thing')).toEqual(['Thing']);
     } finally {
       constant();
+    }
+  });
+
+  it('gives the details blocks to the screen and the workbook, and to neither csv nor json', async () => {
+    const detailed = registerReport({
+      name: 'detailed-report',
+      displayName: 'Detailed Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({
+        rows: [{ thing: 'widget' }],
+        details: [{ title: 'Context: Ledger', entries: [{ label: 'cmdbReference', value: 'CI-7' }] }],
+      }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/detailed-report/rows').expect(200);
+      expect(rows.body.details).toEqual([{ title: 'Context: Ledger', entries: [{ label: 'cmdbReference', value: 'CI-7' }] }]);
+
+      const csv = await request(app).get('/api/reports/detailed-report/export?format=csv').expect(200);
+      expect(csv.text).toBe('"Thing"\r\n"widget"');
+      const json = await request(app).get('/api/reports/detailed-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).details).toBeUndefined();
+
+      const xlsx = await asBinary(request(app).get('/api/reports/detailed-report/export?format=xlsx')).expect(200);
+      const summary = await sheetNamed(xlsx.body, 'Summary');
+      expect(columnA(summary)).toEqual(expect.arrayContaining(['Context: Ledger', 'cmdbReference']));
+      expect(columnA(await sheetNamed(xlsx.body, 'Data'))).toEqual(['Thing', 'widget']);
+    } finally {
+      detailed();
+    }
+  });
+
+  it('defaults the details to an empty list when a run returns something that is not a list', async () => {
+    const odd = registerReport({
+      name: 'odd-details-report', displayName: 'Odd', form: 'list', columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({ rows: [], details: { title: 'not a list' } }),
+    });
+    try {
+      expect((await request(app).get('/api/reports/odd-details-report/rows').expect(200)).body.details).toEqual([]);
+    } finally {
+      odd();
     }
   });
 

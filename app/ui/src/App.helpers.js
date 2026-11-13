@@ -6,6 +6,12 @@
 export const DETAIL_PREFIXES = [
   'user', 'group', 'resource', 'access-package',
   'department', 'context', 'identity', 'run', 'report', 'report-builder', 'context-builder',
+  // The Adjust tree screen of one tree; its id is the tree's key.
+  'adjust-tree',
+  // The authorization workbench of one organizational unit; its id is the unit's id.
+  'workbench',
+  // Two or three users side by side; its id is their ids joined with commas.
+  'compare',
 ];
 
 // True when a hash page-key addresses a detail tab.
@@ -66,8 +72,11 @@ const CLOSE_FALLBACK = {
   department: 'contexts',
   context: 'contexts',
   'context-builder': 'contexts',
+  'adjust-tree': 'contexts',
+  workbench: 'contexts',
   identity: 'identities',
   resource: 'resources',
+  compare: 'principals',
 };
 export function closeFallbackPage(type) {
   return CLOSE_FALLBACK[type] || 'matrix';
@@ -81,8 +90,11 @@ const DETAIL_TAB_ICON_BG = {
   department: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
   context: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
   'context-builder': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
+  'adjust-tree': 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
+  workbench: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
   report: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
   'report-builder': 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+  compare: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
 };
 const DETAIL_TAB_ICON_BG_DEFAULT =
   'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300';
@@ -99,4 +111,44 @@ export function wizardOpening(options) {
     step: typeof options?.step === 'string' ? options.step : null,
     fresh: options?.fresh === true,
   };
+}
+
+// Update the open detail tabs from a detail page's freshly loaded payload
+// (onCacheData): a tab opened by URL gets its real name in place of the id it
+// was labelled with, and a context tab learns its template (`category`), so
+// the tab can show the template's icon. Matched by id only — some routes use
+// different type keys (#group: opens ResourceDetailPage, which reports
+// type 'resource'). Returns the same array when nothing changes.
+export function relabelDetailTabs(tabs, id, partialData) {
+  const displayName = pickDisplayName(partialData);
+  const category = partialData?.attributes?.contextCategory;
+  let changed = false;
+  const next = tabs.map(t => {
+    if (t.id !== id) return t;
+    const patch = {};
+    if (displayName && t.displayName === id) patch.displayName = displayName;
+    if (t.type === 'context' && category && t.category !== category) patch.category = category;
+    if (Object.keys(patch).length === 0) return t;
+    changed = true;
+    return { ...t, ...patch };
+  });
+  return changed ? next : tabs;
+}
+
+// Give an open detail tab a new id in place — the Compare tab, when a user is
+// added or removed. The tab keeps its place and where it returns to; its label
+// becomes the new id until the page reports a name (relabelDetailTabs). When a
+// tab with the new id is already open, the old one is dropped instead.
+export function replaceTabId(tabs, type, oldId, newId) {
+  if (tabs.some(t => t.type === type && t.id === newId)) {
+    return tabs.filter(t => !(t.type === type && t.id === oldId));
+  }
+  return tabs.map(t => (t.type === type && t.id === oldId ? { ...t, id: newId, displayName: newId } : t));
+}
+
+// The standalone page of a context, seen by someone who cannot edit contexts:
+// the business view, which the app shows without its navigation (the page's
+// breadcrumb is the way around). An analyst keeps the nav.
+export function isScopedContextPage(page, canWriteContexts) {
+  return !canWriteContexts && typeof page === 'string' && page.startsWith('context:');
 }

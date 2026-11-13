@@ -19,7 +19,7 @@ import TermsPanel from './TermsPanel';
 import MatchesPanel from './MatchesPanel';
 import { BuilderHeader, CARD, H3, SettingsPanel } from './ContextBuilderParts';
 import {
-  addTerm, EMPTY_RECIPE, mergeTerms, removeTerm, saveBlocker, setObjectChoice, setTermMatch, toggleListValue, toggleTerm,
+  addTerm, applyTemplateGuess, EMPTY_RECIPE, mergeTerms, templateFromBuilderId, removeTerm, saveBlocker, setObjectChoice, setTermMatch, toggleListValue, toggleTerm,
 } from './recipeDraft';
 import { useRecipeEvaluation } from './useRecipeEvaluation';
 import { useTermConversation } from './useTermConversation';
@@ -49,12 +49,17 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
   const { data: saved, error: savedError, loading: savedLoading } = useFetch(
     enabled && !isNew ? `/api/context-assistant/recipe/${encodeURIComponent(builderId)}` : null, { authFetch });
 
-  const [recipe, setRecipe] = useState(EMPTY_RECIPE);
+  // A new context starts as the template of the Contexts tab it was started from.
+  const [recipe, setRecipe] = useState(() => ({ ...EMPTY_RECIPE, template: templateFromBuilderId(builderId) }));
+  // Where the template came from: the tab ('start'), the model's guess ('model'), or the
+  // analyst ('analyst' — also a saved context's). The model never overrides the analyst.
+  const [templateSource, setTemplateSource] = useState('start');
   const [seeded, setSeeded] = useState(null);
   // Seed the draft once from the saved tree (render-time, not in an effect).
   if (saved && saved !== seeded) {
     setSeeded(saved);
     setRecipe(saved.recipe);
+    setTemplateSource('analyst');
   }
 
   const update = (fn) => (...args) => setRecipe(r => fn(r, ...args));
@@ -62,7 +67,11 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
     authFetch,
     recipe,
     initialQuestion: saved?.question || '',
-    onTerms: (reply) => setRecipe(r => ({ ...mergeTerms(r, reply.terms), name: r.name || reply.name })),
+    onTerms: (reply) => {
+      const chosen = templateSource === 'analyst';
+      if (applyTemplateGuess(recipe, reply.template, chosen).applied) setTemplateSource('model');
+      setRecipe(r => applyTemplateGuess({ ...mergeTerms(r, reply.terms), name: r.name || reply.name }, reply.template, chosen).recipe);
+    },
   });
   const { evaluation, evaluating, error: evaluateError } = useRecipeEvaluation(authFetch, recipe);
   const saving = useContextSave({
@@ -105,6 +114,9 @@ export default function ContextBuilderPage({ builderId, onClose, onOpenDetail, o
       <SettingsPanel
         recipe={recipe} options={options} fieldLabels={fieldLabels}
         onName={name => setRecipe(r => ({ ...r, name }))}
+        templateByModel={templateSource === 'model'}
+        onTemplate={template => { setTemplateSource('analyst'); setRecipe(r => ({ ...r, template })); }}
+        suggestedOwner={evaluation?.suggestedOwner}
         onStructure={structure => setRecipe(r => ({ ...r, structure }))}
         onToggleType={update((r, v) => toggleListValue(r, 'resourceTypes', v))}
         onToggleField={update((r, v) => toggleListValue(r, 'fields', v))}

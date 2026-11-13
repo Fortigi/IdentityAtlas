@@ -36,12 +36,17 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write  # weekly/on-demand run commits the refreshed score to main
+  contents: write         # weekly/on-demand run commits the refreshed score to main
+  security-events: write  # upload the surviving mutants to code scanning
+  actions: read           # upload-sarif reads the run it belongs to
 
 jobs:
   mutation:
     name: Mutation testing (PSMutant)
     runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
     steps:
       # Every run publishes, so the bot token is always needed: GITHUB_TOKEN
       # cannot push to protected main.
@@ -52,27 +57,41 @@ jobs:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
 
+      # The triggering ref: main on the schedule, a branch when a fix is being
+      # tried with workflow_dispatch. Only main publishes (see the last step).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Always main HEAD, checked out with the bot token so the publish step
-          # can push the refreshed score back.
-          ref: main
+          # Checked out with the bot token so the publish step can push the
+          # refreshed score back.
           token: ${{ steps.bot-token.outputs.token || github.token }}
 
       - name: Install pinned Pester + PSMutant
         shell: pwsh
         run: |
           Install-Module Pester -RequiredVersion 5.8.0 -Force -Scope CurrentUser
-          # 0.5.0: parallel workers (enabled in the config), -ResumeFrom, -ChangedFile.
-          Install-Module PSMutant -RequiredVersion 0.5.0 -Force -Scope CurrentUser
+          # The version .ci/powershell-modules.json pins.
+          ./tools/psmodules/Install-PinnedModule.ps1 PSMutant
 
       - name: Run mutation testing (enforced — fails below the break floor)
         shell: pwsh
         run: |
-          Import-Module PSMutant -Force
+          . ./tools/psmodules/PinnedModules.ps1
+          Install-PinnedModule -Name PSMutant
           $r = Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot . -Quiet
           Write-Host "Mutation score: $($r.Score)% ($($r.Killed) killed / $($r.Total))"
           if ($r.ExitCode -ne 0) { throw "Mutation score $($r.Score)% is below the break threshold" }
+
+      # Each surviving mutant becomes a code-scanning alert (one rule per operator,
+      # warning level), fingerprinted by file:function:description so it persists
+      # across runs and closes when a test starts killing it. always(): a run under
+      # the floor is exactly the run with findings. The log carries no category of
+      # its own, so it is named here.
+      - name: Upload surviving mutants to code scanning
+        if: always() && hashFiles('reports/ps-mutation.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: reports/ps-mutation.sarif
+          category: psmutant
 
       - name: Upload mutation report
         if: always()
@@ -87,6 +106,7 @@ jobs:
       # the fresh mutation.json, so line/complexity numbers are preserved as-of the
       # last coverage.yml run and only the mutation column moves.
       - name: Publish mutation score to the coverage docs
+        if: github.ref == 'refs/heads/main'
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
@@ -115,3 +135,22 @@ jobs:
           done
           echo "::error::Could not push mutation update after 5 attempts"
           exit 1
+
+  # ── Make a failed scheduled run visible ─────────────────────────────────────
+  # Nobody watches a weekly job's run list. Opens (or comments on) one issue per
+  # workflow; a manual run is being watched by whoever started it, so only the
+  # schedule alerts.
+  alert:
+    name: Alert on scheduled failure
+    needs: [mutation]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/scheduled_failure_issue.sh "${{ github.workflow }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -1,75 +1,120 @@
-import { variantMeta, targetTypeMeta } from '@ui/utils/contextStyles';
+import { contextSubtitle } from '@ui/utils/contextStyles';
 import { useCanBuildContexts } from '@ui/hooks/useCanBuildContexts';
 import { isRecipeRoot } from './contexts/assistant/recipeDraft';
-import ContextOwner from './contexts/ContextOwner';
 import ContextAccessCounts from './contexts/ContextAccessCounts';
+import { useContextAncestors } from './contexts/useContextAncestors';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
+import DownloadReportButton from './contexts/header/DownloadReportButton';
+import MoreMenu from './contexts/header/MoreMenu';
+import { reportFor, offersMatrix, ownerMatrixFor } from './contexts/header/headerActions';
+import { useContextOwnerScope } from '@ui/contexts/ContextOwnerScopeContext';
+import AddInformation from './contexts/interviews/AddInformation';
+import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
+import { contextOpener } from './contexts/contextOpener';
 
-// ─── Header — surfaces provenance (variant, target, system, owner) ────────
-export default function ContextDetailHeader({ attrs, onClose, onOpenDetail }) {
+// ─── Header: the name, one sentence on what it is, and the page's actions ──
+// The sentence ("Department · imported from Fortigi Demo HR") replaces the old
+// row of classification badges; the raw values sit under More details for
+// whoever can edit. Above the name, the parents as a breadcrumb. Below it
+// (`children`), for a unit or an application, who answers for it.
+//
+// Actions: "Download report" (when the template has one — the reader's main
+// action, for everyone), "Authorization workbench" (an analyst, on an
+// organizational unit: onOpenWorkbench; the page offers it only while organisation
+// knowledge is on; "3 proposed" on it when its saved investigations hold proposed
+// roles: proposedCount), "Add information" (an analyst, on a unit or an
+// application, while organisation knowledge is on), and a ⋯ menu with the rest (contexts/header/MoreMenu.jsx), each
+// only when its handler is given:
+//   onEdit        Edit (name, description, parent, template, delete)
+//   onAddSubUnit  Add sub-unit
+//   canAdjustTree Adjust tree (opens the tree's Adjust tree tab through onOpenDetail;
+//                 only while organisation knowledge is on)
+//   onOpenAsPage  Open as page (embedded in the Contexts page)
+//   onClose       Back to Contexts (the page opened from the tree)
+// View in matrix and Copy link are offered except in a read-only shell (a
+// context owner's page), whose URL is not this unit's page and which cannot
+// reach the matrix; there the breadcrumb names the direct parent only, without
+// reading the parents the reader may not open, and opens it only when it is
+// in the owner's scope (`openContext` decides). No owner chip: who answers for
+// the context is the Accountable, shown below the name.
+
+export default function ContextDetailHeader({ attrs, onClose, onOpenDetail, openContext, onOpenAsPage, onEdit, onAddSubUnit, canAdjustTree, addInformation = false, onOpenWorkbench, proposedCount = 0, children }) {
+  const readOnly = useIsSharedView();
+  const knowledge = useOrgKnowledge();
   const canEditRecipe = useCanBuildContexts() && isRecipeRoot(attrs) && !!onOpenDetail;
-  const v = variantMeta(attrs.variant);
-  const t = targetTypeMeta(attrs.targetType);
-  const provenance = describeProvenance(attrs);
+  const subtitle = contextSubtitle(attrs);
+  const report = reportFor(attrs);
+  // A context owner's page: the matrix of their team or application, opened in their shell.
+  const ownerScope = useContextOwnerScope();
+  const ownerMatrix = onOpenDetail ? ownerMatrixFor(attrs, { ownerScope }) : null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 border-l-4" style={{ borderLeftColor: '' /* handled via variant dot below */ }}>
-      <div className="flex items-start justify-between gap-4">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`w-1.5 h-8 ${v.dotClass} rounded`} aria-hidden="true" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white truncate">{attrs.displayName || attrs.id}</h2>
-            {attrs.contextType && (
-              <span className="text-[10px] uppercase tracking-wide text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">
-                {attrs.contextType}
-              </span>
-            )}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${t.badgeClass}`}>{t.label}</span>
-            <span className={`inline-flex items-center gap-1 text-[10px] ${v.textClass}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${v.dotClass}`} />{v.label}
-            </span>
-            {attrs.scopeSystemName && (
-              <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-600">
-                {attrs.scopeSystemName}
-              </span>
-            )}
-            <ContextOwner attrs={attrs} onOpenDetail={onOpenDetail} />
-          </div>
-          {provenance && <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{provenance}</p>}
-          {attrs.parentDisplayName && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Parent: {attrs.parentDisplayName}</p>
-          )}
+          <Breadcrumb attrs={attrs} openContext={openContext || contextOpener({ onOpenDetail })} walk={!readOnly} />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white break-words">{attrs.displayName || attrs.id}</h2>
+          {subtitle && <p data-testid="context-subtitle" className="text-sm text-gray-600 dark:text-gray-400 mt-1">{subtitle}</p>}
           <ContextAccessCounts attrs={attrs} />
         </div>
-        <div className="flex items-start gap-2">
-        {canEditRecipe && (
-          <button type="button" onClick={() => onOpenDetail('context-builder', attrs.id, attrs.displayName)}
-            className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
-            Edit search terms
-          </button>
-        )}
-        <button onClick={onClose} className="text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 p-1" title="Close">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex flex-wrap items-start gap-2">
+          {report && <DownloadReportButton attrs={attrs} report={report.report} title={report.title} />}
+          {ownerMatrix && (
+            <button type="button" onClick={() => onOpenDetail('team-matrix', attrs.id, attrs.displayName)} data-testid="team-matrix"
+              title={ownerMatrix.title}
+              className="whitespace-nowrap rounded border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-900/30">
+              {ownerMatrix.label}
+            </button>
+          )}
+          {onOpenWorkbench && (
+            <button type="button" onClick={onOpenWorkbench} title="Group the people by what they do, see their access, and compose a candidate role"
+              className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
+              Authorization workbench
+              {proposedCount > 0 && ' '}
+              {proposedCount > 0 && (
+                <span className="ml-1rounded-full bg-emerald-200 px-1.5 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">{proposedCount} proposed</span>
+              )}
+            </button>
+          )}
+          {addInformation && knowledge && <AddInformation contextId={attrs.id} />}
+          <MoreMenu
+            attrs={attrs}
+            matrix={offersMatrix(attrs, { sharedView: readOnly })}
+            onAdjustTree={canAdjustTree && knowledge && onOpenDetail ? (treeKey, title) => onOpenDetail('adjust-tree', treeKey, title) : undefined}
+            onEditRecipe={canEditRecipe ? () => onOpenDetail('context-builder', attrs.id, attrs.displayName) : undefined}
+            onEdit={onEdit}
+            onAddSubUnit={onAddSubUnit}
+            copyLink={!readOnly}
+            onOpenAsPage={onOpenAsPage}
+            onClose={onClose}
+          />
         </div>
       </div>
+      {children}
     </div>
   );
 }
 
-function describeProvenance(attrs) {
-  if (attrs.variant === 'synced') {
-    const src = attrs.scopeSystemName ? `system ${attrs.scopeSystemName}` : 'an upstream crawler';
-    return `Synced from ${src}. Updated by the next crawl; analyst edits do not persist.`;
-  }
-  if (attrs.variant === 'generated') {
-    const algo = attrs.sourceAlgorithmDisplayName || attrs.sourceAlgorithmName || 'a plugin';
-    const sys = attrs.scopeSystemName ? ` on ${attrs.scopeSystemName}` : '';
-    return `Generated by the "${algo}" plugin${sys}. Replaced by the next run of the same plugin.`;
-  }
-  if (attrs.variant === 'manual') {
-    return `Created manually${attrs.createdByUser ? ` by ${attrs.createdByUser}` : ''}. Edit name, description, parent, and owner in-place.`;
-  }
-  return null;
+// The parents above this context, root first, each opening its own page where
+// openContext gives it a handler.
+function Breadcrumb({ attrs, openContext, walk }) {
+  const ancestors = useContextAncestors(attrs, { walk });
+  if (ancestors.length === 0) return null;
+  return (
+    <nav aria-label="Breadcrumb" className="mb-1">
+      <ol className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+        {ancestors.map(a => {
+          const open = openContext(a);
+          return (
+            <li key={a.id} className="flex items-center gap-1">
+              {open
+                ? <button type="button" onClick={open} className="hover:underline hover:text-blue-700 dark:hover:text-blue-300">{a.displayName}</button>
+                : <span>{a.displayName}</span>}
+              <span aria-hidden="true">›</span>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
 }

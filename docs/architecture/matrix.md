@@ -25,7 +25,7 @@ Owner @ Sales Team   D                       <- ownership is its own resource
 DelegatedPerm: …             D               <- OAuth2 user consent
 ```
 
-(That last cell is an `OAuth2Grant` row — it renders as **D**, since the badge only carries *how* the user holds it; the `DelegatedPermission` resource type carries the *what*. See "Badge collapse" below.)
+(That last cell is a delegated-permission consent — a `Direct` row on a `DelegatedPermission` resource, once its own `OAuth2Grant` type — and it renders as **D**, since the badge only carries *how* the user holds it; the `DelegatedPermission` resource type carries the *what*. See "Badge collapse" below.)
 
 ## Default row visibility
 
@@ -113,7 +113,7 @@ per-resource fetch over a view that renders hundreds of rows.
 
 ## Badge collapse — what each letter actually means
 
-The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:
+The user reads three letters, and the DB stores the same three assignment types — the ingest accepts only `Direct`, `Indirect` and `Eligible`. Migration 049's CASE expression still maps the retired source-detail names (rewritten to the three by migration 045) as a defensive fallback; those rows no longer occur:
 
 | Raw `assignmentType` in ResourceAssignments | Displayed `membershipType` | Badge |
 |---|---|---|
@@ -146,7 +146,7 @@ A group can appear as a *principal* of other resources — that's how nested gro
 
 Clicking the chevron on a group row fans out:
 1. **Nested parent groups** — groups this one is a member of. Members of the row's group inherit them.
-2. **App roles** — app roles assigned to this group. Members inherit them via the per-user `AppRoleViaGroup` rows (badge `I`).
+2. **App roles** — app roles assigned to this group. Members inherit them via the per-user `Indirect` rows (badge `I`).
 
 The endpoints don't filter by `assignmentType` — any future "group-as-principal" type (directory roles assigned to groups, governed BRs assigned to groups, …) automatically surfaces.
 
@@ -155,8 +155,8 @@ The endpoints don't filter by `assignmentType` — any future "group-as-principa
 `Principals` is users + service principals + managed identities. Groups live in `Resources` (as `resourceType='Group'`). When a group is itself a principal of an assignment (e.g. nested membership), the row's `principalId` is a group's UUID — which has no matching `Principals.id`, so the matrix endpoint's `INNER JOIN Principals` drops the row. The expand endpoints query `ResourceAssignments` directly to surface those rows.
 
 This is why we can store *both*:
-- `(resourceId=AppRole_X, principalId=Group_Y, assignmentType='AppRole')` — Group Y has the role
-- `(resourceId=AppRole_X, principalId=User_Z, assignmentType='AppRoleViaGroup', extendedAttributes.viaGroupId='Group_Y')` — User Z has the role because they're in Group Y
+- `(resourceId=AppRole_X, principalId=Group_Y, assignmentType='Direct')` — Group Y has the role
+- `(resourceId=AppRole_X, principalId=User_Z, assignmentType='Indirect', extendedAttributes.viaGroupId='Group_Y')` — User Z has the role because they're in Group Y
 
 …without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an `I` badge.
 
@@ -724,6 +724,21 @@ attributes you picked). Counts are computed only for the *visible frontier*
 (`buildContextRollupSql` / `buildAttrCutCellsSql`), so the payload stays small
 regardless of subtree size. The `sortHierarchy → context roll-up` translation
 lives in the `/api/matrix/data` handler in `matrix.js`.
+
+**A unit's own members (hierarchy).** The people directly in a unit are a
+column of their own, so nothing drops out of the view and the totals add up (the
+root's people = its direct members + each sub-unit's): the root gets a
+**"<unit> — direct members"** column before its sub-units, and so does every
+expanded unit. A root with no sub-units is that one column, never an empty
+matrix. A direct-members column's group value is `<unit id>:direct`; the
+frontier marks it so the subtree walk stops at the unit (`frontierValues`,
+`withDirectMemberNodes` in `matrix/contextRollup.js`), and its members toggle
+drills into the unit's own members. A column nobody holds anything in is dropped
+like any other. The view opens with the **root's direct-members column expanded**
+(its people as columns) and the sub-units collapsed — once per root, so
+collapsing it sticks. The layered hierarchy carries the **business-role columns**
+too (as the zoom view does, `rollupContent` `resources-and-roles` by default),
+headed under the last header row like the flat roll-up's.
 
 **Whole-axis fold level (attribute fold).** Clicking a header value folds or
 unfolds **one group**. That is not enough on an axis of hundreds of columns, and

@@ -1,0 +1,103 @@
+// MCP tools that orient the assistant: who is asking, and which records a name
+// refers to.
+
+import { query } from '../../db/connection.js';
+import { ENTITIES } from '../../nlreports/catalog.js';
+import { searchNames, namesOutsideScope } from '../../nlreports/references.js';
+import { detailLink, jsonResult, errorResult } from '../result.js';
+import { rowScopeOf, scopeOf } from '../ownerScope.js';
+
+export const whoAmI = {
+  name: 'whoami',
+  title: 'Who am I',
+  description:
+    'The signed-in user this assistant acts for: name, their account in Identity Atlas (if the directory has '
+    + 'it), their roles, and what they may see ("scope" — for a context owner, the contexts they answer for). Use it '
+    + 'to answer questions about "me" / "my", or to explain why something is not allowed.',
+  permission: null,
+  owner: 'scoped',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  async run(_args, ctx) {
+    const caller = await ctx.caller();
+    const user = ctx.user || {};
+    return jsonResult({
+      name: user.name || null,
+      username: user.preferred_username || user.upn || null,
+      roles: user.roles || [],
+      account: caller
+        ? { ...caller, link: detailLink(ctx.baseUrl, { kind: 'user', id: caller.principalId }) }
+        : null,
+      scope: scopeOf(ctx),
+      note: caller ? undefined : 'Your sign-in is not linked to an account in the crawled directory, so "my …" questions cannot be answered.',
+    });
+  },
+};
+
+// Entities a name can be looked up in. `change` has no name.
+export const SEARCHABLE = Object.keys(ENTITIES).filter(e => e !== 'change');
+const DEFAULT_KINDS = ['identity', 'account', 'resource'];
+
+export const search = {
+  name: 'search',
+  title: 'Find records by name',
+  description:
+    'Find people, accounts, groups, roles, applications or contexts by (part of) their name, with fuzzy matching. '
+    + 'Use it to resolve a name the user mentions to the exact record before querying, or when a query said '
+    + '"Did you mean". Returns id, exact name, type and a link per match.',
+  permission: 'data.read',
+  // Scoped: for a context owner the search runs under their row scope
+  // (nlreports/scope.js). A person, account or resource named EXACTLY as asked
+  // that lies outside it is listed too, as the app lists it in a held group's
+  // members: name and type, `accessible: false`, no id, no link.
+  owner: 'scoped',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      text: { type: 'string', minLength: 2, maxLength: 100 },
+      kinds: {
+        type: 'array',
+        items: { type: 'string', enum: SEARCHABLE },
+        description: `Where to look. Default: ${DEFAULT_KINDS.join(', ')} (resource covers groups, roles and applications).`,
+      },
+    },
+    required: ['text'],
+    additionalProperties: false,
+  },
+  async run(args, ctx) {
+    const text = String(args?.text || '').trim();
+    if (text.length < 2 || text.length > 100) return errorResult('text must be 2 to 100 characters.');
+    const kinds = Array.isArray(args.kinds) && args.kinds.length
+      ? [...new Set(args.kinds)].filter(k => SEARCHABLE.includes(k))
+      : DEFAULT_KINDS;
+    // A record can be found twice — a group is also a resource, a user also an
+    // account — so the first (= best-scoring, after the sort) entry per id wins.
+    const scope = rowScopeOf(ctx);
+    const found = [];
+    for (const kind of kinds) {
+      for (const m of await searchNames(query, kind, text, scope)) {
+        found.push({ ...m, entity: kind, link: detailLink(ctx.baseUrl, { kind: ENTITIES[kind].detailKind, id: m.id }) });
+      }
+    }
+    found.sort((a, b) => b.score - a.score);
+    const seen = new Set();
+    const matches = found.filter(m => !seen.has(m.id) && seen.add(m.id));
+    if (!scope) return jsonResult({ scope: scopeOf(ctx), matches }, matches.length);
+    const outside = await namedOutside(kinds, text, scope);
+    const all = [...matches.map(m => ({ ...m, accessible: true })), ...outside];
+    return jsonResult({ scope: scopeOf(ctx), matches: all }, all.length);
+  },
+};
+
+export const OUTSIDE_NOTE = 'Exists, but outside the part you may see: no details can be shown.';
+
+// Exact-name records outside the owner's scope, once per name and type.
+async function namedOutside(kinds, text, scope) {
+  const out = new Map();
+  for (const kind of kinds) {
+    for (const r of await namesOutsideScope(query, kind, text, scope)) {
+      const key = `${r.name.toLowerCase()}|${r.type ?? ''}`;
+      if (!out.has(key)) out.set(key, { name: r.name, type: r.type, entity: kind, accessible: false, note: OUTSIDE_NOTE });
+    }
+  }
+  return [...out.values()];
+}

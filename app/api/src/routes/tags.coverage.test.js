@@ -125,6 +125,41 @@ describe('PATCH /tags/:id', () => {
   });
 });
 
+// The synthetic Tags root is itself a Tag context (marked tagRoot); every
+// by-id read, update, delete and the name-uniqueness check must leave it out,
+// or a tag named "Tags" collides with it and a DELETE could take the root.
+describe('tag queries leave the tag root out', () => {
+  const NOT_ROOT = `COALESCE("extendedAttributes"->>'tagRoot', 'false') <> 'true'`;
+
+  it('POST /tags duplicate check', async () => {
+    queryOne.mockResolvedValueOnce(null);
+    query.mockResolvedValueOnce({ rows: [{ id: VALID, displayName: 'Tags', targetType: 'Principal', extendedAttributes: {} }] });
+    await request(app).post('/api/tags').send({ name: 'Tags', entityType: 'user' });
+    expect(String(queryOne.mock.calls[0][0])).toContain(NOT_ROOT);
+  });
+
+  it('PATCH /tags/:id lookup', async () => {
+    queryOne.mockResolvedValueOnce(null);
+    await request(app).patch(`/api/tags/${VALID}`).send({ name: 'New' });
+    expect(String(queryOne.mock.calls[0][0])).toContain(`"contextType" = 'Tag' AND ${NOT_ROOT}`);
+  });
+
+  it('DELETE /tags/:id', async () => {
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    await request(app).delete(`/api/tags/${VALID}`);
+    expect(String(query.mock.calls[0][0])).toContain(`DELETE FROM "Contexts" WHERE id = $1 AND "contextType" = 'Tag' AND ${NOT_ROOT}`);
+  });
+
+  it('POST /tags/:id/assign and /assign-by-filter lookups', async () => {
+    queryOne.mockResolvedValueOnce(null);
+    await request(app).post(`/api/tags/${VALID}/assign`).send({ entityIds: [VALID] });
+    queryOne.mockResolvedValueOnce(null);
+    await request(app).post(`/api/tags/${VALID}/assign-by-filter`).send({ entityType: 'user' });
+    for (const call of queryOne.mock.calls) expect(String(call[0])).toContain(NOT_ROOT);
+    expect(queryOne).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('DELETE /tags/:id', () => {
   it('200 deletes the tag', async () => {
     query.mockResolvedValueOnce({ rowCount: 1 });

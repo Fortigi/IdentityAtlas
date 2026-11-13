@@ -191,6 +191,16 @@ load such a catalogue as Contexts and place each member in its context.
   `ownerUserId` holds something the UI can turn into a person. An owner that matches no
   account is **kept exactly as the source spells it** and counted in the job log — never
   dropped, never invented.
+- **The owner becomes the application's Accountable.** Identity Atlas states the owner
+  of every synced context as its *Accountable* on the context page, matching it to an
+  account by key or, failing that, by an employee number exactly one live account
+  carries. An Accountable an analyst picked is never overwritten by the next run. See
+  [Roles from a source](../architecture/context-templates-phase-b.md#roles-from-a-source).
+- **`owner`, else `applicationowner`.** The *IdentityIQ with organisation extensions*
+  preset reads the catalogue's `owner` key and, where that is missing or blank, the
+  application owner key (`applicationowner`; `applicationOwner` is matched too, since
+  XQuery is case-sensitive). The application owner value is also kept as the
+  `applicationOwner` attribute, as the catalogue spells it.
 - **Most members belong to no context, and that is not a problem.** A `context-members`
   statement usually reads *every* entitlement and maps the few that name an application,
   so the majority of its rows name nothing at all. Those are counted and reported

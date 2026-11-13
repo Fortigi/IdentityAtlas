@@ -157,6 +157,8 @@ Browse all synced principals (accounts) with pagination, search, tagging, and at
 
 Clicking a name opens that account in its own detail tab, with **Attributes**, **Relationships**, **Timeline** and **Diff** views. **Diff** compares the account with how it was at a moment you pick (a day, a week, a month or a year ago, or any date): the old state on the left, the current state on the right, with changed attributes and added or removed access highlighted.
 
+To compare *different* accounts, use **Compare with…** on an account's page, or tick two or three rows in the list and click **Compare**. The accounts appear side by side in one column each. By default only the attributes and access where they differ are shown, and names, e-mail addresses and IDs are hidden.
+
 <figure markdown="span">
   ![A user detail tab on the Relationships view: a graph linking the user to their manager, identity, contexts, business roles and direct, indirect and eligible access, above a table of the ten direct assignments](../assets/screenshots/user-detail.png)
   <figcaption>A user's detail tab — the Relationships view, with the direct assignments fanned out.</figcaption>
@@ -171,6 +173,16 @@ Browse all synced resources (groups, directory roles, app roles, etc.) with pagi
 - **Resource Type filter:** Group, EntraDirectoryRole, AppRole, and others
 - **System filter:** restrict to a specific connected system
 - **Tag management:** same as the Principals (Users) page
+
+**Who owns a resource.** A resource's page names its owner in the header, as a link to
+that person, and offers an **Owners** node on the Relationships tab. The owner is the
+ownership link the source provides (a group's owners in Entra ID, or a SQL statement with
+**Owners from ownerId** ticked); where there is no such link, it is the owner the source
+names on the resource itself (`ownerId` / `ownerName`), matched to an account by its key
+or employee number. An owner no account matches is shown by the name the source gives,
+without a link. The same ownership is visible from the other side: a person's
+Relationships tab has an **Owned Resources** node listing what they own (the first 1,000
+by name; the number on the node is the full count).
 
 ---
 

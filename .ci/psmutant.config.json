@@ -148,6 +148,8 @@
     "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1",
     "tools/crawlers/mssql/SqlCrawler.Delta.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.Auth.ps1",
+    "tools/powershell-sdk/graph/Get-FGAccessTokenManagedIdentity.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AccessReviews.ps1"
   ],
@@ -578,6 +580,12 @@
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1": [
       "test/unit/EntraIDCrawlerDeltaScope.Tests.ps1"
     ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Auth.ps1": [
+      "test/unit/EntraIDCrawlerAuth.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessTokenManagedIdentity.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
+    ],
     "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1": [
       "test/unit/EntraIDCrawlerGroupDelta.Tests.ps1"
     ],
@@ -618,11 +626,12 @@
     "NumberLiteral",
     "NegationRemoval"
   ],
-  "_thresholdsComment": "break was 90 when the scope was pure shapers only (which sat at ~95.8%). With the non-pure ingest layer included the blended score is 90.7% (283/312), leaving 0.7 points of headroom — one new survivor would fail the build, and the cheapest way to make that failure go away would be to drop the ingest layer back out of `mutate`. That is precisely the behaviour this scope widening exists to stop, so break is set to 85: still far above the `low` band, and a genuine regression (a whole file's assertions weakening) moves the blended score by much more than 5 points. Raise it as survivors are killed; never raise it by narrowing `mutate`.",
+  "_thresholdsComment": "break was 90 when the scope was pure shapers only (which sat at ~95.8%). With the non-pure ingest layer included the blended score is 90.7% (283/312), leaving 0.7 points of headroom — one new survivor would fail the build, and the cheapest way to make that failure go away would be to drop the ingest layer back out of `mutate`. That is precisely the behaviour this scope widening exists to stop, so break is set to 85: still far above the `low` band, and a genuine regression (a whole file's assertions weakening) moves the blended score by much more than 5 points. Raise it as survivors are killed; never raise it by narrowing `mutate`. RE-BASELINED TO 77 (Nov 2026, #1557): every PSMutant before 0.9.2 imported Pester by its .psm1, which reports version 0.0, so the 82 of 85 test files that #Requires Pester 5 never loaded and each mutant they cover was scored Killed with no test named. 0.5.0 reported 100% (3,087 of 3,087, run 42595641753). 0.9.2 runs the real tests and measured 79.0%: 2,423 of 3,067 detected, 644 surviving, every kill naming its test (a local run, 13.5 minutes). The floor is that score minus 2; raising it back toward 85 is tracked in #1559.",
   "thresholds": {
     "high": 90,
     "low": 70,
-    "break": 85
+    "break": 77
   },
-  "reportPath": "reports/ps-mutation.json"
+  "reportPath": "reports/ps-mutation.json",
+  "sarifPath": "reports/ps-mutation.sarif"
 }

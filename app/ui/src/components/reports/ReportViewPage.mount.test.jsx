@@ -346,6 +346,41 @@ describe('ReportViewPage — a report that stopped at its row cap', () => {
     expect(await screen.findByText(/^1 row\b/)).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
   });
+
+  it('offers no Load all rows when a run without the cap would not return more', async () => {
+    renderReport({ rows: rowsBody([ROW], { truncated: true, canLoadAllRows: false }) });
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/Narrow it/);
+    expect(screen.queryByRole('button', { name: 'Load all rows' })).toBeNull();
+  });
+
+  it('lets the reader wait for every row, and keeps asking for them on Refresh', async () => {
+    let finish;
+    const all = rowsBody([ROW, { ...ROW, displayName: 'Grace Hopper', _entity: { kind: 'user', id: 'p2' } }]);
+    const { authFetch } = renderReport({
+      rows: (url) => (url.includes('allRows=true')
+        ? new Promise((resolve) => { finish = () => resolve(all); })
+        : rowsBody([ROW], { truncated: true, canLoadAllRows: true })),
+    });
+
+    const status = await screen.findByRole('status');
+    // The download is not cut off for a report that can lift its cap.
+    expect(status).toHaveTextContent(/first 1 rows.*download includes all of them/s);
+    expect(status).not.toHaveTextContent(/more than the download contains/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load all rows' }));
+    // The first rows stay on screen while every row is fetched.
+    expect(await screen.findByRole('button', { name: 'Loading all rows…' })).toBeDisabled();
+    expect(screen.getByRole('cell', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    expect(authFetch).toHaveBeenCalledWith('/api/reports/orphaned-accounts/rows?allRows=true');
+
+    finish();
+    expect(await screen.findByText(/^2 rows\b/)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(authFetch.mock.calls.filter(([u]) => String(u).endsWith('?allRows=true'))).toHaveLength(2));
+  });
 });
 
 describe('ReportViewPage — editing a custom report from its tab', () => {

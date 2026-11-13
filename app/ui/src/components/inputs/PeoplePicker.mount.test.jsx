@@ -59,6 +59,12 @@ describe('toPerson', () => {
   it('yields an empty key for a row that cannot sign in', () => {
     expect(toPerson(SVC).userKey).toBe('');
   });
+
+  it('names a nameless row after its sign-in name, then its mail, then nothing', () => {
+    expect(toPerson({ id: 'a', userPrincipalName: 'upn@contoso.com', email: 'mail@contoso.com' }).displayName).toBe('upn@contoso.com');
+    expect(toPerson({ id: 'b', email: 'mail@contoso.com' }).displayName).toBe('mail@contoso.com');
+    expect(toPerson({})).toEqual({ principalId: null, userKey: '', displayName: '' });
+  });
 });
 
 // A test chains several SETTLE waits, so its own budget must exceed one of them
@@ -123,15 +129,20 @@ describe('PeoplePicker', { timeout: 20000 }, () => {
     // render has an empty list and loading not yet true — so the dropdown
     // flashes "No people match" for a term it has not looked up. Asserting the
     // absence of that text is what discriminates.
-    let release = () => {};
-    const { user } = mount({ handler: () => new Promise(resolve => { release = () => resolve({ data: [ANN] }); }) });
+    // Every request is held. On a slow worker the debounce can settle on a
+    // partial term ("a") before the rest is typed, so there may be two requests;
+    // releasing only the first would leave the dropdown on "Searching…" for the
+    // full term forever. Wait for the request for "ann" itself, then release all.
+    const held = [];
+    const { authFetch, user } = mount({ handler: () => new Promise(resolve => { held.push(() => resolve({ data: [ANN] })); }) });
     await user.type(searchBox(), 'ann');
 
     const box = await resultsBox();
     expect(box).toHaveTextContent('Searching…');
     expect(box).not.toHaveTextContent('No people match');
 
-    release();
+    await waitFor(() => expect(authFetch.mock.calls.some(([url]) => url.includes('search=ann'))).toBe(true), SETTLE);
+    held.forEach(release => release());
     expect(await option('Ann Manager')).toBeEnabled();
   });
 

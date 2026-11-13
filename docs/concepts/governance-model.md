@@ -33,6 +33,7 @@ The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`,
 
 ## Governance Entity Diagram
 
+<!-- ontology: validated -->
 ```mermaid
 erDiagram
     GovernanceCatalogs {
@@ -98,12 +99,12 @@ erDiagram
         string reviewInstanceStatus
     }
 
-    GovernanceCatalogs ||--o{ Resources : "contains (BusinessRole)"
+    GovernanceCatalogs |o--o{ Resources : "contains (BusinessRole)"
     Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
-    Resources ||--o{ AssignmentPolicies : "governed by"
-    Resources ||--o{ AssignmentRequests : "requested via"
-    Resources ||--o{ CertificationDecisions : "reviewed via"
+    Resources |o--o{ AssignmentPolicies : "governed by"
+    Resources |o--o{ AssignmentRequests : "requested via"
+    Resources |o--o{ CertificationDecisions : "reviewed via"
 ```
 
 ---
@@ -128,7 +129,7 @@ The same governance tables absorb data from any IGA platform. The source platfor
 
 The unified model extends the three shared tables with extra columns that carry governance semantics. These columns are `NULL` for non-governance rows, so they do not break existing queries.
 
-`Initialize-FGGovernanceTables` adds these columns if they are not already present.
+These columns are created by the PostgreSQL migrations (`001_core_schema.sql`, `047_governed_assignment_flag.sql`).
 
 ### Resources (business roles)
 

@@ -13,7 +13,7 @@ import RE2 from 're2';
 export function compileExcludeRegexes(patterns) {
   return (patterns || []).map((src, i) => {
     try { return new RE2(src, 'i'); }
-    catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`); }
+    catch (e) { throw new Error(`excludeNamePatterns[${i}] is not a valid regex: ${e.message}`, { cause: e }); }
   });
 }
 
@@ -97,6 +97,9 @@ export function buildManagerIds(rows, byId, excludeRegexes, overrides) {
   return { managerIds, excludedCount };
 }
 
+/** contextType of every node the manager-hierarchy plugin emits, root included. */
+export const MANAGER_HIERARCHY_CONTEXT_TYPE = 'ManagerHierarchy';
+
 // One context per manager. parentExternalId = the manager's own managerId (if
 // that person is also a manager node); otherwise root.
 export function buildManagerContexts(managerIds, byId, rootExt, naming) {
@@ -107,16 +110,32 @@ export function buildManagerContexts(managerIds, byId, rootExt, naming) {
     contexts.push({
       externalId: managerId,
       displayName: buildNodeName(mgr, naming),
-      contextType: 'ManagerHierarchy',
+      contextType: MANAGER_HIERARCHY_CONTEXT_TYPE,
       parentExternalId: parentManagerId || rootExt,
     });
   }
   return contexts;
 }
 
+// The manager answers for their node: one Accountable role per manager that is
+// an account of the system (a ghost manager has no row to point at). A unit
+// split off a manager's people ("<managerId>::<value>") is theirs too.
+export function buildManagerRoles(managerIds, byId, contexts = []) {
+  const roles = [...managerIds].filter(id => byId.has(id)).map(id => ({ contextExternalId: id, principalId: id, role: 'Accountable' }));
+  for (const c of contexts) {
+    const [managerId, value] = String(c.externalId).split('::');
+    if (value !== undefined && managerIds.has(managerId) && byId.has(managerId)) {
+      roles.push({ contextExternalId: c.externalId, principalId: managerId, role: 'Accountable' });
+    }
+  }
+  return roles;
+}
+
 // Every principal with an effective manager becomes a member of that manager's
-// context. If the manager was excluded or isn't in the dataset, the principal
-// goes to root instead — unless it is itself a top-level manager node.
+// context. If the manager was excluded (or is an override target that does not
+// exist), the principal goes to root instead — unless it is itself a top-level
+// manager node. A source managerId that is not in the dataset is still a node
+// (buildManagerIds keeps it, named 'Unknown'), so its reports stay together.
 export function buildMemberRows(rows, managerIds, overrides, rootExt) {
   const members = [];
   for (const p of rows) {

@@ -54,6 +54,28 @@ export function buildSystemTree(rows, { rootName, rootType, childType }) {
   return { contexts, members, systemCount: seen.size };
 }
 
+// The plugin object the two sides share: everything but the names and the kind
+// of node. `defaults` carries rootName / rootType / childType / noun.
+export function defineSystemMembershipPlugin({ name, displayName, description, targetType, defaults }) {
+  return {
+    name,
+    displayName,
+    description,
+    targetType,
+    contextCategory: 'Segment',
+    contextTypes: [defaults.childType],
+    parametersSchema: {
+      type: 'object',
+      properties: {
+        rootName: { type: 'string', default: defaults.rootName, description: 'Display name of the synthetic root node.' },
+      },
+    },
+    run(params, ctx) {
+      return runSystemMembership(targetType, params, ctx, defaults);
+    },
+  };
+}
+
 // The shared `run()` body. `defaults` carries the target-side naming
 // (rootName / rootType / childType / noun) supplied by each plugin module.
 export async function runSystemMembership(targetType, params, ctx, defaults) {

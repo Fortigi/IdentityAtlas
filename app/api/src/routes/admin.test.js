@@ -16,7 +16,8 @@ vi.mock('../db/connection.js', () => ({
   queryOne: (...a) => queryOne(...a),
 }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
-vi.mock('../config/authConfig.js', () => ({ getAuthState: () => ({ enabled: false }) }));
+const authState = vi.hoisted(() => ({ on: false }));
+vi.mock('../config/authConfig.js', () => ({ getAuthState: () => ({ enabled: false }), isAuthEnabled: () => authState.on }));
 vi.mock('../ingest/tombstonePurge.js', () => ({ purgeExpiredTombstones: vi.fn(async () => ({ purged: 0 })) }));
 
 const { default: router } = await import('./admin.js');
@@ -36,6 +37,21 @@ describe('POST /admin/features/toggle', () => {
     const res = await request(app).post('/api/admin/features/toggle').send({ feature: 'riskScoring', enabled: true });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ feature: 'riskScoring', enabled: true });
+  });
+  // The MCP server acts for the signed-in user: with sign-in off there is no one to act for.
+  it('409 when switching the MCP server on while sign-in is off, and stores nothing', async () => {
+    authState.on = false;
+    const res = await request(app).post('/api/admin/features/toggle').send({ feature: 'mcpServer', enabled: true });
+    expect(res.status).toBe(409);
+    expect(query).not.toHaveBeenCalled();
+  });
+  it('lets the MCP server be switched off while sign-in is off, and on once it is on', async () => {
+    query.mockResolvedValue({});
+    authState.on = false;
+    expect((await request(app).post('/api/admin/features/toggle').send({ feature: 'mcpServer', enabled: false })).status).toBe(200);
+    authState.on = true;
+    expect((await request(app).post('/api/admin/features/toggle').send({ feature: 'mcpServer', enabled: true })).status).toBe(200);
+    expect(query.mock.calls.map(c => c[1])).toEqual([['FEATURE_MCP_SERVER', 'false'], ['FEATURE_MCP_SERVER', 'true']]);
   });
 });
 

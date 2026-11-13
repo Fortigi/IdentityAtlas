@@ -1,0 +1,183 @@
+// Contract test — the context-owner reads (src/auth/contextOwner.js) against
+// the real schema (migration 095's ContextRoles + ContextRelationships).
+//
+// The unit tests mock the database, so they cannot tell whether these
+// statements pick the right rows. Here the cases that matter for access:
+//   - a role held by the account, by the person (Identity), or by ANOTHER
+//     account of the same person all make them an owner;
+//   - a role held by somebody else does not;
+//   - SameUnitAs is found from either end of the stored pair;
+//   - the report-resolution check sees a context whose NAME is a held id;
+//   - EVERY sub-unit below a held context is found, at any depth, also one with
+//     an Accountable or Responsible of its own (hierarchical accountability) —
+//     but that sub-unit's owner gets only their own subtree, never the parent.
+
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import pg from 'pg';
+import { randomUUID } from 'crypto';
+import {
+  findHeldContexts, findSameUnitVariants, findOwnedSubUnits, resolveReportContexts, descendantsInScope,
+} from '../src/auth/contextOwner.js';
+
+let pool;
+let systemId;
+const id = {
+  me: randomUUID(), myAdmin: randomUUID(), stranger: randomUUID(),
+  person: randomUUID(),
+  ctxAccount: randomUUID(), ctxPerson: randomUUID(), ctxAdmin: randomUUID(), ctxStranger: randomUUID(),
+  variantOut: randomUUID(), variantIn: randomUUID(), unrelated: randomUUID(), namedLikeId: randomUUID(),
+  subFree: randomUUID(), subFreeChild: randomUUID(), subOwned: randomUUID(), subOwnedChild: randomUUID(),
+  subMine: randomUUID(), subMineChild: randomUUID(), strangerChild: randomUUID(),
+};
+
+async function context(ctxId, name, targetType = 'Identity', parentId = null) {
+  await pool.query(
+    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","contextCategory","scopeSystemId","parentContextId")
+     VALUES ($1,'manual',$2,'Department',$3,'OrganizationalUnit',$4,$5)`,
+    [ctxId, targetType, name, systemId, parentId],
+  );
+}
+
+async function role(contextId, holder, roleName) {
+  await pool.query(
+    `INSERT INTO "ContextRoles" ("contextId","principalId","identityId","role","addedBy") VALUES ($1,$2,$3,$4,'analyst')`,
+    [contextId, holder.principalId ?? null, holder.identityId ?? null, roleName],
+  );
+}
+
+beforeAll(async () => {
+  pool = new pg.Pool({ connectionString: process.env.CONTRACT_DB_URL });
+  systemId = (await pool.query(
+    `INSERT INTO "Systems" ("systemType","displayName") VALUES ('test','contract-context-owner') RETURNING "id"`,
+  )).rows[0].id;
+  for (const [pid, name] of [[id.me, 'Me'], [id.myAdmin, 'Me (admin)'], [id.stranger, 'Stranger']]) {
+    await pool.query(
+      `INSERT INTO "Principals" ("id","systemId","displayName","principalType") VALUES ($1,$2,$3,'User')`,
+      [pid, systemId, name],
+    );
+  }
+  await pool.query(`INSERT INTO "Identities" ("id","displayName") VALUES ($1,'Me the person')`, [id.person]);
+  await pool.query(
+    `INSERT INTO "IdentityMembers" ("identityId","principalId") VALUES ($1,$2),($1,$3)`,
+    [id.person, id.me, id.myAdmin],
+  );
+
+  await context(id.ctxAccount, 'B account-held');
+  await context(id.ctxPerson, 'C person-held');
+  await context(id.ctxAdmin, 'A admin-account-held');
+  await context(id.ctxStranger, 'D stranger-held');
+  await context(id.variantOut, 'B account-held', 'Resource');
+  await context(id.variantIn, 'C person-held', 'Principal');
+  await context(id.unrelated, 'E unrelated', 'Resource');
+  await context(id.namedLikeId, id.ctxAccount, 'Resource');
+
+  // Below ctxAccount: a free branch (two levels), a branch somebody else is
+  // Responsible for (its child must go too), and a branch the same owner holds
+  // again. Below the stranger's context: a sub-unit that is not ours.
+  await context(id.subFree, 'Sub free', 'Identity', id.ctxAccount);
+  await context(id.subFreeChild, 'Sub free child', 'Identity', id.subFree);
+  await context(id.subOwned, 'Sub owned', 'Identity', id.ctxAccount);
+  await context(id.subOwnedChild, 'Sub owned child', 'Identity', id.subOwned);
+  await context(id.subMine, 'Sub mine', 'Identity', id.ctxAccount);
+  await context(id.subMineChild, 'Sub mine child', 'Identity', id.subMine);
+  await context(id.strangerChild, 'Stranger child', 'Identity', id.ctxStranger);
+  await role(id.subOwned, { principalId: id.stranger }, 'Responsible');
+  await role(id.subMine, { principalId: id.me }, 'Responsible');
+  // A grandchild with an owner of its own, below a sub-unit without one.
+  await role(id.subFreeChild, { principalId: id.stranger }, 'Accountable');
+
+  await role(id.ctxAccount, { principalId: id.me }, 'Responsible');
+  await role(id.ctxAccount, { principalId: id.me }, 'Accountable');
+  await role(id.ctxPerson, { identityId: id.person }, 'Responsible');
+  await role(id.ctxAdmin, { principalId: id.myAdmin }, 'Responsible');
+  await role(id.ctxStranger, { principalId: id.stranger }, 'Accountable');
+
+  // Stored once per pair, in either direction.
+  await pool.query(
+    `INSERT INTO "ContextRelationships" ("contextId","relatedContextId","relationshipType","addedBy")
+     VALUES ($1,$2,'SameUnitAs','analyst'), ($3,$4,'SameUnitAs','analyst')`,
+    [id.ctxAccount, id.variantOut, id.variantIn, id.ctxPerson],
+  );
+});
+
+afterAll(async () => {
+  await pool?.query(`DELETE FROM "Contexts" WHERE "scopeSystemId" = $1`, [systemId]);
+  await pool?.query(`DELETE FROM "IdentityMembers" WHERE "identityId" = $1`, [id.person]);
+  await pool?.query(`DELETE FROM "Identities" WHERE "id" = $1`, [id.person]);
+  await pool?.query(`DELETE FROM "Principals" WHERE "systemId" = $1`, [systemId]);
+  await pool?.query(`DELETE FROM "Systems" WHERE "id" = $1`, [systemId]);
+  await pool?.end();
+});
+
+describe('findHeldContexts', () => {
+  it('finds roles held by the account, the person and the person\'s other account — one entry each', async () => {
+    const held = await findHeldContexts(pool, id.me, id.person);
+    expect(held.map(c => [c.id, c.role])).toEqual([
+      [id.ctxAdmin, 'Responsible'],
+      [id.ctxAccount, 'Accountable'],
+      [id.ctxPerson, 'Responsible'],
+      [id.subMine, 'Responsible'],
+    ]);
+    expect(held[1]).toMatchObject({ displayName: 'B account-held', contextCategory: 'OrganizationalUnit', targetType: 'Identity' });
+  });
+
+  it('without a linked person, finds only the account\'s own roles', async () => {
+    const held = await findHeldContexts(pool, id.me, null);
+    expect(held.map(c => c.id)).toEqual([id.ctxAccount, id.subMine]);
+  });
+
+  it('finds nothing for an account that holds no role', async () => {
+    const unrelatedPrincipal = randomUUID();
+    expect(await findHeldContexts(pool, unrelatedPrincipal, null)).toEqual([]);
+  });
+});
+
+describe('findSameUnitVariants', () => {
+  it('finds the other end whichever way the pair was stored, and nothing else', async () => {
+    const variants = await findSameUnitVariants(pool, [id.ctxAccount, id.ctxPerson]);
+    expect(variants.sort()).toEqual([id.variantOut, id.variantIn].sort());
+  });
+});
+
+describe('findOwnedSubUnits', () => {
+  it('finds every descendant to any depth — also a sub-unit, and a grandchild, with an owner of their own', async () => {
+    const subs = await findOwnedSubUnits(pool, [id.ctxAccount]);
+    expect(subs.sort()).toEqual([id.subFree, id.subFreeChild, id.subOwned, id.subOwnedChild, id.subMine, id.subMineChild].sort());
+  });
+
+  it('a sub-unit owner gets their own subtree only — never the parent or a sibling', async () => {
+    expect(await findOwnedSubUnits(pool, [id.subOwned])).toEqual([id.subOwnedChild]);
+    expect(await findOwnedSubUnits(pool, [id.subFree])).toEqual([id.subFreeChild]);
+  });
+
+  it('does not climb into another owner tree', async () => {
+    const subs = await findOwnedSubUnits(pool, [id.ctxAccount]);
+    expect(subs).not.toContain(id.strangerChild);
+    expect(subs).not.toContain(id.ctxStranger);
+  });
+
+  it('finds nothing below a leaf', async () => {
+    expect(await findOwnedSubUnits(pool, [id.subFreeChild])).toEqual([]);
+  });
+});
+
+describe('descendantsInScope', () => {
+  it('is true when every descendant is in the scope, false when one is missing', async () => {
+    const all = new Set([id.subFree, id.subFreeChild]);
+    expect(await descendantsInScope(pool, [id.subFree], all)).toBe(true);
+    expect(await descendantsInScope(pool, [id.subFree], new Set([id.subFree]))).toBe(false);
+    expect(await descendantsInScope(pool, [id.subFreeChild], new Set())).toBe(true);
+  });
+});
+
+describe('resolveReportContexts', () => {
+  it('resolves an id to that context AND to a context named like it', async () => {
+    const resolved = await resolveReportContexts(pool, [id.ctxAccount.toUpperCase()]);
+    expect(resolved.sort()).toEqual([id.ctxAccount, id.namedLikeId].sort());
+  });
+
+  it('resolves a name case-insensitively, across every context of that name', async () => {
+    const resolved = await resolveReportContexts(pool, ['b ACCOUNT-held']);
+    expect(resolved.sort()).toEqual([id.ctxAccount, id.variantOut].sort());
+  });
+});

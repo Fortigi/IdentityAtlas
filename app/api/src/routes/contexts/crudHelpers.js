@@ -6,7 +6,15 @@
 
 import * as db from '../../db/connection.js';
 import { wouldCreateCycle } from '../../contexts/cycleGuard.js';
+import { CONTEXT_CATEGORIES } from '../../ingest/validation.js';
 import { UUID_RE, TARGET_TYPES } from './shared.js';
+
+// A contextCategory is one of the four templates, or null ("Other"). Returns
+// { status, message } when the supplied value is neither, else null.
+export function validateContextCategory(value) {
+  if (value === null || value === undefined || CONTEXT_CATEGORIES.includes(value)) return null;
+  return { status: 400, message: `contextCategory must be one of ${CONTEXT_CATEGORIES.join(', ')}` };
+}
 
 // Required-field validation for POST /contexts. Returns { status, message } on
 // the first failure, or null when valid.
@@ -14,17 +22,28 @@ export function validateCreateContextBody(body) {
   if (!TARGET_TYPES.has(body.targetType)) return { status: 400, message: 'targetType is required' };
   if (!body.contextType || typeof body.contextType !== 'string') return { status: 400, message: 'contextType is required' };
   if (!body.displayName  || typeof body.displayName  !== 'string') return { status: 400, message: 'displayName is required' };
-  return null;
+  return validateContextCategory(body.contextCategory);
 }
 
 // Validate a supplied parent for a *new* context: valid uuid, exists, and the
-// same targetType. Returns { status, message } on failure, or null.
-export async function checkCreateParent(body) {
-  if (!UUID_RE.test(body.parentContextId)) return { status: 400, message: 'Invalid parentContextId' };
-  const parent = await db.queryOne(`SELECT "targetType" FROM "Contexts" WHERE id = $1`, [body.parentContextId]);
-  if (!parent) return { status: 400, message: 'Parent context not found' };
-  if (parent.targetType !== body.targetType) return { status: 400, message: 'Parent context has a different targetType' };
-  return null;
+// same targetType. Returns { error: { status, message } } on failure, else
+// { parent } — the parent's category is the default for the new context.
+export async function resolveCreateParent(body) {
+  if (!UUID_RE.test(body.parentContextId)) return { error: { status: 400, message: 'Invalid parentContextId' } };
+  const parent = await db.queryOne(`SELECT "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [body.parentContextId]);
+  if (!parent) return { error: { status: 400, message: 'Parent context not found' } };
+  if (parent.targetType !== body.targetType) return { error: { status: 400, message: 'Parent context has a different targetType' } };
+  return { parent };
+}
+
+// The template of a *new* context: the one given, else the parent's when a
+// parent is given, else null ("Other"). Validates the parent on the way.
+// Returns { error: { status, message } } or { contextCategory }.
+export async function resolveCreateCategory(body) {
+  if (!body.parentContextId) return { contextCategory: body.contextCategory ?? null };
+  const resolved = await resolveCreateParent(body);
+  if (resolved.error) return resolved;
+  return { contextCategory: body.contextCategory ?? resolved.parent.contextCategory ?? null };
 }
 
 // Validate a proposed parent for an *existing* context (PATCH): same targetType,
@@ -42,26 +61,39 @@ async function resolveParentChange(id, parentContextId, ctx) {
   return { newParentId: parentContextId };
 }
 
+// The scalar (non-parent) fields a PATCH may set. For a generated context,
+// records userRenamed once the name actually diverges so the plugin runner
+// keeps the analyst's edit. Returns { status, message } on a bad category.
+function collectScalarUpdates(body, ctx, isGenerated, push) {
+  if (typeof body.displayName === 'string') {
+    const name = body.displayName.slice(0, 500);
+    push('displayName', name);
+    if (isGenerated && name !== (ctx.displayName || '')) push('userRenamed', true);
+  }
+  if (typeof body.description === 'string' || body.description === null) push('description', body.description);
+  if (typeof body.ownerUserId === 'string' || body.ownerUserId === null) push('ownerUserId', body.ownerUserId);
+  if (body.extendedAttributes !== undefined)             push('extendedAttributes', body.extendedAttributes);
+  if (body.contextCategory !== undefined) {
+    const invalid = validateContextCategory(body.contextCategory);
+    if (invalid) return invalid;
+    push('contextCategory', body.contextCategory);
+  }
+  return null;
+}
+
 // Build the SET clause + bound params for PATCH /contexts/:id from the request
 // body. Immutable fields (variant/targetType/sourceAlgorithmId) are ignored. For
 // a generated context, records per-field userRenamed / userReparented flags so
 // the plugin runner keeps the analyst's edit. Returns { error: {status, message}
-// } on a parent-validation failure, else { sets, params, parentChanged,
+// } on a validation failure, else { sets, params, parentChanged,
 // oldParentId, newParentId }.
 export async function buildContextUpdate(id, body, ctx, isGenerated) {
   const sets = [];
   const params = [];
   const push = (col, val) => { params.push(val); sets.push(`"${col}" = $${params.length}`); };
 
-  if (typeof body.displayName === 'string') {
-    const name = body.displayName.slice(0, 500);
-    push('displayName', name);
-    // Mark a generated node as analyst-renamed once its name actually diverges.
-    if (isGenerated && name !== (ctx.displayName || '')) push('userRenamed', true);
-  }
-  if (typeof body.description === 'string' || body.description === null) push('description', body.description);
-  if (typeof body.ownerUserId === 'string' || body.ownerUserId === null) push('ownerUserId', body.ownerUserId);
-  if (body.extendedAttributes !== undefined)             push('extendedAttributes', body.extendedAttributes);
+  const invalid = collectScalarUpdates(body, ctx, isGenerated, push);
+  if (invalid) return { error: invalid };
 
   const oldParentId = ctx.parentContextId || null;
   let newParentId = oldParentId;

@@ -8,6 +8,7 @@
 // routes/tags.js does.
 
 import * as db from '../../db/connection.js';
+import { NOT_TAG_ROOT_SQL } from '../../lib/tagRoot.js';
 
 // Colour validation shared by the curated import handlers.
 export const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -71,7 +72,7 @@ async function upsertCuratedTag(deps, targetType, name, color, stats) {
   const { getOrCreateTagRoot, randomUUID, createdBy } = deps;
   const existingTag = await db.queryOne(
     `SELECT id FROM "Contexts"
-       WHERE "contextType" = 'Tag' AND "variant" = 'manual'
+       WHERE "contextType" = 'Tag' AND ${NOT_TAG_ROOT_SQL} AND "variant" = 'manual'
          AND "targetType" = $1 AND "displayName" = $2`,
     [targetType, name]
   );

@@ -9,6 +9,12 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { useSql, UUID_RE, clampTimelineDays, clampLimit, toEvent, resourceCounterpartyKind, changeAction } from './shared.js';
+import { loadInterviewTimeline } from '../../contexts/interviews/timelineEvents.js';
+import { canWriteContexts } from '../contexts/interviews.js';
+import { orgKnowledgeEnabled } from '../../featureFlags.js';
+import { loadUnitTimeline } from '../../contexts/timeline/unitTimeline.js';
+
+export { CONTEXT_NOISE_FIELDS } from '../../contexts/timeline/unitTimeline.js';
 
 const router = Router();
 
@@ -319,6 +325,18 @@ async function runTimeline(res, { entityKind, id, sinceDays, limit }) {
   res.json({ sinceDays, ...built });
 }
 
+// A unit's timeline says what happened in words — people joining and leaving,
+// roles, the tree, the members' own changes, what the interviews decided
+// (contexts/timeline/unitTimeline.js). Not cut at `limit`: a list upload adds
+// people in bursts, which the page folds; the reads are capped instead.
+async function runUnitTimeline(req, res, { id, sinceDays, limit }) {
+  const { events, truncated } = await loadUnitTimeline(db, id, {
+    sinceDays, interviewEvents: () => contextInterviewEvents(req, id, sinceDays, limit),
+  });
+  const count = (op) => events.filter(e => e.operation === op).length;
+  res.json({ sinceDays, events, addedCount: count('added'), removedCount: count('removed'), changedCount: count('changed'), truncated });
+}
+
 // Synthesize "Access review started / ended" timeline events from a resource's
 // review instances (distinct reviewInstanceId in CertificationDecisions).
 // Reviews are sparse governance milestones, so — unlike attribute/relationship
@@ -350,6 +368,18 @@ async function reviewInstanceEvents(id) {
   return out;
 }
 
+// The interview events of a context for this reader; a failure leaves the rest of the timeline.
+// None while organisation knowledge is off (featureFlags.js).
+async function contextInterviewEvents(req, id, sinceDays, limit) {
+  try {
+    if (!(await orgKnowledgeEnabled())) return [];
+    return await loadInterviewTimeline(db, id, { sinceDays, limit, canWrite: canWriteContexts(req) });
+  } catch (err) {
+    console.error('context interview timeline failed:', err.message);
+    return [];
+  }
+}
+
 // Per-entity _history WHERE clauses ($2 = entity id).
 const TIMELINE_WHERE = {
   // The last arm: a resource this user holds (or held) that was deleted or
@@ -374,9 +404,7 @@ const TIMELINE_WHERE = {
       OR ("tableName" = 'Resources' AND "rowId" = $2)`,
   identity: `("tableName" = 'IdentityMembers' AND "rowData"->>'identityId' = $2)
       OR ("tableName" = 'Identities' AND "rowId" = $2)`,
-  // ContextMembers isn't history-tracked (it's owned by its parent context),
-  // so a context timeline reflects the context row's own changes.
-  context: `("tableName" = 'Contexts' AND "rowId" = $2)`,
+  // A context's timeline is runUnitTimeline's (contexts/timeline/unitTimeline.js).
 };
 
 export function timelineHandler(entityKind) {
@@ -387,7 +415,8 @@ export function timelineHandler(entityKind) {
     const sinceDays = clampTimelineDays(req.query.sinceDays);
     const limit = clampLimit(req.query.limit);
     try {
-      await runTimeline(res, { entityKind, id, sinceDays, limit });
+      if (entityKind === 'context') await runUnitTimeline(req, res, { id, sinceDays, limit });
+      else await runTimeline(res, { entityKind, id, sinceDays, limit });
     } catch (err) {
       console.error(`${entityKind} timeline failed:`, err.message);
       res.status(500).json({ error: 'Failed to load timeline' });

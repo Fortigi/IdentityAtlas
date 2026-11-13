@@ -13,6 +13,7 @@ import { isFeatureEnabled } from '../featureFlags.js';
 import { getReportModel } from '../nlreports/settings.js';
 import { DEFAULT_STOPWORDS } from '../contexts/plugins/resource-cluster/tokenize.js';
 import { defaultMatchFor, normalizeText, TERM_ORIGINS } from '../contexts/recipe/recipe.js';
+import { CONTEXT_CATEGORIES } from '../ingest/validation.js';
 import {
   buildContextPrompt, buildMoreTermsMessage, MORE_TERMS_SCHEMA, RESPONSE_SCHEMA, TERMS_ONLY_SCHEMA,
 } from './prompt.js';
@@ -130,10 +131,16 @@ async function ask(messages, schema) {
   return { raw: content, reply: parseReply(content), timing };
 }
 
+/** The model's guess at the template, or null when it gave none or one that does not exist. */
+export function templateGuess(value) {
+  return CONTEXT_CATEGORIES.includes(value) ? value : null;
+}
+
 function termsAnswer({ raw, reply, timing }, known, own) {
   return {
     kind: 'terms',
     name: typeof reply.name === 'string' ? reply.name.trim() : '',
+    template: templateGuess(reply.template),
     terms: shapeTerms(reply.terms, known, own),
     notes: Array.isArray(reply.notes) ? reply.notes.map(String) : [],
     raw,

@@ -60,8 +60,8 @@ jobs:
         id: auth
         uses: ./.github/actions/dor-authorize
         with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           actor: ${{ github.actor }}
 
   # ── The bug agent: fetch → reason (sandboxed) → post (validated). Runs only if authorize passed. ──
@@ -80,17 +80,32 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Mint a Members:read token (who counts as a trusted commenter)
+        id: members
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-members: read
+
       # 1. FETCH (deterministic, read-only) — issue thread + backlog into files for the agent.
-      - name: Fetch issue thread + backlog
+      # The thread holds ONLY text by the requestor of record, org members, the author of a vouched
+      # issue and the pipeline's bots — the same filter the build agent reads through. This repo is
+      # public, so anyone can comment on an issue after it was vouched; this agent posts its summary
+      # as a pipeline bot, which the build agent trusts, so an unfiltered thread here would launder a
+      # stranger's text into the build spec (SEC-2026-11 F-53).
+      - name: Fetch issue thread (trusted authors only) + backlog
         env:
           GH_TOKEN: ${{ github.token }}
+          MEMBERS_TOKEN: ${{ steps.members.outputs.token }}
           ISSUE: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p .dor/in .dor/out
-          gh issue view "$ISSUE" --repo "$REPO" \
-            --json number,title,body,author,labels,comments,assignees > .dor/in/issue.json
+          REQUESTOR="$(bash .github/scripts/dor_requestor_of_record.sh "$ISSUE")"
+          REQUESTOR="$REQUESTOR" bash .github/scripts/dor_trusted_spec.sh "$ISSUE" > .dor/in/issue.json
           gh issue list --repo "$REPO" --state open --limit 100 \
             --json number,title,labels > .dor/in/backlog.json
 
@@ -108,7 +123,7 @@ jobs:
         # same way and no route was ever chosen). The retry step immediately below detects that exact
         # failure via `steps.reason.outcome` and redoes the SAME reasoning with claude-opus-5, which
         # needs no Max plan.
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1
+        uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Model: Fable 5 by default (Max-only); set repo var DOR_PROBE_MODEL to claude-opus-5 off Max.
@@ -223,7 +238,7 @@ jobs:
       - name: DoR bug reproduce + probe (opus-5 retry — primary model unavailable)
         id: reason_fallback
         if: steps.reason.outcome == 'failure'
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1
+        uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model claude-opus-5 --allowedTools Read,Grep,Glob,Edit(.dor/out/**)"
@@ -333,8 +348,8 @@ jobs:
         id: board-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: write         # read: dor_set_status.sh needs the issue node id. write: the
