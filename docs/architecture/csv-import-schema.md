@@ -4,7 +4,7 @@
 
 Identity Atlas defines **one canonical CSV schema** per entity type. Column names, types, and relationships are fixed and documented. The crawler reads exactly this format — no column-name guessing, no aliases, no auto-detection.
 
-Source-specific transformation (Omada → Identity Atlas, SAP → Identity Atlas, ServiceNow → Identity Atlas) happens **before import** via a lightweight pre-import script. Identity Atlas owns the target schema, the user owns the source mapping. This separation keeps the crawler simple and testable.
+Source-specific transformation — mapping a source's own column names onto this schema — happens **before import** via a lightweight pre-import script. Identity Atlas owns the target schema, the user owns the source mapping. This separation keeps the crawler simple and testable.
 
 ### CSV files and their schemas
 
@@ -174,7 +174,7 @@ A column not in a file's schema is stored as JSON in the entity's `extendedAttri
 - The UI can show them on detail pages under "Extended Attributes"
 - No schema changes needed to support new source fields
 
-A **schema** column's name matches case-insensitively, so `department` is the `Department` column, not an extra one. An **extra** column, by contrast, keeps the spelling your header gives it, and the ingest matches a field to a real database column case-sensitively — so an extra column is stored as an extended attribute under its own name, and only an exact camelCase match (`employeeId`) would reach a real column. Don't rely on that: if a value belongs in a real column, the file needs an official schema column for it (which is why `Users.csv` has `EmployeeId`, `GivenName` and `Surname` — see #1441). Blank values are not stored, and a column named like an ingest bookkeeping field (`id`, `systemId`, `extendedAttributes`, `createdAt`, `updatedAt`, `deletedAt`) is never forwarded.
+A **schema** column's name matches case-insensitively, so `department` is the `Department` column, not an extra one. An **extra** column, by contrast, keeps the spelling your header gives it, and the ingest matches a field to a real database column case-sensitively — so an extra column is stored as an extended attribute under its own name, and only an exact camelCase match (`employeeId`) would reach a real column. Don't rely on that: if a value belongs in a real column, the file needs an official schema column for it (which is why `Users.csv` has `EmployeeId`, `GivenName` and `Surname`). Blank values are not stored, and a column named like an ingest bookkeeping field (`id`, `systemId`, `extendedAttributes`, `createdAt`, `updatedAt`, `deletedAt`) is never forwarded.
 
 Three files do **not** keep extra columns, and the job log names the ones it ignores: `Assignments.csv` (tens of millions of rows — an attribute per assignment costs more than it is worth), and `IdentityMembers.csv` / `ContextMembers.csv` (their tables have no attribute storage).
 
@@ -200,7 +200,7 @@ A `SystemName` that `Systems.csv` does not declare still loads — into the craw
 
 ### Pre-import transformation
 
-For each source system, the user writes a small transformation script that maps their column names to the Identity Atlas schema. We provide templates:
+For each source system, the user writes a small transformation script that maps their column names to the Identity Atlas schema. The schema templates and one example transform ship in the repository:
 
 ```
 tools/
@@ -221,8 +221,6 @@ tools/
   csv-templates/
     transforms/                  ← example transformation scripts
       omada-to-identityatlas.ps1
-      entra-export-to-identityatlas.ps1
-      generic-template.ps1
 ```
 
 Example Omada transform (the "pre-import script"):
@@ -265,7 +263,7 @@ Import-Csv "$SourceFolder/Account-Permission.csv" -Delimiter ";" |
   Export-Csv "$OutputFolder/Assignments.csv" -Delimiter ";" -NoTypeInformation
 ```
 
-This is ~30 lines per source system, easily auditable, and keeps Identity Atlas clean.
+A transform like this is short, easily auditable, and keeps Identity Atlas clean.
 
 ### Implementation details
 
@@ -278,9 +276,8 @@ This is ~30 lines per source system, easily auditable, and keeps Identity Atlas 
 | **Upload + schema routes** (`app/api/src/routes/crawlerFiles.js`) | Generic per-crawler-type file upload/list/delete, and `GET /api/admin/crawlers/csv/upload-schema` reading real template files (not a hardcoded header map). |
 | **UI wizard** (`tools/crawlers/csv/ConfigWizard.jsx`) | Self-contained crawler plugin (see `docs/architecture/crawler-architecture.md`). "Download schema templates" link in the upload step. |
 | **Schema templates** (`tools/crawlers/csv/schema/*.csv`) | Header-only CSV files — the canonical spec. Lives under the crawler's own folder so it's covered by the same Docker/node-launcher mirroring as the rest of `tools/crawlers/`. |
-| **Omada transform** (`tools/csv-templates/transforms/omada-to-identityatlas.ps1`) | Example transform: ~160 lines mapping Omada columns to Identity Atlas schema. |
+| **Omada transform** (`tools/csv-templates/transforms/omada-to-identityatlas.ps1`) | Example transform mapping Omada CSV exports to the Identity Atlas schema. |
 | **Auto-classify** (`POST /api/ingest/classify-business-role-assignments`) | Post-import: flags Direct assignments to BusinessRole resources as `governed`. |
-| **Backpressure fix** (`app/api/src/ingest/engine.js`, `sessions.js`) | `pg-copy-streams` COPY FROM STDIN now respects write backpressure. |
 
 ### Design rules
 

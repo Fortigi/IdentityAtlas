@@ -149,11 +149,11 @@ nav:
           - Omada IGA: sync/omada.md
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - midPoint: sync/midpoint.md
-          - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
           - SQL Server: sync/mssql.md
           - SCIM 2.0: sync/scim.md
           - CSV Import: sync/csv-import.md
           - Custom Connector (Push API): sync/custom-connector.md
+          - Schedule and Run Crawlers: sync/scheduling.md
       - Administer:
           - Authentication & SSO: admin/authentication.md
           - Context-Owner Access: architecture/context-owner-access.md

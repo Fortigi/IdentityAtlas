@@ -1,4 +1,4 @@
-# Custom Connector (Push-Mode Ingest)
+# Custom Connector (Push API)
 
 A **Custom Connector** lets any system push authorization data into Identity Atlas over HTTP — in any language — without shipping a scheduled crawler. Your integration fetches data from its source, shapes it into Identity Atlas records, and POSTs batches to the [Ingest API](../architecture/ingest-api.md). The API handles validation, bulk merge, scoped delete detection, and audit history. There is no SQL access and no PowerShell requirement — just an API key and an HTTP client.
 
@@ -11,7 +11,7 @@ Use a custom connector when the source system already runs its own export or web
 **You cannot mint your own key.** Ingest keys are issued by an administrator — either through the UI or the admin API:
 
 - **UI:** Admin → Crawlers → **Add Crawler** → pick **Custom Connector**. The plaintext key is shown **once** at creation time; copy it immediately.
-- **Admin API:** an administrator (holding an Entra ID admin JWT) calls `POST /api/admin/crawlers`, which returns the plaintext key once in the response.
+- **Admin API:** an administrator — signed in as described in [Authentication & SSO](../admin/authentication.md) — calls `POST /api/admin/crawlers`, which returns the plaintext key once in the response.
 
 Keys look like `fgc_<random>` — the `fgc_` prefix marks them as crawler tokens (distinct from the Entra ID JWTs the read API uses). Only a salted hash is stored server-side, so a lost key cannot be recovered — it must be rotated (see below). Store the key in a secret vault, never in source control.
 
