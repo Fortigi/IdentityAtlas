@@ -6627,7 +6627,7 @@
 <li><strong>Add scope</strong></li>
 </ol>
 <h3 id="create-the-admin-role-and-assign-it-to-yourself">Create the Admin role and assign it to yourself<a class="headerlink" href="#create-the-admin-role-and-assign-it-to-yourself" title="Permanent link">&para;</a></h3>
-<p>Signing in is not enough to administer Identity Atlas: what you may do comes from the app roles in your token, and nothing creates or assigns those for you. Without a role you can sign in but you get no <strong>Admin</strong> tab, so you cannot add a crawler.</p>
+<p>Signing in is not enough to administer Identity Atlas: what you may do comes from the app roles in your token, and nothing creates or assigns those for you. Without a role you can sign in, but you see no data: the app shows a page titled <strong>"You don't have access to Identity Atlas yet"</strong> that names your account and tells you to ask for a role.</p>
 <ol>
 <li>Left nav → <strong>App roles</strong> → <strong>+ Create app role</strong>:</li>
 <li><strong>Display name</strong>: <code>Admin</code></li>
@@ -6684,9 +6684,14 @@
 <td>Step 2.5-2.7 — Expose an API → set the Application ID URI, then add the <code>access</code> scope</td>
 </tr>
 <tr>
-<td>You are signed in but there is no <strong>Admin</strong> tab</td>
-<td>Your account has no app role, or a role Identity Atlas does not know</td>
+<td>After signing in you see <strong>"You don't have access to Identity Atlas yet"</strong></td>
+<td>Your account has no app role, or only a role Identity Atlas does not know</td>
 <td>Step 2.8-2.9 — create the <code>Admin</code> app role and assign it to yourself, then sign out and in again so the new token carries it</td>
+</tr>
+<tr>
+<td>You are signed in and see data, but there is no <strong>Admin</strong> tab</td>
+<td>Your role includes no admin permission (the built-in <code>RoleMiner</code> and <code>Servicedesk</code> roles have none)</td>
+<td>Step 2.9 — assign yourself the <code>Admin</code> role, then sign out and in again</td>
 </tr>
 <tr>
 <td><code>AADSTS65001: The user or administrator has not consented</code></td>
@@ -6769,13 +6774,13 @@
 <p><strong>Caveat</strong>: the Key Vault enters soft-delete with <strong>purge protection</strong> enabled — its name is reserved for 7 days. If you want to redeploy to a same-named RG within that window, the deploy fails at the key-vault step. Wait 7 days or use a different RG name.</p>
 <hr />
 <h2 id="restricting-which-users-can-sign-in">Restricting which users can sign in<a class="headerlink" href="#restricting-which-users-can-sign-in" title="Permanent link">&para;</a></h2>
-<p>By default, any user in the tenant can sign in. A user without a role cannot administer or change anything, but can still read data. To restrict access to users who hold a role:</p>
+<p>Any user in the tenant may be able to sign in, but signing in gives nothing by itself. A user without a role sees no data: every screen is replaced by a page that tells them to ask for a role. The one exception is a context owner, and only if you turn on <a href="../../admin/authentication/#relative-permissions-letting-context-owners-in">context-owner access</a>. You decide who gets in by assigning roles:</p>
 <ol>
 <li><strong>App Registration → App roles → Create app role</strong> — besides <code>Admin</code> (Step 2), add the roles you need. Use the names Identity Atlas knows: <code>RoleMiner</code> and <code>Servicedesk</code> are built in, and you can map other names under <strong>Admin → Roles &amp; Permissions</strong>. A role name that is not in that mapping grants nothing.</li>
 <li><strong>Enterprise applications → your app → Users and groups</strong> — assign users / groups to those roles</li>
-<li>Azure portal → your Web App → <strong>Environment variables</strong> → set <code>AUTH_REQUIRED_ROLES</code> = <code>Admin,RoleMiner,Servicedesk</code> → <strong>Apply</strong> (the app restarts). Only users with at least one of those roles can sign in.</li>
 </ol>
-<p>This is advanced enough that it isn't on the deploy form — set it post-deploy from the Web App's Environment variables blade. Like the IDs in Step 3, a redeploy of Step 1 clears it, so set it again afterwards.</p>
+<p>To let someone read without administering anything, assign them <code>Servicedesk</code>.</p>
+<p>You do not need <code>AUTH_REQUIRED_ROLES</code> to keep users without a role out. The setting is still there as an extra gate: set it on the Web App (<strong>Environment variables</strong> → <code>AUTH_REQUIRED_ROLES</code> = a comma-separated list such as <code>Admin,RoleMiner</code> → <strong>Apply</strong>, the app restarts) and a user who holds none of the listed roles is treated as having no role, whatever their own roles are mapped to under <strong>Admin → Roles &amp; Permissions</strong>. It isn't on the deploy form, and like the IDs in Step 3 a redeploy of Step 1 clears it, so set it again afterwards.</p>
 
 
 
