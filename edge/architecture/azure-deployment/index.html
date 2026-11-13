@@ -6417,9 +6417,9 @@ Use this when the deployer can't be granted Reader. The template plumbs the valu
 <p><strong>Total: ~5-7 minutes</strong> wall clock. Output: the public URL of your Identity Atlas.</p>
 <h2 id="first-run-post-deploy-steps">First-run post-deploy steps<a class="headerlink" href="#first-run-post-deploy-steps" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>Open the App URL.</strong> First paint takes ~20-30s while the App Service container warms up (subsequent loads are sub-second because Always On is enabled).</li>
-<li><strong>Admin → Crawlers</strong> → "Load demo data" to explore, or "Add Crawler" to connect Microsoft Graph.</li>
-<li><strong>(Optional) Admin → Authentication</strong> to switch on Entra ID sign-in. Until then the app is open (so an IP allow-list at the App Service level is the recommended interim).</li>
+<li><strong>Open the App URL.</strong> First paint takes ~20-30s while the App Service container warms up (subsequent loads are sub-second because Always On is enabled). Sign-in is required from the first deploy (<code>AUTH_ENABLED=true</code>), so until an Entra app is linked you see an <strong>"Entra ID setup required"</strong> page, not the app.</li>
+<li><strong>Set up Entra ID sign-in</strong>: register the Entra app (SPA redirect URI = the App URL), create the <code>Admin</code> app role and assign it to yourself, and fill in <code>AUTH_TENANT_ID</code> / <code>AUTH_CLIENT_ID</code> on the Web App. Follow Steps 2 and 3 of the <a href="../azure-deployment-walkthrough/">portal walkthrough</a>.</li>
+<li><strong>Sign in, then Admin → Crawlers</strong> → "Load demo data" to explore, or "Add Crawler" to connect Microsoft Graph.</li>
 </ol>
 <h2 id="operational-notes">Operational notes<a class="headerlink" href="#operational-notes" title="Permanent link">&para;</a></h2>
 <h3 id="startup-migrations">Startup &amp; migrations<a class="headerlink" href="#startup-migrations" title="Permanent link">&para;</a></h3>
@@ -6655,8 +6655,8 @@ for the steps.</p>
 </tr>
 <tr>
 <td><strong>Auth</strong></td>
-<td><code>AUTH_ENABLED=false</code> by default</td>
-<td>Avoids requiring an App Registration before first login. Configurable post-deploy via Admin → Authentication.</td>
+<td><code>AUTH_ENABLED=true</code> from the first deploy, with empty tenant and client IDs</td>
+<td>The deployment is internet-exposed, so it must not be usable without sign-in. Until the IDs are filled in (Web App environment variables, or the <code>entraTenantId</code> / <code>entraClientId</code> parameters) the app shows a setup page instead of data.</td>
 </tr>
 <tr>
 <td><strong>HA</strong></td>
@@ -6679,8 +6679,7 @@ for the steps.</p>
 <ul>
 <li><strong>No HA / zone-redundancy.</strong> Single AZ, single replica. Adding zone redundancy is two Bicep params away — future iteration.</li>
 <li><strong>No custom domain on App Service.</strong> Free <code>*.azurewebsites.net</code> cert covers v1. Custom domain + customer TLS cert is a 2-step manual setup post-deploy.</li>
-<li><strong>No GitHub Actions deploy workflow.</strong> Use Deploy-to-Azure button + <code>deploy.ps1</code> for now.</li>
-<li><strong>No Entra App Registration auto-creation.</strong> Done manually if/when enabling Entra auth.</li>
+<li><strong>No Entra App Registration auto-creation.</strong> The registration, its <code>Admin</code> app role and the role assignment are done by hand before the first sign-in — see the <a href="../azure-deployment-walkthrough/">portal walkthrough</a>.</li>
 <li><strong>No platform-level App Service authentication (Easy Auth).</strong> Entra sign-in is enforced inside the application, not by the App Service <code>authSettingsV2</code> config. Microsoft Defender for Cloud therefore flags the web app with <em>"App Service apps should have authentication enabled"</em> on every deployment — expected, and cleared with a Defender exemption. See <a href="../azure-deployment-walkthrough/#microsoft-defender-for-cloud-app-service-apps-should-have-authentication-enabled">azure-deployment-walkthrough.md</a>.</li>
 <li><strong>Public Key Vault / Storage endpoints in the default mode.</strong> Use <code>networkMode=private</code> on a new deployment for private endpoints. An existing public deployment cannot be switched in place.</li>
 <li><strong>Postgres uses password authentication.</strong> Entra ID authentication with the web app's managed identity is a follow-up.</li>

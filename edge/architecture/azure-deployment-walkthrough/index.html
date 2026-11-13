@@ -2027,6 +2027,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#create-the-admin-role-and-assign-it-to-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the Admin role and assign it to yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6050,6 +6061,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#create-the-admin-role-and-assign-it-to-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the Admin role and assign it to yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6492,6 +6514,18 @@
 <li><strong>State</strong>: <strong>Enabled</strong></li>
 <li><strong>Add scope</strong></li>
 </ol>
+<h3 id="create-the-admin-role-and-assign-it-to-yourself">Create the Admin role and assign it to yourself<a class="headerlink" href="#create-the-admin-role-and-assign-it-to-yourself" title="Permanent link">&para;</a></h3>
+<p>Signing in is not enough to administer Identity Atlas: what you may do comes from the app roles in your token, and nothing creates or assigns those for you. Without a role you can sign in but you get no <strong>Admin</strong> tab, so you cannot add a crawler.</p>
+<ol>
+<li>Left nav → <strong>App roles</strong> → <strong>+ Create app role</strong>:</li>
+<li><strong>Display name</strong>: <code>Admin</code></li>
+<li><strong>Allowed member types</strong>: <strong>Users/Groups</strong></li>
+<li><strong>Value</strong>: <code>Admin</code> (exactly this — it is the role name Identity Atlas maps to all permissions)</li>
+<li><strong>Description</strong>: <code>Identity Atlas administrators</code></li>
+<li><strong>Apply</strong></li>
+<li>Search <strong>Enterprise applications</strong> → open the application with the same name → <strong>Users and groups</strong> → <strong>+ Add user/group</strong> → select yourself, role <strong>Admin</strong> → <strong>Assign</strong></li>
+</ol>
+<p>The other built-in role names are <code>RoleMiner</code> and <code>Servicedesk</code>; see <a href="../../admin/authentication/">Setting up authentication &amp; roles</a> (step 4) for what each may do and how to change that.</p>
 <hr />
 <h2 id="step-3-fill-in-the-tenant-client-ids-1-min-portal">Step 3 — Fill in the tenant + client IDs (~1 min, portal)<a class="headerlink" href="#step-3-fill-in-the-tenant-client-ids-1-min-portal" title="Permanent link">&para;</a></h2>
 <p>The Bicep deploy in Step 1 already created <code>AUTH_TENANT_ID</code> and <code>AUTH_CLIENT_ID</code> env vars on the Web App — they're just empty. You fill them in now.</p>
@@ -6514,8 +6548,8 @@
 <h3 id="quick-smoke-test">Quick smoke test<a class="headerlink" href="#quick-smoke-test" title="Permanent link">&para;</a></h3>
 <ul>
 <li>No yellow "Authentication is disabled" banner (it only shows if you explicitly set <code>AUTH_ENABLED=false</code>)</li>
-<li><strong>Admin</strong> sub-tabs visible: Crawlers · Data · Account Linking · Risk Scoring · LLM Settings · Performance · About</li>
-<li><strong>Hidden on Azure</strong>: Authentication</li>
+<li><strong>Admin</strong> sub-tabs visible (signed in with the <code>Admin</code> role): Crawlers · Plugins · Account Linking · Risk Scoring · LLM Settings · Performance · Authentication · Roles &amp; Permissions · Data · Experimental · Updates · About</li>
+<li><strong>Authentication</strong> shows the current sign-in settings but cannot change them — on Azure you change them in the Web App's environment variables (see <a href="#changing-something-later">Changing something later</a>)</li>
 </ul>
 <h3 id="common-first-sign-in-issues">Common first-sign-in issues<a class="headerlink" href="#common-first-sign-in-issues" title="Permanent link">&para;</a></h3>
 <table>
@@ -6536,6 +6570,11 @@
 <td><code>AADSTS500011: The resource principal named api://&lt;guid&gt; was not found in the tenant</code></td>
 <td>The <code>access</code> scope or Application ID URI is missing</td>
 <td>Step 2.5-2.7 — Expose an API → set the Application ID URI, then add the <code>access</code> scope</td>
+</tr>
+<tr>
+<td>You are signed in but there is no <strong>Admin</strong> tab</td>
+<td>Your account has no app role, or a role Identity Atlas does not know</td>
+<td>Step 2.8-2.9 — create the <code>Admin</code> app role and assign it to yourself, then sign out and in again so the new token carries it</td>
 </tr>
 <tr>
 <td><code>AADSTS65001: The user or administrator has not consented</code></td>
@@ -6592,7 +6631,7 @@
 <tbody>
 <tr>
 <td>Size profile (xs ↔ s ↔ m ↔ l ↔ xl)</td>
-<td>Re-run Step 1 with the new profile. ⚠ This resets <code>AUTH_TENANT_ID</code> and <code>AUTH_CLIENT_ID</code> to empty (Bicep's <code>appSettings</code> is a full replace) — you'll see the setup-required page again and have to redo Step 3. The IDs themselves don't change, so it's a 30-second paste.</td>
+<td>Re-run Step 1 with the new profile. ⚠ This resets <code>AUTH_TENANT_ID</code> and <code>AUTH_CLIENT_ID</code> to empty (Bicep's <code>appSettings</code> is a full replace) — you'll see the setup-required page again and have to redo Step 3. The IDs themselves don't change, so it's a 30-second paste. To keep them across redeploys, fill in <strong>Entra Tenant Id</strong> and <strong>Entra Client Id</strong> on the deploy form instead.</td>
 </tr>
 <tr>
 <td>Image channel (stable ↔ edge)</td>
@@ -6618,13 +6657,13 @@
 <p><strong>Caveat</strong>: the Key Vault enters soft-delete with <strong>purge protection</strong> enabled — its name is reserved for 7 days. If you want to redeploy to a same-named RG within that window, the deploy fails at the key-vault step. Wait 7 days or use a different RG name.</p>
 <hr />
 <h2 id="restricting-which-users-can-sign-in">Restricting which users can sign in<a class="headerlink" href="#restricting-which-users-can-sign-in" title="Permanent link">&para;</a></h2>
-<p>By default, any user in the tenant can sign in. To restrict to specific roles:</p>
+<p>By default, any user in the tenant can sign in. A user without a role cannot administer or change anything, but can still read data. To restrict access to users who hold a role:</p>
 <ol>
-<li><strong>App Registration → App roles → Create app role</strong> — define roles like <code>IdentityAtlas.Read</code> and <code>IdentityAtlas.Admin</code></li>
+<li><strong>App Registration → App roles → Create app role</strong> — besides <code>Admin</code> (Step 2), add the roles you need. Use the names Identity Atlas knows: <code>RoleMiner</code> and <code>Servicedesk</code> are built in, and you can map other names under <strong>Admin → Roles &amp; Permissions</strong>. A role name that is not in that mapping grants nothing.</li>
 <li><strong>Enterprise applications → your app → Users and groups</strong> — assign users / groups to those roles</li>
-<li>Azure portal → your Web App → <strong>Environment variables</strong> → set <code>AUTH_REQUIRED_ROLES</code> = <code>IdentityAtlas.Read,IdentityAtlas.Admin</code> → <strong>Apply</strong> (the app restarts). Only users with at least one of those roles can sign in.</li>
+<li>Azure portal → your Web App → <strong>Environment variables</strong> → set <code>AUTH_REQUIRED_ROLES</code> = <code>Admin,RoleMiner,Servicedesk</code> → <strong>Apply</strong> (the app restarts). Only users with at least one of those roles can sign in.</li>
 </ol>
-<p>This is advanced enough that it isn't on either deploy form — set it post-deploy from the Web App's Environment variables blade.</p>
+<p>This is advanced enough that it isn't on the deploy form — set it post-deploy from the Web App's Environment variables blade. Like the IDs in Step 3, a redeploy of Step 1 clears it, so set it again afterwards.</p>
 
 
 

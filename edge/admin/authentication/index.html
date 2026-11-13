@@ -5994,8 +5994,9 @@
 
 
 <h1 id="setting-up-authentication-sso-roles">Setting up authentication (SSO) &amp; roles<a class="headerlink" href="#setting-up-authentication-sso-roles" title="Permanent link">&para;</a></h1>
-<p>By default Identity Atlas runs in <strong>open mode</strong> — no sign-in, and every gate is a
-no-op. That is fine for a laptop or an isolated evaluation, but on any shared or
+<p>By default the Docker stack runs in <strong>open mode</strong> — no sign-in, and every gate is a
+no-op (the Azure deployment is the exception: it requires sign-in from the first
+deploy, see the note in step 2). That is fine for a laptop or an isolated evaluation, but on any shared or
 networked deployment you want Entra ID single sign-on and role-based access. This
 guide walks through turning that on end to end, and — crucially — getting your
 first admin in without locking yourself out.</p>
@@ -6014,8 +6015,12 @@ the admin UI. Do step 1 before step 2.</p>
 portal:</p>
 <ol>
 <li><strong>Register an application</strong> (or reuse your existing one) and note its
-   <strong>Application (client) ID</strong> and your <strong>Directory (tenant) ID</strong>.</li>
-<li><strong>Expose an API</strong> — accept the default Application ID URI <code>api://&lt;client-id&gt;</code>.
+   <strong>Application (client) ID</strong> and your <strong>Directory (tenant) ID</strong>. Under
+   <strong>Authentication</strong>, add a <strong>Single-page application (SPA)</strong> redirect URI that
+   is exactly the address you open Identity Atlas on, without a trailing slash
+   (for example <code>https://atlas.example.com</code>). Without it, sign-in fails.</li>
+<li><strong>Expose an API</strong> — accept the default Application ID URI <code>api://&lt;client-id&gt;</code>
+   and add a scope named <code>access</code> (the app requests <code>api://&lt;client-id&gt;/access</code>).
    Identity Atlas only accepts access tokens whose audience is <code>api://&lt;client-id&gt;</code>;
    ID tokens are rejected, which is why this step is required.</li>
 <li><strong>Define app roles</strong> on the registration — at minimum an <code>Admin</code> role.</li>
@@ -6039,9 +6044,15 @@ renders a setup-required page until you provide them. Set them in your <code>.en
 inline) and recreate the <code>web</code> container.</p>
 <div class="admonition note">
 <p class="admonition-title">Azure App Service</p>
-<p>On the managed Azure App Service deployment, <code>AUTH_ENABLED=true</code> is set from
-first boot and the platform manages sign-in, so the Docker CLI recovery steps
-below don't apply. Roles &amp; Permissions is still managed in the UI.</p>
+<p>On the Azure App Service deployment, <code>AUTH_ENABLED=true</code> is set from the
+first deploy, so you do step 1 after deploying: the app shows a setup page
+until the tenant and client IDs are filled in as environment variables on
+the Web App (see the <a href="../../architecture/azure-deployment-walkthrough/">Azure walkthrough</a>).
+Sign-in is still enforced by Identity Atlas itself, not by App Service
+Authentication (Easy Auth). The Docker CLI recovery steps below don't apply:
+if you can sign in but have no Admin tab, assign yourself the <code>Admin</code> app
+role in Entra ID and sign in again. Roles &amp; Permissions is still managed in
+the UI.</p>
 </div>
 <hr />
 <h2 id="step-3-sign-in">Step 3 — Sign in<a class="headerlink" href="#step-3-sign-in" title="Permanent link">&para;</a></h2>
