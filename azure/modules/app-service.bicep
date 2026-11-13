@@ -37,6 +37,12 @@ param pullIdentityClientId string = ''
 @description('Managed identity resource ID for KV references + future Azure RBAC')
 param identityId string
 
+@description('Crawler identity (resource ID): the managed identity crawlers sign in to Microsoft Graph with. Attached here too because the crawler wizard tests the connection from the web app.')
+param crawlerIdentityId string
+
+@description('Client ID of the crawler identity.')
+param crawlerIdentityClientId string
+
 @description('Key Vault URI (https://<name>.vault.azure.net/)')
 param keyVaultUri string
 
@@ -104,7 +110,7 @@ var privateNetworking = !empty(vnetIntegrationSubnetId)
 var privateRegistry = !empty(pullIdentityId)
 // The web identity reads Key Vault; the pull identity, when there is one, pulls
 // the image. Kept apart so neither carries the other's permission.
-var siteIdentities = union({ '${identityId}': {} }, privateRegistry ? { '${pullIdentityId}': {} } : {})
+var siteIdentities = union({ '${identityId}': {}, '${crawlerIdentityId}': {} }, privateRegistry ? { '${pullIdentityId}': {} } : {})
 var ipRules = [for (cidr, i) in allowedIpCidrs: {
   name: 'allow-${i}'
   action: 'Allow'
@@ -220,6 +226,9 @@ resource web 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'PGSSLMODE', value: 'require' }
         // Azure-specific
         { name: 'AZURE_KEY_VAULT_URI', value: keyVaultUri }
+        // Which of the attached identities the crawler wizard signs in to Graph
+        // with — never the Key Vault identity above.
+        { name: 'IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID', value: crawlerIdentityClientId }
       ], empty(reportGeneratorUrl) ? [] : [
         // Report generator (experimental, deployed on request). Switching the
         // feature on also needs FEATURE_CUSTOM_REPORTS, set here so a deployment

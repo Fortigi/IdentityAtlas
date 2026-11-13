@@ -25,10 +25,28 @@ describe('buildEntraConfigPayload', () => {
     const { displayName, configPayload } = buildEntraConfigPayload(base);
     expect(displayName).toBe('My Tenant');
     expect(configPayload).toEqual({
+      authMethod: 'ClientSecret',
       tenantId: 'tenant-1',
       clientId: 'client-1',
       selectedObjects: { identity: true },
     });
+  });
+
+  it('a managed-identity crawler stores no client ID and no secret, even if one was typed', () => {
+    const { configPayload } = buildEntraConfigPayload({ ...base, authMethod: 'ManagedIdentity', clientSecret: 'typed-earlier' });
+    expect(configPayload).toEqual({
+      authMethod: 'ManagedIdentity',
+      tenantId: 'tenant-1',
+      selectedObjects: { identity: true },
+    });
+  });
+
+  it('keeps the other settings for a managed-identity crawler', () => {
+    const { configPayload } = buildEntraConfigPayload({
+      ...base, authMethod: 'ManagedIdentity', customUserAttrs: ['city'], signInLogsDays: 14,
+    });
+    expect(configPayload.customUserAttributes).toEqual(['city']);
+    expect(configPayload.signInLogsDays).toBe(14);
   });
 
   it('falls back to "Entra ID — <organization>" when the name is blank', () => {

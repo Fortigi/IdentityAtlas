@@ -217,6 +217,29 @@ right to create role assignments on the registry (Owner, User Access
 Administrator or Role Based Access Control Administrator). Combine it with
 `imageTag` to pin the version you pull through.
 
+### Crawler identity (Entra ID without a client secret)
+
+The deployment creates a third managed identity, `<namePrefix>-mi-crawler`, and
+attaches it to the worker and the web app. An Entra ID crawler can sign in to
+Microsoft Graph as that identity instead of with an app registration's client
+secret — nothing to store, leak or renew.
+
+- It is created with **no permissions**, and it never gets access to Key Vault.
+  Until someone grants it Microsoft Graph permissions it can read nothing.
+- Granting them needs a directory administrator and is a separate, deliberate
+  step: `./Grant-CrawlerIdentityGraphPermissions.ps1 -ResourceGroup <rg>`
+  (read-only permissions only). The deployment outputs
+  `crawlerIdentityName` and `crawlerIdentityPrincipalId` name the identity.
+- The containers are told which identity crawlers use through
+  `IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID`; a crawler configuration cannot
+  choose a different one (the web app's Key Vault identity, for example).
+- Anyone who can run code in the worker or web container, or who can attach the
+  identity to another resource (Contributor on the resource group), can obtain
+  a token for it. Access to the resource group is therefore what protects it.
+
+See [Syncing from Entra ID](../sync/entra-id.md#signing-in-without-a-secret-managed-identity)
+for the steps.
+
 ### Logs
 
 ```bash
@@ -324,7 +347,8 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | [`azure/deploy.ps1`](https://github.com/Fortigi/IdentityAtlas/blob/main/azure/deploy.ps1) | CLI deploy + post-deploy summary |
 | `azure/modules/log-analytics.bicep` | New workspace OR BYO lookup OR pass-through |
 | `azure/modules/storage.bicep` | Storage Account + Azure Files share |
-| `azure/modules/identities.bicep` | 2 user-assigned managed identities |
+| `azure/modules/identities.bicep` | 3 user-assigned managed identities (web, deployment script, crawler) |
+| `azure/Grant-CrawlerIdentityGraphPermissions.ps1` | Grants the crawler identity its read-only Microsoft Graph permissions |
 | `azure/modules/key-vault.bicep` | Key Vault + access policies + network ACL |
 | `azure/modules/network.bicep` | Private mode: VNet, subnets, private DNS zones |
 | `azure/modules/private-endpoints.bicep` | Private mode: private endpoints for Key Vault, Storage, Postgres |

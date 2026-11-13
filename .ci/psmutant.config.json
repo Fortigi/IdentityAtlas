@@ -148,6 +148,8 @@
     "tools/crawlers/shared/Invoke-CrawlerDeltaToken.ps1",
     "tools/crawlers/mssql/SqlCrawler.Delta.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.Auth.ps1",
+    "tools/powershell-sdk/graph/Get-FGAccessTokenManagedIdentity.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AccessReviews.ps1"
   ],
@@ -577,6 +579,12 @@
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaScope.ps1": [
       "test/unit/EntraIDCrawlerDeltaScope.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Auth.ps1": [
+      "test/unit/EntraIDCrawlerAuth.Tests.ps1"
+    ],
+    "tools/powershell-sdk/graph/Get-FGAccessTokenManagedIdentity.ps1": [
+      "test/unit/SdkRequests.Tests.ps1"
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1": [
       "test/unit/EntraIDCrawlerGroupDelta.Tests.ps1"
