@@ -6223,8 +6223,8 @@ and/or <code>{ "mcp": true }</code>; a field left out keeps its value.</p>
 </ul>
 <p>Somebody who holds any real permission is <strong>not</strong> affected: they keep the
 ordinary app, unscoped. Somebody who qualifies on everything except holding a
-context role gets exactly today's behaviour (the roleless read, or the
-<code>AUTH_REQUIRED_ROLES</code> 403).</p>
+context role is refused, as anyone without a role is: the "no role" 403, or the
+<code>AUTH_REQUIRED_ROLES</code> 403. Owner mode is the only way in without a role.</p>
 <h2 id="their-scope">Their scope<a class="headerlink" href="#their-scope" title="Permanent link">&para;</a></h2>
 <p>The contexts an owner may open are:</p>
 <ol>

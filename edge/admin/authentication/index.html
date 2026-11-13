@@ -6081,11 +6081,13 @@ from the fixed catalog, so "who can do what" changes without a code change.</p>
 <p>A <strong>self-lockout guard</strong> blocks any save that would strip your own <code>admin.auth</code>
 permission, so you can't accidentally revoke your own ability to manage roles.</p>
 <div class="admonition note">
-<p class="admonition-title">Roleless users fail closed</p>
-<p>A signed-in user whose roles resolve to no permissions is denied every write
-and admin gate. Read endpoints are not permission-gated, so a roleless user
-can still read data — set <code>AUTH_REQUIRED_ROLES</code> if you need to stop roleless
-users from signing in at all.</p>
+<p class="admonition-title">No role, no access</p>
+<p>A signed-in user whose roles resolve to no permissions gets nothing: every
+endpoint answers 403, and the app shows a page that tells them to ask for a
+role. The only exception is a context owner, below. This does not depend on
+the Entra app requiring assignment or on <code>AUTH_REQUIRED_ROLES</code>: anyone in
+the tenant may be able to sign in, and still sees no data without a role.
+To let people read, assign them a role, for example <strong>Servicedesk</strong>.</p>
 </div>
 <h3 id="relative-permissions-letting-context-owners-in">Relative permissions: letting context owners in<a class="headerlink" href="#relative-permissions-letting-context-owners-in" title="Permanent link">&para;</a></h3>
 <p>The same <strong>Admin → Roles &amp; Permissions</strong> tab has a second section below the
@@ -6103,9 +6105,10 @@ to. There are two kinds today:</p>
   it is in. Every other screen and endpoint stays
   closed to them, even if you have set <code>AUTH_REQUIRED_ROLES</code>. People who do
   hold a role are not affected. It is off by default and takes effect without a
-  restart.</li>
-<li><strong>Matrix-share recipients</strong> — someone a matrix is shared with can open that
-  matrix without a role (see <a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>).
+  restart.
+Matrix-share recipients are <strong>not</strong> a relative permission: someone a matrix is
+shared with needs a role, such as Servicedesk, to open it (see
+<a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>).
   That is decided per share; there is no setting for it in this section.</li>
 </ul>
 <p>See <a href="../../architecture/context-owner-access/">Context-owner access</a> for exactly

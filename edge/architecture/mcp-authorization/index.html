@@ -6588,10 +6588,9 @@ failed 3.</p>
 </ul>
 <h2 id="remaining-risks">Remaining risks<a class="headerlink" href="#remaining-risks" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Roleless REST read (pre-existing).</strong> A signed-in user with no permission who
-  answers for no context reads every REST read endpoint unless
-  <code>AUTH_REQUIRED_ROLES</code> is set. Unchanged here, and not reachable through MCP.
-  Worth its own issue: deny-by-default for roleless callers.</li>
+<li><strong>Roleless REST read — closed (November 2026).</strong> A signed-in user with no
+  permission who answers for no context is now refused on every REST endpoint
+  except <code>/api/auth-me</code>, as they always were on MCP.</li>
 <li><strong>Role-based callers are unscoped by design.</strong> Anyone whose role has <code>mcp.use</code>
   and <code>data.read</code> sees everything over MCP, as in the app. Their <code>scope</code> says
   <code>restricted: false</code>.</li>
