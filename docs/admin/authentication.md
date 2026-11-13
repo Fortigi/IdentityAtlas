@@ -87,11 +87,13 @@ The seed mapping a fresh install ships with:
 A **self-lockout guard** blocks any save that would strip your own `admin.auth`
 permission, so you can't accidentally revoke your own ability to manage roles.
 
-!!! note "Roleless users fail closed"
-    A signed-in user whose roles resolve to no permissions is denied every write
-    and admin gate. Read endpoints are not permission-gated, so a roleless user
-    can still read data — set `AUTH_REQUIRED_ROLES` if you need to stop roleless
-    users from signing in at all.
+!!! note "No role, no access"
+    A signed-in user whose roles resolve to no permissions gets nothing: every
+    endpoint answers 403, and the app shows a page that tells them to ask for a
+    role. The only exception is a context owner, below. This does not depend on
+    the Entra app requiring assignment or on `AUTH_REQUIRED_ROLES`: anyone in
+    the tenant may be able to sign in, and still sees no data without a role.
+    To let people read, assign them a role, for example **Servicedesk**.
 
 ### Relative permissions: letting context owners in
 
@@ -111,8 +113,9 @@ to. There are two kinds today:
   closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do
   hold a role are not affected. It is off by default and takes effect without a
   restart.
-- **Matrix-share recipients** — someone a matrix is shared with can open that
-  matrix without a role (see [Sharing a matrix](../ui/sharing-a-matrix.md)).
+Matrix-share recipients are **not** a relative permission: someone a matrix is
+shared with needs a role, such as Servicedesk, to open it (see
+[Sharing a matrix](../ui/sharing-a-matrix.md)).
   That is decided per share; there is no setting for it in this section.
 
 See [Context-owner access](../architecture/context-owner-access.md) for exactly
