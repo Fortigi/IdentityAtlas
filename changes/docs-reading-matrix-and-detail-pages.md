@@ -1,0 +1,3 @@
+- Added a user-level "Reading the matrix" guide to the documentation: the layout, the Direct / Indirect / Eligible badges, governed cells, the markers above a badge, folding and roll-up, scope statistics and the Excel export.
+- Added a "Reading a detail page" guide: how to open the detail page of an account, identity, resource or business role, and what the Attributes, Relationships, Timeline, Diff and Risk tabs answer.
+- The engineering descriptions of the matrix and the detail pages moved from the Use tab to Reference → Under the hood ("Matrix Internals", "Detail Pages Internals").
