@@ -1,10 +1,6 @@
-# LLM, Secrets Vault, and Risk Scoring (v5)
+# LLM and Risk Scoring Internals
 
-This document covers the substrate added in the postgres rewrite for in-app
-risk profiling and the surrounding plumbing (secrets vault, LLM provider
-abstraction, scoring engine). It supersedes the v4 PowerShell-based risk
-scoring docs — the worker no longer talks to an LLM directly. All LLM calls
-go through the API container.
+This page describes how risk profiling and risk scoring work inside the API: the LLM provider layer, the risk-profile wizard and its endpoints, and the scoring engine. All LLM calls go through the API container; the worker container has no LLM dependency. The secrets vault that holds the LLM API key has its own page: [Secrets and the Master Key](secrets-and-master-key.md).
 
 ## Big picture
 
@@ -32,32 +28,11 @@ go through the API container.
                   └────────────────────┘
 ```
 
-The worker container has **no** LLM dependency. Risk scoring is initiated from
-the UI and runs inside the web container as a background job (the engine is a
-plain JS module loaded by the same Node process that serves the API).
+Risk scoring is started from the UI and runs inside the web container as a background job: the engine is a plain JavaScript module loaded by the same Node process that serves the API.
 
 ## Components
 
-### 1. Secrets vault — `app/api/src/secrets/vault.js`
-
-General-purpose envelope-encrypted secret store for any secret the app needs
-(LLM API keys, scraper credentials, future Vault/AWS-SM-backed secrets all live
-here).
-
-- **Schema**: [`Secrets`](https://github.com/Fortigi/IdentityAtlas/blob/main/) — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.
-- **Encryption**: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from `IDENTITY_ATLAS_MASTER_KEY` (32 bytes, base64).
-- **Master key bootstrap**:
-  1. `IDENTITY_ATLAS_MASTER_KEY` env var, or `IDENTITY_ATLAS_MASTER_KEY_FILE` (preferred — back this up like any other root secret)
-  2. A key file, auto-generated on first boot: `$IDENTITY_ATLAS_KEY_DIR/.master-key` (the web-only `web_keys` volume in the compose files), or `/data/uploads/.master-key` when `IDENTITY_ATLAS_KEY_DIR` is unset (older compose files). A key found at the old location is moved to the key directory after it is verified. See `app/api/src/secrets/masterKeyStore.js`.
-  3. No new key is generated while the vault already holds encrypted secrets — restore the key instead (or set `IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true` to start over).
-- **Public API**: `putSecret(id, scope, value, label)`, `getSecret(id, scope)`, `hasSecret(id, scope)`, `deleteSecret(id, scope)`, `listSecrets(scope)`, `selfTest()`. Every read, existence check and delete names the scope it may touch — a row in another scope is treated as absent.
-- **Why envelope encryption**: per-row keys mean a single compromised secret doesn't expose the others; rotating the master key only re-encrypts the small data keys, not the (potentially large) ciphertexts; the same shape works for an HSM/KMS later by swapping the wrapping function.
-
-For development, the bootstrap auto-generates and persists a master key on first
-start. **For production deployments, always set `IDENTITY_ATLAS_MASTER_KEY`
-explicitly** so the key can be backed up alongside other root secrets.
-
-### 2. LLM provider abstraction — `app/api/src/llm/providers.js`
+### 1. LLM provider abstraction — `app/api/src/llm/providers.js`
 
 One small adapter per provider behind a single `chat({system, messages, model, temperature, maxTokens})` signature.
 
@@ -67,34 +42,31 @@ One small adapter per provider behind a single `chat({system, messages, model, t
 | openai       | `https://api.openai.com/v1/chat/completions`                                                               | `Authorization` |
 | azure-openai | `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`                              | `api-key`       |
 
-The Azure adapter requires `endpoint`, `deployment`, and (optional) `apiVersion`
-in the config object. The deployment name is what appears in the `model` field
-when calling — Azure resolves it to the underlying model on its side.
+The Azure adapter requires `endpoint`, `deployment`, and (optional) `apiVersion` in the config object. The endpoint must be an Azure OpenAI host (`*.openai.azure.com`, `.us` or `.cn`) over HTTPS. The deployment name is what appears in the `model` field when calling; Azure resolves it to the underlying model on its side.
 
-Default models: Anthropic `claude-sonnet-4-20250514`, OpenAI `gpt-4o`,
-Azure-OpenAI must be supplied per-tenant.
+Default models: Anthropic `claude-sonnet-4-6`, OpenAI `gpt-4o`. Azure OpenAI has no default: the deployment name must be supplied.
 
-All adapters use Node 20+'s built-in `fetch` — no external dependencies.
+All adapters use Node's built-in `fetch`. Every call has a time limit (`LLM_TIMEOUT_MS`, default 120 seconds), reads at most 16 MB of response, and refuses to follow redirects.
 
-### 3. LLM service — `app/api/src/llm/service.js`
+### 2. LLM service — `app/api/src/llm/service.js`
 
-Glue between the vault, the WorkerConfig table, and the providers module:
+Glue between the vault, the `WorkerConfig` table, and the providers module:
 
-- `getLLMConfig()` / `saveLLMConfig({...})` / `clearLLMConfig()` — persist non-secret config (`provider`, `model`, `endpoint`, `deployment`, `apiVersion`) in `WorkerConfig` under key `LLM_CONFIG`. The API key goes into the vault under id `llm.apikey`, scope `llm`.
-- `chatWithSavedConfig({system, messages})` — convenience for code that just wants to make a chat call using whatever the user has configured.
-- `testLLMConfig({...})` — round-trip test, returns `{ok, model, latencyMs, sample}` or `{ok:false, error}`.
+- `getLLMConfig()` / `saveLLMConfig({...})` / `clearLLMConfig()` persist the non-secret config (`provider`, `model`, `endpoint`, `deployment`, `apiVersion`) in `WorkerConfig` under key `LLM_CONFIG`. The API key goes into the vault under id `llm.apikey`, scope `llm`.
+- `chatWithSavedConfig({system, messages})` makes a chat call with whatever the user has configured.
+- `testLLMConfig({...})` does a round-trip test and returns `{ok, model, latencyMs, sample}` or `{ok:false, error}`.
 
-### 4. URL scraper — `app/api/src/llm/scraper.js`
+### 3. URL scraper — `app/api/src/llm/scraper.js`
 
-Fetches one or more URLs and returns plain text suitable for stuffing into an LLM context window. Designed for *scrape-on-create* — the text is held in memory only as long as the profile-generation request that triggered it. No long-term indexing.
+Fetches one or more URLs and returns plain text suitable for an LLM context window. The text is held in memory only as long as the profile-generation request that triggered it; nothing is indexed.
 
-- Per-URL credentials: `{username, password}` → Basic, or `{bearer}` → Bearer
-- HTML stripping is intentionally crude (remove `<script>`, `<style>`, `<nav>`, decode entities, collapse whitespace). Real HTML parsers were not worth the dependency for "give the LLM enough text to identify the org".
-- Caps: 50 KB per URL, 15s per request, 20 URLs per scrape call.
+- Per-URL credentials: `{username, password}` → Basic, or `{bearer}` → Bearer. The credentials are stored in the vault.
+- HTML stripping is intentionally crude (remove `<script>`, `<style>`, `<nav>`, decode entities, collapse whitespace). It only needs to give the LLM enough text to identify the organisation.
+- Caps: 50 KB per URL, 15 seconds per request, at most 5 redirects.
 
-### 5. Risk profile + classifier API — `app/api/src/routes/riskProfiles.js`
+### 4. Risk profile and classifier API — `app/api/src/routes/riskProfiles.js`
 
-Endpoints (all behind the standard auth middleware):
+All endpoints require the `admin.llm` permission. The three generation endpoints are limited to 10 calls per minute per caller.
 
 | Method | Path                                                | Purpose                                                  |
 |--------|------------------------------------------------------|----------------------------------------------------------|
@@ -104,7 +76,7 @@ Endpoints (all behind the standard auth middleware):
 | POST   | `/api/risk-profiles`                                 | Save a finalised profile (creates a new version row)     |
 | GET    | `/api/risk-profiles`                                 | List saved profiles                                      |
 | GET    | `/api/risk-profiles/:id`                             | Get one profile (full body)                              |
-| POST   | `/api/risk-profiles/:id/activate`                    | Mark as the active profile (trigger enforces uniqueness) |
+| POST   | `/api/risk-profiles/:id/activate`                    | Mark as the active profile                               |
 | DELETE | `/api/risk-profiles/:id`                             | Delete                                                   |
 | GET    | `/api/risk-profiles/scraper-credentials`             | List per-URL credentials in the vault                    |
 | POST   | `/api/risk-profiles/scraper-credentials`             | Create a credential (Basic or Bearer)                    |
@@ -116,138 +88,68 @@ Endpoints (all behind the standard auth middleware):
 | POST   | `/api/risk-classifiers/:id/activate`                 | Activate                                                 |
 | DELETE | `/api/risk-classifiers/:id`                          | Delete                                                   |
 
-The generation endpoints **do not write to the database**. Drafts live only in
-the wizard's React state. The user clicks "Save" to persist. This makes the
-"discard" path trivial and means a half-finished refinement doesn't pollute
-history.
+The generation endpoints **do not write to the database**. Drafts live only in the wizard's React state until the user clicks Save. Discarding is trivial, and a half-finished refinement never pollutes the history.
 
-### 6. Risk scoring engine — `app/api/src/riskscoring/engine.js`
+### 5. Risk scoring engine — `app/api/src/riskscoring/engine.js`
 
-Postgres-native port of the v4 PowerShell scoring logic. v1 implements two of
-the four v4 layers; the formula stays the same shape so the others can be
-filled in later.
+The engine scores every account (`Principal`) and every resource (`Resource`, business roles included) in four layers:
 
-- **Layer 1 — direct classifier match** (weight 0.60). For every Principal and Resource, run the classifier patterns against displayName / email / jobTitle / department / description. The best matching classifier's score becomes the `directScore`. Multiple matches are recorded for the UI.
-- **Layer 2 — lightweight membership signal** (weight 0.25). Small groups (≤5 members) get +5. Membership analysis from v4 (PIM eligibility, owner concentration, downstream propagation) is a planned extension.
-- **Layer 3 — structural** (weight 0.15) — placeholder, returns 0.
-- **Layer 4 — propagated** (weight 0.00) — not yet implemented.
+- **Layer 1 — direct classifier match** (weight 0.50). The classifier patterns run against the display name, e-mail, job title, department, description, mail, external ID and the flattened extended attributes. The best match becomes the direct score; all matches are recorded for the UI. A group whose name looks like a non-production environment (acceptance, test, development and similar) gets a quarter of its direct score, at least 5.
+- **Layer 2 — membership** (weight 0.20, capped at 40). Groups: +5 for 1 to 5 members, +5 for members but no owner. Accounts: up to +15 for membership of more than 15 groups, +15 for membership of a group whose direct score is 70 or more, +5 for owning more than 3 groups. When the manager hierarchy is known, managers also get points for a wide span of control, a large subtree and high-risk direct reports.
+- **Layer 3 — structural hygiene** (weight 0.10, capped at 25). Groups: no description (+3), mail-enabled security group (+3), role-assignable group (+15), dynamic membership (+3). Accounts: disabled but still a member (+5), guest (+5), last sign-in more than 90 days ago (+10).
+- **Layer 4 — propagation** (weight 0.20). One pass: an account inherits 30% of the pre-propagation score of its riskiest group, and a group 25% of its riskiest member's.
 
-Final score = `min(100, round(0.60·direct + 0.25·membership + 0.15·structural))`.
-Tier thresholds: 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None.
+Final score = `min(100, round(0.50·direct + 0.20·membership + 0.10·structural + 0.20·propagated))`. Tier thresholds (`riskscoring/tiers.js`): 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None.
 
-Service-principal-style entities (`principalType` in
-`ServicePrincipal/ManagedIdentity/WorkloadIdentity/AIAgent`) use the
-`agentClassifiers` set instead of `userClassifiers` when one is present.
+Accounts whose `principalType` is `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity` or `AIAgent` are matched against the `agentClassifiers` set instead of `userClassifiers` when one is present.
 
-### 7. Scoring runs — `app/api/src/routes/riskScoringRuns.js`
+A run deletes every row in `RiskScores` and writes the new scores in one transaction. Analyst overrides are not carried over; see the [Risk Scores API](../api/risk-scores.md).
+
+### 6. Scoring runs — `app/api/src/routes/riskScoringRuns.js`
 
 | Method | Path                            | Purpose                                                |
 |--------|----------------------------------|--------------------------------------------------------|
-| POST   | `/api/risk-scoring/runs`         | Start a run, returns 202 + the row. Engine fires in the background. |
-| GET    | `/api/risk-scoring/runs`         | List recent runs                                       |
-| GET    | `/api/risk-scoring/runs/:id`     | Single-run progress (used by polling UI)               |
+| POST   | `/api/risk-scoring/runs`         | Start a run (`admin.crawlers`); returns `202` and the row. The engine runs in the background. |
+| GET    | `/api/risk-scoring/runs`         | The 50 most recent runs                                |
+| GET    | `/api/risk-scoring/runs/:id`     | Progress of one run (polled by the UI)                 |
 
-Runs are tracked in the `ScoringRuns` table with `status / step / pct /
-totalEntities / scoredEntities / errorMessage`. The wizard polls every 2
-seconds. Status transitions: `pending → running → completed | failed`.
+Runs are tracked in the `ScoringRuns` table with `status / step / pct / totalEntities / scoredEntities / errorMessage`. Only one run can be in progress at a time; a second start answers `409`. Status transitions: `pending → running → completed | failed`.
 
-### 8. UI — `app/ui/src/components/RiskProfileWizard.jsx`
+### 7. UI — `app/ui/src/components/RiskProfileWizard.jsx`
 
-Multi-step modal launched from the "New profile" button on Admin → Risk
-Scoring. Steps:
+A multi-step modal launched from the **New profile** button on Admin → Risk Scoring. Steps:
 
-1. **Sources** — domain, optional org name, hints, optional URLs (with credentials).
-2. **Generate & Refine** — POST `/risk-profiles/generate`, then a chat panel for `/risk-profiles/refine` calls. The current profile JSON is shown side-by-side with the chat history.
-3. **Save Profile** — name + activate toggle.
-4. **Classifiers** — POST `/risk-classifiers/generate`, review JSON, save.
-5. **Run Scoring** — POST `/risk-scoring/runs`, poll for progress.
+1. **Sources** — domain, optional organisation name, hints, optional URLs (with credentials).
+2. **Generate & Refine** — `POST /risk-profiles/generate`, then a chat panel for `/risk-profiles/refine` calls. The current profile JSON is shown next to the chat history.
+3. **Save Profile** — name and activate toggle.
+4. **Classifiers** — `POST /risk-classifiers/generate`, review the JSON, save.
+5. **Run Scoring** — `POST /risk-scoring/runs`, polled every 2 seconds for progress.
 
-All draft state lives client-side. Refreshing the wizard mid-flow loses the
-draft — that's the v1 trade-off. Persisting drafts is a future improvement.
+All draft state lives in the browser. Refreshing the wizard mid-flow loses the draft.
 
-The **LLM Settings** sub-tab on Admin lets the operator pick provider, model,
-(Azure-only) endpoint/deployment/apiVersion, and API key. The "Test connection"
-button does a single ping using either the form values or the saved config so
-you can verify before clicking Save. The API key is never returned by the
-server; the form shows `apiKeySet: true|false` and a placeholder.
+The **LLM Settings** tab in Admin lets the operator pick the provider, the model, (Azure only) the endpoint, deployment and API version, and the API key. **Test connection** makes a single call with either the form values or the saved config, so you can check before saving. The API key is never returned by the server; the form only shows whether one is stored.
 
 ## Tests
 
-Coverage added in this work:
+- `app/api/src/secrets/vault.test.js` — vault round-trip
+- `app/api/src/llm/providers.test.js` — adapter URL, headers and parsing for all three providers (mocked fetch)
+- `app/api/src/llm/riskPrompts.test.js` — prompt builders and the JSON extractor (markdown fence stripping, leading/trailing prose, nested objects)
+- `app/api/src/llm/scraper.test.js` — protocol/MIME validation, HTML stripping, Basic/Bearer header construction, error handling
+- `app/api/src/riskscoring/engine.test.js`, `engine.passes.test.js`, `engine.helpers.test.js`, `tiers.test.js` — tier thresholds, the weighted formula, the scoring passes, regex compilation tolerance
 
-- `app/api/src/secrets/vault.test.js` — selfTest round-trip
-- `app/api/src/llm/providers.test.js` — adapter URL/headers/parsing for all three providers (mocked fetch)
-- `app/api/src/llm/riskPrompts.test.js` — prompt builders + JSON extractor (markdown fence stripping, leading/trailing prose, nested objects)
-- `app/api/src/llm/scraper.test.js` — protocol/MIME validation, HTML stripping, Basic/Bearer auth header construction, error handling
-- `app/api/src/riskscoring/engine.test.js` — tier thresholds, weighted formula, regex compilation tolerance
+Run them with `npm test` from `app/api/`. The runner is Vitest; no database is required.
 
-Run with `npm test` from `app/api/`. The test runner is vitest; no DB required
-(database-backed code paths are exercised by the smoke tests against a real
-postgres in the docker stack).
+## What is not built
 
-## What's intentionally not in v1
+- **A local model for risk profiles.** The provider list is Anthropic, OpenAI and Azure OpenAI. Identity Atlas does ship a local model, but it serves custom reports and the context assistant, not risk profiles; see [Report Generator](../reference/report-generator.md).
+- **News-driven re-scoring** (mergers, security incidents). The classifier system is the right place for it: scheduled news ingestion could produce candidate adjustments for an operator to approve.
+- **Retrieval over a long-term document index.** Profiles are built by scraping on creation. Retrieval (for example with `pgvector`) becomes worthwhile once there are hundreds of internal documents.
+- **LLM account correlation.** Account correlation was built as the deterministic, dictionary-based [Account Linking](account-linking.md) engine instead: no prompts, no model calls.
 
-- **Local LLM** (Ollama / Llama / Mistral container). Easy add later — the provider abstraction is the right substrate. Quality on a no-GPU CPU box: Qwen 2.5 14B or Mistral Small 22B will be acceptable for the structured-JSON tasks but noticeably worse than Claude/GPT-4 on industry-specific nuance.
-- **News-feed-driven re-scoring** (M&A events, security incidents). The classifier system is the right substrate for this — Phase 3 would add scheduled news-source ingestion that produces "candidate adjustments" for the operator to approve.
-- **RAG over a long-term wiki/ISMS index**. Current approach is scrape-on-create. RAG (e.g. with `pgvector`) is the right answer once you have hundreds of internal docs.
-- **LLM account correlation**. Account correlation was *not* built as an LLM wizard — it shipped as the deterministic, dictionary-based [Account Linking](account-linking.md) engine instead (no prompts, no model calls). The earlier "same wizard shape, different prompts" idea was dropped.
-- **Layers 2/3/4 of the scoring engine**. Membership analysis (PIM eligibility, owner concentration), structural hygiene (orphan groups, never-signed-in users), and cross-entity propagation. The formula stays the same shape, so adding these is additive rather than a rewrite.
+## Master key rotation
 
-## Operational notes
+Rotation, backups and the master key are described on [Secrets and the Master Key](secrets-and-master-key.md#rotating-the-master-key).
 
-### Master key rotation
+## Disabling the feature
 
-Use the `rotate-master-key` CLI. It re-wraps only each row's `encryptedKey`
-(the per-row data key) from the previous master key to the new one, in a single
-transaction. Secret values are never decrypted by the CLI and nothing secret is
-printed — the output is row counts, plus the ids of any rows neither key opens
-(in which case nothing is written).
-
-Both keys are read from environment variables, never from command-line
-arguments:
-
-| Variable | Value |
-|---|---|
-| `IDENTITY_ATLAS_MASTER_KEY_PREVIOUS` | the key the vault is encrypted with today (the current env value, or the contents of `/data/uploads/.master-key`) |
-| `IDENTITY_ATLAS_MASTER_KEY` | the new key — `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
-
-```bash
-# 1. Stop the containers that use the vault, so nothing writes with the old key
-docker compose stop web worker
-
-# 2. Put both keys in your shell environment without echoing them
-#    (read -s keeps them out of shell history)
-read -rs IDENTITY_ATLAS_MASTER_KEY_PREVIOUS && export IDENTITY_ATLAS_MASTER_KEY_PREVIOUS
-read -rs IDENTITY_ATLAS_MASTER_KEY && export IDENTITY_ATLAS_MASTER_KEY
-
-# 3. Dry run, then the real rotation. `-e NAME` without a value passes the
-#    variable through from your shell.
-docker compose run --rm --no-deps   -e IDENTITY_ATLAS_MASTER_KEY_PREVIOUS -e IDENTITY_ATLAS_MASTER_KEY   web node /app/backend/src/cli/rotate-master-key.js --dry-run
-docker compose run --rm --no-deps   -e IDENTITY_ATLAS_MASTER_KEY_PREVIOUS -e IDENTITY_ATLAS_MASTER_KEY   web node /app/backend/src/cli/rotate-master-key.js
-
-# 4. Point the web container at the new key: set IDENTITY_ATLAS_MASTER_KEY in
-#    your compose env / secret store, or (auto-generated key) replace the
-#    contents of /data/uploads/.master-key. Then start the stack again.
-docker compose up -d
-```
-
-The rotation is idempotent: rows already wrapped by the new key are skipped, so
-an interrupted run can simply be repeated. Keep the previous key until the web
-container has started cleanly on the new one.
-
-Vault rows are also bound to their own id and scope (AES-GCM additional data),
-so a ciphertext copied onto a different row does not decrypt. Rows written by
-older versions are re-bound automatically at startup.
-
-### Backups
-
-Back up the postgres database **and** the auto-generated key file (`/data/keys/.master-key`
-in the `web_keys` volume, or `/data/uploads/.master-key` with an older compose file) **and** the `IDENTITY_ATLAS_MASTER_KEY` env var (if you
-set it explicitly). Without the master key, every secret in the vault is
-unrecoverable.
-
-### Disabling the feature
-
-The Risk Scoring sub-tab has a feature toggle (the "Risk Scoring Feature" card).
-Disabling it hides the Risk Scores main-nav tab and skips scoring during sync
-runs. The LLM config and saved profiles/classifiers are preserved.
+The Risk Scoring tab in Admin has a feature toggle (the **Risk Scoring Feature** card). Switching it off hides the Risk Scores tab in the main navigation. The LLM config and the saved profiles and classifiers are kept.

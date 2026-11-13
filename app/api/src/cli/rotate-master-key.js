@@ -12,7 +12,7 @@
 //   IDENTITY_ATLAS_MASTER_KEY_PREVIOUS  the key the vault is encrypted with now
 //   IDENTITY_ATLAS_MASTER_KEY           the new key (32 bytes, base64)
 //
-// Usage (see docs/architecture/llm-and-risk-scoring.md → Master key rotation):
+// Usage (see docs/architecture/secrets-and-master-key.md → Rotating the master key):
 //   node /app/backend/src/cli/rotate-master-key.js [--dry-run]
 //
 // All rows are re-wrapped in one transaction. If any row opens with neither
