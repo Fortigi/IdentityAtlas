@@ -1,6 +1,6 @@
 site_name: Identity Atlas
 site_description: Universal authorization intelligence — sync, analyze, and govern permissions from any identity system
-site_url: https://fortigi.github.io/IdentityAtlas
+site_url: https://docs.identityatlas.io
 repo_url: https://github.com/Fortigi/IdentityAtlas
 repo_name: Fortigi/IdentityAtlas
 edit_uri: edit/main/docs/

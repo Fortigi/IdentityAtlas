@@ -36,7 +36,7 @@ brand.
 
 - **Website:** https://www.fortigi.nl
 - **Source:** https://github.com/Fortigi/IdentityAtlas
-- **Docs:** https://fortigi.github.io/IdentityAtlas
+- **Docs:** https://docs.identityatlas.io
 - **License:** MIT
 
 ## Usage notes
