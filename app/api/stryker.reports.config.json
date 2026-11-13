@@ -36,6 +36,7 @@
     "src/reports/attributeColumns.js",
     "src/reports/contextDetails.js",
     "src/lib/resourceOwners.js",
+    "src/lib/ownedResources.js",
     "src/reports/activityWindow.js",
     "src/reports/export.js",
     "src/reports/registry.js",

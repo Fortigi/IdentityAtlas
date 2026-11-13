@@ -56,8 +56,8 @@ A signed-in user qualifies when **all** of these hold:
 
 Somebody who holds any real permission is **not** affected: they keep the
 ordinary app, unscoped. Somebody who qualifies on everything except holding a
-context role gets exactly today's behaviour (the roleless read, or the
-`AUTH_REQUIRED_ROLES` 403).
+context role is refused, as anyone without a role is: the "no role" 403, or the
+`AUTH_REQUIRED_ROLES` 403. Owner mode is the only way in without a role.
 
 ## Their scope
 

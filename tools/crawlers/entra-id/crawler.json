@@ -11,12 +11,17 @@
   "dependsOn": [],
   "configSchema": {
     "type": "object",
-    "required": ["tenantId", "clientId", "clientSecret"],
+    "required": ["tenantId"],
     "properties": {
       "tenantId":     { "type": "string" },
+      "authMethod":   { "enum": ["ClientSecret", "ManagedIdentity"], "description": "How the crawler signs in to Microsoft Graph. Absent means ClientSecret. ManagedIdentity uses the identity the Azure deployment attaches to the worker — no secret exists." },
       "clientId":     { "type": "string" },
       "clientSecret": { "type": "string" }
-    }
+    },
+    "allOf": [
+      { "if": { "properties": { "authMethod": { "const": "ClientSecret" } } },
+        "then": { "required": ["clientId", "clientSecret"] } }
+    ]
   },
   "postSyncHooks": ["buildContexts", "accountCorrelation"]
 }
