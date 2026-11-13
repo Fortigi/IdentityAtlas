@@ -6523,7 +6523,7 @@
 </table>
 <p><strong>Cross-cutting backstop — <code>dor-reconcile.yml</code> (level-triggered sweep, this PR).</strong> Steps 1–6 are edge-triggered (GitHub events), so a dropped webhook, a failed run, or a concurrency race could silently strand an issue. A <strong>daily scheduled</strong> reconcile re-derives desired state from <em>actual</em> state and heals or flags drift: an open <code>enhancement</code> issue missing from the board → add it; board Status ≠ <code>state:*</code> label → re-sync; on the board but un-routed after N hours → flag (the agent likely never ran); stale in <em>Awaiting requestor/design</em> → nudge then flag; <em>Awaiting approval</em> backlog → flag the Product board; closed-but-still-active → move to <em>Done</em>. Deterministic (no LLM), <strong>exception-only</strong> reporting, and it maintains a single <strong>"DoR pipeline health"</strong> tracking issue. Being level-triggered it self-corrects even if the cron itself slips.</p>
 <p><strong>Kill-switch.</strong> Every DoR workflow is <strong>inert until repo variable <code>DOR_ENABLED=true</code></strong> — the whole set can merge and be smoke-tested before anything runs.</p>
-<p><strong>Live board — which issue is in which phase:</strong> <a href="https://github.com/orgs/Fortigi/projects/2">github.com/orgs/Fortigi/projects/2</a> (grouped by <strong>Status</strong>, the canonical phase). The <a href="#end-to-end-map--build-side-design-v2--pooled-sidekicks">end-to-end map</a> below is its legend.</p>
+<p><strong>Live board — which issue is in which phase:</strong> <a href="https://github.com/orgs/Fortigi/projects/2">github.com/orgs/Fortigi/projects/2</a> (grouped by <strong>Status</strong>, the canonical phase). The <a href="#end-to-end-map-build-side-design-v2-pooled-sidekicks">end-to-end map</a> below is its legend.</p>
 <h3 id="roles-github-identity">Roles → GitHub identity<a class="headerlink" href="#roles-github-identity" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -6557,7 +6557,7 @@
 <tr>
 <td><strong>Unknown requestor</strong> (non-member opens an issue)</td>
 <td>—</td>
-<td><strong>deterministic triage</strong> (no AI): post a notice, assign Wim/Taeke/Rob, label <code>needs-vouch</code>, stop. A maintainer restarts it by <strong>vouching</strong> — see <a href="../definition-of-ready/#external-requests--the-vouch">External requests</a></td>
+<td><strong>deterministic triage</strong> (no AI): post a notice, assign Wim/Taeke/Rob, label <code>needs-vouch</code>, stop. A maintainer restarts it by <strong>vouching</strong> — see <a href="../definition-of-ready/#external-requests-the-vouch">External requests</a></td>
 </tr>
 </tbody>
 </table>

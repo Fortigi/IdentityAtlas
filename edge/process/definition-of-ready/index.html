@@ -6258,7 +6258,7 @@
 an administrative one: this is a <strong>public</strong> repo, so <code>issues</code> / <code>issue_comment</code> events run <strong>with
 secrets</strong> for anyone who can type in a text box, and org membership is the only real defense for
 the Claude subscription token (see the injection note in
-<a href="../operationalization/#security-note--the-dor-agents-injection-residual-phase-1"><code>operationalization.md</code></a>).</p>
+<a href="../operationalization/#security-note-the-dor-agents-injection-residual-phase-1"><code>operationalization.md</code></a>).</p>
 <p>But customers and partners <em>do</em> file good requests. Rather than widening the gate, we <strong>transfer
 the request</strong>:</p>
 <table>
@@ -6321,7 +6321,7 @@ requestor</em>; needs real tenant/data → <em>Blocked (external)</em>; a fix wi
 <p><strong>Runtime</strong> reproduction (running the fix against a live demo env until the red test goes green) is
 the deferred build-side step. Bugs live on their <strong>own board</strong> (Bug Pipeline, project #3) and are
 <strong>org-members-only</strong> — an external report is parked as <code>needs-vouch</code> and enters the same way a
-feature does, via <a href="#external-requests--the-vouch">the vouch</a>. The wiring — <code>bug</code> gate
+feature does, via <a href="#external-requests-the-vouch">the vouch</a>. The wiring — <code>bug</code> gate
 label, <code>dor-bug-agent</code>, the Bug Form, and the shared scripts — is in
 <a href="../operationalization/#bug-pipeline-spec-side-live"><code>operationalization.md</code></a>.</p>
 <h2 id="appendix-definition-of-done-the-probe-must-design-against">Appendix — Definition of Done the probe must design against<a class="headerlink" href="#appendix-definition-of-done-the-probe-must-design-against" title="Permanent link">&para;</a></h2>

@@ -6085,7 +6085,7 @@
 <tr>
 <td><code>governedAssignments</code></td>
 <td><code>INT</code></td>
-<td>Exact <code>COUNT(*) WHERE assignmentType='Governed'</code> (indexed)</td>
+<td>Exact <code>COUNT(*) WHERE governed = true</code> (indexed)</td>
 </tr>
 <tr>
 <td><code>relationships</code></td>
@@ -6109,7 +6109,7 @@
 </tr>
 </tbody>
 </table>
-<p>The estimate vs. exact choice mirrors the live <code>/admin/dashboard-stats</code> endpoint: estimates are good enough for a trend line (well within a couple of percent), exact counts are reserved for filtered columns that need to be on-the-nose (<code>Governed</code> for the headline %, <code>BusinessRole</code> for the bare number).</p>
+<p>The estimate vs. exact choice mirrors the live <code>/admin/dashboard-stats</code> endpoint: estimates are good enough for a trend line (well within a couple of percent), exact counts are reserved for filtered columns that need to be on-the-nose (<code>governed</code> for the headline %, <code>BusinessRole</code> for the bare number).</p>
 <h2 id="snapshot-capture-when-and-how">Snapshot capture — when and how<a class="headerlink" href="#snapshot-capture-when-and-how" title="Permanent link">&para;</a></h2>
 <p><code>scheduler.js → captureDashboardSnapshotIfMissing()</code> runs on every 60-second tick. The function is structured as a cheap existence check + a one-shot INSERT:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">const</span><span class="w"> </span><span class="nx">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">queryOne</span><span class="p">(</span>

@@ -6329,7 +6329,7 @@
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="ss">"_history"</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="ss">"changedAt"</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">'2 years'</span><span class="p">;</span>
 </code></pre></div>
-<p>The Admin page provides a <strong>History Retention</strong> setting (the History Retention section under <strong>Admin → Data</strong>) to configure automatic cleanup. See <a href="../../admin/data-tab/#deleted-data--history-retention">Admin → Data</a>.</p>
+<p>The Admin page provides a <strong>History Retention</strong> setting (the History Retention section under <strong>Admin → Data</strong>) to configure automatic cleanup. See <a href="../../admin/data-tab/#deleted-data-history-retention">Admin → Data</a>.</p>
 <hr />
 <h2 id="adding-history-to-a-new-table">Adding History to a New Table<a class="headerlink" href="#adding-history-to-a-new-table" title="Permanent link">&para;</a></h2>
 <p>To track a new table, create triggers that call the existing <code>fg_record_history</code> function:</p>

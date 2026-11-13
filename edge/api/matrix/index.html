@@ -6377,7 +6377,7 @@
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">]</span>
 </code></pre></div>
 <p><code>values</code> is the <strong>alphabetically first page</strong> of the column's distinct values — never an arbitrary subset. <code>truncated: true</code> means the column has more values than the page holds; use <code>/api/matrix/column-values</code> to reach them.</p>
-<p>The page holds 500 values by default. Set <code>MATRIX_VALUE_PAGE_SIZE</code> on the web container to change it (max <code>5000</code>) — lowering it is how the capped path is exercised on a deployment that has fewer than 500 distinct values in any column. See <a href="../../architecture/matrix/#attribute-values--paged-discovery-not-a-silent-cap">Matrix architecture → Attribute values</a>.</p>
+<p>The page holds 500 values by default. Set <code>MATRIX_VALUE_PAGE_SIZE</code> on the web container to change it (max <code>5000</code>) — lowering it is how the capped path is exercised on a deployment that has fewer than 500 distinct values in any column. See <a href="../../architecture/matrix/#attribute-values-paged-discovery-not-a-silent-cap">Matrix architecture → Attribute values</a>.</p>
 <hr />
 <h3 id="get-apimatrixcolumn-values">GET /api/matrix/column-values<a class="headerlink" href="#get-apimatrixcolumn-values" title="Permanent link">&para;</a></h3>
 <p>Substring search across <strong>all</strong> distinct values of one column — the escape hatch for a <code>truncated</code> column, so any stored value can still be picked as a filter.</p>

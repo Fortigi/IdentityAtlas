@@ -6266,7 +6266,7 @@ loop</strong>. The only human action is the merge review, and it is a review of 
 promise.</p>
 <p>That review has three answers, not one: approve, <em>"let me see it running myself"</em>, or <em>"the evidence
 isn't enough"</em> — and the last two are one command each, not manual work
-(<a href="#5-the-review-loop--when-the-reviewer-is-not-satisfied">§5</a>).</p>
+(<a href="#5-the-review-loop-when-the-reviewer-is-not-satisfied">§5</a>).</p>
 <hr />
 <h2 id="1-why-a-bug-needs-no-value-gate">1. Why a bug needs no value gate<a class="headerlink" href="#1-why-a-bug-needs-no-value-gate" title="Permanent link">&para;</a></h2>
 <p>The value gate exists because "should we build this?" is a genuinely contestable question — for a
@@ -6299,7 +6299,7 @@ to drop:</p>
 <tr>
 <td><strong>Blast radius</strong></td>
 <td>Should the AI change <em>this part of the codebase</em> unsupervised?</td>
-<td>Real, and the one worth keeping — but as an <strong>automatic rule</strong>, not a human judgement call (<a href="#6-stop-conditions--when-the-machine-must-escalate">§6</a>)</td>
+<td>Real, and the one worth keeping — but as an <strong>automatic rule</strong>, not a human judgement call (<a href="#6-stop-conditions-when-the-machine-must-escalate">§6</a>)</td>
 </tr>
 </tbody>
 </table>
@@ -6545,7 +6545,7 @@ unit-only bug fix would sail straight through, and be reported as verified. For 
 </table>
 <p>Steps 6–11 are the Definition of Done. <strong>All</strong> must hold; any failure routes to Exceptions with the
 evidence of <em>why</em>, and never silently degrades to "probably fine". Steps 14–15 are the reviewer's
-two ways of saying "not yet" — see <a href="#5-the-review-loop--when-the-reviewer-is-not-satisfied">§5</a>.</p>
+two ways of saying "not yet" — see <a href="#5-the-review-loop-when-the-reviewer-is-not-satisfied">§5</a>.</p>
 <hr />
 <h2 id="4-the-evidence-bundle-what-prove-it-to-me-means">4. The evidence bundle — what "prove it to me" means<a class="headerlink" href="#4-the-evidence-bundle-what-prove-it-to-me-means" title="Permanent link">&para;</a></h2>
 <p>Posted as a single structured PR comment when CI goes green. Every row is a claim with a link to the
@@ -6722,7 +6722,7 @@ auto-merges, ever.</p>
   still claims an <code>sk:*</code> sidekick with no open PR, and a closed issue that never released one.
   Without a human gate, a stranded runner silently shrinks the pool until it starves.</li>
 <li><strong>A box can be claimed twice in a PR's life</strong> — once by the build, later by a validation session
-  (<a href="#51-i-want-to-see-it-for-myself--a-validation-session">§5.1</a>). The reservation file therefore
+  (<a href="#51-i-want-to-see-it-for-myself-a-validation-session">§5.1</a>). The reservation file therefore
   records <em>why</em> it is held (<code>build</code> vs <code>validation</code>) and, for a session, its expiry. A human-held box
   must never be swept as a stuck build, and a session must be released on merge/close even if the
   human never says so.</li>
@@ -6737,7 +6737,7 @@ registered runners but absent from the hostname→URL map, so a build landing th
 <ul>
 <li><strong>Concurrency cap</strong> — at most <em>N</em> autonomous builds in flight (N ≤ pool size − 1, so a human can
   always grab a box). Excess queues; queue order by severity then age. Validation sessions count
-  against the pool but <strong>jump the queue</strong> — see <a href="#51-i-want-to-see-it-for-myself--a-validation-session">§5.1</a>.</li>
+  against the pool but <strong>jump the queue</strong> — see <a href="#51-i-want-to-see-it-for-myself-a-validation-session">§5.1</a>.</li>
 <li><strong>Budget guard</strong> — a weekly quota ceiling; on breach the pipeline queues instead of building and
   says so on the issue. Bugs share the Max subscription with the spec side, which must never starve:
   triage and certification are cheap and always run.</li>
@@ -6751,7 +6751,7 @@ registered runners but absent from the hostname→URL map, so a build landing th
 <li><strong>Approves the merge.</strong> The single gate. Already required by the ruleset (1 approval + CODEOWNERS</li>
 <li>required checks), so this is not new machinery — it is the machinery we stop duplicating.</li>
 <li><strong>Says "not yet" cheaply.</strong> <code>/validate</code> to get the thing running under your own hands, or state the
-  gap and let the pipeline close it (<a href="#5-the-review-loop--when-the-reviewer-is-not-satisfied">§5</a>).
+  gap and let the pipeline close it (<a href="#5-the-review-loop-when-the-reviewer-is-not-satisfied">§5</a>).
   Neither costs you manual work, which is the point: an expensive "no" is not a real gate.</li>
 <li><strong>Reads Exceptions.</strong> The pipeline's job is to be honest about what it could not prove.</li>
 <li><strong>Objects, if the reporter disagrees.</strong> The reporter is notified when the PR opens, with the live

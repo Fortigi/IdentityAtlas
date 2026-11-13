@@ -6008,7 +6008,7 @@
 
 <h1 id="enrolling-a-dor-build-pool-sidekick-setup-checklist">Enrolling a DoR build-pool sidekick — setup checklist<a class="headerlink" href="#enrolling-a-dor-build-pool-sidekick-setup-checklist" title="Permanent link">&para;</a></h1>
 <p>What a machine needs before it can serve as a <code>dor-build</code> pool runner (rows 8–13 of the
-<a href="../operationalization/#end-to-end-map--build-side-design-v2--pooled-sidekicks">operationalization map</a>).
+<a href="../operationalization/#end-to-end-map-build-side-design-v2-pooled-sidekicks">operationalization map</a>).
 The build agent runs AI-authored code, deploys the stack, seeds demo data, runs Playwright, opens a
 PR, and drives CI — so the box needs a specific baseline. Each item below bit us once as a
 mid-build failure (missing <code>gh</code>, <code>unzip</code>, Node, and finally <strong>no git identity</strong> → an empty branch →
@@ -6062,7 +6062,7 @@ wiring (steps 4–5) are manual, because they need a short-lived token / live ou
 </tr>
 <tr>
 <td>—</td>
-<td>Runtime secrets/vars are <strong>not</strong> on the box (provided by the workflow) — see <a href="#runtime-secrets--variables-not-on-the-box">below</a></td>
+<td>Runtime secrets/vars are <strong>not</strong> on the box (provided by the workflow) — see <a href="#runtime-secrets-variables-not-on-the-box">below</a></td>
 <td>GitHub</td>
 <td>n/a</td>
 </tr>

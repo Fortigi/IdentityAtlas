@@ -2297,6 +2297,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#signing-in-without-a-secret-managed-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing in without a secret (managed identity)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#schema-evolution" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5989,6 +6000,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#signing-in-without-a-secret-managed-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing in without a secret (managed identity)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#schema-evolution" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6110,7 +6132,7 @@
 <h3 id="via-the-ui-recommended">Via the UI (recommended)<a class="headerlink" href="#via-the-ui-recommended" title="Permanent link">&para;</a></h3>
 <p>Navigate to <strong>Admin → Crawlers</strong> and configure an Entra ID crawler. The wizard walks you through:</p>
 <ol>
-<li>Enter your Tenant ID, Client ID, and Client Secret</li>
+<li>Enter your Tenant ID, Client ID, and Client Secret — or, in an Azure deployment, choose <strong>Managed identity</strong> (<a href="#signing-in-without-a-secret-managed-identity">no secret at all</a>)</li>
 <li>Validate permissions (the wizard checks each required Graph permission)</li>
 <li>Select which entity types to sync</li>
 <li>Configure optional identity filters and custom attributes</li>
@@ -6407,6 +6429,28 @@
 <p class="admonition-title">Tip</p>
 <p>The in-browser wizard validates all these permissions automatically — it shows a green/red checklist of which ones are granted.</p>
 </div>
+<h2 id="signing-in-without-a-secret-managed-identity">Signing in without a secret (managed identity)<a class="headerlink" href="#signing-in-without-a-secret-managed-identity" title="Permanent link">&para;</a></h2>
+<p>A client secret has to be stored, can leak, and expires. When Identity Atlas runs in Azure (<a href="../../architecture/azure-deployment/">Azure deployment</a>) the crawler can sign in with a <strong>managed identity</strong> instead. There is then no secret anywhere: Azure hands a token only to code running inside the Identity Atlas containers, and nothing needs renewing.</p>
+<p>The Azure deployment creates the identity for you (<code>&lt;prefix&gt;-mi-crawler</code>) and attaches it to the worker and the web app. It starts with <strong>no permissions</strong>. To use it:</p>
+<ol>
+<li>
+<p><strong>Grant it the Graph permissions.</strong> A managed identity cannot be given Microsoft Graph permissions in the Azure Portal, so use the script. Sign in with the Azure CLI as a Privileged Role Administrator or Global Administrator, then:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">./</span><span class="n">azure</span><span class="p">/</span><span class="nb">Grant-CrawlerIdentityGraphPermissions</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-ResourceGroup</span> <span class="p">&lt;</span><span class="n">resource</span> <span class="nb">group </span><span class="n">of</span> <span class="n">the</span> <span class="n">deployment</span><span class="p">&gt;</span>
+</code></pre></div>
+<p>It grants the read-only permissions from the table above — nothing that can write — and skips the ones already granted, so it is safe to run again.</p>
+</li>
+<li>
+<p><strong>Add the crawler.</strong> In <strong>Admin → Crawlers → Add Crawler → Microsoft Graph</strong>, choose <strong>Managed identity</strong> as the sign-in method. There is nothing else to fill in on that step: the wizard validates the identity and shows which permissions it holds.</p>
+</li>
+</ol>
+<p>Things to know:</p>
+<ul>
+<li><strong>Same tenant only.</strong> A managed identity reads the tenant the Azure deployment lives in. To read another tenant, use an app registration.</li>
+<li><strong>Grant before you validate.</strong> Azure caches a managed identity's token. Permissions granted before the first validation or crawl work straight away; granted afterwards, they can take an hour or more to appear. The wizard reads the permissions from the token itself, so what it shows is what the crawler will really get.</li>
+<li><strong>Azure only.</strong> The option appears only where the deployment has a crawler identity. A Docker installation outside Azure keeps using an app registration.</li>
+<li><strong>Who can use it.</strong> Any Identity Atlas administrator who can add a crawler can add one that signs in as this identity — there is no secret to know. The identity's permissions are read-only.</li>
+<li><strong>Switching an existing crawler.</strong> Edit the crawler and choose <strong>Managed identity</strong>. The client secret stored for it is no longer used; delete the app registration's secret in Entra ID once the crawler runs.</li>
+</ul>
 <hr />
 <h2 id="schema-evolution">Schema Evolution<a class="headerlink" href="#schema-evolution" title="Permanent link">&para;</a></h2>
 <p>The Ingest API never alters the schema — the tables and their core columns are fixed by the database migrations. Any attribute returned by the Graph API can still be captured:</p>

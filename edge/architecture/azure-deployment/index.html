@@ -2094,6 +2094,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#crawler-identity-entra-id-without-a-client-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crawler identity (Entra ID without a client secret)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#logs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6071,6 +6082,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#crawler-identity-entra-id-without-a-client-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crawler identity (Entra ID without a client secret)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#logs" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6488,6 +6510,27 @@ which the cache rules above give you. Whoever runs the deployment needs the
 right to create role assignments on the registry (Owner, User Access
 Administrator or Role Based Access Control Administrator). Combine it with
 <code>imageTag</code> to pin the version you pull through.</p>
+<h3 id="crawler-identity-entra-id-without-a-client-secret">Crawler identity (Entra ID without a client secret)<a class="headerlink" href="#crawler-identity-entra-id-without-a-client-secret" title="Permanent link">&para;</a></h3>
+<p>The deployment creates a third managed identity, <code>&lt;namePrefix&gt;-mi-crawler</code>, and
+attaches it to the worker and the web app. An Entra ID crawler can sign in to
+Microsoft Graph as that identity instead of with an app registration's client
+secret — nothing to store, leak or renew.</p>
+<ul>
+<li>It is created with <strong>no permissions</strong>, and it never gets access to Key Vault.
+  Until someone grants it Microsoft Graph permissions it can read nothing.</li>
+<li>Granting them needs a directory administrator and is a separate, deliberate
+  step: <code>./Grant-CrawlerIdentityGraphPermissions.ps1 -ResourceGroup &lt;rg&gt;</code>
+  (read-only permissions only). The deployment outputs
+  <code>crawlerIdentityName</code> and <code>crawlerIdentityPrincipalId</code> name the identity.</li>
+<li>The containers are told which identity crawlers use through
+  <code>IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID</code>; a crawler configuration cannot
+  choose a different one (the web app's Key Vault identity, for example).</li>
+<li>Anyone who can run code in the worker or web container, or who can attach the
+  identity to another resource (Contributor on the resource group), can obtain
+  a token for it. Access to the resource group is therefore what protects it.</li>
+</ul>
+<p>See <a href="../../sync/entra-id/#signing-in-without-a-secret-managed-identity">Syncing from Entra ID</a>
+for the steps.</p>
 <h3 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># App Service stdout, live</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>az<span class="w"> </span>webapp<span class="w"> </span>log<span class="w"> </span>tail<span class="w"> </span>--name<span class="w"> </span>&lt;namePrefix&gt;-web<span class="w"> </span>--resource-group<span class="w"> </span>&lt;rg&gt;
@@ -6677,7 +6720,11 @@ Administrator or Role Based Access Control Administrator). Combine it with
 </tr>
 <tr>
 <td><code>azure/modules/identities.bicep</code></td>
-<td>2 user-assigned managed identities</td>
+<td>3 user-assigned managed identities (web, deployment script, crawler)</td>
+</tr>
+<tr>
+<td><code>azure/Grant-CrawlerIdentityGraphPermissions.ps1</code></td>
+<td>Grants the crawler identity its read-only Microsoft Graph permissions</td>
 </tr>
 <tr>
 <td><code>azure/modules/key-vault.bicep</code></td>
