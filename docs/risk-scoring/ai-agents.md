@@ -1,102 +1,45 @@
 ---
 type: concept
 prereq: risk-scoring/overview.md
-outcome: You can find the non-human identities in your tenant and judge what they can reach.
+outcome: You know which accounts count as non-human and how their risk score is calculated.
 ---
 
-# AI Agent Identities
+# AI Agents & Non-Human Identities
 
 !!! info "Before this page"
     Assumes you have read **[How Scoring Works](./overview.md)**.
     Brand new? Start at [The words you need first](../start/glossary.md).
 
-## The Challenge
+Not every account belongs to a person. Applications, automation and AI agents hold access too, and nobody reviews them the way they review a colleague. Identity Atlas stores them as accounts with their own type, so you can tell them apart and score them with their own classifiers.
 
-AI agent identities appear automatically as organizations adopt Azure OpenAI, Copilot Studio, Logic Apps with AI calls, and custom agent frameworks. These non-human identities accumulate permissions automatically — often without explicit governance review.
+## Account types for non-human identities
 
-Identity Atlas treats AI agent identities as first-class citizens: syncing them into the Principals table with dedicated `principalType` values, tracking their invocation activity, and scoring them with agent-specific risk signals.
+| Type (`principalType`) | What it is |
+|---|---|
+| `ServicePrincipal` | An application's identity in the directory |
+| `ManagedIdentity` | An identity attached to a cloud resource and managed by the platform |
+| `AIAgent` | A service principal recognised as an AI agent |
+| `WorkloadIdentity` | An identity for a workload that signs in with a federated credential |
 
-## How AI Agents Are Detected
+## How the Entra ID crawler decides the type
 
-`Sync-FGServicePrincipal` auto-classifies each service principal:
+For each service principal, the first rule that applies wins:
 
-```mermaid
-flowchart TD
-    SP[Service Principal] --> C1{"servicePrincipalType\n= ManagedIdentity?"}
-    C1 -->|Yes| M[principalType = ManagedIdentity]
-    C1 -->|No| C2{"Tags contain CopilotStudio\nPowerVirtualAgents\nAzureOpenAI\nCognitiveServices?"}
-    C2 -->|Yes| AI[principalType = AIAgent]
-    C2 -->|No| C3{"displayName matches\nAI patterns?"}
-    C3 -->|Yes| AI
-    C3 -->|No| C4{"Custom -AINamePatterns\nmatch?"}
-    C4 -->|Yes| AI
-    C4 -->|No| SV[principalType = ServicePrincipal]
-```
+1. Entra ID marks it as a managed identity → `ManagedIdentity`.
+2. It carries one of the tags `CopilotStudio`, `PowerVirtualAgents`, `AzureOpenAI`, `CognitiveServices`, `AgenticInstance` or `AgenticApp`, or a tag that starts with `power-virtual-agents-` → `AIAgent`.
+3. Its display name contains `copilot`, `openai`, `azure-ai` or `cognitive-service`, or the separate word `gpt` or `bot` → `AIAgent`.
+4. Otherwise → `ServicePrincipal`.
 
-```powershell
-# Sync all service principals (auto-classified)
-Sync-FGServicePrincipal
+The Entra ID crawler does not assign `WorkloadIdentity`. The CSV and SQL crawlers accept all four types, so a source that knows the difference can supply it.
 
-# Skip the thousands of built-in Microsoft first-party SPs
-Sync-FGServicePrincipal -ExcludeFirstPartyMicrosoft
+Rule 3 is a name match, so check the outcome: an application called *Robot Arm Bot* becomes an `AIAgent`, and an agent with a neutral name stays a `ServicePrincipal`.
 
-# Add custom AI detection patterns for your org
-Sync-FGServicePrincipal -AINamePatterns @('(?i)contoso.*agent', '(?i)mycompany.*copilot')
-```
+## How they are scored
 
-## principalType Values for Non-Human Identities
+Non-human accounts go through the same four layers as every other account. One thing differs:
 
-| principalType | Covers | Example |
-|---|---|---|
-| `ManagedIdentity` | Azure resource-attached (system or user-assigned) | Azure OpenAI resource, Logic App, Function App |
-| `AIAgent` | AI agents detected by tags or name patterns | Copilot Studio agents, custom GPT wrappers, Azure AI Hub |
-| `WorkloadIdentity` | Federated credential identities | GitHub Actions pipeline, AKS workload |
-| `ServicePrincipal` | Other app registration SPs | Enterprise applications, integrations |
+- **Layer 1 uses the Agents classifiers.** Accounts of the four types above are matched against the **Agents** tab of the active classifier set. If the set contains no agent classifiers, the **Users** classifiers are used instead.
 
-## Activity Tracking for Agents
+Layers 2 to 4 are identical for human and non-human accounts: the same membership, hygiene and propagation signals, with the same points. There is no extra score for being non-human.
 
-AI agents don't "sign in" — they invoke tools and access resources. Import invocation data from Azure Monitor, APIM, or Copilot Studio analytics:
-
-```powershell
-Sync-FGCSVAgentActivity -FilePath ".\exports\copilot-invocations.csv"
-```
-
-CSV format (semicolon-delimited):
-
-```
-principalId;resourceId;lastActivityDateTime;activityCount;activityType;extendedAttributes
-<agent-guid>;<resource-guid>;2026-03-15T14:00:00Z;142;Invocation;{"modelVersion":"gpt-4o","orchestratorType":"Copilot Studio"}
-```
-
-Supported `activityType` values: `Invocation`, `ToolCall`, `DataAccess`, `ExternalCall`
-
-## Risk Scoring for Agents
-
-Non-human principals are scored differently from human users:
-
-| Signal | Score | Applies To |
-|---|---|---|
-| No human in the loop | +8 | All non-human principals |
-| AI agent (autonomous, no MFA) | +5 | AIAgent |
-| Managed identity (persists for resource lifetime) | +3 | ManagedIdentity |
-| Active production workload (uses resources actively) | +5 bonus | All non-human |
-| Ghost app role (zero active sign-ins for this resource) | +5 | AppRole resources |
-
-Agent classifiers (generated by `New-FGRiskClassifiers`) detect patterns like:
-
-- Agents with mail/inbox access
-- Agents attached to internet-facing or external-calling services
-- Managed identities with application-level permissions
-
-!!! info "No stale sign-in penalty for non-human principals"
-    The stale sign-in and never-signed-in checks that apply to human users are replaced with production workload detection for non-human principals.
-
-## Querying AI Agent Risk
-
-```sql
-SELECT p.displayName, p.principalType, rs.riskScore, rs.riskTier
-FROM Principals p
-JOIN RiskScores rs ON rs.entityId = p.id AND rs.entityType = 'Principal'
-WHERE p.principalType IN ('AIAgent', 'ManagedIdentity', 'ServicePrincipal', 'WorkloadIdentity')
-ORDER BY rs.riskScore DESC;
-```
+To see the agent classifiers, open **Admin → Risk Scoring**, expand **Risk Classifiers** and choose the **Agents** tab. See [Classifiers](./classifiers.md).
