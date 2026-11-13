@@ -58,11 +58,11 @@ To check whether the version you run contains a given fix, compare it with the
 We publish sanitised summaries of our security reviews, with every finding, its
 status and the pull request that fixed it:
 
-- [Security assessment, June 2026](https://fortigi.github.io/IdentityAtlas/edge/security/assessment/)
+- [Security assessment, June 2026](https://docs.identityatlas.io/edge/security/assessment/)
   ([source](docs/security/assessment.md))
-- [Security assessment, September 2026](https://fortigi.github.io/IdentityAtlas/edge/security/assessment-2026-09/)
+- [Security assessment, September 2026](https://docs.identityatlas.io/edge/security/assessment-2026-09/)
   ([source](docs/security/assessment-2026-09.md))
-- [Maintenance audit, June 2026](https://fortigi.github.io/IdentityAtlas/edge/security/maintenance-audit-2026-06/)
+- [Maintenance audit, June 2026](https://docs.identityatlas.io/edge/security/maintenance-audit-2026-06/)
   ([source](docs/security/maintenance-audit-2026-06.md))
 
 ## Deployment notes for security teams
