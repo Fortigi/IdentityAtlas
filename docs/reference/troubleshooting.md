@@ -1,29 +1,60 @@
 # Troubleshooting
 
-This page covers debug mode, common error conditions, required permissions, and known operational constraints.
+Start with the symptom you see. The first section covers what goes wrong on a new Docker deployment; the sections after it cover crawlers and permissions.
+
+Two commands answer most questions:
+
+```bash
+# Is the app up, and has it finished preparing the database?
+curl http://localhost:3001/api/health
+
+# What does the web container say?
+docker compose -f docker-compose.prod.yml logs --tail 200 web
+```
 
 ---
 
-## Debug Mode
+## First start
 
-Identity Atlas's PowerShell SDK functions emit detailed request/response output when `$Global:DebugMode` is set. Set it to any combination of the letters below before running any command.
+| What you see | Cause | What to do |
+|---|---|---|
+| `docker compose up` stops with **`POSTGRES_PASSWORD must be set`** | The compose file ships no default database password and refuses to start without one. | Add a line `POSTGRES_PASSWORD=<strong value>` to the `.env` file next to the compose file, and run the command from that directory. The [install commands](../architecture/docker-setup.md#install) generate one. |
+| The UI loads but shows errors; the web log repeats **`CRITICAL: database migration failed`** with **`password authentication failed`** | `POSTGRES_PASSWORD` in `.env` is not the password the database was created with. The database keeps its first password; a new value in `.env` does not change it. | See [Changed database password](#changed-database-password). |
+| Requests answer **`503`** `Schema migration in progress, please retry shortly` | The web container is still bringing the database up to date, or a migration is failing and being retried. | Look at `/api/health`: `"schemaReady": false` confirms it. Give a first start or an upgrade a few minutes. If the log shows `CRITICAL: database migration failed`, see [If a migration fails](../admin/backup-restore-upgrade.md#if-a-migration-fails). |
+| After signing in: **"You don't have access to Identity Atlas yet"** | Your account has no role. A signed-in user without a role gets nothing. | Have an administrator assign you an app role (`Admin`, `RoleMiner` or `Servicedesk`) on the Identity Atlas application in Entra ID, then sign out and in again. If nobody has the `Admin` role yet, follow [Recovering from a lockout](../admin/authentication.md#recovering-from-a-lockout). |
+| A setup page instead of the sign-in | `AUTH_ENABLED=true` is set, but `AUTH_TENANT_ID` or `AUTH_CLIENT_ID` is empty. | Set all three and recreate the web container. See [Setting up authentication](../admin/authentication.md). |
+| **`421`** `This host name is not allowed` | Authentication is off and the app is opened on a DNS name it does not know. | Set `PUBLIC_BASE_URL` or `ALLOWED_HOSTS`. See [Allowed host names](../architecture/docker-setup.md#allowed-host-names). |
+| The web log says **`No master key found … A new key was NOT generated`** | The database holds encrypted credentials, but the key that decrypts them is missing, for example after restoring a database without its key. | Put the key back: see [Restore](../admin/backup-restore-upgrade.md#restore), step 2. |
+| **`413`** on an upload or in the matrix | A size limit was reached. Which one depends on where it happens. | See [Too large (413)](#too-large-413). |
 
-```powershell
-$Global:DebugMode = 'G'   # GET requests — show URIs, page counts, item counts
-$Global:DebugMode = 'P'   # POST and PATCH requests — show URIs and request bodies
-$Global:DebugMode = 'D'   # DELETE requests
-$Global:DebugMode = 'T'   # Token operations — show token acquisition and refresh events
-$Global:DebugMode = 'GP'  # Multiple categories — combine any letters
-$Global:DebugMode = 'GPT' # All HTTP + token operations
+### Changed database password
 
-# Clear debug mode
-$Global:DebugMode = $null
-```
+The database stores its password in the `postgres_data` volume the first time it starts. Editing `POSTGRES_PASSWORD` afterwards changes what the web container *uses*, not what the database *expects*, and the web container can no longer connect.
 
-Debug output writes to the host (not the pipeline), so it does not interfere with function return values.
+Pick one:
 
-!!! tip "Troubleshooting the Entra ID crawler"
-    Set `$Global:DebugMode = 'G'` before running `Start-EntraIDCrawler.ps1` to see every Graph API URI being called, including paginated continuation URLs.
+- **Put the original value back** in `.env` and run `docker compose -f docker-compose.prod.yml up -d`.
+- **Make the database accept the new value.** Connections from inside the database container need no password, so you can set it there. Replace the placeholder with the value from your `.env`:
+
+    ```bash
+    docker compose -f docker-compose.prod.yml exec postgres \
+      psql -U identity_atlas -d identity_atlas -c "ALTER USER identity_atlas PASSWORD '<value from .env>';"
+    ```
+
+    The web container connects on its next retry, within a minute. This command was written from the compose file and not run for this page.
+- **Start over**, if there is nothing in the database you want to keep: `docker compose -f docker-compose.prod.yml down -v` deletes all data, after which the next start creates the database with the password in `.env`.
+
+### Too large (413)
+
+| Where | Message | Limit | What to do |
+|---|---|---|---|
+| Uploading files for a file-based crawler | `A file is larger than the … per-file upload limit` | 8 GiB per file by default | Raise `UPLOAD_MAX_FILE_BYTES` (see [Environment Variables](../architecture/docker-setup.md#settings-the-compose-file-does-not-pass-on)). |
+| Same | `This upload would exceed the storage quota for this crawler configuration` | Only when `UPLOAD_CONFIG_QUOTA_BYTES` is set | Delete old files of that crawler, or raise the quota. |
+| Same, behind a reverse proxy | An HTML error page from the proxy, not a JSON message | The proxy's own request-size limit (nginx: 1 MB by default) | Lift the limit in the proxy. See [Behind a reverse proxy](../architecture/docker-setup.md#behind-a-reverse-proxy-https). |
+| Opening the matrix | `This matrix has more than 400,000 assignments` | 400,000 assignments in one per-subject grid | Narrow the matrix with filters, sort by Manager Hierarchy, or roll up by an attribute. |
+| A custom connector posting to `/api/ingest` | `413` on the request | 50 MB per request | Send smaller batches. |
+
+A related one: `507` `Not enough free disk space on the upload volume` means the host disk is nearly full, not that the file is too large.
 
 ---
 
@@ -103,3 +134,26 @@ Crawler scripts require a `-ConfigFile` parameter pointing to a JSON config with
     -ApiKey "fgc_abc..." `
     -ConfigFile 'C:\Config\mycompany.json'
 ```
+
+---
+
+## Debug output for command-line runs
+
+When you run a crawler script from the command line, the PowerShell SDK functions emit detailed request/response output when `$Global:DebugMode` is set. Set it to any combination of the letters below before running the script. It has no effect on crawlers started from the UI.
+
+```powershell
+$Global:DebugMode = 'G'   # GET requests — show URIs, page counts, item counts
+$Global:DebugMode = 'P'   # POST and PATCH requests — show URIs and request bodies
+$Global:DebugMode = 'D'   # DELETE requests
+$Global:DebugMode = 'T'   # Token operations — show token acquisition and refresh events
+$Global:DebugMode = 'GP'  # Multiple categories — combine any letters
+$Global:DebugMode = 'GPT' # All HTTP + token operations
+
+# Clear debug mode
+$Global:DebugMode = $null
+```
+
+Debug output writes to the host (not the pipeline), so it does not interfere with function return values.
+
+!!! tip "Troubleshooting the Entra ID crawler"
+    Set `$Global:DebugMode = 'G'` before running `Start-EntraIDCrawler.ps1` to see every Graph API URI being called, including paginated continuation URLs.

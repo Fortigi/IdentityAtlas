@@ -1,12 +1,14 @@
 # Docker Setup
 
-Running Identity Atlas locally with Docker — three containers providing the full stack.
+The reference for running Identity Atlas on Docker: what the stack consists of, every setting you can change, how much hardware it needs, and how to put it behind HTTPS or on your own PostgreSQL server.
+
+New here? [Get it running](../quickstart.md) walks through the first start. For keeping a deployment healthy, see [Back up, restore and upgrade](../admin/backup-restore-upgrade.md).
 
 ---
 
-## Quick Start (End Users — No Git Required)
+## Install
 
-The fastest way to try Identity Atlas — pulls pre-built images, no source code needed:
+The whole installation is one compose file and a `.env` file with a database password. These are the same commands as on [Get it running](../quickstart.md), which also explains what to check afterwards.
 
 === "Linux / macOS"
 
@@ -17,11 +19,8 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
     # 2. Create .env with a generated database password (skipped when .env already exists)
     [ -f .env ] || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
 
-    # 3. Start everything (--pull always fetches the newest :latest from the registry)
+    # 3. Start everything
     docker compose -f docker-compose.prod.yml up -d --pull always
-
-    # 4. Open the UI
-    open http://localhost:3001
     ```
 
 === "Windows (PowerShell)"
@@ -39,90 +38,160 @@ The fastest way to try Identity Atlas — pulls pre-built images, no source code
         "POSTGRES_PASSWORD=$(-join ($bytes | ForEach-Object { $_.ToString('x2') }))" | Set-Content .env -Encoding ascii
     }
 
-    # 3. Start everything (--pull always fetches the newest :latest from the registry)
+    # 3. Start everything
     docker compose -f docker-compose.prod.yml up -d --pull always
-
-    # 4. Open the UI
-    Start-Process http://localhost:3001
     ```
 
-On first visit, the UI opens to the Dashboard. If no data is loaded yet, click **"Configure a crawler"** to go to Admin → Crawlers, then click **"Load Demo Data"** to populate the system with synthetic data (~30 seconds). After that, explore the Matrix, Users, Resources, and other pages.
+Then open `http://localhost:3001`.
 
-To connect your own Entra ID tenant, click **"Connect Entra ID"** on the Crawlers page and enter your App Registration credentials (Tenant ID, Client ID, Client Secret).
+The stack starts without sign-in (`AUTH_ENABLED=false`): anyone who can reach port 3001 has full access. That suits an evaluation on your own machine. Before you share it, [set up authentication](../admin/authentication.md) and read [Behind a reverse proxy](#behind-a-reverse-proxy-https).
 
-### The .env File
+---
 
-`docker-compose.prod.yml` reads its configuration from a `.env` file in the same directory. Only one variable is required; every other setting has a default.
+## What runs
 
-| Variable | Default | What to do |
+```mermaid
+graph TB
+    subgraph Docker["docker-compose.prod.yml"]
+        PG[(postgres<br/>PostgreSQL 16)]
+        API[web<br/>API + UI, port 3001]
+        WORKER[worker<br/>PowerShell 7 crawlers]
+    end
+
+    API -->|migrations, reads, writes| PG
+    WORKER -->|claims jobs, posts data| API
+    User[Browser] -->|http://localhost:3001| API
+```
+
+| Service | Image | Published port | What it does |
+|---|---|---|---|
+| `postgres` | `postgres:16-alpine` | `127.0.0.1:5432` | The database. Only reachable from the host itself; the web container reaches it over the internal network. |
+| `web` | `ghcr.io/fortigi/identity-atlas` | `3001` | The API and the UI. Applies database migrations when it starts and decides when scheduled crawlers run. |
+| `worker` | `ghcr.io/fortigi/identity-atlas-worker` | none | Runs the crawlers. It has no database access: it picks up jobs from the web container and posts what it reads back to it. |
+
+A fourth service, `report-generator`, only starts when you enable its profile. See [Report Generator](../reference/report-generator.md).
+
+### Volumes
+
+| Volume | Mounted in | Holds |
 |---|---|---|
-| `POSTGRES_PASSWORD` | *(none — required)* | The compose file ships no default password and refuses to start while this is unset or empty. Step 2 above writes a random one. |
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Optional. If left unset, the web container generates a key on first start and saves it to the web-only `web_keys` volume — back that volume up. For a real deployment, set an explicit value before the first start so you hold the key yourself: 32 random bytes, base64-encoded (`openssl rand -base64 32`). |
+| `postgres_data` | `postgres` | The database. |
+| `job_data` | `web`, `worker` (`/data/uploads`) | Files uploaded for file-based crawlers, job logs, and the key the worker signs in to the API with. |
+| `web_keys` | `web` only (`/data/keys`) | The vault master key, when the web container generated it. |
+| `report_generator_slots` | `report-generator` | A cache. It is rebuilt when lost. |
 
-Step 2 only creates `.env` when it does not exist yet, so the commands are safe to run again. Keep the file: the database keeps the password it was first created with, so a different value in `.env` later locks the web container out of its own database. If you already have a `.env` without a password, add a `POSTGRES_PASSWORD=<strong value>` line to it.
+What to back up, and how, is on [Back up, restore and upgrade](../admin/backup-restore-upgrade.md).
 
-The stack starts without sign-in (`AUTH_ENABLED=false`), which suits a local evaluation. Before you share it, see [Setting up authentication](../admin/authentication.md).
+### First start
 
-Full variable reference: [Environment Variables](#environment-variables). A commented template with every variable is at [`setup/config/.env.example`](https://github.com/Fortigi/IdentityAtlas/blob/main/setup/config/.env.example).
+On its first start the web container opens port 3001 right away and then, in the background:
 
-### Image Channels
+1. applies the database migrations, which create every table, view and index;
+2. creates the **Built-in Worker** crawler with a generated API key;
+3. writes that key to `/data/uploads/.builtin-worker-key` in the `job_data` volume, where the worker reads it. The key is never served over HTTP.
 
-The compose file uses the `IMAGE_TAG` variable to select which build to pull:
+Until step 1 is done the API answers `503` with `Schema migration in progress, please retry shortly`. `GET /api/health` reports this as `"schemaReady": false`.
 
-| `IMAGE_TAG` | What you get | Who should use it |
+### How jobs run
+
+Starting a crawler, loading the demo data or importing a file creates a job. The worker asks the web container for the next queued job every 30 seconds and runs each job in its own `pwsh` process, so no credential, token or tenant ID from one job is still in memory when the next one starts.
+
+Schedules are evaluated by the web container once a minute, in UTC. A crawler runs one job at a time. If a schedule comes due while a job of the same crawler is still queued or running:
+
+- an **Every few minutes** schedule skips that run and waits for its next one;
+- any other schedule waits and starts as soon as the running job finishes, for up to an hour.
+
+When a full run and a delta run come due in the same minute, the full run goes first.
+
+What a crawler reads and how to schedule it is described per source, starting with [Entra ID](../sync/entra-id.md).
+
+---
+
+## Environment Variables
+
+`docker-compose.prod.yml` reads its settings from a `.env` file in the same directory. Only `POSTGRES_PASSWORD` is required. A commented template is at [`setup/config/.env.example`](https://github.com/Fortigi/IdentityAtlas/blob/main/setup/config/.env.example).
+
+After changing `.env`, run the `up -d` command again; Compose recreates the containers whose settings changed.
+
+### Database
+
+| Variable | Default | Description |
 |---|---|---|
-| *(unset or blank)* | `:latest` — last stable release, published when a release tag is cut | Customers and production deployments |
-| `beta` | `:beta` — latest pre-release build, published via Actions → Cut Beta | Beta testers |
-| `edge` | `:edge` — latest commit on `main`, updated on every PR merge, may include unreleased features | Developers and testers |
-| `5.2.1.0` | Exact pinned stable version, never auto-updates | Production deployments needing controlled upgrade timing |
-| `5.3.0-beta.1` | Exact pinned pre-release version | Testers who want a reproducible pre-release build |
+| `POSTGRES_PASSWORD` | *(none, required)* | The database password. The compose file refuses to start while it is unset or empty. The database keeps the password it was first created with, so a different value later locks the web container out of its own database. Do not change it without also changing it in PostgreSQL. |
+| `POSTGRES_USER` | `identity_atlas` | Database user. |
+| `POSTGRES_DB` | `identity_atlas` | Database name. |
+| `POSTGRES_BIND_HOST` | `127.0.0.1` | Host interface the database port is published on. Set `0.0.0.0` only if you need access from another machine, and firewall it. |
+| `POSTGRES_PORT` | `5432` | Host port the database is published on. |
 
-The running version is always visible in the footer of the UI. Edge builds show an amber **edge** badge so it is immediately obvious which channel is running.
+### Web
 
-=== "Linux / macOS"
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3001` | Host port the UI and API are published on. |
+| `IMAGE_TAG` | `latest` | Which build to run. See [Image channels](#image-channels). |
+| `AUTH_ENABLED` | `false` | `true` requires Entra ID sign-in. Needs the two variables below. See [Setting up authentication](../admin/authentication.md). |
+| `AUTH_TENANT_ID` | *(empty)* | Your Entra ID tenant ID. |
+| `AUTH_CLIENT_ID` | *(empty)* | Client ID of the App Registration people sign in to. |
+| `MATRIX_VALUE_PAGE_SIZE` | `500` | How many distinct values a filter dropdown preloads per field (at most 5000). The rest stay reachable through the dropdown's search box. |
 
-    ```bash
-    # Run the stable release (default)
-    docker compose -f docker-compose.prod.yml up -d --pull always
+### Vault master key
 
-    # Run the latest pre-release beta
-    IMAGE_TAG=beta docker compose -f docker-compose.prod.yml up -d --pull always
+Crawler and LLM credentials are entered in the UI and stored encrypted in the database. The master key is what decrypts them.
 
-    # Run the edge build (latest merged to main, may be unstable)
-    IMAGE_TAG=edge docker compose -f docker-compose.prod.yml up -d --pull always
-    # or set IMAGE_TAG=edge in your .env
+| Variable | Default | Description |
+|---|---|---|
+| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | 32 random bytes, base64-encoded (`openssl rand -base64 32`). When empty, the web container generates a key on first start and stores it in the `web_keys` volume. For a deployment you intend to keep, set it **before the first start** so you hold the key yourself. A different key cannot decrypt what is already stored; to change it later, follow [Master key rotation](llm-and-risk-scoring.md#master-key-rotation). |
 
-    # Run a specific pinned version
-    IMAGE_TAG=5.2.0.0 docker compose -f docker-compose.prod.yml up -d --pull always
-    ```
+### Worker
 
-=== "Windows (PowerShell)"
+| Variable | Default | Description |
+|---|---|---|
+| `CRAWLER_API_KEY` | *(auto-generated)* | The API key the worker uses. Leave it empty: the worker reads the generated key from the `job_data` volume. |
 
-    ```powershell
-    # Run the stable release (default)
-    docker compose -f docker-compose.prod.yml up -d --pull always
+### Limits
 
-    # Run the latest pre-release beta
-    $env:IMAGE_TAG = "beta"
-    docker compose -f docker-compose.prod.yml up -d --pull always
+| Variable | Default | Description |
+|---|---|---|
+| `POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT` | `8g` each | Container memory limits. Raise them for large tenants, see [Sizing](#sizing). |
 
-    # Run the edge build (latest merged to main, may be unstable)
-    $env:IMAGE_TAG = "edge"
-    docker compose -f docker-compose.prod.yml up -d --pull always
-    # or set IMAGE_TAG=edge in your .env
+### Settings the compose file does not pass on
 
-    # Run a specific pinned version
-    $env:IMAGE_TAG = "5.2.0.0"
-    docker compose -f docker-compose.prod.yml up -d --pull always
-    ```
+The web container understands more settings than `docker-compose.prod.yml` passes to it. Putting these in `.env` has no effect; add them to the `web` service's `environment:` through a second compose file, as shown under [Behind a reverse proxy](#behind-a-reverse-proxy-https).
+
+| Variable | Description |
+|---|---|
+| `PUBLIC_BASE_URL` | The address people open Identity Atlas on, for example `https://atlas.example.com`. Used for links the app hands out, such as the address inside an exported Excel workbook, and its host name is accepted as an allowed host. |
+| `ALLOWED_HOSTS` | Comma-separated extra host names the app answers to. See [Allowed host names](#allowed-host-names). |
+| `BEHIND_TLS` | `true` when a TLS-terminating proxy is in front. Turns on HSTS and tells browsers to upgrade requests to HTTPS. Never set it on a deployment that is opened over plain HTTP. |
+| `TRUST_PROXY_HOPS` | Number of reverse proxies in front of the app. Makes rate limits and the audit trail see the real client address. `BEHIND_TLS=true` on its own counts as one. |
+| `UPLOAD_MAX_FILE_BYTES` | Largest file a file-based crawler upload may contain. Default 8 GiB. |
+| `UPLOAD_CONFIG_QUOTA_BYTES` | Total upload space per crawler configuration. Default `0`: no quota. |
+| `DATABASE_URL`, `POSTGRES_HOST`, `PGSSLMODE` | See [External PostgreSQL](#external-postgresql). |
+
+`POSTGRES_PASSWORD`, `DATABASE_URL` and `IDENTITY_ATLAS_MASTER_KEY` can each be given as a file instead: set `<NAME>_FILE` to the path of a file that holds the value. A plain variable that is set wins over the file.
+
+---
+
+## Image channels
+
+`IMAGE_TAG` selects the build for the `web` and `worker` images. Both are always published under the same tag.
+
+| `IMAGE_TAG` | What you get | For |
+|---|---|---|
+| *(empty)* or `latest` | The last stable release. | Production. |
+| `beta` | The latest pre-release. | Trying a release before it is final. |
+| `edge` | The latest build of the main branch. May contain unfinished work. | Testing what is coming. |
+| An exact version, such as `5.2.1.0` | That release and nothing else. | Production where you decide when to upgrade. |
+
+When you pin an older release, use the `docker-compose.prod.yml` from that release as well. Switching channels and pinning are covered in [Back up, restore and upgrade](../admin/backup-restore-upgrade.md#upgrade).
 
 ---
 
 ## Sizing
 
-Identity Atlas runs all three services (postgres, web, worker) on one host. These numbers are the floor — RAM first, disk second. The RAM figure is what the crawler's peak workload needs in steady state; tight provisioning causes the container runtime to thrash when a sync runs, not at idle. The disk figure is for the `postgres_data` volume plus the backing image layers.
+Identity Atlas runs all three services (postgres, web, worker) on one host. These numbers are the floor: RAM first, disk second. The RAM figure is what the crawler's peak workload needs; tight provisioning makes the host thrash when a sync runs, not at idle. The disk figure is for the `postgres_data` volume plus the image layers.
 
-| Tenant shape | Principals | Activity sync | RAM | Disk |
+| Tenant shape | Accounts | Activity sync | RAM | Disk |
 |---|---|---|---|---|
 | Small | < 2k | off | **4 GB** | 20 GB |
 | Small + activity | < 2k | on (7 days) | **6 GB** | 40 GB |
@@ -131,369 +200,230 @@ Identity Atlas runs all three services (postgres, web, worker) on one host. Thes
 | Large | 10k – 50k | mixed | **16+ GB** | 100+ GB |
 | Enterprise | 50k+ | on | **24+ GB** | 250+ GB |
 
+Each container is also capped at 8 GB by default. On a host sized for the last two rows, raise `POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT` and `WORKER_MEM_LIMIT`.
+
+For measured ingest times on a 2-million-record dataset, see [Scaling & Load Testing](scaling.md).
+
 ### Why activity data dominates
 
-"Activity sync" above means the Entra ID crawler's **sign-in logs** option (and, going forward, other activity feeds: audit logs, MFA challenges, consent events). Principal and resource tables stay roughly proportional to your org chart — a 10k-user tenant has ~10k rows in `Principals`. **Activity tables are one-to-many over time**: the same 10k tenant emits ~170,000 sign-in events per week (`/auditLogs/signIns`), 17× the user count.
+"Activity sync" means the Entra ID crawler's **Sign-in Logs** option. Account and resource tables stay roughly proportional to your organisation: a tenant with 10k users has about 10k rows in `Principals`. Activity is one-to-many over time: the same tenant emits around 170,000 sign-in events per week.
 
-Three levers control the activity footprint:
+Three things control the activity footprint:
 
-- **`signInLogsDays`** (crawler wizard → Advanced) — linear in RAM and disk. Default 7 days. Graph retains 30, so at the extreme you multiply the numbers above by ~4.
-- **Retention policy in `PrincipalActivity`** — we only store the latest event per `(principalId, appId)` pair, so the table doesn't grow indefinitely. But each daily crawl holds the raw slice in memory before dedup.
-- **Number of active crawlers** — each additional connected system (CSV imports, future SailPoint/Omada connectors, etc.) adds its own principal/resource/activity rows. Plan ~50% headroom above the shape in the table for a second system.
+- **The number of days of sign-in logs**, set in the Entra ID crawler wizard (`signInLogsDays`). Linear in RAM and disk. The default is 7 days. Microsoft Graph retains 30, so at the extreme you multiply the numbers above by about 4.
+- **What is kept.** Only the latest event per account and application is stored, so the table does not grow without bound. Each crawl still holds the raw slice in memory before it is reduced.
+- **The number of connected systems.** Each additional system adds its own accounts, resources and activity. Plan about 50% headroom for a second system.
 
 ### What to watch as usage grows
 
-Until the admin capacity dashboard ships, use these spot-checks:
-
 ```bash
 # Host memory pressure during a crawl
-ssh <host> 'free -h && swapon --show'
+free -h && swapon --show
 
-# Postgres disk usage by table (top 10)
-docker compose exec postgres psql -U identity_atlas -d identity_atlas -c \
-  "SELECT schemaname, relname, pg_size_pretty(pg_total_relation_size(relid))
+# Database size by table (top 10)
+docker compose -f docker-compose.prod.yml exec postgres psql -U identity_atlas -d identity_atlas -c \
+  "SELECT relname, pg_size_pretty(pg_total_relation_size(relid))
      FROM pg_catalog.pg_statio_user_tables
     ORDER BY pg_total_relation_size(relid) DESC LIMIT 10;"
 
-# Crawler duration trend — a run that doubles week-over-week is your early warning
-docker compose exec postgres psql -U identity_atlas -d identity_atlas -c \
+# Crawler duration trend
+docker compose -f docker-compose.prod.yml exec postgres psql -U identity_atlas -d identity_atlas -c \
   "SELECT \"jobType\", \"startedAt\", \"completedAt\" - \"startedAt\" AS duration
      FROM \"CrawlerJobs\" WHERE status='completed'
     ORDER BY \"startedAt\" DESC LIMIT 20;"
 ```
 
-**Red flags**: swap in use at all (disable swap and size RAM properly), `PrincipalActivity` > 40% of total DB size (tune `signInLogsDays` down or plan a vertical scale), a single crawler run taking longer than the scheduled interval.
+Warning signs: any swap in use, `PrincipalActivity` above 40% of the database size (read fewer days of sign-in logs or add memory), and a crawler run that takes longer than the interval it is scheduled on.
 
 ### Swap
 
-Do **not** rely on swap to carry crawler peaks. The workloads here (Node's V8 heap, PowerShell's .NET object graph, Postgres shared buffers) all degrade sharply under paging. If the table above says 12 GB, give it 12 GB of real RAM. A small swap partition (1–2 GB) as a safety net against OOM-kills is fine; anything larger invites false confidence.
+Do not rely on swap to carry crawler peaks. Node, PowerShell and PostgreSQL all slow down sharply when they page. If the table says 12 GB, give the host 12 GB of real RAM. A small swap partition (1–2 GB) as a safety net against out-of-memory kills is fine.
 
 ---
 
 ## Container Security
 
-`docker-compose.prod.yml` (compose file version 4 and later) applies these defaults:
+`docker-compose.prod.yml` applies these defaults:
 
-- **Secrets as files, not environment variables.** `POSTGRES_PASSWORD` is still read from `.env`, but Compose hands it to the `postgres` and `web` containers as a secret file under `/run/secrets` (`POSTGRES_PASSWORD_FILE`), so it no longer appears in `docker inspect`. The API accepts `<NAME>_FILE` for `POSTGRES_PASSWORD`, `DATABASE_URL` and `IDENTITY_ATLAS_MASTER_KEY`; a plain variable that is set still wins. Environment-sourced Compose secrets need a recent Docker Compose v2 (v2.20 or later is recommended).
-- **The vault master key is not on the shared volume.** The web container keeps its auto-generated key in the `web_keys` volume (`IDENTITY_ATLAS_KEY_DIR=/data/keys`), which the worker does not mount. On the first start with this compose file, an existing `/data/uploads/.master-key` is copied there, read back, checked against a stored secret, and only then removed from `job_data`. **Back up the `web_keys` volume** (or set `IDENTITY_ATLAS_MASTER_KEY` explicitly).
-- **Fewer secrets in the worker.** The worker receives neither the database password nor the master key, and no longer gets the unused `GRAPH_*` / `LLM_*` variables. Crawler and LLM credentials are configured in the UI and reach the worker per job.
-- **Hardening.** Every service runs with `no-new-privileges` and `cap_drop: [ALL]` (Postgres keeps the five capabilities its entrypoint needs), a `pids_limit`, and a memory limit (`POSTGRES_MEM_LIMIT`, `WEB_MEM_LIMIT`, `WORKER_MEM_LIMIT`, default `8g` each; raise them for very large tenants, see [Sizing](#sizing)). The worker image runs as uid 1000, like the web image; on start it recreates a job-log directory left root-owned by an older worker image.
+- **The database password is a secret file, not an environment variable.** Compose reads `POSTGRES_PASSWORD` from `.env` and hands it to the `postgres` and `web` containers as a file under `/run/secrets`, so it does not show up in `docker inspect`. This needs a recent Docker Compose v2 (v2.20 or later is recommended).
+- **The vault master key is out of the worker's reach.** An auto-generated key lives in the `web_keys` volume, which the worker does not mount.
+- **The worker holds few secrets.** It receives neither the database password nor the master key. Crawler and LLM credentials reach it per job.
+- **The database is not on the network.** Its port is published on `127.0.0.1` only.
+- **Hardening.** Every service runs with `no-new-privileges` and all Linux capabilities dropped (PostgreSQL keeps the five its entrypoint needs), with a process limit and a memory limit. The web and worker images run as an unprivileged user.
 - **Supply chain.** Base images are pinned by digest, and every published image carries signed build provenance and an SBOM: `gh attestation verify oci://ghcr.io/fortigi/identity-atlas:latest --owner Fortigi`.
 
-### Upgrading from an older compose file
+---
 
-An older `docker-compose.prod.yml` keeps working with the new images: the master key stays at `/data/uploads/.master-key` (it is only moved when `IDENTITY_ATLAS_KEY_DIR` is set), and the database password is passed as before. Download the new file to get the protections above.
+## Behind a reverse proxy (HTTPS)
 
-- **If you pin `IMAGE_TAG` to an older release**, use the compose file from that release. The new file relies on `POSTGRES_PASSWORD_FILE` support in the web image.
-- **Rolling back after the key has moved.** If you return to an older compose file or image after the key was moved to `web_keys`, copy it out first and set it explicitly: run `docker compose exec web cat /data/keys/.master-key` and put the value in `IDENTITY_ATLAS_MASTER_KEY`. Current images refuse to generate a new key while the vault holds encrypted secrets and log how to recover instead; set `IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true` only if you intend to discard those secrets.
+Identity Atlas listens on port 3001 over plain HTTP and does not terminate TLS itself. For anything other than a local evaluation, put a reverse proxy with a certificate in front of it and tell the app about it.
+
+**1. Tell the app.** Create a second compose file next to the first one, for example `docker-compose.local.yml`:
+
+```yaml
+services:
+  web:
+    environment:
+      PUBLIC_BASE_URL: "https://atlas.example.com"
+      BEHIND_TLS: "true"
+      TRUST_PROXY_HOPS: "1"
+```
+
+and name both files in every compose command from now on:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d
+```
+
+Set `TRUST_PROXY_HOPS` to the number of proxies between the browser and the app (2 when a load balancer sits in front of your proxy). Without it, every request appears to come from the proxy's address, so all users share one rate limit.
+
+**2. Configure the proxy.** A minimal nginx server block:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name atlas.example.com;
+
+    ssl_certificate     /etc/ssl/certs/atlas.example.com.pem;
+    ssl_certificate_key /etc/ssl/private/atlas.example.com.key;
+
+    # File uploads for file-based crawlers can be large. Identity Atlas
+    # enforces its own limit, so do not cap or buffer them here.
+    client_max_body_size 0;
+    proxy_request_buffering off;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+The `Host` header must reach the app unchanged, and `X-Forwarded-For` must be set by the proxy, not passed through from the client.
+
+**3. Close the direct route.** Port 3001 is published on every interface of the host. Firewall it so that only the proxy can reach it.
+
+**4. Update the sign-in address.** With authentication on, the App Registration needs a **Single-page application** redirect URI that is exactly the HTTPS address, without a trailing slash (`https://atlas.example.com`). See [Setting up authentication](../admin/authentication.md).
+
+!!! note "Not tested end to end"
+    The settings above are taken from the application's source and the compose file. The nginx block uses standard directives only and was not run against a live deployment for this page. Check the result with `curl -I https://atlas.example.com/api/health`.
+
+### Allowed host names
+
+While authentication is off, the app only answers requests addressed to a host name it knows, and replies `421` with `This host name is not allowed` to anything else. This stops a hostile web page from reaching an unprotected deployment through a DNS name it controls.
+
+Always accepted: `localhost`, IP addresses, single-label names such as `atlas-server`, and `.local` names. A name with a dot in it, such as `atlas.example.com`, must be the host of `PUBLIC_BASE_URL` or be listed in `ALLOWED_HOSTS`.
+
+With authentication on the check is not enforced; an unknown host name is only logged.
 
 ---
 
-## Developer Setup (From Source)
+## External PostgreSQL
 
-For contributors who want to build and modify the code locally.
+The stack brings its own PostgreSQL container. You can point the web container at a database server you run yourself instead.
 
-## Architecture (v5)
+**Requirements**
 
-```mermaid
-graph TB
-    subgraph Docker["docker-compose.yml"]
-        PG[(PostgreSQL 16<br/>port 5432)]
-        API[Backend + Frontend<br/>port 3001]
-        WORKER[Worker<br/><i>PowerShell 7: crawlers,<br/>scheduler — no DB driver</i>]
-    end
+- PostgreSQL 16. That is the version the stack ships and is tested with.
+- An empty database, and a role that owns it. The migrations create every table, view and index themselves.
+- The `pg_trgm` extension must be installable by that role. It ships with PostgreSQL; managed services often require you to allow it first (on Azure Database for PostgreSQL: add `PG_TRGM` to the `azure.extensions` server parameter). No other extension is needed.
 
-    API -->|migrations + reads/writes| PG
-    WORKER -->|claims jobs via API| API
-    WORKER -->|posts ingest data via API| API
+**Settings.** `docker-compose.prod.yml` fixes the database host to the bundled container, so override it in a second compose file (the same one as for the reverse proxy):
 
-    User[Browser] -->|http://localhost:3001| API
-    Dev[Developer] -->|docker exec| WORKER
+```yaml
+services:
+  web:
+    environment:
+      POSTGRES_HOST: "db.example.com"
+      POSTGRES_PORT: "5432"
+      PGSSLMODE: "require"
 ```
 
-## Services
+`POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` in `.env` then describe the external database. `PGSSLMODE=require` makes the connection use TLS and verify the server's certificate. Alternatively, set a single `DATABASE_URL` (`postgres://user:password@host:5432/database`); when it is set it wins over the separate variables.
 
-| Service | Image | Ports | Purpose |
-|---|---|---|---|
-| `postgres` | postgres:16-alpine | 5432 | Database. No size limits, no licensing. |
-| `web` | Node.js 20 | 3001 | Migrations runner + Ingest API + Read API + served React frontend |
-| `worker` | PowerShell 7 | — | Crawlers, scheduler. **No database driver in v5.** |
+Two things to know:
 
-After startup, 3 containers remain running: `postgres`, `web`, `worker`.
+- The bundled `postgres` container still starts, because the web container waits for it. It stays empty and unused. To remove it, edit your copy of the compose file.
+- Backups, upgrades and tuning of an external database are yours. The `pg_dump` procedure on [Back up, restore and upgrade](../admin/backup-restore-upgrade.md) runs inside the bundled container and does not cover it.
 
-The v4 `sql-init` and `sql-table-init` services are gone. Schema creation
-happens inside the web container at startup via the migrations runner
-(`app/api/src/db/migrate.js`) which applies any new files from
-`app/api/src/db/migrations/*.sql`.
+!!! note "Not tested end to end"
+    The variables are the ones the web container reads (`app/api/src/db/connection.js`), and the Azure deployment runs on an external PostgreSQL 16 with exactly these. The compose override itself was written from the compose file and not run for this page.
 
 ---
 
-## Quick Start (Developer)
+## Stopping and starting
 
-=== "Linux / macOS"
+```bash
+# Stop the containers, keep all data
+docker compose -f docker-compose.prod.yml down
 
-    ```bash
-    cd /path/to/IdentityAtlas
+# Start again
+docker compose -f docker-compose.prod.yml up -d
 
-    # Create your .env file from the template
-    cp setup/config/.env.example .env
-    # IMAGE_TAG is ignored by the dev compose (it builds from source).
-    # You can leave the other defaults as-is for local development.
+# Logs of one service
+docker compose -f docker-compose.prod.yml logs --tail 200 web
+```
 
-    # Start the stack (first time takes ~3 min to build)
-    docker compose up -d --build
+`down -v` also deletes the volumes: the database, the uploaded files and an auto-generated master key. See [Uninstall](../admin/backup-restore-upgrade.md#uninstall).
 
-    # Verify
-    docker compose ps
-    # Expected: postgres (healthy), web (up), worker (up)
+### A shell in the worker
 
-    # Open the UI — click "Load Demo Data" on the Crawlers page
-    open http://localhost:3001
+The worker container has PowerShell 7 and the crawler scripts. For a one-off look inside:
 
-    # Open Swagger docs
-    open http://localhost:3001/api/docs
-    ```
-
-=== "Windows (PowerShell)"
-
-    ```powershell
-    cd C:\path\to\IdentityAtlas
-
-    # Create your .env file from the template
-    Copy-Item setup/config/.env.example .env
-    # IMAGE_TAG is ignored by the dev compose (it builds from source).
-    # You can leave the other defaults as-is for local development.
-
-    # Start the stack (first time takes ~3 min to build)
-    docker compose up -d --build
-
-    # Verify
-    docker compose ps
-    # Expected: postgres (healthy), web (up), worker (up)
-
-    # Open the UI — click "Load Demo Data" on the Crawlers page
-    Start-Process http://localhost:3001
-
-    # Open Swagger docs
-    Start-Process http://localhost:3001/api/docs
-    ```
-
-> **Note:** `docker-compose.yml` (dev) builds images from source — `IMAGE_TAG` has no effect. Use `docker-compose.prod.yml` with `IMAGE_TAG=edge` if you want to run the pre-built edge image without a local build.
-
-## Stopping
-
-```powershell
-# Stop (keep data)
-docker compose -f docker-compose.yml down
-
-# Stop and delete all data
-docker compose -f docker-compose.yml down -v
+```bash
+docker compose -f docker-compose.prod.yml exec worker pwsh
 ```
 
 ---
 
-## Auto-Bootstrap (v5)
+## Running from source
 
-On first startup, the web container:
-
-1. Runs the migrations in `app/api/src/db/migrations/*.sql` to create all
-   tables, views, and indexes (idempotent — re-runs are safe).
-2. Creates a **Built-in Worker** crawler row with a generated API key.
-3. Writes the plaintext key to `/data/uploads/.builtin-worker-key` (a file
-   inside the shared `job_data` volume) with `0600` permissions.
-
-The worker container reads the key file on startup. Both containers mount
-the same `job_data` volume so the file is visible to both. The API key is
-never exposed via an HTTP endpoint — the trust boundary is the docker host.
-
-## Job Queue (v5)
-
-The UI submits crawler jobs (demo data, Entra ID sync, CSV import) via
-`POST /api/admin/crawler-jobs`. Jobs are stored in the `CrawlerJobs` table.
-
-The worker polls `POST /api/crawlers/jobs/claim` every 30 seconds. The claim
-endpoint atomically marks the next queued job as `running` and returns it.
-The worker dispatches to the appropriate crawler script, then calls
-`POST /api/crawlers/jobs/:id/complete` (or `.../fail`) when done.
-
-In v5 the worker has **no direct database access at all**. Every read and
-write goes through the API.
-
-The `Invoke-CrawlerJob.ps1` dispatcher routes jobs to the appropriate crawler script:
-
-| Job Type | Dispatcher target |
-|---|---|
-| `demo` | `Ingest-DemoDataset.ps1` (synthetic data, baked into image) |
-| `entra-id` | `Start-EntraIDCrawler.ps1` (fetches from Microsoft Graph) |
-| `csv` | `Start-CSVCrawler.ps1` (reads uploaded CSV files) |
-
-Progress is updated in SQL during execution and displayed in the UI with a progress bar.
-
-## Crawler Configuration
-
-Crawler configs are stored persistently in the `CrawlerConfigs` table and managed through the UI wizard. Each config stores:
-
-- **Credentials** (Tenant ID, Client ID, Client Secret — secret is write-only, never readable via API)
-- **Object types** to sync (Identity, Context, Users & Groups, Governance, Apps, Directory Roles, PIM)
-- **Custom attributes** — additional user/group attributes to fetch from Graph (e.g., `employeeHireDate`, `extension_*`)
-- **Identity filter** — selects which users are treated as identities (e.g., `employeeId` is not null)
-- **Schedule** — every few minutes, hourly, daily or weekly, each as a delta or full run
-
-### Custom Attributes
-
-Extra attributes are appended to the Graph API `$select` clause and stored in the `extendedAttributes` JSON column:
-
-```
-User attributes:  employeeHireDate, onPremisesSyncEnabled, employeeType, extension_abc_costCenter
-Group attributes: classification, resourceBehaviorOptions
-```
-
-### Identity Filter
-
-Controls which users get synced as identities (useful for HR-managed account detection):
-
-| Condition | Example |
-|---|---|
-| `isNotNull` | Users where `employeeId` has a value |
-| `equals` | Users where `employeeType` equals `"Employee"` |
-| `notEquals` | Users where `accountEnabled` is not `false` |
-| `inValues` | Users where `companyName` is in `["Contoso", "Fabrikam"]` |
-
-### Scheduling
-
-Crawlers can be scheduled directly from the UI. The worker checks `CrawlerConfigs` every minute and queues jobs at the configured time.
-
-| Frequency | Description |
-|---|---|
-| `interval` | Runs every `intervalMinutes` (5, 10, 15, 20 or 30) on the clock, e.g. `:00`, `:15`, `:30`, `:45` for 15. Shown in the UI as **Every few minutes** |
-| `hourly` | Runs at `:MM` every hour |
-| `daily` | Runs at `HH:MM UTC` every day |
-| `weekly` | Runs at `HH:MM UTC` on a specific day |
-
-Each schedule entry also has a `syncMode` (`delta` or `full`).
-
-A crawler configuration only runs one job at a time. If a schedule comes due while a job of the same crawler is still queued or running:
-
-- an **Every few minutes** schedule skips that run and waits for its next one;
-- any other schedule waits and starts as soon as the running job finishes, for up to an hour. So a daily full run is not lost because a five-minute delta happened to be running.
-
-When a full and a delta come due in the same minute, the full goes first.
-
-Scheduled jobs appear in the "Recent Jobs" table like any other job. That table shows the ten newest jobs plus each crawler's last full run and last delta run, so frequent deltas do not push the last full run out of view. It reads `GET /api/admin/crawler-jobs?limit=10&latestPerMode=true`.
-
----
-
-## Worker Container
-
-The worker container runs PowerShell 7 with the Identity Atlas module available. It polls the job queue (CrawlerJobs) every 30 seconds and runs each claimed job in its **own `pwsh` process**, so no credential, token or tenant id from one job is still in memory when the next one starts. The job config reaches that process on standard input and the API key through an environment variable — neither appears on a command line or in the job log.
-
-Crawler schedules are evaluated by the web container's scheduler (`app/api/src/scheduler.js`), which queues the jobs the worker picks up.
-
-### Run Ad-Hoc Commands
-
-```powershell
-# Open an interactive PowerShell session in the worker
-docker compose exec worker pwsh
-
-# Run a one-off command
-docker compose exec worker pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Get-Command *FG*"
-```
-
-### Recurring non-crawler jobs
-
-The worker no longer reads a `crontab` file (that feature, and `setup/docker/crontab`, were removed — every entry in it was commented out). Account Linking is scheduled via `AccountLinkingConfig.schedules` and run by the web container's scheduler; see [Account Linking](account-linking.md). For anything else, such as a nightly risk-scoring run, schedule the ad-hoc command above from the host's own scheduler (cron, systemd timer, Task Scheduler):
-
-```cron
-# Host crontab: risk scoring nightly at 03:00
-0 3 * * * docker compose -f /path/to/docker-compose.yml exec -T worker pwsh -Command "Import-Module /app/setup/IdentityAtlas.psd1; Invoke-FGRiskScoring"
-```
-
-### Environment Variables
-
-Copy the template once, then edit the values you need:
+Contributors build the images from a clone of the repository with `docker-compose.yml` instead of pulling them. That file falls back to a fixed local database password and ignores `IMAGE_TAG`, so use it for development only.
 
 === "Linux / macOS"
 
     ```bash
     cp setup/config/.env.example .env
+
+    # The first build takes a few minutes
+    docker compose up -d --build
+
+    docker compose ps
     ```
 
 === "Windows (PowerShell)"
 
     ```powershell
     Copy-Item setup/config/.env.example .env
+
+    # The first build takes a few minutes
+    docker compose up -d --build
+
+    docker compose ps
     ```
 
-Both compose files (`docker-compose.yml` and `docker-compose.prod.yml`) read from `.env` in the project root.
+The UI is on `http://localhost:3001`, the API documentation on `http://localhost:3001/api/docs`.
 
-#### Image channel (`docker-compose.prod.yml` only)
+After a code change, rebuild the service it belongs to:
 
-| Variable | Default | Description |
-|---|---|---|
-| `IMAGE_TAG` | *(blank → `latest`)* | Docker image tag to pull. Leave blank for the stable release, `beta` for the latest pre-release build, `edge` for the latest dev build, or pin to a specific version like `5.2.1.0`. |
+```bash
+# API and UI changes
+docker compose up -d --build web
 
-#### Database
+# Crawler and other PowerShell changes
+docker compose up -d --build worker
 
-| Variable | Default | Description |
-|---|---|---|
-| `POSTGRES_PASSWORD` | *(none in `docker-compose.prod.yml`)* | PostgreSQL password. **Required** by `docker-compose.prod.yml`, which refuses to start while it is unset or empty. Only the developer compose file (`docker-compose.yml`, built from source) falls back to `identity_atlas_local`. The database keeps the password it was first created with, so do not change the value afterwards without also changing it in PostgreSQL. |
-| `POSTGRES_USER` | `identity_atlas` | PostgreSQL username. Rarely needs changing. |
-| `POSTGRES_DB` | `identity_atlas` | Database name. Rarely needs changing. |
+# Stop (keep data) / stop and delete all data
+docker compose down
+docker compose down -v
+```
 
-#### Security
-
-| Variable | Default | Description |
-|---|---|---|
-| `IDENTITY_ATLAS_MASTER_KEY` | *(auto-generated)* | Master key for the AES-256-GCM secrets vault (LLM API keys, scraper credentials). If left blank, the web container generates a key on first start and persists it to the web-only `web_keys` volume (`docker-compose.prod.yml` v4+; older compose files use the `job_data` volume). **Set an explicit value for production** so the key can be backed up alongside other root secrets: 32 random bytes, base64-encoded (`openssl rand -base64 32`). Set it before the first start: a different key cannot decrypt secrets that are already stored, so changing it later means following [Master key rotation](llm-and-risk-scoring.md#master-key-rotation). |
-| `IDENTITY_ATLAS_MASTER_KEY_FILE` | — | Path to a file holding the master key (for Docker/Compose secrets). Used when `IDENTITY_ATLAS_MASTER_KEY` is empty. `POSTGRES_PASSWORD_FILE` and `DATABASE_URL_FILE` work the same way. |
-| `IDENTITY_ATLAS_KEY_DIR` | *(unset)* | Directory for the auto-generated master key. The compose files set it to `/data/keys` (a web-only volume). Only set it when that path is a persistent volume. |
-| `POSTGRES_MEM_LIMIT` / `WEB_MEM_LIMIT` / `WORKER_MEM_LIMIT` | `8g` | Container memory limits in `docker-compose.prod.yml`. |
-
-#### Authentication (optional)
-
-Identity Atlas defaults to no-auth (any browser can access the UI). To require Entra ID login:
-
-| Variable | Default | Description |
-|---|---|---|
-| `AUTH_ENABLED` | `false` | Set to `true` to require Entra ID authentication. |
-| `AUTH_TENANT_ID` | — | Your Entra ID tenant ID. |
-| `AUTH_CLIENT_ID` | — | App Registration client ID for the UI. |
-| `AUTH_REQUIRED_ROLES` | — | Optional comma-separated list of app roles required to access the UI. |
-
-#### Crawler credentials
-
-| Variable | Default | Description |
-|---|---|---|
-| `CRAWLER_API_KEY` | *(auto-generated)* | API key the worker uses to authenticate with the API. Auto-generated on first start; override only if you need a fixed key. |
-
-Microsoft Graph and LLM credentials are configured in the UI (the crawler wizard and Admin → LLM Settings) and stored encrypted in the vault. The `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `LLM_PROVIDER` and `LLM_API_KEY` environment variables were never read by the containers and are no longer passed to them.
-
----
-
-## Folder Mapping
-
-| Host Path | Container Path | Used By |
+| In the repository | In the image | Service |
 |---|---|---|
 | `app/api/src/` | `/app/backend/src/` | web |
-| `app/ui/` (built) | `/app/frontend/dist/` | web (static) |
-| `tools/` | `/app/tools/` | worker |
-| `job_data` (named volume) | `/data/uploads/` | web (writes), worker (reads) — CSV crawler uploads, job logs, built-in worker key |
-| `web_keys` (named volume) | `/data/keys/` | web only — auto-generated vault master key |
+| `app/ui/` (built) | `/app/frontend/dist/` | web |
+| `tools/crawlers/` | `/app/tools/crawlers/` | worker |
 
----
-
-## Rebuilding
-
-After code changes:
-
-```powershell
-# Rebuild only the web service (API + UI changes)
-docker compose -f docker-compose.yml up -d --build web
-
-# Rebuild the worker (PowerShell script changes)
-docker compose -f docker-compose.yml up -d --build worker
-
-# Rebuild everything from scratch
-docker compose -f docker-compose.yml down -v
-docker compose -f docker-compose.yml up -d --build
-```
+To run a pre-built image without a local build, use `docker-compose.prod.yml` with `IMAGE_TAG=edge`.

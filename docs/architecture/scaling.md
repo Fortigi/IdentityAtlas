@@ -64,11 +64,14 @@ a modern SSD, Identity Atlas will handle a tenant of roughly this size
 on whatever hardware happens to be available — there is nothing special
 going on.
 
+For how much RAM and disk to plan for your own tenant, use the
+[Sizing](docker-setup.md#sizing) table on the Docker Setup page; that
+table is the reference, this page is the measurement behind it.
+
 ## Observed ingest times
 
-These are the actual durations captured in the sync log for the full
-load-test run. Numbers are taken straight from the `GraphSyncLog` table
-via the UI's **Sync Log** page.
+These are the actual durations captured for the full load-test run, as
+shown on the UI's **Sync Log** page.
 
 | Phase                    | Records       | Duration     | Throughput     |
 |--------------------------|---------------|--------------|----------------|

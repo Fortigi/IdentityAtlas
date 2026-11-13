@@ -80,7 +80,7 @@ Open [http://localhost:3001](http://localhost:3001). The app opens to the Dashbo
 
 To connect your own Entra ID tenant, click **"Connect Entra ID"** and enter your App Registration credentials directly in the browser. The wizard walks you through credential validation, object type selection, identity filtering, custom attributes, and scheduling.
 
-See [Docker Setup](architecture/docker-setup.md) for details on environment variables and volumes, and [Scaling & Load Testing](architecture/scaling.md) for sizing guidance.
+See [Docker Setup](architecture/docker-setup.md) for details on environment variables and volumes, and its [Sizing](architecture/docker-setup.md#sizing) table for how much RAM and disk to plan for.
 
 ---
 
@@ -163,51 +163,9 @@ Stable and beta channels also publish an exact version tag (`:5.2.0.0`, `:5.3.0-
 
 ---
 
-## Upgrading to a new version
+## Upgrading
 
-To upgrade an existing deployment to the newest stable release:
-
-=== "Linux / macOS"
-
-    ```bash
-    docker compose -f docker-compose.prod.yml up -d --pull always
-    ```
-
-=== "Windows (PowerShell)"
-
-    ```powershell
-    docker compose -f docker-compose.prod.yml up -d --pull always
-    ```
-
-The database volume is preserved across upgrades — any data you have loaded stays put. Schema migrations run automatically on container start; if a new version needs a new table or column, the web container will apply it before serving traffic.
-
-### Checking the running version
-
-Three ways to see which version is currently deployed:
-
-1. **Dashboard** — open [http://localhost:3001](http://localhost:3001); the Version card in the footer shows the version. Stable releases show `v5.2.0.0`; edge builds show `v5.3.20260419.1430` with an amber **edge** badge.
-2. **API endpoint** — `Invoke-RestMethod http://localhost:3001/api/version` (or `curl` on Linux/macOS). Returns `{ "version": "5.2.0.0" }`.
-3. **Docker directly** — `docker compose -f docker-compose.prod.yml images` lists the image tag each container is running.
-
-Compare that against the newest tag on [ghcr.io/fortigi/identity-atlas](https://github.com/Fortigi/IdentityAtlas/pkgs/container/identity-atlas) to see whether an upgrade is available.
-
-### Pinning to a specific version
-
-If you want a reproducible deployment (e.g. production) instead of always tracking `:latest`, edit `docker-compose.prod.yml` and replace:
-
-```yaml
-image: ghcr.io/fortigi/identity-atlas:latest
-image: ghcr.io/fortigi/identity-atlas-worker:latest
-```
-
-with the explicit version tag:
-
-```yaml
-image: ghcr.io/fortigi/identity-atlas:5.2.0.0
-image: ghcr.io/fortigi/identity-atlas-worker:5.2.0.0
-```
-
-Both images are always published with the same version tag, so they'll stay in sync.
+To move to a newer version, and to make a backup before you do, see [Back up, restore and upgrade](admin/backup-restore-upgrade.md#upgrade).
 
 ---
 
