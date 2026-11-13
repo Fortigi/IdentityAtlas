@@ -229,7 +229,7 @@ no longer used).
 | Secret | Purpose |
 |--------|---------|
 | `BOT_APP_ID` | Client ID of the GitHub App used to mint the installation token. |
-| `BOT_PRIVATE_KEY` | Private key (PEM) for that GitHub App. |
+| `BOT_PRIVATE_KEY` | Private key (PEM) for that GitHub App. An **environment** secret of `release-automation` (main and `release/*` only), never a repository secret: every job that reads it must declare `environment: release-automation` (`app/api/src/releaseKeyEnvironment.guard.test.js` enforces this). |
 
 ### Branch Protection
 
