@@ -312,3 +312,49 @@ describe('GET /resources/:id — missing optional tables are swallowed', () => {
     expect(res.body.assignmentByType).toEqual({ Direct: 0, Indirect: 0, Eligible: 0 });
   });
 });
+
+describe('GET /resources/:id — owners', () => {
+  const row = (extendedAttributes) => ({ rows: [{ id: VALID_ID, displayName: 'Eng', cnt: 0, extendedAttributes }] });
+  beforeEach(() => {
+    mockDb.queryOne.mockResolvedValue({ cnt: 0 });
+  });
+
+  it('returns the linked owners of the resource, one entry per person', async () => {
+    timedQuery.mockResolvedValue(row(null));
+    mockDb.query.mockImplementation(async (sql) => (sql.includes('"parentResourceId" = ANY')
+      ? { rows: [{ id: VALID_ID, ownerId: 'p1', ownerName: 'Ada', ownerEmail: 'ada@x' }] }
+      : { rows: [] }));
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.owners).toEqual([{ principalId: 'p1', displayName: 'Ada', email: 'ada@x', via: 'link' }]);
+    const linked = mockDb.query.mock.calls.find(([sql]) => sql.includes('"parentResourceId" = ANY'));
+    expect(linked[1]).toEqual([[VALID_ID]]);
+  });
+
+  it('reads the owner the source named from the resource\'s own attributes', async () => {
+    timedQuery.mockResolvedValue(row({ ownerId: 'spt-1', ownerName: 'Grace Hopper' }));
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.body.owners).toEqual([{ principalId: null, displayName: 'Grace Hopper', email: null, via: 'source' }]);
+  });
+
+  it('is an empty list for a resource nobody owns, and when the tables are missing', async () => {
+    timedQuery.mockResolvedValue(row(null));
+    expect((await request(app).get(`/api/resources/${VALID_ID}`)).body.owners).toEqual([]);
+    mockDb.query.mockImplementation(async (sql) => {
+      if (sql.includes('"parentResourceId" = ANY')) throw Object.assign(new Error('undefined table'), { code: '42P01' });
+      return { rows: [] };
+    });
+    const res = await request(app).get(`/api/resources/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.owners).toEqual([]);
+  });
+
+  it('surfaces a 500 when the owner read fails for a non-schema reason', async () => {
+    timedQuery.mockResolvedValue(row(null));
+    mockDb.query.mockImplementation(async (sql) => {
+      if (sql.includes('"parentResourceId" = ANY')) throw new Error('connection reset');
+      return { rows: [] };
+    });
+    expect((await request(app).get(`/api/resources/${VALID_ID}`)).status).toBe(500);
+  });
+});
