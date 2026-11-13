@@ -21,20 +21,32 @@ can open, run and download the result.
 
 ## Building a report
 
-**Reports → New report** opens the report builder in its own tab.
+**Reports → New report** opens the report builder in its own tab. The **New report** button sits next
+to the **Custom reports** heading on the Reports tab.
 
 1. **Name it.** The name is what colleagues see in the list, so make it the question it answers —
    "Guests without an active manager" rather than "report 3".
-2. **Choose what to report on:** Users, Groups, Accounts (including service principals, managed
-   identities and AI agents), Resources (roles, applications, permissions, business roles, Azure
-   resources), Persons (identities, with their linked accounts) or Contexts (groupings such as
-   departments, tags or the applications of an application catalogue — pick the kind with a
-   *Context type is …* condition). Reports on contexts themselves are built here in the editor; the
-   *Ask* box does not produce them yet. It can, like the editor, show the contexts each row of a
-   group, resource, user or person report is part of (*Contexts* column) and filter on them
-   ("groups in the Crown Jewels context"). For a context that groups resources you can also show and filter on how much
-   access it carries — *Resource count*, *Assignments* (direct and via a role), *Holders* — as
-   counted after the last sync.
+2. **Choose what to report on.** The first menu in the builder lists the kinds of record. In the words
+   of the [glossary](../start/glossary.md):
+      - **Users** — the [accounts](../start/glossary.md#2-account-which-this-product-calls-a-principal) of people, members and guests.
+      - **Groups** — security and Microsoft 365 groups, the most common kind of
+        [resource](../start/glossary.md#4-resource).
+      - **Accounts** — every [account (principal)](../start/glossary.md#2-account-which-this-product-calls-a-principal),
+        including service principals, managed identities and AI agents.
+      - **Resources** — every resource: roles, applications, permissions, business roles and Azure
+        resources as well as groups.
+      - **Identities** — [identities](../start/glossary.md#3-identity): the people behind the accounts,
+        with their linked accounts. Inside the builder a person's identity is also called *Person*,
+        for example in the *Persons* relation of a context.
+      - **Changes** — memberships and access grants that were added or removed, and when.
+      - **Contexts** — [contexts](../start/glossary.md#11-context): groupings such as departments, tags
+        or the applications of an application catalogue. Pick the kind with a *Context type is …*
+        condition. Reports on contexts themselves are built here in the editor; the *Ask* box does not
+        produce them yet. It can, like the editor, show the contexts each row of a group, resource,
+        user or identity report is part of (*Contexts* column) and filter on them ("groups in the
+        Crown Jewels context"). For a context that groups resources you can also show and filter on
+        how much access it carries — *Resource count*, *Assignments* (direct and via a role),
+        *Holders* — as counted after the last sync.
 3. **Add conditions.**
       - **+ condition** — a field of the thing itself: *Enabled is No*, *Name contains LIC*,
         *Created is more than 90 days ago*, *Group count is more than 30*.
@@ -42,7 +54,7 @@ can open, run and download the result.
         *has Manager where Enabled is No*, *is a member of a group where Name contains LIC*,
         *has no Owners*.
       - **+ any/all group** — for an either/or: *any of: has no owner · has an owner where Enabled is No*.
-      - **+ compare with…** — see [Comparing with another group or person](#comparing) below.
+      - **+ compare with…** — see [Comparing](#comparing) below.
 4. **Pick columns.** Click a column name to add or remove it. Besides the fields themselves you can
    show things like the manager's name, the groups someone is in, the business roles they hold, or a
    count of any of those.
@@ -50,8 +62,15 @@ can open, run and download the result.
    the number of records that have it — *how many users per department*, *which job titles exist and
    how many people hold each*. Conditions still apply; columns do not, because a counted report has
    two columns of its own: the value and the count. Records with no value at all get their own row, so
-   the counts add up. Biggest group first, unless you count per a date — that is not offered, because
-   it would put nearly every record in a group of its own.
+   the counts add up. Biggest group first. Counting per a date is not offered, because it would put
+   nearly every record in a group of its own.
+6. **Preview.** The builder shows *what will run* in plain language, the number of rows, and the rows
+   themselves. Read the plain-language version before you trust the result — that sentence is
+   generated from the definition that actually runs.
+7. **Save.** The report appears for everyone under **Custom reports** on the Reports tab, with your
+   name as its author.
+
+Rows are clickable: a row about an account opens that account's detail tab.
 
 ### Your own attributes
 
@@ -67,7 +86,6 @@ renaming a display name never makes a report point somewhere else.
 
 ### Sign-in activity
 
-
 Users and accounts have three sign-in fields, read from the same data as the standard *Never signed in*
 and *Stale accounts* reports, so they give the same answers:
 
@@ -81,13 +99,6 @@ and *Stale accounts* reports, so they give the same answers:
 For "never signed in", use **Last sign-in is empty** *and* **Sign-in data collected is not empty**.
 Without the second condition, every account of a system that collects no sign-in data would be listed
 too.
-5. **Preview.** The builder shows *what will run* in plain language, the number of rows, and the rows
-   themselves. Read the plain-language version before you trust the result — that sentence is
-   generated from the definition that actually runs.
-6. **Save.** The report appears for everyone under **Custom reports** on the Reports tab, with your
-   name as its author.
-
-Rows are clickable: a row about an account opens that account's detail tab.
 
 ## Describing it in plain language
 
@@ -136,7 +147,6 @@ an unrecognised name comes back as "I cannot build this" rather than as a report
 You can keep talking to it: *"only enabled accounts, and show the department"* updates the definition
 you have, including any changes you made by hand.
 
-
 The first question after an update, or after the model has been idle, takes longer — the builder says
 so while it warms up.
 
@@ -145,7 +155,7 @@ so while it warms up.
 Role-mining questions compare two sets of members rather than filtering rows. **+ compare with…**
 reads as a sentence:
 
-> has **exactly the same** **Members** as **resource** "Fortigi - Algemeen - Maten"
+> has **exactly the same** **Members** as **resource** "Contoso - Finance - Controllers"
 
 - **exactly the same** — identical membership.
 - **contains all of** — has everything the other one has, and possibly more.
@@ -161,7 +171,7 @@ at the top.
 
 Combine it with an ordinary condition to get the question a role-mining analyst actually asks:
 
-> Groups that have the same members as business role "Fortigi - Algemeen - Maten", but which are not
+> Groups that have the same members as business role "Contoso - Finance - Controllers", but which are not
 > part of that business role
 
 ## What it cannot do

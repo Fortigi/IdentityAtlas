@@ -1,64 +1,125 @@
 ---
 type: task
-prereq: concepts/data-model.md
-outcome: You can prove what someone can reach after every inheritance hop.
+prereq: start/glossary.md
+outcome: You can list who holds a resource, tell direct from inherited and eligible access, and find the route an inherited holder took.
 ---
 
 # Answer: who can access resource X, and why
 
 !!! info "Before this page"
-    Assumes you have read **[Data Model](../concepts/data-model.md)**.
-    Brand new? Start at [The words you need first](../start/glossary.md).
+    Assumes you have read **[The words you need first](../start/glossary.md)**, in particular
+    [resource](../start/glossary.md#4-resource), [assignment](../start/glossary.md#5-assignment) and
+    [effective access](../start/glossary.md#12-effective-access).
 
-A task guide for the recurring analyst question: **"Who can reach this resource, and how did they get it?"** Identity Atlas answers it by resolving *effective* access — not just who is directly assigned, but everyone who inherits access through a group or a containing scope, together with the path that got them there.
-
-This walkthrough uses the Resources page and the Matrix; the same data is available over the API via [`GET /api/resource/:id/effective-access`](../api/matrix.md#get-apiresourceideffective-access) if you want to script it.
-
----
-
-## 1. Open resource X
-
-Go to the **Resources** page, search for the resource by name, and click it to open its detail tab. The **Members** section lists everyone assigned to it, each with a membership badge:
-
-| Badge | Meaning |
-|-------|---------|
-| `D` | Direct — assigned on the resource itself |
-| `I` | Indirect — reached through a group or a containing scope |
-| `E` | Eligible — can activate via PIM, but holds nothing right now |
-
-!!! note
-    Ownership is its own resource. If you are auditing *who owns* a group, look for the matching `Owner @ <group>` (`resourceType='GroupOwnership'`) resource — owners appear there as a normal `D` membership, not as a separate badge on the group.
+A task guide for the recurring question: **"Who can reach this resource, and how did they get it?"**
+You answer the *who* on the resource's own page and the *why* in the matrix.
 
 ---
 
-## 2. List the direct and inherited holders
+## 1. Open the resource
 
-The Members list already separates the two cases by badge:
+1. Go to the **Resources** tab and search for the resource by name.
+2. Click its name. The resource opens in its own detail tab.
 
-- **`D` (direct)** — these principals are assigned to resource X itself. This is the shortest answer to "who has it".
-- **`I` (indirect)** — these principals inherited it. They do *not* appear on the resource by name in the raw assignment table; they hold it because they are a member of a group that is assigned, or sit under a scope that contains it.
+The header shows the resource's type, the system it comes from, its description and, when the source
+names one, its **Owner**. An owner Identity Atlas holds an account for is a link to that account.
 
-Use the **membership type filter** on the Members section to show only `Direct` or only `Indirect` holders when you need to separate "explicitly granted" from "inherited" for a review.
+Below the header are the tabs **Attributes**, **Relationships**, **Timeline** and **Diff**. A **Risk**
+tab is added when risk scoring is switched on and the resource has a score.
 
-!!! tip
-    `E` (Eligible) is **not** current access. An eligible holder can activate through PIM but has nothing active right now — keep it out of a "who can touch this today" count.
-
----
-
-## 3. Read the access path — the "why"
-
-An `I` badge tells you access was inherited; the **expand affordance** tells you *through what*.
-
-- **From the Matrix.** Rows are resources, columns are principals. Click the chevron on a group row to fan out its **nested parent groups** and **assigned app roles** — this shows which group a member is inheriting the resource through (their cell paints an `I`). See the [Matrix architecture](../architecture/matrix.md#expand-semantics) for the expand semantics.
-- **From the API.** [`GET /api/resource/:id/effective-access?principalId=<id>`](../api/matrix.md#get-apiresourceideffective-access) returns, for one principal, every capability they effectively hold at the resource plus a `badge` of `Direct` / `Indirect` / `Eligible`. A `Direct` badge means the grant is declared on the resource itself and held without a group hop; anything reached through a group or a containing scope comes back `Indirect`. The response also carries a `truncated` flag — if it is non-null, an expansion hit its cap and the holder list is incomplete, so treat the list as partial rather than exhaustive.
-
-Putting it together, a complete answer to "who can access resource X, and why" reads as:
-
-> *These principals hold it **directly** (assigned on X). These others hold it **indirectly** — each through the group shown by the expand. These are **eligible** only and hold nothing right now.*
+<!-- screenshot: a resource detail tab on the Relationships tab, with the Direct Members node fanned out -->
 
 ---
 
-## Related
+## 2. List who holds it
 
-- [Matrix view — architecture](../architecture/matrix.md) — badge collapse rules and expand semantics
-- [Matrix & Permissions API](../api/matrix.md#effective-access) — the effective-access endpoints
+Open the **Relationships** tab. The graph puts the resource in the middle and one node per kind of
+relationship around it, each with a count:
+
+| Node | Who or what is in it |
+|------|----------------------|
+| **Direct Members** | Accounts assigned to the resource itself |
+| **Indirect Members** | Accounts that hold it through something else, such as a nested group |
+| **Eligible** | Accounts that can switch the access on but do not hold it right now |
+| **Business Roles** | The business roles that grant this resource |
+| **Member Of** | The resources this one is itself a member of |
+| **Contexts** | The contexts this resource belongs to |
+| **Owners** | Who answers for the resource (shown only when there is an owner) |
+
+Click a node to fan it out. The list under the graph shows what is in it:
+
+- Click a name to open that account, business role or context.
+- Sort the list on **Name** or **Type**.
+- **Export CSV** downloads the list as it is on screen.
+- Accounts that used to hold the resource but are gone from the source are kept apart, behind
+  **Show … historical (no longer in the source)**.
+
+Click the node again, or **collapse**, to close the list.
+
+For a review, read the three member nodes separately:
+
+- **Direct Members** is the shortest answer to "who has it": somebody granted it to these accounts by name.
+- **Indirect Members** inherited it. Nobody added them to this resource; they hold it because of
+  something else they are in.
+- **Eligible** is **not** current access. Keep it out of a "who can touch this today" count, and keep
+  it in a "who could" count.
+
+!!! note "Owners are not members"
+    Owning a group is a form of access of its own, so it is not mixed into the member lists. The
+    **Owners** node and the header name the owner; in the matrix, ownership of a group is a row of its
+    own, on which each owner has a `D`.
+
+---
+
+## 3. Find the route — the "why"
+
+The **Indirect Members** list tells you *who* inherited the resource, not *through what*. The route is
+visible in three places.
+
+**Which business roles hand it out.** The **Business Roles** node on the resource's page lists every
+business role that grants this resource. Access that comes with one of those roles is there on purpose.
+
+**Which group carries it.** Open a matrix that contains the resource and the groups the account is in
+(see below). A group that is itself a member of other groups, or that has app roles assigned to it,
+shows a chevron in front of its name. Click it (**Expand nested groups**) and whatever that group is a
+member of appears as rows under it. Find the group the account holds with a `D`, expand it, and look
+for your resource beneath it: the account reaches the resource through that group.
+
+**Which higher scope grants it.** This applies to resources that sit in a hierarchy, such as Azure
+subscriptions and resource groups. In the matrix wizard, on the **Resources** step, open
+**More options** and tick **Include inherited access**. Inherited grants then show as `I`, and clicking
+such an `I` opens **How this inherited access arose**: the role that was granted, where it was granted,
+and the chain from there down to the resource.
+
+### Getting to a matrix that contains the resource
+
+The resource page has no button that opens a matrix. There are two ways to get one:
+
+- **Through a context.** Fan out the **Contexts** node on the resource's page and open a context the
+  resource belongs to. On an organisation unit or an application, the **⋯** menu in the context's
+  header has **View in matrix ↗**, which opens a matrix of that context's resources in a new browser tab.
+- **By building one.** On the **Matrix** tab choose **New matrix**. On the **Resources** step, under
+  **Include**, click **+ Attribute**, pick the field that holds the resource's name, and tick the
+  resource. Or click **+ Context** and pick a context the resource belongs to. Finish the wizard to show
+  the matrix.
+
+Use the **?** button in the top-left corner of the grid (**How to read this matrix**) for the meaning
+of every badge and marker.
+
+---
+
+## Putting it together
+
+A complete answer to "who can access resource X, and why" reads like this:
+
+> *These accounts hold it **directly**. These others hold it **indirectly**: through this group they
+> are a member of, or through a grant higher in the hierarchy. These are **eligible** only and hold nothing right now.
+> These business roles hand it out, and this is the owner.*
+
+---
+
+## Scripting the same question
+
+The API answers the same question for one account at a time, including the capabilities that account
+effectively holds on the resource. See [Effective Access](../api/matrix.md#effective-access) in the API
+reference.

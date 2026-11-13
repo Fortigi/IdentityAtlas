@@ -1,0 +1,7 @@
+- Rewrote the "Who can access resource X, and why" guide to follow the real resource page: the Relationships tab's Direct Members, Indirect Members and Eligible nodes, the owner in the header, and how to trace an inherited holder through nested groups or the "How this inherited access arose" panel in the matrix.
+- Corrected the Contexts guide: contexts scope a matrix through **+ Context** in the matrix wizard's Subjects and Resources steps, the New context tree dialog's five options (including the experimental Describe it card) are listed as they appear, and "context type" is now explained.
+- Shortened "The app at a glance" to an accurate map of the app: the full tab list including Reports and which tabs are optional, how to switch optional tabs on, every Admin page, the difference between business roles in the grid and the Governed lens, and how risk scoring gets its scores.
+- Fixed the step numbering in the Custom Reports guide and linked each kind of record the builder offers to the glossary.
+- The Entitlement Pivot guide now says where the report lives and how "entitlement" relates to "resource".
+- The context assistant guide now names the buttons you actually click and uses English examples.
+- Added a "Reading the Trends tab" section to the Dashboard guide.

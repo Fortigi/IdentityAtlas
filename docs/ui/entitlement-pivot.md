@@ -6,9 +6,15 @@ outcome: You can run the Entitlement Pivot over any context of resources or unit
 
 # Entitlement Pivot and saved views
 
-The **Entitlement Pivot** report (formerly *Application Access Review*) lists every resource of one or
-more contexts: a logical application synced from a catalogue, a department's file shares, everything tagged *PCI*. Any context whose members
-are resources works, and so does any resource type (groups, app roles, entitlements). For each
+The **Entitlement Pivot** is one of the **Standard reports** on the **Reports** tab. Open the tab, click
+the report, and it opens in a tab of its own.
+
+This page says *entitlement* for a [resource](../start/glossary.md#4-resource) that someone can be
+given: a group, an app role, a permission. It is the same thing the rest of the documentation calls a
+resource; the report and its downloads use the word *entitlement*.
+
+The report lists every resource of one or more [contexts](../start/glossary.md#11-context): a logical application synced from a catalogue, a department's file shares, everything tagged *PCI*. Any context whose members
+are resources works, and so does any resource type (groups, app roles, permissions). For each
 resource it shows:
 
 - which business roles grant it (*Granted by role(s)*),

@@ -9,7 +9,9 @@ outcome: You can build a context, run a plugin, and scope the matrix to the resu
 !!! info "Before this page"
     Assumes you have read **[The words you need first](../start/glossary.md)** — the eight minutes that make the rest of this readable.
 
-The **Contexts** tab is where you group the people, accounts, resources, and systems in your data into named, hierarchical trees — then use those groupings to slice the Matrix. It replaces the old Org Chart tab and the Risk-Scoring Clusters page: manager hierarchies and resource clusters are now just two of the trees you can build here.
+The **Contexts** tab is where you group the people, accounts, resources and systems in your data into named trees, and then use those groupings to scope the matrix. Departments, manager hierarchies, applications and tags are all contexts.
+
+The tab is hidden by default. To show it, open the account menu in the top-right corner and switch on **Contexts** under **Visible Tabs**.
 
 <figure markdown="span">
   ![The Contexts tab: a list of context trees on the left, filterable by target, variant and system, and the selected department tree on the right with member counts per department and team](../assets/screenshots/contexts.png)
@@ -21,26 +23,28 @@ The **Contexts** tab is where you group the people, accounts, resources, and sys
 
 ---
 
-## What a Context is
+## What a context is
 
-A **context** is a named group of entities. Contexts nest into **trees** (a root with children), and every context is one of three **variants** depending on where it came from:
+A **context** is a named group of things. Contexts nest into **trees** (a root with units under it), and every context is one of three **variants**, depending on where it came from:
 
-| Variant | Comes from | Can you edit it? |
-|---------|-----------|------------------|
-| **Synced** 🔵 | A crawler (CSV, Omada, midPoint, SQL, …) ingests the tree — e.g. an HR org hierarchy | No — it is overwritten on the next crawl. You *can* graft manual children under it. |
-| **Generated** 🟢 | A plugin algorithm you run against existing data — e.g. a manager hierarchy or a resource cluster | Partly — you can rename and re-parent generated nodes, and your renames, placements, manual children and hand-moved members survive re-runs (see [Sync](#run-a-plugin-or-sync-a-tree)). |
-| **Manual** 🟤 | You build it by hand in the UI | Yes — fully editable. |
+| Variant | The tab calls it | Comes from | Can you change it? |
+|---------|------------------|-----------|--------------------|
+| **Synced** | Imported | A crawler reads the tree from a source system, such as a department hierarchy from HR | No. The next crawl overwrites it. You can add your own units under it. |
+| **Generated** | Derived | A rule (a *plugin*) that builds a tree from data already loaded, such as a manager hierarchy | Partly. You can rename and move units, and your changes survive a refresh (see [Refresh a derived tree](#refresh-a-derived-tree)). |
+| **Manual** | Created here | You build it by hand | Yes, all of it. |
 
-Every tree also has exactly one **target type** — the kind of thing it groups. This is what lets a context filter know whether to narrow the Matrix's rows or its columns:
+Every tree also holds exactly one kind of member, its **target type**. The target type decides which side of the matrix a context can scope:
 
-| Target type | Groups | Example |
-|-------------|--------|---------|
-| **Identity** | Real persons | An org unit, a project team |
-| **Principal** | Accounts | Service principals owned by one team, orphaned accounts |
-| **Resource** | Permission-granting resources | All groups for one application, a SharePoint cluster |
-| **System** | Source systems | "All SAP-adjacent systems" |
+| Target type | The tab calls its members | Example |
+|-------------|---------------------------|---------|
+| **Identity** | People | A department from HR, a project team |
+| **Principal** | Accounts | The accounts that report to one manager, orphaned accounts |
+| **Resource** | Resources | All groups of one application, the resources of one Azure subscription |
+| **System** | Systems | All systems of one business unit |
 
-A single tree keeps one target type all the way down, but it can mix variants — for example a manual sub-team grafted under a synced HR node.
+A tree keeps one target type all the way down, but it can mix variants: a unit you made by hand can sit under an imported department.
+
+Besides its variant and target type, a context has a **context type**: a short label for what kind of grouping it is, such as `Department`, `Application` or `Tag`. Imported and derived trees bring their own; for a tree you make by hand you type it yourself.
 
 ---
 
@@ -51,7 +55,7 @@ The Contexts tab has one tab per template — **Organisation**, **Applications**
 - **Left — the trees.** The tab's trees as one tree, under a heading per source (Imported · *system*, Derived · *rule*, Manager hierarchy, Created here). On Organisation, **Show:** switches between the People, Accounts and Resources trees, because each tree holds one kind of member. Each row shows one member count (everyone including sub-units; the direct share is in its tooltip). Filters at the top narrow by source, system and — on Tags and Segments — kind.
 - **Right — the selected context.** Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and the people overview. **Open as page** in the header's **⋯** menu opens it on its own.
 
-Expand a row with its arrow to see its sub-units. The old **List** mode, which flattened a tree into a table, is gone; a unit's members are listed on its page.
+Expand a row with its arrow to see its sub-units. A unit's members are listed on its page.
 
 ### The Timeline
 
@@ -64,7 +68,7 @@ The folded **Timeline** at the bottom of a unit's page says what happened, in wo
 | **Structure** | Renamed, moved under another unit, description and other details, tree adjustments and change requests |
 | **Knowledge** | What the sources did: uploads, claims extracted and decided (with organisation knowledge on) |
 
-Many like changes on one day — a list upload adding 40 people — fold into one line ("40 people joined (list upload)") that opens to the names. Joins and leaves are recorded from the moment this version is installed (migration 109); members who joined earlier show when they were added, except members a rule derives.
+Many like changes on one day — a list upload adding 40 people — fold into one line ("40 people joined (list upload)") that opens to the names. Joins and leaves are known from the day your installation began recording them; members who joined earlier show when they were added, except members a rule derives.
 
 ### Sources added on another unit
 
@@ -73,83 +77,103 @@ An interview added on the parent unit often says who in a sub-unit does what. Su
 ---
 ## Create a context
 
-Click **+ New** (top-right) to open the New-Context wizard. Step 1 asks where the tree should come from — the three cards match the three variants:
+You need the **Build contexts** permission (`data.write.contexts`); without it the tab is read-only.
 
-### Import (synced)
+Click **+ New** at the top of the tree pane. The **New context tree** dialog first asks where the tree should come from:
 
-Synced trees are not built here — they appear automatically after a crawler ingests them. This card explains that and links you to the **Crawlers** page to configure one. After the next crawl, the tree shows up in the selector on its own.
+| Card | What it does |
+|------|--------------|
+| **Import from a system** | Nothing is built here: imported trees appear after a crawler reads them. **Open Crawlers →** takes you to **Admin → Crawlers** to set one up. |
+| **Derive from data** | Builds a tree from data that is already loaded, with one of the built-in rules. |
+| **Create by hand** | Starts an empty tree you fill yourself. |
+| **Upload a list** | Reads your own list of units or applications from a `.csv` or `.xlsx` file, with owners, members and attributes. Upload the file again later to update the tree. |
+| **Describe it** | Opens the context builder, where you describe a process, application or project and pick the groups from suggested search terms. See [Building a context by describing it](context-assistant.md). |
 
-### Run a plugin (generated)
+!!! note "Describe it is experimental"
+    The **Describe it** card is only there when an operator has switched on the context assistant under **Admin → Experimental** and you hold the **Build contexts** permission.
 
-Build a tree from data you already have. The wizard walks you through:
+### Derive from data
 
-1. **Pick plugin** — the registered plugins, grouped by target type.
-2. **Configure** — a form generated from the plugin's parameters (for example, which system to scope to, or which principal attribute to read).
-3. **Preview & run** — a dry run shows how many contexts and members would be created, with sample rows, *before* anything is written. Choose whether to **create a new tree** or **refresh an existing** one from the same plugin, then press **Create tree**.
+1. **Pick a rule.** The rules are listed per kind of member they group.
+2. **Configure.** Fill in what the rule asks for, for example which system to read or which account attribute to use.
+3. **Preview & run.** The preview shows how many contexts and members the rule would create, with samples, before anything is written. Choose **Create a new tree** or **Refresh an existing tree**, then press **Create tree** (or **Refresh tree**).
 
-The run happens in the background; you land on the run's progress page, and the finished tree appears in the selector.
+The rule runs in the background. You land on the run's progress page, and the finished tree appears in the tree pane.
 
-The built-in plugins include:
+Running a rule needs the `admin.context-plugins` permission as well.
 
-| Plugin | Target | Builds a tree from |
-|--------|--------|--------------------|
-| Manager Hierarchy | Principal | The `manager` chain — the org chart |
-| Department from Principal | Principal | The `department` attribute |
-| Active Directory OU Tree | Principal | The LDAP distinguished name (OU path) |
-| Principal Type Tree | Principal | Account type (user, service principal, …) |
-| Orphaned Accounts | Principal | Live accounts not linked to any identity, bucketed by type (accounts a sync has removed are left out) |
-| Resource Cluster | Resource | Name-token clustering of resources |
-| Resource Type Tree | Resource | Resource type (and, for Azure, the resource plane) |
-| Scope Hierarchy | Resource | The Azure management-group → subscription → resource-group nesting |
-| Entra Group Category Tree | Resource | The Entra group category |
-| Risky Consent | Resource | OAuth consent risk tiers and flagged app consents |
-| Principals by System | Principal | The system each account was loaded from |
-| Resources by System | Resource | The system each resource was loaded from |
-| Context assistant recipe | Resource | A recipe built in the context assistant, plus resources pinned by hand |
+The built-in rules:
 
-### Create manual
+| Rule | Groups | Builds a tree from |
+|------|--------|--------------------|
+| Manager Hierarchy | Accounts | Who reports to whom |
+| Department from Principal | Accounts | The department on each account |
+| Active Directory OU Tree | Accounts | The OU path in the account's distinguished name |
+| Principal Type Tree | Accounts | The kind of account (user, service principal, …) |
+| Orphaned Accounts | Accounts | Live accounts that are not linked to any identity, per kind of account |
+| Principals by System | Accounts | The system each account was loaded from |
+| Resource Cluster | Resources | Words that resource names have in common |
+| Resource Type Tree | Resources | The resource type (and, for Azure, the resource plane) |
+| Scope Hierarchy | Resources | The Azure nesting of management groups, subscriptions and resource groups |
+| Entra Group Category Tree | Resources | The Entra group category |
+| Risky Consent | Resources | The risk tier of OAuth consents, and app consents that were flagged |
+| Resources by System | Resources | The system each resource was loaded from |
+| Context assistant recipe | Resources | Search terms saved in the context builder, plus resources added by hand |
 
-Start an empty tree you curate yourself. Pick a **target type**, give it a **context type** (a free-form label like `Application` or `BusinessProcess`), a **name** and optional description, and optionally pin it to a **scope system**. You land on the empty root, ready to add children and members.
+### Create by hand
 
----
+Fill in the **Details** step and press **Create**:
 
-## Run a plugin, or sync a tree
+- **Target type**: what the tree will hold.
+- **Template**: whether this is an organisation, an application, a tag or a segment. It decides which of the tab's sub-tabs the tree shows under.
+- **Context type**: the free-form label described above, for example `Application` or `Team`.
+- **Display name** and, optionally, a **Description**.
+- **Scope system** (optional): ties the tree to one source system. Leave it empty for a tree that spans systems.
 
-For a **generated** tree, the header shows a **Sync** button. Sync re-runs the generating plugin onto that tree so memberships update — for example, a person who changed manager moves under their new manager. Crucially, **your edits are kept**: renamed and re-parented nodes, manual children you grafted on and members you moved by hand survive the re-run. The one exception: if the re-run no longer produces a generated node, that node is removed together with everything still under it, manual children included.
-
-To create a fresh generated tree (rather than refresh an existing one), use **+ New → Run a plugin** and choose "Create a new tree" on the preview step.
-
-!!! note
-    Running plugins and syncing require the `admin.context-plugins` permission.
-
----
-
-## Edit a tree
-
-On a **manual** tree — or on the manual/generated parts of any tree — you can reshape the hierarchy directly:
-
-- **Rename** — double-click a node's name and type a new one.
-- **Add a child** — use the add-child control on a node; the child inherits the parent's target type and context type.
-- **Drag to re-parent** — drag a node onto another node to make it a child of that node. The move is validated (it keeps the target type consistent and rejects cycles) and member counts recompute on both branches.
-- **Delete a tree** — the **Delete tree…** action in the header removes a root and all its descendants. Synced trees can't be deleted (they would just re-appear on the next crawl).
-
-On a **Manager Hierarchy** tree there's one more move: drag a person's oval onto another team to record that they report to that team's manager. The person moves immediately, and because the change is stored as a reporting override, it sticks even after the next Sync.
-
-Synced nodes are otherwise read-only — you can graft manual children under them, but you can't rename or reorder the synced nodes themselves.
+You land on the empty root, ready to add units and members.
 
 ---
 
-## Filter the Matrix by a context
+## Refresh a derived tree
 
-Contexts earn their keep on the **Matrix**. In the Matrix toolbar, next to the other filters, use the **Context** control:
+A derived tree does not follow the data by itself. To bring it up to date, open the **⋯** menu on the tree's root row in the tree pane and choose **Refresh**. The rule runs again on that tree, so a person who changed manager moves under the new manager.
 
-1. Click **+ context** and pick any tree or sub-tree from the picker.
-2. The Matrix narrows to that context's members. What gets narrowed depends on the target type:
-    - **Identity / Principal** contexts filter the **rows** (which people/accounts show).
-    - **Resource / System** contexts filter the **columns** (which resources show).
-3. Each filter chip has a **+sub** checkbox — leave it on to include the context's descendants, turn it off to match only its direct members. Remove a chip with its **×**.
+**Your changes are kept**: units you renamed or moved, units you added by hand and members you moved by hand survive the refresh. The one exception: when the rule no longer produces a unit, that unit is removed together with everything still under it, including units you added there.
 
-Add several context filters and they **AND** together, letting you drill to, say, "people in the Finance org unit *and* their access to the Procurement app's resources".
+---
 
-!!! tip
-    Context filters are reflected in the Matrix URL, so a filtered view is bookmarkable and shareable.
+## Change a tree
+
+On a tree made by hand, and on the hand-made and derived parts of any tree, you can reshape the hierarchy in the tree pane:
+
+- **Rename**: double-click a unit's name and type a new one.
+- **Add a sub-unit**: use the **Add a sub-unit** button on a unit. The new unit takes over the parent's target type.
+- **Move**: drag a unit onto another unit to put it under that one. A move that would create a loop is refused, and the member counts on both branches are recalculated.
+- **Delete a tree**: open the **⋯** menu on the tree's root row and choose **Delete this tree…**. This removes the root and every unit under it; the members themselves are not deleted. Imported trees cannot be deleted here, because the next crawl would bring them back.
+
+On a **Manager Hierarchy** tree there is one more move: drag a person onto another team to record that they report to that team's manager. The person moves at once, and the change sticks after the next refresh.
+
+Imported units are otherwise read-only: you can add your own units under them, but you cannot rename or move the imported units themselves.
+
+---
+
+## Scope the matrix with a context
+
+A context becomes a condition in the matrix wizard. There is no separate context control on the matrix itself.
+
+1. On the **Matrix** tab, choose **New matrix**, or **Adjust** on a matrix that is already open.
+2. On the **Subjects** step or the **Resources** step, find the **Include** list (or **Exclude**, to leave a context out) and click **+ Context**.
+3. Pick any tree or unit from the picker. Each step only offers the contexts that fit it:
+    - **Subjects** offers contexts of accounts when the matrix is on **User accounts**, and contexts of people when it is on **Identities**.
+    - **Resources** offers contexts of resources and contexts of systems.
+4. The condition appears in the list. Leave **incl. descendants** ticked to include the units under the one you picked; untick it to take only its own members. Remove a condition with its **×**.
+5. Go on to the last step, **Save & share**, and press **Show matrix** (or give the matrix a name first to save it).
+
+By default the resources are the rows of the matrix and the people or accounts are the columns, so by default a context of people or accounts decides which columns you see, and a context of resources or systems decides which rows. The headings on the two steps (**Columns are** and **Rows are**) say which is which for the matrix you are building.
+
+Several conditions in one **Include** list all have to hold. That is how you get "people in Finance **and** on the Amsterdam site". A condition on **Subjects** and one on **Resources** together give "the people in Finance against the resources of the Procurement application".
+
+!!! tip "Straight from a context"
+    On the page of an organisation unit or an application, the **⋯** menu in the header has **View in matrix ↗**. It opens a matrix scoped to that context in a new browser tab.
+
+The scope is part of the matrix's address, so a scoped matrix can be bookmarked. To hand one to a colleague, see [Sharing a matrix](sharing-a-matrix.md).
