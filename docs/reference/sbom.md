@@ -24,7 +24,7 @@ This document lists all major software components, dependencies, and infrastruct
 | express | ^5.3.0 | Web application framework | MIT |
 | pg | ^8.23.1 | PostgreSQL client | MIT |
 | ajv | ^8.20.0 | JSON Schema validation for crawler configs | MIT |
-| re2 | ^1.27.0 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
+| re2 | ^1.27.1 | Safe regex engine (ReDoS protection) | BSD-3-Clause |
 
 ### Security & Authentication
 
@@ -55,7 +55,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
-| supertest | ^7.3.1 | HTTP integration testing | MIT |
+| supertest | ^7.3.2 | HTTP integration testing | MIT |
 | eslint | ^10.14.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.2.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.28.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.29.0 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -105,7 +105,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @vitejs/plugin-react | ^6.2.1 | Vite React plugin | MIT |
+| @vitejs/plugin-react | ^6.3.0 | Vite React plugin | MIT |
 | eslint | ^10.14.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |

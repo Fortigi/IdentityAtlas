@@ -174,6 +174,16 @@ Browse all synced resources (groups, directory roles, app roles, etc.) with pagi
 - **System filter:** restrict to a specific connected system
 - **Tag management:** same as the Principals (Users) page
 
+**Who owns a resource.** A resource's page names its owner in the header, as a link to
+that person, and offers an **Owners** node on the Relationships tab. The owner is the
+ownership link the source provides (a group's owners in Entra ID, or a SQL statement with
+**Owners from ownerId** ticked); where there is no such link, it is the owner the source
+names on the resource itself (`ownerId` / `ownerName`), matched to an account by its key
+or employee number. An owner no account matches is shown by the name the source gives,
+without a link. The same ownership is visible from the other side: a person's
+Relationships tab has an **Owned Resources** node listing what they own (the first 1,000
+by name; the number on the node is the full count).
+
 ---
 
 ### Filtering by references (relationships)

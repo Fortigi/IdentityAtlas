@@ -19,7 +19,10 @@
 name: Bump version on PR merge
 
 on:
-  pull_request:
+  # pull_request_target, not pull_request: the run then carries main as its ref, which the
+  # release-automation environment requires. Safe here because the job checks out `main`
+  # explicitly and never runs anything from the PR head.
+  pull_request_target:
     types: [closed]
     branches:
       - main
@@ -28,6 +31,9 @@ jobs:
   bump-version:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
     permissions:
       contents: write
 

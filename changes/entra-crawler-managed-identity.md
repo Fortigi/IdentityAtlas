@@ -1,0 +1,3 @@
+- Added a secret-free sign-in for the Entra ID crawler: in an Azure deployment the crawler can sign in to Microsoft Graph with the deployment's managed identity instead of an app registration's client secret, so there is no secret to store, leak or renew.
+- The Azure deployment now creates a crawler identity (`<prefix>-mi-crawler`) with no permissions; `azure/Grant-CrawlerIdentityGraphPermissions.ps1` grants it the read-only Microsoft Graph permissions.
+- The Entra ID crawler wizard offers "Managed identity" as a sign-in method where the deployment has a crawler identity, and checks the permissions the identity actually holds.

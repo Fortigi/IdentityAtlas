@@ -111,17 +111,26 @@ export function authMiddleware(req, res, next) {
     const access = resolveAccess(decoded);
     req.user = decoded;
     req.user.roles = access.roles;
-    req.user.permissions = access.permissions;
-    if (!access.missesRequiredRole && access.permissions.size > 0) return next();
+    // A caller the AUTH_REQUIRED_ROLES gate refuses holds no permission here,
+    // whatever their roles map to — so /api/auth-me tells the app the same.
+    req.user.permissions = access.missesRequiredRole ? new Set() : access.permissions;
+    if (req.user.permissions.size > 0) return next();
 
-    // A caller who would otherwise have no access — missing a required role, or
-    // holding roles that map to nothing — may still be a context owner
+    // Deny by default (security review Nov 2026, F-01). A caller with no
+    // permission — roles that map to nothing, no role at all, or missing a
+    // required role — gets nothing, unless they are a context owner
     // (Accountable / Responsible for a context, with the Admin → Authentication
-    // switch on). contextOwnerMode.js decides; when they are not one, the
-    // `otherwise` path is exactly the behaviour without that feature: the 403
-    // for a missing required role, next() for a roleless caller.
-    const otherwise = access.missesRequiredRole ? refuseMissingRole(res, access.roles) : next;
-    return applyContextOwnerMode(req, res, next, { path: guardPath(req), otherwise });
+    // switch on). contextOwnerMode.js decides; when they are not one, `otherwise`
+    // refuses. Before, a roleless caller was let through to every read route, so
+    // an Entra app that did not require assignment opened all data to the whole
+    // tenant. The one exception is /api/auth-me: it only describes the caller
+    // and lets the app explain why there is nothing to show.
+    const path = guardPath(req);
+    let otherwise;
+    if (path === AUTH_ME_PATH) otherwise = next;
+    else if (access.missesRequiredRole) otherwise = refuseMissingRole(res, access.roles);
+    else otherwise = refuseNoRole(res);
+    return applyContextOwnerMode(req, res, next, { path, otherwise });
   }, (err) => {
     if (err.code === 'TENANT_MISMATCH') {
       console.error(err.message);
@@ -130,6 +139,18 @@ export function authMiddleware(req, res, next) {
     console.error('Token validation failed:', err.message);
     res.status(401).json({ error: 'Invalid or expired token' });
   });
+}
+
+// The path that answers every signed-in caller, with or without a role.
+export const AUTH_ME_PATH = '/api/auth-me';
+
+// The 403 body for a signed-in caller who holds no permission and owns no
+// context. The UI recognises `code` and shows the "no role" screen.
+export const NO_ROLE_ERROR = 'Your account has no role in Identity Atlas';
+export const NO_ROLE_CODE = 'NO_ROLE';
+
+function refuseNoRole(res) {
+  return () => res.status(403).json({ error: NO_ROLE_ERROR, code: NO_ROLE_CODE });
 }
 
 function refuseMissingRole(res, tokenRoles) {
@@ -184,7 +205,8 @@ export function verifyEntraAccessToken(token, audience) {
 // to permissions (the seed maps the 'Admin' role to '*'). Locked yourself
 // out by enabling auth before assigning a role? Use the CLI to toggle auth
 // off, assign the role, then turn it back on (see cli/auth-config.js).
-// Set AUTH_REQUIRED_ROLES to also keep roleless users off read endpoints.
+// A roleless caller is refused everywhere except /api/auth-me (F-01, see
+// authMiddleware); only a context owner gets in without a role.
 export function resolveAccess(decoded) {
   const tokenRoles = Array.isArray(decoded.roles) ? decoded.roles : [];
   // Optional app-role gate — coarse "must have one of these roles" check

@@ -1,7 +1,8 @@
 # Setting up authentication (SSO) & roles
 
-By default Identity Atlas runs in **open mode** — no sign-in, and every gate is a
-no-op. That is fine for a laptop or an isolated evaluation, but on any shared or
+By default the Docker stack runs in **open mode** — no sign-in, and every gate is a
+no-op (the Azure deployment is the exception: it requires sign-in from the first
+deploy, see the note in step 2). That is fine for a laptop or an isolated evaluation, but on any shared or
 networked deployment you want Entra ID single sign-on and role-based access. This
 guide walks through turning that on end to end, and — crucially — getting your
 first admin in without locking yourself out.
@@ -23,8 +24,12 @@ Authentication is Entra ID OIDC against an App Registration. In the Entra ID
 portal:
 
 1. **Register an application** (or reuse your existing one) and note its
-   **Application (client) ID** and your **Directory (tenant) ID**.
-2. **Expose an API** — accept the default Application ID URI `api://<client-id>`.
+   **Application (client) ID** and your **Directory (tenant) ID**. Under
+   **Authentication**, add a **Single-page application (SPA)** redirect URI that
+   is exactly the address you open Identity Atlas on, without a trailing slash
+   (for example `https://atlas.example.com`). Without it, sign-in fails.
+2. **Expose an API** — accept the default Application ID URI `api://<client-id>`
+   and add a scope named `access` (the app requests `api://<client-id>/access`).
    Identity Atlas only accepts access tokens whose audience is `api://<client-id>`;
    ID tokens are rejected, which is why this step is required.
 3. **Define app roles** on the registration — at minimum an `Admin` role.
@@ -54,9 +59,15 @@ renders a setup-required page until you provide them. Set them in your `.env` (o
 inline) and recreate the `web` container.
 
 !!! note "Azure App Service"
-    On the managed Azure App Service deployment, `AUTH_ENABLED=true` is set from
-    first boot and the platform manages sign-in, so the Docker CLI recovery steps
-    below don't apply. Roles & Permissions is still managed in the UI.
+    On the Azure App Service deployment, `AUTH_ENABLED=true` is set from the
+    first deploy, so you do step 1 after deploying: the app shows a setup page
+    until the tenant and client IDs are filled in as environment variables on
+    the Web App (see the [Azure walkthrough](../architecture/azure-deployment-walkthrough.md)).
+    Sign-in is still enforced by Identity Atlas itself, not by App Service
+    Authentication (Easy Auth). The Docker CLI recovery steps below don't apply:
+    if you can sign in but have no Admin tab, assign yourself the `Admin` app
+    role in Entra ID and sign in again. Roles & Permissions is still managed in
+    the UI.
 
 ---
 
@@ -87,11 +98,13 @@ The seed mapping a fresh install ships with:
 A **self-lockout guard** blocks any save that would strip your own `admin.auth`
 permission, so you can't accidentally revoke your own ability to manage roles.
 
-!!! note "Roleless users fail closed"
-    A signed-in user whose roles resolve to no permissions is denied every write
-    and admin gate. Read endpoints are not permission-gated, so a roleless user
-    can still read data — set `AUTH_REQUIRED_ROLES` if you need to stop roleless
-    users from signing in at all.
+!!! note "No role, no access"
+    A signed-in user whose roles resolve to no permissions gets nothing: every
+    endpoint answers 403, and the app shows a page that tells them to ask for a
+    role. The only exception is a context owner, below. This does not depend on
+    the Entra app requiring assignment or on `AUTH_REQUIRED_ROLES`: anyone in
+    the tenant may be able to sign in, and still sees no data without a role.
+    To let people read, assign them a role, for example **Servicedesk**.
 
 ### Relative permissions: letting context owners in
 
@@ -111,8 +124,9 @@ to. There are two kinds today:
   closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do
   hold a role are not affected. It is off by default and takes effect without a
   restart.
-- **Matrix-share recipients** — someone a matrix is shared with can open that
-  matrix without a role (see [Sharing a matrix](../ui/sharing-a-matrix.md)).
+Matrix-share recipients are **not** a relative permission: someone a matrix is
+shared with needs a role, such as Servicedesk, to open it (see
+[Sharing a matrix](../ui/sharing-a-matrix.md)).
   That is decided per share; there is no setting for it in this section.
 
 See [Context-owner access](../architecture/context-owner-access.md) for exactly

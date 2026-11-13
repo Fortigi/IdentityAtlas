@@ -1,7 +1,7 @@
 # Enrolling a DoR build-pool sidekick — setup checklist
 
 What a machine needs before it can serve as a `dor-build` pool runner (rows 8–13 of the
-[operationalization map](operationalization.md#end-to-end-map--build-side-design-v2--pooled-sidekicks)).
+[operationalization map](operationalization.md#end-to-end-map-build-side-design-v2-pooled-sidekicks)).
 The build agent runs AI-authored code, deploys the stack, seeds demo data, runs Playwright, opens a
 PR, and drives CI — so the box needs a specific baseline. Each item below bit us once as a
 mid-build failure (missing `gh`, `unzip`, Node, and finally **no git identity** → an empty branch →
@@ -21,7 +21,7 @@ pass instead of one missing tool at a time.
 | 3 | Register the GitHub Actions runner with labels `self-hosted,dor-build,skN` + systemd service | on the box | ⚠️ manual (needs a registration token) |
 | 4 | Wire the repo config — the sidekick→URL map + the `sk:skN` label | in the repo | ⚠️ manual (one PR) |
 | 5 | Network — DNS + central Traefik/authentik route `N.build.identityatlas.io` → `:3001` | infra | ⚠️ manual (infra) |
-| — | Runtime secrets/vars are **not** on the box (provided by the workflow) — see [below](#runtime-secrets--variables-not-on-the-box) | GitHub | n/a |
+| — | Runtime secrets/vars are **not** on the box (provided by the workflow) — see [below](#runtime-secrets-variables-not-on-the-box) | GitHub | n/a |
 
 ## 1–2. Software baseline (automated)
 

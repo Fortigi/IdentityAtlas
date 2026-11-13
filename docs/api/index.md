@@ -74,7 +74,7 @@ Two endpoints are exempt and do not require a token:
 | Entity Detail — Users | `/api/users`, `/api/user/:id` | User list, attributes, memberships, history | [entities.md](entities.md#users) |
 | Entity Detail — Resources | `/api/groups`, `/api/resources`, `/api/resources/:id` | Resource list, attributes, members, history | [entities.md](entities.md#resources) |
 | Entity Detail — Business Roles | `/api/access-package/:id` | Business role detail, assignments, reviews, requests | [entities.md](entities.md#business-role-detail) |
-| Systems & Org hierarchy | `/api/systems`, `/api/contexts/tree`, `/api/org-chart` | Connected systems and the org/context hierarchy | [entities.md](entities.md#systems--orgunits) |
+| Systems & Org hierarchy | `/api/systems`, `/api/contexts/tree`, `/api/org-chart` | Connected systems and the org/context hierarchy | [entities.md](entities.md#systems-contexts) |
 | Identities | `/api/identities` | Identities + linked accounts; per-account analyst overrides | [entities.md](entities.md#identities) |
 | Account Linking | `/api/account-linking` | Account-linking dictionary config + run endpoints (`admin.crawlers`) | [entities.md](entities.md#account-linking) |
 | User Preferences | `/api/preferences` | Per-user tab visibility | [entities.md](entities.md#user-preferences) |
