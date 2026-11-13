@@ -37,7 +37,7 @@ Debug output writes to the host (not the pipeline), so it does not interfere wit
 | **Migration errors on startup** | Check the web container logs (`docker compose logs web`). Migrations run automatically and are idempotent. If a migration fails, fix the underlying issue and restart the web container. |
 | **Sync skips expected data** | Check two things: (1) confirm the entity type is enabled in the crawler flags or config, and (2) verify the App Registration has the required Graph API permission (see [Required Permissions](#required-permissions) below). |
 | **UI shows a blank or empty matrix** | Verify that a sync has completed successfully. Check the Sync Log page in the UI for errors. If the crawler completed but the matrix is empty, check that the SQL views exist by examining the web container logs for migration output. |
-| **Risk scores not visible in the UI** | Risk scoring in v5 is driven from the UI (Admin > Risk Scoring). PowerShell risk scoring functions are not yet implemented in v5. Use the in-browser wizard to configure and run scoring. |
+| **Risk scores not visible in the UI** | Risk scoring is set up and run in the UI. Check three things in **Admin → Risk Scoring**: (1) **Risk Scoring Feature** is switched on, (2) a classifier set is active — if **Risk Classifiers** is empty, click **New profile** and complete the wizard, and (3) a scoring run has finished — click **Run now**. See [How Scoring Works](../risk-scoring/overview.md#setting-it-up). |
 | **"More than one object found"** in Confirm-FG* functions | A `Confirm-FG*` function found multiple objects matching the supplied name. Use a more specific identifier (object ID instead of display name). |
 
 ---
