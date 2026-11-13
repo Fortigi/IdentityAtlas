@@ -65,8 +65,9 @@ inline) and recreate the `web` container.
     the Web App (see the [Azure walkthrough](../architecture/azure-deployment-walkthrough.md)).
     Sign-in is still enforced by Identity Atlas itself, not by App Service
     Authentication (Easy Auth). The Docker CLI recovery steps below don't apply:
-    if you can sign in but have no Admin tab, assign yourself the `Admin` app
-    role in Entra ID and sign in again. Roles & Permissions is still managed in
+    if you can sign in but see the "You don't have access to Identity Atlas
+    yet" page, assign yourself the `Admin` app role in Entra ID and sign in
+    again. Roles & Permissions is still managed in
     the UI.
 
 ---
