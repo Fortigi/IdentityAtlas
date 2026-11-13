@@ -115,6 +115,7 @@ nav:
       - The app at a glance: ui/overview.md
       - Dashboard: ui/dashboard.md
       - The matrix:
+          - Build a Matrix: ui/build-a-matrix.md
           - Reading the Matrix: architecture/matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
