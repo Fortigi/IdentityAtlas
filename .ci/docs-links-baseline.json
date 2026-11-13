@@ -1,0 +1,20 @@
+{
+  "_comment": "Link-and-anchor ratchet for docs/. Links that are broken today (app/api/src/docs/docsLinks.js), per page, with the number of occurrences. The list may only shrink; a new broken link or anchor fails the Unit Tests: Vitest (API) check. Lower it with: cd app/api && npm run docs:baseline",
+  "pages": {
+    "architecture/architecture-guidance-review-2026-09.md": {
+      "#impact-estimate": 1
+    },
+    "architecture/change-requests.md": {
+      "context-interviews.md#marked-former-by-a-decision-migration-099": 1
+    },
+    "architecture/context-owner-access.md": {
+      "#the-team-matrix": 1
+    },
+    "architecture/context-redesign-plan.md": {
+      "context-redesign.md#33-schema-proposed": 1
+    },
+    "marketing/product-brief.md": {
+      "../index.md#supported-source-systems": 1
+    }
+  }
+}

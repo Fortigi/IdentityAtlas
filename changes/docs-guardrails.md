@@ -1,0 +1,3 @@
+- Pull requests now fail when a documentation page uses retired vocabulary (SOLL/IST, org unit, the retired assignment types, `Start-FGSync`) more often than it did, so old terms cannot creep back while pages are being cleaned up.
+- Pull requests now fail on a new broken link, missing image or dead `#anchor` anywhere in the documentation, using the same anchor rules as the published site.
+- Added `npm run docs:check` and `npm run docs:baseline` (in `app/api`) to run these checks locally and record a page that was cleaned up.
