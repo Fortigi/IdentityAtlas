@@ -1,0 +1,3 @@
+- The website now shows the product: a screenshot of the access matrix near the top, plus a user detail page, a report and the crawler wizard, each in a light and a dark version.
+- The website now tells visitors how to reach us: a Contact link in the menu and the footer, and a support address under the closing call to action.
+- Corrected the website text on how access is held (direct, indirect or eligible, and whether it is governed), and the getting-started snippet now points to "Load Demo Data" first, as the README and quick start do.
