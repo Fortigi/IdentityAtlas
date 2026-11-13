@@ -318,7 +318,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -1874,6 +1874,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../docker-setup/" class="md-nav__link">
         
   
@@ -2122,6 +2150,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -6266,7 +6322,7 @@ plain JS module loaded by the same Node process that serves the API).</p>
 (LLM API keys, scraper credentials, future Vault/AWS-SM-backed secrets all live
 here).</p>
 <ul>
-<li><strong>Schema</strong>: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/"><code>Secrets</code></a> — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.</li>
+<li><strong>Schema</strong>: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/010_secrets_and_risk.sql"><code>Secrets</code></a> — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.</li>
 <li><strong>Encryption</strong>: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from <code>IDENTITY_ATLAS_MASTER_KEY</code> (32 bytes, base64).</li>
 <li><strong>Master key bootstrap</strong>:</li>
 <li><code>IDENTITY_ATLAS_MASTER_KEY</code> env var, or <code>IDENTITY_ATLAS_MASTER_KEY_FILE</code> (preferred — back this up like any other root secret)</li>

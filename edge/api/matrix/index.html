@@ -318,7 +318,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../architecture/docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -1874,6 +1874,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../architecture/docker-setup/" class="md-nav__link">
         
   
@@ -2122,6 +2150,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -6267,7 +6323,7 @@
 <hr />
 <h2 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h2>
 <h3 id="get-apipermissions">GET /api/permissions<a class="headerlink" href="#get-apipermissions" title="Permanent link">&para;</a></h3>
-<p>Main matrix data. Returns all permission assignments enriched with user attributes and business role (SOLL) mappings. This is the primary data source for the Matrix view.</p>
+<p>Main matrix data. Returns all permission assignments enriched with user attributes and business-role coverage. This is the primary data source for the Matrix view.</p>
 <p><strong>Query Parameters</strong></p>
 <table>
 <thead>
@@ -6338,7 +6394,7 @@
 <tr>
 <td><code>data[].managedByAccessPackage</code></td>
 <td>boolean</td>
-<td>Whether this resource is included in any business role (SOLL column)</td>
+<td>Whether the user holds a business role that contains this resource — the row is governed</td>
 </tr>
 <tr>
 <td><code>totalUsers</code></td>
@@ -6348,14 +6404,14 @@
 <tr>
 <td><code>managedByPackages</code></td>
 <td>array</td>
-<td>SOLL mapping — which business role IDs govern each (member, group) pair</td>
+<td>Business-role coverage — which business role IDs govern each (member, group) pair</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Reads From:</strong> <code>vw_ResourceUserPermissionAssignments</code> materialized view → <code>Principals</code> + <code>Resources</code></p>
 <hr />
 <h3 id="get-apiaccess-package-groups">GET /api/access-package-groups<a class="headerlink" href="#get-apiaccess-package-groups" title="Permanent link">&para;</a></h3>
-<p>Business role → resource mappings used to build SOLL columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.</p>
+<p>Business role → resource mappings used to build the business-role columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.</p>
 <p><strong>Response</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"accessPackages"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
@@ -6751,8 +6807,8 @@ be missing from the filter dropdowns (issue #943).</p>
 <td><code>vw_ResourceUserPermissionAssignments.groupDisplayName</code></td>
 </tr>
 <tr>
-<td>IST/SOLL toggle</td>
-<td>Derived from <code>managedByAccessPackage</code> flag</td>
+<td>Governed / Non-governed toggle</td>
+<td>Derived from the <code>managedByPackages</code> coverage pairs</td>
 </tr>
 </tbody>
 </table>
@@ -6763,10 +6819,10 @@ be missing from the filter dropdowns (issue #943).</p>
 <p>The frontend builds the matrix from the flat <code>/api/permissions</code> response:</p>
 <ol>
 <li><strong>Row deduplication</strong> — multiple rows for the same user (e.g. <code>Direct</code> + <code>Eligible</code>) are merged into a single user row with multi-type badges per cell.</li>
-<li><strong>Ownership rows</strong> — group ownership is its own resource (<code>resourceType='GroupOwnership'</code>), so an owner appears as a <code>Direct</code> membership on that ownership resource — a normal row, not a synthetic <code>Owner</code>-type split.</li>
-<li><strong>SOLL columns</strong> — built from <code>/api/access-package-groups</code>. Each business role becomes a column. Resources within a role determine which cells are "managed".</li>
-<li><strong>AP coloring</strong> — each business role column gets a color from a 15-color palette defined in <code>MatrixColumnHeaders.jsx</code>.</li>
-<li><strong>Staircase sort</strong> — default row order groups users by their leftmost AP bucket. Custom drag order persists via versioned localStorage.</li>
+<li><strong>Ownership rows</strong> — group ownership is its own resource (<code>resourceType='GroupOwnership'</code>), so an owner appears as a <code>Direct</code> membership on that ownership resource — a normal row.</li>
+<li><strong>Business-role columns</strong> — built from <code>/api/access-package-groups</code>. Each business role becomes a column. Resources within a role determine which cells are "managed".</li>
+<li><strong>Business-role coloring</strong> — each business role column gets a color from a 15-color palette defined in <code>utils/colors.js</code>.</li>
+<li><strong>Staircase sort</strong> — default row order groups users by their leftmost business-role bucket. Custom drag order persists via versioned localStorage.</li>
 </ol>
 
 

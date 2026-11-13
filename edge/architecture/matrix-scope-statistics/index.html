@@ -320,7 +320,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -2020,6 +2020,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../docker-setup/" class="md-nav__link">
         
   
@@ -2268,6 +2296,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -6032,7 +6088,7 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <ul>
 <li><strong>Principals / Identities</strong> in scope</li>
 <li><strong>Resources</strong> in scope</li>
-<li><strong>Assignments</strong> in scope, split into <strong>governed vs non-governed</strong> — the share managed by a Business Role / Access Package (the matrix's "managed / SOLL" semantics).</li>
+<li><strong>Assignments</strong> in scope, split into <strong>governed vs non-governed</strong> — the share covered by a business role the account holds (the same rule the matrix's <strong>Governed</strong> view uses).</li>
 </ul>
 <p>Expand <strong>Trends &amp; breakdown</strong> for:</p>
 <ul>
@@ -6045,13 +6101,13 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <p>The choice is <code>showTrends</code> on the matrix filter, so it behaves like every other property of a matrix: it is saved with a saved matrix, travels in a <code>#matrix?filter=…</code> URL, and a matrix saved before the flag existed opens without the panel. It is <em>not</em> a per-user preference — the same saved matrix opens the same way for everyone. Share recipients never get the panel regardless (<a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>).</p>
 <p>A roll-up has no Sort step, so switch the panel on before rolling up; the flag then rides along with the roll-up.</p>
 <h2 id="what-counts-as-governed">What counts as "governed"<a class="headerlink" href="#what-counts-as-governed" title="Permanent link">&para;</a></h2>
-<p>A <code>(principal, resource)</code> membership is <strong>governed</strong> when it is <strong>covered by a business role the user holds</strong> — i.e. it appears in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>vw_UserPermissionAssignmentViaBusinessRole</code></a>: there is a <code>BusinessRole</code> that <strong>Contains</strong> the group (<code>ResourceRelationships.relationshipType = 'Contains'</code>) <strong>and</strong> the user holds that role (a <code>Governed</code> assignment to it). This is exactly what the matrix paints as <strong>SOLL</strong>.</p>
-<p>This is deliberately <em>not</em> the same as <code>vw_ResourceUserPermissionAssignments.managedByAccessPackage</code>, which is only true for the rare assignment recorded directly as <code>Governed</code> on the group itself. In real data, users hold the <strong>business role</strong> while their group membership is recorded as <code>Direct</code>, so that flag reads as ~0% governed — which is why the whole feature (panel counts, the <code>Governed</code> / <code>Non-governed</code> toggle, and the trends) keys off business-role <em>coverage</em> instead, so every surface agrees.</p>
-<p><strong>Owner memberships</strong> are always <strong>non-governed</strong>: access packages provision Direct / Eligible / Member roles, never ownership.</p>
+<p>A <code>(principal, resource)</code> membership is <strong>governed</strong> when it is <strong>covered by a business role the user holds</strong> — i.e. it appears in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>vw_UserPermissionAssignmentViaBusinessRole</code></a>: there is a <code>BusinessRole</code> that <strong>Contains</strong> the group (<code>ResourceRelationships.relationshipType = 'Contains'</code>) <strong>and</strong> the user holds that role (a <code>Direct</code> assignment on the role, flagged <code>governed=true</code>). Holding the business role itself counts as governed too. This is exactly what the matrix colours as governed.</p>
+<p>Governed is a property of <em>coverage</em>, not of the assignment row: users hold the <strong>business role</strong> while their group membership is recorded as a plain <code>Direct</code> assignment. The whole feature (panel counts, the <strong>Governed</strong> / <strong>Non-governed</strong> toggle, and the trends) keys off that business-role coverage, so every surface agrees.</p>
+<p><strong>Ownership</strong> is its own resource (for example <code>Owner @ Sales Team</code>), so the same rule applies to it: an ownership row is governed only when a held business role contains the ownership resource itself. A role that contains the group covers the group membership, not the ownership of that group.</p>
 <h2 id="matrix-view-behaviour">Matrix view behaviour<a class="headerlink" href="#matrix-view-behaviour" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The view toggle reads <strong>All / Governed / Non-governed / Gaps</strong> (renamed from SOLL / IST). <em>Governed</em> shows memberships covered by a held business role; <em>Non-governed</em> shows the rest (the role-mining backlog); <em>Gaps</em> shows memberships a held business role <em>should</em> grant but the user lacks.</li>
-<li>The <strong>Non-governed</strong> view hides the access-package (SOLL) columns — they only ever show governed memberships — and orders rows by member count (Direct desc → Eligible → Owner → total) rather than the AP staircase, since there are no AP columns to stair-step against.</li>
+<li>The view toggle reads <strong>All / Governed / Non-governed / Gaps</strong>. <em>Governed</em> shows memberships covered by a held business role; <em>Non-governed</em> shows the rest (the role-mining backlog); <em>Gaps</em> shows memberships a held business role <em>should</em> grant but the user lacks.</li>
+<li>The <strong>Non-governed</strong> view hides the business-role columns — they only ever show governed memberships — and orders rows by member count (Direct descending, then Eligible, then total) rather than the business-role staircase, since there are no business-role columns to stair-step against.</li>
 </ul>
 <h2 id="where-the-history-comes-from">Where the history comes from<a class="headerlink" href="#where-the-history-comes-from" title="Permanent link">&para;</a></h2>
 <p>There is <strong>no dedicated snapshot table</strong> for scope statistics. The timeline is reconstructed on demand from the existing change-audit log (<code>_history</code>, see <a href="../audit-history/">Audit History</a>).</p>
@@ -6064,7 +6120,7 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> for each sample date D:
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   alive(D) = { prevData of first change after D }  ∪  { current rows with no change after D }
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   assignments(D)  = distinct (principal, resource) pairs in alive(D), within scope-at-D
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>   coverage(D)     = (user, group) where the user held a business role (Governed
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>   coverage(D)     = (user, group) where the user held a business role (governed
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                     assignment) that 'Contains' the group at D   ← reconstructed from
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                     ResourceAssignments + ResourceRelationships history
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>   governed(D)     = assignment pairs that are in coverage(D)

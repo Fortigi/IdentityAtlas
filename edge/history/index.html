@@ -316,7 +316,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../architecture/docker-setup/" class="md-tabs__link">
+        <a href="../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -1872,6 +1872,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../architecture/docker-setup/" class="md-nav__link">
         
   
@@ -2120,6 +2148,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -6138,7 +6194,7 @@
 <p><strong>Full-text LLM integration.</strong> Phase 1 of what was previously "call-LLM-via-PowerShell" — a provider abstraction, the secrets vault, a conversational profile refinement wizard, and the first two layers of the scoring engine ported to JavaScript. The risk-scoring PowerShell functions in <code>tools/riskscoring/</code> were retired; the directory contains stubs so the module loader doesn't fail, but all real logic moved to <code>app/api/src/riskscoring/</code>.</p>
 </li>
 <li>
-<p><strong>Automated nightly review.</strong> A new <code>Run-NightlyAndReview.ps1</code> wrapper runs the existing nightly suite and, only when something fails, invokes Claude (via the Claude Code CLI in fix-it mode, or via the Anthropic API in analysis-only mode) to investigate and propose or apply fixes. All-green runs cost zero LLM tokens.</p>
+<p><strong>Automated nightly review.</strong> The nightly suite (<code>test/nightly/Run-NightlyLocal.ps1</code>) gained a review step: only when something fails, Claude investigates and proposes or applies fixes. All-green runs cost zero LLM tokens. The review runs as a scheduled Claude Code session using <code>test/nightly/scheduled-review-prompt.md</code>.</p>
 </li>
 <li>
 <p><strong>The product was renamed.</strong> "FortigiGraph" made sense for a PowerShell wrapper around Microsoft Graph. It made less sense for a full identity-governance platform that also imports CSV data from SAP, Omada, ServiceNow, etc. The rename to <strong>Identity Atlas</strong> happened alongside the postgres migration — the project root stays at <code>FortigiGraph/</code> for one more development cycle to avoid breaking existing clones.</p>

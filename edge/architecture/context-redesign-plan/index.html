@@ -318,7 +318,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -1874,6 +1874,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../docker-setup/" class="md-nav__link">
         
   
@@ -2122,6 +2150,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -6135,7 +6191,7 @@
 <li>[ ] Write migration <code>app/api/src/db/migrations/0XX_context_redesign.sql</code><ul>
 <li>[ ] Drop legacy tables: <code>Contexts</code> (old shape), <code>OrgUnits</code>, <code>GraphResourceClusters</code>, <code>GraphResourceClusterMembers</code>, <code>GraphTags</code>, <code>GraphTagAssignments</code></li>
 <li>[ ] Drop column <code>Identities.contextId</code></li>
-<li>[ ] Create <code>Contexts</code>, <code>ContextMembers</code>, <code>ContextAlgorithms</code>, <code>ContextAlgorithmRuns</code> per <a href="../context-redesign/#33-schema-proposed">data model</a></li>
+<li>[ ] Create <code>Contexts</code>, <code>ContextMembers</code>, <code>ContextAlgorithms</code>, <code>ContextAlgorithmRuns</code> per <a href="../context-redesign/#33-schema">data model</a></li>
 <li>[ ] Indexes on <code>parentContextId</code>, <code>targetType</code>, <code>variant</code>, <code>scopeSystemId</code>, and the <code>(scopeSystemId, externalId)</code> unique index</li>
 <li>[ ] History trigger on <code>Contexts</code> (match the existing <code>_history</code> pattern)</li>
 </ul>

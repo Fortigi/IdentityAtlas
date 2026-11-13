@@ -322,7 +322,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -1882,6 +1882,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../docker-setup/" class="md-nav__link">
         
   
@@ -2133,6 +2161,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -6141,7 +6197,7 @@
     
     
       <li class="md-path__item">
-        <a href="../docker-setup/" class="md-path__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-path__link">
           
   <span class="md-ellipsis">
     Set up & run
@@ -6345,7 +6401,7 @@ trip), so a change in the tree takes effect immediately.</p>
 </table>
 <p>| One object's detail reads — <code>/api/user/:id</code> (and its memberships, contexts, activity, timeline, diff, …), <code>/api/identities/:id</code> (…), <code>/api/resources/:id</code>, <code>/api/group/:id</code>, <code>/api/access-package/:id</code> (…), <code>/api/org-chart/user/:id/manager|reports</code>, <code>/api/identities/by-user/:id</code>, <code>/api/risk-scores/{users,identities,groups,resources,business-roles}/:id</code> | the object opens in full for this owner (see <a href="#exploring-the-team">Exploring the team</a>); the list is <code>auth/ownerAccess/endpoints.js</code> |
 | <code>/api/access-package-groups</code> — the business-role catalogue the matrix maps roles to their groups with | always, but the response is cut to the business roles the owner may open (<code>auth/ownerAccess/responses.js</code>): those their team holds, or that are themselves in scope — never the whole catalogue |
-| <code>POST /api/matrix/data</code> — the one POST, a read | the filter is bound to the owner's team (see <a href="#the-team-matrix">The team matrix</a>) |</p>
+| <code>POST /api/matrix/data</code> — the one POST, a read | the filter is bound to the owner's team (see <a href="#the-team-and-application-matrices">The team matrix</a>) |</p>
 <p>Everything else — any other path, and every non-GET (but the team matrix) — answers
 <code>403 { "error": "Context owners can only open their own context" }</code>.</p>
 <h3 id="a-members-references-names-only">A member's references — names only<a class="headerlink" href="#a-members-references-names-only" title="Permanent link">&para;</a></h3>
