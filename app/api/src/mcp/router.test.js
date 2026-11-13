@@ -42,6 +42,7 @@ import { query, queryOne } from '../db/connection.js';
 import { verifyEntraAccessToken } from '../middleware/auth.js';
 import { registerReport } from '../reports/registry.js';
 import { createMcpRouter } from './router.js';
+import { NOT_CONFIGURED_MESSAGE, resetNotConfiguredWarning } from './auth.js';
 
 const app = express();
 app.use(express.json());
@@ -102,6 +103,53 @@ describe('availability', () => {
     await request(app).get('/.well-known/oauth-protected-resource').expect(404);
     await rpc('tools/list').expect(404);
   });
+
+  it('404s while the feature is off even when PUBLIC_BASE_URL is unset: off wins over not configured', async () => {
+    state.featureOn = false;
+    delete process.env.PUBLIC_BASE_URL;
+    await rpc('tools/list').expect(404);
+  });
+
+  it('503s the endpoint and its metadata without PUBLIC_BASE_URL, before looking at the token, and says what to set (F-08)', async () => {
+    delete process.env.PUBLIC_BASE_URL;
+    resetNotConfiguredWarning();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      verifyEntraAccessToken.mockResolvedValue(claims(['Admin']));
+      for (const path of ['/.well-known/oauth-protected-resource/mcp', '/.well-known/oauth-protected-resource']) {
+        const meta = await request(app).get(path).set('Host', 'atlas.attacker.example').expect(503);
+        expect(meta.body).toEqual({ error: NOT_CONFIGURED_MESSAGE });
+      }
+      const res = await rpc('tools/list').set('Host', 'atlas.attacker.example').expect(503);
+      expect(res.body.error).toContain('PUBLIC_BASE_URL');
+      expect(res.headers['www-authenticate']).toBeUndefined();
+      expect(verifyEntraAccessToken).not.toHaveBeenCalled();
+      // Three refusals, one log line: a client that retries must not flood the log.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('PUBLIC_BASE_URL');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it.each([
+    ['not a URL', 'atlas.example.com'],
+    ['another scheme', 'ftp://atlas.example.com'],
+    ['credentials', 'https://user:pw@atlas.example.com'],
+    ['a query', 'https://atlas.example.com/?x=1'],
+    ['a fragment', 'https://atlas.example.com/#x'],
+    ['only spaces', '   '],
+  ])('503s when PUBLIC_BASE_URL holds %s, rather than guessing an audience', async (_label, value) => {
+    process.env.PUBLIC_BASE_URL = value;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      verifyEntraAccessToken.mockResolvedValue(claims(['Admin']));
+      await rpc('tools/list').expect(503);
+      expect(verifyEntraAccessToken).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe('discovery', () => {
@@ -139,6 +187,30 @@ describe('the sign-in gate', () => {
     verifyEntraAccessToken.mockResolvedValue(claims(['Admin']));
     await rpc('tools/list').expect(200);
     expect(verifyEntraAccessToken).toHaveBeenCalledWith('tok', [`${BASE}/mcp`, 'api://client-1', 'client-1']);
+  });
+
+  it('never takes the audience, the metadata or the challenge from the Host or forwarded headers (F-08)', async () => {
+    // TRUST_PROXY is the setting that made X-Forwarded-Host count before; it must not here.
+    process.env.TRUST_PROXY = 'true';
+    try {
+      verifyEntraAccessToken.mockResolvedValue(claims(['Admin']));
+      const evil = (req) => req.set('Host', 'mcp.attacker.example').set('X-Forwarded-Host', 'fwd.attacker.example');
+      await evil(rpc('tools/list')).expect(200);
+      expect(verifyEntraAccessToken).toHaveBeenCalledWith('tok', [`${BASE}/mcp`, 'api://client-1', 'client-1']);
+      const meta = await evil(request(app).get('/.well-known/oauth-protected-resource/mcp')).expect(200);
+      expect(meta.body.resource).toBe(`${BASE}/mcp`);
+      const challenge = await evil(rpc('tools/list', {}, null)).expect(401);
+      expect(challenge.headers['www-authenticate']).not.toContain('attacker');
+    } finally {
+      delete process.env.TRUST_PROXY;
+    }
+  });
+
+  it('trims trailing slashes from PUBLIC_BASE_URL and keeps a path prefix', async () => {
+    process.env.PUBLIC_BASE_URL = 'https://intranet.example.com/atlas//';
+    verifyEntraAccessToken.mockResolvedValue(claims(['Admin']));
+    await rpc('tools/list').expect(200);
+    expect(verifyEntraAccessToken.mock.calls[0][1][0]).toBe('https://intranet.example.com/atlas/mcp');
   });
 
   it('answers an invalid token with 401 invalid_token', async () => {

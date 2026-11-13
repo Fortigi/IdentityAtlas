@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTrustProxy, stripPort, principalRateLimitKey } from './rateLimitKeys.js';
+import { vi } from 'vitest';
+import {
+  resolveTrustProxy, stripPort, principalRateLimitKey,
+  createUnconfiguredProxyCheck, UNCONFIGURED_PROXY_WARNING,
+} from './rateLimitKeys.js';
 
 describe('resolveTrustProxy', () => {
   it('is off by default so X-Forwarded-For cannot be spoofed on a direct deployment', () => {
@@ -23,6 +27,40 @@ describe('resolveTrustProxy', () => {
     expect(resolveTrustProxy({ TRUST_PROXY_HOPS: 'true', BEHIND_TLS: 'true' })).toBe(false);
     expect(resolveTrustProxy({ TRUST_PROXY_HOPS: '-1' })).toBe(false);
     expect(resolveTrustProxy({ TRUST_PROXY_HOPS: '100' })).toBe(false);
+  });
+});
+
+describe('createUnconfiguredProxyCheck (F-35)', () => {
+  const viaProxy = { headers: { 'x-forwarded-for': '203.0.113.7' } };
+  const direct = { headers: {} };
+
+  it('with no proxy trusted, skips requests that came through a proxy and leaves direct ones counted', () => {
+    const check = createUnconfiguredProxyCheck(false, vi.fn());
+    expect(check(viaProxy)).toBe(true);
+    expect(check(direct)).toBe(false);
+    expect(check({ headers: { 'x-forwarded-for': '' } })).toBe(false);
+    expect(check({})).toBe(false);
+  });
+
+  it('warns once, with what to set, however many proxied requests arrive', () => {
+    const warn = vi.fn();
+    const check = createUnconfiguredProxyCheck(false, warn);
+    check(direct);
+    expect(warn).not.toHaveBeenCalled();
+    check(viaProxy);
+    check(viaProxy);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(UNCONFIGURED_PROXY_WARNING);
+    expect(UNCONFIGURED_PROXY_WARNING).toContain('TRUST_PROXY_HOPS');
+  });
+
+  it('skips nothing once a proxy is trusted: the forwarded address is then the real client', () => {
+    for (const hops of [1, 2]) {
+      const warn = vi.fn();
+      const check = createUnconfiguredProxyCheck(hops, warn);
+      expect(check(viaProxy)).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    }
   });
 });
 

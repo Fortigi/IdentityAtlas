@@ -39,7 +39,7 @@ import { readFeatures } from './featureFlags.js';
 import { createMcpRouter } from './mcp/router.js';
 import { perfMetrics } from './middleware/perfMetrics.js';
 import { createRequestOriginGuard } from './middleware/requestOriginGuard.js';
-import { resolveTrustProxy, principalRateLimitKey } from './middleware/rateLimitKeys.js';
+import { resolveTrustProxy, principalRateLimitKey, createUnconfiguredProxyCheck } from './middleware/rateLimitKeys.js';
 import permissionsRouter from './routes/permissions.js';
 import matrixRouter from './routes/matrix.js';
 import effectiveAccessRouter from './routes/effectiveAccess.js';
@@ -135,7 +135,8 @@ export function createApp() {
   // How many reverse-proxy hops may set X-Forwarded-For. Off unless the operator
   // declared a proxy (TRUST_PROXY_HOPS / TRUST_PROXY / BEHIND_TLS) — see
   // middleware/rateLimitKeys.js. Drives req.ip for rate limiters and audit rows.
-  app.set('trust proxy', resolveTrustProxy());
+  const trustProxy = resolveTrustProxy();
+  app.set('trust proxy', trustProxy);
 
   // ─── Security headers ────────────────────────────────────────────
   // HSTS and CSP `upgrade-insecure-requests` are opt-in via BEHIND_TLS=true.
@@ -262,8 +263,11 @@ export function createApp() {
   // Before authentication nothing is verified, so the pre-auth limiter keys on
   // the client address and counts only FAILED requests: it bounds floods of bad
   // credentials without rationing an office of legitimate users behind one address.
+  // Skipped for requests through a proxy that is not configured as trusted: there
+  // the address is the proxy's, shared by everyone (F-35, rateLimitKeys.js).
   const preAuthFailureLimiter = perMinuteLimiter(6000, 'Too many requests, please slow down', {
     skipSuccessfulRequests: true,
+    skip: createUnconfiguredProxyCheck(trustProxy),
   });
   app.use(preAuthFailureLimiter);
 

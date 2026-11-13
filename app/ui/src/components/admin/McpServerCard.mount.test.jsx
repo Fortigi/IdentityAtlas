@@ -4,6 +4,7 @@
 //   • off: no activity is fetched, the switch POSTs mcpServer=true
 //   • the server's refusal (sign-in off) is shown, and nothing reloads
 //   • on: the URL and scope to configure an assistant with, and the recent calls
+//   • on without PUBLIC_BASE_URL: what to set instead of a URL, and still the log
 //   • an empty log and an unreadable log each say so
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createElement as h } from 'react';
@@ -60,6 +61,21 @@ describe('McpServerCard', () => {
     expect(screen.getByText('run_report')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(authFetch.mock.calls[0][0]).toBe('/api/admin/mcp?limit=20');
+  });
+
+  it('without PUBLIC_BASE_URL, says what to set instead of showing a URL, and still shows the log', async () => {
+    render(true, { '/api/admin/mcp': { ...STATUS, configured: false, url: null, scope: null } });
+    expect(await screen.findByText(/Not reachable yet/)).toBeInTheDocument();
+    expect(screen.getByText('PUBLIC_BASE_URL')).toBeInTheDocument();
+    expect(screen.queryByText('Server URL:')).toBeNull();
+    expect(screen.queryByText('Scope:')).toBeNull();
+    expect(screen.getByText('run_report')).toBeInTheDocument();
+  });
+
+  it('shows the URL when the server says it is configured', async () => {
+    render(true, { '/api/admin/mcp': { ...STATUS, configured: true } });
+    expect(await screen.findByText('https://atlas.example.com/mcp')).toBeInTheDocument();
+    expect(screen.queryByText(/Not reachable yet/)).toBeNull();
   });
 
   it('says so when no assistant has used it yet', async () => {

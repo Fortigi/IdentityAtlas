@@ -5,14 +5,13 @@
 //   GET / DELETE /mcp                                  405 — no server-initiated streams, no sessions
 //
 // All of it answers 404 unless sign-in is on and the mcpServer feature is
-// switched on (mcp/auth.js). Lives outside /api: MCP clients are configured
+// switched on, and 503 while PUBLIC_BASE_URL is unset (mcp/auth.js). Lives outside /api: MCP clients are configured
 // with one URL, and `<host>/mcp` is the one people will type.
 
 import { Router } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { resolvePublicBaseUrl } from '../export/exportBaseUrl.js';
 import { mcpAuth, mcpAvailable } from './auth.js';
-import { MCP_PATH, METADATA_PATH, protectedResourceMetadata } from './resource.js';
+import { MCP_PATH, METADATA_PATH, mcpBaseUrl, protectedResourceMetadata } from './resource.js';
 import { createMcpServer } from './server.js';
 import { lazyCaller } from './tools/query.js';
 
@@ -20,13 +19,13 @@ export function createMcpRouter({ limiter = (_req, _res, next) => next(), versio
   const router = Router();
 
   router.get([METADATA_PATH, `${METADATA_PATH}${MCP_PATH}`], mcpAvailable, (req, res) => {
-    res.json(protectedResourceMetadata(req));
+    res.json(protectedResourceMetadata());
   });
 
   router.post(MCP_PATH, mcpAvailable, mcpAuth, limiter, async (req, res) => {
     const ctx = {
       user: req.user,
-      baseUrl: resolvePublicBaseUrl(req),
+      baseUrl: mcpBaseUrl(),
       client: req.get('user-agent') || null,
       caller: lazyCaller(req.user?.oid),
     };
