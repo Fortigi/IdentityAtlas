@@ -1,0 +1,1 @@
+- Security: the last two workflows that read the release automation key outside its protected environment (the weekly PowerShell module update and the Bot App check) now read it from there too, so the key is no longer needed as a repository-wide secret. A check now fails any future workflow that reads the key outside that environment.
