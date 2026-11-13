@@ -68,16 +68,7 @@ The exact signals behind each layer are listed in [How Scoring Works](../risk-sc
 
 ## Tiers
 
-The tier is a label for a score band. The cutoffs are fixed:
-
-| Score | Tier |
-|---|---|
-| 90–100 | **Critical** |
-| 70–89 | **High** |
-| 40–69 | **Medium** |
-| 20–39 | **Low** |
-| 1–19 | **Minimal** |
-| 0 | **None** |
+The tier is a label for a score band, from **None** (0) through Minimal, Low, Medium and High to **Critical** (90–100). The cutoffs are fixed; the table is in the [glossary](../start/glossary.md#13-risk-score-and-tier).
 
 ## A score always explains itself
 
