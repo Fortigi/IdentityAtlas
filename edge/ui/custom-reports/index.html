@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ui/custom-reports/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/ui/custom-reports/">
       
       
         <link rel="prev" href="../access-review-adoption/">
@@ -3869,14 +3869,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+      <a href="../../architecture/sql-connector-internals/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -6120,20 +6120,34 @@ the latest data every time, and can be downloaded.</p>
 <p>You need the <strong>Build custom reports</strong> permission (<code>data.write.reports</code>). Everyone who can read data
 can open, run and download the result.</p>
 <h2 id="building-a-report">Building a report<a class="headerlink" href="#building-a-report" title="Permanent link">&para;</a></h2>
-<p><strong>Reports → New report</strong> opens the report builder in its own tab.</p>
+<p><strong>Reports → New report</strong> opens the report builder in its own tab. The <strong>New report</strong> button sits next
+to the <strong>Custom reports</strong> heading on the Reports tab.</p>
 <ol>
 <li><strong>Name it.</strong> The name is what colleagues see in the list, so make it the question it answers —
    "Guests without an active manager" rather than "report 3".</li>
-<li><strong>Choose what to report on:</strong> Users, Groups, Accounts (including service principals, managed
-   identities and AI agents), Resources (roles, applications, permissions, business roles, Azure
-   resources), Persons (identities, with their linked accounts) or Contexts (groupings such as
-   departments, tags or the applications of an application catalogue — pick the kind with a
-   <em>Context type is …</em> condition). Reports on contexts themselves are built here in the editor; the
-   <em>Ask</em> box does not produce them yet. It can, like the editor, show the contexts each row of a
-   group, resource, user or person report is part of (<em>Contexts</em> column) and filter on them
-   ("groups in the Crown Jewels context"). For a context that groups resources you can also show and filter on how much
-   access it carries — <em>Resource count</em>, <em>Assignments</em> (direct and via a role), <em>Holders</em> — as
-   counted after the last sync.</li>
+<li><strong>Choose what to report on.</strong> The first menu in the builder lists the kinds of record. In the words
+   of the <a href="../../start/glossary/">glossary</a>:<ul>
+<li><strong>Users</strong> — the <a href="../../start/glossary/#2-account-which-this-product-calls-a-principal">accounts</a> of people, members and guests.</li>
+<li><strong>Groups</strong> — security and Microsoft 365 groups, the most common kind of
+    <a href="../../start/glossary/#4-resource">resource</a>.</li>
+<li><strong>Accounts</strong> — every <a href="../../start/glossary/#2-account-which-this-product-calls-a-principal">account (principal)</a>,
+    including service principals, managed identities and AI agents.</li>
+<li><strong>Resources</strong> — every resource: roles, applications, permissions, business roles and Azure
+    resources as well as groups.</li>
+<li><strong>Identities</strong> — <a href="../../start/glossary/#3-identity">identities</a>: the people behind the accounts,
+    with their linked accounts. Inside the builder a person's identity is also called <em>Person</em>,
+    for example in the <em>Persons</em> relation of a context.</li>
+<li><strong>Changes</strong> — memberships and access grants that were added or removed, and when.</li>
+<li><strong>Contexts</strong> — <a href="../../start/glossary/#11-context">contexts</a>: groupings such as departments, tags
+    or the applications of an application catalogue. Pick the kind with a <em>Context type is …</em>
+    condition. Reports on contexts themselves are built here in the editor; the <em>Ask</em> box does not
+    produce them yet. It can, like the editor, show the contexts each row of a group, resource,
+    user or identity report is part of (<em>Contexts</em> column) and filter on them ("groups in the
+    Crown Jewels context"). For a context that groups resources you can also show and filter on
+    how much access it carries — <em>Resource count</em>, <em>Assignments</em> (direct and via a role),
+    <em>Holders</em> — as counted after the last sync.</li>
+</ul>
+</li>
 <li><strong>Add conditions.</strong><ul>
 <li><strong>+ condition</strong> — a field of the thing itself: <em>Enabled is No</em>, <em>Name contains LIC</em>,
     <em>Created is more than 90 days ago</em>, <em>Group count is more than 30</em>.</li>
@@ -6141,7 +6155,7 @@ can open, run and download the result.</p>
     <em>has Manager where Enabled is No</em>, <em>is a member of a group where Name contains LIC</em>,
     <em>has no Owners</em>.</li>
 <li><strong>+ any/all group</strong> — for an either/or: <em>any of: has no owner · has an owner where Enabled is No</em>.</li>
-<li><strong>+ compare with…</strong> — see <a href="#comparing">Comparing with another group or person</a> below.</li>
+<li><strong>+ compare with…</strong> — see <a href="#comparing">Comparing</a> below.</li>
 </ul>
 </li>
 <li><strong>Pick columns.</strong> Click a column name to add or remove it. Besides the fields themselves you can
@@ -6151,9 +6165,15 @@ can open, run and download the result.</p>
    the number of records that have it — <em>how many users per department</em>, <em>which job titles exist and
    how many people hold each</em>. Conditions still apply; columns do not, because a counted report has
    two columns of its own: the value and the count. Records with no value at all get their own row, so
-   the counts add up. Biggest group first, unless you count per a date — that is not offered, because
-   it would put nearly every record in a group of its own.</li>
+   the counts add up. Biggest group first. Counting per a date is not offered, because it would put
+   nearly every record in a group of its own.</li>
+<li><strong>Preview.</strong> The builder shows <em>what will run</em> in plain language, the number of rows, and the rows
+   themselves. Read the plain-language version before you trust the result — that sentence is
+   generated from the definition that actually runs.</li>
+<li><strong>Save.</strong> The report appears for everyone under <strong>Custom reports</strong> on the Reports tab, with your
+   name as its author.</li>
 </ol>
+<p>Rows are clickable: a row about an account opens that account's detail tab.</p>
 <h3 id="your-own-attributes">Your own attributes<a class="headerlink" href="#your-own-attributes" title="Permanent link">&para;</a></h3>
 <p>Besides the fields every installation has, the builder offers the attributes your own crawlers stamp on
 the data: <code>sfDepartmentID</code>, <code>employeeType</code>, <code>extensionAttribute5</code>, an OU path. They are grouped under
@@ -6176,13 +6196,7 @@ and <em>Stale accounts</em> reports, so they give the same answers:</p>
 </ul>
 <p>For "never signed in", use <strong>Last sign-in is empty</strong> <em>and</em> <strong>Sign-in data collected is not empty</strong>.
 Without the second condition, every account of a system that collects no sign-in data would be listed
-too.
-5. <strong>Preview.</strong> The builder shows <em>what will run</em> in plain language, the number of rows, and the rows
-   themselves. Read the plain-language version before you trust the result — that sentence is
-   generated from the definition that actually runs.
-6. <strong>Save.</strong> The report appears for everyone under <strong>Custom reports</strong> on the Reports tab, with your
-   name as its author.</p>
-<p>Rows are clickable: a row about an account opens that account's detail tab.</p>
+too.</p>
 <h2 id="describing-it-in-plain-language">Describing it in plain language<a class="headerlink" href="#describing-it-in-plain-language" title="Permanent link">&para;</a></h2>
 <p>When the report generator is deployed, the builder has a <strong>Describe it</strong> box. Type what you want:</p>
 <blockquote>
@@ -6230,7 +6244,7 @@ so while it warms up.</p>
 <p>Role-mining questions compare two sets of members rather than filtering rows. <strong>+ compare with…</strong>
 reads as a sentence:</p>
 <blockquote>
-<p>has <strong>exactly the same</strong> <strong>Members</strong> as <strong>resource</strong> "Fortigi - Algemeen - Maten"</p>
+<p>has <strong>exactly the same</strong> <strong>Members</strong> as <strong>resource</strong> "Contoso - Finance - Controllers"</p>
 </blockquote>
 <ul>
 <li><strong>exactly the same</strong> — identical membership.</li>
@@ -6245,7 +6259,7 @@ account has access to, owners, and the accounts of a person.</p>
 at the top.</p>
 <p>Combine it with an ordinary condition to get the question a role-mining analyst actually asks:</p>
 <blockquote>
-<p>Groups that have the same members as business role "Fortigi - Algemeen - Maten", but which are not
+<p>Groups that have the same members as business role "Contoso - Finance - Controllers", but which are not
 part of that business role</p>
 </blockquote>
 <h2 id="what-it-cannot-do">What it cannot do<a class="headerlink" href="#what-it-cannot-do" title="Permanent link">&para;</a></h2>

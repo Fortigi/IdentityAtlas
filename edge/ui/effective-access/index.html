@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ui/effective-access/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/ui/effective-access/">
       
       
         <link rel="prev" href="../context-assistant/">
@@ -1657,10 +1657,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-open-resource-x" class="md-nav__link">
+  <a href="#1-open-the-resource" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Open resource X
+        1. Open the resource
       
     </span>
   </a>
@@ -1668,10 +1668,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-list-the-direct-and-inherited-holders" class="md-nav__link">
+  <a href="#2-list-who-holds-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. List the direct and inherited holders
+        2. List who holds it
       
     </span>
   </a>
@@ -1679,10 +1679,38 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-read-the-access-path-the-why" class="md-nav__link">
+  <a href="#3-find-the-route-the-why" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Read the access path — the "why"
+        3. Find the route — the "why"
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Find the route — the &#34;why&#34;">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getting-to-a-matrix-that-contains-the-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting to a matrix that contains the resource
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-it-together" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting it together
       
     </span>
   </a>
@@ -1690,10 +1718,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
+  <a href="#scripting-the-same-question" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        Scripting the same question
       
     </span>
   </a>
@@ -3813,14 +3841,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+      <a href="../../architecture/sql-connector-internals/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -5883,10 +5911,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-open-resource-x" class="md-nav__link">
+  <a href="#1-open-the-resource" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Open resource X
+        1. Open the resource
       
     </span>
   </a>
@@ -5894,10 +5922,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-list-the-direct-and-inherited-holders" class="md-nav__link">
+  <a href="#2-list-who-holds-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. List the direct and inherited holders
+        2. List who holds it
       
     </span>
   </a>
@@ -5905,10 +5933,38 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-read-the-access-path-the-why" class="md-nav__link">
+  <a href="#3-find-the-route-the-why" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. Read the access path — the "why"
+        3. Find the route — the "why"
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Find the route — the &#34;why&#34;">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getting-to-a-matrix-that-contains-the-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting to a matrix that contains the resource
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#putting-it-together" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Putting it together
       
     </span>
   </a>
@@ -5916,10 +5972,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#related" class="md-nav__link">
+  <a href="#scripting-the-same-question" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Related
+        Scripting the same question
       
     </span>
   </a>
@@ -5997,69 +6053,131 @@
 <h1 id="answer-who-can-access-resource-x-and-why">Answer: who can access resource X, and why<a class="headerlink" href="#answer-who-can-access-resource-x-and-why" title="Permanent link">&para;</a></h1>
 <div class="admonition info">
 <p class="admonition-title">Before this page</p>
-<p>Assumes you have read <strong><a href="../../concepts/data-model/">Data Model</a></strong>.
-Brand new? Start at <a href="../../start/glossary/">The words you need first</a>.</p>
+<p>Assumes you have read <strong><a href="../../start/glossary/">The words you need first</a></strong>, in particular
+<a href="../../start/glossary/#4-resource">resource</a>, <a href="../../start/glossary/#5-assignment">assignment</a> and
+<a href="../../start/glossary/#12-effective-access">effective access</a>.</p>
 </div>
-<p>A task guide for the recurring analyst question: <strong>"Who can reach this resource, and how did they get it?"</strong> Identity Atlas answers it by resolving <em>effective</em> access — not just who is directly assigned, but everyone who inherits access through a group or a containing scope, together with the path that got them there.</p>
-<p>This walkthrough uses the Resources page and the Matrix; the same data is available over the API via <a href="../../api/matrix/#get-apiresourceideffective-access"><code>GET /api/resource/:id/effective-access</code></a> if you want to script it.</p>
+<p>A task guide for the recurring question: <strong>"Who can reach this resource, and how did they get it?"</strong>
+You answer the <em>who</em> on the resource's own page and the <em>why</em> in the matrix.</p>
 <hr />
-<h2 id="1-open-resource-x">1. Open resource X<a class="headerlink" href="#1-open-resource-x" title="Permanent link">&para;</a></h2>
-<p>Go to the <strong>Resources</strong> page, search for the resource by name, and click it to open its detail tab. The <strong>Members</strong> section lists everyone assigned to it, each with a membership badge:</p>
+<h2 id="1-open-the-resource">1. Open the resource<a class="headerlink" href="#1-open-the-resource" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Go to the <strong>Resources</strong> tab and search for the resource by name.</li>
+<li>Click its name. The resource opens in its own detail tab.</li>
+</ol>
+<p>The header shows the resource's type, the system it comes from, its description and, when the source
+names one, its <strong>Owner</strong>. An owner Identity Atlas holds an account for is a link to that account.</p>
+<p>Below the header are the tabs <strong>Attributes</strong>, <strong>Relationships</strong>, <strong>Timeline</strong> and <strong>Diff</strong>. A <strong>Risk</strong>
+tab is added when risk scoring is switched on and the resource has a score.</p>
+<!-- screenshot: a resource detail tab on the Relationships tab, with the Direct Members node fanned out -->
+
+<hr />
+<h2 id="2-list-who-holds-it">2. List who holds it<a class="headerlink" href="#2-list-who-holds-it" title="Permanent link">&para;</a></h2>
+<p>Open the <strong>Relationships</strong> tab. The graph puts the resource in the middle and one node per kind of
+relationship around it, each with a count:</p>
 <table>
 <thead>
 <tr>
-<th>Badge</th>
-<th>Meaning</th>
+<th>Node</th>
+<th>Who or what is in it</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>D</code></td>
-<td>Direct — assigned on the resource itself</td>
+<td><strong>Direct Members</strong></td>
+<td>Accounts assigned to the resource itself</td>
 </tr>
 <tr>
-<td><code>I</code></td>
-<td>Indirect — reached through a group or a containing scope</td>
+<td><strong>Indirect Members</strong></td>
+<td>Accounts that hold it through something else, such as a nested group</td>
 </tr>
 <tr>
-<td><code>E</code></td>
-<td>Eligible — can activate via PIM, but holds nothing right now</td>
+<td><strong>Eligible</strong></td>
+<td>Accounts that can switch the access on but do not hold it right now</td>
+</tr>
+<tr>
+<td><strong>Business Roles</strong></td>
+<td>The business roles that grant this resource</td>
+</tr>
+<tr>
+<td><strong>Member Of</strong></td>
+<td>The resources this one is itself a member of</td>
+</tr>
+<tr>
+<td><strong>Contexts</strong></td>
+<td>The contexts this resource belongs to</td>
+</tr>
+<tr>
+<td><strong>Owners</strong></td>
+<td>Who answers for the resource (shown only when there is an owner)</td>
 </tr>
 </tbody>
 </table>
+<p>Click a node to fan it out. The list under the graph shows what is in it:</p>
+<ul>
+<li>Click a name to open that account, business role or context.</li>
+<li>Sort the list on <strong>Name</strong> or <strong>Type</strong>.</li>
+<li><strong>Export CSV</strong> downloads the list as it is on screen.</li>
+<li>Accounts that used to hold the resource but are gone from the source are kept apart, behind
+  <strong>Show … historical (no longer in the source)</strong>.</li>
+</ul>
+<p>Click the node again, or <strong>collapse</strong>, to close the list.</p>
+<p>For a review, read the three member nodes separately:</p>
+<ul>
+<li><strong>Direct Members</strong> is the shortest answer to "who has it": somebody granted it to these accounts by name.</li>
+<li><strong>Indirect Members</strong> inherited it. Nobody added them to this resource; they hold it because of
+  something else they are in.</li>
+<li><strong>Eligible</strong> is <strong>not</strong> current access. Keep it out of a "who can touch this today" count, and keep
+  it in a "who could" count.</li>
+</ul>
 <div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Ownership is its own resource. If you are auditing <em>who owns</em> a group, look for the matching <code>Owner @ &lt;group&gt;</code> (<code>resourceType='GroupOwnership'</code>) resource — owners appear there as a normal <code>D</code> membership, not as a separate badge on the group.</p>
+<p class="admonition-title">Owners are not members</p>
+<p>Owning a group is a form of access of its own, so it is not mixed into the member lists. The
+<strong>Owners</strong> node and the header name the owner; in the matrix, ownership of a group is a row of its
+own, on which each owner has a <code>D</code>.</p>
 </div>
 <hr />
-<h2 id="2-list-the-direct-and-inherited-holders">2. List the direct and inherited holders<a class="headerlink" href="#2-list-the-direct-and-inherited-holders" title="Permanent link">&para;</a></h2>
-<p>The Members list already separates the two cases by badge:</p>
+<h2 id="3-find-the-route-the-why">3. Find the route — the "why"<a class="headerlink" href="#3-find-the-route-the-why" title="Permanent link">&para;</a></h2>
+<p>The <strong>Indirect Members</strong> list tells you <em>who</em> inherited the resource, not <em>through what</em>. The route is
+visible in three places.</p>
+<p><strong>Which business roles hand it out.</strong> The <strong>Business Roles</strong> node on the resource's page lists every
+business role that grants this resource. Access that comes with one of those roles is there on purpose.</p>
+<p><strong>Which group carries it.</strong> Open a matrix that contains the resource and the groups the account is in
+(see below). A group that is itself a member of other groups, or that has app roles assigned to it,
+shows a chevron in front of its name. Click it (<strong>Expand nested groups</strong>) and whatever that group is a
+member of appears as rows under it. Find the group the account holds with a <code>D</code>, expand it, and look
+for your resource beneath it: the account reaches the resource through that group.</p>
+<p><strong>Which higher scope grants it.</strong> This applies to resources that sit in a hierarchy, such as Azure
+subscriptions and resource groups. In the matrix wizard, on the <strong>Resources</strong> step, open
+<strong>More options</strong> and tick <strong>Include inherited access</strong>. Inherited grants then show as <code>I</code>, and clicking
+such an <code>I</code> opens <strong>How this inherited access arose</strong>: the role that was granted, where it was granted,
+and the chain from there down to the resource.</p>
+<h3 id="getting-to-a-matrix-that-contains-the-resource">Getting to a matrix that contains the resource<a class="headerlink" href="#getting-to-a-matrix-that-contains-the-resource" title="Permanent link">&para;</a></h3>
+<p>The resource page has no button that opens a matrix. There are two ways to get one:</p>
 <ul>
-<li><strong><code>D</code> (direct)</strong> — these principals are assigned to resource X itself. This is the shortest answer to "who has it".</li>
-<li><strong><code>I</code> (indirect)</strong> — these principals inherited it. They do <em>not</em> appear on the resource by name in the raw assignment table; they hold it because they are a member of a group that is assigned, or sit under a scope that contains it.</li>
+<li><strong>Through a context.</strong> Fan out the <strong>Contexts</strong> node on the resource's page and open a context the
+  resource belongs to. On an organisation unit or an application, the <strong>⋯</strong> menu in the context's
+  header has <strong>View in matrix ↗</strong>, which opens a matrix of that context's resources in a new browser tab.</li>
+<li><strong>By building one.</strong> On the <strong>Matrix</strong> tab choose <strong>New matrix</strong>. On the <strong>Resources</strong> step, under
+  <strong>Include</strong>, click <strong>+ Attribute</strong>, pick the field that holds the resource's name, and tick the
+  resource. Or click <strong>+ Context</strong> and pick a context the resource belongs to. Finish the wizard to show
+  the matrix.</li>
 </ul>
-<p>Use the <strong>membership type filter</strong> on the Members section to show only <code>Direct</code> or only <code>Indirect</code> holders when you need to separate "explicitly granted" from "inherited" for a review.</p>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
-<p><code>E</code> (Eligible) is <strong>not</strong> current access. An eligible holder can activate through PIM but has nothing active right now — keep it out of a "who can touch this today" count.</p>
-</div>
+<p>Use the <strong>?</strong> button in the top-left corner of the grid (<strong>How to read this matrix</strong>) for the meaning
+of every badge and marker.</p>
 <hr />
-<h2 id="3-read-the-access-path-the-why">3. Read the access path — the "why"<a class="headerlink" href="#3-read-the-access-path-the-why" title="Permanent link">&para;</a></h2>
-<p>An <code>I</code> badge tells you access was inherited; the <strong>expand affordance</strong> tells you <em>through what</em>.</p>
-<ul>
-<li><strong>From the Matrix.</strong> Rows are resources, columns are principals. Click the chevron on a group row to fan out its <strong>nested parent groups</strong> and <strong>assigned app roles</strong> — this shows which group a member is inheriting the resource through (their cell paints an <code>I</code>). See the <a href="../../architecture/matrix/#expand-semantics">Matrix architecture</a> for the expand semantics.</li>
-<li><strong>From the API.</strong> <a href="../../api/matrix/#get-apiresourceideffective-access"><code>GET /api/resource/:id/effective-access?principalId=&lt;id&gt;</code></a> returns, for one principal, every capability they effectively hold at the resource plus a <code>badge</code> of <code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>. A <code>Direct</code> badge means the grant is declared on the resource itself and held without a group hop; anything reached through a group or a containing scope comes back <code>Indirect</code>. The response also carries a <code>truncated</code> flag — if it is non-null, an expansion hit its cap and the holder list is incomplete, so treat the list as partial rather than exhaustive.</li>
-</ul>
-<p>Putting it together, a complete answer to "who can access resource X, and why" reads as:</p>
+<h2 id="putting-it-together">Putting it together<a class="headerlink" href="#putting-it-together" title="Permanent link">&para;</a></h2>
+<p>A complete answer to "who can access resource X, and why" reads like this:</p>
 <blockquote>
-<p><em>These principals hold it <strong>directly</strong> (assigned on X). These others hold it <strong>indirectly</strong> — each through the group shown by the expand. These are <strong>eligible</strong> only and hold nothing right now.</em></p>
+<p><em>These accounts hold it <strong>directly</strong>. These others hold it <strong>indirectly</strong>: through this group they
+are a member of, or through a grant higher in the hierarchy. These are <strong>eligible</strong> only and hold nothing right now.
+These business roles hand it out, and this is the owner.</em></p>
 </blockquote>
 <hr />
-<h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../../architecture/matrix/">Matrix view — architecture</a> — badge collapse rules and expand semantics</li>
-<li><a href="../../api/matrix/#effective-access">Matrix &amp; Permissions API</a> — the effective-access endpoints</li>
-</ul>
+<h2 id="scripting-the-same-question">Scripting the same question<a class="headerlink" href="#scripting-the-same-question" title="Permanent link">&para;</a></h2>
+<p>The API answers the same question for one account at a time, including the capabilities that account
+effectively holds on the resource. See <a href="../../api/matrix/#effective-access">Effective Access</a> in the API
+reference.</p>
 
 
 

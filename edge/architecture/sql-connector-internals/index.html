@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/sql-connector-delta/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/architecture/sql-connector-internals/">
       
       
         <link rel="prev" href="../crawler-architecture/">
@@ -27,7 +27,7 @@
     
     
       
-        <title>SQL Connector Delta Loading - Identity Atlas</title>
+        <title>SQL Connector Internals - Identity Atlas</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sql-connector-delta-loading" class="md-skip">
+        <a href="#sql-connector-internals" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              SQL Connector Delta Loading
+              SQL Connector Internals
             
           </span>
         </div>
@@ -3742,7 +3742,7 @@
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -3760,7 +3760,7 @@
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -3786,10 +3786,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#why" class="md-nav__link">
+  <a href="#one-run-start-to-finish" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why
+        One run, start to finish
       
     </span>
   </a>
@@ -3797,22 +3797,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-1-the-watermark" class="md-nav__link">
+  <a href="#streaming" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 1 — the watermark
+        Streaming
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 1 — the watermark">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ids-and-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ids and systems
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-only-what-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading only what changed
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading only what changed">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#mechanics" class="md-nav__link">
+  <a href="#watermark-additions-and-changes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Mechanics
+        Watermark: additions and changes
       
     </span>
   </a>
@@ -3820,10 +3853,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#reconcile-follows-completeness-not-run-mode" class="md-nav__link">
+  <a href="#key-sweep-removals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reconcile follows completeness, not run mode
+        Key sweep: removals
       
     </span>
   </a>
@@ -3831,21 +3864,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#assumptions" class="md-nav__link">
+  <a href="#what-the-delta-relies-on-in-the-source" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Assumptions
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#reading-from-a-replica" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reading from a replica
+        What the delta relies on in the source
       
     </span>
   </a>
@@ -3858,51 +3880,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-2-the-key-sweep" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Part 2 — the key sweep
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Part 2 — the key sweep">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shape
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cost" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#timing-and-flapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Timing and flapping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#verification" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3912,29 +3889,35 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
       
         <li class="md-nav__item">
-  <a href="#part-3-order-of-work" class="md-nav__link">
+  <a href="#performance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 3 — order of work
+        Performance
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 3 — order of work">
+    <nav class="md-nav" aria-label="Performance">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rehearsed" class="md-nav__link">
+  <a href="#where-the-time-goes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rehearsed
+        Where the time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
       
     </span>
   </a>
@@ -3947,10 +3930,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-the-implementation-rests-on" class="md-nav__link">
+  <a href="#not-implemented" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What the implementation rests on
+        Not implemented
       
     </span>
   </a>
@@ -6015,10 +5998,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#why" class="md-nav__link">
+  <a href="#one-run-start-to-finish" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why
+        One run, start to finish
       
     </span>
   </a>
@@ -6026,22 +6009,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-1-the-watermark" class="md-nav__link">
+  <a href="#streaming" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 1 — the watermark
+        Streaming
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 1 — the watermark">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ids-and-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ids and systems
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-only-what-changed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading only what changed
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reading only what changed">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#mechanics" class="md-nav__link">
+  <a href="#watermark-additions-and-changes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Mechanics
+        Watermark: additions and changes
       
     </span>
   </a>
@@ -6049,10 +6065,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#reconcile-follows-completeness-not-run-mode" class="md-nav__link">
+  <a href="#key-sweep-removals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reconcile follows completeness, not run mode
+        Key sweep: removals
       
     </span>
   </a>
@@ -6060,21 +6076,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#assumptions" class="md-nav__link">
+  <a href="#what-the-delta-relies-on-in-the-source" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Assumptions
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#reading-from-a-replica" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Reading from a replica
+        What the delta relies on in the source
       
     </span>
   </a>
@@ -6087,51 +6092,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#part-2-the-key-sweep" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Part 2 — the key sweep
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Part 2 — the key sweep">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Shape
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cost" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#timing-and-flapping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Timing and flapping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#verification" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6141,29 +6101,35 @@
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
-  
-</li>
       
         <li class="md-nav__item">
-  <a href="#part-3-order-of-work" class="md-nav__link">
+  <a href="#performance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Part 3 — order of work
+        Performance
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Part 3 — order of work">
+    <nav class="md-nav" aria-label="Performance">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rehearsed" class="md-nav__link">
+  <a href="#where-the-time-goes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rehearsed
+        Where the time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
       
     </span>
   </a>
@@ -6176,10 +6142,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-the-implementation-rests-on" class="md-nav__link">
+  <a href="#not-implemented" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What the implementation rests on
+        Not implemented
       
     </span>
   </a>
@@ -6280,391 +6246,422 @@
   
 
 
-<h1 id="sql-connector-delta-loading">SQL Connector: Delta Loading<a class="headerlink" href="#sql-connector-delta-loading" title="Permanent link">&para;</a></h1>
-<div class="admonition success">
-<p class="admonition-title">Built — steps 1 to 3</p>
-<p>The watermark, reconcile-by-completeness and the key sweep are implemented and
-rehearsed end to end against the <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture">IdentityIQ-shaped fixture</a>.
-Step 4, the sweep narrowed to changed identities, is <strong>not</strong> built: it depends on
-A9, which is still open.</p>
-<p>Several steps depend on how the source records changes. Those are written down as
-<strong>assumptions</strong> (A1–A9) with the discovery query that settles each one and what
-changes if it turns out false. What the implementation relies on, and what happens
-to it if an open assumption turns out false, is in
-<a href="#what-the-implementation-rests-on">What the implementation rests on</a>.</p>
-</div>
-<h2 id="why">Why<a class="headerlink" href="#why" title="Permanent link">&para;</a></h2>
-<p>A full read of an identity-governance database at production size (180,000 identities,
-800,000 entitlements, 40 million entitlement grants) takes hours to read, send and index,
-and needs tens of gigabytes of scratch space (see
-<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/architecture/scale-rehearsal.md">Scale Rehearsal</a>). A full reload is a migration, not an operation.
-Routine refreshes must read what changed.</p>
-<p>A refresh has two halves, and they need different mechanisms:</p>
-<table>
-<thead>
-<tr>
-<th>Half</th>
-<th>Mechanism</th>
-<th>What it reads</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Additions and changes</strong></td>
-<td>A per-statement <strong>watermark</strong> on the source's <code>modified</code> timestamp</td>
-<td>Only rows changed since the last run</td>
-</tr>
-<tr>
-<td><strong>Removals</strong></td>
-<td>A periodic <strong>key sweep</strong>: the complete set of keys, no attributes, anti-joined against what Identity Atlas holds</td>
-<td>Two ids per row, nothing else</td>
-</tr>
-</tbody>
-</table>
-<p>A timestamp cannot find a removal: a row deleted at the source never bumps its own
-timestamp. The existing timestamp reconcile (<code>POST /ingest/reconcile</code>) cannot help either
-in a delta run, because it removes the rows a run did <em>not</em> touch, and a delta run
-touches almost nothing.</p>
-<h2 id="part-1-the-watermark">Part 1 — the watermark<a class="headerlink" href="#part-1-the-watermark" title="Permanent link">&para;</a></h2>
-<h3 id="mechanics">Mechanics<a class="headerlink" href="#mechanics" title="Permanent link">&para;</a></h3>
-<ul>
-<li>A statement opts in by binding <code>@Since</code> and naming a <strong>watermark column</strong> it returns
-  (new slot field <code>watermarkColumn</code>, e.g. <code>modified</code>):</li>
-</ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">identity_id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">principalId</span><span class="p">,</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">resourceId</span><span class="p">,</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">       </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">modified</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">spt_identity_entitlement</span><span class="w"> </span><span class="n">ie</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">spt_managed_attribute</span><span class="w"> </span><span class="n">ma</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">application</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">application</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">                             </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">attribute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">name</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ma</span><span class="p">.</span><span class="n">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">value</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="k">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">'Entitlement'</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">ie</span><span class="p">.</span><span class="n">modified</span><span class="p">,</span><span class="w"> </span><span class="n">ie</span><span class="p">.</span><span class="n">created</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">@</span><span class="n">Since</span>
-</code></pre></div>
-<ul>
-<li><strong>Where the watermark is stored:</strong> the existing <code>DeltaTokens</code> table (migration 020, one
-  row per <code>(systemId, endpoint)</code>), with <code>endpoint = 'sql:' + slot name + ':' + hash(SQL text)</code>.
-  Editing a statement changes its hash and therefore starts it from zero, instead of
-  silently skipping rows its new shape would have returned.</li>
-<li><strong>What is stored:</strong> the largest watermark value the statement returned, minus the
-  <strong>overlap</strong> (A3). It is taken from the rows read, so no extra query is needed and it
-  works for any statement.</li>
-<li><strong>When it is stored:</strong> only after the whole run succeeded, <em>including</em>
-  <a href="../../sync/mssql/#verification-source-against-database">verification</a>. A failed or
-  unverified run re-reads the same window next time. Upserts are idempotent, so a
-  re-read costs time, never correctness.</li>
-<li><strong>No token</strong> (first run, edited statement, or "Force full sync next run" via
-  <code>nextRunMode</code>) binds <code>@Since</code> to the beginning of time: the statement reads everything.</li>
-<li>A statement <strong>without</strong> <code>@Since</code> reads in full every run. That is right for small
-  tables (the catalogue, roles, role assignments, see A6/A7), and it makes that slot
-  <strong>complete</strong>, which matters for removals below.</li>
-</ul>
-<h3 id="reconcile-follows-completeness-not-run-mode">Reconcile follows completeness, not run mode<a class="headerlink" href="#reconcile-follows-completeness-not-run-mode" title="Permanent link">&para;</a></h3>
-<p>Today a full run reconciles every scope and a delta run reconciles none. With watermarks
-that becomes per slot: <strong>a slot that read its complete set may reconcile its scope in any
-run; a slot that read a window never does.</strong> Role assignments (1M rows, read in full in
-seconds) are then kept exact on every run without a sweep.</p>
-<h3 id="assumptions">Assumptions<a class="headerlink" href="#assumptions" title="Permanent link">&para;</a></h3>
+<h1 id="sql-connector-internals">SQL Connector Internals<a class="headerlink" href="#sql-connector-internals" title="Permanent link">&para;</a></h1>
+<p>How the SQL Server crawler (<code>tools/crawlers/mssql/</code>) loads, refreshes, removes and
+verifies data. This page is for people who change the crawler or need to explain a job
+log in detail. To set the crawler up, read <a href="../../sync/mssql/">Connect SQL Server</a>.</p>
+<h2 id="one-run-start-to-finish">One run, start to finish<a class="headerlink" href="#one-run-start-to-finish" title="Permanent link">&para;</a></h2>
+<p><code>Start-SqlCrawler.ps1</code> is a thin sequence; each step lives in its own file.</p>
 <table>
 <thead>
 <tr>
 <th>#</th>
-<th>Assumption</th>
-<th>If false</th>
-<th>Settled by</th>
+<th>Step</th>
+<th>File</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>A1</strong> ✅</td>
-<td><code>created</code> / <code>modified</code> are <code>numeric</code> epoch <strong>milliseconds</strong> written by the <strong>application</strong>, not datetimes written by the database. <strong>Confirmed</strong> by a production discovery: <code>numeric</code> columns holding 13-digit millisecond values. <code>@Since</code> binds as a bigint and the overlap is milliseconds.</td>
-<td><code>@Since</code> binds as <code>datetime2</code> and the overlap becomes an interval; the logic is unchanged.</td>
-<td>discovery §2 (column types)</td>
+<td>1</td>
+<td>Read the configuration and refuse combinations that cannot work</td>
+<td><code>SqlCrawler.Functions.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A2</strong></td>
-<td><code>modified</code> is <code>NULL</code> on a row never updated, and set on <strong>every</strong> update.</td>
-<td>If <code>NULL</code> means something else, drop the <code>COALESCE</code>. If some updates do not bump it, that table cannot use a watermark and reads in full.</td>
-<td>discovery §8 (<code>has_modified</code>, <code>modified_after_created</code>)</td>
+<td>2</td>
+<td>Register the crawler's own system and read the API's clock</td>
+<td><code>SqlCrawler.Phases.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A3</strong></td>
-<td>Several application servers write, and their clocks may drift, and a transaction can commit after rows with later timestamps.</td>
-<td>The overlap must exceed the worst skew plus the longest write transaction. <strong>Default 15 minutes</strong>, configurable. The cost of too large an overlap is re-reading rows; too small loses rows silently.</td>
-<td>not measurable from the database; ask how many application servers write and whether they are time-synchronised</td>
+<td>3</td>
+<td>Open the SQL Server connection</td>
+<td><code>SqlCrawler.Functions.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A4</strong></td>
-<td>Aggregation updates grant rows <strong>in place</strong> and only when they change.</td>
-<td>If aggregation deletes and re-inserts unchanged rows, every aggregated row looks new: the delta reads most of the table, and during the delete→insert gap a row is briefly absent (see A5 on the sweep).</td>
-<td>discovery §8 churn (rows changed in the last 1 / 7 days) against aggregation frequency; compare <code>created</code> distribution on <code>spt_identity_entitlement</code></td>
+<td>4</td>
+<td>Run every enabled statement, grouped by target in dependency order</td>
+<td><code>SqlCrawler.Phases.ps1</code>, <code>SqlCrawler.Batch.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A5</strong></td>
-<td>Removals are <strong>physical</strong> <code>DELETE</code>s (grants, identities, entitlements), not flags.</td>
-<td>If a flag marks them (e.g. <code>aggregation_state</code>), a removal is just a change and the watermark finds it; the sweep becomes unnecessary for that table.</td>
-<td>discovery §7 (<code>assigned, granted_by_role, source</code> breakdown), plus the values of <code>aggregation_state</code></td>
+<td>5</td>
+<td>Apply the staged assignment <strong>windows</strong> (no removal)</td>
+<td><code>SqlCrawler.Staging.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A6</strong> ✅</td>
-<td><code>spt_identity_assigned_roles</code> has <strong>no</strong> timestamp columns. <strong>Confirmed</strong>: its columns are <code>identity_id</code>, <code>idx</code>, <code>bundle</code>. It is read in full every run; at 3.4 million rows in production (not the 1 million first assumed) that is still a short read.</td>
-<td>If it has one, it can use a watermark like any other table.</td>
-<td>discovery §2</td>
+<td>6</td>
+<td>Run the key sweeps that are due, then close the source connection</td>
+<td><code>SqlCrawler.Sweep.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A7</strong></td>
-<td>The logical-application catalogue is one small <code>spt_custom</code> row.</td>
-<td>Nothing: it is read in full every run either way.</td>
-<td>discovery §6</td>
+<td>7</td>
+<td>Apply the staged assignment scopes that were <strong>read in full</strong> (with removal)</td>
+<td><code>SqlCrawler.Staging.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A8</strong></td>
-<td>Editing an entitlement's logical application (inside its XML) bumps that entitlement's <code>modified</code>.</td>
-<td>If it does not, membership changes only arrive with a full read of the membership statement, which at 800,000 short rows is acceptable every run.</td>
-<td>discovery §8, plus one test edit in a non-production instance</td>
+<td>8</td>
+<td>Timestamp reconcile of every other scope that was read in full</td>
+<td><code>SqlCrawler.Phases.ps1</code></td>
 </tr>
 <tr>
-<td><strong>A9</strong></td>
-<td>Removing a grant bumps the owning identity's <code>modified</code> (the identity is refreshed after aggregation).</td>
-<td>The sweep cannot be narrowed to changed identities (Part 2, option B) and stays a full key sweep.</td>
-<td>a before/after comparison on one identity in a non-production instance</td>
+<td>9</td>
+<td>Verification: source against database. A failure throws</td>
+<td><code>SqlCrawler.Verify.ps1</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>Store watermarks and sweep marks</td>
+<td><code>SqlCrawler.Delta.ps1</code>, <code>SqlCrawler.Sweep.ps1</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>Refresh the matrix views. This runs in a <code>finally</code>, whatever happened before</td>
+<td><code>SqlCrawler.Phases.ps1</code></td>
 </tr>
 </tbody>
 </table>
-<h3 id="reading-from-a-replica">Reading from a replica<a class="headerlink" href="#reading-from-a-replica" title="Permanent link">&para;</a></h3>
-<p>The production source is Azure SQL <strong>Hyperscale</strong>, which offers read-only replicas
-(<code>ApplicationIntent=ReadOnly</code>). Reading there takes the load off the primary, which is
-worth it for the full read and the key sweep. But a replica <strong>lags</strong> the primary. A
-watermark taken from rows read on a lagging replica can move past rows the primary already
-committed, and those rows are then never read. So the delta may use a replica only if the
-overlap (A3) is widened by the worst replica lag, or it reads the primary. This is decided
-when the connection option is built, not by default.</p>
-<h2 id="part-2-the-key-sweep">Part 2 — the key sweep<a class="headerlink" href="#part-2-the-key-sweep" title="Permanent link">&para;</a></h2>
-<h3 id="shape">Shape<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h3>
-<p>For each large scope with physical deletes (entitlement grants, Direct and Indirect):</p>
-<ol>
-<li>Read the <strong>complete key set</strong> from the source: the statement with <code>@Since</code> bound to
-   zero, wrapped as <code>SELECT DISTINCT resourceId, principalId FROM (…)</code>. There are no
-   attribute columns, so each row is two ids.</li>
-<li>Stream the keys into a <strong>stage</strong> on the Identity Atlas side.</li>
-<li><strong>Finalize</strong> the stage in "remove what is absent" mode: soft-delete every row of the
-   system + scope that is not in the stage, an anti-join inside PostgreSQL.</li>
-</ol>
-<p>Steps 2 and 3 use the <strong>shared staging primitive</strong> the bulk-load work is building
-(open a stage for table + system + scope, stream batches into an unindexed per-sync
-staging table, finalize). The sweep is one extra finalize mode, "delete target rows in
-scope that are not in the stage", on that same mechanism. It is not a second staging
-path and not a narrow endpoint of its own. A keys-only stage needs nothing special,
-because the stage's columns follow whatever is sent. The API shape is the bulk-load
-work's to define; this design is written against the concept.</p>
-<p><strong>Not</strong> an option: "touch" every present row so the timestamp reconcile can find the
-rest. That rewrites 40 million rows per sweep, floods the write-ahead log, and the audit
-history trigger turns each rewrite into about a kilobyte of audit
-(<a href="https://github.com/Fortigi/IdentityAtlas/blob/main/docs/architecture/scale-rehearsal.md">Scale Rehearsal</a>).</p>
-<h3 id="cost">Cost<a class="headerlink" href="#cost" title="Permanent link">&para;</a></h3>
-<p>At full size the sweep moves 40 million pairs of 32-character ids, about 2.6 GB of ids
-before encoding. That is a fraction of a full read, which also carries every attribute
-and pays for every index update, but it is not free.</p>
-<p><strong>Measured</strong> on the <a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture">IdentityIQ-shaped fixture</a>
-at 4 million grants, 80 000 entitlements and 18 000 identities, across 40 routed systems
-(a 2-vCPU host, so read the ratios rather than the absolutes):</p>
-<table>
-<thead>
-<tr>
-<th>Run</th>
-<th style="text-align: right;">Wall clock</th>
-<th>What it read</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Full load</td>
-<td style="text-align: right;">2 915 s</td>
-<td>everything</td>
-</tr>
-<tr>
-<td>Delta, no sweep due</td>
-<td style="text-align: right;">85 s</td>
-<td>2 007 of 4 000 000 grant rows; everything else in full</td>
-</tr>
-<tr>
-<td>Delta with the sweep due</td>
-<td style="text-align: right;">575 s</td>
-<td>the same window, plus 4 M keys swept in 490 s</td>
-</tr>
-<tr>
-<td>Delta immediately after</td>
-<td style="text-align: right;">84 s</td>
-<td>the same window; sweep not due</td>
-</tr>
-</tbody>
-</table>
-<p>So a delta is <strong>34× cheaper</strong> than the full load, and the sweep is <strong>~6× cheaper</strong> than
-re-reading the same rows as a full load: the key set streams at ~8 100 keys/s into a
-stage against ~1 700 rows/s for an attribute-carrying upsert. The sweep is the expensive
-half of a delta run, which is exactly why it is scheduled rather than run every time —
-and why a run that already read the statement in full does not sweep it as well.</p>
-<p>Two ways to make it smaller, in order of preference:</p>
+<p>Two orderings are deliberate. Windows are applied before the sweep, because the sweep
+compares a scope's total with the key set it read, and that only holds once the run's
+additions are in the table. The scopes read in full are applied after the connection is
+closed, so a long apply never holds an idle connection to the source.</p>
+<p>The manifest declares the <code>buildContexts</code> post-sync hook, so the context plugins run
+after the crawl.</p>
+<h2 id="streaming">Streaming<a class="headerlink" href="#streaming" title="Permanent link">&para;</a></h2>
+<p>A statement's rows come out of a forward-only <code>SqlDataReader</code> and are never collected.
+Rows are shaped one at a time, except for the <code>assignments</code> target, where the reader
+hands over 5,000 raw rows at once and each shaping function makes one pass over them
+(<code>SqlCrawler.Batch.ps1</code>). Memory is one batch, whatever the size of the result set.</p>
+<p>Every <code>batchSize</code> records are sent as an independent upsert with deterministic ids. Each
+batch commits on its own, and a key that appears again in a later batch is an update.
+The chunked sync-session protocol other crawlers use is not used here: it applies the
+whole payload in one step at the end and is bounded in time, which does not fit a table
+of tens of millions of rows.</p>
+<p>Assignment and relationship batches may be in flight several at a time
+(<code>ingestConcurrency</code>). Neither table has a foreign key, so their batches can commit in
+any order. Everything else is sent in order, and a statement's streams are flushed in
+dependency order, because <code>IdentityMembers.identityId</code> does have a foreign key.</p>
+<p>Three targets are <strong>buffered</strong> instead of streamed: <code>systems</code>, <code>contexts</code> and
+<code>context-members</code>. Their rows are collected and sent when the statement ends. That is
+why they cannot take a watermark.</p>
+<p><code>commandTimeoutSeconds</code> is SqlClient's per-network-read timeout, not a limit on the
+whole statement.</p>
+<h2 id="ids-and-systems">Ids and systems<a class="headerlink" href="#ids-and-systems" title="Permanent link">&para;</a></h2>
+<p>Every record carries the source's key as <code>externalId</code>. The Ingest API derives the primary
+key from it inside a namespace (see
+<a href="../ingest-api/#deterministic-guid-generation">Deterministic GUID generation</a>).</p>
+<p><strong>The namespace belongs to the run, not to the system.</strong> It is <code>sql-&lt;id of the crawler's
+own system&gt;</code> for every batch, also for batches addressed to a system that a <code>systems</code>
+statement created. A reference such as <code>principalExternalId</code> is resolved in the namespace
+of the batch that carries it, and an assignment usually joins an account in the crawler's
+own system to a resource in a routed system. With a namespace per system the two halves
+would never match, and nothing would report it, because <code>ResourceAssignments</code> has no
+foreign keys. Two consequences:</p>
 <ul>
-<li><strong>Option A: schedule.</strong> Run the sweep nightly or weekly, and deltas hourly. A removal
-  then shows within one sweep interval. This works regardless of A9.</li>
-<li><strong>Option B: narrow to changed identities</strong> (only if A9 holds). Sweep only the grants of
-  identities whose <code>modified</code> moved since the last sweep, and finalize with the stage's
-  principal set as an extra bound ("delete rows in scope <em>for these principals</em> that are
-  absent"). This needs that bound from the staging primitive. Raise it with the bulk-load
-  work before relying on it.</li>
+<li>A configuration without a <code>systems</code> statement produces exactly the ids it always did.
+  Adding one later moves rows to their systems without changing their ids.</li>
+<li>External ids must be unique across every system of a run. The crawler records each id
+  that two systems claim and fails the run in the verification table.</li>
 </ul>
-<h3 id="timing-and-flapping">Timing and flapping<a class="headerlink" href="#timing-and-flapping" title="Permanent link">&para;</a></h3>
-<p>If aggregation deletes and re-inserts rows (A4 false), a sweep that runs <em>during</em>
-aggregation sees rows missing that are about to come back. <code>ResourceAssignments</code> is a
-soft-delete table and a re-ingested row clears its own tombstone
-(<a href="../soft-delete/">Soft-Delete &amp; Tombstones</a>), so a flapped row heals on the next delta.
-It still leaves audit noise and a window in which access looks revoked. So: <strong>schedule
-sweeps outside aggregation windows</strong>, and have the crawler refuse to finalize a sweep
-that would remove more than a configurable share of a scope (default 5%) without an
-explicit override. The refusal is logged with the count. A sweep that suddenly wants to
-remove a third of all grants is far more likely to have read a half-aggregated source
-than to reflect reality.</p>
-<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h3>
-<p>A sweep reads the complete key set, so a sweep run is also when the scope's <strong>total</strong> can
-be verified: after finalize, the database count of the scope must equal the source's
-distinct key count. That is the same check a full run makes today. A delta run verifies
-what it touched (rows touched since the run started equal the delta's distinct keys).</p>
-<p>Because the token is stored only after verification, a verification that is too strict is
-not a conservative choice — it withholds the marks for <strong>every</strong> statement, including the
-ones that verified, so the delta import never gets a baseline. A live source is aggregated
-while it is read, so each statement's rows are counted before <em>and</em> after the read and the
-rows read must land between the two, widened by the observed drift. A source that did not
-move is still held to exact equality; see
-<a href="../../sync/mssql/#verification-source-against-database">Verification</a>.</p>
-<h2 id="part-3-order-of-work">Part 3 — order of work<a class="headerlink" href="#part-3-order-of-work" title="Permanent link">&para;</a></h2>
-<p>Staged after a full load is proven end to end, as agreed:</p>
+<p>Routing is decided once per statement, not per row: by <code>systemId</code>, by <code>systemName</code>, or
+"follow the resource" (assignments) and "follow the parent" (relationships). Systems from
+a <code>systems</code> statement are registered with a delta upsert and are never deleted. A row
+that names an unknown system is loaded into the crawler's own system and counted.</p>
+<h2 id="removal">Removal<a class="headerlink" href="#removal" title="Permanent link">&para;</a></h2>
+<p>What decides whether stale rows are removed is <strong>whether the statement read the source's
+complete set</strong>, not whether the run is called full or delta. A statement is <em>complete</em>
+when it has no watermark, or has one but <code>@Since</code> was bound to zero (a first read, an
+edited statement, or a full run). Otherwise it read a <em>window</em>.</p>
+<p>A scope is (system, endpoint, the statement's type constants). If several statements
+feed one scope, the scope counts as complete only when all of them were.</p>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Mechanism</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Accounts, resources, relationships (including the ownership resources and their links)</td>
+<td>Timestamp reconcile</td>
+<td>The scope is complete</td>
+</tr>
+<tr>
+<td>Assignments, owner assignments included, <code>stagedFullLoad</code> on</td>
+<td>Staged apply with <code>deleteMissing</code></td>
+<td>The scope is complete</td>
+</tr>
+<tr>
+<td>Assignments, <code>stagedFullLoad</code> off</td>
+<td>Timestamp reconcile</td>
+<td>The scope is complete</td>
+</tr>
+<tr>
+<td>Assignments read as a window</td>
+<td>Key sweep</td>
+<td>The slot has <code>sweep</code> and the sweep is due</td>
+</tr>
+<tr>
+<td>Contexts, context members</td>
+<td>A full sync of the buffered set, bounded by ownership</td>
+<td>The run is a full run; a delta run upserts</td>
+</tr>
+<tr>
+<td>Identities, identity members</td>
+<td>Never removed</td>
+<td>They have no <code>systemId</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Timestamp reconcile.</strong> One <code>POST /ingest/reconcile</code> per (system, endpoint, scope) the
+run actually wrote to. It removes the rows whose <code>updatedAt</code> is older than the API's own
+clock reading taken at job start, which are the rows this run did not touch. Using the
+API's clock means a clock difference between worker and API cannot cause false removals.
+A scope is registered when its first row arrives, so a system or scope the run never
+wrote to is never reconciled. If any statement throws, the run never reaches this step.</p>
+<p><strong>Staged apply.</strong> With <code>stagedFullLoad</code> on, assignment batches go into a stage per
+(system, scope) through the <a href="../ingest-api/#staged-full-load">staged load</a> endpoints
+instead of into the table. Statements that feed the same scope share one stage; two
+stages of one scope applied with removal would each remove the other's rows. All stages
+of a kind are finalized in one call:</p>
+<ul>
+<li>complete scopes with <code>deleteMissing</code>, which inserts what is new, updates only rows
+  whose values changed, and removes what the stage does not hold. This replaces the
+  timestamp reconcile for the scope, and an unchanged re-import writes nothing;</li>
+<li>windows without <code>deleteMissing</code>. A window says nothing about rows it did not return.
+  It is staged all the same, because a stage writes only rows whose values changed and a
+  source may re-stamp many unchanged rows.</li>
+</ul>
+<p>Nothing reaches the table before the finalize. A failed finalize abandons the stages.</p>
+<p><strong>Contexts.</strong> The catalogue and the memberships are each sent as one batch in the run's
+sync mode. The crawler stamps its own system as the owner (<code>scopeSystemId</code>) and sends
+the scope <code>variant = synced</code>, <code>contextType</code>, so a full sync replaces only this crawler's
+catalogue of that type. See
+<a href="../ingest-api/#contexts-and-context-members-owned-not-system-scoped">Contexts and context members</a>.
+The root context is sent in the same batch as its children. An empty catalogue sends
+nothing, and gets no root.</p>
+<p>Removed rows follow <a href="../soft-delete/">Soft-Delete &amp; Tombstones</a>.</p>
+<h2 id="reading-only-what-changed">Reading only what changed<a class="headerlink" href="#reading-only-what-changed" title="Permanent link">&para;</a></h2>
+<p>A refresh has two halves that need different mechanisms.</p>
+<h3 id="watermark-additions-and-changes">Watermark: additions and changes<a class="headerlink" href="#watermark-additions-and-changes" title="Permanent link">&para;</a></h3>
+<p>A statement opts in by referencing <code>@Since</code> and naming a <code>watermarkColumn</code> it returns.
+Both are required and the configuration is refused otherwise.</p>
+<ul>
+<li><strong>Where it is stored.</strong> In the delta-token store shared with the other crawlers, under
+  the key <code>sql:&lt;slot name&gt;:&lt;first 16 hex of SHA-256 of the SQL text&gt;</code>. Editing the
+  statement changes the key, so the edited statement starts from zero.</li>
+<li><strong>What <code>@Since</code> binds to.</strong> A <code>bigint</code>. In a delta run it is the stored value; with no
+  stored value, and in every full run, it is zero. A full run still records how far it
+  got, so the next delta run starts from there.</li>
+<li><strong>What is stored.</strong> The largest value read, minus <code>watermarkOverlapSeconds</code> (in
+  milliseconds), and never less than where the run started. It comes from the rows read,
+  so no extra query is needed.</li>
+<li><strong>When it is stored.</strong> After verification passed, for all statements together. A
+  failed run reads the same window again; upserts make that safe.</li>
+<li><strong>An unusable column.</strong> If the statement does not return the named column, or a value
+  does not parse as a whole number, the log says so, the mark is not stored and the
+  statement keeps reading in full.</li>
+<li><strong>Not an attribute.</strong> The watermark column is left out of <code>extendedAttributes</code>. A
+  source can re-stamp a row without changing it, and storing the stamp would make
+  unchanged rows look changed on every import.</li>
+</ul>
+<h3 id="key-sweep-removals">Key sweep: removals<a class="headerlink" href="#key-sweep-removals" title="Permanent link">&para;</a></h3>
+<p>A watermark cannot find a removal, and the timestamp reconcile cannot help with a window,
+because a window touches almost nothing. Removals in a windowed assignment scope are
+found by set difference.</p>
 <ol>
-<li>✅ <strong>Watermark for the grant statements</strong> (A1, A2, A3). Token storage, <code>@Since</code>, the
-   overlap, and storing the token only after verification.</li>
-<li>✅ <strong>Reconcile by completeness.</strong> Full-read slots reconcile in delta runs (A6, A7).</li>
-<li>✅ <strong>Key sweep</strong>, on the shared staging primitive (A5, and the 5% guard).</li>
-<li>⬜ <strong>Narrowed sweep</strong>, only if A9 holds and the primitive supports a principal bound.</li>
+<li>The statement's result columns are looked up without running it
+   (<code>sys.dm_exec_describe_first_result_set</code>).</li>
+<li>The statement runs with <code>@Since</code> zero, wrapped as
+   <code>SELECT DISTINCT &lt;resource column&gt;, &lt;principal column&gt; FROM (&lt;statement&gt;) q</code>. If the
+   columns could not be described, the statement runs as it is; that is slower, not wrong.</li>
+<li>The pairs go into a <strong>keys-only</strong> stage per system.</li>
+<li>The stages are finalized with <code>deleteMissing</code> and <code>maxDeleteShare</code>. A keys-only stage
+   inserts and updates nothing; it only removes the scope's rows that are not in it.</li>
 </ol>
-<h3 id="rehearsed">Rehearsed<a class="headerlink" href="#rehearsed" title="Permanent link">&para;</a></h3>
-<p>The whole path was rehearsed against a real SQL Server holding the 4 M-grant fixture,
-with <code>sql/03-mutate.sql</code> applied between the full load and the first delta. Every number
-below is counted <strong>in PostgreSQL</strong>, keyed on the source's own ids, against the
-<code>fixture_mutation</code> log of what actually moved — not against what the crawler reported:</p>
+<p>Rules around it:</p>
+<ul>
+<li><strong>Due.</strong> A separate mark, <code>sql:sweep:&lt;slot name&gt;:&lt;hash&gt;</code>, holds the time of the last
+  verified sweep. The sweep runs when that is at least <code>sweepIntervalHours</code> ago.</li>
+<li><strong>Covered.</strong> When the run already read the statement in full, the scope has been
+  reconciled, so no sweep runs, and the interval restarts.</li>
+<li><strong>Refused up front</strong> when the statement pages with <code>@Offset</code>, when
+  <code>sweepIntervalHours</code> is 0, and when the run routes into several systems but a
+  <code>resources</code> statement read a window. A swept pair follows its resource's system, and
+  without every resource id it would be staged into the wrong one.</li>
+<li><strong>Share ceiling.</strong> Above <code>sweepMaxDeleteShare</code> the API answers 409 and writes nothing;
+  the job fails with the counts. <code>sweepOverride</code> sends a ceiling of 1.</li>
+<li><strong>No keys, no removal.</strong> A key set that comes back empty opens no stage and removes
+  nothing. An empty result is far more often a broken read than an empty source.</li>
+</ul>
+<p>"Touch every row that is still there and let the reconcile find the rest" is not used:
+it rewrites every surviving row and its index entries on each refresh.</p>
+<h3 id="what-the-delta-relies-on-in-the-source">What the delta relies on in the source<a class="headerlink" href="#what-the-delta-relies-on-in-the-source" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>What the source did</th>
-<th style="text-align: right;">Rows</th>
-<th style="text-align: right;">Grant rows still in Identity Atlas</th>
-<th></th>
+<th>The crawler assumes</th>
+<th>If your source differs</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>grants updated</td>
-<td style="text-align: right;">2 000</td>
-<td style="text-align: right;">2 000</td>
-<td>the delta re-read them</td>
+<td>The watermark column holds epoch milliseconds</td>
+<td>Convert it in the statement. A value that is not a whole number is reported and the statement reads in full</td>
 </tr>
 <tr>
-<td>grants deleted</td>
-<td style="text-align: right;">500</td>
-<td style="text-align: right;"><strong>0</strong></td>
-<td>only the sweep can find these</td>
+<td>Every update to a row moves the watermark column</td>
+<td>That statement cannot use a watermark. Remove it and the statement reads in full again</td>
 </tr>
 <tr>
-<td>grants deleted and re-inserted <strong>unchanged</strong></td>
-<td style="text-align: right;">500</td>
-<td style="text-align: right;"><strong>500</strong></td>
-<td>the A4 shape: the delta must not read them and the sweep must not remove them</td>
+<td>Writers' clocks may differ, and a transaction may commit late</td>
+<td>Covered by <code>watermarkOverlapSeconds</code>. It must exceed the worst clock difference plus the longest write transaction</td>
 </tr>
 <tr>
-<td>grants of a removed entitlement</td>
-<td style="text-align: right;">6</td>
-<td style="text-align: right;"><strong>0</strong></td>
-<td>the entitlement went by reconcile, its grants by sweep</td>
+<td>Nothing about how rows are updated</td>
+<td>A source that deletes and re-inserts unchanged rows makes every such row look new: the window is larger, not wrong. A sweep during that rebuild sees rows that are about to return, which is what the share ceiling refuses</td>
 </tr>
 <tr>
-<td>new identity's grants</td>
-<td style="text-align: right;">5</td>
-<td style="text-align: right;">5</td>
-<td>the delta picked them up</td>
+<td>Nothing about how rows are removed</td>
+<td>If the source flags removals instead of deleting rows, the watermark already finds them and <code>sweep</code> can be turned off</td>
 </tr>
 </tbody>
 </table>
-<p>and, from the statements that read in full: the removed entitlement is gone (the
-reconcile took it <strong>in a delta run</strong>, which is the point of reconcile-by-completeness)
-and the new identity is present. The sweep removed 403 + 103 = <strong>506</strong> rows — exactly the
-500 deleted plus the 6 orphaned — and a second delta immediately afterwards removed
-nothing.</p>
-<p>Each step lands with its own tests against the
-<a href="https://github.com/Fortigi/IdentityAtlas/tree/main/tools/iiq-fixture">IdentityIQ-shaped fixture</a>. Its
-timestamps already follow A1/A2, and <code>sql/03-mutate.sql</code> moves it the way a source moves
-between two refreshes — updated grants, deleted grants, grants deleted and re-inserted
-<strong>unchanged</strong> (the A4 shape), a new identity with grants, a removed entitlement and every
-grant of it, and one identity touched with none of its grants changed (the A9 shape).
-Every key it changes is written to a <code>fixture_mutation</code> table first, so a rehearsal
-compares the database against the rows that actually moved rather than against what the
-crawler reports.</p>
-<h2 id="what-the-implementation-rests-on">What the implementation rests on<a class="headerlink" href="#what-the-implementation-rests-on" title="Permanent link">&para;</a></h2>
+<p>A statement without <code>@Since</code> reads in full, which is always correct and only slower.
+Every narrowing is opt-in per statement.</p>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<p><code>Test-SqlRunCounts</code> writes one table at the end of the run and throws when any line
+fails.</p>
+<p><strong>Read, per statement.</strong> The statement is wrapped in <code>SELECT COUNT_BIG(*)</code> and counted
+before and after the read. The rows read must land between the two counts, widened on
+both sides by the difference between them. A source that did not move is held to exact
+equality; a source that moved by N rows gets N rows of slack, and the movement is printed
+on every run. A flat percentage is not used: it would also pass a read that lost rows,
+and a passed run stores the watermark, so the loss would become permanent. If the first
+count cannot be taken, the read is held to the second alone. A statement that cannot be
+wrapped (it pages with <code>@Offset</code>, or it is a multi-statement batch) is reported as
+<code>not verified</code>.</p>
+<p><strong>Placed, per statement.</strong> At most 5% of the rows read may be dangling or skipped for a
+missing required column. Separately, at most 5% may name an unknown system. A context
+member that names no context, and an owner that matches no account, are counted but not
+held against this bound.</p>
+<p><strong>Stored, per scope.</strong> Counts come from <code>POST /ingest/count</code>, not from the ingest's
+inserted and updated totals.</p>
 <table>
 <thead>
 <tr>
-<th>Assumption</th>
-<th>Relied on?</th>
-<th>If it turns out false</th>
+<th>Scope</th>
+<th>Must equal</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>A1</strong> ✅ epoch milliseconds, application-written</td>
-<td><strong>Yes.</strong> <code>@Since</code> binds as <code>SqlDbType.BigInt</code> and the overlap is milliseconds.</td>
-<td>The statement fails at the server with a conversion error, loudly, on the first run. A <code>datetime2</code> source needs the parameter type and the overlap unit changed — the logic around them does not move. A watermark column that returns something a <code>long</code> cannot parse is reported and its token is <strong>not stored</strong>, so the statement keeps reading in full rather than advancing a mark it cannot compare.</td>
+<td>Accounts, resources</td>
+<td>The distinct ids read. More rows than distinct ids fails: two records sharing an id overwrite each other</td>
 </tr>
 <tr>
-<td><strong>A2</strong> <code>modified</code> is NULL until first update, then always set</td>
-<td><strong>Partly.</strong> The shipped statements <code>COALESCE(modified, created)</code>, so a NULL is handled. That some updates might not bump it is <strong>not</strong> detectable here.</td>
-<td>A table whose updates do not always bump <code>modified</code> cannot use a watermark: drop <code>watermarkColumn</code> and it reads in full again, which restores exactness at the cost of the read.</td>
+<td>Relationships, owner assignments</td>
+<td>The distinct pairs read. A repeated pair is the same edge, so it is reported and not failed</td>
 </tr>
 <tr>
-<td><strong>A3</strong> clocks drift between writing application servers</td>
-<td><strong>Yes.</strong> <code>watermarkOverlapSeconds</code>, default 900.</td>
-<td>Nothing breaks; the number is the only thing to change. Too large costs a re-read (upserts, so time only); too small loses rows silently, which is why the default is generous.</td>
+<td>Assignments, staged, read in full</td>
+<td>Exactly the distinct assignments the finalize says the stages held. Both numbers are Identity Atlas's own, so there is no slack. The source's pair count is printed beside it when it differs</td>
 </tr>
 <tr>
-<td><strong>A4</strong> aggregation updates in place</td>
-<td><strong>No.</strong> Nothing depends on it.</td>
-<td>A source that deletes and re-inserts makes every aggregated row look new, so the delta reads most of the table and is merely slower — and a sweep running <em>during</em> aggregation sees rows that are about to come back. That is what the 5% ceiling refuses, and <code>ResourceAssignments</code> is a soft-delete table, so a flapped row heals on the next delta.</td>
+<td>Assignments, staged, window</td>
+<td>Every distinct assignment in the window must be live in the table after the apply</td>
 </tr>
 <tr>
-<td><strong>A5</strong> removals are physical deletes</td>
-<td><strong>No.</strong> The sweep finds a removal either way.</td>
-<td>If a flag marks removals instead, the watermark finds them too and the sweep becomes redundant for that table — turn <code>sweep</code> off and save the read.</td>
+<td>Assignments, not staged</td>
+<td>The source's distinct (resource, principal) pairs, with the same drift as slack; a range when rows were dangling or two statements overlap</td>
 </tr>
 <tr>
-<td><strong>A6</strong> ✅ <code>spt_identity_assigned_roles</code> has no timestamps</td>
-<td><strong>Yes, as a default.</strong> The shipped statement has no <code>@Since</code>, so it reads in full and its scope is reconciled on every run.</td>
-<td>If the table gains a timestamp it can take a <code>watermarkColumn</code> like any other, and then needs a sweep.</td>
-</tr>
-<tr>
-<td><strong>A7</strong> the catalogue is one small <code>spt_custom</code> row</td>
-<td><strong>No.</strong> It is read in full either way.</td>
-<td>Nothing.</td>
-</tr>
-<tr>
-<td><strong>A8</strong> editing an entitlement's logical application bumps its <code>modified</code></td>
-<td><strong>No.</strong> The membership statement has no <code>@Since</code>, so it reads in full.</td>
-<td>Nothing.</td>
-</tr>
-<tr>
-<td><strong>A9</strong> removing a grant bumps the owning identity's <code>modified</code></td>
-<td><strong>No.</strong> The sweep is a full key sweep.</td>
-<td>Nothing today. It is the one thing that would let the sweep be narrowed to changed identities (option B above), and until it is settled the sweep is scheduled instead.</td>
+<td>A swept scope</td>
+<td>After a distinct sweep, the scope's live rows must equal the keys staged</td>
 </tr>
 </tbody>
 </table>
-<p>The <strong>shape</strong> of the source is what an operator configures, not what the code assumes:
-a statement without <code>@Since</code> reads in full, and that is always the correct-but-slower
-answer. Every narrowing is opt-in per statement.</p>
+<p>Identities and contexts have no <code>systemId</code> and are not counted per system; the context
+report in the job log covers the catalogue.</p>
+<p><strong>After a failure.</strong> Batches were committed as they were sent, so the data stays. The
+matrix views are refreshed anyway, since a view that does not show committed rows is
+worse than one that does. Watermarks and sweep marks are not stored.</p>
+<h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
+<h3 id="where-the-time-goes">Where the time goes<a class="headerlink" href="#where-the-time-goes" title="Permanent link">&para;</a></h3>
+<p>Each statement logs one line, and the run ends with the same split per statement and
+rows per second:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>  time: source read 5.2s · shaping 22.9s · JSON 10.3s · API 205.1s · source counts 8.9s
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it measures</th>
+<th>If it dominates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>source read</td>
+<td>SQL Server running the statement and sending rows</td>
+<td>The query plan, or the network to the server</td>
+</tr>
+<tr>
+<td>shaping</td>
+<td>Turning rows into records: column mapping, routing, dangling checks</td>
+<td>The crawler's own per-row work</td>
+</tr>
+<tr>
+<td>JSON</td>
+<td>Serializing each batch</td>
+<td>Normally small</td>
+</tr>
+<tr>
+<td>API</td>
+<td>Waiting for Identity Atlas to store batches, retries included. For assignments and relationships only the time the crawler had to stop and wait</td>
+<td>The database behind Identity Atlas</td>
+</tr>
+<tr>
+<td>source counts</td>
+<td>The before and after counts of the verification</td>
+<td>The statement is expensive to count</td>
+</tr>
+</tbody>
+</table>
+<h3 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Streaming beats paging.</strong> <code>OFFSET … FETCH</code> makes SQL Server skip the earlier rows
+  again on every page. Paging exists for servers that cut long statements off.</li>
+<li><strong>Staged beats batched for assignments.</strong> A batched upsert rewrites every row it is
+  handed, and the timestamp reconcile needs every surviving row touched. A stage writes
+  only what changed, and into an empty table the indexes are built once. Figures are in
+  <a href="../scale-rehearsal/">Scale Rehearsal</a>.</li>
+<li><strong>A delta is much cheaper than a full load, and a sweep sits in between.</strong> On the
+  IdentityIQ-shaped fixture in <code>tools/iiq-fixture/</code> (4 million grants, a 2-vCPU host, so
+  read the ratios): a full load took 2,915 s, a delta without a sweep 85 s, and a delta
+  with the sweep due 575 s. That is why the sweep is paced by an interval.</li>
+<li><strong>Owner links cost three rows per owned resource.</strong> On the same fixture, with 60% of
+  entitlements owned, that is 1.8 extra rows per entitlement on average.</li>
+<li><strong>Routing costs nothing on the largest statement.</strong> An assignment follows its
+  resource's system from memory; no join is added to the source query.</li>
+</ul>
+<p>The fixture's <code>sql/03-mutate.sql</code> changes the source the way a real one moves between
+two refreshes, and logs every key it changed, so a delta can be rehearsed and checked
+against what actually moved.</p>
+<h2 id="not-implemented">Not implemented<a class="headerlink" href="#not-implemented" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>A sweep narrowed to changed identities.</strong> The sweep always reads the complete key
+  set of the statement.</li>
+<li><strong>Read-only replicas.</strong> The connection string sets no <code>ApplicationIntent</code>. A replica
+  lags its primary, and a watermark taken there can move past rows the primary already
+  committed. If <code>server</code> points at a replica, <code>watermarkOverlapSeconds</code> must exceed the
+  worst replica lag.</li>
+<li><strong>Watermarks on <code>systems</code>, <code>contexts</code> and <code>context-members</code></strong>, and <strong>key sweeps on
+  anything but <code>assignments</code></strong>.</li>
+<li><strong>A sweep of a paged statement.</strong></li>
+<li><strong><code>datetime</code> watermarks.</strong> <code>@Since</code> is always a <code>bigint</code>.</li>
+<li><strong>Windows or Entra ID authentication</strong>, and database engines other than SQL Server.</li>
+<li><strong>A connection test in the wizard.</strong> The API container carries no SQL Server driver.</li>
+</ul>
 
 
 

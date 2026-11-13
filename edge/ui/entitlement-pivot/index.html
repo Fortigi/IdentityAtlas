@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ui/entitlement-pivot/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/ui/entitlement-pivot/">
       
       
         <link rel="prev" href="../sharing-a-matrix/">
@@ -3813,14 +3813,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+      <a href="../../architecture/sql-connector-internals/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -5995,9 +5995,13 @@
 
 
 <h1 id="entitlement-pivot-and-saved-views">Entitlement Pivot and saved views<a class="headerlink" href="#entitlement-pivot-and-saved-views" title="Permanent link">&para;</a></h1>
-<p>The <strong>Entitlement Pivot</strong> report (formerly <em>Application Access Review</em>) lists every resource of one or
-more contexts: a logical application synced from a catalogue, a department's file shares, everything tagged <em>PCI</em>. Any context whose members
-are resources works, and so does any resource type (groups, app roles, entitlements). For each
+<p>The <strong>Entitlement Pivot</strong> is one of the <strong>Standard reports</strong> on the <strong>Reports</strong> tab. Open the tab, click
+the report, and it opens in a tab of its own.</p>
+<p>This page says <em>entitlement</em> for a <a href="../../start/glossary/#4-resource">resource</a> that someone can be
+given: a group, an app role, a permission. It is the same thing the rest of the documentation calls a
+resource; the report and its downloads use the word <em>entitlement</em>.</p>
+<p>The report lists every resource of one or more <a href="../../start/glossary/#11-context">contexts</a>: a logical application synced from a catalogue, a department's file shares, everything tagged <em>PCI</em>. Any context whose members
+are resources works, and so does any resource type (groups, app roles, permissions). For each
 resource it shows:</p>
 <ul>
 <li>which business roles grant it (<em>Granted by role(s)</em>),</li>

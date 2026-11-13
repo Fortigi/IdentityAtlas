@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ui/contexts/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/ui/contexts/">
       
       
         <link rel="prev" href="../custom-reports/">
@@ -1604,7 +1604,7 @@
   <a href="#what-a-context-is" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What a Context is
+        What a context is
       
     </span>
   </a>
@@ -1663,10 +1663,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#import-synced" class="md-nav__link">
+  <a href="#derive-from-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Import (synced)
+        Derive from data
       
     </span>
   </a>
@@ -1674,21 +1674,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#run-a-plugin-generated" class="md-nav__link">
+  <a href="#create-by-hand" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Run a plugin (generated)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#create-manual" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Create manual
+        Create by hand
       
     </span>
   </a>
@@ -1701,10 +1690,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#run-a-plugin-or-sync-a-tree" class="md-nav__link">
+  <a href="#refresh-a-derived-tree" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Run a plugin, or sync a tree
+        Refresh a derived tree
       
     </span>
   </a>
@@ -1712,10 +1701,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#edit-a-tree" class="md-nav__link">
+  <a href="#change-a-tree" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Edit a tree
+        Change a tree
       
     </span>
   </a>
@@ -1723,10 +1712,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filter-the-matrix-by-a-context" class="md-nav__link">
+  <a href="#scope-the-matrix-with-a-context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Filter the Matrix by a context
+        Scope the matrix with a context
       
     </span>
   </a>
@@ -3902,14 +3891,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+      <a href="../../architecture/sql-connector-internals/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -5975,7 +5964,7 @@
   <a href="#what-a-context-is" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What a Context is
+        What a context is
       
     </span>
   </a>
@@ -6034,10 +6023,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#import-synced" class="md-nav__link">
+  <a href="#derive-from-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Import (synced)
+        Derive from data
       
     </span>
   </a>
@@ -6045,21 +6034,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#run-a-plugin-generated" class="md-nav__link">
+  <a href="#create-by-hand" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Run a plugin (generated)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#create-manual" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Create manual
+        Create by hand
       
     </span>
   </a>
@@ -6072,10 +6050,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#run-a-plugin-or-sync-a-tree" class="md-nav__link">
+  <a href="#refresh-a-derived-tree" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Run a plugin, or sync a tree
+        Refresh a derived tree
       
     </span>
   </a>
@@ -6083,10 +6061,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#edit-a-tree" class="md-nav__link">
+  <a href="#change-a-tree" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Edit a tree
+        Change a tree
       
     </span>
   </a>
@@ -6094,10 +6072,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#filter-the-matrix-by-a-context" class="md-nav__link">
+  <a href="#scope-the-matrix-with-a-context" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Filter the Matrix by a context
+        Scope the matrix with a context
       
     </span>
   </a>
@@ -6177,7 +6155,8 @@
 <p class="admonition-title">Before this page</p>
 <p>Assumes you have read <strong><a href="../../start/glossary/">The words you need first</a></strong> — the eight minutes that make the rest of this readable.</p>
 </div>
-<p>The <strong>Contexts</strong> tab is where you group the people, accounts, resources, and systems in your data into named, hierarchical trees — then use those groupings to slice the Matrix. It replaces the old Org Chart tab and the Risk-Scoring Clusters page: manager hierarchies and resource clusters are now just two of the trees you can build here.</p>
+<p>The <strong>Contexts</strong> tab is where you group the people, accounts, resources and systems in your data into named trees, and then use those groupings to scope the matrix. Departments, manager hierarchies, applications and tags are all contexts.</p>
+<p>The tab is hidden by default. To show it, open the account menu in the top-right corner and switch on <strong>Contexts</strong> under <strong>Visible Tabs</strong>.</p>
 <figure>
   <img alt="The Contexts tab: a list of context trees on the left, filterable by target, variant and system, and the selected department tree on the right with member counts per department and team" src="../../assets/screenshots/contexts.png" />
 <br />
@@ -6188,67 +6167,72 @@
 <p>This page is the task-oriented guide. For the data model and plugin framework, see <a href="../../architecture/context-redesign/">Context Redesign</a> and <a href="../../architecture/context-redesign-ui/">Context Redesign — UI</a>.</p>
 </div>
 <hr />
-<h2 id="what-a-context-is">What a Context is<a class="headerlink" href="#what-a-context-is" title="Permanent link">&para;</a></h2>
-<p>A <strong>context</strong> is a named group of entities. Contexts nest into <strong>trees</strong> (a root with children), and every context is one of three <strong>variants</strong> depending on where it came from:</p>
+<h2 id="what-a-context-is">What a context is<a class="headerlink" href="#what-a-context-is" title="Permanent link">&para;</a></h2>
+<p>A <strong>context</strong> is a named group of things. Contexts nest into <strong>trees</strong> (a root with units under it), and every context is one of three <strong>variants</strong>, depending on where it came from:</p>
 <table>
 <thead>
 <tr>
 <th>Variant</th>
+<th>The tab calls it</th>
 <th>Comes from</th>
-<th>Can you edit it?</th>
+<th>Can you change it?</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Synced</strong> 🔵</td>
-<td>A crawler (CSV, Omada, midPoint, SQL, …) ingests the tree — e.g. an HR org hierarchy</td>
-<td>No — it is overwritten on the next crawl. You <em>can</em> graft manual children under it.</td>
+<td><strong>Synced</strong></td>
+<td>Imported</td>
+<td>A crawler reads the tree from a source system, such as a department hierarchy from HR</td>
+<td>No. The next crawl overwrites it. You can add your own units under it.</td>
 </tr>
 <tr>
-<td><strong>Generated</strong> 🟢</td>
-<td>A plugin algorithm you run against existing data — e.g. a manager hierarchy or a resource cluster</td>
-<td>Partly — you can rename and re-parent generated nodes, and your renames, placements, manual children and hand-moved members survive re-runs (see <a href="#run-a-plugin-or-sync-a-tree">Sync</a>).</td>
+<td><strong>Generated</strong></td>
+<td>Derived</td>
+<td>A rule (a <em>plugin</em>) that builds a tree from data already loaded, such as a manager hierarchy</td>
+<td>Partly. You can rename and move units, and your changes survive a refresh (see <a href="#refresh-a-derived-tree">Refresh a derived tree</a>).</td>
 </tr>
 <tr>
-<td><strong>Manual</strong> 🟤</td>
-<td>You build it by hand in the UI</td>
-<td>Yes — fully editable.</td>
+<td><strong>Manual</strong></td>
+<td>Created here</td>
+<td>You build it by hand</td>
+<td>Yes, all of it.</td>
 </tr>
 </tbody>
 </table>
-<p>Every tree also has exactly one <strong>target type</strong> — the kind of thing it groups. This is what lets a context filter know whether to narrow the Matrix's rows or its columns:</p>
+<p>Every tree also holds exactly one kind of member, its <strong>target type</strong>. The target type decides which side of the matrix a context can scope:</p>
 <table>
 <thead>
 <tr>
 <th>Target type</th>
-<th>Groups</th>
+<th>The tab calls its members</th>
 <th>Example</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><strong>Identity</strong></td>
-<td>Real persons</td>
-<td>An org unit, a project team</td>
+<td>People</td>
+<td>A department from HR, a project team</td>
 </tr>
 <tr>
 <td><strong>Principal</strong></td>
 <td>Accounts</td>
-<td>Service principals owned by one team, orphaned accounts</td>
+<td>The accounts that report to one manager, orphaned accounts</td>
 </tr>
 <tr>
 <td><strong>Resource</strong></td>
-<td>Permission-granting resources</td>
-<td>All groups for one application, a SharePoint cluster</td>
+<td>Resources</td>
+<td>All groups of one application, the resources of one Azure subscription</td>
 </tr>
 <tr>
 <td><strong>System</strong></td>
-<td>Source systems</td>
-<td>"All SAP-adjacent systems"</td>
+<td>Systems</td>
+<td>All systems of one business unit</td>
 </tr>
 </tbody>
 </table>
-<p>A single tree keeps one target type all the way down, but it can mix variants — for example a manual sub-team grafted under a synced HR node.</p>
+<p>A tree keeps one target type all the way down, but it can mix variants: a unit you made by hand can sit under an imported department.</p>
+<p>Besides its variant and target type, a context has a <strong>context type</strong>: a short label for what kind of grouping it is, such as <code>Department</code>, <code>Application</code> or <code>Tag</code>. Imported and derived trees bring their own; for a tree you make by hand you type it yourself.</p>
 <hr />
 <h2 id="the-two-pane-layout">The two-pane layout<a class="headerlink" href="#the-two-pane-layout" title="Permanent link">&para;</a></h2>
 <p>The Contexts tab has one tab per template — <strong>Organisation</strong>, <strong>Applications</strong>, <strong>Tags</strong> and <strong>Segments</strong> — and each is split in two:</p>
@@ -6256,7 +6240,7 @@
 <li><strong>Left — the trees.</strong> The tab's trees as one tree, under a heading per source (Imported · <em>system</em>, Derived · <em>rule</em>, Manager hierarchy, Created here). On Organisation, <strong>Show:</strong> switches between the People, Accounts and Resources trees, because each tree holds one kind of member. Each row shows one member count (everyone including sub-units; the direct share is in its tooltip). Filters at the top narrow by source, system and — on Tags and Segments — kind.</li>
 <li><strong>Right — the selected context.</strong> Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and the people overview. <strong>Open as page</strong> in the header's <strong>⋯</strong> menu opens it on its own.</li>
 </ul>
-<p>Expand a row with its arrow to see its sub-units. The old <strong>List</strong> mode, which flattened a tree into a table, is gone; a unit's members are listed on its page.</p>
+<p>Expand a row with its arrow to see its sub-units. A unit's members are listed on its page.</p>
 <h3 id="the-timeline">The Timeline<a class="headerlink" href="#the-timeline" title="Permanent link">&para;</a></h3>
 <p>The folded <strong>Timeline</strong> at the bottom of a unit's page says what happened, in words, with who or what did it:</p>
 <table>
@@ -6285,137 +6269,178 @@
 </tr>
 </tbody>
 </table>
-<p>Many like changes on one day — a list upload adding 40 people — fold into one line ("40 people joined (list upload)") that opens to the names. Joins and leaves are recorded from the moment this version is installed (migration 109); members who joined earlier show when they were added, except members a rule derives.</p>
+<p>Many like changes on one day — a list upload adding 40 people — fold into one line ("40 people joined (list upload)") that opens to the names. Joins and leaves are known from the day your installation began recording them; members who joined earlier show when they were added, except members a rule derives.</p>
 <h3 id="sources-added-on-another-unit">Sources added on another unit<a class="headerlink" href="#sources-added-on-another-unit" title="Permanent link">&para;</a></h3>
 <p>An interview added on the parent unit often says who in a sub-unit does what. Such a source is also listed under the sub-unit's <strong>Sources</strong>, marked <em>added on <that unit></em>, with the number of its claims about the sub-unit's people. You can view it there; reading it again, adding claims or deleting it is done on the unit it was added to.</p>
 <hr />
 <h2 id="create-a-context">Create a context<a class="headerlink" href="#create-a-context" title="Permanent link">&para;</a></h2>
-<p>Click <strong>+ New</strong> (top-right) to open the New-Context wizard. Step 1 asks where the tree should come from — the three cards match the three variants:</p>
-<h3 id="import-synced">Import (synced)<a class="headerlink" href="#import-synced" title="Permanent link">&para;</a></h3>
-<p>Synced trees are not built here — they appear automatically after a crawler ingests them. This card explains that and links you to the <strong>Crawlers</strong> page to configure one. After the next crawl, the tree shows up in the selector on its own.</p>
-<h3 id="run-a-plugin-generated">Run a plugin (generated)<a class="headerlink" href="#run-a-plugin-generated" title="Permanent link">&para;</a></h3>
-<p>Build a tree from data you already have. The wizard walks you through:</p>
-<ol>
-<li><strong>Pick plugin</strong> — the registered plugins, grouped by target type.</li>
-<li><strong>Configure</strong> — a form generated from the plugin's parameters (for example, which system to scope to, or which principal attribute to read).</li>
-<li><strong>Preview &amp; run</strong> — a dry run shows how many contexts and members would be created, with sample rows, <em>before</em> anything is written. Choose whether to <strong>create a new tree</strong> or <strong>refresh an existing</strong> one from the same plugin, then press <strong>Create tree</strong>.</li>
-</ol>
-<p>The run happens in the background; you land on the run's progress page, and the finished tree appears in the selector.</p>
-<p>The built-in plugins include:</p>
+<p>You need the <strong>Build contexts</strong> permission (<code>data.write.contexts</code>); without it the tab is read-only.</p>
+<p>Click <strong>+ New</strong> at the top of the tree pane. The <strong>New context tree</strong> dialog first asks where the tree should come from:</p>
 <table>
 <thead>
 <tr>
-<th>Plugin</th>
-<th>Target</th>
+<th>Card</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Import from a system</strong></td>
+<td>Nothing is built here: imported trees appear after a crawler reads them. <strong>Open Crawlers →</strong> takes you to <strong>Admin → Crawlers</strong> to set one up.</td>
+</tr>
+<tr>
+<td><strong>Derive from data</strong></td>
+<td>Builds a tree from data that is already loaded, with one of the built-in rules.</td>
+</tr>
+<tr>
+<td><strong>Create by hand</strong></td>
+<td>Starts an empty tree you fill yourself.</td>
+</tr>
+<tr>
+<td><strong>Upload a list</strong></td>
+<td>Reads your own list of units or applications from a <code>.csv</code> or <code>.xlsx</code> file, with owners, members and attributes. Upload the file again later to update the tree.</td>
+</tr>
+<tr>
+<td><strong>Describe it</strong></td>
+<td>Opens the context builder, where you describe a process, application or project and pick the groups from suggested search terms. See <a href="../context-assistant/">Building a context by describing it</a>.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Describe it is experimental</p>
+<p>The <strong>Describe it</strong> card is only there when an operator has switched on the context assistant under <strong>Admin → Experimental</strong> and you hold the <strong>Build contexts</strong> permission.</p>
+</div>
+<h3 id="derive-from-data">Derive from data<a class="headerlink" href="#derive-from-data" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Pick a rule.</strong> The rules are listed per kind of member they group.</li>
+<li><strong>Configure.</strong> Fill in what the rule asks for, for example which system to read or which account attribute to use.</li>
+<li><strong>Preview &amp; run.</strong> The preview shows how many contexts and members the rule would create, with samples, before anything is written. Choose <strong>Create a new tree</strong> or <strong>Refresh an existing tree</strong>, then press <strong>Create tree</strong> (or <strong>Refresh tree</strong>).</li>
+</ol>
+<p>The rule runs in the background. You land on the run's progress page, and the finished tree appears in the tree pane.</p>
+<p>Running a rule needs the <code>admin.context-plugins</code> permission as well.</p>
+<p>The built-in rules:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Groups</th>
 <th>Builds a tree from</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Manager Hierarchy</td>
-<td>Principal</td>
-<td>The <code>manager</code> chain — the org chart</td>
+<td>Accounts</td>
+<td>Who reports to whom</td>
 </tr>
 <tr>
 <td>Department from Principal</td>
-<td>Principal</td>
-<td>The <code>department</code> attribute</td>
+<td>Accounts</td>
+<td>The department on each account</td>
 </tr>
 <tr>
 <td>Active Directory OU Tree</td>
-<td>Principal</td>
-<td>The LDAP distinguished name (OU path)</td>
+<td>Accounts</td>
+<td>The OU path in the account's distinguished name</td>
 </tr>
 <tr>
 <td>Principal Type Tree</td>
-<td>Principal</td>
-<td>Account type (user, service principal, …)</td>
+<td>Accounts</td>
+<td>The kind of account (user, service principal, …)</td>
 </tr>
 <tr>
 <td>Orphaned Accounts</td>
-<td>Principal</td>
-<td>Live accounts not linked to any identity, bucketed by type (accounts a sync has removed are left out)</td>
+<td>Accounts</td>
+<td>Live accounts that are not linked to any identity, per kind of account</td>
+</tr>
+<tr>
+<td>Principals by System</td>
+<td>Accounts</td>
+<td>The system each account was loaded from</td>
 </tr>
 <tr>
 <td>Resource Cluster</td>
-<td>Resource</td>
-<td>Name-token clustering of resources</td>
+<td>Resources</td>
+<td>Words that resource names have in common</td>
 </tr>
 <tr>
 <td>Resource Type Tree</td>
-<td>Resource</td>
-<td>Resource type (and, for Azure, the resource plane)</td>
+<td>Resources</td>
+<td>The resource type (and, for Azure, the resource plane)</td>
 </tr>
 <tr>
 <td>Scope Hierarchy</td>
-<td>Resource</td>
-<td>The Azure management-group → subscription → resource-group nesting</td>
+<td>Resources</td>
+<td>The Azure nesting of management groups, subscriptions and resource groups</td>
 </tr>
 <tr>
 <td>Entra Group Category Tree</td>
-<td>Resource</td>
+<td>Resources</td>
 <td>The Entra group category</td>
 </tr>
 <tr>
 <td>Risky Consent</td>
-<td>Resource</td>
-<td>OAuth consent risk tiers and flagged app consents</td>
-</tr>
-<tr>
-<td>Principals by System</td>
-<td>Principal</td>
-<td>The system each account was loaded from</td>
+<td>Resources</td>
+<td>The risk tier of OAuth consents, and app consents that were flagged</td>
 </tr>
 <tr>
 <td>Resources by System</td>
-<td>Resource</td>
+<td>Resources</td>
 <td>The system each resource was loaded from</td>
 </tr>
 <tr>
 <td>Context assistant recipe</td>
-<td>Resource</td>
-<td>A recipe built in the context assistant, plus resources pinned by hand</td>
+<td>Resources</td>
+<td>Search terms saved in the context builder, plus resources added by hand</td>
 </tr>
 </tbody>
 </table>
-<h3 id="create-manual">Create manual<a class="headerlink" href="#create-manual" title="Permanent link">&para;</a></h3>
-<p>Start an empty tree you curate yourself. Pick a <strong>target type</strong>, give it a <strong>context type</strong> (a free-form label like <code>Application</code> or <code>BusinessProcess</code>), a <strong>name</strong> and optional description, and optionally pin it to a <strong>scope system</strong>. You land on the empty root, ready to add children and members.</p>
-<hr />
-<h2 id="run-a-plugin-or-sync-a-tree">Run a plugin, or sync a tree<a class="headerlink" href="#run-a-plugin-or-sync-a-tree" title="Permanent link">&para;</a></h2>
-<p>For a <strong>generated</strong> tree, the header shows a <strong>Sync</strong> button. Sync re-runs the generating plugin onto that tree so memberships update — for example, a person who changed manager moves under their new manager. Crucially, <strong>your edits are kept</strong>: renamed and re-parented nodes, manual children you grafted on and members you moved by hand survive the re-run. The one exception: if the re-run no longer produces a generated node, that node is removed together with everything still under it, manual children included.</p>
-<p>To create a fresh generated tree (rather than refresh an existing one), use <strong>+ New → Run a plugin</strong> and choose "Create a new tree" on the preview step.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Running plugins and syncing require the <code>admin.context-plugins</code> permission.</p>
-</div>
-<hr />
-<h2 id="edit-a-tree">Edit a tree<a class="headerlink" href="#edit-a-tree" title="Permanent link">&para;</a></h2>
-<p>On a <strong>manual</strong> tree — or on the manual/generated parts of any tree — you can reshape the hierarchy directly:</p>
+<h3 id="create-by-hand">Create by hand<a class="headerlink" href="#create-by-hand" title="Permanent link">&para;</a></h3>
+<p>Fill in the <strong>Details</strong> step and press <strong>Create</strong>:</p>
 <ul>
-<li><strong>Rename</strong> — double-click a node's name and type a new one.</li>
-<li><strong>Add a child</strong> — use the add-child control on a node; the child inherits the parent's target type and context type.</li>
-<li><strong>Drag to re-parent</strong> — drag a node onto another node to make it a child of that node. The move is validated (it keeps the target type consistent and rejects cycles) and member counts recompute on both branches.</li>
-<li><strong>Delete a tree</strong> — the <strong>Delete tree…</strong> action in the header removes a root and all its descendants. Synced trees can't be deleted (they would just re-appear on the next crawl).</li>
+<li><strong>Target type</strong>: what the tree will hold.</li>
+<li><strong>Template</strong>: whether this is an organisation, an application, a tag or a segment. It decides which of the tab's sub-tabs the tree shows under.</li>
+<li><strong>Context type</strong>: the free-form label described above, for example <code>Application</code> or <code>Team</code>.</li>
+<li><strong>Display name</strong> and, optionally, a <strong>Description</strong>.</li>
+<li><strong>Scope system</strong> (optional): ties the tree to one source system. Leave it empty for a tree that spans systems.</li>
 </ul>
-<p>On a <strong>Manager Hierarchy</strong> tree there's one more move: drag a person's oval onto another team to record that they report to that team's manager. The person moves immediately, and because the change is stored as a reporting override, it sticks even after the next Sync.</p>
-<p>Synced nodes are otherwise read-only — you can graft manual children under them, but you can't rename or reorder the synced nodes themselves.</p>
+<p>You land on the empty root, ready to add units and members.</p>
 <hr />
-<h2 id="filter-the-matrix-by-a-context">Filter the Matrix by a context<a class="headerlink" href="#filter-the-matrix-by-a-context" title="Permanent link">&para;</a></h2>
-<p>Contexts earn their keep on the <strong>Matrix</strong>. In the Matrix toolbar, next to the other filters, use the <strong>Context</strong> control:</p>
+<h2 id="refresh-a-derived-tree">Refresh a derived tree<a class="headerlink" href="#refresh-a-derived-tree" title="Permanent link">&para;</a></h2>
+<p>A derived tree does not follow the data by itself. To bring it up to date, open the <strong>⋯</strong> menu on the tree's root row in the tree pane and choose <strong>Refresh</strong>. The rule runs again on that tree, so a person who changed manager moves under the new manager.</p>
+<p><strong>Your changes are kept</strong>: units you renamed or moved, units you added by hand and members you moved by hand survive the refresh. The one exception: when the rule no longer produces a unit, that unit is removed together with everything still under it, including units you added there.</p>
+<hr />
+<h2 id="change-a-tree">Change a tree<a class="headerlink" href="#change-a-tree" title="Permanent link">&para;</a></h2>
+<p>On a tree made by hand, and on the hand-made and derived parts of any tree, you can reshape the hierarchy in the tree pane:</p>
+<ul>
+<li><strong>Rename</strong>: double-click a unit's name and type a new one.</li>
+<li><strong>Add a sub-unit</strong>: use the <strong>Add a sub-unit</strong> button on a unit. The new unit takes over the parent's target type.</li>
+<li><strong>Move</strong>: drag a unit onto another unit to put it under that one. A move that would create a loop is refused, and the member counts on both branches are recalculated.</li>
+<li><strong>Delete a tree</strong>: open the <strong>⋯</strong> menu on the tree's root row and choose <strong>Delete this tree…</strong>. This removes the root and every unit under it; the members themselves are not deleted. Imported trees cannot be deleted here, because the next crawl would bring them back.</li>
+</ul>
+<p>On a <strong>Manager Hierarchy</strong> tree there is one more move: drag a person onto another team to record that they report to that team's manager. The person moves at once, and the change sticks after the next refresh.</p>
+<p>Imported units are otherwise read-only: you can add your own units under them, but you cannot rename or move the imported units themselves.</p>
+<hr />
+<h2 id="scope-the-matrix-with-a-context">Scope the matrix with a context<a class="headerlink" href="#scope-the-matrix-with-a-context" title="Permanent link">&para;</a></h2>
+<p>A context becomes a condition in the matrix wizard. There is no separate context control on the matrix itself.</p>
 <ol>
-<li>Click <strong>+ context</strong> and pick any tree or sub-tree from the picker.</li>
-<li>The Matrix narrows to that context's members. What gets narrowed depends on the target type:<ul>
-<li><strong>Identity / Principal</strong> contexts filter the <strong>rows</strong> (which people/accounts show).</li>
-<li><strong>Resource / System</strong> contexts filter the <strong>columns</strong> (which resources show).</li>
+<li>On the <strong>Matrix</strong> tab, choose <strong>New matrix</strong>, or <strong>Adjust</strong> on a matrix that is already open.</li>
+<li>On the <strong>Subjects</strong> step or the <strong>Resources</strong> step, find the <strong>Include</strong> list (or <strong>Exclude</strong>, to leave a context out) and click <strong>+ Context</strong>.</li>
+<li>Pick any tree or unit from the picker. Each step only offers the contexts that fit it:<ul>
+<li><strong>Subjects</strong> offers contexts of accounts when the matrix is on <strong>User accounts</strong>, and contexts of people when it is on <strong>Identities</strong>.</li>
+<li><strong>Resources</strong> offers contexts of resources and contexts of systems.</li>
 </ul>
 </li>
-<li>Each filter chip has a <strong>+sub</strong> checkbox — leave it on to include the context's descendants, turn it off to match only its direct members. Remove a chip with its <strong>×</strong>.</li>
+<li>The condition appears in the list. Leave <strong>incl. descendants</strong> ticked to include the units under the one you picked; untick it to take only its own members. Remove a condition with its <strong>×</strong>.</li>
+<li>Go on to the last step, <strong>Save &amp; share</strong>, and press <strong>Show matrix</strong> (or give the matrix a name first to save it).</li>
 </ol>
-<p>Add several context filters and they <strong>AND</strong> together, letting you drill to, say, "people in the Finance org unit <em>and</em> their access to the Procurement app's resources".</p>
+<p>By default the resources are the rows of the matrix and the people or accounts are the columns, so by default a context of people or accounts decides which columns you see, and a context of resources or systems decides which rows. The headings on the two steps (<strong>Columns are</strong> and <strong>Rows are</strong>) say which is which for the matrix you are building.</p>
+<p>Several conditions in one <strong>Include</strong> list all have to hold. That is how you get "people in Finance <strong>and</strong> on the Amsterdam site". A condition on <strong>Subjects</strong> and one on <strong>Resources</strong> together give "the people in Finance against the resources of the Procurement application".</p>
 <div class="admonition tip">
-<p class="admonition-title">Tip</p>
-<p>Context filters are reflected in the Matrix URL, so a filtered view is bookmarkable and shareable.</p>
+<p class="admonition-title">Straight from a context</p>
+<p>On the page of an organisation unit or an application, the <strong>⋯</strong> menu in the header has <strong>View in matrix ↗</strong>. It opens a matrix scoped to that context in a new browser tab.</p>
 </div>
+<p>The scope is part of the matrix's address, so a scoped matrix can be bookmarked. To hand one to a colleague, see <a href="../sharing-a-matrix/">Sharing a matrix</a>.</p>
 
 
 

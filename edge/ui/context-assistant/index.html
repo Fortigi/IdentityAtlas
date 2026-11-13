@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/ui/context-assistant/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/ui/context-assistant/">
       
       
         <link rel="prev" href="../contexts/">
@@ -3846,14 +3846,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../architecture/sql-connector-delta/" class="md-nav__link">
+      <a href="../../architecture/sql-connector-internals/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -6069,14 +6069,15 @@
 use. Everything else works without it: you type the search terms yourself.</p>
 </div>
 <p>Some contexts are not in the data. Nothing records which groups belong to <em>the purchasing process</em>
-or <em>to HAMIS</em> — but the names and descriptions of those groups almost always say so. The context
+or <em>to Northwind Care</em> — but the names and descriptions of those groups almost always say so. The context
 assistant is built on that: you describe the subject, the search terms are proposed, and you decide
 which of them really find what you mean.</p>
 <p>You need the <strong>Build contexts</strong> permission (<code>data.write.contexts</code>).</p>
 <h2 id="the-short-version">The short version<a class="headerlink" href="#the-short-version" title="Permanent link">&para;</a></h2>
-<p><strong>Contexts → New context tree → Describe it</strong> opens the context builder in its own tab.</p>
+<p>On the <strong>Contexts</strong> tab, click <strong>+ New</strong>. In the <strong>New context tree</strong> dialog, pick the <strong>Describe it</strong>
+card and press <strong>Open the context builder →</strong>. The builder opens in its own tab.</p>
 <ol>
-<li><strong>Describe it.</strong> Type what the context is about — <em>"alle groepen rond het inkoopproces"</em>,
+<li><strong>Describe it.</strong> Type what the context is about — <em>"all groups around the purchasing process"</em>,
    <em>"everything to do with our DevOps projects"</em>. The model proposes search terms. It may ask one
    question back if your description names no subject at all.</li>
 <li><strong>Check the terms.</strong> Each term shows how many groups it finds, how many <em>only</em> it finds, and
@@ -6097,20 +6098,20 @@ terms find, when it owns at least 40% of it. It is the same best guess the conte
 Accountable; nothing is assigned until you confirm it there after saving.</p>
 <h2 id="what-the-model-does-and-what-it-does-not">What the model does, and what it does not<a class="headerlink" href="#what-the-model-does-and-what-it-does-not" title="Permanent link">&para;</a></h2>
 <p>The model never sees your groups. It receives your description and answers with words — the same
-division of labour as custom reports, where it writes <em>"name is Wim"</em> and Identity Atlas does the
+division of labour as custom reports, where it writes <em>"company is Contoso"</em> and Identity Atlas does the
 looking up. Searching, counting and deciding membership are done by Identity Atlas, on your data.</p>
-<p><strong>Only terms containing your own words start ticked.</strong> If you ask about <em>inkoop</em>, then <code>inkoop</code>,
-<code>inkoopproces</code> and <code>inkooporder</code> arrive ticked. Everything else the model adds — translations,
+<p><strong>Only terms containing your own words start ticked.</strong> If you ask about <em>purchase</em>, then <code>purchase</code>,
+<code>purchaseorder</code> and <code>purchaserequest</code> arrive ticked. Everything else the model adds — translations,
 synonyms, system names — arrives <strong>unticked</strong>, marked <em>suggested</em>, with its numbers next to it. Tick
 what fits.</p>
-<p>This matters most for a name the model does not know. Asked about HAMIS it will happily suggest
-<code>zorg</code>, <code>huisarts</code> and <code>medische zorg</code>, having decided HAMIS is about health care. Unticked, that
+<p>This matters most for a name the model does not know. Asked about Northwind Care it will happily suggest
+<code>care</code>, <code>clinic</code> and <code>patient</code>, having decided the name is about health care. Unticked, that
 costs you a glance. Ticked by default, it would have quietly filled your context with every care
 group. If you do tick suggestions and they bring in far more groups than your own words did, the
 builder says so.</p>
 <h2 id="finding-the-words-your-organisation-actually-uses">Finding the words your organisation actually uses<a class="headerlink" href="#finding-the-words-your-organisation-actually-uses" title="Permanent link">&para;</a></h2>
-<p>A model cannot know that your DevOps groups are called <code>VSTS-…</code>, or that HAMIS groups also say
-<code>HMS</code>. Your data can. <strong>Find related words</strong> looks at the groups already in the context and offers
+<p>A model cannot know that your DevOps groups are called <code>VSTS-…</code>, or that Northwind Care groups also say
+<code>NWC</code>. Your data can. <strong>Find related words</strong> looks at the groups already in the context and offers
 the words that are unusually common in their names compared with all groups. Each suggestion says
 how many groups in the context contain it and how many outside — click one to add it as a term.</p>
 <h2 id="how-a-term-matches">How a term matches<a class="headerlink" href="#how-a-term-matches" title="Permanent link">&para;</a></h2>
@@ -6118,20 +6119,20 @@ how many groups in the context contain it and how many outside — click one to 
 <thead>
 <tr>
 <th>Setting</th>
-<th>Finds <code>inkoop</code> in</th>
+<th>Finds <code>purchase</code> in</th>
 <th>Not in</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>word starts with (default)</td>
-<td><code>SG_INKOOP_Users</code>, <code>Inkoopfacturen</code></td>
-<td><code>Herinkoop</code></td>
+<td><code>SG_PURCHASE_Users</code>, <code>Purchaseorders</code></td>
+<td><code>Repurchase</code></td>
 </tr>
 <tr>
 <td>whole word</td>
-<td><code>SG_INKOOP_Users</code></td>
-<td><code>Inkoopfacturen</code></td>
+<td><code>SG_PURCHASE_Users</code></td>
+<td><code>Purchaseorders</code></td>
 </tr>
 <tr>
 <td>anywhere</td>
@@ -6140,8 +6141,8 @@ how many groups in the context contain it and how many outside — click one to 
 </tr>
 </tbody>
 </table>
-<p>Short terms and abbreviations default to <strong>whole word</strong>, which is what makes <code>INK</code> usable without
-also finding every <code>link</code>. Upper and lower case never matter, and neither do <code>-</code>, <code>_</code> or <code>.</code>.</p>
+<p>Short terms and abbreviations default to <strong>whole word</strong>, which is what makes <code>PO</code> usable without
+also finding every <code>Policy</code> and <code>Portal</code>. Upper and lower case never matter, and neither do <code>-</code>, <code>_</code> or <code>.</code>.</p>
 <h2 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Structure</strong> — <em>a child context per term</em> shows why each group is in the context, and filtering
