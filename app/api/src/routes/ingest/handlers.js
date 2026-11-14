@@ -181,7 +181,7 @@ async function writeBatch(entityType, body, { allowed, req, startTime }) {
   // A single batch IS the whole principals load (a crawler that needs more
   // than one opens a session instead), so this is the point at which a
   // manager link can be told apart from one whose manager had not arrived.
-  const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized));
+  const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized, tableName));
   // Contexts only: the owner a source names becomes the synced context's
   // Accountable (ingest/contextOwners.js). Null for every other table.
   const accountable = await reconcileBatchAccountables(db, tableName, normalized);

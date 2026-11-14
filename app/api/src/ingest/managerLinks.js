@@ -1,6 +1,10 @@
 /**
- * Manager links that point at nobody — repaired once, at the end of a principals
- * load.
+ * Manager links that point at nobody — repaired once, at the end of the load
+ * that wrote them.
+ *
+ * Two tables carry a manager link, and they are not the same link:
+ *   • "Principals"."managerId"         → the manager's ACCOUNT, in the same system
+ *   • "Identities"."managerIdentityId" → the manager's PERSON, across systems
  *
  * A crawler knows its source's id for someone's manager, never ours, so it sends
  * `managerExternalId` and normalization.js turns it into the deterministic id the
@@ -19,20 +23,31 @@
  * crawler ingest takes (tools/crawlers/shared/Invoke-CrawlerIngest.ps1 either
  * sends one batch or opens a session).
  *
- * Leaving a dangling id is not an option. "Principals"."managerId" has no foreign
- * key, so the value survives, and the `hasManager` reference filter
- * (lib/referenceFilters.js) asks only whether the column is set: an unresolvable
- * manager would read as "has a manager" while every join through it returns
- * nothing — a link that looks right and goes nowhere. Nulling it is honest, and
- * the count is returned rather than swallowed so the ingest response and the job
- * log can state how many were dropped.
+ * Leaving a dangling id is not an option. Neither column has a foreign key, so
+ * the value survives, and every reader asks only whether the column is set: the
+ * `hasManager` reference filter (lib/referenceFilters.js) for principals, and
+ * `"managerIdentityId" IS NULL` in the missing-managers report
+ * (reports/templates/missing-managers.js) for identities. An unresolvable manager
+ * would read as "has a manager" while every join through it returns nothing — a
+ * link that looks right and goes nowhere. Nulling it is honest, and the count is
+ * returned rather than swallowed so the ingest response and the job log can state
+ * how many were dropped.
  *
- * Scoped to the loading system's own rows: a system that only references another
- * directory's principals must not clear links the directory itself owns. A
- * manager that a LATER system's crawler loads is nulled here and re-resolves on
- * the referring system's next full sync — every full sync re-sends
- * managerExternalId — so a cross-system link settles one run later instead of
- * being lost.
+ * The principals sweep is scoped to the loading system's own rows: a system that
+ * only references another directory's principals must not clear links the
+ * directory itself owns. A manager that a LATER system's crawler loads is nulled
+ * here and re-resolves on the referring system's next full sync — every full sync
+ * re-sends managerExternalId — so a cross-system link settles one run later
+ * instead of being lost.
+ *
+ * The identities sweep is NOT system-scoped, because it cannot be and does not
+ * need to be: "Identities" has no systemId column (one person, many systems), and
+ * the only scope available — "linked to a principal of the loading system" — reads
+ * IdentityMembers, which the crawler posts AFTER the identities themselves, so on
+ * a first run it would match nothing and the sweep would never fire. It is safe
+ * unscoped because the anti-join asks whether the target identity exists AT ALL:
+ * a link to an identity any system loaded is kept, whoever loaded it, and only a
+ * link to an identity nobody has is cleared.
  */
 
 // One statement, one snapshot: `broken` is evaluated once, the data-modifying CTE
@@ -53,42 +68,86 @@ SELECT (count(*) FILTER (WHERE self))::int     AS "selfReferences",
        (count(*) FILTER (WHERE NOT self))::int AS "unresolved"
   FROM broken`;
 
+// The identities half. Same statement shape; no system parameter (see the note
+// on scoping at the top of this file).
+export const REPAIR_IDENTITY_MANAGER_LINKS_SQL = `
+WITH broken AS (
+  SELECT i.id, (i."managerIdentityId" = i.id) AS self
+    FROM "Identities" i
+   WHERE i."managerIdentityId" IS NOT NULL
+     AND (i."managerIdentityId" = i.id
+          OR NOT EXISTS (SELECT 1 FROM "Identities" m WHERE m.id = i."managerIdentityId"))
+), cleared AS (
+  UPDATE "Identities" SET "managerIdentityId" = NULL WHERE id IN (SELECT id FROM broken)
+)
+SELECT (count(*) FILTER (WHERE self))::int     AS "selfReferences",
+       (count(*) FILTER (WHERE NOT self))::int AS "unresolved"
+  FROM broken`;
+
+// The manager link of each table that has one: the column a load writes, and the
+// statement that repairs it. A table absent from here has no manager link, and
+// every guard below answers "no" for it rather than guessing a column name.
+const MANAGER_LINKS = {
+  Principals: { column: 'managerId',         sql: REPAIR_MANAGER_LINKS_SQL,          systemScoped: true },
+  Identities: { column: 'managerIdentityId', sql: REPAIR_IDENTITY_MANAGER_LINKS_SQL, systemScoped: false },
+};
+
+/**
+ * The manager-link column of a table, or null when it has none. "Contexts"
+ * deliberately returns null even though it carries both column NAMES: an org
+ * unit's manager account is not a self-referential link this sweep can repair.
+ */
+export function managerLinkColumn(tableName) {
+  return MANAGER_LINKS[tableName]?.column ?? null;
+}
+
 /**
  * Whether a normalized batch wrote any manager link at all. The sweep is an
- * anti-join over every principal of the system, so it must not run for a batch
- * that could not have broken one: the Entra photo phase alone posts hundreds of
+ * anti-join over every row of the table, so it must not run for a batch that
+ * could not have broken one: the Entra photo phase alone posts hundreds of
  * principal batches per run carrying nothing but an id and an image.
+ *
+ * Table-aware, because the two manager columns live side by side on a
+ * person-shaped feed: a `managerId` on an identities batch is not an identity
+ * manager and must not arm the identities sweep.
  */
-export function batchHasManagerLink(records) {
-  return Array.isArray(records) && records.some(r => r && r.managerId !== undefined && r.managerId !== null);
+export function batchHasManagerLink(records, tableName) {
+  const column = managerLinkColumn(tableName);
+  if (!column) return false;
+  return Array.isArray(records) && records.some(r => r && r[column] !== undefined && r[column] !== null);
 }
 
 /**
  * The same question for a sync session, which keeps columns rather than rows.
- * A session's column set is fixed by its first batch, so a managerId absent
+ * A session's column set is fixed by its first batch, so a manager column absent
  * from it was never written by any batch of that session.
  */
-export function columnsHaveManagerLink(activeColumns) {
-  return Array.isArray(activeColumns) && activeColumns.some(c => c && c.name === 'managerId');
+export function columnsHaveManagerLink(activeColumns, tableName) {
+  const column = managerLinkColumn(tableName);
+  if (!column) return false;
+  return Array.isArray(activeColumns) && activeColumns.some(c => c && c.name === column);
 }
 
 /**
- * Clear manager links that point at nobody, for one system's principals.
+ * Clear manager links that point at nobody, for the table just loaded.
  *
  * @param {{query: Function}} runner - db module or an in-transaction pg client
- * @param {string} tableName - the table just loaded; anything but Principals is a no-op
- * @param {number} systemId - the loading system
+ * @param {string} tableName - the table just loaded; a table with no manager link is a no-op
+ * @param {number} systemId - the loading system; only the system-scoped sweep needs it
  * @param {boolean} touchedManager - whether this load wrote any manager link
  *   (batchHasManagerLink / columnsHaveManagerLink); false makes the call free
  * @returns {Promise<{unresolved: number, selfReferences: number}|null>} null when
- *   the table is not Principals, no system is known, no manager was written, or
- *   nothing was broken.
+ *   the table has no manager link, a system-scoped sweep has no system, no manager
+ *   was written, or nothing was broken.
  */
 export async function repairManagerLinks(runner, tableName, systemId, touchedManager) {
-  if (tableName !== 'Principals') return null;
-  if (systemId === undefined || systemId === null) return null;
+  const link = MANAGER_LINKS[tableName];
+  if (!link) return null;
+  // Only the scoped statement binds a system; demanding one for the identities
+  // sweep would silently disarm it for a caller that legitimately has none.
+  if (link.systemScoped && (systemId === undefined || systemId === null)) return null;
   if (!touchedManager) return null;
-  const res = await runner.query(REPAIR_MANAGER_LINKS_SQL, [systemId]);
+  const res = await runner.query(link.sql, link.systemScoped ? [systemId] : []);
   const row = res?.rows?.[0] || {};
   const unresolved = row.unresolved || 0;
   const selfReferences = row.selfReferences || 0;
