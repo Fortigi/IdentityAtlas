@@ -6,6 +6,7 @@ import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'r
 const setStateReducer = (s, a) => (typeof a === 'function' ? a(s) : a);
 import { useMatrix } from './hooks/useMatrix';
 import { useHashPage } from './hooks/useHashPage';
+import { useDetailTabs } from './hooks/useDetailTabs';
 import { useAuth } from './auth/AuthGate';
 import { useCanSeeAdminTab } from './auth/usePermissions';
 import { useTheme } from './hooks/useTheme';
@@ -15,7 +16,7 @@ import { FeaturesContext } from './contexts/FeaturesContext';
 import { computeNavTabs, availableOptionalTabs } from './utils/navTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 import { resolvePageRoute } from './pageRegistry';
-import { isDetailPage, parseDetailRoute, relabelDetailTabs, replaceTabId, closeFallbackPage, wizardOpening } from './App.helpers';
+import { isDetailPage, wizardOpening } from './App.helpers';
 import AppHeader from './components/app/AppHeader';
 import AppMain from './components/app/AppMain';
 import AppFooter from './components/app/AppFooter';
@@ -164,75 +165,8 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [settingsOpen]);
 
-  // ─── Dynamic detail tabs ──────────────────────────────────────
-  // Each entry: { type: 'user'|'group', id, displayName }
-  const [detailTabs, setDetailTabs] = useReducer(setStateReducer, undefined, () => {
-    // Restore detail tab from URL on load (e.g., bookmarked #user:abc)
-    const { page: initPage } = parseHash();
-    const route = parseDetailRoute(initPage);
-    return route ? [{ type: route.type, id: route.id, displayName: route.id }] : [];
-  });
-
-  // ─── Detail data cache ─────────────────────────────────────────
-  // Keyed by "type:id", stores { core, memberships, accessPackages, history }
-  const detailCacheRef = useRef({});
-
-  const onCacheData = useCallback((id, type, partialData) => {
-    const key = `${type}:${id}`;
-    detailCacheRef.current[key] = { ...detailCacheRef.current[key], ...partialData };
-    // When a detail page loads its entity data, update the tab from the payload:
-    // its display name (a tab opened by URL only had the id) and, for a
-    // context, its template (the tab's icon). See relabelDetailTabs.
-    setDetailTabs(prev => relabelDetailTabs(prev, id, partialData));
-  }, []);
-
-  const openDetailTab = useCallback((type, id, displayName) => {
-    const tabKey = `${type}:${id}`;
-    setDetailTabs(prev => {
-      if (prev.some(t => `${t.type}:${t.id}` === tabKey)) return prev;
-      // Store the current page so closing this tab can return to where we came from
-      return [...prev, { type, id, displayName: displayName || id, returnPage: page }];
-    });
-    navigate(tabKey);
-  }, [navigate, page]);
-
-  const closeDetailTab = useCallback((type, id) => {
-    const tabKey = `${type}:${id}`;
-    const isActive = window.location.hash.replace('#', '') === tabKey;
-    setDetailTabs(prev => {
-      const idx = prev.findIndex(t => `${t.type}:${t.id}` === tabKey);
-      const closing = prev[idx];
-      // Any tab that pointed back to this one inherits this tab's returnPage,
-      // so closing an intermediate tab doesn't resurrect it later.
-      const remaining = prev
-        .filter(t => `${t.type}:${t.id}` !== tabKey)
-        .map(t => t.returnPage === tabKey ? { ...t, returnPage: closing?.returnPage } : t);
-      // Only navigate when closing the active tab
-      if (isActive) {
-        navigate(closing?.returnPage ?? closeFallbackPage(type));
-      }
-      return remaining;
-    });
-    delete detailCacheRef.current[tabKey];
-  }, [navigate]);
-
-  // Give an open tab a new id in place (the Compare tab when its users change).
-  const replaceDetailTab = useCallback((type, oldId, newId) => {
-    if (!newId || newId === oldId) return;
-    setDetailTabs(prev => replaceTabId(prev, type, oldId, newId));
-    delete detailCacheRef.current[`${type}:${oldId}`];
-    navigate(`${type}:${newId}`);
-  }, [navigate]);
-
-  // When navigating to a detail tab via URL that isn't tracked yet, add it
-  useEffect(() => {
-    const route = parseDetailRoute(page);
-    if (!route) return;
-    setDetailTabs(prev => {
-      if (prev.some(t => t.type === route.type && t.id === route.id)) return prev;
-      return [...prev, { type: route.type, id: route.id, displayName: route.id }];
-    });
-  }, [page]);
+  // Dynamic detail tabs (#user:id, …) and the data cache their pages fill.
+  const { detailTabs, detailCacheRef, onCacheData, openDetailTab, closeDetailTab, replaceDetailTab } = useDetailTabs(page, navigate);
 
   // When the user lands on the matrix tab without an applied filter:
   //  - If a default filter is seeded (e.g. demo data): auto-apply it, no wizard.
