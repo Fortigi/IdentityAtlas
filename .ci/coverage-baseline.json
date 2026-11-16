@@ -457,7 +457,7 @@
     "app/api/src/updates/versionCompare.js": 99,
     "app/api/src/version.js": 99,
     "app/ui/src/App.helpers.js": 99,
-    "app/ui/src/App.jsx": 86,
+    "app/ui/src/App.jsx": 98,
     "app/ui/src/AppRoot.jsx": 99,
     "app/ui/src/auth/AuthGate.js": 99,
     "app/ui/src/auth/AuthGateProvider.jsx": 0,
