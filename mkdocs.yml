@@ -226,6 +226,7 @@ nav:
           - Maintaining the Core Ontology: contributing/maintaining-the-ontology.md
           - UI Style Guide: contributing/style-guide.md
           - CI Pipeline: contributing/ci-pipeline.md
+          - Release Process: contributing/release-process.md
           - CI Scope Testing: architecture/ci-scope-testing.md
           - Release & Branching Strategy: architecture/branching-strategy.md
           - Maintaining a Release Line: process/maintaining-a-release-line.md
