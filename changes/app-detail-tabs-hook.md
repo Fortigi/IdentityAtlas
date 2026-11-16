@@ -1,1 +1,0 @@
-- Tests now cover the detail tabs of the app: opening one, returning to the page it was opened from when it is closed, and renaming a tab in place.

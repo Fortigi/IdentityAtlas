@@ -1,1 +1,0 @@
-- Fixed the advisory "Diff coverage" check failing on pull requests that only change the UI (or only the API): it could not find the coverage report when just one test suite had run.
