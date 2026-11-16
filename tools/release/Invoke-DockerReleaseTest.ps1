@@ -66,7 +66,9 @@ function Invoke-UpgradeScenario {
     New-EnvFile -ImageTag (ConvertTo-ImageTag $from) -ReportGenerator:$ReportGenerator
     Invoke-Compose up -d --pull always | Out-Null
     Wait-SchemaReady -BaseUrl $BaseUrl
+    Write-Step "$from is up; loading the demo data"
     Invoke-DemoLoad -BaseUrl $BaseUrl
+    Write-Step 'Demo data loaded; pushing records through the ingest API'
     Invoke-IngestProbe -BaseUrl $BaseUrl -ApiKey (Get-WorkerKey)
     $before = Get-DbRowCount
     Assert-DataLoaded $before
