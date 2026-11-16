@@ -2,7 +2,9 @@
 //
 // mcpAvailable: the endpoint (and its metadata) exists only while sign-in is on
 // AND the mcpServer feature is switched on. Otherwise 404 — a switched-off
-// feature does not exist on this install, whoever asks.
+// feature does not exist on this install, whoever asks. Switched on but without
+// PUBLIC_BASE_URL it answers 503: the accepted token audience comes from that
+// setting only, never from the request (mcp/resource.js, F-08).
 //
 // mcpAuth: the caller must be a signed-in USER, acting through an AI client:
 //   - an Entra access token for this API (audience = the MCP resource URL, the
@@ -28,18 +30,37 @@
 import { isAuthEnabled, getClientId } from '../config/authConfig.js';
 import { isFeatureEnabled } from '../featureFlags.js';
 import { verifyEntraAccessToken, resolveAccess } from '../middleware/auth.js';
-import { MCP_SCOPE, challengeHeader, mcpResourceUrl } from './resource.js';
+import { MCP_SCOPE, challengeHeader, mcpBaseUrl, mcpResourceUrl } from './resource.js';
 import { resolveMcpContextOwner } from './ownerScope.js';
 
 export const MCP_PERMISSION = 'mcp.use';
 
+export const NOT_CONFIGURED_MESSAGE =
+  'The MCP server is switched on but PUBLIC_BASE_URL is not set. Set it to the public address of this installation (for example https://atlas.example.com) and restart.';
+
+let warnedNotConfigured = false;
+
+// Test hook: the warning is logged once per process.
+export function resetNotConfiguredWarning() {
+  warnedNotConfigured = false;
+}
+
 export async function mcpAvailable(req, res, next) {
-  if (isAuthEnabled() && await isFeatureEnabled('mcpServer')) return next();
-  res.status(404).json({ error: 'Not found' });
+  if (!isAuthEnabled() || !await isFeatureEnabled('mcpServer')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  if (!mcpBaseUrl()) {
+    if (!warnedNotConfigured) {
+      warnedNotConfigured = true;
+      console.warn(`WARNING: ${NOT_CONFIGURED_MESSAGE}`);
+    }
+    return res.status(503).json({ error: NOT_CONFIGURED_MESSAGE });
+  }
+  next();
 }
 
 function refuse(req, res, status, error, message) {
-  res.set('WWW-Authenticate', challengeHeader(req, error));
+  res.set('WWW-Authenticate', challengeHeader(error));
   res.status(status).json({ error: message });
 }
 
@@ -58,7 +79,7 @@ export async function mcpAuth(req, res, next) {
   let decoded;
   try {
     const clientId = getClientId();
-    decoded = await verifyEntraAccessToken(token, [mcpResourceUrl(req), `api://${clientId}`, clientId]);
+    decoded = await verifyEntraAccessToken(token, [mcpResourceUrl(), `api://${clientId}`, clientId]);
   } catch (err) {
     console.error('MCP token rejected:', err.message);
     return refuse(req, res, 401, 'invalid_token', 'Invalid or expired token');

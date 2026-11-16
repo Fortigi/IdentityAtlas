@@ -12,7 +12,13 @@
 # Configuration:
 #   POSTGRES_PASSWORD is the only required setting; put it in a .env file next
 #   to this file (the second command above) or pass it inline. Everything else
-#   has a default — setup/config/.env.example lists every variable.
+#   has a default — docs/api/index.md lists the web container's variables.
+#
+# Behind a reverse proxy (nginx, Caddy, Traefik, a load balancer): set
+# PUBLIC_BASE_URL, BEHIND_TLS and TRUST_PROXY_HOPS in .env (see the web service
+# below). Without them every user appears to come from the proxy's address, so
+# one misbehaving client can get everyone rate-limited, and the MCP server stays
+# off.
 #
 # Image channel (IMAGE_TAG):
 #   latest  — stable customer release (default, omit IMAGE_TAG or leave blank)
@@ -112,7 +118,7 @@ services:
       # local docker-compose.prod.yml is outdated. Bump this number whenever
       # the compose file changes in a way that affects runtime behavior
       # (new env vars, volume mounts, group_add, etc.).
-      COMPOSE_FILE_VERSION: "4"
+      COMPOSE_FILE_VERSION: "5"
       # Where the web container keeps the secrets-vault master key when it
       # auto-generates one: the web-only `web_keys` volume below, which the
       # worker does not mount. An existing key in the shared job_data volume
@@ -130,6 +136,24 @@ services:
       # configured" and renders the setup-required page until they're set.
       AUTH_TENANT_ID: "${AUTH_TENANT_ID:-}"
       AUTH_CLIENT_ID: "${AUTH_CLIENT_ID:-}"
+      # ── Reverse proxy and public address ──
+      # Leave all of these empty when people open http://<host>:3001 directly.
+      # The public address people (and AI assistants) use, e.g.
+      # https://atlas.example.com. Required for the MCP server, and used for the
+      # Excel workbook export, instead of anything a request header says.
+      PUBLIC_BASE_URL:  "${PUBLIC_BASE_URL:-}"
+      # true when a TLS terminator sits in front: turns on HSTS and trusts one
+      # proxy hop for the client address.
+      BEHIND_TLS:       "${BEHIND_TLS:-}"
+      # How many proxies in front may name the client in X-Forwarded-For, e.g. 2
+      # for a load balancer in front of nginx. Rate limits and audit logs use it.
+      TRUST_PROXY_HOPS: "${TRUST_PROXY_HOPS:-}"
+      # true only when the proxy overwrites X-Forwarded-Host/-Proto. Prefer
+      # PUBLIC_BASE_URL.
+      TRUST_PROXY:      "${TRUST_PROXY:-}"
+      # Extra host names people type to reach this install (comma-separated),
+      # checked while sign-in is off. The host of PUBLIC_BASE_URL is always allowed.
+      ALLOWED_HOSTS:    "${ALLOWED_HOSTS:-}"
       # How many distinct values a filter/attribute dropdown preloads per field
       # (default 500, max 5000). Values past the page stay reachable through the
       # dropdown's search box. Lower it — e.g. MATRIX_VALUE_PAGE_SIZE=5 — to

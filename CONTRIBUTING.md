@@ -14,7 +14,7 @@ get it merged. It links to the detailed guides instead of repeating them.
   what helps us most.
 - **Fix something.** Open a pull request. For a small fix you do not need an issue first.
 - **Improve the documentation.** Every page on the
-  [documentation site](https://fortigi.github.io/IdentityAtlas) has an edit button that
+  [documentation site](https://docs.identityatlas.io) has an edit button that
   opens a pull request from your browser. See
   [Contribute a change](docs/contributing/contribute.md).
 - **Build a crawler** for a system we do not read yet. Start with

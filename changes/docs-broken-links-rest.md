@@ -1,0 +1,1 @@
+- Fixed the remaining broken links and file references in the documentation: the nightly-review page names the scripts and options that exist, the crawler authoring guide and the Secrets schema are linked at their real locations, and five in-page anchors that pointed at renamed headings resolve again.

@@ -107,7 +107,7 @@ Provided by the workflow at run time — **do not** store these on the sidekick:
 | Name | Kind | Purpose |
 |------|------|---------|
 | `CLAUDE_CODE_OAUTH_TOKEN` | repo secret | the `claude` CLI's Max-subscription auth (env var at run time) |
-| `BOT_APP_ID` / `BOT_PRIVATE_KEY` | repo secrets | mint the BOT app token (PR open + board moves + org-member gate) |
+| `DOR_BOT_APP_ID` / `DOR_BOT_PRIVATE_KEY` | repo secrets | mint the DoR App token (PR open + board moves + org-member gate). This App has no ruleset bypass; the release App's key is never available to a DoR job |
 | `DOR_ENABLED` | repo variable | master switch — every DoR workflow is inert unless `true` |
 | `DOR_BUILD_MODEL` | repo variable | optional model override (defaults to `claude-fable-5`) |
 | `DOR_POOL` | repo variable | the sidekicks new builds may be routed to (`sk3 sk5 …`). Unset = any `dor-build` runner, with only the on-box check protecting a held env |

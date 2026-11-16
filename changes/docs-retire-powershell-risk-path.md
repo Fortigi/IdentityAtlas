@@ -1,0 +1,6 @@
+- Rewrote the risk scoring documentation to describe how scoring works today: set up in Admin → Risk Scoring, calculated by the built-in engine after every crawl. The retired PowerShell commands are gone from these pages.
+- "What a Risk Score Means" now explains the four layers and their weights, the tiers, how to read a score's explanation, and how overrides work.
+- "How Scoring Works" lists every signal the engine scores, with its points, and when a scoring run happens.
+- "Classifiers" now explains how to read the active classifier set in the Admin screen, what happens when a classifier matches, and how to change the classifiers.
+- "AI Agents & Non-Human Identities" now describes only the account types and scoring behaviour the product has.
+- Troubleshooting: the "Risk scores not visible" entry now lists the three things to check in Admin → Risk Scoring.

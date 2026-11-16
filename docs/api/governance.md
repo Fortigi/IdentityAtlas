@@ -88,11 +88,11 @@ Tenant-wide review-compliance KPIs — one count per compliance status across al
 
 | Field | Type | Description |
 |---|---|---|
-| `totalAPs` | int | Access packages that have at least one review instance |
-| `compliant` | int | APs whose last review was fully completed on time |
-| `overdue` | int | APs whose last review deadline passed with decisions still outstanding (`Missed`) |
-| `reviewedLate` | int | APs whose last review was completed, but after the deadline |
-| `inProgress` | int | APs whose last review is still open and not yet past its deadline |
+| `totalAPs` | int | Business roles (access packages in Entra ID) that have at least one review instance |
+| `compliant` | int | Business roles whose last review was fully completed on time |
+| `overdue` | int | Business roles whose last review deadline passed with decisions still outstanding (`Missed`) |
+| `reviewedLate` | int | Business roles whose last review was completed, but after the deadline |
+| `inProgress` | int | Business roles whose last review is still open and not yet past its deadline |
 
 **Reads From:** `CertificationDecisions`
 
@@ -162,7 +162,7 @@ A JSON array (not wrapped in a `data` envelope), one object per access package:
 
 Categories are single-assignment labels for business roles. Unlike tags, a business role can have **at most one** category. This constraint is enforced by a primary key on `(resourceId)` in the `GovernanceCategoryAssignments` table.
 
-Categories drive AP column ordering in the Matrix view — SOLL columns are sorted first by category name, then by total assignment count within each category. Uncategorized business roles appear at the end. Category boundaries are marked with thicker borders and a colored indicator stripe.
+Categories drive business-role column ordering in the Matrix view — the columns are sorted first by category name, then by total assignment count within each category. Uncategorized business roles appear at the end. Category boundaries are marked with thicker borders and a colored indicator stripe.
 
 ### GET /api/categories
 

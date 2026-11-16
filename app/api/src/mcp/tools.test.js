@@ -343,8 +343,7 @@ describe('callTool', () => {
 
 describe('challengeHeader', () => {
   it('adds the error code when there is one', () => {
-    const req = { protocol: 'http', get: () => 'h' };
-    expect(challengeHeader(req, 'invalid_token', { PUBLIC_BASE_URL: 'https://a.b/' }))
+    expect(challengeHeader('invalid_token', { PUBLIC_BASE_URL: 'https://a.b/' }))
       .toBe('Bearer resource_metadata="https://a.b/.well-known/oauth-protected-resource/mcp", scope="https://a.b/mcp/Mcp.Read", error="invalid_token"');
   });
 });

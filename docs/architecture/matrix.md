@@ -10,7 +10,6 @@ outcome: You can read any cell in the matrix and say exactly how that access is 
     Assumes you have read **[The app at a glance](../ui/overview.md)**.
     Brand new? Start at [The words you need first](../start/glossary.md).
 
-> **Status:** current as of May 2026.
 > Companion to [`013_matrix_matviews_and_indexes.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql), [`024_matrix_view_all_assignment_types.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql), [`046_owner_as_resource.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql), [`049_governed_intent_rows.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql), [`061_business_role_covers_itself.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql).
 
 ## The grid
@@ -25,11 +24,11 @@ Owner @ Sales Team   D                       <- ownership is its own resource
 DelegatedPerm: …             D               <- OAuth2 user consent
 ```
 
-(That last cell is a delegated-permission consent — a `Direct` row on a `DelegatedPermission` resource, once its own `OAuth2Grant` type — and it renders as **D**, since the badge only carries *how* the user holds it; the `DelegatedPermission` resource type carries the *what*. See "Badge collapse" below.)
+(That last cell is a delegated-permission consent — a `Direct` row on a `DelegatedPermission` resource — and it renders as **D**, since the badge only carries *how* the user holds it; the `DelegatedPermission` resource type carries the *what*. See "Badge collapse" below.)
 
 ## Default row visibility
 
-Not every `resourceType` belongs on the row axis. A **business role** (Entra access package, Omada business role, SailPoint access profile) is governance *intent* — the SOLL side — and the grid already renders it as an access-package column. Its members also hold a real `Direct` assignment on the role itself (migration 049), so without a rule the same role appears twice in one matrix: once per axis. It is therefore **hidden from the resource axis by default**.
+Not every `resourceType` belongs on the row axis. A **business role** (Entra access package, Omada business role, SailPoint access profile) is governance *intent* — what people should have — and the grid already renders it as a business-role column. Its members also hold a real `Direct` assignment on the role itself (migration 049), so without a rule the same role appears twice in one matrix: once per axis. It is therefore **hidden from the resource axis by default**.
 
 The rule is one deny-list, `HIDDEN_BY_DEFAULT_RESOURCE_TYPES` in [`app/api/src/lib/resourceVisibility.js`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/lib/resourceVisibility.js), applied at a single choke point: the resource fragment `buildSubqueries` (`routes/matrix/shared.js`) hands to every matrix mode. That one call site covers the flat grid, all roll-ups, the context zoom, the attribute fold, the scope stats / breakdown / timeline, the wizard preview, the inherited-access fold and the nested-group expansion — plus the unscoped "X of **Y** resources" totals, so the counts always match the rows that render. The Resources list (`routes/resources/list.js`) is the second caller of the same helper.
 
@@ -40,7 +39,7 @@ Two ways to see the rows anyway:
 | Override | Where |
 |----------|-------|
 | `filter.includeBusinessRoles: true` | The wizard's Resources step — **"Show business roles as foldable rows"**. A property of the matrix, not of the viewer, so it is stored in `SavedMatrixFilters` (no schema change — the filter is jsonb) and a shared matrix renders identically for everyone. |
-| A resource-scope include condition on `resourceType` naming the type | The wizard's "+ Attribute" picker. Explicit scope wins, so a deliberate "which access packages do people hold" matrix stays buildable. |
+| A resource-scope include condition on `resourceType` naming the type | The wizard's "+ Attribute" picker. Explicit scope wins, so a deliberate "which business roles do people hold" matrix stays buildable. |
 
 The **"Business roles only"** roll-up is unaffected: its rows come from `vw_UserPermissionAssignmentViaBusinessRole` keyed by business role, not from the resource axis. Ownership types are deliberately *not* on the deny-list — see "Owner rows are their own resource" below.
 
@@ -72,9 +71,9 @@ Shape:
 | `principalId` | Column (joined to `Principals` — group-typed rows fall out at the JOIN) |
 | `principalType` | Passed through; legacy filter against `'#microsoft.graph.group'` is dead in v5 but harmless |
 | `membershipType` | What badge to render — see badge collapse below |
-| `managedByAccessPackage` | Drives AP color overlay on the cell |
+| `managedByAccessPackage` | True when the account holds a business role that contains the row's resource — the cell is governed |
 
-The view itself is a single `SELECT FROM "ResourceAssignments"` with no `assignmentType` filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of `Direct/Owner/Eligible/Governed` was removed in migration 024 so future assignment types don't need a migration to surface.
+The view reads `ResourceAssignments` with no `assignmentType` filter — all three assignment types (`Direct`, `Indirect`, `Eligible`) flow through.
 
 ### Resource metadata columns (Contexts pinned left, `#` | Type | Description right)
 
@@ -113,27 +112,22 @@ per-resource fetch over a view that renders hundreds of rows.
 
 ## Badge collapse — what each letter actually means
 
-The user reads three letters, and the DB stores the same three assignment types — the ingest accepts only `Direct`, `Indirect` and `Eligible`. Migration 049's CASE expression still maps the retired source-detail names (rewritten to the three by migration 045) as a defensive fallback; those rows no longer occur:
+The user reads three letters, and the database stores the same three assignment types — the ingest accepts only `Direct`, `Indirect` and `Eligible`:
 
-| Raw `assignmentType` in ResourceAssignments | Displayed `membershipType` | Badge |
+| `assignmentType` in ResourceAssignments | Displayed `membershipType` | Badge |
 |---|---|---|
 | `Direct` | `Direct` | **D** |
 | `Indirect` | `Indirect` | **I** |
 | `Eligible` | `Eligible` | **E** |
-| `OAuth2Grant` | `Direct` | **D** |
-| `AppRole` | `Direct` | **D** |
-| `AppRoleViaGroup` | `Indirect` | **I** |
-| `DirectoryRole` | `Direct` | **D** |
-| `DirectoryRoleEligible` | `Eligible` | **E** |
 
-There is **no `O` (Owner) badge and no `Governed` badge** — both concepts were retired as assignment types and never reach this table:
+There is **no `O` (owner) badge and no governed badge** — ownership and governance are not assignment types:
 
-- **Ownership** is a `Direct` assignment on a separate `GroupOwnership` resource (migration 046), so an owner shows up as a normal Direct cell on the ownership row — see [Owner rows are their own resource](#owner-rows-are-their-own-resource) below.
-- **Governed** access is a `Direct` assignment carrying the `governed=true` flag (migration 049); the flag drives the AP color overlay, not a badge.
+- **Ownership** is a `Direct` assignment on a separate `GroupOwnership` resource, so an owner shows up as a normal Direct cell on the ownership row — see [Owner rows are their own resource](#owner-rows-are-their-own-resource) below.
+- **Governed** access is a `Direct` assignment carrying the `governed=true` flag; a governed cell takes its business role's colour, not a badge of its own.
 
 The rationale: the *resource type* already says what *kind* of membership it is (`BusinessRole`, `DelegatedPermission`, `AppRole`, `GroupOwnership`). The badge is reserved for *how* the user holds the resource — Direct / Indirect / Eligible — not *why* the assignment exists.
 
-**Cell coloring is independent.** `managedByAccessPackage` is computed from the `governed=true` flag (via the SOLL join in migration 049) so the AP color overlay correctly marks governed cells regardless of the badge.
+**Cell coloring is independent.** `managedByAccessPackage` is true when the account holds a business role that contains the row's resource (the coverage join in migration 049), so the business-role colour marks governed cells regardless of the badge.
 
 The three-letter alphabet was chosen for an explicit reason: **`E` (Eligible) is not "current access"**. A user with an Eligible row could activate via PIM but right now has nothing. Folding `Eligible` into `Direct` would misrepresent reality and was rejected in design discussion.
 
@@ -162,7 +156,7 @@ This is why we can store *both*:
 
 ## Owner rows are their own resource
 
-A user who is both a member and an owner of a group holds two separate resources: the group itself (a `Direct` membership) and a synthetic `GroupOwnership` resource named `Owner @ <group>` (also a `Direct` membership). Migration 046 rewrote the old `assignmentType='Owner'` rows into Direct assignments on this ownership resource, linked back to the group by a `HasOwnership` relationship — mirroring how an `AppRole` hangs off its `Application`. The matrix therefore shows ownership as its own row, with a normal **D** badge, rather than a separate `O`-type cell on the group row. No client-side row-splitting is involved.
+A user who is both a member and an owner of a group holds two separate resources: the group itself (a `Direct` membership) and a synthetic `GroupOwnership` resource named `Owner @ <group>` (also a `Direct` membership). The ownership resource is linked back to the group by a `HasOwnership` relationship — mirroring how an `AppRole` hangs off its `Application`. The matrix therefore shows ownership as its own row, with a normal **D** badge, not as a separate kind of cell on the group row. No client-side row-splitting is involved.
 
 The same shape, and the same row, is what every other ownership type produces:
 `ServicePrincipalOwnership` / `ApplicationOwnership` from the Entra app-owner phase
@@ -175,16 +169,16 @@ covers all of them and the owned type rides on
 
 Ownership types stay **visible** under "Default row visibility" above, and the distinction is the point of that section: a business-role row duplicates something the matrix already shows as a column, while an ownership row is the *only* place the matrix shows who controls a group. Hiding it would remove information, not a duplicate.
 
-## Access-package columns — role scopes badge like memberships
+## Business-role columns — role scopes badge like memberships
 
-The right-hand access-package block is driven by `ResourceRelationships` (`relationshipType='Contains'`), whose `roleName` holds the role scope as the source system names it — Graph stamps `accessPackageResourceRole.displayName` verbatim, so `Member`, `Owner` and `Eligible Member` all occur. That name maps to a badge letter the same way everywhere:
+The right-hand business-role block is driven by `ResourceRelationships` (`relationshipType='Contains'`), whose `roleName` holds the role scope as the source system names it — Graph stamps `accessPackageResourceRole.displayName` verbatim, so `Member`, `Owner` and `Eligible Member` all occur. That name maps to a badge letter the same way everywhere:
 
 | `roleName` contains | Badge |
 |---------------------|-------|
 | `eligible` | **E** |
 | anything else (`Member`, `Owner`, empty) | **D** |
 
-There is **no `O` badge here either** — for the same reason as the membership badges: ownership is its own resource, and a package granting a group's Owner role still grants access the subject holds today. The mapping lives in `getApRoleBadge` (`app/ui/src/utils/accessPackageStyles.js`) and is shared by the grid (`MatrixGroupRow.jsx`) and the Excel export (`exportToExcel.js`) so the file can't disagree with the screen; migration 049 applies the same `%eligible%` rule server-side when it derives governed-intent rows.
+There is **no `O` badge here either** — for the same reason as the membership badges: ownership is its own resource, and a business role granting a group's Owner role still grants access the subject holds today. The mapping lives in `getApRoleBadge` (`app/ui/src/utils/accessPackageStyles.js`) and is shared by the grid (`MatrixGroupRow.jsx`) and the Excel export (`exportToExcel.js`) so the file can't disagree with the screen; migration 049 applies the same `%eligible%` rule server-side when it derives governed-intent rows.
 
 ## Performance notes
 
@@ -214,7 +208,7 @@ The accounts hang **under** their identity rather than beside it. The header is 
 
 - The identity re-enters the names row at the position of its first account column, and its `<th>` spans exactly `accounts` columns.
 - A second header row (`MatrixAccountsRow.jsx`) sits directly under the names row and fills that span with one blue cell per account.
-- Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries `rowSpan=2` while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.
+- Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, business-role labels and the # / Type / Description block — carries `rowSpan=2` while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.
 - The accounts row sits *after* the names row, so the sticky `<thead>` pins it along with the names row for free. Its height must **not** be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.
 
 An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.
@@ -446,7 +440,7 @@ duplication between a role and its contents.
 
 The parent → child mapping is not derived client-side: it is the same
 `ResourceRelationships` / `relationshipType='Contains'` data that
-`GET /api/access-package-groups` already delivers for the SOLL columns
+`GET /api/access-package-groups` already delivers for the business-role columns
 (`accessPackageGroups`). Folding is pure view state, the same tier as the column
 fold and the nested-group expand — it changes what is *rendered*, never what is
 fetched, counted or exported. It lives in
@@ -473,7 +467,7 @@ Rules worth knowing:
   draws it directly under the role — indented, with the elbow, exactly like an
   expanded nested group — and under *every* role that grants it, never also as a
   loose row somewhere else. It is the role rows and the resources no role grants
-  that the AP staircase and the custom drag order position; a role's children
+  that the business-role staircase and the custom drag order position; a role's children
   travel with it and carry no drag handle of their own (the rule nested sub-rows
   already followed).
 - **A business role nested inside another one keeps its own place** rather than
@@ -539,7 +533,7 @@ per resource, not per role.
 | Where | What it does |
 |---|---|
 | **Row position** | One row under each granting role, indented as its child. The rows are identical — same cells, same badges, same detail link |
-| **SOLL columns** | Each of those rows shows a badge under **every** role that grants the resource, so the overlap is readable straight off the grid |
+| **Business-role columns** | Each of those rows shows a badge under **every** role that grants the resource, so the overlap is readable straight off the grid |
 | **Cell colour** | The cell carries a count bubble — "covered by *n* business roles" — in the centre of its marker strip, and takes the colour of the first role in `managedByPackages` for that cell |
 | **The `BR+N` chip** | Each row counts the *other* roles that grant it and names them in its tooltip, so one row leads to the rest |
 | **Folding** | Folding a role takes away only that role's copies; the copies under the other roles stay exactly where they are |
@@ -556,12 +550,12 @@ group and an app role) that exercises every row of this table.
 
 ### Fewer and more than the role assigns
 
-A business role states what a subject should have (SOLL); the assignments state
-what they do have (IST). The grid marks both directions of drift, and a subject
+A business role states what a subject should have; the assignments state
+what they do have. The grid marks both directions of drift, and a subject
 can carry both at once — short on one resource of a role, over on another.
 
 **Fewer** is the one marker that predates this layer, and it is unconditional:
-the amber `!` provisioning gap has always been drawn against the SOLL *columns*,
+the amber `!` provisioning gap has always been drawn against the business-role *columns*,
 which every matrix has. Everything else in the table arrives with the
 business-role rows. **More** is the only one that had to be told so — it is
 computable from the columns alone, so it takes the explicit `showBusinessRoles`
@@ -596,7 +590,7 @@ asymmetries:
 
 A third statement shares the red slot: **held outside business-role
 governance**. The resource is one a business role hands out — the row says so,
-and the SOLL column agrees — but no business role carries an assignment of it for
+and the business-role column agrees — but no business role carries an assignment of it for
 this subject, so the membership stands outside the governance that is supposed to
 cover it. This is deliberately the *same* finding a folded role reports as its
 red count, said on the resource's own row so folding and unfolding a role never
@@ -643,11 +637,11 @@ describes the demo data that exercises every row of the table above.
 A business role is a resource row like any other, and holding it is a `Direct`
 assignment carrying `governed=true`. Two consequences the grid makes visible:
 
-- **Its own SOLL column is filled in.** The role grants itself, so the diagonal
+- **Its own business-role column is filled in.** The role grants itself, so the diagonal
   cell (role row × its own column) renders the **D** badge in the role's colour.
   That grant is not a `Contains` relationship, so it can never arrive as a
   (role, resource) pair from `GET /api/access-package-groups`; `MatrixView`
-  fills the diagonal when it builds the SOLL mapping.
+  fills the diagonal when it builds the business-role mapping.
 - **Its cells are coloured governed.**
   [`061_business_role_covers_itself.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql)
   adds a self arm to `vw_UserPermissionAssignmentViaBusinessRole`, so a role
