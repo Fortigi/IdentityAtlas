@@ -1,19 +1,8 @@
 {
   "_comment": "Retired-vocabulary ratchet for docs/. Pages that still use a banned term (app/api/src/docs/docsJargon.js), with the number of occurrences per term. A count may only go DOWN; a new term or a new page fails the Unit Tests: Vitest (API) check. Fewer occurrences than listed never fail. Lower it with: cd app/api && npm run docs:baseline",
   "pages": {
-    "admin/excel-powerquery-export.md": {
-      "SOLL": 1
-    },
     "api/entities.md": {
-      "Org Unit": 1,
-      "SOLL": 1
-    },
-    "api/governance.md": {
-      "SOLL": 1
-    },
-    "api/matrix.md": {
-      "IST": 1,
-      "SOLL": 6
+      "Org Unit": 1
     },
     "architecture/context-owner-access.md": {
       "Org Unit": 1
@@ -48,18 +37,8 @@
     "architecture/m1-brief.md": {
       "Org Unit": 14
     },
-    "architecture/matrix-scope-statistics.md": {
-      "IST": 1,
-      "SOLL": 4
-    },
     "architecture/matrix.md": {
-      "AppRoleViaGroup": 1,
-      "DirectoryRoleEligible": 1,
-      "IST": 1,
-      "OAuth2Grant": 2,
-      "Org Unit": 1,
-      "SOLL": 9,
-      "assignmentType 'Owner'": 1
+      "Org Unit": 1
     },
     "architecture/omada-crawler-datamodel.md": {
       "Org Unit": 12
@@ -99,40 +78,14 @@
       "IST": 2,
       "SOLL": 2
     },
-    "reference/sql-views.md": {
-      "IST": 1,
-      "SOLL": 1
-    },
-    "risk-scoring/overview.md": {
-      "Org Unit": 2
-    },
     "start/glossary.md": {
       "Org Unit": 1
     },
-    "sync/csv-import.md": {
-      "IST": 1,
-      "Org Unit": 1,
-      "SOLL": 1
-    },
-    "sync/midpoint-crawler-configuration.md": {
+    "sync/midpoint.md": {
       "Org Unit": 3
     },
-    "sync/midpoint.md": {
-      "Org Unit": 6
-    },
-    "sync/mssql.md": {
-      "Org Unit": 1
-    },
     "sync/omada.md": {
-      "Org Unit": 5
-    },
-    "ui/contexts.md": {
-      "Org Unit": 2
-    },
-    "ui/overview.md": {
-      "IST": 1,
-      "Org Unit": 1,
-      "SOLL": 1
+      "Org Unit": 4
     }
   }
 }
