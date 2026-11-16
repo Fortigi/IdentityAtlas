@@ -91,18 +91,6 @@ function Stop-Portable {
     } | Out-Null
 }
 
-function Get-ApiTotal {
-    <# What the API reports as totals: users, resources, and the matrix's user count. #>
-    [CmdletBinding()]
-    [OutputType([hashtable])]
-    param([Parameter(Mandatory)][string] $BaseUrl)
-    @{
-        Users     = [long](Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/users?limit=1') 'total')
-        Resources = [long](Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/resources?limit=1') 'total')
-        Matrix    = [long](Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/permissions?userLimit=1') 'totalUsers')
-    }
-}
-
 function Assert-MatrixPage {
     <# One page of the matrix (25 users) comes back with rows, and the UI answers. #>
     [CmdletBinding()]
