@@ -222,3 +222,17 @@ Describe 'Invoke-Az gets only flags PowerShell passes on' {
         @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'ConvertTo-GroupNamePart' {
+    It 'turns a candidate into group-name characters: <in>' -ForEach @(
+        @{ in = 'v6.1.2-beta.1'; out = 'v6-1-2-beta-1' }, @{ in = 'edge'; out = 'edge' }, @{ in = 'V6.10.0'; out = 'v6-10-0' }
+    ) { ConvertTo-GroupNamePart $in | Should -Be $out }
+    It 'keeps two candidates in one run apart' {
+        $a = New-ReleaseTestGroupName -RunId 1 -Attempt 1 -Variant "$(ConvertTo-GroupNamePart 'v6.2.0-beta.1')-main"
+        $b = New-ReleaseTestGroupName -RunId 1 -Attempt 1 -Variant "$(ConvertTo-GroupNamePart 'v6.1.2-beta.1')-main"
+        $a | Should -Not -Be $b
+    }
+    It 'makes a valid name for the longest real case' {
+        Test-ReleaseTestGroupName (New-ReleaseTestGroupName -RunId 99999999999 -Attempt 9 -Variant "$(ConvertTo-GroupNamePart 'v10.10.10-beta.10')-auth-upgrade") | Should -BeTrue
+    }
+}

@@ -212,3 +212,11 @@ function Get-AppApiUrl {
     if (-not $hostName) { throw 'The deployment returned no appHostname output.' }
     "https://$hostName/api"
 }
+
+function ConvertTo-GroupNamePart {
+    <# A candidate as a group-name part: v6.1.2-beta.1 -> v6-1-2-beta-1. #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string] $Text)
+    ($Text.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+}
