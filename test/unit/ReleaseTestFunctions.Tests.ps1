@@ -311,3 +311,12 @@ Describe 'Assert-RunningVersion' {
         { Assert-RunningVersion -BaseUrl 'http://x/api' -ImageTag 'edge' } | Should -Throw '*outdated*'
     }
 }
+
+Describe 'Invoke-Compose' {
+    It 'runs docker compose on the prod compose file under a hard timeout' {
+        Get-ComposeCommand -Arguments 'up', '-d' -TimeoutSec 900 | Should -Be @('timeout', '900', 'docker', 'compose', '-f', 'docker-compose.prod.yml', 'up', '-d')
+    }
+    It 'uses a timeout by default, so a hung call cannot eat the job' {
+        (Get-ComposeCommand -Arguments 'ps')[0..1] | Should -Be @('timeout', '900')
+    }
+}
