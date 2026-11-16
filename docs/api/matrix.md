@@ -8,7 +8,7 @@ These endpoints power the Matrix view — the permission heatmap showing which u
 
 ### GET /api/permissions
 
-Main matrix data. Returns all permission assignments enriched with user attributes and business role (SOLL) mappings. This is the primary data source for the Matrix view.
+Main matrix data. Returns all permission assignments enriched with user attributes and business-role coverage. This is the primary data source for the Matrix view.
 
 **Query Parameters**
 
@@ -51,9 +51,9 @@ Main matrix data. Returns all permission assignments enriched with user attribut
 |---|---|---|
 | `data` | array | Flat list of membership rows. One row per (user, resource, membershipType) combination. |
 | `data[].membershipType` | string | `Direct`, `Indirect`, or `Eligible` |
-| `data[].managedByAccessPackage` | boolean | Whether this resource is included in any business role (SOLL column) |
+| `data[].managedByAccessPackage` | boolean | Whether the user holds a business role that contains this resource — the row is governed |
 | `totalUsers` | int | Total distinct users before the `userLimit` was applied |
-| `managedByPackages` | array | SOLL mapping — which business role IDs govern each (member, group) pair |
+| `managedByPackages` | array | Business-role coverage — which business role IDs govern each (member, group) pair |
 
 **Reads From:** `vw_ResourceUserPermissionAssignments` materialized view → `Principals` + `Resources`
 
@@ -61,7 +61,7 @@ Main matrix data. Returns all permission assignments enriched with user attribut
 
 ### GET /api/access-package-groups
 
-Business role → resource mappings used to build SOLL columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.
+Business role → resource mappings used to build the business-role columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.
 
 **Response**
 
@@ -344,7 +344,7 @@ Applied in the browser after data loads. Used for fields that are properties of 
 |---|---|
 | `membershipType` | `vw_ResourceUserPermissionAssignments.membershipType` |
 | `groupDisplayName` | `vw_ResourceUserPermissionAssignments.groupDisplayName` |
-| IST/SOLL toggle | Derived from `managedByAccessPackage` flag |
+| Governed / Non-governed toggle | Derived from the `managedByPackages` coverage pairs |
 
 ### The `(Blank)` Sentinel
 
@@ -357,7 +357,7 @@ Tag filter dropdowns include a `(Blank)` option (internal sentinel: `BLANK_TAG`)
 The frontend builds the matrix from the flat `/api/permissions` response:
 
 1. **Row deduplication** — multiple rows for the same user (e.g. `Direct` + `Eligible`) are merged into a single user row with multi-type badges per cell.
-2. **Ownership rows** — group ownership is its own resource (`resourceType='GroupOwnership'`), so an owner appears as a `Direct` membership on that ownership resource — a normal row, not a synthetic `Owner`-type split.
-3. **SOLL columns** — built from `/api/access-package-groups`. Each business role becomes a column. Resources within a role determine which cells are "managed".
-4. **AP coloring** — each business role column gets a color from a 15-color palette defined in `MatrixColumnHeaders.jsx`.
-5. **Staircase sort** — default row order groups users by their leftmost AP bucket. Custom drag order persists via versioned localStorage.
+2. **Ownership rows** — group ownership is its own resource (`resourceType='GroupOwnership'`), so an owner appears as a `Direct` membership on that ownership resource — a normal row.
+3. **Business-role columns** — built from `/api/access-package-groups`. Each business role becomes a column. Resources within a role determine which cells are "managed".
+4. **Business-role coloring** — each business role column gets a color from a 15-color palette defined in `utils/colors.js`.
+5. **Staircase sort** — default row order groups users by their leftmost business-role bucket. Custom drag order persists via versioned localStorage.

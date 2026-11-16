@@ -276,7 +276,7 @@ Describe 'New-SqlOwnershipStreams' {
 # statement (one that binds @Since) therefore leaves them windowed too, and
 # reconciling them would remove the owner links of every resource outside this
 # run's window. See "Reconcile follows completeness" in
-# docs/architecture/sql-connector-delta.md.
+# docs/architecture/sql-connector-internals.md.
 Describe 'Owner scopes follow their statement completeness' {
     BeforeEach {
         Reset-SqlTestState

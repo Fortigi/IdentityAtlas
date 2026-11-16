@@ -112,7 +112,7 @@ Experimental**.
 | You need | Why |
 |---|---|
 | **An address the assistant can reach** | Claude (web, desktop, mobile), ChatGPT and Microsoft Copilot call the MCP server **from their vendor's cloud**, not from the user's PC. Identity Atlas must answer on a public HTTPS address (`https://<your host>/mcp`). An installation that is only reachable on the internal network or on one laptop works with local clients only (Claude Code, VS Code). |
-| **`PUBLIC_BASE_URL`** set to that address | The server tells the assistant where to sign in and which resource to ask for, built from this address. Behind a reverse proxy, set it (or `TRUST_PROXY`) so the address is the public one. |
+| **`PUBLIC_BASE_URL`** set to that address | **Required.** The server tells the assistant where to sign in and which resource to ask for, and accepts only tokens issued for this address. It never takes the address from the request, so without this setting `/mcp` answers `503` and the **MCP server** card says what to set. With Docker Compose, put it in the `.env` file next to `docker-compose.prod.yml`. |
 | **Sign-in on, the feature on, the permission on a role** | See [Who may use it](#who-may-use-it). |
 | **A Microsoft Entra admin** (Application Administrator or higher) | For the two app-registration changes below. |
 | **The assistant's own plan or licence** | Per assistant — see [Connect an assistant](#3-connect-an-assistant). |
@@ -315,5 +315,6 @@ app's own tokens (scope `access`) and app-only tokens are refused, because they 
 | `403` with `insufficient_scope` | The client asked for a different scope; use `https://<your host>/mcp/Mcp.Read`. |
 | `403` naming `mcp.use` | The user's role lacks **Use the MCP server**. |
 | The assistant has no `run_query` | The user's role lacks **Ask questions in plain language**. |
+| `503` with "PUBLIC_BASE_URL is not set" | The feature is on but the public address is not configured. Set `PUBLIC_BASE_URL` and restart the web container. |
 | `401 invalid_token` | Expired token, or one from another tenant; check that `PUBLIC_BASE_URL` is the address the assistant uses. |
 | Everyone stops signing in on the same day | The client app's secret expired; create a new one and update each assistant. |

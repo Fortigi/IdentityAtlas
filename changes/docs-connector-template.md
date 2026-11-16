@@ -1,0 +1,5 @@
+- The connector pages for Entra ID, Azure Resource Manager, Omada, midPoint and CSV Import now follow one layout: what you get, what you need first, the wizard steps with the labels you see on screen, a settings table with defaults, scheduling, what a refresh removes, limitations and troubleshooting.
+- New page "Schedule and run crawlers" explains the run buttons, schedules, delta versus full runs per crawler, and what to do when a crawler type is missing from Add Crawler.
+- The Entra ID page now lists, for each Graph permission, which object types it unlocks in the wizard.
+- The midPoint configuration reference is merged into the midPoint page.
+- The CSV Import page now starts with uploading files through the wizard and points to the CSV schema reference for the columns, instead of a shorter copy that disagreed with it.

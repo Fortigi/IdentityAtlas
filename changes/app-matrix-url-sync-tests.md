@@ -1,0 +1,1 @@
+- Tests now cover the matrix filter in the address bar: applying the default matrix, opening a shared matrix link, and ignoring a link with a broken filter.

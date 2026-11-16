@@ -1,0 +1,4 @@
+- Added a "Back up, restore and upgrade" guide for Docker deployments: what to back up (database, vault master key, configuration), a pg_dump/pg_restore procedure, the upgrade steps, what happens while migrations run or fail, rolling back, and uninstalling.
+- The Docker Setup page is now the single Docker reference: every setting the containers read, sizing, container security, a new section on running behind an HTTPS reverse proxy, and a new section on using your own PostgreSQL server.
+- The Troubleshooting page now opens with the problems people hit on a first start (missing or changed database password, migrations still running, no role after sign-in, unknown host name, missing master key, and the size limits behind a 413).
+- Corrected the Automatic Updates page: a failed migration does not stop the container; it is retried while the API answers 503.

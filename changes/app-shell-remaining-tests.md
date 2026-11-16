@@ -1,0 +1,1 @@
+- Tests now cover the rest of the app shell: choosing which optional tabs to show, closing the settings menu, the "Backend not responding" screen, and applying or cancelling the matrix wizard.

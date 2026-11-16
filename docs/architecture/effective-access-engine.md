@@ -649,7 +649,7 @@ Every traversal request emits one structured log line at exit:
 ## 20. Documentation requirements *(ship with the feature)*
 
 - **Architecture doc** — this file, kept current.
-- **Crawler-author guide** — additions to `docs/sync/custom-crawlers.md`: the engine contract
+- **Crawler-author guide** — additions to `docs/sync/building-a-crawler.md`: the engine contract
   (`Contains` edges + `propagates`, `effect`, `propagationScope`, SHA256-UUID capability-resource id),
   with a worked example per hierarchy type.
 - **ResolutionPolicy authoring guide** — how to add a source's precedence rules + the
