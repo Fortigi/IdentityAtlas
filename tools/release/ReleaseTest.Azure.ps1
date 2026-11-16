@@ -143,7 +143,13 @@ function Get-DeploymentParameter {
 }
 
 function Invoke-Az {
-    <# az <args> -o json, parsed; throws with az's own message on failure. #>
+    <#
+    .SYNOPSIS
+        az <args> -o json, parsed; throws with az's own message on failure.
+    .DESCRIPTION
+        Pass only --long flags: an advanced function takes a short flag such as
+        -d or -v as its own -Debug / -Verbose (a test checks every call).
+    #>
     [CmdletBinding()]
     param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
     $out = & az @Arguments --only-show-errors -o json 2>&1

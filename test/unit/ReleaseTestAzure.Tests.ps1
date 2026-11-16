@@ -210,3 +210,15 @@ Describe 'Variants and outputs' {
         (Get-Content (Join-Path $script:Root 'azure/main.json') -Raw | ConvertFrom-Json).outputs.PSObject.Properties.Name | Should -Contain 'appHostname'
     }
 }
+
+Describe 'Invoke-Az gets only flags PowerShell passes on' {
+    # Invoke-Az is an advanced function: a short flag that starts a common
+    # parameter (-d = -Debug, -v = -Verbose, -o = -OutVariable …) would be taken
+    # by PowerShell and never reach az. Invoke-Compose lost `-d` exactly that way.
+    It 'no call passes a short flag that collides with a common parameter' {
+        $hits = Get-ChildItem (Join-Path $script:Root 'tools/release') -Filter '*.ps1' |
+            Select-String -Pattern 'Invoke-Az\b.*\s-(d|v|e|w|i|o|p)[a-z]*\b' -CaseSensitive:$false |
+            Where-Object { $_.Line -notmatch '^\s*#' }
+        @($hits | ForEach-Object { "$($_.Filename):$($_.LineNumber)" }) | Should -BeNullOrEmpty
+    }
+}
