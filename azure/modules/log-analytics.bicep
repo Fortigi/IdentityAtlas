@@ -2,15 +2,14 @@
 //
 // Two modes:
 //   1. Empty input              → create a new workspace in this RG (~€3/mo).
-//   2. existingWorkspaceId set  → use an existing workspace, derive its
-//                                  customerId + sharedKey via `existing`
-//                                  lookup. Deployer needs Log Analytics
+//   2. existingWorkspaceId set  → use an existing workspace, looked up
+//                                  via `existing` (its ID can be in another
+//                                  RG). Deployer needs Log Analytics
 //                                  Reader on the workspace.
 //
 // Outputs:
-//   workspaceId  — full ARM resource ID (for App Service diag settings)
-//   customerId   — GUID (for ACA Environment log destination)
-//   sharedKey    — secret (for ACA Environment log destination)
+//   workspaceId  — full ARM resource ID (destination of every diagnostic setting)
+//   customerId   — workspace GUID (informational)
 
 @description('Resource name prefix (used only when creating a new workspace)')
 @minLength(3)

@@ -370,7 +370,6 @@ module cae 'modules/aca-env.bicep' = {
   params: {
     namePrefix: namePrefix
     location: location
-    workspaceCustomerId: logs.outputs.customerId
     workspaceId: logs.outputs.workspaceId
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName
