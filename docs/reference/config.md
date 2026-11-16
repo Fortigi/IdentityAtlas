@@ -202,4 +202,4 @@ Runs can also be started from the same Admin page. Each run records its progress
 
 ## Running a crawler script outside Docker
 
-A crawler script can run on another machine, for example when the source sits on a network the worker cannot reach. It takes the API address, a crawler API key and a JSON file with that crawler's configuration (`-ConfigPath`). The API and the worker read no configuration file of their own. The Graph API permissions the Entra ID crawler needs are listed in [Entra ID → Required Graph API Permissions](../sync/entra-id.md#required-graph-api-permissions).
+A crawler script can run on another machine, for example when the source sits on a network the worker cannot reach. It takes the API address, a crawler API key and a JSON file with that crawler's configuration (`-ConfigPath`). The API and the worker read no configuration file of their own. The Graph API permissions the Entra ID crawler needs are listed in [Entra ID → Permissions](../sync/entra-id.md#permissions).
