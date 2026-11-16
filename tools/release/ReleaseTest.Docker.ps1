@@ -87,12 +87,40 @@ function Get-EnvValue {
     return $null
 }
 
+$script:ComposeTimeoutSec = 900
+
+function Get-ComposeCommand {
+    <#
+    .SYNOPSIS
+        The command line Invoke-Compose runs: docker compose under `timeout`.
+    .DESCRIPTION
+        The first upgrade run hung for 75 minutes without a line of output:
+        some compose call blocked outside every Wait-Until. `timeout` turns
+        such a hang into a failure that names the command (exit 124).
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([string[]] $Arguments = @(), [int] $TimeoutSec = $script:ComposeTimeoutSec)
+    @('timeout', "$TimeoutSec", 'docker', 'compose', '-f', $script:ComposeFile) + $Arguments
+}
+
 function Invoke-Compose {
-    <# docker compose -f docker-compose.prod.yml <args>, failing on a non-zero exit. #>
+    <#
+    .SYNOPSIS
+        docker compose -f docker-compose.prod.yml <args>, failing on a non-zero
+        exit or after $script:ComposeTimeoutSec seconds.
+    .DESCRIPTION
+        Logs the command first, so the last line of a stuck run says where it
+        is, and gives it an empty stdin, so nothing can sit waiting for input.
+    #>
     [CmdletBinding()]
     param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
-    $out = & docker compose -f $script:ComposeFile @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "docker compose $($Arguments -join ' ') failed:`n$($out -join "`n")" }
+    $cmd = Get-ComposeCommand -Arguments $Arguments
+    Write-Host "> docker compose $($Arguments -join ' ')"
+    $out = $null | & $cmd[0] @($cmd[1..($cmd.Count - 1)]) 2>&1
+    $code = $LASTEXITCODE
+    if ($code -eq 124) { throw "docker compose $($Arguments -join ' ') did not finish within $($script:ComposeTimeoutSec) s." }
+    if ($code -ne 0) { throw "docker compose $($Arguments -join ' ') failed:`n$($out -join "`n")" }
     $out
 }
 
