@@ -256,6 +256,15 @@ AppServiceConsoleLogs | where _ResourceId endswith "<namePrefix>-web"
 ContainerAppConsoleLogs_CL | where ContainerAppName_s == "<namePrefix>-worker"
 ```
 
+Key Vault and PostgreSQL send their logs to the same workspace through
+diagnostic settings: Key Vault's audit events (every secret read or write,
+including refused attempts) and the PostgreSQL server log (connections, failed
+sign-ins, errors), plus the metrics of both.
+```kql
+AzureDiagnostics | where ResourceProvider == "MICROSOFT.KEYVAULT" and Category == "AuditEvent"
+AzureDiagnostics | where ResourceProvider == "MICROSOFT.DBFORPOSTGRESQL" and Category == "PostgreSQLLogs"
+```
+
 ### Network modes
 
 The `networkMode` parameter picks the network shape.
@@ -349,6 +358,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | `azure/modules/identities.bicep` | 3 user-assigned managed identities (web, deployment script, crawler) |
 | `azure/Grant-CrawlerIdentityGraphPermissions.ps1` | Grants the crawler identity its read-only Microsoft Graph permissions |
 | `azure/modules/key-vault.bicep` | Key Vault + access policies + network ACL |
+| `azure/modules/resource-diagnostics.bicep` | Diagnostic settings: Key Vault audit events and PostgreSQL server logs (plus metrics) to Log Analytics |
 | `azure/modules/network.bicep` | Private mode: VNet, subnets, private DNS zones |
 | `azure/modules/private-endpoints.bicep` | Private mode: private endpoints for Key Vault, Storage, Postgres |
 | `azure/modules/postgres-firewall.bicep` | Public mode: Postgres firewall rules for the web app's outbound IPs |

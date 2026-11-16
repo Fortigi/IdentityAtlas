@@ -297,6 +297,17 @@ module postgres 'modules/postgres-kv-password.bicep' = {
   dependsOn: [bootstrap]
 }
 
+// ─── Diagnostics: Key Vault + Postgres → Log Analytics ──────────────────
+
+module resourceDiagnostics 'modules/resource-diagnostics.bicep' = {
+  name: 'resource-diagnostics'
+  params: {
+    keyVaultName: kv.outputs.kvName
+    postgresServerName: postgres.outputs.pgName
+    workspaceId: logs.outputs.workspaceId
+  }
+}
+
 // ─── App Service (web) ──────────────────────────────────────────────────
 
 // The report generator's hostname is deterministic (app name + environment domain),
