@@ -175,7 +175,7 @@ See [tools/powershell-sdk/](tools/powershell-sdk/) for the Graph API wrapper fun
 
 ## Documentation
 
-Full docs at **[https://fortigi.github.io/IdentityAtlas](https://fortigi.github.io/IdentityAtlas)**.
+Full docs at **[https://docs.identityatlas.io](https://docs.identityatlas.io)**.
 Browse locally in the [`docs/`](docs/) folder.
 
 | Section | Link |

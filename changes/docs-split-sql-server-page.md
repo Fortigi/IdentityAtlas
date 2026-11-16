@@ -1,0 +1,3 @@
+- Rewrote the SQL Server connector page as a short operator guide: what you get, what to prepare, the wizard steps with their real labels, every setting explained where it is listed, how refreshes and removals work, the SailPoint IdentityIQ example sets, limitations and troubleshooting.
+- Documented which run settings are not in the wizard (staged load, concurrency, watermark overlap and key-sweep limits) and how to set them.
+- Added a "SQL Connector Internals" reference page describing how loading, removal, watermarks, key sweeps and verification work, replacing the former "SQL Connector Delta Loading" design page.

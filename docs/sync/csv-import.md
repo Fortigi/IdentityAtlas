@@ -1,160 +1,118 @@
-# CSV Import
+# Connect a system through CSV files
 
-Identity Atlas can ingest authorization data from any system that can produce a CSV export — HR platforms, PAM tools, SIEMs, IGA platforms such as Omada or SailPoint, ticketing systems, or custom applications. CSV sync uses the same Ingest API as the Entra ID sync, giving you consistent change tracking, audit history, and IST/SOLL analysis across all your identity sources.
+The CSV Import crawler loads authorization data from CSV files you upload. Any system that can export a table — an HR platform, a PAM tool, a ticketing system, a home-grown application — can be loaded this way, as long as the files follow the Identity Atlas CSV schema.
 
----
-
-## How It Works
-
-In v5, CSV import is **API-driven**. The CSV crawler script (`tools/crawlers/csv/Start-CSVCrawler.ps1`) reads CSV files in the Identity Atlas canonical schema and POSTs them to the Ingest API. Source-specific transformations (e.g., Omada to Identity Atlas format) happen **before** the crawler runs via a separate transform script.
-
-```powershell
-.\tools\crawlers\csv\Start-CSVCrawler.ps1 `
-    -ApiBaseUrl "http://localhost:3001/api" `
-    -ApiKey "fgc_abc123..." `
-    -CsvFolder ".\TransformedData"
-```
-
-### Crawler flags
-
-| Flag | Default | Purpose |
-|------|---------|---------|
-| `-ApiBaseUrl` | Required | Base URL of the Ingest API |
-| `-ApiKey` | Required | Crawler API key (`fgc_...`) |
-| `-CsvFolder` | Required | Path to folder containing Identity Atlas schema CSV files |
-| `-SystemName` | `CSV Import` | Display name for the fallback system |
-| `-SystemType` | `CSV` | System type identifier (e.g., `CSV`, `Omada`) |
-| `-Delimiter` | `;` | CSV delimiter character |
-| `-RefreshViews` | On | Refresh SQL views after sync |
-
-!!! tip
-    Columns outside the schema are kept in the entity's `extendedAttributes` for every file except `Assignments.csv`, `IdentityMembers.csv` and `ContextMembers.csv` — see [Extra columns](#extra-columns). You do not need to strip your exports first.
+**Use this when** there is no crawler for your source, or the source can only give you exports. If a crawler for your source exists — Entra ID, Azure, Omada, midPoint, SQL Server, SCIM — use that instead: it keeps the data up to date by itself.
 
 ---
 
-## CSV Schema
+## What you get
 
-CSV files must follow the Identity Atlas canonical schema. See [CSV Import Schema](../architecture/csv-import-schema.md) for the full specification.
+Each file becomes one kind of data in Identity Atlas. Only `Resources.csv`, `Users.csv` and `Assignments.csv` are required; every other file adds depth.
 
-### Supported entity types
+| File | In Identity Atlas |
+|---|---|
+| `Systems.csv` | Systems. Without it, everything goes into the one system you name in the wizard |
+| `Users.csv` | Accounts |
+| `Resources.csv` | Resources — groups, roles, permissions. A row with `ResourceType` `BusinessRole` is a business role |
+| `Assignments.csv` | Assignments: **Direct**, **Indirect** or **Eligible**. Assignments to a business role are marked **governed** |
+| `ResourceRelationships.csv` | What each resource contains |
+| `Contexts.csv` | Contexts, such as departments or teams |
+| `ContextMembers.csv` | Who or what belongs to each context |
+| `Identities.csv` | Identities — the people behind the accounts |
+| `IdentityMembers.csv` | Which accounts belong to which identity |
+| `Certifications.csv` | Review decisions |
 
-The crawler looks for these files in the CSV folder (filename must match the entity type):
-
-| File | Entity | Target Table |
-|------|--------|-------------|
-| `Systems.csv` | Systems | Systems |
-| `Users.csv` | User/service accounts | Principals |
-| `Resources.csv` | Roles, groups, permissions — and business roles (`ResourceType=BusinessRole`) | Resources |
-| `Assignments.csv` | Who has access to what | ResourceAssignments |
-| `ResourceRelationships.csv` | Resource nesting | ResourceRelationships |
-| `Contexts.csv` / `ContextMembers.csv` | Org units, logical applications, other groupings | Contexts + ContextMembers |
-| `Identities.csv` / `IdentityMembers.csv` | Real persons and their accounts | Identities + IdentityMembers |
-| `Certifications.csv` | Review decisions | CertificationDecisions |
-
-### Key columns per entity
-
-**Systems:**
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `ExternalId` | Yes | Stable system identifier |
-| `DisplayName` | Yes | Human-readable system name |
-| `SystemType` | Yes | Type identifier (e.g. `HR`, `PAM`, `IGA`, `SIEM`) |
-
-**Users (principals):**
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `ExternalId` | Yes | Stable principal ID in the source system |
-| `DisplayName` | Yes | Full name |
-| `Email` | No | Primary email address |
-| `EmployeeId` | No | HR employee number — Account Linking's strongest signal for correlating this account to a person |
-| `GivenName` | No | First name |
-| `Surname` | No | Last name |
-| `PrincipalType` | No | `User`, `ExternalUser`, `SharedMailbox`, etc. Defaults to `User` |
-| `Department` | No | Department name |
-| `JobTitle` | No | Job title |
-
-**Resources:**
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `ExternalId` | Yes | Stable resource ID in the source system |
-| `DisplayName` | Yes | Resource name |
-| `ResourceType` | No | Type label (e.g. `SharePointSite`, `AppRole`, `DevOpsGroup`) |
-
-**Resource Assignments:**
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `ResourceExternalId` | Yes | Matches resource ExternalId |
-| `UserExternalId` | Yes | Matches the user's ExternalId |
-| `AssignmentType` | No | `Direct` (default), `Indirect` or `Eligible` — the only values ingest accepts |
-
-**Business Roles:**
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `ExternalId` | Yes | Stable role ID |
-| `DisplayName` | Yes | Role name |
-| `CatalogExternalId` | No | Links the role to a GovernanceCatalogs entry |
-
-**Certifications:**
-
-| Column | Required | Description |
-|--------|----------|-------------|
-| `ExternalId` | Yes | Decision ID |
-| `ResourceExternalId` | Yes | Business role or resource being reviewed |
-| `PrincipalExternalId` | Yes | Subject of the review |
-| `Decision` | Yes | `Approved`, `Denied`, `NotReviewed` |
-| `ReviewedDateTime` | No | ISO 8601 timestamp |
+The columns of each file are in the [CSV schema reference](../architecture/csv-import-schema.md). After each run, Identity Atlas links accounts to identities and rebuilds contexts. The words used here are explained in the [glossary](../start/glossary.md).
 
 ---
 
-## CSV Format
+## Before you start
 
-All CSV files use **semicolon delimiters** by default (configurable via `-Delimiter`: `;`, `,`, tab or `|`) and expect ISO 8601 format for all date/time values.
+- **Files in the Identity Atlas schema.** Column names must match the schema; the crawler does not guess. In the wizard, **Download schema templates** gives you empty CSV files with the right headers.
+- **A transform for your source, if its export looks different.** Map the source's columns to the schema with a short script before you upload. An example script ships in `tools/csv-templates/transforms/`; see [Pre-import transformation](../architecture/csv-import-schema.md#pre-import-transformation).
 
-### Quoting
+---
 
-Every file is parsed as standard CSV (RFC 4180), so a comma-delimited export whose values are LDAP distinguished names loads correctly as long as those values are quoted:
+## Add the crawler
 
-```csv
-ResourceExternalId,UserExternalId
-"CN=Finance,OU=Groups,DC=corp,DC=com",u1001
-```
+1. Go to **Admin → Crawlers** and click **Add Crawler**.
+2. Pick **CSV Import**.
+3. **System info.** Enter a **Display name**, a **System name** and a **System type**, and pick the **CSV delimiter**. Click **Next: Upload files**.
+4. **Upload files.** Click **Select folder** or **Select files**. Each file is matched to its type by its name; you can change the match per file. The wizard reads the first line of each file and warns when a required column is missing. **Required object types** shows which of the three required files are still missing. Click **Next: Review**.
+5. **Review.** Check the summary and click **Create crawler**. The files are uploaded.
+6. The crawler appears as a card. Click **Run Full** to load the files.
 
-A quoted value may contain the delimiter, a doubled quote (`""` for `"`) or a line break. A row the parser cannot resolve — a quote that is never closed, or text after a closing quote — **fails the import** with the file name and line number rather than loading misaligned columns. A failed run never removes existing data.
+To load a new export later, click **Configure** on the card, replace the files on the **Upload files** step, save, and run the crawler again.
+
+---
+
+## Settings
+
+| Wizard label | Meaning | Default |
+|---|---|---|
+| **Display name** | The name on the crawler's card. | CSV Import |
+| **System name** | The name of the system the data goes into, when a row does not name one of the systems in `Systems.csv`. | CSV Import |
+| **System type** | A label used to group systems in the UI. | CSV |
+| **CSV delimiter** | **Semicolon (;)**, **Comma (,)**, **Tab** or **Pipe (\|)**. | Semicolon |
+
+### File format
+
+- **Dates** are ISO 8601.
+- **Quoting** follows standard CSV: a quoted value may contain the delimiter, a doubled quote (`""` for `"`) or a line break. So a comma-delimited file whose values are distinguished names loads correctly when those values are quoted:
+
+    ```csv
+    ResourceExternalId,UserExternalId
+    "CN=Finance,OU=Groups,DC=contoso,DC=com",u1001
+    ```
+
+    A row that cannot be read — a quote that is never closed, or text after a closing quote — **fails the run** with the file name and line number. A failed run never removes existing data.
+- **Extra columns** — columns that are not in the schema — are kept on the record and shown on its detail page, for every file except `Assignments.csv`, `IdentityMembers.csv` and `ContextMembers.csv`. The job log names the columns it ignores. You do not need to strip your exports first.
 
 ### Large files
 
-`Assignments.csv` and `Resources.csv` are read and sent in batches, so memory use stays flat whatever their size — tens of millions of assignment rows are fine. The upload limit per file is set by the server (`UPLOAD_MAX_FILE_BYTES`, default 8 GiB) and shown in the wizard. A file can also be copied straight into the crawler's folder on the server; the wizard shows that folder when you edit the crawler, and a copied file is read exactly like an uploaded one.
+`Resources.csv` and `Assignments.csv` are read and sent in batches, so tens of millions of assignment rows are fine. The upload limit per file is set by the server (`UPLOAD_MAX_FILE_BYTES`, default 8 GiB) and shown on the **Upload files** step. When you edit a crawler, that step also shows the crawler's folder on the server: a file copied straight into that folder is read exactly like an uploaded one.
 
-### Systems
+### More than one system
 
-A row's `SystemName` must match a system declared in `Systems.csv` (or the crawler's own system name). A row that names an undeclared system is still loaded, into the crawler's own system — and the job log warns with the number of such rows and the names that were not found. A blank `SystemName` is the normal single-system case and is not reported.
-
-In `ContextMembers.csv` the `SystemName` column is ignored: a membership belongs to its context's system.
-
-### Extra columns
-
-A column outside a file's schema is stored in the entity's `extendedAttributes`, and shown on its detail page, for `Systems`, `Contexts`, `Resources`, `ResourceRelationships`, `Users`, `Identities` and `Certifications`. Blank values are not stored.
-
-Extra columns in `Assignments.csv` are **not** kept: at tens of millions of rows an attribute per assignment costs more than it is worth. `IdentityMembers.csv` and `ContextMembers.csv` have no attribute storage. The job log names any column it ignores.
+A row's `SystemName` must match a system in `Systems.csv`, or the **System name** from the wizard. A row that names an unknown system is still loaded, into the wizard's system, and the job log warns with the number of such rows and the names it did not find. A blank `SystemName` is the normal single-system case.
 
 ---
 
-## Source-Specific Transforms
+## Schedule and refresh
 
-For IGA platforms like Omada or SailPoint, you first transform their native export format into the Identity Atlas canonical schema, then run the CSV crawler. Example transform scripts are in `tools/csv-templates/transforms/`.
+CSV Import has no schedule: it reads the files that are uploaded, so it runs when you start it. **Run Full** and **Run Delta** on the card do the same thing — every run is a full run. See [Schedule and run crawlers](scheduling.md).
 
-```powershell
-# Step 1: Transform Omada export to Identity Atlas format
-.\tools\csv-templates\transforms\omada-to-identityatlas.ps1 -InputFolder ".\OmadaExport" -OutputFolder ".\TransformedData"
+---
 
-# Step 2: Import transformed data
-.\tools\crawlers\csv\Start-CSVCrawler.ps1 -ApiBaseUrl "http://localhost:3001/api" -ApiKey "fgc_abc..." -CsvFolder ".\TransformedData"
-```
+## What a refresh removes
 
-!!! tip
-    Include any additional columns your source system provides. For every file except `Assignments.csv`, `IdentityMembers.csv` and `ContextMembers.csv` they are kept in `extendedAttributes` without schema changes — see [Extra columns](#extra-columns).
+Each run compares the files with what this crawler loaded last time. Records that are no longer in the files are removed, limited to this crawler's own systems. So always upload a complete export, not only the new rows. See [What a full run removes](scheduling.md#what-a-full-run-removes).
+
+---
+
+## Limitations
+
+- **Only the Identity Atlas schema is read.** There is no column mapping in the wizard; transform your export first.
+- **No schedule.** New data arrives when you upload new files.
+- **Extra columns in `Assignments.csv`, `IdentityMembers.csv` and `ContextMembers.csv` are not kept.**
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| The **Upload files** step says *Missing column(s) for …* | The file is matched to the wrong type, or its header does not follow the schema. Pick the right type for the file, or compare it with the schema template. |
+| **Next: Review** stays disabled | One of the three required files — Resources, Users, Assignments — is missing. |
+| A file is refused as too large | It is over the server's per-file limit. An administrator can raise `UPLOAD_MAX_FILE_BYTES`, or copy the file into the crawler's folder on the server. |
+| The run fails with a file name and line number | That row could not be read, usually because of a quote that is never closed. Fix the row and run again. Nothing was removed. |
+| The job log warns about an unknown system name | Some rows name a system that is not in `Systems.csv`. They were loaded into the wizard's system. |
+
+---
+
+## Deep dive
+
+- [CSV schema reference](../architecture/csv-import-schema.md) — every file and column
+- [Schedule and run crawlers](scheduling.md)
+- [Ingest API](../architecture/ingest-api.md)

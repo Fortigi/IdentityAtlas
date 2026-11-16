@@ -4,116 +4,127 @@ prereq: concepts/risk-scoring-model.md
 outcome: You can follow a score from raw signal to final tier.
 ---
 
-# Identity Risk Scoring
+# How Scoring Works
 
 !!! info "Before this page"
     Assumes you have read **[What a Risk Score Means](../concepts/risk-scoring-model.md)**.
     Brand new? Start at [The words you need first](../start/glossary.md).
 
-!!! warning "v5 status"
-    In v5, risk scoring is driven from the UI (Admin > Risk Scoring). The PowerShell risk scoring functions (`Invoke-FGRiskScoring`, `New-FGRiskProfile`, `New-FGRiskClassifiers`) in `tools/riskscoring/` are **stubbed** and return "not yet implemented in v5". The in-browser wizard and the Node.js scoring engine (`app/api/src/riskscoring/engine.js`) are the active implementation path.
-
-## Overview
-
-Identity Atlas includes a universal risk scoring engine that assigns risk scores (0–100) to all entity types — Principals, Resources (including BusinessRoles), Contexts, and Identities. All scoring runs on your own infrastructure — no sensitive identity data is ever sent to external services.
-
-## Three-Phase Architecture
+Risk scoring has two parts. You set it up once in **Admin → Risk Scoring**: describe your organisation, let the AI provider turn that into classifiers, and activate them. After that the scoring engine runs inside Identity Atlas after every crawl and scores every account and resource against those classifiers.
 
 ```mermaid
 flowchart LR
-    subgraph Phase1["Phase 1: Context (one-time)"]
-        A["New-FGRiskProfile\nPublic domain info only"] --> B["New-FGRiskClassifiers\nIndustry-specific patterns"]
+    subgraph Setup["Set up (Admin → Risk Scoring)"]
+        A[Risk profile] --> B[Classifiers]
     end
-    subgraph Phase2["Phase 2: Scoring (daily)"]
-        B --> C["Invoke-FGRiskScoring\n4-layer batch engine"]
+    subgraph Run["Every scoring run"]
+        B --> C[Scoring engine, four layers]
     end
-    subgraph Phase3["Phase 3: Analysis"]
-        C --> D[Risk Scoring UI Page]
-        C --> E["Org Chart with\nrisk propagation"]
-        C --> F[SQL: RiskScores table]
+    subgraph Read["Read the result"]
+        C --> D[Risk Scores tab]
+        C --> E[Risk tab on a detail page]
     end
 ```
 
-**Phase 1** (one-time setup):
+## Setting it up
 
-```powershell
-New-FGRiskProfile -Domain "yourcompany.com" -LLMProvider Anthropic -LLMApiKey $key -ConfigFile '.\Config\mycompany.json'
-New-FGRiskClassifiers -ConfigFile '.\Config\mycompany.json'
-```
+1. **Configure an AI provider.** Go to **Admin → LLM Settings** and add credentials for Anthropic, OpenAI or Azure OpenAI. The provider is used to write the risk profile and the classifiers, never to score.
+2. **Switch the feature on.** In **Admin → Risk Scoring**, turn on **Risk Scoring Feature**. This also makes the **Risk Scores** tab available in the main navigation.
+3. **Click New profile.** The Risk Profile Wizard walks through five steps:
 
-**Phase 2** (run after each sync):
+    | Step | What you do |
+    |---|---|
+    | **Sources** | Enter your **Domain** (required), and optionally an organisation name, free-text hints and internal URLs to read, such as wiki or intranet pages. Click **Generate profile →**. |
+    | **Generate & Refine** | Read the generated profile next to a chat. Ask for changes in plain words ("drop NIS2 — we're US-only") until it fits. Click **Looks good — save →**. |
+    | **Save Profile** | Name the profile and leave **Make this the active profile** ticked. |
+    | **Classifiers** | Click **Generate classifiers**, review the result, name the set, leave **Activate** ticked and click **Save classifiers →**. |
+    | **Run Scoring** | Click **Run scoring now** and watch the progress bar, or click **Done** and let the next crawl trigger it. |
 
-```powershell
-Invoke-FGRiskScoring -ConfigFile '.\Config\mycompany.json'
-```
+Nothing is stored until you save, so closing the wizard halfway discards the draft.
 
-**Phase 3** (analysis):
+After the wizard, **Admin → Risk Scoring** shows the active **Risk Profile** and **Risk Classifiers**. See [Classifiers](./classifiers.md) for how to read them.
 
-- UI: Risk Scoring page, Org Chart
-- SQL: `SELECT entityId, entityType, riskScore, riskTier FROM RiskScores ORDER BY riskScore DESC`
-- Fast filter: `riskScore` and `riskTier` columns are denormalized onto Principals and Resources
+## When scoring runs
 
-## 4-Layer Scoring Engine
+- **After every crawl.** When a crawl finishes, Identity Atlas links accounts to identities, refreshes generated contexts, and then runs risk scoring, in that order. Scoring is skipped when there is no active classifier set.
+- **On demand.** Click **Run now** in **Admin → Risk Scoring**, or **Run scoring now** on the **Risk Scores** tab.
 
-```mermaid
-flowchart TD
-    E[Entity] --> L1["Layer 1: Direct Match\nClassifier patterns on name/description\nResource type multiplier"]
-    L1 --> L2["Layer 2: Membership Analysis\nHigh-risk member/group density\nPIM eligibility, no-owner signals"]
-    L2 --> L3["Layer 3: Structural Hygiene\nStale sign-in, never used\nGuest accounts, missing description\nDynamic membership, directory role signals"]
-    L3 --> L4["Layer 4: Propagation\nInherit risk from riskiest\nmember / group / parent"]
-    L4 --> S["Final Score 0–100\nClamped + tiered"]
-```
+One run at a time: starting a second run by hand while one is in progress is refused. A run scores everything again and replaces the previous results.
 
-Each layer adds points; the final score is clamped to 0–100.
+## The four layers in detail
 
-## Scoring by Entity Type
+The final score is `0.50 × layer 1 + 0.20 × layer 2 + 0.10 × layer 3 + 0.20 × layer 4`, rounded and capped at 100.
 
-| Entity Type | Layer 1 | Layer 2 | Layer 3 | Layer 4 |
-|---|---|---|---|---|
-| **Principal (User)** | Classifier matches on name/title/UPN | Group count, PIM eligibility, high-risk group density | Stale sign-in (90/180d), never signed in, guest account, active high-privilege usage | Riskiest group membership |
-| **Principal (AI Agent/SP)** | Agent classifier matches on name | Group count, high-risk resource density | No-human-in-loop penalty, type-specific bonus, active production workload detection | Riskiest resource membership |
-| **Resource** | Classifier + resourceType multiplier | High-risk member density, PIM-eligible members, no owner | No description, dynamic membership, directory role signals, ghost app roles | Riskiest member |
-| **BusinessRole** (Resource) | Classifier matches | High-risk assignee density | No review configured, missed reviews, no auto-removal | Aggregate contained resource risk |
-| **OrgUnit** | Name/dept classifiers, hierarchy position | Aggregate principal risk | Size extremes (tiny/huge), no manager, high external ratio | Parent OrgUnit risk |
-| **Identity** | Account count, multi-system | Highest-risk linked principal | Orphaned accounts, low confidence, not verified | Critical/High principal propagation |
+### Layer 1 — Classifier match
 
-## Risk Tiers
+Every classifier pattern is tested against the text fields of the account or resource. The **highest score among the matching classifiers** becomes the layer 1 sub-score. All matches are kept so you can see them later.
 
-| Tier | Score | Action |
-|------|-------|--------|
-| Critical | 90–100 | Requires immediate attention |
-| High | 70–89 | Should be reviewed soon |
-| Medium | 40–69 | Monitor regularly |
-| Low | 20–39 | Low concern |
-| Minimal | 1–19 | Negligible |
-| None | 0 | No signals detected |
+| Scored | Fields tested | Classifiers used |
+|---|---|---|
+| Resource | Display name, description, mail, external ID, and the values in its extended attributes | Groups |
+| Account (human) | Display name, email, job title, department, company name, given name, surname, employee ID, external ID, and the values in its extended attributes | Users |
+| Account (non-human) | The same fields as a human account | Agents; see [AI Agents & Non-Human Identities](./ai-agents.md) |
 
-## Analyst Overrides
+Two corrections apply:
 
-Analysts can adjust any entity's score with a required justification. The adjustment must be a whole number between −50 and +50, and the justification must be 3–500 characters:
+- **Non-production discount.** A resource whose name marks it as a test, development or acceptance environment (for example `-DEV`, `_TST`, `-ACC`, `sandbox`, `staging`) keeps a quarter of its layer 1 sub-score, with a minimum of 5.
+- **Noise guard.** A match is dropped when the matched text is about news bulletins, meeting rooms, calendars, shared mailboxes or distribution lists.
 
-- Via UI: Risk Scoring page → click Override button
-- Overrides are stored in `RiskScores` and preserved across re-scoring runs
-- Override history is preserved across re-scoring runs
+### Layer 2 — Membership analysis
 
-## Configuring the AI provider
+Capped at 40.
 
-The AI provider is configured in **Admin → LLM Settings**. Three providers are supported:
+| Scored | Signal | Points |
+|---|---|---|
+| Resource | 1 to 5 members | +5 |
+| Resource | Has members but no owner | +5 |
+| Account | Owner of more than 3 resources | +5 |
+| Account | Member or owner of more than 15 resources | +3 for every three above 15, at most +15 |
+| Account | Member of a resource with a layer 1 sub-score of 70 or higher | +15, once |
+| Account | 5 or more direct reports | +3, rising to at most +15 |
+| Account | 10 or more people in the reporting line below them | +5 (10+), +10 (25+), +12 (50+), +15 (100+) |
+| Account | Manager of direct reports with a layer 1 sub-score of 70 or higher | +5 each, at most +15 |
 
-| Provider | `provider` value | Default model | Notes |
-|---|---|---|---|
-| Anthropic | `anthropic` | `claude-sonnet-4-6` | API key required |
-| OpenAI | `openai` | `gpt-4o` | API key required |
-| Azure OpenAI | `azure-openai` | _(deployment name required)_ | Also requires endpoint URL and deployment name |
+The three manager signals apply only when the crawler collected who reports to whom.
 
-Once you enter the API key and click **Test**, IdentityAtlas verifies the connection and populates the model dropdown from the provider's API. The key is stored encrypted in the built-in secrets vault — it is never stored as plain text.
+Only Direct assignments count as membership. Ownership is counted separately and never as membership.
 
-For Azure OpenAI the endpoint must be a valid Azure OpenAI hostname (`*.openai.azure.com`, `.us`, or `.cn`). The deployment name is the name you gave the deployment in Azure, not the underlying model name.
+### Layer 3 — Structural hygiene
+
+Capped at 25.
+
+| Scored | Signal | Points |
+|---|---|---|
+| Resource | No description | +3 |
+| Resource | Mail-enabled security group | +3 |
+| Resource | Group that can be assigned directory roles | +15 |
+| Resource | Dynamic membership rule switched on | +3 |
+| Account | Disabled but still a member of something | +5 |
+| Account | Guest account | +5 |
+| Account | Last sign-in more than 90 days ago | +10 |
+
+The sign-in signal applies only to accounts for which the crawler collected sign-in activity.
+
+### Layer 4 — Risk propagation
+
+First every account and resource gets a score from layers 1 to 3 alone. Then, in a single pass:
+
+- an **account** inherits 30% of that score from the riskiest resource it is a Direct member of;
+- a **resource** inherits 25% of that score from its riskiest member.
+
+The pass runs once. Risk does not keep bouncing back and forth.
+
+## Reading the result
+
+- The **Risk Scores** tab shows the distribution over the tiers, the highest-scoring resources and accounts, and a list per type with a tier filter and a search box. The **Override** column shows where an analyst adjusted a score.
+- The **Risk** tab on a detail page shows one score with its four layers, the classifiers that matched and the reason behind every point. See [What a Risk Score Means](../concepts/risk-scoring-model.md#a-score-always-explains-itself).
+
+<!-- screenshot: Risk tab on an account detail page with Show Details open -->
 
 ## Data Privacy
 
 !!! success "No identity data ever leaves your infrastructure"
-    - **Phase 1 only** contacts an LLM — the prompt contains only public organisational context: the domain name, optional organisation name, optional free-text hints you type, and any text you paste from internal documents.
+    - **Only the wizard** contacts the AI provider — to write the risk profile, to refine it in the chat, and to generate classifiers from it.
     - **No identity data** — no user names, email addresses, group names, or access assignments — is ever sent to the AI provider.
     - All scoring (matching classifiers against your data) runs locally against your database with no network calls.
 
@@ -124,7 +135,9 @@ For Azure OpenAI the endpoint must be a valid Azure OpenAI hostname (`*.openai.a
 | Domain name | `contoso.com` |
 | Organisation name (optional) | `Contoso Ltd` |
 | Free-text hints (optional) | `We operate in the Netherlands under NIS2` |
-| Text from URLs you add (optional) | Scraped text from public or internal pages |
+| Text from URLs you add (optional) | Text read from the wiki or intranet pages you listed |
+| Your messages in the refinement chat | `Add a critical role for the payments team` |
+| The risk profile itself | Sent back when you refine it and when classifiers are generated from it |
 
 Nothing else. The AI generates regex patterns from this context; those patterns are then stored locally and applied against your data entirely on-premises.
 
@@ -137,19 +150,3 @@ Nothing else. The AI generates regex patterns from this context; those patterns 
 | Azure OpenAI | Yes — stays within your Azure subscription | No — Microsoft Azure terms contractually exclude customer prompts from model training. |
 
 For regulated environments or when in doubt, use **Azure OpenAI**: the data stays within your Azure tenant and training exclusion is contractual by default.
-
-## RiskScores Table
-
-```sql
--- Top risky principals
-SELECT p.displayName, p.principalType, rs.riskScore, rs.riskTier,
-       rs.directScore, rs.membershipScore, rs.structuralScore, rs.propagatedScore
-FROM Principals p
-JOIN RiskScores rs ON rs.entityId = p.id AND rs.entityType = 'Principal'
-ORDER BY rs.riskScore DESC;
-
--- All entity types together
-SELECT entityId, entityType, riskScore, riskTier
-FROM RiskScores
-ORDER BY riskScore DESC;
-```
