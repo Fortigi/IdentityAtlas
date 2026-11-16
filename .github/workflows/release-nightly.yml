@@ -1,0 +1,91 @@
+# ─── Release nightly ──────────────────────────────────────────────────────────
+# Once a night, decide what to release-test and test it:
+#
+#   * a pre-release (beta/rc) ahead of the newest stable release that has not
+#     been tested yet  -> the full release test, Azure included
+#   * otherwise        -> Docker and portable against :edge only, as an early
+#                         warning; nights without a candidate cost nothing in Azure
+#
+# The decision is tools/release/Get-NightlyPlan.ps1 (unit-tested in
+# test/unit/ReleaseNightly.Tests.ps1). A tested candidate leaves an artifact
+# named release-tested-<tag>, green or red, so it is tested once; to test it
+# again, run this workflow by hand with that tag as `candidate`.
+#
+# 02:07 UTC = 03:07 in Amsterdam in winter (04:07 in summer). Not on the hour:
+# GitHub delays top-of-hour schedules, sometimes by much more than 7 minutes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release nightly
+
+on:
+  schedule:
+    - cron: '7 2 * * *'
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: 'Test this tag (or edge) instead of deciding. Empty = decide as the night does.'
+        type: string
+        default: ''
+
+# One night at a time; a run that is still going is never cancelled by the next.
+concurrency:
+  group: release-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: 'Plan: what to test tonight'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read      # does the newest beta have its release-tested-<tag> artifact?
+    outputs:
+      candidate: ${{ steps.plan.outputs.candidate }}
+      azure: ${{ steps.plan.outputs.azure }}
+      marker: ${{ steps.plan.outputs.marker }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: tree:0
+      - name: Decide
+        id: plan
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OVERRIDE: ${{ inputs.candidate }}
+        run: ./tools/release/Get-NightlyPlan.ps1 -Repository $env:GITHUB_REPOSITORY -Override "$env:OVERRIDE"
+
+  release-test:
+    name: 'Test ${{ needs.plan.outputs.candidate }}'
+    needs: plan
+    permissions:
+      contents: read
+      id-token: write    # the sign-in and Azure jobs log in with GitHub OIDC
+    uses: ./.github/workflows/release-test.yml
+    with:
+      candidate: ${{ needs.plan.outputs.candidate }}
+      azure: ${{ needs.plan.outputs.azure == 'true' }}
+
+  mark-tested:
+    name: 'Record that ${{ needs.plan.outputs.candidate }} was tested'
+    needs: [plan, release-test]
+    if: >-
+      always() && needs.plan.outputs.marker != '' &&
+      (needs.release-test.result == 'success' || needs.release-test.result == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write the record
+        env:
+          CANDIDATE: ${{ needs.plan.outputs.candidate }}
+          RESULT: ${{ needs.release-test.result }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: printf '{"candidate":"%s","result":"%s","run":"%s"}\n' "$CANDIDATE" "$RESULT" "$RUN" > tested.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ needs.plan.outputs.marker }}
+          path: tested.json
+          retention-days: 90
