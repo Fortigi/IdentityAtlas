@@ -320,3 +320,22 @@ Describe 'Invoke-Compose' {
         (Get-ComposeCommand -Arguments 'ps')[0..1] | Should -Be @('timeout', '900')
     }
 }
+
+Describe 'Invoke-Compose passes every flag through' {
+    # An advanced function would have swallowed -d (as -Debug) and -v (as -Verbose):
+    # `up -d` then never returned and `down -v` kept the volumes.
+    It 'hands <_> to docker compose unchanged' -ForEach @(
+        , @('up', '-d', '--pull', 'always')
+        , @('down', '-v')
+        , @('exec', '-T', 'postgres', 'sh', '-c', 'pg_isready -U $POSTGRES_USER')
+    ) {
+        $expected = $_
+        Mock Get-ComposeCommand { @('pwsh', '-NoProfile', '-Command', 'exit 0') }
+        Invoke-Compose @expected | Out-Null
+        Should -Invoke Get-ComposeCommand -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -eq ($expected -join ' ') }
+    }
+    It 'names a timed-out command' {
+        Mock Get-ComposeCommand { @('pwsh', '-NoProfile', '-Command', 'exit 124') }
+        { Invoke-Compose up -d } | Should -Throw '*up -d did not finish*'
+    }
+}
