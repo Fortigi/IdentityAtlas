@@ -4601,6 +4601,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#docs-guards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docs guards
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6132,6 +6143,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#docs-guards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docs guards
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6470,6 +6492,44 @@
 </tr>
 </tbody>
 </table>
+<h3 id="docs-guards">Docs guards<a class="headerlink" href="#docs-guards" title="Permanent link">&para;</a></h3>
+<p>The documentation is checked by Vitest tests in <code>app/api/src/docs/</code>, so they run in <strong>Unit Tests: Vitest (API)</strong>. That job also runs on a docs-only PR (the <code>docs</code> path gate: <code>docs/**</code>, <code>mkdocs.yml</code>, <code>app/api/src/docs/**</code>, <code>ontology/**</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Guard</th>
+<th>Fails when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docsStructure.guard.test.js</code></td>
+<td>A page is missing from the nav, a nav entry or a relative link points at a page that does not exist, a learning-path page lacks its <code>type</code> / <code>prereq</code> / <code>outcome</code>, or a learning-path <code>#anchor</code> is dead. Hard zero, no baseline.</td>
+</tr>
+<tr>
+<td><code>docsDrift.guard.test.js</code>: retired vocabulary</td>
+<td>A page uses a retired word more often than <code>.ci/docs-jargon-baseline.json</code> allows.</td>
+</tr>
+<tr>
+<td><code>docsDrift.guard.test.js</code>: links and anchors</td>
+<td>A page has a broken link that <code>.ci/docs-links-baseline.json</code> does not list.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Retired vocabulary.</strong> The banned words are listed in <code>app/api/src/docs/docsJargon.js</code>, each with the word to use instead: SOLL and IST (whole words, upper case, so "list" and "exist" do not match), org unit / OrgUnit, the retired assignment types (<code>assignmentType='Governed'</code>, <code>assignmentType='Owner'</code>, <code>AppRoleViaGroup</code>, <code>OAuth2Grant</code>, <code>DirectoryRoleEligible</code>) and the <code>Start-FGSync</code> cmdlet. Code samples count the same as prose, because a sample query is the line readers copy. The UI rule <code>local/no-legacy-jargon</code> keeps its own copy of the list; the guard fails if the UI bans a word that the docs list does not. Some pages keep the old words on purpose: the glossary note that maps them, the dated assessments (<code>security/</code>, <code>ux/</code> and the audit pages), the history page, and the design archive. They are listed with a reason in <code>EXEMPT</code> in the same file.</p>
+<p><strong>Links and anchors.</strong> This check covers every page, not only the learning path. It looks at each relative link and image and reports:</p>
+<ul>
+<li>an <code>#anchor</code> that the target page does not generate;</li>
+<li>a file that does not exist (a missing screenshot, for example);</li>
+<li>a target outside <code>docs/</code>, which the site does not publish.</li>
+</ul>
+<p>Anchors are computed the way mkdocs computes them. Punctuation is dropped, the text is lowercased, and each run of spaces and hyphens becomes ONE hyphen, so <code>## SMTP &amp; mail</code> gives <code>#smtp-mail</code>, not <code>#smtp--mail</code>. A repeated heading gets <code>_1</code>, <code>_2</code>, and <code>{ #id }</code> sets an id by hand.</p>
+<p><strong>How the baselines work.</strong> Each baseline lists, per page, what is still wrong today and how many times it occurs. A count above the baseline fails. So does a new page or a new term. A count below the baseline never fails, so fixing a page needs no baseline change in the same PR. Lock in an improvement, or see the result locally, with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>app/api
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>npm<span class="w"> </span>run<span class="w"> </span>docs:check<span class="w">      </span><span class="c1"># same comparison as CI, with what to write instead</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>npm<span class="w"> </span>run<span class="w"> </span>docs:baseline<span class="w">   </span><span class="c1"># lower both baselines to the current state of docs/</span>
+</code></pre></div>
+<p><code>docs:baseline</code> only lowers: anything that got worse keeps its old ceiling and the command exits 1. <code>npm run docs:baseline -- --allow-increase</code> writes the measurement as it is and prints every raised entry. Use it only for an exception a reviewer has agreed to.</p>
 <hr />
 <h2 id="pr-integrationyml-docker-integration-tests-2050-min">pr-integration.yml — Docker integration tests (~20–50 min)<a class="headerlink" href="#pr-integrationyml-docker-integration-tests-2050-min" title="Permanent link">&para;</a></h2>
 <h3 id="commit-range-skip_1">Commit-range skip<a class="headerlink" href="#commit-range-skip_1" title="Permanent link">&para;</a></h3>
@@ -6510,8 +6570,8 @@
 <li><strong>Integration triggered by non-crawler paths</strong> (e.g. <code>app/api/src/</code>) → full run.</li>
 </ul>
 <p>The PS integration runner expands <code>CRAWLERS_TO_TEST</code> using the dependency graph:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>testSet = changed crawler types + their transitive dependents (upward)
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>runSet  = testSet + their transitive dependencies (downward, for data setup)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>testSet = changed crawler types + their transitive dependents (upward)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>runSet  = testSet + their transitive dependencies (downward, for data setup)
 </code></pre></div>
 <p>Types in <code>runSet</code> but not <code>testSet</code> run for data setup only — their exit code is ignored. Types in <code>testSet</code> must pass.</p>
 <p>Example: only <code>omada</code> changed → <code>testSet = [omada]</code>, <code>runSet = [odata, omada]</code>. The <code>odata</code> crawler runs first to seed the data omada's test needs; only omada's result is asserted.</p>
