@@ -1,0 +1,121 @@
+# ─── Release Test ─────────────────────────────────────────────────────────────
+# What CI does not cover, run against a published candidate (a beta or hotfix
+# tag, or :edge): every other test starts from an empty database with sign-in
+# off, on images built from the PR. This one pulls the PUBLISHED images and
+# does what an operator does:
+#
+#   Docker: upgrade   previous stable -> candidate with the prod compose, demo
+#                     data + an ingest, backup as the docs say, row counts
+#                     before/after, then restore that backup onto an empty host
+#   Docker: fresh     docs/quickstart.md line for line with the candidate's tag
+#   Both with and without the report-generator profile (the local model).
+#
+# The logic lives in tools/release/ (Invoke-DockerReleaseTest.ps1 and the
+# ReleaseTest.*.ps1 helpers, unit-tested by test/unit/ReleaseTestFunctions.Tests.ps1).
+# This file only wires jobs together.
+#
+# Who runs it: the nightly release run (workflow_call), a person (Actions →
+# Release Test → Run workflow), and every PR that changes the test itself, against
+# :edge, so a broken harness is seen before it is merged. GitHub-hosted runners
+# only: never a self-hosted sidekick.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release Test
+
+on:
+  workflow_call:
+    inputs:
+      candidate:
+        description: 'Tag to test (v6.2.0-beta.1, v6.1.2) or edge'
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: 'Tag to test (v6.2.0-beta.1, v6.1.2) or edge'
+        type: string
+        default: edge
+  pull_request:
+    paths:
+      - '.github/workflows/release-test.yml'
+      - 'tools/release/ReleaseTest.*.ps1'
+      - 'tools/release/Invoke-*ReleaseTest.ps1'
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE: ${{ inputs.candidate || 'edge' }}
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+
+jobs:
+  plan:
+    name: 'Plan: resolve the candidate'
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ steps.plan.outputs.candidate }}
+      image_tag: ${{ steps.plan.outputs.image_tag }}
+      previous_stable: ${{ steps.plan.outputs.previous_stable }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: Resolve image tag and the release to upgrade from
+        id: plan
+        shell: pwsh
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          $candidate = $env:CANDIDATE
+          $image = ConvertTo-ImageTag $candidate
+          $previous = Get-PreviousStableTag -Candidate $candidate -Tags @(git tag --list 'v*')
+          "candidate=$candidate", "image_tag=$image", "previous_stable=$previous" | Add-Content $env:GITHUB_OUTPUT
+          "## Release test: ``$candidate``", '', "| Candidate image | Upgrades from |", '|---|---|', "| ``$image`` | ``$previous`` |" |
+            Add-Content $env:GITHUB_STEP_SUMMARY
+
+  docker:
+    name: "Docker: ${{ matrix.scenario }}${{ matrix.report_generator && ' + report generator' || '' }}"
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [Upgrade, Fresh]
+        report_generator: [false, true]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The report-generator image carries a ~3 GB model, and the upgrade pulls
+      # it twice (old and new release). Make room on the runner's disk first.
+      - name: Free disk space for the model image
+        if: matrix.report_generator
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Run the ${{ matrix.scenario }} scenario
+        shell: pwsh
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+          REPORT_GENERATOR: ${{ matrix.report_generator }}
+          PREVIOUS_STABLE: ${{ needs.plan.outputs.previous_stable }}
+        run: |
+          ./tools/release/Invoke-DockerReleaseTest.ps1 -Scenario $env:SCENARIO -Candidate $env:CANDIDATE `
+            -PreviousStable $env:PREVIOUS_STABLE -ReportGenerator:($env:REPORT_GENERATOR -eq 'true')
+
+  result:
+    name: 'Release Test Passed'
+    needs: [plan, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail when any part failed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "::error::The release test failed for $CANDIDATE."; exit 1
+          fi

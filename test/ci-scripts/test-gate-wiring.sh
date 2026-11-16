@@ -131,13 +131,16 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #                      Not a gate.
 #   bot-apps-check.yml ADVISORY. Proves both GitHub Apps still mint and reach only this repo when a
 #                      DoR workflow changes. Fork PRs skip it (no secrets), so it cannot be required.
+#   release-test.yml   ADVISORY. Runs the release test against :edge only on PRs that change the
+#                      release test itself, so a broken harness shows before it is merged. Its real
+#                      job is the nightly run; a PR touching nothing else must not be gated by it.
 #
 # (Diff coverage used to be its own workflow here. It now lives in pr.yml as the advisory
 # `diff-coverage` job — see section 1 — reusing the suites' lcov instead of re-running them.)
 #
 # Add a new PR-triggered workflow and this fails until it is either aggregated or added here with
 # a reason. That decision is the point of the test.
-ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml bot-apps-check.yml dependabot-auto-merge.yml"
+ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml bot-apps-check.yml dependabot-auto-merge.yml release-test.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
   grep -qE '^[[:space:]]+pull_request(_target)?:' "$f" || continue
