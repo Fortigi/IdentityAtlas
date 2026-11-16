@@ -112,9 +112,13 @@ function Invoke-Compose {
     .DESCRIPTION
         Logs the command first, so the last line of a stuck run says where it
         is, and gives it an empty stdin, so nothing can sit waiting for input.
+
+        Deliberately a SIMPLE function reading $args, not [CmdletBinding()]: an
+        advanced function binds `-d` to its own -Debug and `-v` to -Verbose, so
+        `up -d` reached docker as `up` (which never returns) and `down -v` would
+        have kept the volumes. test/unit/ReleaseTestFunctions.Tests.ps1 pins it.
     #>
-    [CmdletBinding()]
-    param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
+    $Arguments = @($args | ForEach-Object { "$_" })
     $cmd = Get-ComposeCommand -Arguments $Arguments
     Write-Host "> docker compose $($Arguments -join ' ')"
     $out = $null | & $cmd[0] @($cmd[1..($cmd.Count - 1)]) 2>&1
