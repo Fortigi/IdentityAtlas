@@ -46,16 +46,16 @@ $expected = @('postgres', 'web', 'worker') + @(if ($ReportGenerator) { 'report-g
 
 function Assert-Healthy([string] $Label) {
     Wait-SchemaReady -BaseUrl $BaseUrl -TimeoutSec 900
-    $missing = Get-MissingService -Services (Get-ComposeService) -Expected $expected
+    $missing = @(Get-MissingService -Services (Get-ComposeService) -Expected $expected)
     if ($missing.Count -gt 0) { throw "${Label}: not running: $($missing -join ', ')" }
-    $failed = Invoke-SmokeTest -BaseUrl $BaseUrl
+    $failed = @(Invoke-SmokeTest -BaseUrl $BaseUrl)
     if ($failed.Count -gt 0) { throw "${Label}: read endpoints failed: $($failed -join '; ')" }
 }
 
 function Assert-SameRows([hashtable] $Before, [string] $Label) {
     $after = Get-DbRowCount
     Write-Step "$Label row counts: $(($after.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' ')"
-    $problems = Compare-RowCount -Before $Before -After $after
+    $problems = @(Compare-RowCount -Before $Before -After $after)
     if ($problems.Count -gt 0) { throw "${Label}: $($problems -join '; ')" }
 }
 
@@ -99,7 +99,7 @@ function Invoke-FreshScenario {
     Assert-Healthy 'After the fresh install'
     Assert-RunningVersion -BaseUrl $BaseUrl -ImageTag $imageTag
     $status = Invoke-Api -BaseUrl $BaseUrl -Path '/admin/status'
-    if ($status.hasData) { throw 'A fresh install reports data before any was loaded.' }
+    if (Get-Prop $status 'hasData') { throw 'A fresh install reports data before any was loaded.' }
     if ((Get-HttpStatus -Url ($BaseUrl -replace '/api$', '/')) -ne 200) { throw 'The UI does not answer on /.' }
     Invoke-DemoLoad -BaseUrl $BaseUrl
     Assert-DataLoaded (Get-DbRowCount)
