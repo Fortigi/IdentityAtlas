@@ -1,0 +1,1 @@
+- The Azure template now sends Key Vault and PostgreSQL logs to Log Analytics: Key Vault audit events (every secret read or write, including refused attempts) and the PostgreSQL server log (connections, failed sign-ins, errors), together with the metrics of both.
