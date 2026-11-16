@@ -116,7 +116,7 @@ nav:
       - Dashboard: ui/dashboard.md
       - The matrix:
           - Build a Matrix: ui/build-a-matrix.md
-          - Reading the Matrix: architecture/matrix.md
+          - Reading the Matrix: ui/reading-the-matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
       - Entitlement Pivot and Saved Views: ui/entitlement-pivot.md
@@ -126,7 +126,7 @@ nav:
       - Contexts: ui/contexts.md
       - Building a Context by Describing It: ui/context-assistant.md
       - Effective Access (Who Can Access X): ui/effective-access.md
-      - Entity Detail Pages: architecture/entity-detail-pages.md
+      - Reading a Detail Page: ui/detail-pages.md
       - Get data out:
           - Excel Export (Power Query): admin/excel-powerquery-export.md
           - Excel Template Authoring: admin/excel-template-authoring.md
@@ -199,6 +199,8 @@ nav:
           - Authorization Workbench (M1 brief): architecture/m1-brief.md
           - Crawler Architecture: architecture/crawler-architecture.md
           - SQL Connector Internals: architecture/sql-connector-internals.md
+          - Matrix Internals: architecture/matrix.md
+          - Detail Pages Internals: architecture/entity-detail-pages.md
           - Reports: architecture/reports.md
           - Custom Reports Internals: architecture/custom-reports.md
           - Context Assistant Internals: architecture/context-assistant.md

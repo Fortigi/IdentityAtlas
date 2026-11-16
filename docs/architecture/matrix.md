@@ -6,6 +6,8 @@ outcome: You can read any cell in the matrix and say exactly how that access is 
 
 # Matrix view — architecture
 
+> This page describes how the matrix is built. To learn how to read it, see **[Reading the matrix](../ui/reading-the-matrix.md)**.
+
 !!! info "Before this page"
     Assumes you have read **[The app at a glance](../ui/overview.md)**.
     Brand new? Start at [The words you need first](../start/glossary.md).
