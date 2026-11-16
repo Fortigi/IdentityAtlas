@@ -14,9 +14,11 @@
 #
 # Sign-in to Azure is OpenID Connect (no stored secret): create an app
 # registration or user-assigned identity with a federated credential for this
-# repository, give it Contributor on the resource group (and the right to
-# create role assignments on your registry, if you use containerRegistryResourceId),
-# and set these repository variables:
+# repository, give it Contributor on the resource group plus the right to create
+# role assignments there (Role Based Access Control Administrator, User Access
+# Administrator or Owner: the template grants its identities Key Vault roles),
+# the same right on your registry if you use containerRegistryResourceId, and
+# set these repository variables:
 #   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
 #   IDENTITY_ATLAS_RESOURCE_GROUP
 

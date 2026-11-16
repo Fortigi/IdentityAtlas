@@ -1,0 +1,3 @@
+- The Azure template now sets up Key Vault with Azure role-based access control (RBAC) instead of vault access policies, which Microsoft is retiring. An existing deployment is switched over in place on its next redeploy; the stored secrets are kept.
+- The identity that runs the Azure deployment now needs the right to create role assignments on the resource group (Owner, User Access Administrator or Role Based Access Control Administrator); Contributor alone is no longer enough.
+- Fixed: the Azure deployment could replace the application's master key with a new one when it briefly could not read Key Vault, which would make every stored crawler and LLM secret unreadable. It now waits for access and stops with a clear error instead.

@@ -34,7 +34,7 @@ Total time: **~15 minutes**.
 
 | Scope | Role |
 |-------|------|
-| Subscription | `Owner` (or `Contributor` + the ability to assign Key Vault access policies) |
+| Subscription | `Owner` (or `Contributor` + `Role Based Access Control Administrator`/`User Access Administrator`: the template creates the Key Vault role assignments) |
 | Entra directory | `Application Administrator` (or `Cloud Application Administrator` + `Application Developer`) |
 
 Both roles are granted by your tenant admin under **Entra ID → Roles and administrators**.
