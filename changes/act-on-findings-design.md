@@ -1,0 +1,1 @@
+- Added the design proposal for acting on findings: owners and analysts report a problem on a context, Identity Atlas records it as a change request with status and history, and sends it on by e-mail or webhook (design only, nothing built yet)

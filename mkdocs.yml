@@ -194,6 +194,7 @@ nav:
           - Context Interviews: architecture/context-interviews.md
           - Change Requests: architecture/change-requests.md
           - Ownership and Manager Surveys (spec): architecture/ownership-survey.md
+          - Acting on Findings (design): architecture/acting-on-findings.md
           - Adjust Tree (design): architecture/adjust-tree.md
           - Authorization Workbench (M1 design): architecture/m1-discovery-and-design.md
           - Authorization Workbench (M1 brief): architecture/m1-brief.md
