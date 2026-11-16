@@ -45,7 +45,17 @@ function Start-Release([string] $ZipDir, [string] $Label) {
     $logs.Add($log)
     $process = Start-Portable -AppDir $appDir -DataDir $dataDir -Database $database -LogFile $log
     Wait-SchemaReady -BaseUrl $BaseUrl -TimeoutSec 900
+    # The launcher falls back to PGlite when it cannot start PostgreSQL; for the
+    # -postgres ZIP that fallback would pass every other check without testing it.
+    if ($Variant -eq 'postgres' -and -not (Test-PortListening 5433)) {
+        throw "$Label is up, but PostgreSQL is not listening on 5433: the launcher fell back to PGlite."
+    }
+    Write-Step "$Label is running $(Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/version') 'version') on $database, data in $dataDir"
     $process
+}
+
+function Format-Total([hashtable] $Total) {
+    ($Total.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' '
 }
 
 function Invoke-Fresh {
@@ -63,10 +73,12 @@ function Invoke-Upgrade {
     Invoke-DemoLoad -BaseUrl $BaseUrl
     $before = Get-ApiTotal -BaseUrl $BaseUrl
     if (-not $before.Users) { throw 'The previous release shows no users after the demo load.' }
+    Write-Step "Totals before the upgrade: $(Format-Total $before)"
     Stop-Portable $old
 
     $new = Start-Release $CandidateZipDir 'candidate'
     $after = Get-ApiTotal -BaseUrl $BaseUrl
+    Write-Step "Totals after the upgrade: $(Format-Total $after)"
     $problems = @(Compare-RowCount -Before $before -After $after)
     if ($problems.Count -gt 0) { throw "After the upgrade: $($problems -join '; ')" }
     Assert-MatrixPage -BaseUrl $BaseUrl
@@ -77,10 +89,17 @@ New-Item -ItemType Directory -Force $WorkDir | Out-Null
 try {
     if ($Scenario -eq 'Fresh') { Invoke-Fresh } else { Invoke-Upgrade }
     Write-Step "Portable $Variant $Scenario passed"
+    $code = 0
 } catch {
     Write-Host "::error::Portable $Variant $Scenario failed: $_"
+    $code = 1
+} finally {
+    # The launchers' own output, folded: what they printed about the data
+    # directory, the database and the migrations is the evidence for the above.
     foreach ($log in $logs) {
-        foreach ($f in $log, "$log.err") { if (Test-Path $f) { Write-Host "--- $f"; Get-Content $f -Tail 80 | Out-Host } }
+        foreach ($f in $log, "$log.err") {
+            if (Test-Path $f) { Write-Host "::group::$(Split-Path $f -Leaf)"; Get-Content $f -Tail 120 | Out-Host; Write-Host '::endgroup::' }
+        }
     }
-    exit 1
 }
+exit $code
