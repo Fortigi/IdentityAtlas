@@ -9,6 +9,7 @@ import {
   anchorsFor,
   brokenLinks,
   frontMatter,
+  headingAnchors,
   learningPathPages,
   listPages,
   navEntries,
@@ -43,8 +44,54 @@ describe('slugify', () => {
     ['2. Account — which this product calls a *principal*', '2-account-which-this-product-calls-a-principal'],
     ['1. System', '1-system'],
     ['Group and role — the difference people get wrong', 'group-and-role-the-difference-people-get-wrong'],
+    // Punctuation between two spaces leaves a run of spaces, which collapses to
+    // ONE hyphen — never "roles--groups".
+    ['Roles & groups', 'roles-groups'],
+    ['SMTP / mail — settings', 'smtp-mail-settings'],
+    ['Already-hyphenated -- twice', 'already-hyphenated-twice'],
+    // An underscore inside an identifier survives; emphasis underscores do not.
+    ['The `ia_reader` role', 'the-ia_reader-role'],
+    ['_Why_ it matters', 'why-it-matters'],
+    // Accents are decomposed and the mark dropped; other non-ASCII is deleted.
+    ['Café → déjà vu', 'cafe-deja-vu'],
+    // A linked heading is slugged by its text, not its URL.
+    ['See [the matrix](../ui/matrix.md) first', 'see-the-matrix-first'],
+    ['  Padded  ', 'padded'],
   ])('slugifies %j to %j', (heading, expected) => {
     expect(slugify(heading)).toBe(expected);
+  });
+});
+
+describe('headingAnchors', () => {
+  const ids = body => [...headingAnchors(body)];
+
+  it('gives one id per heading, at every level', () => {
+    expect(ids('# One\ntext\n### Three deep\n###### Six')).toEqual(['one', 'three-deep', 'six']);
+  });
+
+  it('numbers a repeated heading _1, _2 like python-markdown', () => {
+    expect(ids('## Example\n## Example\n## Example')).toEqual(['example', 'example_1', 'example_2']);
+  });
+
+  it('ignores a heading-looking line inside a code fence', () => {
+    expect(ids('## Real\n```bash\n# install it\n```\n## After')).toEqual(['real', 'after']);
+  });
+
+  it('does not take a hashtag or a line without a space for a heading', () => {
+    expect(ids('#hashtag\n####### seven hashes\n#\n## Yes')).toEqual(['yes']);
+  });
+
+  it('uses an attr_list id instead of the slug', () => {
+    expect(ids('## Long title { #short }\n## Other {: #alt .cls }')).toEqual(['short', 'alt']);
+  });
+
+  it('slugs the title without a class-only attribute list', () => {
+    expect(ids('## Styled title { .wide }')).toEqual(['styled-title']);
+  });
+
+  it('collects raw HTML ids and names, and attr_list ids on other blocks', () => {
+    const found = headingAnchors('<a id="top"></a>\n<a name="legacy"></a>\n\nA paragraph.\n{ #para }\n');
+    expect(found).toEqual(new Set(['top', 'legacy', 'para']));
   });
 });
 

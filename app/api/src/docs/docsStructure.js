@@ -77,8 +77,10 @@ export function danglingNavEntries() {
 // Deliberately captures the whole link target in one linear character class and
 // splits off the #anchor in code — a single alternation-free pass, so there is
 // no backtracking for a hostile page to exploit (eslint security/detect-unsafe-regex).
-const LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
-const EXTERNAL_RE = /^[a-z][a-z0-9+.-]*:/i;
+// Anything between the target and the closing parenthesis (a quoted title, as
+// in `[a](b.md "Title")`) is skipped; only the target is captured.
+export const LINK_RE = /\[[^\]]*\]\(([^)\s]+)[^)]*\)/g;
+export const EXTERNAL_RE = /^[a-z][a-z0-9+.-]*:/i;
 
 /**
  * A page's prose, with fenced code blocks blanked out.
@@ -118,27 +120,63 @@ export function brokenLinks() {
 }
 
 // Reproduces python-markdown's default `toc` slugify, which is what mkdocs uses
-// to build heading ids: drop everything that is not a letter, digit, underscore,
-// space or hyphen; lowercase; collapse runs of spaces/hyphens to one hyphen.
+// to build heading ids: decompose accents and drop what is not ASCII; drop
+// everything that is not a letter, digit, underscore, space or hyphen;
+// lowercase; collapse runs of spaces/hyphens to ONE hyphen.
 // Note what this does to punctuation authors do not think about — an en dash is
-// simply deleted, so "A–Z index" becomes "az-index", not "a-z-index".
+// simply deleted, so "A–Z index" becomes "az-index", not "a-z-index", and
+// "Roles & groups" becomes "roles-groups", never "roles--groups".
+// Markdown markers go first: `*` and backticks always, an underscore only where
+// it is emphasis (at a word edge) — the one inside `ia_reader` is kept.
 export function slugify(heading) {
   return heading
-    .replace(/[*`_]/g, '')
-    .replace(/[^\p{L}\p{N}_\s-]/gu, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*`]/g, '')
+    .replace(/(^|[^\p{L}\p{N}])_+|_+(?![\p{L}\p{N}])/gu, '$1')
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/[^\w\s-]/g, '')
     .trim()
     .toLowerCase()
     .replace(/[-\s]+/g, '-');
 }
 
+const HEADING_RE = /^#{1,6}\s+(\S.*)$/;
+// attr_list: `## Title { #custom-id }` (also `{: #custom-id }`) replaces the slug.
+const HEADING_ATTR_RE = /\s*\{:?\s*([^}]*)\}\s*$/;
+const CUSTOM_ID_RE = /(?:^|\s)#([\w:.-]+)/;
+// Anchors that are not headings: raw HTML ids/names and attr_list ids on any block.
+const HTML_ID_RE = /\b(?:id|name)="([^"]+)"/g;
+const ATTR_ID_RE = /\{:?\s*#([\w:.-]+)[^}]*\}/g;
+
+/**
+ * Every anchor mkdocs will generate for a page body: one id per heading (a
+ * repeated heading gets `_1`, `_2`, … like python-markdown does), custom
+ * attr_list ids, and raw HTML ids. Headings inside code fences are not headings
+ * — a `# comment` in a shell sample generates nothing.
+ */
+export function headingAnchors(body) {
+  const text = prose(body);
+  const ids = new Set();
+  for (const line of text.split('\n')) {
+    const heading = HEADING_RE.exec(line);
+    if (!heading) continue;
+    const attrs = HEADING_ATTR_RE.exec(heading[1]);
+    const custom = attrs && CUSTOM_ID_RE.exec(attrs[1]);
+    if (custom) { ids.add(custom[1]); continue; }
+    const base = slugify(attrs ? heading[1].slice(0, attrs.index) : heading[1]);
+    let id = base;
+    for (let n = 1; ids.has(id); n += 1) id = `${base}_${n}`;
+    ids.add(id);
+  }
+  for (const [, id] of text.matchAll(HTML_ID_RE)) ids.add(id);
+  for (const [, id] of text.matchAll(ATTR_ID_RE)) ids.add(id);
+  return ids;
+}
+
 /** Heading anchors mkdocs will generate for a page. */
 export function anchorsFor(page) {
-  const body = readFileSync(join(DOCS_ROOT, page), 'utf8');
-  return new Set(
-    body.split('\n')
-      .filter(line => /^#{1,6}\s+\S/.test(line))
-      .map(line => slugify(line.replace(/^#+\s+/, '')))
-  );
+  return headingAnchors(readFileSync(join(DOCS_ROOT, page), 'utf8'));
 }
 
 /**
