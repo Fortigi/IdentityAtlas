@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://docs.identityatlas.io/stable/architecture/matrix/">
       
       
-        <link rel="prev" href="../../ui/build-a-matrix/">
+        <link rel="prev" href="../sql-connector-internals/">
       
       
-        <link rel="next" href="../matrix-scope-statistics/">
+        <link rel="next" href="../entity-detail-pages/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Reading the Matrix - Identity Atlas</title>
+        <title>Matrix Internals - Identity Atlas</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Reading the Matrix
+              Matrix Internals
             
           </span>
         </div>
@@ -287,12 +287,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../ui/overview/" class="md-tabs__link">
           
   
@@ -339,6 +337,8 @@
   
   
   
+    
+  
   
     
     
@@ -346,10 +346,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -1138,31 +1140,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1180,7 +1177,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1251,31 +1248,26 @@
                 
   
   
-    
   
   
-  
     
     
     
     
       
       
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
         
           
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
             
   
   
@@ -1293,7 +1285,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1336,37 +1328,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reading the Matrix
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../ui/reading-the-matrix/" class="md-nav__link">
         
   
   
@@ -1382,485 +1347,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-grid" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The grid
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#default-row-visibility" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Default row visibility
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#data-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Data source
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Data source">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#when-the-views-get-rebuilt-and-why-there-is-no-timer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        When the views get rebuilt, and why there is no timer
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#resource-metadata-columns-contexts-pinned-left-type-description-right" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resource metadata columns (Contexts pinned left, # | Type | Description right)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#badge-collapse-what-each-letter-actually-means" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Badge collapse — what each letter actually means
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#expand-semantics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Expand semantics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#why-groups-dont-appear-as-columns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why groups don't appear as columns
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#owner-rows-are-their-own-resource" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Owner rows are their own resource
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#business-role-columns-role-scopes-badge-like-memberships" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Business-role columns — role scopes badge like memberships
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#performance-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Performance notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#identity-rows" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Identity rows
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Identity rows">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#expanding-is-a-drill-down-not-an-extra-column" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Expanding is a drill-down, not an extra column
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#the-accounts-header-row" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The accounts header row
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#the-linked-account-count-on-an-identity-header" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The linked-account count on an identity header
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#context-picker-filtered-by-row-type" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Context picker filtered by row type
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#identity-extension-attribute-filtering" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Identity extension-attribute filtering
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#which-fields-the-attribute-picker-offers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Which fields the "+ Attribute" picker offers
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#attribute-values-paged-discovery-not-a-silent-cap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Attribute values — paged discovery, not a silent cap
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Attribute values — paged discovery, not a silent cap">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#verifying-it-on-a-deployment-that-has-fewer-than-500-distinct-values" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verifying it on a deployment that has fewer than 500 distinct values
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Verifying it on a deployment that has fewer than 500 distinct values">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#a-load-high-cardinality-demo-data-no-configuration-change" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A. Load high-cardinality demo data (no configuration change)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#b-lower-the-page-size" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        B. Lower the page size
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#filter-shape-normalised-at-the-wizard-boundary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Filter shape — normalised at the wizard boundary
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#the-strip-above-the-grid" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The strip above the grid
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#matrix-identity-comparing-two-filters" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Matrix identity — comparing two filters
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#adjusting-without-changing-anything" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Adjusting without changing anything
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sorting-folding-server-side-aggregation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sorting, folding &amp; server-side aggregation
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Sorting, folding &amp; server-side aggregation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#per-subject-sort-fold-client-side-small-matrices" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Per-subject sort + fold (client-side, small matrices)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#business-role-fold-rows" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Business-role fold (rows)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#which-business-role-does-this-row-belong-to" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Which business role does this row belong to?
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#one-resource-several-business-roles" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        One resource, several business roles
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fewer-and-more-than-the-role-assigns" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fewer and more than the role assigns
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#a-business-roles-own-row" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A business role's own row
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#the-cell-marker-strip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The cell marker strip
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#grid-height" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Grid height
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#size-gate" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Size gate
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#layered-server-aggregated-views-large-matrices" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Layered server-aggregated views (large matrices)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#excel-export" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Excel export
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-references" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related references
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2133,14 +1619,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../entity-detail-pages/" class="md-nav__link">
+      <a href="../../ui/detail-pages/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Entity Detail Pages
+    Reading a Detail Page
   
 
     
@@ -2167,20 +1653,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -3279,26 +2762,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -3316,7 +2804,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -3340,17 +2828,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
             
   
   
@@ -3867,26 +3358,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" >
         
           
-          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="">
             
   
   
@@ -3904,7 +3400,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
@@ -4238,6 +3734,568 @@
     
   
     SQL Connector Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Internals
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-grid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The grid
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#default-row-visibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default row visibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data source
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data source">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-the-views-get-rebuilt-and-why-there-is-no-timer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the views get rebuilt, and why there is no timer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-metadata-columns-contexts-pinned-left-type-description-right" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource metadata columns (Contexts pinned left, # | Type | Description right)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#badge-collapse-what-each-letter-actually-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Badge collapse — what each letter actually means
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expand-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expand semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-groups-dont-appear-as-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why groups don't appear as columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#owner-rows-are-their-own-resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Owner rows are their own resource
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#business-role-columns-role-scopes-badge-like-memberships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Business-role columns — role scopes badge like memberships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identity-rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity rows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Identity rows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#expanding-is-a-drill-down-not-an-extra-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expanding is a drill-down, not an extra column
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-accounts-header-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The accounts header row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-linked-account-count-on-an-identity-header" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The linked-account count on an identity header
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#context-picker-filtered-by-row-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context picker filtered by row type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#identity-extension-attribute-filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity extension-attribute filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#which-fields-the-attribute-picker-offers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which fields the "+ Attribute" picker offers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attribute-values-paged-discovery-not-a-silent-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribute values — paged discovery, not a silent cap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attribute values — paged discovery, not a silent cap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#verifying-it-on-a-deployment-that-has-fewer-than-500-distinct-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying it on a deployment that has fewer than 500 distinct values
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verifying it on a deployment that has fewer than 500 distinct values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-load-high-cardinality-demo-data-no-configuration-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A. Load high-cardinality demo data (no configuration change)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-lower-the-page-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        B. Lower the page size
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-shape-normalised-at-the-wizard-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filter shape — normalised at the wizard boundary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-strip-above-the-grid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The strip above the grid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matrix-identity-comparing-two-filters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matrix identity — comparing two filters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adjusting-without-changing-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjusting without changing anything
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sorting-folding-server-side-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sorting, folding &amp; server-side aggregation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sorting, folding &amp; server-side aggregation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-subject-sort-fold-client-side-small-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-subject sort + fold (client-side, small matrices)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#business-role-fold-rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Business-role fold (rows)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#which-business-role-does-this-row-belong-to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which business role does this row belong to?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-resource-several-business-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One resource, several business roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fewer-and-more-than-the-role-assigns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fewer and more than the role assigns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-business-roles-own-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A business role's own row
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-cell-marker-strip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The cell marker strip
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grid-height" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grid height
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#size-gate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size gate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#layered-server-aggregated-views-large-matrices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layered server-aggregated views (large matrices)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#excel-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Excel export
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related references
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entity-detail-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detail Pages Internals
   
 
     
@@ -6800,15 +6858,23 @@
   
     
     
+      
+  
+  
+    
+    
       <li class="md-path__item">
-        <a href="../../ui/overview/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Use
+    Reference
   </span>
 
         </a>
       </li>
+    
+  
+
     
   
 
@@ -6819,10 +6885,10 @@
     
     
       <li class="md-path__item">
-        <a href="../../ui/build-a-matrix/" class="md-path__link">
+        <a href="../core-ontology/" class="md-path__link">
           
   <span class="md-ellipsis">
-    The matrix
+    Under the hood
   </span>
 
         </a>
@@ -6845,6 +6911,9 @@
 
 
 <h1 id="matrix-view-architecture">Matrix view — architecture<a class="headerlink" href="#matrix-view-architecture" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>This page describes how the matrix is built. To learn how to read it, see <strong><a href="../../ui/reading-the-matrix/">Reading the matrix</a></strong>.</p>
+</blockquote>
 <div class="admonition info">
 <p class="admonition-title">Before this page</p>
 <p>Assumes you have read <strong><a href="../../ui/overview/">The app at a glance</a></strong>.
