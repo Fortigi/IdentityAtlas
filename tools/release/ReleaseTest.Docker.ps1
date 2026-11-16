@@ -44,21 +44,28 @@ function Get-QuickstartScript {
         release's compose file — see COMPOSE_FILE_VERSION in it), and the
         channel is chosen with an IMAGE_TAG= prefix, as under "Image channels".
         With -ReportGenerator, the two .env lines from the report-generator
-        page go in between creating .env and starting.
+        page go in between creating .env and starting; -ExtraEnv adds more
+        there (the sign-in variant's three AUTH_* lines from
+        docs/admin/authentication.md).
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
         [Parameter(Mandatory)][string] $Ref,
         [Parameter(Mandatory)][string] $ImageTag,
-        [switch] $ReportGenerator
+        [switch] $ReportGenerator,
+        [System.Collections.IDictionary] $ExtraEnv = @{}
     )
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('set -euo pipefail')
     $lines.Add($script:QuickstartLines[0].Replace('/main/', "/$Ref/"))
     $lines.Add($script:QuickstartLines[1])
-    if ($ReportGenerator) {
-        foreach ($k in $script:ReportGeneratorEnv.Keys) { $lines.Add("echo `"$k=$($script:ReportGeneratorEnv[$k])`" >> .env") }
+    $envLines = [ordered]@{}
+    if ($ReportGenerator) { foreach ($k in $script:ReportGeneratorEnv.Keys) { $envLines[$k] = $script:ReportGeneratorEnv[$k] } }
+    foreach ($k in $ExtraEnv.Keys) { $envLines[$k] = $ExtraEnv[$k] }
+    foreach ($k in $envLines.Keys) {
+        if ($envLines[$k] -notmatch '^[\w.:/@-]*$') { throw "Refusing .env value for ${k}: only plain identifiers are written into the script." }
+        $lines.Add("echo `"$k=$($envLines[$k])`" >> .env")
     }
     $lines.Add("IMAGE_TAG=$ImageTag $($script:QuickstartLines[2])")
     ($lines -join "`n") + "`n"

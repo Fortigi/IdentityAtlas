@@ -9,9 +9,14 @@
 #                     before/after, then restore that backup onto an empty host
 #   Docker: fresh     docs/quickstart.md line for line with the candidate's tag
 #   Both with and without the report-generator profile (the local model).
+#   Docker: sign-in   fresh install with sign-in on; real Entra ID tokens with and
+#                     without a role (F-01). Needs the azure-release-test
+#                     environment, so it does not run on pull requests.
+#   Portable          both ZIPs on windows-latest: fresh start, and an upgrade
+#                     from the previous stable's ZIP on a kept data directory.
 #
-# The logic lives in tools/release/ (Invoke-DockerReleaseTest.ps1 and the
-# ReleaseTest.*.ps1 helpers, unit-tested by test/unit/ReleaseTestFunctions.Tests.ps1).
+# The logic lives in tools/release/ (Invoke-*ReleaseTest.ps1 and the
+# ReleaseTest.*.ps1 helpers, unit-tested by test/unit/ReleaseTest*.Tests.ps1).
 # This file only wires jobs together.
 #
 # Who runs it: the nightly release run (workflow_call), a person (Actions →
@@ -105,9 +110,123 @@ jobs:
           ./tools/release/Invoke-DockerReleaseTest.ps1 -Scenario $env:SCENARIO -Candidate $env:CANDIDATE `
             -PreviousStable $env:PREVIOUS_STABLE -ReportGenerator:($env:REPORT_GENERATOR -eq 'true')
 
+  # Real Entra ID tokens, no secret: GitHub's OIDC token is exchanged through a
+  # federated credential that only this environment's runs match. The
+  # environment admits main and v* tags only, which is why this job is skipped
+  # on pull requests. See docs/contributing/release-process.md for the app
+  # registrations and the four variables.
+  docker-signin:
+    name: 'Docker: sign-in on'
+    needs: plan
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: azure-release-test
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the sign-in variables are set
+        env:
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          ROLE: ${{ vars.AZURE_CLIENT_ID }}
+          SSO: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
+          NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+        run: |
+          missing=""
+          for v in TENANT:AZURE_TENANT_ID ROLE:AZURE_CLIENT_ID SSO:RELEASE_TEST_SSO_CLIENT_ID NOROLE:RELEASE_TEST_NOROLE_CLIENT_ID; do
+            [ -n "${!v%%:*}" ] || missing="$missing ${v#*:}"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Set these variables on the azure-release-test environment:$missing (docs/contributing/release-process.md → One-time setup)."; exit 1
+          fi
+
+      - name: Run the sign-in scenario
+        shell: pwsh
+        env:
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          ROLE: ${{ vars.AZURE_CLIENT_ID }}
+          SSO: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
+          NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+        run: |
+          ./tools/release/Invoke-DockerReleaseTest.ps1 -Scenario SignIn -Candidate $env:CANDIDATE `
+            -SsoTenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE
+
+  # The ZIPs both Windows jobs start: the previous stable release's from its
+  # GitHub release, the candidate's from its (pre-)release, or, for edge, which
+  # has none, built here by the same script the Cut workflows use.
+  portable-zips:
+    name: 'Portable: get the ZIPs'
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the previous stable release's ZIPs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS: ${{ needs.plan.outputs.previous_stable }}
+        run: gh release download "$PREVIOUS" --pattern 'IdentityAtlas-portable*.zip' --dir zips/previous
+
+      - name: Download the candidate's ZIPs
+        if: needs.plan.outputs.candidate != 'edge'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$CANDIDATE" --pattern 'IdentityAtlas-portable*.zip' --dir zips/candidate
+
+      - name: Set up Node.js
+        if: needs.plan.outputs.candidate == 'edge'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Build the candidate's ZIPs (edge has no release)
+        if: needs.plan.outputs.candidate == 'edge'
+        run: |
+          (cd app/desktop && npm install --prefer-offline)
+          bash .github/scripts/build_portable_zips.sh
+          mkdir -p zips/candidate
+          cp app/api/dist-node-launcher/release/IdentityAtlas-portable*.zip zips/candidate/
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: portable-zips
+          path: zips/
+          retention-days: 3
+
+  portable:
+    name: 'Portable: ${{ matrix.variant }} ${{ matrix.scenario }}'
+    needs: [plan, portable-zips]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [default, postgres]
+        scenario: [Fresh, Upgrade]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: portable-zips
+          path: zips
+
+      - name: Run the portable ${{ matrix.scenario }} scenario
+        shell: pwsh
+        env:
+          VARIANT: ${{ matrix.variant }}
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          ./tools/release/Invoke-PortableReleaseTest.ps1 -Scenario $env:SCENARIO -Variant $env:VARIANT `
+            -CandidateZipDir zips/candidate -PreviousZipDir zips/previous
+
   result:
     name: 'Release Test Passed'
-    needs: [plan, docker]
+    needs: [plan, docker, docker-signin, portable-zips, portable]
     if: always()
     runs-on: ubuntu-latest
     steps:

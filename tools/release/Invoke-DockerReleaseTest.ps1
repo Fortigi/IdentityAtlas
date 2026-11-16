@@ -16,8 +16,15 @@
         checks the result the way the quickstart's "Verifying the deployment"
         section does, then loads the demo data.
 
+    -Scenario SignIn
+        The fresh install again, with sign-in switched on in .env as
+        docs/admin/authentication.md describes, then the F-01 checks from
+        ReleaseTest.SignIn.ps1 with real Entra ID tokens: a caller with a role
+        gets in, a caller without one is refused. Needs the GitHub OIDC token
+        (id-token: write) and the -SsoTenantId/-SsoClientId/-*CallerId values.
+
     -ReportGenerator adds the report-generator profile (the local model) to
-    either scenario and asks it one question at the end.
+    the Upgrade or Fresh scenario and asks it one question at the end.
 
     Deviation from the docs: `docker compose exec` gets -T, because a CI runner
     has no terminal. Nothing else is changed.
@@ -27,17 +34,22 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Upgrade', 'Fresh')][string] $Scenario,
+    [Parameter(Mandatory)][ValidateSet('Upgrade', 'Fresh', 'SignIn')][string] $Scenario,
     [Parameter(Mandatory)][string] $Candidate,
     [string] $PreviousStable = '',
     [switch] $ReportGenerator,
     [string] $WorkDir = (Join-Path ([IO.Path]::GetTempPath()) "ia-reltest-$PID"),
-    [string] $BaseUrl = 'http://localhost:3001/api'
+    [string] $BaseUrl = 'http://localhost:3001/api',
+    [string] $SsoTenantId = '',
+    [string] $SsoClientId = '',
+    [string] $RoleCallerId = '',
+    [string] $NoRoleCallerId = ''
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'ReleaseTest.Functions.ps1')
 . (Join-Path $PSScriptRoot 'ReleaseTest.Docker.ps1')
+. (Join-Path $PSScriptRoot 'ReleaseTest.SignIn.ps1')
 
 $imageTag = ConvertTo-ImageTag $Candidate
 # Resolved here, in the checkout: the scenario itself runs in $WorkDir, which is no git repository.
@@ -108,10 +120,32 @@ function Invoke-FreshScenario {
     if ($ReportGenerator) { Assert-ReportGenerator -BaseUrl $BaseUrl }
 }
 
+function Invoke-SignInScenario {
+    foreach ($name in 'SsoTenantId', 'SsoClientId', 'RoleCallerId', 'NoRoleCallerId') {
+        if (-not (Get-Variable $name -ValueOnly)) { throw "-$name is required for the SignIn scenario." }
+    }
+    Write-Step "Fresh install of $Candidate with sign-in on"
+    $auth = [ordered]@{ AUTH_ENABLED = 'true'; AUTH_TENANT_ID = $SsoTenantId; AUTH_CLIENT_ID = $SsoClientId }
+    $script = Get-QuickstartScript -Ref (Get-ComposeRef $Candidate) -ImageTag $imageTag -ExtraEnv $auth
+    $script | bash
+    if ($LASTEXITCODE -ne 0) { throw 'The quickstart commands failed.' }
+    Wait-SchemaReady -BaseUrl $BaseUrl -TimeoutSec 900
+    Assert-RunningVersion -BaseUrl $BaseUrl -ImageTag $imageTag
+    Assert-AuthConfig -BaseUrl $BaseUrl -SsoClientId $SsoClientId
+    $tokens = Get-SignInToken -TenantId $SsoTenantId -SsoClientId $SsoClientId -RoleCallerId $RoleCallerId -NoRoleCallerId $NoRoleCallerId
+    $problems = @(Invoke-SignInCheck -BaseUrl $BaseUrl -Tokens $tokens)
+    if ($problems.Count -gt 0) { throw "Sign-in checks failed: $($problems -join '; ')" }
+    Write-Step "All $(@(Get-SignInExpectation).Count) sign-in checks passed"
+}
+
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
 Push-Location $WorkDir
 try {
-    if ($Scenario -eq 'Upgrade') { Invoke-UpgradeScenario } else { Invoke-FreshScenario }
+    switch ($Scenario) {
+        'Upgrade' { Invoke-UpgradeScenario }
+        'Fresh' { Invoke-FreshScenario }
+        'SignIn' { Invoke-SignInScenario }
+    }
     Write-Step "$Scenario passed for $Candidate"
 } catch {
     Write-Host "::error::$Scenario failed for ${Candidate}: $_"
