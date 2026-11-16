@@ -144,3 +144,21 @@ describe('rotateMasterKey — failure mid-transaction', () => {
     expect(statements).toEqual(['BEGIN', 'SELECT', 'ROLLBACK']);
   });
 });
+
+describe('usage pointer in the header comment', () => {
+  // Operators read the header to find the rotation runbook. The page it names
+  // moved once (llm-and-risk-scoring.md → secrets-and-master-key.md); this
+  // fails when the page or its heading moves again without the comment.
+  it('names a docs page and heading that exist', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = fs.readFileSync(path.join(here, 'rotate-master-key.js'), 'utf8');
+    const m = src.match(/see (docs\/\S+\.md) → ([^)]+)\)/);
+    expect(m, 'usage comment should point at "docs/<page>.md → <heading>"').not.toBeNull();
+    const [, docPath, heading] = m;
+    const doc = fs.readFileSync(path.join(here, '../../../..', docPath), 'utf8');
+    expect(doc.split('\n')).toContain(`## ${heading.trim()}`);
+  });
+});
