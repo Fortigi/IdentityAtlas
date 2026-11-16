@@ -28,7 +28,7 @@
    ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
    │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
    │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
-   │ firewall: web    │     │ /data/uploads      │        │ access policies.  │
+   │ firewall: web    │     │ /data/uploads      │        │ Azure RBAC.       │
    │ app outbound IPs │     │ shared with worker │        │ master key +      │
    │ only             │     └────────────────────┘        │ DB password.      │
    └──────────────────┘                                   └──────────────────┘
@@ -263,7 +263,7 @@ The `networkMode` parameter picks the network shape.
 | | **public** (default) | **private** (new deployments only) |
 |---|---|---|
 | Postgres | Public endpoint. Firewall allows only the web app's possible outbound IP addresses (one rule each). | Public network access disabled; private endpoint. |
-| Key Vault | Public endpoint, default action Allow. Access still requires the managed identity's access policy. | Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass). |
+| Key Vault | Public endpoint, default action Allow. Access still requires a Key Vault data-plane role (Azure RBAC) on the vault. | Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass). |
 | Storage (Azure Files) | Public endpoint, default action Allow (App Service and a VNet-less Container Apps environment can only mount it that way). | Private endpoint. Default action Deny after the deployment finishes. |
 | Web app | Public. | Public, with regional VNet integration and all outbound traffic routed through the VNet. |
 | Worker | Container Apps environment without a VNet. | Container Apps environment in a /23 subnet. |
@@ -317,7 +317,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 |---|---|---|
 | **Architecture** | App Service + Postgres Flex + ACA worker | Matches the customer's CCoE pattern — no networking provisioning. |
 | **Postgres endpoint** | Public + firewall limited to the web app's outbound IPs (default), or private endpoint (`networkMode=private`) | "Allow Azure services" admitted every Azure tenant. The App Service publishes every outbound address it can use, so the rules are exact without a VNet. |
-| **Key Vault endpoint** | Public, access policies (default); private endpoint + Deny (`networkMode=private`) | The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by access policies either way. |
+| **Key Vault endpoint** | Public, Azure RBAC (default); private endpoint + Deny (`networkMode=private`) | The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by Azure RBAC roles on the vault either way (the web app identity has Key Vault Secrets User, the bootstrap identity Key Vault Secrets Officer). Vault access policies are not used: Microsoft is retiring them. |
 | **App Service image source** | Direct pull from public `ghcr.io` (default); the customer's own ACR with `containerRegistryResourceId` | No ACR needed by default (~€5/mo saved + simpler deploy). A tenant that wants its own copy of the images points the template at its ACR (typically a pull-through cache of ghcr.io), pulled with a dedicated AcrPull-only identity. |
 | **Report generator API key** | Random, generated once by the deployment script, kept in KV | It used to be a `newGuid()` template default, so every redeploy issued a new key and restarted both containers even when nothing else changed. |
 | **Worker model** | ACA App (always-on), not ACA Job | "Sync now" should respond in <2 s. Job would have a 60-300 s schedule lag. |
@@ -348,7 +348,7 @@ Key Vault has soft delete + purge protection (7-day retention). To redeploy with
 | `azure/modules/storage.bicep` | Storage Account + Azure Files share |
 | `azure/modules/identities.bicep` | 3 user-assigned managed identities (web, deployment script, crawler) |
 | `azure/Grant-CrawlerIdentityGraphPermissions.ps1` | Grants the crawler identity its read-only Microsoft Graph permissions |
-| `azure/modules/key-vault.bicep` | Key Vault + access policies + network ACL |
+| `azure/modules/key-vault.bicep` | Key Vault (Azure RBAC) + its role assignments + network ACL |
 | `azure/modules/network.bicep` | Private mode: VNet, subnets, private DNS zones |
 | `azure/modules/private-endpoints.bicep` | Private mode: private endpoints for Key Vault, Storage, Postgres |
 | `azure/modules/postgres-firewall.bicep` | Public mode: Postgres firewall rules for the web app's outbound IPs |

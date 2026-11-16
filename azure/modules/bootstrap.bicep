@@ -116,8 +116,43 @@ else
   echo "    no registry provided — images are pulled from ghcr.io"
 fi
 
+# The vault uses Azure RBAC. A role assignment created earlier in this same
+# deployment can take a while (usually seconds, sometimes minutes) to reach Key
+# Vault, so wait until this identity can actually list secrets.
+echo "==> Waiting for Key Vault access"
+attempt=1
+until KV_ERR=$(az keyvault secret list --vault-name "$KV_NAME" --maxresults 1 --output none 2>&1); do
+  if [ "$attempt" -ge 24 ]; then
+    echo "ERROR: no access to Key Vault $KV_NAME after 4 minutes."
+    echo "       The bootstrap identity needs the Key Vault Secrets Officer role on the vault."
+    printf '%s\n' "$KV_ERR"
+    exit 1
+  fi
+  echo "    no access yet (attempt $attempt/24), retrying in 10 s"
+  attempt=$((attempt + 1))
+  sleep 10
+done
+echo "    access OK"
+
+# Succeeds when the secret exists, fails when Key Vault says it does not. Any
+# other error stops the script: treating an unreadable secret as missing would
+# generate a new master key over the old one and make every secret the app has
+# encrypted with it unreadable.
+secret_exists() {
+  local err
+  if err=$(az keyvault secret show --vault-name "$KV_NAME" --name "$1" --output none 2>&1); then
+    return 0
+  fi
+  if printf '%s' "$err" | grep -q 'SecretNotFound'; then
+    return 1
+  fi
+  echo "ERROR: could not check secret $1 in $KV_NAME:"
+  printf '%s\n' "$err"
+  exit 1
+}
+
 echo "==> Generating master key (if absent)"
-if ! az keyvault secret show --vault-name "$KV_NAME" --name identityatlas-master-key >/dev/null 2>&1; then
+if ! secret_exists identityatlas-master-key; then
   MASTER_KEY=$(openssl rand -base64 32)
   az keyvault secret set \
     --vault-name "$KV_NAME" \
@@ -143,7 +178,7 @@ if [ "$ROTATE_PG_PASSWORD" = "True" ] || [ "$ROTATE_PG_PASSWORD" = "true" ]; the
   az keyvault secret set --vault-name "$KV_NAME" --name postgres-admin-password \
     --value "$(new_pg_password)" --output none
   echo "    rotated postgres-admin-password (rotatePostgresPassword=true)"
-elif ! az keyvault secret show --vault-name "$KV_NAME" --name postgres-admin-password >/dev/null 2>&1; then
+elif ! secret_exists postgres-admin-password; then
   az keyvault secret set --vault-name "$KV_NAME" --name postgres-admin-password \
     --value "$(new_pg_password)" --output none
   echo "    generated postgres-admin-password"
@@ -169,7 +204,7 @@ if [ -n "${REPORT_GENERATOR_API_KEY:-}" ]; then
   else
     echo "    supplied report-generator-api-key already stored"
   fi
-elif ! az keyvault secret show --vault-name "$KV_NAME" --name report-generator-api-key >/dev/null 2>&1; then
+elif ! secret_exists report-generator-api-key; then
   az keyvault secret set --vault-name "$KV_NAME" --name report-generator-api-key \
     --value "$(openssl rand -hex 32)" --output none
   echo "    generated report-generator-api-key"

@@ -8,7 +8,7 @@
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
 //   - Postgres Flexible Server (firewall limited to the web app's outbound IPs)
-//   - Key Vault (access policies; holds master key + DB password)
+//   - Key Vault (Azure RBAC; holds master key + DB password)
 //   - Storage Account + Azure Files share (for /data/uploads)
 //   - 3 user-assigned managed identities (web, deployment-script, crawler)
 //   - One-shot deployment script: generates master key + DB password into KV
