@@ -14,7 +14,7 @@ Goal: the new data model exists and is reachable over HTTP. No UI yet.
 - [ ] Write migration `app/api/src/db/migrations/0XX_context_redesign.sql`
     - [ ] Drop legacy tables: `Contexts` (old shape), `OrgUnits`, `GraphResourceClusters`, `GraphResourceClusterMembers`, `GraphTags`, `GraphTagAssignments`
     - [ ] Drop column `Identities.contextId`
-    - [ ] Create `Contexts`, `ContextMembers`, `ContextAlgorithms`, `ContextAlgorithmRuns` per [data model](context-redesign.md#33-schema-proposed)
+    - [ ] Create `Contexts`, `ContextMembers`, `ContextAlgorithms`, `ContextAlgorithmRuns` per [data model](context-redesign.md#33-schema)
     - [ ] Indexes on `parentContextId`, `targetType`, `variant`, `scopeSystemId`, and the `(scopeSystemId, externalId)` unique index
     - [ ] History trigger on `Contexts` (match the existing `_history` pattern)
 - [ ] `app/api/src/routes/contexts.js` — replace existing routes

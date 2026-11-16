@@ -704,7 +704,7 @@ describe('IdentityIQ presets match the real schema', () => {
     // 60% of entitlements, so at the production catalogue size (805,497) the
     // entitlement statement alone would add ~1.45M rows across three tables.
     // Roles are three orders of magnitude smaller. docs/sync/mssql.md →
-    // "What owners cost".
+    // "Owners".
     for (const q of statements.filter(s => s.name === 'Business roles')) expect(q.ownership).toBe(true);
     for (const q of statements.filter(s => s.name === 'Entitlements')) expect(q.ownership).toBeFalsy();
     // Nothing else claims ownership — it is a resources-slot flag.

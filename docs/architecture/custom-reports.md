@@ -26,9 +26,9 @@ A **report definition** is the only thing that travels between the layers, and t
   "match": "all",
   "conditions": [
     { "type": "compare", "relation": "members", "measure": "identical",
-      "reference": { "entity": "resource", "name": "Fortigi - Algemeen - Maten", "id": "d2d71e…" } },
+      "reference": { "entity": "resource", "name": "Contoso - Finance - Controllers", "id": "d2d71e…" } },
     { "type": "relation", "relation": "businessRoles", "quantifier": "none", "match": "all",
-      "conditions": [{ "type": "field", "field": "displayName", "op": "eq", "value": "Fortigi - Algemeen - Maten" }] }
+      "conditions": [{ "type": "field", "field": "displayName", "op": "eq", "value": "Contoso - Finance - Controllers" }] }
   ],
   "columns": ["displayName", "memberCount", "compare.similarity"],
   "limit": 1000

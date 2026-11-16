@@ -1,0 +1,2 @@
+- The documentation now lives at docs.identityatlas.io; links in the app, the README and the website point there (the old fortigi.github.io address forwards to it)
+- The website's "Read the deployment documentation" link now opens the quick start instead of the documentation home page

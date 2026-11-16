@@ -46,6 +46,35 @@ export function stripPort(address) {
   return ip;
 }
 
+// A request that carries X-Forwarded-For while no proxy is trusted came through
+// a reverse proxy nobody told us about (security review Nov 2026, F-35). Every
+// client behind it then has the proxy's address, so an address-keyed limiter puts
+// them all in one bucket: the pre-authentication failure limiter, which counts
+// only failed requests, would let one anonymous client lock everyone out with a
+// loop of bad credentials. For such requests that limiter is skipped, and the
+// operator is told once what to set.
+//
+// The trade-off, stated: a client that connects directly can add the header too
+// and so step around that one limiter. It loses nothing else — the per-caller
+// limits after sign-in, the crawler-key failure limiter in front of the hash, and
+// the public endpoint limits all still apply. Locking out a whole organisation
+// is the worse failure.
+export const UNCONFIGURED_PROXY_WARNING =
+  'WARNING: requests arrive through a reverse proxy (X-Forwarded-For is set), but no proxy is trusted, so every client shares the proxy address for rate limiting and audit logs. Set TRUST_PROXY_HOPS to the number of proxies in front of Identity Atlas (or BEHIND_TLS=true for one TLS proxy).';
+
+export function createUnconfiguredProxyCheck(trustProxy, warn = console.warn) {
+  if (trustProxy !== false) return () => false;
+  let warned = false;
+  return (req) => {
+    if (!req.headers?.['x-forwarded-for']) return false;
+    if (!warned) {
+      warned = true;
+      warn(UNCONFIGURED_PROXY_WARNING);
+    }
+    return true;
+  };
+}
+
 // Key a limiter on the verified caller when one is known (a signed-in user, a
 // read API token, a crawler key), else on the client address. Keys are
 // namespaced so an IP can never collide with a principal id.

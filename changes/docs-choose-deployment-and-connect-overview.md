@@ -1,0 +1,2 @@
+- Added a "Choose a deployment" page to the documentation: the public demo, Docker, Azure and Portable side by side, with who each is for, what it needs, its limits and how upgrades work.
+- Added a "Connect your systems: overview" page: which crawler to use for which system, what each one brings in, how scheduling works, what a refresh removes, and exactly what is supported for SailPoint.

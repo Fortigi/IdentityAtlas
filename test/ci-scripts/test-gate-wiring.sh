@@ -177,6 +177,17 @@ for f in "$WF"/*.yml; do
 done
 assert "every workflow that pushes main rebases and retries" "" "${noretry% }"
 
+# ── 5. The merge queue gets every required check ────────────────────────────
+# main merges through a merge queue. The queue waits for the same required checks as a PR
+# (CI Passed, PR Summary, Integration CI Passed) plus the code_scanning rule's CodeQL result.
+# A workflow that reports one of them but doesn't trigger on `merge_group` never reports in the
+# queue, and the queue waits until it times out — every PR stalls, nothing says why.
+noqueue=""
+for b in pr.yml pr-integration.yml codeql.yml; do
+  grep -qE '^  merge_group:' "$WF/$b" || noqueue="${noqueue}${b} "
+done
+assert "every workflow behind a required check triggers on merge_group" "" "${noqueue% }"
+
 echo
 echo "  $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

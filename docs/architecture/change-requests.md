@@ -7,7 +7,7 @@ Identity Atlas reads its data from sources: crawled systems, uploaded lists, rul
 that derive contexts. When an analyst decides that a source is wrong, for example
 *"the interview is right: Led left, even though the Klanten list still lists him"*,
 Identity Atlas shows the corrected picture at once (a [member
-override](context-interviews.md#marked-former-by-a-decision-migration-099)). The source itself is
+override](context-interviews.md#marked-former-by-a-decision-migration-101)). The source itself is
 still wrong, and the next re-import brings the same wrong fact back. The override
 keeps the decision in force **until the source is corrected**. A **change request**
 records that correction, and says which source it is for and what should change there.

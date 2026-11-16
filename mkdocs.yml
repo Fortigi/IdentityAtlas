@@ -1,6 +1,6 @@
 site_name: Identity Atlas
 site_description: Universal authorization intelligence — sync, analyze, and govern permissions from any identity system
-site_url: https://fortigi.github.io/IdentityAtlas
+site_url: https://docs.identityatlas.io
 repo_url: https://github.com/Fortigi/IdentityAtlas
 repo_name: Fortigi/IdentityAtlas
 edit_uri: edit/main/docs/
@@ -115,6 +115,7 @@ nav:
       - The app at a glance: ui/overview.md
       - Dashboard: ui/dashboard.md
       - The matrix:
+          - Build a Matrix: ui/build-a-matrix.md
           - Reading the Matrix: ui/reading-the-matrix.md
           - Scope Statistics: architecture/matrix-scope-statistics.md
           - Sharing a Matrix: ui/sharing-a-matrix.md
@@ -133,6 +134,7 @@ nav:
   # ── Operator territory: deploy it, connect real systems, keep it healthy.
   - Set up & run:
       - Deploy:
+          - Choose a Deployment: deploy/choose-a-deployment.md
           - Docker Setup: architecture/docker-setup.md
           - Azure Deployment Walkthrough: architecture/azure-deployment-walkthrough.md
           - Azure Deployment Reference: architecture/azure-deployment.md
@@ -141,21 +143,23 @@ nav:
           - Scaling & Load Testing: architecture/scaling.md
           - "Scale Rehearsal: 41 M Assignments": architecture/scale-rehearsal.md
       - Connect your systems:
+          - Overview: sync/overview.md
           - Entra ID: sync/entra-id.md
           - Azure Resource Manager: sync/azure-rm.md
           - Omada IGA: sync/omada.md
           - Omada Data Model Reference: architecture/omada-crawler-datamodel.md
           - midPoint: sync/midpoint.md
-          - midPoint Configuration Reference: sync/midpoint-crawler-configuration.md
           - SQL Server: sync/mssql.md
           - SCIM 2.0: sync/scim.md
           - CSV Import: sync/csv-import.md
           - Custom Connector (Push API): sync/custom-connector.md
+          - Schedule and Run Crawlers: sync/scheduling.md
       - Administer:
           - Authentication & SSO: admin/authentication.md
           - Context-Owner Access: architecture/context-owner-access.md
           - MCP and Relative Permissions: architecture/mcp-authorization.md
           - Data & Maintenance: admin/data-tab.md
+          - Back up, Restore & Upgrade: admin/backup-restore-upgrade.md
           - Automatic Updates: admin/auto-updates.md
           - Nightly Review: operations/nightly-review.md
       - Troubleshooting: reference/troubleshooting.md
@@ -194,7 +198,7 @@ nav:
           - Authorization Workbench (M1 design): architecture/m1-discovery-and-design.md
           - Authorization Workbench (M1 brief): architecture/m1-brief.md
           - Crawler Architecture: architecture/crawler-architecture.md
-          - SQL Connector Delta Loading: architecture/sql-connector-delta.md
+          - SQL Connector Internals: architecture/sql-connector-internals.md
           - Matrix Internals: architecture/matrix.md
           - Detail Pages Internals: architecture/entity-detail-pages.md
           - Reports: architecture/reports.md

@@ -1,0 +1,1 @@
+- Added a **Build a matrix** guide to the documentation: the four wizard steps, what the live counts mean, what happens when a matrix is too large, and how to save, reopen and adjust one.
