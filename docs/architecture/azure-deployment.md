@@ -253,7 +253,7 @@ az containerapp logs show --name <namePrefix>-worker --resource-group <rg> --fol
 Or query Log Analytics (whether created here or BYO):
 ```kql
 AppServiceConsoleLogs | where _ResourceId endswith "<namePrefix>-web"
-ContainerAppConsoleLogs_CL | where ContainerAppName_s == "<namePrefix>-worker"
+ContainerAppConsoleLogs | where ContainerAppName == "<namePrefix>-worker"
 ```
 
 ### Network modes

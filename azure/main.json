@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "3534540880565691815"
+      "templateHash": "6634028152811308064"
     }
   },
   "parameters": {
@@ -2183,9 +2183,6 @@
           "location": {
             "value": "[variables('location')]"
           },
-          "workspaceCustomerId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.customerId.value]"
-          },
           "workspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.workspaceId.value]"
           },
@@ -2207,7 +2204,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "13785658019228118863"
+              "templateHash": "5999433287341358078"
             }
           },
           "parameters": {
@@ -2225,16 +2222,10 @@
                 "description": "Azure region"
               }
             },
-            "workspaceCustomerId": {
-              "type": "string",
-              "metadata": {
-                "description": "Log Analytics customer ID (GUID)"
-              }
-            },
             "workspaceId": {
               "type": "string",
               "metadata": {
-                "description": "Log Analytics workspace resource ID — used to read its shared key locally via listKeys(). The key is NOT passed in: module outputs persist in ARM deployment history (audit finding H-1)."
+                "description": "Log Analytics workspace resource ID (created here or BYO, possibly in another resource group) — the destination of the environment's diagnostic setting."
               }
             },
             "storageAccountName": {
@@ -2269,7 +2260,35 @@
               "apiVersion": "2024-10-02-preview",
               "name": "[format('{0}-cae', parameters('namePrefix'))]",
               "location": "[parameters('location')]",
-              "properties": "[union(createObject('appLogsConfiguration', createObject('destination', 'log-analytics', 'logAnalyticsConfiguration', createObject('customerId', parameters('workspaceCustomerId'), 'sharedKey', listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('workspaceId'), '/')[2], split(parameters('workspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('workspaceId'), '/'))), '2023-09-01').primarySharedKey))), if(empty(parameters('infrastructureSubnetId')), createObject(), createObject('vnetConfiguration', createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', false()))))]"
+              "properties": "[union(createObject('appLogsConfiguration', createObject('destination', 'azure-monitor')), if(empty(parameters('infrastructureSubnetId')), createObject(), createObject('vnetConfiguration', createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', false()))))]"
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('namePrefix')))]",
+              "name": "to-log-analytics",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "logs": [
+                  {
+                    "category": "ContainerAppConsoleLogs",
+                    "enabled": true
+                  },
+                  {
+                    "category": "ContainerAppSystemLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('namePrefix')))]"
+              ]
             },
             {
               "type": "Microsoft.App/managedEnvironments/storages",
