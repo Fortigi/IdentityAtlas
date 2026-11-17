@@ -8,12 +8,6 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// Risk scoring is an experimental flag (off on a fresh install); these tests
-// exercise the feature itself, so it starts on. Its OFF behaviour is asserted below.
-const flags = vi.hoisted(() => ({ riskScoring: true }));
-vi.mock('../featureFlags.js', async (orig) =>
-  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
-
 // riskTableExists() runs one timed query and checks rows[0].tbl != null.
 vi.mock('../perf/sqlTimer.js', () => ({
   timedQuery: async () => ({ rows: [{ tbl: 'public.RiskScores' }] }),
@@ -25,6 +19,12 @@ vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next
 const ROW = { id: 'x', riskScore: 80, riskTier: 'High', riskClassifierMatches: [], riskExplanation: {}, riskOverride: null };
 const queryRiskScoresPage = vi.fn(async () => ({ data: [ROW], total: 1 }));
 vi.mock('../db/queryHelpers.js', () => ({ queryRiskScoresPage: (...a) => queryRiskScoresPage(...a) }));
+
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF behaviour is asserted below.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 
 const { default: router } = await import('./riskScores.js');
 const app = mountRouter(router);

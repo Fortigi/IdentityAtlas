@@ -372,14 +372,11 @@ describe('AdminPage (mounted)', () => {
   });
 
   it('runs an LLM connection test and surfaces the result', async () => {
-    const authFetch = makeAuthFetch((url) => {
+    renderAdmin((url) => {
       if (String(url).includes('/api/admin/llm/test')) {
         return { ok: true, model: 'claude-3', latencyMs: 123, sample: 'hi' };
       }
       return adminRoutes(url);
-    });
-    renderWithProviders(h(AdminPage, { features: { riskScoring: true } }), {
-      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Risk Scoring LLM' }));
@@ -389,13 +386,10 @@ describe('AdminPage (mounted)', () => {
   });
 
   it('shows the empty / not-configured states when risk data is unavailable', async () => {
-    const authFetch = makeAuthFetch((url) => {
+    renderAdmin((url) => {
       if (String(url).includes('/api/admin/risk-profile')) return { available: false };
       if (String(url).includes('/api/admin/classifiers')) return { available: false };
       return adminRoutes(url);
-    });
-    renderWithProviders(h(AdminPage, { features: { riskScoring: true } }), {
-      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Risk Scoring' }));
@@ -404,14 +398,11 @@ describe('AdminPage (mounted)', () => {
   });
 
   it('handles an LLM config load error gracefully (no crash, form still renders)', async () => {
-    const authFetch = makeAuthFetch((url) => {
+    renderAdmin((url) => {
       if (String(url).includes('/api/admin/llm/config')) {
         return jsonResponse({ error: 'boom' }, { ok: false, status: 500 });
       }
       return adminRoutes(url);
-    });
-    renderWithProviders(h(AdminPage, { features: { riskScoring: true } }), {
-      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Risk Scoring LLM' }));

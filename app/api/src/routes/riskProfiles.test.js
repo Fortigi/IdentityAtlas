@@ -7,11 +7,6 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
-// Risk scoring is an experimental flag (off on a fresh install); these tests
-// exercise the feature itself, so it starts on. Its OFF behaviour is asserted below.
-const flags = vi.hoisted(() => ({ riskScoring: true }));
-vi.mock('../featureFlags.js', async (orig) =>
-  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
 import { query, queryOne } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
@@ -22,6 +17,12 @@ vi.mock('../llm/riskPrompts.js', () => ({
   classifierGenerationPrompt: vi.fn(), extractJson: vi.fn(),
 }));
 vi.mock('../secrets/vault.js', () => ({ putSecret: vi.fn(), getSecret: vi.fn(), deleteSecret: vi.fn() }));
+
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF behaviour is asserted below.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 
 const { default: router } = await import('./riskProfiles.js');
 const app = mountRouter(router);
