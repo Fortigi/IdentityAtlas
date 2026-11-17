@@ -70,6 +70,8 @@ If a migration has to be **renumbered after it shipped** (two branches picked th
 
 **No runtime DDL.** Don't create/alter schema from route, ingest, or startup code — no `CREATE TABLE IF NOT EXISTS` "just in case" (this pattern was removed for `SavedMatrixFilters` in #794). The migration runner owns all schema; a table a route depends on must exist as a migration, not be lazily materialised on first request (which hides drift, races under concurrency, and needs write privileges at request time).
 
+**Classify every new table.** A migration that creates a table also adds it to `src/db/tableClassification.js` with one label (crawler / derived / curated / config / audit / secret) and a reason, and seeds a row for it in `test-utils/cleanDatabaseSeed.js`. The label decides what Admin → Data → Clean database does with it: crawler and derived rows go, the rest stay. `src/db/tableClassification.guard.test.js` fails on an unclassified table, and on a CASCADE foreign key that would let a clean remove person-made rows the dialog does not name.
+
 **Describe it in the core ontology.** A migration that adds or changes a column on a core table (Systems, Principals, Resources, Identities, Contexts and the five edge tables), or a new closed value list / relationship type in `ingest/validation.js`, also updates `/ontology/core.ttl` — `npm run ontology:check` and `contract-tests/coreOntology.contract.test.js` fail otherwise. The type lists in `validation.js` are exported for that check; add values there, never to a second list. Tooling lives in `src/ontology/` (dev/CI only, never imported by the server). See `docs/contributing/maintaining-the-ontology.md`.
 
 ## Key Patterns

@@ -3,7 +3,7 @@ import { useState, useEffect, lazy, Suspense, createElement } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { hasPermission } from '@ui/auth/usePermissions';
 
-import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './admin/adminTabs';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab, leaveTarget } from './admin/adminTabs';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
@@ -23,7 +23,6 @@ import MoveInstanceNote from './admin/MoveInstanceNote';
 import HistoryRetentionSection from './admin/HistoryRetentionSection';
 import DangerZoneSection from './admin/DangerZoneSection';
 import LLMSettingsSection from './admin/LLMSettingsSection';
-import ReportGeneratorLLMSection from './admin/ReportGeneratorLLMSection';
 import RiskScoringSection from './admin/RiskScoringSection';
 
 function AdminSubTabs({ activeTab, onTabChange, tabs }) {
@@ -91,7 +90,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
   // next render, so it doesn't trip react-hooks/set-state-in-effect. A tab whose
   // feature flag hasn't been reported yet is waited on, not bounced from.
   if (shouldLeaveTab(activeTab, visibleTabs, features)) {
-    setActiveTab(visibleTabs[0]?.key || 'crawlers');
+    setActiveTab(leaveTarget(activeTab, visibleTabs));
   }
 
   useEffect(() => {
@@ -143,7 +142,10 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
     plugins: { onNavigate },
     experimental: { features, version },
   };
-  const LazyTab = lazyTabComponent[activeTab];
+  // Nothing renders for a tab the user cannot see — including one whose feature
+  // flag has not been reported yet (it is waited on above, not shown meanwhile).
+  const shown = visibleTabs.some(t => t.key === activeTab) ? activeTab : null;
+  const LazyTab = lazyTabComponent[shown];
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -163,22 +165,17 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
           </Suspense>
         )}
 
-        {activeTab === 'data' && (
+        {shown === 'data' && (
           <>
             {canPowerQuery && <PowerQueryExportSection />}
             <MoveInstanceNote version={version} />
             {canManageSystems && <HistoryRetentionSection />}
-            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} />}
+            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} version={version} />}
           </>
         )}
 
-        {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
-        {activeTab === 'llm' && (
-          <div className="space-y-4">
-            <LLMSettingsSection />
-            <ReportGeneratorLLMSection />
-          </div>
-        )}
+        {shown === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
+        {shown === 'llm' && <LLMSettingsSection />}
       </div>
     </div>
   );

@@ -281,6 +281,8 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'GET /admin/mcp': ['admin.feature-flags'],
   'GET /admin/risk-profile': ['admin.crawlers', 'admin.llm'],
   'GET /admin/classifiers': ['admin.crawlers', 'admin.llm'],
+  // Reads only the dialog text (what a clean removes and keeps); same gate as the clean.
+  'GET /admin/clean-database/plan': ['admin.systems'],
   // NOTE: wiping all identity data needs only Systems configuration.
   'POST /admin/clean-database': ['admin.systems'],
   'GET /admin/history-retention': ['admin.systems'],

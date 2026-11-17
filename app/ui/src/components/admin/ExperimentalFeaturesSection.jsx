@@ -10,6 +10,11 @@
 //     and describe them in plain language to the local model (a separate container).
 //   • Context assistant — the "Describe it" context builder.
 //   • Organisation knowledge — interviews and other sources, their claims and decisions.
+//   • Risk scoring — frozen until it joins the Org Info building blocks; not
+//     certified per release. Off hides its tabs, pages and badges and the API
+//     refuses every risk endpoint.
+// While custom reports are on, the status of the local model they (and the other
+// assistants) use sits under their card, for users with admin.llm.
 // Below them, the context settings that change what a sync writes on its own
 // (not experimental, but switched the same way): Accountables from source owners.
 //
@@ -20,8 +25,11 @@
 import useFeatureToggle from '@ui/hooks/useFeatureToggle';
 import { docsUrl } from '@ui/utils/docsUrl';
 import { experimentalCrawlerTypes } from '@ui/utils/crawlerMetaRegistry';
+import { useAuth } from '@ui/auth/AuthGate';
+import { hasPermission } from '@ui/auth/usePermissions';
 import { FeatureToggleCard } from './adminUi';
 import McpServerCard from './McpServerCard';
+import ReportGeneratorLLMSection from './ReportGeneratorLLMSection';
 
 const EXPERIMENTAL_DOCS_PATH = '/reference/experimental-features/';
 
@@ -91,13 +99,34 @@ function MatrixSharingCard({ features }) {
 
 // Custom reports need an extra container (the local model server) before the
 // "describe it" half works. Off hides the builder and stops saved reports being
-// listed; nothing is deleted.
+// listed; nothing is deleted. While on, the model's status sits right below —
+// its endpoint (GET /api/admin/nl-reports/config) needs admin.llm and this flag.
 function CustomReportsCard({ features }) {
+  const { permissions, hasWildcard } = useAuth();
+  const showModel = features?.customReports === true && hasPermission(permissions, hasWildcard, 'admin.llm');
   return (
-    <FlagCard features={features} name="customReports" title="Custom reports" what="custom reports">
-      Lets analysts build their own reports on the <B>Reports</B> tab — by hand, or by describing them in plain
-      language to a model running on this deployment (see <B>Admin → LLM</B> for its status). Turning this off
-      hides the builder and stops saved reports from being listed or run; the saved reports themselves are kept.
+    <>
+      <FlagCard features={features} name="customReports" title="Custom reports" what="custom reports">
+        Lets analysts build their own reports on the <B>Reports</B> tab — by hand, or by describing them in plain
+        language to a model running on this deployment (its status is shown below while this is on). Turning this
+        off hides the builder and stops saved reports from being listed or run; the saved reports themselves are kept.
+      </FlagCard>
+      {showModel && <ReportGeneratorLLMSection />}
+    </>
+  );
+}
+
+// Risk scoring is kept but frozen as experimental until it is merged into the
+// Org Info building blocks. Off means off: no tabs, pages, badges or runs, and
+// the API refuses every risk-scoring and risk-LLM endpoint. Scores are kept.
+function RiskScoringCard({ features }) {
+  return (
+    <FlagCard features={features} name="riskScoring" title="Risk scoring" what="risk scoring">
+      Scores every account, group, business role, context and person from 0 to 100, from classifiers an LLM
+      drafts from your organisation&apos;s profile. Adds the <B>Risk Scores</B> tab, the <B>Risk</B> tab on detail
+      pages, and <B>Admin → Risk Scoring</B> and <B>Admin → Risk Scoring LLM</B>, and scores after every crawl. It
+      is not certified per release. Turning this off hides all of it, stops scoring and makes the API refuse every
+      risk endpoint; stored scores, profiles and classifiers are kept, so turning it back on restores them.
     </FlagCard>
   );
 }
@@ -126,7 +155,7 @@ function OrgKnowledgeCard({ features }) {
       Adds, on an organisational unit or a logical application, <B>Upload interview</B> and <B>What we know</B>:
       what people say about who belongs, who left and who answers for it — read from a transcript or another source
       into claims an analyst confirms or rejects, each with the quote it rests on, and the contradictions with what
-      the source systems say. When a model is configured (<B>Admin → LLM</B>), the text of what is uploaded is sent
+      the source systems say. When the model on this deployment is running, the text of what is uploaded is sent
       to it. Turning this off hides all of it and shows plain membership; the sources and decisions are kept, so
       turning it back on restores them.
     </FlagCard>
@@ -190,6 +219,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <ContextAssistantCard features={features} />
       <McpServerCard features={features} />
       <OrgKnowledgeCard features={features} />
+      <RiskScoringCard features={features} />
       <SourceOwnerSettings features={features} />
     </div>
   );

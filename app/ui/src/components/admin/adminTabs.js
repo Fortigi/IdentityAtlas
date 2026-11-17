@@ -12,6 +12,10 @@
 //
 // `feature` names an optional-feature flag the tab additionally needs. That is
 // not a platform check: a switched-off feature has no page to manage.
+//
+// `leaveTo` names the tab to land on when this one is hidden, instead of the
+// first visible one: a #admin?sub=llm link followed while risk scoring is off
+// lands on Experimental, where the switch that brings the tab back lives.
 
 import { hasPermission } from '@ui/auth/usePermissions';
 
@@ -19,8 +23,8 @@ export const ADMIN_TABS = [
   { key: 'crawlers',        label: 'Crawlers',         description: 'Add, configure and run identity data crawlers',                        requires: ['admin.crawlers'] },
   { key: 'plugins',         label: 'Plugins',          description: 'Context plugins: configured trees and ad-hoc runs',                    requires: ['admin.context-plugins'] },
   { key: 'account-linking', label: 'Account Linking',  description: 'Rules for linking orphan accounts to existing identities',             requires: ['admin.crawlers'] },
-  { key: 'risk-scoring',    label: 'Risk Scoring',     description: 'Risk profile, classifiers and feature toggle',                         requires: ['admin.llm', 'admin.crawlers'] },
-  { key: 'llm',             label: 'LLM Settings',     description: 'Configure the LLM provider used by risk scoring',                      requires: ['admin.llm'] },
+  { key: 'risk-scoring',    label: 'Risk Scoring',     description: 'Risk profile, classifiers and on-demand scoring runs (experimental)', requires: ['admin.llm', 'admin.crawlers'], feature: 'riskScoring', leaveTo: 'experimental' },
+  { key: 'llm',             label: 'Risk Scoring LLM', description: 'The LLM provider risk scoring uses — and nothing else',              requires: ['admin.llm'], feature: 'riskScoring', leaveTo: 'experimental' },
   { key: 'performance',     label: 'Performance',      description: 'API and SQL performance metrics' },
 
   { key: 'auth',            label: 'Authentication',   description: 'Single sign-on configuration',                                         requires: ['admin.auth'] },
@@ -49,4 +53,11 @@ export function shouldLeaveTab(activeTab, visibleTabs, features = {}) {
   if (!visibleTabs.length || visibleTabs.some(t => t.key === activeTab)) return false;
   const def = ADMIN_TABS.find(t => t.key === activeTab);
   return !(def?.feature && !Object.hasOwn(features || {}, def.feature));
+}
+
+// Where to go when leaving `activeTab`: its `leaveTo` tab when the user can see
+// that one, otherwise the first visible tab.
+export function leaveTarget(activeTab, visibleTabs) {
+  const to = ADMIN_TABS.find(t => t.key === activeTab)?.leaveTo;
+  return visibleTabs.some(t => t.key === to) ? to : (visibleTabs[0]?.key || 'crawlers');
 }

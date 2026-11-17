@@ -17,6 +17,12 @@ let tableExists = true;
 const queryScript = []; // FIFO of rows-arrays (or an Error) applied to non-table-check queries
 const capturedSql = []; // every SQL string handed to timedQuery(), so tests can assert the emitted SQL
 
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF
+// behaviour is asserted in riskScores.routes.test.js.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 vi.mock('../perf/sqlTimer.js', () => ({
   timedQuery: async (_p, _label, _res, sql) => {
     capturedSql.push(sql);

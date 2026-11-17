@@ -179,7 +179,7 @@ Accounts, resources, business roles and identities ranked by a risk score from 0
 from *None* to *Critical*. Open a record's **Risk** view to see what produced its score and, as an
 analyst, to adjust it with a written reason.
 
-An administrator switches the feature on and sets it up under **Admin → Risk Scoring**. Scoring needs
+Risk scoring is [experimental](../reference/experimental-features.md#risk-scoring): an administrator switches it on under **Admin → Experimental** and sets it up under **Admin → Risk Scoring**. Scoring needs
 an active set of classifiers; once there is one, the scores are recalculated after every crawl, and
 can also be run by hand from **Admin → Risk Scoring**. Until scores have been computed the tab says so
 and offers to run the scoring.
@@ -229,8 +229,8 @@ The Admin tab groups the administrative pages. You only see the ones your permis
 | **Crawlers** | Add, configure, schedule and run the crawlers that load data |
 | **Plugins** | Manage the rules that derive contexts, and their runs |
 | **Account Linking** | Set the rules that link accounts to people |
-| **Risk Scoring** | Switch risk scoring on and set up the risk profile and classifiers |
-| **LLM Settings** | Choose the language model that risk scoring uses |
+| **Risk Scoring** | Set up the risk profile and classifiers, and run scoring (only while risk scoring is switched on) |
+| **Risk Scoring LLM** | Choose the language model that risk scoring uses (only while risk scoring is switched on) |
 | **Performance** | See how fast the application answers |
 | **Authentication** | Set up single sign-on |
 | **Roles & Permissions** | Decide which roles from your identity provider get which permissions in the app |

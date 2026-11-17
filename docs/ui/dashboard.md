@@ -62,7 +62,8 @@ Once data is loaded, three status cards summarise the optional features, each wi
 a coloured dot (green = active, amber = needs attention, grey = not configured):
 
 - **Risk Scoring** — whether an LLM is configured and how many entities have been
-  scored. Clicking it opens Admin → Risk Scoring.
+  scored. Clicking it opens Admin → Risk Scoring. Shown only while the experimental
+  risk scoring feature is switched on.
 - **Certifications** — how many access-review decisions have been imported.
 - **Crawlers** — how many crawlers are configured and whether any job is running
   right now. Clicking it opens Admin → Crawlers.

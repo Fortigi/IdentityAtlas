@@ -8,10 +8,11 @@ import {
   jsonResponse,
   screen,
   userEvent,
+  waitFor,
 } from '@ui/test-utils/renderWithProviders';
 
 // AdminPage hits a broad set of endpoints across its inline sub-tabs (Data,
-// Risk Scoring, LLM Settings) plus the lazy child pages (Crawlers, Plugins,
+// Risk Scoring, Risk Scoring LLM) plus the lazy child pages (Crawlers, Plugins,
 // Account Linking, Performance, Authentication, About). This single function-
 // form authFetch returns a sensible shape for every URL so no tab throws when
 // rendered. The lazy children are exercised separately by their own mount
@@ -35,8 +36,11 @@ function adminRoutes(url) {
   if (u.includes('/api/admin/history-retention')) {
     return { retentionDays: 180, totalRows: 12345 };
   }
+  if (u.includes('/api/admin/clean-database/plan')) {
+    return { removed: [{ key: 'source', text: 'Crawled data', tables: [] }], kept: [{ key: 'manual', text: 'Manual contexts', tables: [] }], alsoRemoved: [], keptButChanged: [] };
+  }
 
-  // ── LLM Settings tab ────────────────────────────────────────────
+  // ── Risk Scoring LLM tab ────────────────────────────────────────────
   if (u.includes('/api/admin/llm/config')) {
     return {
       providers: ['anthropic', 'openai', 'azure-openai'],
@@ -112,7 +116,7 @@ beforeEach(() => {
   // the default render path stays inside AdminPage's own inline sections.
   window.location.hash = '#admin?sub=data';
 
-  // RiskScoringSection uses bare global fetch (not authFetch) for /api/features.
+  // Some children use bare global fetch (not authFetch) for /api/features.
   vi.stubGlobal('fetch', vi.fn(async (url) => {
     if (String(url).includes('/api/features')) {
       return jsonResponse({ riskScoring: true });
@@ -130,7 +134,7 @@ afterEach(() => {
   window.location.hash = '';
 });
 
-function renderAdmin(routeFn = adminRoutes, features = { matrixSharing: true }) {
+function renderAdmin(routeFn = adminRoutes, features = { matrixSharing: true, riskScoring: true }) {
   // App.jsx hands the flags to AdminPage as a prop AND provides them as context
   // (the lazily-loaded Shared Matrices page reads the context) — mirror both.
   return renderWithProviders(h(AdminPage, { features }), {
@@ -143,7 +147,7 @@ describe('AdminPage (mounted)', () => {
   it('renders the admin shell with all sub-tabs visible', async () => {
     renderAdmin();
     expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
-    for (const label of ['Crawlers', 'Plugins', 'Account Linking', 'Risk Scoring', 'LLM Settings', 'Performance', 'Authentication', 'Data', 'Updates', 'Shared Matrices', 'About']) {
+    for (const label of ['Crawlers', 'Plugins', 'Account Linking', 'Risk Scoring', 'Risk Scoring LLM', 'Performance', 'Authentication', 'Data', 'Updates', 'Shared Matrices', 'About']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
   });
@@ -161,6 +165,47 @@ describe('AdminPage (mounted)', () => {
     expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crawlers' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Shared Matrices' })).not.toBeInTheDocument();
+  });
+
+  // Risk scoring is experimental: off means its two tabs do not exist, and a
+  // deep link to either renders none of their content. Same routes and user as
+  // the "all sub-tabs visible" test; only the flag differs.
+  it('offers neither risk tab, and renders no risk content, while risk scoring is off', async () => {
+    window.location.hash = '#admin?sub=llm';
+    const authFetch = makeAuthFetch(adminRoutes);
+    renderWithProviders(h(AdminPage, { features: { matrixSharing: true, riskScoring: false } }), {
+      auth: { authFetch, hasWildcard: false, permissions: new Set(['admin.llm', 'admin.crawlers', 'admin.systems']) },
+      features: { matrixSharing: true, riskScoring: false },
+    });
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Risk Scoring' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Risk Scoring LLM' })).toBeNull();
+    // No Experimental tab for this user, so the link falls back to their first tab.
+    await waitFor(() => expect(window.location.hash).toBe('#admin?sub=crawlers'));
+    expect(screen.queryByText('LLM Provider')).toBeNull();
+    expect(authFetch.mock.calls.some(([u]) => /\/api\/admin\/(llm|risk-profile|classifiers)/.test(String(u)))).toBe(false);
+  });
+
+  it('lands a risk-scoring deep link on Experimental — where its switch is — for a user who can flip it', async () => {
+    window.location.hash = '#admin?sub=risk-scoring';
+    renderWithProviders(h(AdminPage, { features: { riskScoring: false } }), {
+      auth: { authFetch: makeAuthFetch(adminRoutes), hasWildcard: false, permissions: new Set(['admin.crawlers', 'admin.feature-flags']) },
+      features: { riskScoring: false },
+    });
+    await waitFor(() => expect(window.location.hash).toBe('#admin?sub=experimental'));
+    expect(await screen.findByRole('switch', { name: 'Risk scoring' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('waits on an unreported risk flag instead of rendering the LLM tab meanwhile', async () => {
+    window.location.hash = '#admin?sub=llm';
+    const authFetch = makeAuthFetch(adminRoutes);
+    renderWithProviders(h(AdminPage, { features: { matrixSharing: true } }), {
+      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
+    });
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#admin?sub=llm');
+    expect(screen.queryByText('LLM Provider')).toBeNull();
+    expect(authFetch.mock.calls.some(([u]) => String(u).includes('/api/admin/llm'))).toBe(false);
   });
 
   it('lands the legacy #shared-matrices link on that sub-tab (#1166)', async () => {
@@ -246,6 +291,7 @@ describe('AdminPage (mounted)', () => {
     await screen.findByText('Danger Zone');
     await user.click(screen.getByRole('button', { name: 'Clean Database' }));
     expect(await screen.findByText('Are you sure?')).toBeInTheDocument();
+    expect(await screen.findByText('Manual contexts')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Yes, continue' }));
     expect(await screen.findByText('Final confirmation')).toBeInTheDocument();
     // The confirm button stays disabled until the magic phrase is typed.
@@ -269,7 +315,9 @@ describe('AdminPage (mounted)', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Risk Scoring' }));
 
-    expect(await screen.findByText('Risk Scoring Feature')).toBeInTheDocument();
+    // The on/off switch moved to Admin → Experimental; the tab only points there.
+    expect(await screen.findByText(/not certified\s+per release/)).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).toBeNull();
     expect(await screen.findByText('Run risk scoring')).toBeInTheDocument();
     // Risk profile section content (loaded from /api/admin/risk-profile)
     expect(await screen.findByText('Organization Description')).toBeInTheDocument();
@@ -295,7 +343,7 @@ describe('AdminPage (mounted)', () => {
   it('renders the LLM Settings tab form populated from the saved config', async () => {
     renderAdmin();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'LLM Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Risk Scoring LLM' }));
 
     expect(await screen.findByText('LLM Provider')).toBeInTheDocument();
     // apiKeySet:true → the "• stored" badge shows next to the API key label.
@@ -308,7 +356,7 @@ describe('AdminPage (mounted)', () => {
   it('switches the LLM provider through the render-time model reset without crashing', async () => {
     renderAdmin();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'LLM Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Risk Scoring LLM' }));
     await screen.findByText('LLM Provider');
 
     // The provider <select> starts on the saved 'anthropic' value. Switching it
@@ -324,30 +372,24 @@ describe('AdminPage (mounted)', () => {
   });
 
   it('runs an LLM connection test and surfaces the result', async () => {
-    const authFetch = makeAuthFetch((url) => {
+    renderAdmin((url) => {
       if (String(url).includes('/api/admin/llm/test')) {
         return { ok: true, model: 'claude-3', latencyMs: 123, sample: 'hi' };
       }
       return adminRoutes(url);
     });
-    renderWithProviders(h(AdminPage, {}), {
-      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
-    });
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'LLM Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Risk Scoring LLM' }));
 
     await user.click(await screen.findByRole('button', { name: 'Test connection' }));
     expect(await screen.findByText('Connection OK')).toBeInTheDocument();
   });
 
   it('shows the empty / not-configured states when risk data is unavailable', async () => {
-    const authFetch = makeAuthFetch((url) => {
+    renderAdmin((url) => {
       if (String(url).includes('/api/admin/risk-profile')) return { available: false };
       if (String(url).includes('/api/admin/classifiers')) return { available: false };
       return adminRoutes(url);
-    });
-    renderWithProviders(h(AdminPage, {}), {
-      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Risk Scoring' }));
@@ -356,17 +398,14 @@ describe('AdminPage (mounted)', () => {
   });
 
   it('handles an LLM config load error gracefully (no crash, form still renders)', async () => {
-    const authFetch = makeAuthFetch((url) => {
+    renderAdmin((url) => {
       if (String(url).includes('/api/admin/llm/config')) {
         return jsonResponse({ error: 'boom' }, { ok: false, status: 500 });
       }
       return adminRoutes(url);
     });
-    renderWithProviders(h(AdminPage, {}), {
-      auth: { authFetch, hasWildcard: true, permissions: new Set(['*']) },
-    });
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'LLM Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Risk Scoring LLM' }));
 
     // Even on a failed GET the provider card renders (defaults applied).
     expect(await screen.findByText('LLM Provider')).toBeInTheDocument();
@@ -376,7 +415,7 @@ describe('AdminPage (mounted)', () => {
     renderAdmin();
     const user = userEvent.setup();
     // Cycle the inline (non-lazy) sub-tabs — their full render paths execute.
-    for (const label of ['Risk Scoring', 'LLM Settings', 'Data']) {
+    for (const label of ['Risk Scoring', 'Risk Scoring LLM', 'Data']) {
       await user.click(screen.getByRole('button', { name: label }));
     }
     expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();

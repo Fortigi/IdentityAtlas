@@ -57,6 +57,8 @@ const riskRuns = [
   },
 ];
 
+const RISK_ON = { riskScoring: true };
+
 function routes(overrides = {}) {
   return makeAuthFetch({
     '/api/sync-log': crawlerLogs,
@@ -69,7 +71,7 @@ function routes(overrides = {}) {
 
 describe('SyncLogPage (mounted)', () => {
   it('merges all four sources into one activity stream after load', async () => {
-    renderWithProviders(h(SyncLogPage), { auth: { authFetch: routes() } });
+    renderWithProviders(h(SyncLogPage), { auth: { authFetch: routes() }, features: RISK_ON });
 
     // Rows populate only after the mount-effect fetches resolve.
     expect(await screen.findByText('EntraGroups')).toBeInTheDocument();
@@ -84,8 +86,19 @@ describe('SyncLogPage (mounted)', () => {
     expect(screen.getByText('Failed')).toBeInTheDocument();
   });
 
+  // Risk scoring is experimental: while it is off there is no Risk scoring filter
+  // and its run list is not even asked for — the same routes would serve one.
+  it('lists no scoring runs and offers no Risk scoring filter while risk scoring is off', async () => {
+    const authFetch = routes();
+    renderWithProviders(h(SyncLogPage), { auth: { authFetch }, features: { riskScoring: false } });
+    expect(await screen.findByText('EntraGroups')).toBeInTheDocument();
+    expect(screen.queryByText('Risk scoring')).toBeNull();
+    expect(screen.queryByText('90/100 scored')).toBeNull();
+    expect(authFetch.mock.calls.some(([u]) => String(u).includes('/api/risk-scoring'))).toBe(false);
+  });
+
   it('filters rows by kind when a chip is clicked', async () => {
-    renderWithProviders(h(SyncLogPage), { auth: { authFetch: routes() } });
+    renderWithProviders(h(SyncLogPage), { auth: { authFetch: routes() }, features: RISK_ON });
     const user = userEvent.setup();
 
     await screen.findByText('EntraGroups');
@@ -97,7 +110,7 @@ describe('SyncLogPage (mounted)', () => {
   });
 
   it('filters rows by the free-text search box', async () => {
-    renderWithProviders(h(SyncLogPage), { auth: { authFetch: routes() } });
+    renderWithProviders(h(SyncLogPage), { auth: { authFetch: routes() }, features: RISK_ON });
     const user = userEvent.setup();
 
     await screen.findByText('EntraGroups');
@@ -137,7 +150,7 @@ describe('SyncLogPage (mounted)', () => {
 
   it('navigates back to the source when a row Source link is clicked', async () => {
     const navigate = vi.fn();
-    renderWithProviders(h(SyncLogPage, { navigate }), { auth: { authFetch: routes() } });
+    renderWithProviders(h(SyncLogPage, { navigate }), { auth: { authFetch: routes() }, features: RISK_ON });
     const user = userEvent.setup();
 
     await screen.findByText('EntraGroups');
