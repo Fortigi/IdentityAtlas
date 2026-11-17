@@ -143,7 +143,7 @@ jobs:
 
       - name: Security review
         timeout-minutes: 300
-        uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
         env:
           REVIEW_ID: ${{ steps.meta.outputs.review-id }}
           REVIEW_COMMIT: ${{ steps.meta.outputs.commit }}
