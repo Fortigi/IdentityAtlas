@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/entity-detail-pages/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/architecture/entity-detail-pages/">
       
       
-        <link rel="prev" href="../../ui/effective-access/">
+        <link rel="prev" href="../matrix/">
       
       
-        <link rel="next" href="../../admin/excel-powerquery-export/">
+        <link rel="next" href="../reports/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Entity Detail Pages - Identity Atlas</title>
+        <title>Detail Pages Internals - Identity Atlas</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Entity Detail Pages
+              Detail Pages Internals
             
           </span>
         </div>
@@ -287,12 +287,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../ui/overview/" class="md-tabs__link">
           
   
@@ -320,7 +318,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -339,6 +337,8 @@
   
   
   
+    
+  
   
     
     
@@ -346,10 +346,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -870,6 +872,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/governance-model/" class="md-nav__link">
         
   
@@ -1110,31 +1140,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1152,7 +1177,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1232,20 +1257,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
         
           
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
             
   
   
@@ -1281,7 +1303,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../matrix/" class="md-nav__link">
+      <a href="../../ui/build-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/reading-the-matrix/" class="md-nav__link">
         
   
   
@@ -1381,6 +1431,34 @@
     
   
     Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
   
 
     
@@ -1538,44 +1616,17 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Entity Detail Pages
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../ui/detail-pages/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Entity Detail Pages
+    Reading a Detail Page
   
 
     
@@ -1584,287 +1635,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#layout" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Layout
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-entity-graph" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The entity graph
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The entity graph">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#root-ring" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Root ring
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Root ring">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#identity-accounts-access" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Identity → accounts → access
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Identity → accounts → access">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#the-linked-accounts-table" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The Linked Accounts table
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#recent-change-nodes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Recent-change nodes
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fanout-drill-in" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fanout (drill-in)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#architecture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Architecture
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#styling-signals" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Styling signals
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recent-changes-timeline" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Recent Changes timeline
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Recent Changes timeline">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#what-it-captures" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What it captures
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#endpoint-shape" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Endpoint shape
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#graph-integration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Graph integration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#important-caveats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Important caveats
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#diff-tab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Diff tab
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Diff tab">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rebuilding-the-past-from-_history" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rebuilding the past from _history
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#endpoint-shape_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Endpoint shape
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#one-view-for-any-two-snapshots" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        One view for any two snapshots
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#caveats" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Caveats
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#adding-a-new-entity-kind" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Adding a new entity kind
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#related-docs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Related docs
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1883,20 +1653,17 @@
       
       
         
-          
-          
-        
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
         
           
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
             
   
   
@@ -1914,8 +1681,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2099,6 +1866,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -2363,6 +2158,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../sync/entra-id/" class="md-nav__link">
         
   
@@ -2503,34 +2326,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../sync/mssql/" class="md-nav__link">
         
   
@@ -2623,6 +2418,34 @@
     
   
     Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schedule and Run Crawlers
   
 
     
@@ -2731,6 +2554,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP and Relative Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/data-tab/" class="md-nav__link">
         
   
@@ -2739,6 +2618,62 @@
     
   
     Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-and-master-key/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets and the Master Key
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/backup-restore-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Back up, Restore & Upgrade
   
 
     
@@ -2822,6 +2757,178 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Testing Programme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../../reference/troubleshooting/" class="md-nav__link">
         
@@ -2855,26 +2962,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -2892,7 +3004,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2916,17 +3028,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
         
           
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
             
   
   
@@ -3278,6 +3393,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server (AI assistants)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/sql-views/" class="md-nav__link">
         
   
@@ -3286,6 +3429,34 @@
     
   
     Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
   
 
     
@@ -3387,26 +3558,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
         
           
-          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="">
             
   
   
@@ -3424,8 +3600,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_11">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3434,6 +3610,286 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-upload/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-interviews/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Interviews
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../change-requests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Change Requests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adjust-tree/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adjust Tree (design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../m1-discovery-and-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../m1-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 brief)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -3470,14 +3926,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../sql-connector-delta/" class="md-nav__link">
+      <a href="../sql-connector-internals/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    SQL Connector Delta Loading
+    SQL Connector Internals
   
 
     
@@ -3486,6 +3942,381 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detail Pages Internals
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detail Pages Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-entity-graph" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The entity graph
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The entity graph">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#root-ring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root ring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Root ring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identity-accounts-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity → accounts → access
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Identity → accounts → access">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-linked-accounts-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Linked Accounts table
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recent-change-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recent-change nodes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fanout-drill-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fanout (drill-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#styling-signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Styling signals
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recent-changes-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recent Changes timeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recent Changes timeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-it-captures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it captures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#endpoint-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoint shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graph-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graph integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#important-caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important caveats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diff-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diff tab
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Diff tab">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rebuilding-the-past-from-_history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rebuilding the past from _history
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#endpoint-shape_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoint shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-view-for-any-two-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One view for any two snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compare-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare tab
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-entity-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a new entity kind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-docs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related docs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -4121,6 +4952,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/style-guide/" class="md-nav__link">
         
   
@@ -4157,6 +5016,34 @@
     
   
     CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/release-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Process
   
 
     
@@ -4969,90 +5856,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../security/assessment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security Assessment
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/assessment-2026-09/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security Assessment (Sept 2026)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Maintenance Audit (June 2026)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
         
   
@@ -5751,6 +6554,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compare-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compare tab
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#adding-a-new-entity-kind" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5814,11 +6628,37 @@
   
     
     
+      
+  
+  
+    
+    
       <li class="md-path__item">
-        <a href="../../ui/overview/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Use
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../core-ontology/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Under the hood
   </span>
 
         </a>
@@ -5846,6 +6686,9 @@ prereq: ui/overview.md
 outcome: You can take any entity apart: attributes, memberships and how it changed.</p>
 <hr />
 <h1 id="entity-detail-pages">Entity Detail Pages<a class="headerlink" href="#entity-detail-pages" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>This page describes how the detail pages are built. To learn how to use them, see <strong><a href="../../ui/detail-pages/">Reading a detail page</a></strong>.</p>
+</blockquote>
 <div class="admonition info">
 <p class="admonition-title">Before this page</p>
 <p>Assumes you have read <strong><a href="../../ui/overview/">The app at a glance</a></strong>.
@@ -6067,6 +6910,16 @@ kinds consistent.</p>
 <li>Before <code>historySince</code>, nothing is known. Rows loaded by a system's first sync have no insert event either, so a moment before that load shows those rows as already present. The tab shows a note when T is before <code>historySince</code>.</li>
 <li>Context membership (<code>ContextMembers</code>) is not history-tracked, so a context's diff covers its own attributes only.</li>
 </ul>
+<hr />
+<h2 id="compare-tab">Compare tab<a class="headerlink" href="#compare-tab" title="Permanent link">&para;</a></h2>
+<p>The Compare tab shows two or three users side by side, as they are now, with one column each. Where the Diff tab compares one entity at two moments, Compare looks at different entities at the same moment. It answers "these users look alike, so where do they differ?" It opens from <strong>Compare with…</strong> on a user's page, or from <strong>Compare</strong> on the Users list once 2–3 rows are selected. The ids live in the tab's address (<code>#compare:&lt;id&gt;,&lt;id&gt;[,&lt;id&gt;]</code>), so a comparison can be bookmarked or shared. Adding or removing a user gives the open tab a new address in place (<code>replaceTabId</code> in <code>App.helpers.js</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>GET /api/&lt;user|resources|access-package|identities&gt;/:id/snapshot
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>{ "id": "…", "omitted": 0, "snapshot": { "exists", "deleted", "attributes", "relationships": [item] } }
+</code></pre></div>
+<p>The snapshot has the same shape as one side of the diff, and it is built by the same code (<code>buildCurrentSnapshot</code> in <code>snapshot.js</code>). The UI fetches <strong>one snapshot per entity</strong>, so each is access-checked like any other detail read: the <code>/snapshot</code> paths are listed in <code>auth/ownerAccess/endpoints.js</code>. A multi-id endpoint would have needed its own owner-access rule.</p>
+<p><strong>Item keys never contain the viewed entity's own id.</strong> The key names the relationship from the entity's side only, for example <code>heldResources:&lt;resourceId&gt;|&lt;assignmentType&gt;</code>. So the same group held the same way by two users gets the same key, and the two land on one row. Within one entity the key is still unique, so the Diff tab is unaffected.</p>
+<p><code>compareSnapshots(snapshots)</code> (<code>components/compare/entityCompare.helpers.js</code>) marks each row <code>same</code> or <code>differs</code>. A relationship differs when one entity lacks it or holds it differently (<code>detail</code>). By default the view shows only the rows that differ, and it hides naming fields such as display name, UPN, e-mail and object ids, which differ between any two accounts by definition.</p>
 <hr />
 <h2 id="adding-a-new-entity-kind">Adding a new entity kind<a class="headerlink" href="#adding-a-new-entity-kind" title="Permanent link">&para;</a></h2>
 <p>To give a new entity kind its own detail page with the graph + recent-changes treatment:</p>

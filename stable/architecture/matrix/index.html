@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://fortigi.github.io/IdentityAtlas/stable/architecture/matrix/">
+        <link rel="canonical" href="https://docs.identityatlas.io/stable/architecture/matrix/">
       
       
-        <link rel="prev" href="../../ui/dashboard/">
+        <link rel="prev" href="../sql-connector-internals/">
       
       
-        <link rel="next" href="../matrix-scope-statistics/">
+        <link rel="next" href="../entity-detail-pages/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Reading the Matrix - Identity Atlas</title>
+        <title>Matrix Internals - Identity Atlas</title>
       
     
     
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Reading the Matrix
+              Matrix Internals
             
           </span>
         </div>
@@ -287,12 +287,10 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
+      <li class="md-tabs__item">
         <a href="../../ui/overview/" class="md-tabs__link">
           
   
@@ -320,7 +318,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../docker-setup/" class="md-tabs__link">
+        <a href="../../deploy/choose-a-deployment/" class="md-tabs__link">
           
   
   
@@ -339,6 +337,8 @@
   
   
   
+    
+  
   
     
     
@@ -346,10 +346,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../../api/" class="md-tabs__link">
           
   
@@ -870,6 +872,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Ontology, Visually
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/governance-model/" class="md-nav__link">
         
   
@@ -1110,31 +1140,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1152,7 +1177,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1223,6 +1248,2316 @@
                 
   
   
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The matrix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    The matrix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/build-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/reading-the-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading the Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../matrix-scope-statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sharing a Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entitlement Pivot and Saved Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/unit-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unit Report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/access-review-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Access Review Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/custom-reports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Reports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/contexts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contexts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/context-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building a Context by Describing It
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/effective-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Effective Access (Who Can Access X)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ui/detail-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reading a Detail Page
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_12" id="__nav_4_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get data out
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get data out
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Export (Power Query)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Excel Template Authoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set up & run
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Set up & run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploy
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Deploy
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../deploy/choose-a-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choose a Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docker-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Deployment Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../azure-gitops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure as Code (GitOps)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../desktop-portable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Portable Windows Launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaling & Load Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scale-rehearsal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scale Rehearsal: 41 M Assignments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Connect your systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/entra-id/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entra ID
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/azure-rm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Azure Resource Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/omada/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada IGA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../omada-crawler-datamodel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Omada Data Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/midpoint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    midPoint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/mssql/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SCIM 2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/csv-import/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Import
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/custom-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Connector (Push API)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sync/scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schedule and Run Crawlers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Administer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication & SSO
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-owner-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context-Owner Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP and Relative Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/data-tab/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data & Maintenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../secrets-and-master-key/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets and the Master Key
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/backup-restore-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Back up, Restore & Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin/auto-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Automatic Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/nightly-review/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nightly Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_4" id="__nav_5_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Testing Programme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/assessment-2026-09/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security Assessment (Sept 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintenance Audit (June 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HTTP API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    HTTP API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matrix & Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entity Detail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Governance & Business Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/risk-scores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Scores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ingest-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingest API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/experimental-features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experimental Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/report-generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Report Generator (local LLM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ask-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask Assistant — how it thinks and is tested
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions & Roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Server (AI assistants)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sql-views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Model Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../csv-import-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Schema Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sbom/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Software Bill of Materials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/coverage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Coverage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1244,17 +3579,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_13" checked>
         
           
-          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_6_13" id="__nav_6_13_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    The matrix
+    Under the hood
   
 
     
@@ -1265,16 +3600,352 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4_3">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_13_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_13">
             <span class="md-nav__icon md-icon"></span>
             
   
-    The matrix
+    Under the hood
   
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-templates-phase-b/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Templates (phase B)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../template-ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Template UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-upload/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Upload
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../context-interviews/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Interviews
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../change-requests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Change Requests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ownership-survey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ownership and Manager Surveys (spec)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adjust-tree/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adjust Tree (design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../m1-discovery-and-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../m1-brief/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorization Workbench (M1 brief)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crawler-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crawler Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sql-connector-internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SQL Connector Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1299,7 +3970,7 @@
   <span class="md-ellipsis">
     
   
-    Reading the Matrix
+    Matrix Internals
   
 
     
@@ -1317,7 +3988,7 @@
   <span class="md-ellipsis">
     
   
-    Reading the Matrix
+    Matrix Internals
   
 
     
@@ -1448,10 +4119,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#access-package-columns-role-scopes-badge-like-memberships" class="md-nav__link">
+  <a href="#business-role-columns-role-scopes-badge-like-memberships" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Access-package columns — role scopes badge like memberships
+        Business-role columns — role scopes badge like memberships
       
     </span>
   </a>
@@ -1817,238 +4488,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../matrix-scope-statistics/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scope Statistics
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/sharing-a-matrix/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Sharing a Matrix
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/entitlement-pivot/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Entitlement Pivot and Saved Views
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/access-review-adoption/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Access Review Adoption
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/custom-reports/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Custom Reports
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/contexts/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Contexts
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/context-assistant/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Building a Context by Describing It
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../ui/effective-access/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Effective Access (Who Can Access X)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../entity-detail-pages/" class="md-nav__link">
         
   
@@ -2056,1628 +4495,7 @@
   <span class="md-ellipsis">
     
   
-    Entity Detail Pages
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-          
-          
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_11" >
-        
-          
-          <label class="md-nav__link" for="__nav_4_11" id="__nav_4_11_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Get data out
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4_11">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Get data out
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/excel-powerquery-export/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Excel Export (Power Query)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/excel-template-authoring/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Excel Template Authoring
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Set up & run
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Set up & run
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Deploy
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_1">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Deploy
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../docker-setup/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Docker Setup
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../azure-deployment-walkthrough/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Azure Deployment Walkthrough
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../azure-deployment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Azure Deployment Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../azure-gitops/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Azure as Code (GitOps)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../desktop-portable/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Portable Windows Launcher
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../scaling/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scaling & Load Testing
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../scale-rehearsal/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scale Rehearsal: 41 M Assignments
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Connect your systems
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_2">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Connect your systems
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/entra-id/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Entra ID
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/azure-rm/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Azure Resource Manager
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/omada/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Omada IGA
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../omada-crawler-datamodel/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Omada Data Model Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/midpoint/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/midpoint-crawler-configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    midPoint Configuration Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/mssql/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SQL Server
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/scim/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SCIM 2.0
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/csv-import/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CSV Import
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../sync/custom-connector/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Custom Connector (Push API)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_5_3" id="__nav_5_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Administer
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Administer
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/authentication/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Authentication & SSO
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/data-tab/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Data & Maintenance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../admin/auto-updates/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Automatic Updates
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../operations/nightly-review/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nightly Review
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/troubleshooting/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Troubleshooting
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Reference
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Reference
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
-        
-          
-          <label class="md-nav__link" for="__nav_6_1" id="__nav_6_1_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    HTTP API
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_1">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    HTTP API
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Overview
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/matrix/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Matrix & Permissions
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/entities/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Entity Detail
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/governance/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Governance & Business Roles
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/risk-scores/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Risk Scores
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../ingest-api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Ingest API
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/config/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/experimental-features/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Experimental Features
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/report-generator/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Report Generator (local LLM)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/ask-assistant/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Ask Assistant — how it thinks and is tested
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/permissions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Permissions & Roles
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/sql-views/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Database Views
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../csv-import-schema/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    CSV Schema Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/sbom/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Software Bill of Materials
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../reference/coverage/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test Coverage
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_11" >
-        
-          
-          <label class="md-nav__link" for="__nav_6_11" id="__nav_6_11_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Under the hood
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_11_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6_11">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Under the hood
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../crawler-architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Crawler Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../sql-connector-delta/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SQL Connector Delta Loading
+    Detail Pages Internals
   
 
     
@@ -4321,6 +5139,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/maintaining-the-ontology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maintaining the Core Ontology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../contributing/style-guide/" class="md-nav__link">
         
   
@@ -4357,6 +5203,34 @@
     
   
     CI Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/release-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Process
   
 
     
@@ -5169,90 +6043,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../security/assessment/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security Assessment
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/assessment-2026-09/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security Assessment (Sept 2026)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../security/maintenance-audit-2026-06/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Maintenance Audit (June 2026)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../architecture-guidance-review-2026-09/" class="md-nav__link">
         
   
@@ -5817,10 +6607,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#access-package-columns-role-scopes-badge-like-memberships" class="md-nav__link">
+  <a href="#business-role-columns-role-scopes-badge-like-memberships" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Access-package columns — role scopes badge like memberships
+        Business-role columns — role scopes badge like memberships
       
     </span>
   </a>
@@ -6212,15 +7002,23 @@
   
     
     
+      
+  
+  
+    
+    
       <li class="md-path__item">
-        <a href="../../ui/overview/" class="md-path__link">
+        <a href="../../api/" class="md-path__link">
           
   <span class="md-ellipsis">
-    Use
+    Reference
   </span>
 
         </a>
       </li>
+    
+  
+
     
   
 
@@ -6231,10 +7029,10 @@
     
     
       <li class="md-path__item">
-        <a href="./" class="md-path__link">
+        <a href="../core-ontology/" class="md-path__link">
           
   <span class="md-ellipsis">
-    The matrix
+    Under the hood
   </span>
 
         </a>
@@ -6257,14 +7055,16 @@
 
 
 <h1 id="matrix-view-architecture">Matrix view — architecture<a class="headerlink" href="#matrix-view-architecture" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>This page describes how the matrix is built. To learn how to read it, see <strong><a href="../../ui/reading-the-matrix/">Reading the matrix</a></strong>.</p>
+</blockquote>
 <div class="admonition info">
 <p class="admonition-title">Before this page</p>
 <p>Assumes you have read <strong><a href="../../ui/overview/">The app at a glance</a></strong>.
 Brand new? Start at <a href="../../start/glossary/">The words you need first</a>.</p>
 </div>
 <blockquote>
-<p><strong>Status:</strong> current as of May 2026.
-Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>013_matrix_matviews_and_indexes.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql"><code>024_matrix_view_all_assignment_types.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql"><code>046_owner_as_resource.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql"><code>049_governed_intent_rows.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql"><code>061_business_role_covers_itself.sql</code></a>.</p>
+<p>Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql"><code>013_matrix_matviews_and_indexes.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/024_matrix_view_all_assignment_types.sql"><code>024_matrix_view_all_assignment_types.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/046_owner_as_resource.sql"><code>046_owner_as_resource.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/049_governed_intent_rows.sql"><code>049_governed_intent_rows.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql"><code>061_business_role_covers_itself.sql</code></a>, <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/112_live_business_roles_govern.sql"><code>112_live_business_roles_govern.sql</code></a>.</p>
 </blockquote>
 <h2 id="the-grid">The grid<a class="headerlink" href="#the-grid" title="Permanent link">&para;</a></h2>
 <p>Rows are <strong>resources</strong>. Columns are <strong>principals</strong> (users / service principals / managed identities — <em>not</em> groups, see below). Each cell describes whether the column-principal has the row-resource and, if so, <em>how</em>.</p>
@@ -6274,9 +7074,9 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Owner @ Sales Team   D                       &lt;- ownership is its own resource
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>DelegatedPerm: …             D               &lt;- OAuth2 user consent
 </code></pre></div>
-<p>(That last cell is an <code>OAuth2Grant</code> row — it renders as <strong>D</strong>, since the badge only carries <em>how</em> the user holds it; the <code>DelegatedPermission</code> resource type carries the <em>what</em>. See "Badge collapse" below.)</p>
+<p>(That last cell is a delegated-permission consent — a <code>Direct</code> row on a <code>DelegatedPermission</code> resource — and it renders as <strong>D</strong>, since the badge only carries <em>how</em> the user holds it; the <code>DelegatedPermission</code> resource type carries the <em>what</em>. See "Badge collapse" below.)</p>
 <h2 id="default-row-visibility">Default row visibility<a class="headerlink" href="#default-row-visibility" title="Permanent link">&para;</a></h2>
-<p>Not every <code>resourceType</code> belongs on the row axis. A <strong>business role</strong> (Entra access package, Omada business role, SailPoint access profile) is governance <em>intent</em> — the SOLL side — and the grid already renders it as an access-package column. Its members also hold a real <code>Direct</code> assignment on the role itself (migration 049), so without a rule the same role appears twice in one matrix: once per axis. It is therefore <strong>hidden from the resource axis by default</strong>.</p>
+<p>Not every <code>resourceType</code> belongs on the row axis. A <strong>business role</strong> (Entra access package, Omada business role, SailPoint access profile) is governance <em>intent</em> — what people should have — and the grid already renders it as a business-role column. Its members also hold a real <code>Direct</code> assignment on the role itself (migration 049), so without a rule the same role appears twice in one matrix: once per axis. It is therefore <strong>hidden from the resource axis by default</strong>.</p>
 <p>The rule is one deny-list, <code>HIDDEN_BY_DEFAULT_RESOURCE_TYPES</code> in <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/lib/resourceVisibility.js"><code>app/api/src/lib/resourceVisibility.js</code></a>, applied at a single choke point: the resource fragment <code>buildSubqueries</code> (<code>routes/matrix/shared.js</code>) hands to every matrix mode. That one call site covers the flat grid, all roll-ups, the context zoom, the attribute fold, the scope stats / breakdown / timeline, the wizard preview, the inherited-access fold and the nested-group expansion — plus the unscoped "X of <strong>Y</strong> resources" totals, so the counts always match the rows that render. The Resources list (<code>routes/resources/list.js</code>) is the second caller of the same helper.</p>
 <p>It is a <strong>deny-list, not an allow-list</strong>: <code>resourceType</code> is an open vocabulary (CSV / Omada / midPoint / Azure crawlers emit arbitrary types), so anything unknown stays visible. <code>NULL</code> counts as visible too.</p>
 <p>Two ways to see the rows anyway:</p>
@@ -6294,7 +7094,7 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 <tr>
 <td>A resource-scope include condition on <code>resourceType</code> naming the type</td>
-<td>The wizard's "+ Attribute" picker. Explicit scope wins, so a deliberate "which access packages do people hold" matrix stays buildable.</td>
+<td>The wizard's "+ Attribute" picker. Explicit scope wins, so a deliberate "which business roles do people hold" matrix stays buildable.</td>
 </tr>
 </tbody>
 </table>
@@ -6359,11 +7159,11 @@ Companion to <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api
 </tr>
 <tr>
 <td><code>managedByAccessPackage</code></td>
-<td>Drives AP color overlay on the cell</td>
+<td>True when the account holds a business role that contains the row's resource — the cell is governed</td>
 </tr>
 </tbody>
 </table>
-<p>The view itself is a single <code>SELECT FROM "ResourceAssignments"</code> with no <code>assignmentType</code> filter — every type stored in the base table flows through automatically. The legacy hardcoded UNION of <code>Direct/Owner/Eligible/Governed</code> was removed in migration 024 so future assignment types don't need a migration to surface.</p>
+<p>The view reads <code>ResourceAssignments</code> with no <code>assignmentType</code> filter — all three assignment types (<code>Direct</code>, <code>Indirect</code>, <code>Eligible</code>) flow through.</p>
 <h3 id="resource-metadata-columns-contexts-pinned-left-type-description-right">Resource metadata columns (Contexts pinned left, <code>#</code> | Type | Description right)<a class="headerlink" href="#resource-metadata-columns-contexts-pinned-left-type-description-right" title="Permanent link">&para;</a></h3>
 <p>Every resource row carries read-only metadata either side of the grid. The
 pinned info block is <strong>drag handle | Resource Name | Contexts</strong>; the right-side
@@ -6395,11 +7195,11 @@ indexed query per request, over the roll-up's own (smaller) resource list — th
 alternative, looking the contexts up from the client, would have been a
 per-resource fetch over a view that renders hundreds of rows.</p>
 <h2 id="badge-collapse-what-each-letter-actually-means">Badge collapse — what each letter actually means<a class="headerlink" href="#badge-collapse-what-each-letter-actually-means" title="Permanent link">&para;</a></h2>
-<p>The user reads three letters. The DB stores a handful of assignment types. The translation lives in migration 049's CASE expression and is intentionally lossy:</p>
+<p>The user reads three letters, and the database stores the same three assignment types — the ingest accepts only <code>Direct</code>, <code>Indirect</code> and <code>Eligible</code>:</p>
 <table>
 <thead>
 <tr>
-<th>Raw <code>assignmentType</code> in ResourceAssignments</th>
+<th><code>assignmentType</code> in ResourceAssignments</th>
 <th>Displayed <code>membershipType</code></th>
 <th>Badge</th>
 </tr>
@@ -6420,40 +7220,16 @@ per-resource fetch over a view that renders hundreds of rows.</p>
 <td><code>Eligible</code></td>
 <td><strong>E</strong></td>
 </tr>
-<tr>
-<td><code>OAuth2Grant</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
-</tr>
-<tr>
-<td><code>AppRole</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
-</tr>
-<tr>
-<td><code>AppRoleViaGroup</code></td>
-<td><code>Indirect</code></td>
-<td><strong>I</strong></td>
-</tr>
-<tr>
-<td><code>DirectoryRole</code></td>
-<td><code>Direct</code></td>
-<td><strong>D</strong></td>
-</tr>
-<tr>
-<td><code>DirectoryRoleEligible</code></td>
-<td><code>Eligible</code></td>
-<td><strong>E</strong></td>
-</tr>
 </tbody>
 </table>
-<p>There is <strong>no <code>O</code> (Owner) badge and no <code>Governed</code> badge</strong> — both concepts were retired as assignment types and never reach this table:</p>
+<p>There is <strong>no <code>O</code> (owner) badge and no governed badge</strong> — ownership and governance are not assignment types:</p>
 <ul>
-<li><strong>Ownership</strong> is a <code>Direct</code> assignment on a separate <code>GroupOwnership</code> resource (migration 046), so an owner shows up as a normal Direct cell on the ownership row — see <a href="#owner-rows-are-their-own-resource">Owner rows are their own resource</a> below.</li>
-<li><strong>Governed</strong> access is a <code>Direct</code> assignment carrying the <code>governed=true</code> flag (migration 049); the flag drives the AP color overlay, not a badge.</li>
+<li><strong>Ownership</strong> is a <code>Direct</code> assignment on a separate <code>GroupOwnership</code> resource, so an owner shows up as a normal Direct cell on the ownership row — see <a href="#owner-rows-are-their-own-resource">Owner rows are their own resource</a> below.</li>
+<li><strong>Governed</strong> access is a <code>Direct</code> assignment carrying the <code>governed=true</code> flag; a governed cell takes its business role's colour, not a badge of its own.</li>
 </ul>
 <p>The rationale: the <em>resource type</em> already says what <em>kind</em> of membership it is (<code>BusinessRole</code>, <code>DelegatedPermission</code>, <code>AppRole</code>, <code>GroupOwnership</code>). The badge is reserved for <em>how</em> the user holds the resource — Direct / Indirect / Eligible — not <em>why</em> the assignment exists.</p>
-<p><strong>Cell coloring is independent.</strong> <code>managedByAccessPackage</code> is computed from the <code>governed=true</code> flag (via the SOLL join in migration 049) so the AP color overlay correctly marks governed cells regardless of the badge.</p>
+<p><strong>Cell coloring is independent.</strong> <code>managedByAccessPackage</code> is true when the account holds a business role that contains the row's resource (the coverage join in migration 049), so the business-role colour marks governed cells regardless of the badge.</p>
+<p><strong>Only a live role colours anything.</strong> A business role deleted in the source keeps its row with <code>deletedAt</code> stamped (<code>Resources</code> is a soft-delete table), and resources reconcile independently of assignments — so a tombstoned role can still have a live membership row. <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/112_live_business_roles_govern.sql"><code>112_live_business_roles_govern.sql</code></a> requires the governance resource (and, on the <code>Contains</code> arm, the contained resource) to be live in <strong>both</strong> derivations — the coverage matview and the <code>soll</code> CTE behind <code>managedByAccessPackage</code> — so a cell whose only governing role is gone reads as ungoverned everywhere at once: no colour, out of the <strong>Governed</strong> view, out of the governed share in the scope statistics. Before that fix a deleted role kept governing every resource it contained, which is the worst direction to be wrong in for an access reviewer: the access that just lost its control looked like access that already had one.</p>
 <p>The three-letter alphabet was chosen for an explicit reason: <strong><code>E</code> (Eligible) is not "current access"</strong>. A user with an Eligible row could activate via PIM but right now has nothing. Folding <code>Eligible</code> into <code>Direct</code> would misrepresent reality and was rejected in design discussion.</p>
 <h2 id="expand-semantics">Expand semantics<a class="headerlink" href="#expand-semantics" title="Permanent link">&para;</a></h2>
 <p>A group can appear as a <em>principal</em> of other resources — that's how nested group membership and group-assigned app roles work. The matrix grid hides these rows (the column <code>INNER JOIN</code>s <code>Principals</code>, and groups live in <code>Resources</code>). The <strong>expand</strong> affordance surfaces them:</p>
@@ -6463,16 +7239,16 @@ per-resource fetch over a view that renders hundreds of rows.</p>
 </ul>
 <p>Clicking the chevron on a group row fans out:
 1. <strong>Nested parent groups</strong> — groups this one is a member of. Members of the row's group inherit them.
-2. <strong>App roles</strong> — app roles assigned to this group. Members inherit them via the per-user <code>AppRoleViaGroup</code> rows (badge <code>I</code>).</p>
+2. <strong>App roles</strong> — app roles assigned to this group. Members inherit them via the per-user <code>Indirect</code> rows (badge <code>I</code>).</p>
 <p>The endpoints don't filter by <code>assignmentType</code> — any future "group-as-principal" type (directory roles assigned to groups, governed BRs assigned to groups, …) automatically surfaces.</p>
 <h2 id="why-groups-dont-appear-as-columns">Why groups don't appear as columns<a class="headerlink" href="#why-groups-dont-appear-as-columns" title="Permanent link">&para;</a></h2>
 <p><code>Principals</code> is users + service principals + managed identities. Groups live in <code>Resources</code> (as <code>resourceType='Group'</code>). When a group is itself a principal of an assignment (e.g. nested membership), the row's <code>principalId</code> is a group's UUID — which has no matching <code>Principals.id</code>, so the matrix endpoint's <code>INNER JOIN Principals</code> drops the row. The expand endpoints query <code>ResourceAssignments</code> directly to surface those rows.</p>
 <p>This is why we can store <em>both</em>:
-- <code>(resourceId=AppRole_X, principalId=Group_Y, assignmentType='AppRole')</code> — Group Y has the role
-- <code>(resourceId=AppRole_X, principalId=User_Z, assignmentType='AppRoleViaGroup', extendedAttributes.viaGroupId='Group_Y')</code> — User Z has the role because they're in Group Y</p>
+- <code>(resourceId=AppRole_X, principalId=Group_Y, assignmentType='Direct')</code> — Group Y has the role
+- <code>(resourceId=AppRole_X, principalId=User_Z, assignmentType='Indirect', extendedAttributes.viaGroupId='Group_Y')</code> — User Z has the role because they're in Group Y</p>
 <p>…without polluting the user-facing matrix grid. The first row is invisible there; the second row paints User Z's cell with an <code>I</code> badge.</p>
 <h2 id="owner-rows-are-their-own-resource">Owner rows are their own resource<a class="headerlink" href="#owner-rows-are-their-own-resource" title="Permanent link">&para;</a></h2>
-<p>A user who is both a member and an owner of a group holds two separate resources: the group itself (a <code>Direct</code> membership) and a synthetic <code>GroupOwnership</code> resource named <code>Owner @ &lt;group&gt;</code> (also a <code>Direct</code> membership). Migration 046 rewrote the old <code>assignmentType='Owner'</code> rows into Direct assignments on this ownership resource, linked back to the group by a <code>HasOwnership</code> relationship — mirroring how an <code>AppRole</code> hangs off its <code>Application</code>. The matrix therefore shows ownership as its own row, with a normal <strong>D</strong> badge, rather than a separate <code>O</code>-type cell on the group row. No client-side row-splitting is involved.</p>
+<p>A user who is both a member and an owner of a group holds two separate resources: the group itself (a <code>Direct</code> membership) and a synthetic <code>GroupOwnership</code> resource named <code>Owner @ &lt;group&gt;</code> (also a <code>Direct</code> membership). The ownership resource is linked back to the group by a <code>HasOwnership</code> relationship — mirroring how an <code>AppRole</code> hangs off its <code>Application</code>. The matrix therefore shows ownership as its own row, with a normal <strong>D</strong> badge, not as a separate kind of cell on the group row. No client-side row-splitting is involved.</p>
 <p>The same shape, and the same row, is what every other ownership type produces:
 <code>ServicePrincipalOwnership</code> / <code>ApplicationOwnership</code> from the Entra app-owner phase
 (linked by <code>HasAppOwnership</code>), and <code>ResourceOwnership</code> from the SQL connector, whose
@@ -6482,8 +7258,8 @@ covers all of them and the owned type rides on
 <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/lib/ownershipTypes.js"><code>app/api/src/lib/ownershipTypes.js</code></a>
 — nothing here needs to know which crawler wrote the row.</p>
 <p>Ownership types stay <strong>visible</strong> under "Default row visibility" above, and the distinction is the point of that section: a business-role row duplicates something the matrix already shows as a column, while an ownership row is the <em>only</em> place the matrix shows who controls a group. Hiding it would remove information, not a duplicate.</p>
-<h2 id="access-package-columns-role-scopes-badge-like-memberships">Access-package columns — role scopes badge like memberships<a class="headerlink" href="#access-package-columns-role-scopes-badge-like-memberships" title="Permanent link">&para;</a></h2>
-<p>The right-hand access-package block is driven by <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>), whose <code>roleName</code> holds the role scope as the source system names it — Graph stamps <code>accessPackageResourceRole.displayName</code> verbatim, so <code>Member</code>, <code>Owner</code> and <code>Eligible Member</code> all occur. That name maps to a badge letter the same way everywhere:</p>
+<h2 id="business-role-columns-role-scopes-badge-like-memberships">Business-role columns — role scopes badge like memberships<a class="headerlink" href="#business-role-columns-role-scopes-badge-like-memberships" title="Permanent link">&para;</a></h2>
+<p>The right-hand business-role block is driven by <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>), whose <code>roleName</code> holds the role scope as the source system names it — Graph stamps <code>accessPackageResourceRole.displayName</code> verbatim, so <code>Member</code>, <code>Owner</code> and <code>Eligible Member</code> all occur. That name maps to a badge letter the same way everywhere:</p>
 <table>
 <thead>
 <tr>
@@ -6502,7 +7278,7 @@ covers all of them and the owned type rides on
 </tr>
 </tbody>
 </table>
-<p>There is <strong>no <code>O</code> badge here either</strong> — for the same reason as the membership badges: ownership is its own resource, and a package granting a group's Owner role still grants access the subject holds today. The mapping lives in <code>getApRoleBadge</code> (<code>app/ui/src/utils/accessPackageStyles.js</code>) and is shared by the grid (<code>MatrixGroupRow.jsx</code>) and the Excel export (<code>exportToExcel.js</code>) so the file can't disagree with the screen; migration 049 applies the same <code>%eligible%</code> rule server-side when it derives governed-intent rows.</p>
+<p>There is <strong>no <code>O</code> badge here either</strong> — for the same reason as the membership badges: ownership is its own resource, and a business role granting a group's Owner role still grants access the subject holds today. The mapping lives in <code>getApRoleBadge</code> (<code>app/ui/src/utils/accessPackageStyles.js</code>) and is shared by the grid (<code>MatrixGroupRow.jsx</code>) and the Excel export (<code>exportToExcel.js</code>) so the file can't disagree with the screen; migration 049 applies the same <code>%eligible%</code> rule server-side when it derives governed-intent rows.</p>
 <h2 id="performance-notes">Performance notes<a class="headerlink" href="#performance-notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The matview is refreshed <code>CONCURRENTLY</code> once it holds rows; a first build, and a rebuild of a view that is populated but empty, are non-concurrent (see <a href="#when-the-views-get-rebuilt-and-why-there-is-no-timer">When the views get rebuilt</a>).</li>
@@ -6525,7 +7301,7 @@ covers all of them and the owned type rides on
 <ul>
 <li>The identity re-enters the names row at the position of its first account column, and its <code>&lt;th&gt;</code> spans exactly <code>accounts</code> columns.</li>
 <li>A second header row (<code>MatrixAccountsRow.jsx</code>) sits directly under the names row and fills that span with one blue cell per account.</li>
-<li>Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, access-package labels and the # / Type / Description block — carries <code>rowSpan=2</code> while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.</li>
+<li>Every other header cell on the names row — the corner/Resource Name/Contexts cells, non-expanded subjects, aggregates, business-role labels and the # / Type / Description block — carries <code>rowSpan=2</code> while the accounts row exists, so no blank band appears beside them. The row only exists while at least one identity is expanded; otherwise the header renders exactly as before.</li>
 <li>The accounts row sits <em>after</em> the names row, so the sticky <code>&lt;thead&gt;</code> pins it along with the names row for free. Its height must <strong>not</strong> be added to the grouping offset below — that would push the header out of view and bring back the grey-band-on-scroll bug.</li>
 </ul>
 <p>An account column that carries no parent stays on the names row: it still owns a body column, and every header row has to keep adding up to the body's width.</p>
@@ -6762,7 +7538,7 @@ roles</strong> once folded) does it for every role at once, which reduces the gr
 duplication between a role and its contents.</p>
 <p>The parent → child mapping is not derived client-side: it is the same
 <code>ResourceRelationships</code> / <code>relationshipType='Contains'</code> data that
-<code>GET /api/access-package-groups</code> already delivers for the SOLL columns
+<code>GET /api/access-package-groups</code> already delivers for the business-role columns
 (<code>accessPackageGroups</code>). Folding is pure view state, the same tier as the column
 fold and the nested-group expand — it changes what is <em>rendered</em>, never what is
 fetched, counted or exported. It lives in
@@ -6788,7 +7564,7 @@ All / Governed / Non-governed / Gaps toggles and with injected nested sub-rows.<
   draws it directly under the role — indented, with the elbow, exactly like an
   expanded nested group — and under <em>every</em> role that grants it, never also as a
   loose row somewhere else. It is the role rows and the resources no role grants
-  that the AP staircase and the custom drag order position; a role's children
+  that the business-role staircase and the custom drag order position; a role's children
   travel with it and carry no drag handle of their own (the rule nested sub-rows
   already followed).</li>
 <li><strong>A business role nested inside another one keeps its own place</strong> rather than
@@ -6859,7 +7635,7 @@ per resource, not per role.</p>
 <td>One row under each granting role, indented as its child. The rows are identical — same cells, same badges, same detail link</td>
 </tr>
 <tr>
-<td><strong>SOLL columns</strong></td>
+<td><strong>Business-role columns</strong></td>
 <td>Each of those rows shows a badge under <strong>every</strong> role that grants the resource, so the overlap is readable straight off the grid</td>
 </tr>
 <tr>
@@ -6888,11 +7664,11 @@ reports and what it actually took away cannot drift apart.</p>
 describes the demo data (<code>BR-Service-Desk</code> and <code>BR-IT-Operations</code> sharing a
 group and an app role) that exercises every row of this table.</p>
 <h3 id="fewer-and-more-than-the-role-assigns">Fewer and more than the role assigns<a class="headerlink" href="#fewer-and-more-than-the-role-assigns" title="Permanent link">&para;</a></h3>
-<p>A business role states what a subject should have (SOLL); the assignments state
-what they do have (IST). The grid marks both directions of drift, and a subject
+<p>A business role states what a subject should have; the assignments state
+what they do have. The grid marks both directions of drift, and a subject
 can carry both at once — short on one resource of a role, over on another.</p>
 <p><strong>Fewer</strong> is the one marker that predates this layer, and it is unconditional:
-the amber <code>!</code> provisioning gap has always been drawn against the SOLL <em>columns</em>,
+the amber <code>!</code> provisioning gap has always been drawn against the business-role <em>columns</em>,
 which every matrix has. Everything else in the table arrives with the
 business-role rows. <strong>More</strong> is the only one that had to be told so — it is
 computable from the columns alone, so it takes the explicit <code>showBusinessRoles</code>
@@ -6954,7 +7730,7 @@ asymmetries:</p>
 </ul>
 <p>A third statement shares the red slot: <strong>held outside business-role
 governance</strong>. The resource is one a business role hands out — the row says so,
-and the SOLL column agrees — but no business role carries an assignment of it for
+and the business-role column agrees — but no business role carries an assignment of it for
 this subject, so the membership stands outside the governance that is supposed to
 cover it. This is deliberately the <em>same</em> finding a folded role reports as its
 red count, said on the resource's own row so folding and unfolding a role never
@@ -7008,11 +7784,11 @@ describes the demo data that exercises every row of the table above.</p>
 <p>A business role is a resource row like any other, and holding it is a <code>Direct</code>
 assignment carrying <code>governed=true</code>. Two consequences the grid makes visible:</p>
 <ul>
-<li><strong>Its own SOLL column is filled in.</strong> The role grants itself, so the diagonal
+<li><strong>Its own business-role column is filled in.</strong> The role grants itself, so the diagonal
   cell (role row × its own column) renders the <strong>D</strong> badge in the role's colour.
   That grant is not a <code>Contains</code> relationship, so it can never arrive as a
   (role, resource) pair from <code>GET /api/access-package-groups</code>; <code>MatrixView</code>
-  fills the diagonal when it builds the SOLL mapping.</li>
+  fills the diagonal when it builds the business-role mapping.</li>
 <li><strong>Its cells are coloured governed.</strong>
   <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/061_business_role_covers_itself.sql"><code>061_business_role_covers_itself.sql</code></a>
   adds a self arm to <code>vw_UserPermissionAssignmentViaBusinessRole</code>, so a role
@@ -7121,6 +7897,20 @@ attributes you picked). Counts are computed only for the <em>visible frontier</e
 (<code>buildContextRollupSql</code> / <code>buildAttrCutCellsSql</code>), so the payload stays small
 regardless of subtree size. The <code>sortHierarchy → context roll-up</code> translation
 lives in the <code>/api/matrix/data</code> handler in <code>matrix.js</code>.</p>
+<p><strong>A unit's own members (hierarchy).</strong> The people directly in a unit are a
+column of their own, so nothing drops out of the view and the totals add up (the
+root's people = its direct members + each sub-unit's): the root gets a
+<strong>"<unit> — direct members"</strong> column before its sub-units, and so does every
+expanded unit. A root with no sub-units is that one column, never an empty
+matrix. A direct-members column's group value is <code>&lt;unit id&gt;:direct</code>; the
+frontier marks it so the subtree walk stops at the unit (<code>frontierValues</code>,
+<code>withDirectMemberNodes</code> in <code>matrix/contextRollup.js</code>), and its members toggle
+drills into the unit's own members. A column nobody holds anything in is dropped
+like any other. The view opens with the <strong>root's direct-members column expanded</strong>
+(its people as columns) and the sub-units collapsed — once per root, so
+collapsing it sticks. The layered hierarchy carries the <strong>business-role columns</strong>
+too (as the zoom view does, <code>rollupContent</code> <code>resources-and-roles</code> by default),
+headed under the last header row like the flat roll-up's.</p>
 <p><strong>Whole-axis fold level (attribute fold).</strong> Clicking a header value folds or
 unfolds <strong>one group</strong>. That is not enough on an axis of hundreds of columns, and
 unfolding a group drops it straight to the deepest attribute — so the attribute
