@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed: closing the detail tab you are looking at now always takes you back to where you came from, even when its address contains a space or an accented letter (e.g. a bookmarked `#department:Human Resources`). Previously the tab disappeared from the tab strip but its page stayed on screen with no tab highlighted.
+
+## Changes in this PR
+
 - Tests now cover the detail tabs of the app: opening one, returning to the page it was opened from when it is closed, and renaming a tab in place.
 - Tests now cover the matrix filter in the address bar: applying the default matrix, opening a shared matrix link, and ignoring a link with a broken filter.
 - Tests now cover the rest of the app shell: choosing which optional tabs to show, closing the settings menu, the "Backend not responding" screen, and applying or cancelling the matrix wizard.
