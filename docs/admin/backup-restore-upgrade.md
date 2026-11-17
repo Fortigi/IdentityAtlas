@@ -4,8 +4,8 @@ How to keep a Docker deployment of Identity Atlas safe and current: what to back
 
 This page is about the Docker deployment started from `docker-compose.prod.yml` (see [Docker Setup](../architecture/docker-setup.md)). Every command is run in the directory that holds that file and its `.env`. If you use a second compose file, for example for a reverse proxy, add it to each command with a second `-f`.
 
-!!! warning "Written from the compose file, not from a test run"
-    The procedures on this page follow from `docker-compose.prod.yml` and the standard PostgreSQL tools in its `postgres:16-alpine` image. They were not executed end to end for this page. Rehearse a restore on a spare machine before you rely on it. A backup you have never restored is a hope, not a backup.
+!!! warning "Tested on every release, but rehearse it on your own host"
+    The Docker back-up, upgrade and restore on this page are run by the [release test](../contributing/release-process.md#the-release-test) for every beta and stable release, with the commands as written here: it backs up the previous stable release, upgrades to the new one, then restores the backup onto an empty host, and checks that the data, and the [person-made data](../contributing/release-process.md#person-made-data) such as tags, crawler configurations and role mappings, come back unchanged. Your host, volumes and backup storage are not part of that test. Rehearse a restore on a spare machine before you rely on it. A backup you have never restored is a hope, not a backup.
 
 ---
 
