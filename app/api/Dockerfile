@@ -34,7 +34,21 @@ ENV MODULE_VERSION=$MODULE_VERSION
 
 WORKDIR /app/backend
 COPY app/api/package*.json ./
-RUN npm ci --omit=dev
+# Install the production dependencies, then take the package managers out of the
+# runtime image. The container runs `node src/index.js` and never calls npm, npx
+# or corepack, yet npm's own bundled dependencies (undici, ip-address,
+# brace-expansion, ...) were the source of every npm finding in the image CVE
+# scan (image-scan.yml). `apt-get upgrade` pulls the Debian security updates
+# published since the pinned base digest was cut.
+RUN set -eux; \
+    npm ci --omit=dev; \
+    npm cache clean --force; \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /root/.npm; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get upgrade -y; \
+    rm -rf /var/lib/apt/lists/*
 COPY app/api/src ./src
 # Copy crawler manifests so the API can auto-discover valid job types and their
 # config schemas at startup. PS1 scripts are removed — the web container is

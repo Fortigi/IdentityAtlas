@@ -73,10 +73,29 @@ def _strip_digest(ref):
 
 
 def powershell_ref():
-    """Worker base image, e.g. 'mcr.microsoft.com/powershell:7.5-ubuntu-24.04'."""
+    """Worker base image, e.g. 'ubuntu:24.04@sha256:…'."""
     m = re.search(r"^FROM\s+(\S+)", PWSH_DOCKERFILE.read_text(),
                   re.MULTILINE | re.IGNORECASE)
     return m.group(1) if m else None
+
+
+def powershell_component(pwsh_ref, dockerfile_text):
+    """Infrastructure Components cell for PowerShell.
+
+    The worker installs PowerShell on a plain Ubuntu base, so the version comes
+    from `ARG POWERSHELL_VERSION=7.6.10` and the OS from the base tag:
+    '7.6.10 (ubuntu-24.04)'. An older Dockerfile built FROM
+    mcr.microsoft.com/powershell:7.5-ubuntu-24.04 carried both in the tag; that
+    form is still understood: '7.5 (ubuntu-24.04)'.
+    """
+    image, _, tag = _strip_digest(pwsh_ref).partition(":")
+    arg = re.search(r"^ARG\s+POWERSHELL_VERSION=(\S+)", dockerfile_text, re.MULTILINE)
+    if arg:
+        name = image.rsplit("/", 1)[-1]        # 'ubuntu'
+        os_ = f"{name}-{tag}" if tag else name
+        return f"{arg.group(1)} ({os_})"
+    ver, _, os_ = tag.partition("-")
+    return f"{ver} ({os_})" if os_ else ver
 
 
 def postgres_tag():
@@ -88,17 +107,14 @@ def postgres_tag():
 def build_infra():
     """Return (component_versions, image_bases) maps derived from Docker config."""
     node_ref = node_runtime_ref()          # node:24-slim
-    pwsh_ref = powershell_ref()            # mcr.../powershell:7.5-ubuntu-24.04
+    pwsh_ref = powershell_ref()            # ubuntu:24.04@sha256:…
     pg_tag = postgres_tag()                # 16-alpine
 
     components = {}                        # Infrastructure Components: Version cell
     if pg_tag:
         components["PostgreSQL"] = pg_tag
     if pwsh_ref:
-        # tag '7.5-ubuntu-24.04' -> '7.5 (ubuntu-24.04)'
-        tag = pwsh_ref.split(":", 1)[1]
-        ver, _, os_ = tag.partition("-")
-        components["PowerShell"] = f"{ver} ({os_})" if os_ else ver
+        components["PowerShell"] = powershell_component(pwsh_ref, PWSH_DOCKERFILE.read_text())
     if node_ref:
         components["Node.js"] = node_ref.split(":", 1)[1]  # 24-slim
 
