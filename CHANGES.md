@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- The release test now proves that a backup, restore or upgrade keeps what people made in the app, not just the synced data: tags and their members, manual contexts, crawler configurations and their schedules, categories, the account-linking threshold, role → permission mappings, feature switches, saved matrices, read API keys and identity-link decisions are made before the backup and must come back with exactly the same values, on Docker and on the portable ZIPs
+- The backup and restore page now says that its Docker procedure is exercised by the release test for every release
+- The release criteria now require the authorization suites to be green before a beta or a stable release, and state that experimental features such as risk scoring are only checked for "off really is off"
+
+## Changes in this PR
+
 - Corrected the API reference overview: errors are returned as `{ "error": ... }`, the sign-in variables are `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, and the real rate limits and request-size limits per route group are listed
 - The API reference now points to the OpenAPI document served at `/api/docs` and lists the API areas that have no reference page yet
 - Corrected the Risk Scores API reference: removed the non-existent clusters endpoint, documented starting scoring runs and removing an override, and stated that a scoring run replaces earlier overrides
