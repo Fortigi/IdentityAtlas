@@ -338,6 +338,25 @@ function Test-ReportGeneratorAnswer {
     return ($null -ne $Reply) -and ((Get-Prop $Reply 'kind') -in 'report', 'clarify', 'confirm')
 }
 
+function Get-ApiTotal {
+    <#
+    .SYNOPSIS
+        What the API reports as totals: users, resources, and the matrix's user count.
+    .DESCRIPTION
+        For deployments the test cannot query with psql (the portable ZIPs,
+        Azure). Coarser than the Docker row counts, but read through the same
+        endpoints the UI uses, so an upgrade that loses data shows here too.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([Parameter(Mandatory)][string] $BaseUrl, [string] $Token = '')
+    @{
+        Users     = [long](Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/users?limit=1' -Token $Token) 'total')
+        Resources = [long](Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/resources?limit=1' -Token $Token) 'total')
+        Matrix    = [long](Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Path '/permissions?userLimit=1' -Token $Token) 'totalUsers')
+    }
+}
+
 function Write-Step {
     <# A visible step marker in the Actions log. #>
     [CmdletBinding()]

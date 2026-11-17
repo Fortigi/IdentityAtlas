@@ -93,6 +93,18 @@ STUB_EXISTING=42 PATH="$BIN:$PATH" bash "$ALERT" "JavaScript mutation testing" "
 check "an open issue: comments on it with the run link" 1 "$(grep -c "^issue comment 42 --repo acme/widgets --body Failed again: $URL" "$STUB_LOG")"
 check "an open issue: does not open a duplicate" 0 "$(grep -c '^issue create' "$STUB_LOG")"
 
+: > "$STUB_LOG"
+STUB_EXISTING='' PATH="$BIN:$PATH" bash "$ALERT" "Release nightly" "$URL" "cherry-pick of abc123 conflicts" >/dev/null
+check "a reason: goes into the new issue's body" 1 "$(grep -c '^Reason: cherry-pick of abc123 conflicts$' "$STUB_LOG")"
+
+: > "$STUB_LOG"
+STUB_EXISTING=42 PATH="$BIN:$PATH" bash "$ALERT" "Release nightly" "$URL" "the release test is red" >/dev/null
+check "a reason: goes into the comment on the open issue" 1 "$(grep -c '^Reason: the release test is red$' "$STUB_LOG")"
+
+: > "$STUB_LOG"
+STUB_EXISTING='' PATH="$BIN:$PATH" bash "$ALERT" "Release nightly" "$URL" >/dev/null
+check "no reason: no Reason line" 0 "$(grep -c '^Reason:' "$STUB_LOG")"
+
 set +e; (unset GITHUB_REPOSITORY; PATH="$BIN:$PATH" bash "$ALERT" w "$URL" >/dev/null 2>&1); rc=$?; set -e
 check "without GITHUB_REPOSITORY it fails rather than guessing a repo" 1 "$([ "$rc" -ne 0 ] && echo 1 || echo 0)"
 
