@@ -167,7 +167,7 @@ The sign-in checks need an app registration that plays Identity Atlas's own SSO 
 
 1. **App registrations → New registration**: name `Identity Atlas release test SSO`, this directory only, **no redirect URI**. **Register**. Copy its **Application (client) ID**.
 2. **Expose an API → Add** next to *Application ID URI* → accept the default `api://<client id>` → **Save**. Then **Add a scope**: name `access`, who can consent **Admins and users**, any display texts → **Add scope**.
-3. **App roles → Create app role**, three times, with exactly these values: `Admin`, `RoleMiner`, `Servicedesk`. For each: Allowed member types **Both (Users/Groups + Applications)**, any display name and description, **Do you want to enable this app role?** ticked.
+3. **App roles → Create app role**: display name and value `Servicedesk`, Allowed member types **Applications**, any description, **Do you want to enable this app role?** ticked → **Apply**. This is the only role the test needs, and the only one that must be assignable to an app; in a customer's setup the roles are for *Users/Groups*, so no app can be given one.
 4. **Enterprise applications** → `Identity Atlas release test SSO` → **Properties** → **Assignment required?** **No** → **Save**. This is deliberate: with *Yes*, Entra would refuse the no-role caller a token, and the test could not show that **Identity Atlas itself** refuses it, which is the F-01 finding.
 
 **The release-test app gets the `Servicedesk` role**
