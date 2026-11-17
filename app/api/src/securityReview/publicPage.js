@@ -22,9 +22,15 @@ export function pageFileName(reviewId) {
   return `review-${reviewId}.md`;
 }
 
-// A table cell must not break the table or smuggle in markup.
+// A table cell must not break the table or smuggle in markup. Backslashes are
+// escaped first: otherwise a `\` in the input would cancel the `\|` added below
+// and turn the pipe back into a column break.
 export function cell(text) {
-  return String(text).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').replace(/</g, '&lt;');
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\|/g, '\\|')
+    .replace(/</g, '&lt;');
 }
 
 function summaryFor(f) {

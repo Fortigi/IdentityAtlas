@@ -21,6 +21,14 @@ describe('helpers', () => {
   it('keeps a table cell on one line and inert', () => {
     expect(cell('a | b\nc\r\nd <script>')).toBe('a \\| b c d &lt;script>');
   });
+
+  it('escapes backslashes first, so input cannot cancel the escaping of a pipe', () => {
+    // Input a\|b: without escaping the backslash it would become a\\|b, an
+    // escaped backslash followed by a real column break.
+    expect(cell('a\\|b')).toBe('a\\\\\\|b');
+    // A trailing backslash must not escape the pipe that ends the cell.
+    expect(cell('ends with \\')).toBe('ends with \\\\');
+  });
 });
 
 describe('renderPublicPage', () => {
