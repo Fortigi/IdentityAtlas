@@ -85,6 +85,9 @@ const FILTER = {
     include: [{ kind: 'attribute', field: 'displayName', values: [GROUP_GONE.displayName, GROUP_LIVE.displayName] }],
     exclude: [],
   },
+  // The scope panel (with its governed / non-governed split) only mounts for a
+  // filter that asks for it (#1202); it is view state, so the API ignores it.
+  showTrends: true,
 };
 
 const matrixUrl = (managed) =>
