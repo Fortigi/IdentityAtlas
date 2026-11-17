@@ -201,7 +201,7 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: portable-zips
+          name: portable-zips-${{ needs.plan.outputs.candidate }}
           path: zips/
           retention-days: 3
 
@@ -220,7 +220,7 @@ jobs:
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: portable-zips
+          name: portable-zips-${{ needs.plan.outputs.candidate }}
           path: zips
 
       - name: Run the portable ${{ matrix.scenario }} scenario
@@ -277,12 +277,27 @@ jobs:
       matrix:
         variant: [main, main-rg, auth, auth-rg, main-upgrade, auth-upgrade]
     env:
-      GROUP: ia-reltest-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.variant }}
       VARIANT: ${{ matrix.variant }}
       # `az containerapp` is a CLI extension; install it on first use instead of prompting.
       AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ia-reltest-<run>-<attempt>-<candidate>-<variant>. The candidate is in it
+      # because one nightly run can test two candidates (a new beta and the
+      # security hotfix's beta), each with the same variants.
+      - name: Name the resource group
+        shell: pwsh
+        env:
+          RUN_ID: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          . ./tools/release/ReleaseTest.Azure.ps1
+          $name = New-ReleaseTestGroupName -RunId $env:RUN_ID -Attempt $env:ATTEMPT -Variant "$(ConvertTo-GroupNamePart $env:CANDIDATE)-$env:VARIANT"
+          "GROUP=$name" | Add-Content $env:GITHUB_ENV
+          "Resource group: $name"
+
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}

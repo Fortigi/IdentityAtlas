@@ -90,8 +90,8 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Context | Who updates it | When |
 |---------|---------------|------|
 | `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp. `Major` follows the highest `vX.Y.Z` tag (Minor restarts when it moves), so cutting `v7.0.0` puts `main` on `7.x` |
-| Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta |
-| Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix |
+| Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta, or the nightly security route cuts a hotfix beta |
+| Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix, or the nightly security route releases a tested hotfix |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 ### Changelog Fragments
@@ -301,10 +301,13 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 ### Cutting a Release
 
-1. Go to **Actions → Cut Release → Run workflow**
-2. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`)
-3. The workflow creates tag `v5.2.0` on the current `main` HEAD
-4. `docker-publish.yml` pushes `:latest` + `:5.2.0.0`
+1. Cut a beta first (**Actions → Cut Beta**); the next night `release-nightly.yml` runs the full release test against it, Azure included
+2. Once it is green, go to **Actions → Cut Release → Run workflow**
+3. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`) and, as ref, the beta tag you are promoting
+4. The workflow creates tag `v5.2.0` on that commit (it must be on `main`)
+5. `docker-publish.yml` pushes `:latest` + `:5.2.0.0`
+
+What the release test covers, when edge is ready for beta and beta for stable, and the one-time Azure/GitHub setup: [`docs/contributing/release-process.md`](docs/contributing/release-process.md).
 
 ### Hotfix Releases
 
@@ -317,6 +320,8 @@ git push origin bugfixes/fix-foo-hotfix
 ```
 
 Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`). The workflow refuses any commit that is not a clean `-x` cherry-pick of a commit on `main`.
+
+**Dependabot security fixes need none of this.** Merged patch/minor Dependabot PRs labelled `security-fix` are shipped by the nightly security route in `release-nightly.yml`: one `bugfixes/security-hotfix-<date>` branch of `-x` cherry-picks, a hotfix beta, the release test, and Cut Hotfix only if green; the branch is deleted afterwards. A kept branch means a failed attempt (an issue says why); fix the cause, delete the branch, and the route retries. Do not run it with `dry_run` unticked to "try it out".
 
 ---
 
