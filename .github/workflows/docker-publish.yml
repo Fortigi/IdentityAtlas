@@ -12,6 +12,8 @@
 #   main (via bump-version):  :edge  + Major.Minor.yyyyMMdd.HHmm
 #   v5.2.0 tag push:          :latest + Major.Minor.Patch.0
 #   v5.2.0-beta.1 tag push:   :beta   + Major.Minor.Patch-beta.N  (never touches :latest)
+#   v5.1.3-beta.1 tag push:   Major.Minor.Patch-beta.N only — a patch beta of the release
+#                             line is a candidate for :latest and must not move :beta
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Publish Docker Images
@@ -94,6 +96,14 @@ jobs:
       # line. The Cut workflows already refuse to create any other tag, but a tag pushed by hand
       # (or by anything else holding a token with contents:write) would otherwise publish :latest
       # straight from an arbitrary commit (security review Nov 2026, F-52).
+      #
+      # A hotfix tag is neither: its branch starts at a stable tag and holds `git cherry-pick -x`
+      # copies of main commits. It is published when main's own Assert-ReleaseFromMain.ps1 accepts
+      # it in -Mode Hotfix, the check Cut Hotfix ran before tagging. The checker is read from
+      # origin/main, never from the tag, so a tag cannot bring a checker that lets itself through.
+      # Without this, no hotfix of a release cut after this guard landed could ever publish.
+      # (A tag push runs the docker-publish.yml AT THE TAG, so this reaches hotfixes of releases
+      # cut after it merges; the 6.1.x line predates the guard and publishes either way.)
       - name: Refuse a release tag that is not on main or a release branch
         if: steps.config.outputs.channel != 'main'
         env:
@@ -107,7 +117,12 @@ jobs:
               exit 0
             fi
           done
-          echo "::error::$REF ($(git rev-parse --short HEAD)) is not on main or any release/* branch. Releases are cut from main through Actions → Cut Release; nothing else is published."
+          git show "origin/main:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
+          if pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD; then
+            echo "::notice::$REF is a hotfix of main commits only — publishing"
+            exit 0
+          fi
+          echo "::error::$REF ($(git rev-parse --short HEAD)) is not on main or any release/* branch, and not a hotfix made only of cherry-picks of main commits. Releases are cut from main through Actions → Cut Release or Cut Hotfix; nothing else is published."
           exit 1
 
       - name: Extract version
@@ -293,9 +308,15 @@ jobs:
       - name: Resolve channel's floating tag
         id: tags
         run: |
+          # :beta is the preview of the NEXT MINOR (X.Y.0-beta.N, cut from main).
+          # A patch beta of the release line (6.1.2-beta.1) is a test candidate
+          # for :latest: it gets only its own version tag. Moving :beta to it
+          # would put everyone on :beta back a whole minor, onto a database the
+          # newer version already migrated.
+          VERSION="${{ steps.version.outputs.version }}"
           case "${{ steps.config.outputs.channel }}" in
             release) FLOAT=latest ;;
-            beta)    FLOAT=beta   ;;
+            beta)    if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.0- ]]; then FLOAT=beta; else FLOAT=; fi ;;
             *)       FLOAT=edge   ;;
           esac
           echo "float=$FLOAT" >> "$GITHUB_OUTPUT"
@@ -306,9 +327,9 @@ jobs:
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
           REPO="${{ env.REGISTRY }}/fortigi/identity-atlas"
-          docker tag identity-atlas-web:qa "$REPO:$FLOAT"
+          if [ -n "$FLOAT" ]; then docker tag identity-atlas-web:qa "$REPO:$FLOAT"; fi
           docker tag identity-atlas-web:qa "$REPO:$VERSION"
-          docker push "$REPO:$FLOAT"
+          if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi
           docker push "$REPO:$VERSION"
           # Registry digest of what was just pushed — the subject of the
           # provenance and SBOM attestations below.
@@ -321,9 +342,9 @@ jobs:
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
           REPO="${{ env.REGISTRY }}/fortigi/identity-atlas-report-generator"
-          docker tag identity-atlas-report-generator:qa "$REPO:$FLOAT"
+          if [ -n "$FLOAT" ]; then docker tag identity-atlas-report-generator:qa "$REPO:$FLOAT"; fi
           docker tag identity-atlas-report-generator:qa "$REPO:$VERSION"
-          docker push "$REPO:$FLOAT"
+          if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi
           docker push "$REPO:$VERSION"
 
       - name: Push worker image (tested artifact)
@@ -332,9 +353,9 @@ jobs:
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
           REPO="${{ env.REGISTRY }}/fortigi/identity-atlas-worker"
-          docker tag identity-atlas-worker:qa "$REPO:$FLOAT"
+          if [ -n "$FLOAT" ]; then docker tag identity-atlas-worker:qa "$REPO:$FLOAT"; fi
           docker tag identity-atlas-worker:qa "$REPO:$VERSION"
-          docker push "$REPO:$FLOAT"
+          if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi
           docker push "$REPO:$VERSION"
           # Registry digest of what was just pushed — the subject of the
           # provenance and SBOM attestations below.

@@ -1,19 +1,20 @@
 # ─── Cut a Hotfix Release ─────────────────────────────────────────────────────
-# Manually triggered. Tags the HEAD of a hotfix branch with a new patch version,
+# Tags a commit of the release line (release/X.Y) with a new patch version,
 # triggering docker-publish to build :latest + :X.Y.Z.0. The GitHub release gets
 # both portable Windows ZIPs (IdentityAtlas-portable.zip and
 # IdentityAtlas-portable-postgres.zip).
 #
-# Main first: a hotfix may only contain commits already merged to main through
-# an approved PR. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
+# Main first: every commit after the stable tag must be on main, a clean
+# `git cherry-pick -x` of a main commit, or a Dependabot update merged into the
+# release line. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
 # before the tag is created (v6.0.1 was cut before its PR was approved).
 #
-# Usage:
-#   1. Fix the bug on a bugfixes/ branch from main; PR, approval, merge
-#   2. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
-#   3. git cherry-pick -x <the merged commit on main>   ← -x is required
-#   4. Push the branch, then Actions → Cut Hotfix → Run workflow (from main)
-#   5. Enter the branch name and new version (e.g. "5.2.1")
+# Normally nobody runs this by hand: the weekly stable route
+# (release-weekly.yml → release-route.yml) calls it through workflow_call with
+# the exact commit whose beta passed the release test. By hand (Actions → Cut
+# Hotfix, from main): branch = release/X.Y or a commit on it, version X.Y.(Z+1).
+# dry_run: true does everything up to the tag but pushes no tag and creates no
+# release.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Hotfix
@@ -22,11 +23,34 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Hotfix branch name (e.g. bugfixes/fix-login-crash)'
+        description: 'Release line, tag or commit to tag (e.g. release/6.1)'
         required: true
       version:
         description: 'New version (major.minor.patch, e.g. "5.2.1")'
         required: true
+      dry_run:
+        description: 'Check and build everything, but push no tag and publish nothing'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      branch:
+        type: string
+        required: true
+      version:
+        type: string
+        required: true
+      dry_run:
+        type: boolean
+        default: false
+    # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
+    # BOT_PRIVATE_KEY is not passed at all: the job reads it from its own
+    # release-automation environment, which a caller cannot hand in.
+    secrets:
+      BOT_APP_ID:
+        required: true
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
 
 jobs:
   cut-hotfix:
@@ -41,7 +65,7 @@ jobs:
     steps:
       - name: Validate version input
         run: |
-          if ! echo "${{ github.event.inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Version must be in Major.Minor.Patch format (e.g. 5.2.1)"
             exit 1
           fi
@@ -55,7 +79,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ inputs.branch }}
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
 
@@ -65,7 +89,7 @@ jobs:
       # than fail halfway with a tag and Docker images but no GitHub release.
       - name: Check the branch has the files this workflow calls
         env:
-          BRANCH: ${{ github.event.inputs.branch }}
+          BRANCH: ${{ inputs.branch }}
         run: |
           missing=0
           for f in .github/scripts/build_portable_zips.sh                    .github/scripts/release_prev_tag.sh                    tools/release-notes/dependency-delta.py                    tools/release-notes/portable-downloads.md; do
@@ -87,13 +111,19 @@ jobs:
           pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD
 
       - name: Create and push hotfix tag
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           TAG="v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Hotfix release $TAG"
-          git push origin "$TAG"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Dry run: $TAG is tagged on the runner only, not pushed."
+          else
+            git push origin "$TAG"
+          fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           COMMIT=$(git rev-parse --short HEAD)
@@ -164,6 +194,7 @@ jobs:
           cat release-notes.md
 
       - name: Synthesize release notes with Claude
+        if: ${{ !inputs.dry_run }}
         id: polish
         continue-on-error: true
         # continue-on-error: this step only polishes wording — release-notes.md already has valid,
@@ -175,7 +206,7 @@ jobs:
           claude_args: "--allowedTools Read,Write"
           prompt: |
             Read `release-notes.md`. It contains raw changelog bullets for
-            Identity Atlas hotfix ${{ github.event.inputs.version }}.
+            Identity Atlas hotfix ${{ inputs.version }}.
 
             Rewrite it as polished GitHub release notes following these rules:
 
@@ -214,6 +245,7 @@ jobs:
       # Publishing the release triggers docs.yml, which deploys the stable docs.
       # Don't deploy them here as well: two pushes to gh-pages race and one fails.
       - name: Create GitHub release with portable ZIPs
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -229,23 +261,27 @@ jobs:
             --latest
 
       - name: Post run summary
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            HEADING="🧪 Dry run: hotfix checked, nothing published"
+            NEXT="No tag was pushed and no release was created, so docker-publish does not run."
+          else
+            HEADING="✅ Hotfix tagged"
+            NEXT="docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress."
+          fi
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## ✅ Hotfix tagged
+          ## ${HEADING}
 
           | | |
           |---|---|
           | **Tag** | \`${TAG}\` |
           | **Version** | \`${VERSION}.0\` |
-          | **Branch** | \`${{ github.event.inputs.branch }}\` |
+          | **Branch** | \`${{ inputs.branch }}\` |
           | **Commit** | \`${COMMIT}\` |
 
-          docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress.
+          ${NEXT}
 
-          ### Next step — cherry-pick to main
-          \`\`\`bash
-          git checkout main && git pull
-          git cherry-pick ${COMMIT}
-          gh pr create --base main --title "fix: cherry-pick hotfix from ${TAG}"
-          \`\`\`
+          Nothing to bring back to main: a hotfix only holds commits that were on main first.
           EOF

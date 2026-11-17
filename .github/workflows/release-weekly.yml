@@ -1,0 +1,182 @@
+# ─── Release weekly ──────────────────────────────────────────────────────────
+# Once a week: release what Dependabot updated, and test it on the way.
+# Security updates and other updates are treated the same; staying current is
+# the point. docs/contributing/release-process.md describes the whole route.
+#
+#   plan     tools/release/Get-WeeklyPlan.ps1 (decisions unit-tested in
+#            test/unit/ReleaseWeekly.Tests.ps1) decides up to three things:
+#
+#   stable   release/X.Y (the newest stable minor, updated weekly by Dependabot)
+#            moved since vX.Y.Z -> release-route.yml: vX.Y.(Z+1)-beta.N, the
+#            release test, and vX.Y.(Z+1) on :latest only if it is green.
+#            Azure only when the Azure templates changed.
+#   beta     main has Dependabot updates of shipped code since the last beta
+#            of the next minor -> release-route.yml: vX.(Y+1).0-beta.N on
+#            :beta and the release test. Azure for the first beta of a minor
+#            and when the templates changed. No promotion: a new minor goes
+#            stable by hand (Cut Release).
+#   test     neither cuts a beta of main -> the release test of a pre-release
+#            nobody tested yet (Azure included), or else :edge without Azure
+#            as an early warning.
+#
+# Each route's failure publishes nothing after it and opens one issue. A route
+# does not retry the same commit: the stable route waits until release/X.Y
+# moves (or a manual run with retry_stable), the beta route until a new
+# Dependabot update lands on main.
+#
+# dry_run (manual runs only; on by default there) does everything except push
+# tags and open issues.
+#
+# Tuesdays 02:07 UTC = 03:07 in Amsterdam in winter (04:07 in summer). One
+# release a week is enough to keep dependencies current. Tuesday, because the
+# release line's Dependabot runs on Monday (dependabot.yml), which leaves a day
+# for its PRs to pass CI and merge themselves. Not on the hour: GitHub delays
+# top-of-hour schedules, sometimes by much more than 7 minutes. Something that
+# cannot wait a week (an actively exploited dependency) is released by running
+# this by hand with dry_run unticked.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release weekly
+
+on:
+  schedule:
+    - cron: '7 2 * * 2'
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: 'Only test this tag (or edge); cut nothing. Empty = decide as the weekly run does.'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Do everything except push tags or open issues'
+        type: boolean
+        default: true
+      retry_stable:
+        description: 'Try the stable route again on a release-line commit that was already tried'
+        type: boolean
+        default: false
+
+# One run at a time; a run that is still going is never cancelled by the next.
+concurrency:
+  group: release-weekly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: 'Plan: what to release and test this run'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read      # does the newest pre-release have its release-tested-<tag> artifact?
+    outputs:
+      candidate: ${{ steps.plan.outputs.candidate }}
+      azure: ${{ steps.plan.outputs.azure }}
+      marker: ${{ steps.plan.outputs.marker }}
+      stable_needed: ${{ steps.plan.outputs.stable_needed }}
+      stable_version: ${{ steps.plan.outputs.stable_version }}
+      stable_beta: ${{ steps.plan.outputs.stable_beta }}
+      stable_sha: ${{ steps.plan.outputs.stable_sha }}
+      stable_azure: ${{ steps.plan.outputs.stable_azure }}
+      beta_needed: ${{ steps.plan.outputs.beta_needed }}
+      beta_version: ${{ steps.plan.outputs.beta_version }}
+      beta_sha: ${{ steps.plan.outputs.beta_sha }}
+      beta_azure: ${{ steps.plan.outputs.beta_azure }}
+      dry_run: ${{ steps.mode.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0     # all branches (release/X.Y) and tags
+      # Scheduled runs are real; a manual run is a dry run unless unticked.
+      - name: Dry run or not
+        id: mode
+        env:
+          DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: echo "dry_run=$([ "$DRY" = "true" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Decide
+        id: plan
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OVERRIDE: ${{ inputs.candidate }}
+          RETRY: ${{ inputs.retry_stable }}
+        run: ./tools/release/Get-WeeklyPlan.ps1 -Repository $env:GITHUB_REPOSITORY -Override "$env:OVERRIDE" -RetryStable:($env:RETRY -eq 'true')
+
+  # ═══ Stable route: a patch release of the release line ═════════════════
+  stable:
+    name: 'Stable: v${{ needs.plan.outputs.stable_version }}'
+    needs: plan
+    if: needs.plan.outputs.stable_needed == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+    uses: ./.github/workflows/release-route.yml
+    with:
+      route: stable
+      version: ${{ needs.plan.outputs.stable_beta }}
+      ref: ${{ needs.plan.outputs.stable_sha }}
+      hotfix: true
+      azure: ${{ needs.plan.outputs.stable_azure == 'true' }}
+      promote: ${{ needs.plan.outputs.stable_version }}
+      dry_run: ${{ needs.plan.outputs.dry_run == 'true' }}
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # ═══ Beta route: a new beta of main ════════════════════════════════════
+  beta:
+    name: 'Beta: v${{ needs.plan.outputs.beta_version }}'
+    needs: plan
+    if: needs.plan.outputs.beta_needed == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+    uses: ./.github/workflows/release-route.yml
+    with:
+      route: beta
+      version: ${{ needs.plan.outputs.beta_version }}
+      ref: ${{ needs.plan.outputs.beta_sha }}
+      hotfix: false
+      azure: ${{ needs.plan.outputs.beta_azure == 'true' }}
+      promote: ''
+      dry_run: ${{ needs.plan.outputs.dry_run == 'true' }}
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # ═══ Test an existing candidate (no beta of main this run) ═════════════
+  release-test:
+    name: 'Test ${{ needs.plan.outputs.candidate }}'
+    needs: plan
+    if: needs.plan.outputs.candidate != ''
+    permissions:
+      contents: read
+      id-token: write    # the sign-in and Azure jobs log in with GitHub OIDC
+    uses: ./.github/workflows/release-test.yml
+    with:
+      candidate: ${{ needs.plan.outputs.candidate }}
+      azure: ${{ needs.plan.outputs.azure == 'true' }}
+
+  mark-tested:
+    name: 'Record that ${{ needs.plan.outputs.candidate }} was tested'
+    needs: [plan, release-test]
+    if: >-
+      always() && needs.plan.outputs.marker != '' &&
+      (needs.release-test.result == 'success' || needs.release-test.result == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write the record
+        env:
+          CANDIDATE: ${{ needs.plan.outputs.candidate }}
+          RESULT: ${{ needs.release-test.result }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: printf '{"candidate":"%s","result":"%s","run":"%s"}\n' "$CANDIDATE" "$RESULT" "$RUN" > tested.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ needs.plan.outputs.marker }}
+          path: tested.json
+          retention-days: 90

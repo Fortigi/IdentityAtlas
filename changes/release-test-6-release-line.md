@@ -1,0 +1,3 @@
+- Only the newest stable minor version is maintained. Releasing a new minor version now creates its release line and moves the weekly dependency updates there; the previous minor gets no more updates, and the 5.9 line has ended.
+- Dependabot now updates the 6.1 stable line every Monday with patch and minor updates of production dependencies and base images. Each update merges itself once CI passes. Major upgrades are left for the next minor version.
+- A release may now include Dependabot updates merged into the release line without first being on the main branch. The check only accepts updates that change nothing but dependency versions; everything else must still come from the main branch.

@@ -42,7 +42,9 @@ describe('docs are deployed by docs.yml alone', () => {
 describe('every cut-* workflow refuses code that is not on main', () => {
   it.each([
     ['cut-release.yml', 'Release'],
-    ['cut-beta.yml', 'Release'],
+    // Cut Beta checks a hotfix branch's beta the way Cut Hotfix checks the hotfix:
+    // $MODE is Release unless `hotfix: true` (asserted below).
+    ['cut-beta.yml', '"$MODE"'],
     ['cut-hotfix.yml', 'Hotfix'],
   ])('%s runs the checker in %s mode before pushing the tag', (file, mode) => {
     const all = steps(read(`.github/workflows/${file}`));
@@ -52,10 +54,59 @@ describe('every cut-* workflow refuses code that is not on main', () => {
     expect(tag).toBeGreaterThan(gate);
     const step = all[gate];
     expect(step).toMatch(/git show "\$GITHUB_WORKFLOW_SHA:tools\/release\/Assert-ReleaseFromMain\.ps1" > "\$RUNNER_TEMP\/assert\.ps1"/);
-    expect(step).toMatch(new RegExp(`pwsh -NoProfile -File "\\$RUNNER_TEMP/assert\\.ps1" -Mode ${mode} -Ref HEAD\\n`));
+    expect(step).toContain(`pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode ${mode} -Ref HEAD\n`);
     expect(step).toMatch(/if \[ "\$GITHUB_REF" != "refs\/heads\/main" \]; then\n.*exit 1/);
     // Not softened into a warning that lets the run carry on.
     expect(step).not.toMatch(/continue-on-error|\|\| true/);
+  });
+
+  it('cut-beta checks in Release mode unless asked for a hotfix branch, and in no other mode', () => {
+    const gate = steps(read('.github/workflows/cut-beta.yml')).find((s) => /Assert-ReleaseFromMain\.ps1/.test(s));
+    expect(gate).toContain('HOTFIX: ${{ inputs.hotfix }}');
+    const modes = [...gate.matchAll(/MODE=(\w+)/g)].map((m) => m[1]);
+    expect(modes).toEqual(['Release', 'Hotfix']);
+    expect(gate).toMatch(/MODE=Release\n\s+if \[ "\$HOTFIX" = "true" \]; then MODE=Hotfix; fi/);
+  });
+});
+
+// The weekly routes (release-route.yml) call Cut Beta and Cut Hotfix with dry_run. A dry
+// run must leave nothing behind on GitHub: no tag (which would make
+// docker-publish push images) and no release.
+describe('a dry run of a cut-* workflow publishes nothing', () => {
+  it.each(['cut-beta.yml', 'cut-hotfix.yml'])('%s pushes the tag only outside a dry run', (file) => {
+    const tagStep = steps(read(`.github/workflows/${file}`)).find((s) => /git push origin "\$TAG"/.test(s));
+    expect(tagStep).toContain('DRY_RUN: ${{ inputs.dry_run }}');
+    expect(tagStep).toMatch(/if \[ "\$DRY_RUN" = "true" \]; then\n[^\n]*\n\s+else\n\s+git push origin "\$TAG"\n\s+fi/);
+  });
+
+  it.each(['cut-beta.yml', 'cut-hotfix.yml'])('%s creates the release only outside a dry run', (file) => {
+    const release = steps(read(`.github/workflows/${file}`)).filter((s) => s.includes('gh release create'));
+    expect(release).toHaveLength(1);
+    expect(release[0]).toMatch(/^ {6}- name: [^\n]+\n {8}if: \$\{\{ !inputs\.dry_run \}\}\n/);
+  });
+
+  it.each(['cut-beta.yml', 'cut-hotfix.yml'])('%s reads its inputs from `inputs`, so workflow_call works', (file) => {
+    const text = read(`.github/workflows/${file}`);
+    expect(text).toMatch(/\n {2}workflow_call:\n/);
+    expect(text).not.toContain('github.event.inputs');
+  });
+});
+
+// docker-publish refuses a tag whose commit is not on main (F-52). A hotfix tag
+// is not on main by construction, so it must be admitted by main's own checker
+// — read from origin/main, never from the tag being published.
+describe('docker-publish admits a hotfix only through main\'s checker', () => {
+  const guard = steps(read('.github/workflows/docker-publish.yml')).find((s) => s.includes('Refuse a release tag that is not on main'));
+
+  it('loads Assert-ReleaseFromMain.ps1 from origin/main and runs it in Hotfix mode', () => {
+    expect(guard).toContain('git show "origin/main:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"');
+    expect(guard).toContain('if pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD; then');
+  });
+
+  it('still refuses everything else', () => {
+    expect(guard).toMatch(/exit 1\n?$/);
+    expect(guard).not.toMatch(/continue-on-error|\|\| true/);
+    expect(guard).not.toMatch(/git show "?\$?\{?REF|git show "HEAD:tools/);
   });
 });
 
@@ -123,5 +174,55 @@ describe('cut-hotfix checks the branch before tagging it', () => {
   it('fails the run when a file is missing', () => {
     expect(all[check]).toMatch(/if \[ ! -f "\$f" \]/);
     expect(all[check]).toMatch(/exit \$missing/);
+  });
+});
+
+// :beta is the preview of the next minor. The weekly stable route cuts patch
+// betas of the release line (6.1.2-beta.1) as test candidates for :latest; if
+// those moved :beta, everyone on :beta would go back a whole minor, onto a
+// database the newer version had already migrated.
+describe('docker-publish moves :beta only for a beta of a new minor', () => {
+  const publish = read('.github/workflows/docker-publish.yml');
+  const resolve = steps(publish).find((s) => s.includes("Resolve channel's floating tag"));
+
+  it('floats :beta for X.Y.0 pre-releases only', () => {
+    expect(resolve).toContain(String.raw`beta)    if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.0- ]]; then FLOAT=beta; else FLOAT=; fi ;;`);
+    expect(resolve).toContain('release) FLOAT=latest ;;');
+  });
+
+  it.each(['identity-atlas-web', 'identity-atlas-report-generator', 'identity-atlas-worker'])(
+    '%s tags and pushes the floating tag only when there is one, and its version tag always',
+    (image) => {
+      const push = steps(publish).find((s) => s.includes(`docker tag ${image}:qa "$REPO:$VERSION"`));
+      expect(push).toContain(`if [ -n "$FLOAT" ]; then docker tag ${image}:qa "$REPO:$FLOAT"; fi`);
+      expect(push).toContain('if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi');
+      expect(push).toMatch(/\n\s+docker push "\$REPO:\$VERSION"\n/);
+      expect(push).not.toMatch(/\n\s+docker push "\$REPO:\$FLOAT"\n/);
+    },
+  );
+});
+
+// Only the newest stable minor is maintained. Cut Release of X.Y.0 starts its
+// line (release/X.Y) and moves Dependabot there through a PR into main — after
+// the release exists, never instead of it.
+describe('cut-release starts the release line for a new minor', () => {
+  const all = steps(read('.github/workflows/cut-release.yml'));
+  const line = all.findIndex((s) => s.includes('- name: Start the release line'));
+  const release = all.findIndex((s) => s.includes('gh release create'));
+
+  it('runs for X.Y.0 only, after the GitHub release is created', () => {
+    expect(line).toBeGreaterThan(release);
+    expect(all[line]).toContain("if: endsWith(github.event.inputs.version, '.0')");
+  });
+
+  it('creates release/X.Y from the tagged commit, leaving an existing one alone', () => {
+    expect(all[line]).toContain('LINE="release/${VERSION%.*}"');
+    expect(all[line]).toMatch(/if git ls-remote --exit-code --heads origin "\$LINE"[^\n]*; then\n[^\n]*already exists[^\n]*\n\s+else\n\s+git push origin "HEAD:refs\/heads\/\$LINE"/);
+  });
+
+  it('moves Dependabot through a pull request into main, not a push to main', () => {
+    expect(all[line]).toContain('tools/release/Set-DependabotReleaseLine.ps1 -Line "$LINE"');
+    expect(all[line]).toContain('gh pr create --base main --head "$PR_BRANCH"');
+    expect(all[line]).not.toMatch(/push[^\n]*(refs\/heads\/main|origin main\b)/);
   });
 });

@@ -1,0 +1,1 @@
+- Added a release test that checks a published beta, hotfix or edge build the way an operator uses it: an upgrade from the previous stable release with demo data, a backup and a restore as the backup documentation describes, and a fresh install that follows the quick start word for word, each with and without the local report generator.

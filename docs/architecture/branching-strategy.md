@@ -10,13 +10,15 @@ This document covers branch naming, PR rules, version format, and the release wo
 |--------|---------|-------------|-------------------|
 | `main` | Stable trunk. Never commit directly. | Yes | Yes (at least 1) |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes | No |
-| `bugfixes/<name>` | Bug fixes. Branch from `main` for pre-release fixes; branch from a **release tag** for hotfixes. | Yes (to `main`) | No |
+| `bugfixes/<name>` | Bug fixes. Branch from `main`. To bring a merged fix to the stable line, branch from `release/X.Y` and cherry-pick it. | Yes (to `main`, or to `release/X.Y`) | No |
+| `release/X.Y` | The one maintained stable line: the newest stable minor. Created by Cut Release at `vX.Y.0`; Dependabot updates it weekly; the weekly stable route releases it. | Yes | No (CI must pass) |
 
 **Rules:**
 
 - `feature/` branches must be branched off `main`.
-- `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
-- **Main first — nothing is released that is not on `main`.** A hotfix is fixed on `main` (PR, approval, merge) before it is released; the hotfix branch holds only `git cherry-pick -x` copies of merged commits. The cut workflows enforce this.
+- `bugfixes/` branches branch from `main`. A fix that must reach the stable line too is merged to `main` first, then cherry-picked with `-x` in a PR into `release/X.Y`.
+- **Main first — nothing is released that is not on `main`,** with one exception: Dependabot's own dependency updates of the release line. The cut workflows enforce both (`tools/release/Assert-ReleaseFromMain.ps1`); see [Release process](../contributing/release-process.md#the-dependabot-exception).
+- **Only the newest stable minor is maintained.** When `X.Y.0` is released, the previous line gets nothing more.
 - All merges to `main` go through a Pull Request — no direct pushes.
 - Branch names: lowercase, hyphens. Examples: `feature/risk-score-export`, `bugfixes/fix-login-redirect`.
 - **One issue per branch.** Each branch fixes exactly one issue or implements exactly one feature. Never combine unrelated fixes into a single branch or PR.
@@ -32,8 +34,9 @@ git checkout -b feature/<name>
 # or
 git checkout -b bugfixes/<name>
 
-# Hotfix to a released version — branch from the release tag, NOT from main
-git checkout -b bugfixes/<name> v5.2.0
+# Bring a fix that is already merged to main onto the stable line
+git checkout -b bugfixes/<name>-on-6.1 origin/release/6.1
+git cherry-pick -x <merged commit on main>
 ```
 
 ---
@@ -43,17 +46,20 @@ git checkout -b bugfixes/<name> v5.2.0
 | Context | Format | Example |
 |---------|--------|---------|
 | `main` dev builds (`:edge`) | `Major.Minor.yyyyMMdd.HHmm` | `6.3.20261023.1430` |
-| Pre-release tags (`:beta`) | `Major.Minor.Patch-beta.N` | `5.3.0-beta.1` |
-| Release tags (`:latest`) | `Major.Minor.Patch.0` | `5.2.1.0` |
+| Betas of the next minor (`:beta`) | `Major.Minor.0-beta.N` | `6.2.0-beta.3` |
+| Patch betas of the release line (own tag only) | `Major.Minor.Patch-beta.N` | `6.1.4-beta.1` |
+| Release tags (`:latest`) | `Major.Minor.Patch.0` | `6.1.4.0` |
+
+`Major.Minor` of a release says what it can do: 6.1 and 6.2 differ in features. The last digit counts the dependency updates (and the odd cherry-picked fix) since `X.Y.0`.
 
 **Who updates what:**
 
 | Action | Who | When |
 |--------|-----|------|
 | `Minor` bump + timestamp | `bump-version.yml` GitHub Action | Automatically on every PR merge to `main` |
-| Pre-release version | `cut-beta.yml` GitHub Action | When you run Actions → Cut Beta |
-| Release version | `cut-release.yml` GitHub Action | When you run Actions → Cut Release |
-| Hotfix version | `cut-hotfix.yml` GitHub Action | When you run Actions → Cut Hotfix |
+| Beta of the next minor | `cut-beta.yml`, called by the weekly beta route | Once a week (Tuesday), when `main` got a Dependabot update of shipped code; or by hand |
+| Patch release (`X.Y.1`, `X.Y.2` …) | `cut-beta.yml` then `cut-hotfix.yml`, called by the weekly stable route | Once a week (Tuesday), when `release/X.Y` moved, once the beta passed the release test |
+| New minor (`X.Y.0`) | `cut-release.yml` | When you run Actions → Cut Release |
 | `Major` bump | `bump-version.yml` GitHub Action | On the first PR merge after a release (or beta) of a new major is tagged — `Major` follows the highest `vX.Y.Z` tag and `Minor` restarts at 1 |
 | Branch work | Nobody | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
@@ -87,12 +93,12 @@ Write in user-facing language. One bullet per functional change. Add the file al
 
 ## Cutting a Pre-Release (Beta / RC)
 
-To publish a build for testers without touching `:latest`:
+The weekly beta route cuts most betas. To publish one by hand without touching `:latest`:
 
 1. Go to **Actions → Cut Beta → Run workflow**
 2. Enter the version: `Major.Minor.Patch-beta.N` (e.g. `5.3.0-beta.1`, `5.3.0-rc.1`, `5.3.0-alpha.1`)
 3. The workflow creates the tag on the current `main` HEAD (or on the optional **ref** input — any branch, tag or commit)
-4. `docker-publish.yml` builds `:beta` + `:5.3.0-beta.1`
+4. `docker-publish.yml` builds `:beta` + `:5.3.0-beta.1` (`:beta` moves only for an `X.Y.0` pre-release)
 
 Users on `docker-compose.prod.yml` tracking `:latest` are **not** affected.
 
@@ -102,38 +108,35 @@ Users on `docker-compose.prod.yml` tracking `:latest` are **not** affected.
 > dependency-update list — is assembled by the workflow. See
 > [How a release's notes are assembled](../process/release-notes.md).
 
-When `main` is stable and ready to ship to customers:
+A person cuts only a new minor, from a beta of it that passed a full release test (see [Release process → A new minor](../contributing/release-process.md#a-new-minor)):
 
 1. Go to **Actions → Cut Release → Run workflow**
-2. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`)
-3. The workflow creates tag `v5.2.0` on the current `main` HEAD (or on the optional **ref** input — any branch, tag or commit)
-4. `docker-publish.yml` triggers automatically on the tag push and builds `:latest` + `:5.2.0.0`
+2. Enter the version: `Major.Minor.0` (e.g. `6.2.0`) and, as ref, the beta tag you are promoting
+3. The workflow creates tag `v6.2.0` on that commit (it must be on `main`)
+4. `docker-publish.yml` triggers automatically on the tag push and builds `:latest` + `:6.2.0.0`
+5. The workflow creates `release/6.2` and opens a PR that moves Dependabot's release-line entries there. Merge it the same day; `release/6.1` then gets nothing more.
 
 Customers who track `:latest` will receive the new version on their next `docker compose pull`.
 
 ---
 
-## Hotfix Releases
+## Patch Releases
 
-To ship a bugfix without including features already on `main`, fix it on `main` **first**, then copy the merged commit onto the release:
+Nobody cuts these by hand. Each Tuesday that `release/X.Y` moved, the weekly stable route (`release-weekly.yml`) cuts a beta of its newest commit, runs the release test, and cuts `X.Y.(Z+1)` on that same commit if it is green. The line moves in two ways:
+
+- **Dependabot**, weekly on Monday: patch and minor updates of production dependencies and base images, merged by `dependabot-auto-merge.yml` once CI is green.
+- **A bug fix**, by hand: fix it on `main` first (PR, approval, merge), then open a PR into the line with one `-x` cherry-pick:
 
 ```bash
-# 1. Fix on main: bugfixes/fix-login-crash from main → PR → approval → merge
-
-# 2. Branch from the release tag — NOT from main — and cherry-pick the merged commit WITH -x
-git checkout -b bugfixes/fix-login-crash-hotfix v5.2.0
+git checkout -b bugfixes/fix-login-crash-on-6.1 origin/release/6.1
 git cherry-pick -x <merged commit on main>
-git push origin bugfixes/fix-login-crash-hotfix
+git push origin bugfixes/fix-login-crash-on-6.1
+gh pr create --base release/6.1 --title "fix: login crash (cherry-pick of #NNN)"
 ```
 
-3. Go to **Actions → Cut Hotfix → Run workflow** (from `main`)
-4. Enter the branch name (`bugfixes/fix-login-crash-hotfix`) and new version (`5.2.1`)
-5. The workflow checks every commit after `v5.2.0` with `tools/release/Assert-ReleaseFromMain.ps1`: each must be on `main`, or a `-x` cherry-pick of a commit on `main` that changes exactly the same lines. Anything else — a fix written on the hotfix branch, a pick without `-x`, a conflict resolved by hand — stops the run before a tag exists.
-6. The workflow creates tag `v5.2.1` on the HEAD of your branch; `docker-publish.yml` builds `:latest` + `:5.2.1.0`
+Before every tag, `tools/release/Assert-ReleaseFromMain.ps1` checks every commit after the stable tag: each must be on `main`, a `-x` cherry-pick of a commit on `main` that changes exactly the same lines, or a Dependabot update of the line that changes only dependency versions. Anything else (a fix written on the line, a pick without `-x`, a conflict resolved by hand, a squash of two cherry-picks) stops the run before a tag exists. If the cherry-pick conflicts, the resolution is code nobody reviewed: land a backport-specific fix on `main` that applies cleanly instead.
 
-If the cherry-pick conflicts, the resolution is code nobody reviewed: land a backport-specific fix on `main` that applies cleanly instead.
-
-Cut Release and Cut Beta likewise only tag a commit that is on `main`, and all three must be dispatched from `main` (they load the checker from their own commit, so a branch cannot ship an edited copy).
+Cut Release, Cut Beta and Cut Hotfix must all be dispatched from `main`: they load the checker from their own commit, so a branch cannot ship an edited copy.
 
 ---
 
@@ -159,11 +162,11 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 | Tag | Published when | Who uses it |
 |-----|---------------|-------------|
-| `:latest` | A release tag (`v5.2.0`) is created via Actions → Cut Release or Cut Hotfix | Customers (default) |
-| `:beta` | A pre-release tag is created via Actions → Cut Beta | Beta testers |
+| `:latest` | A release tag: a new minor via Cut Release, or a patch release by the weekly stable route | Customers (default) |
+| `:beta` | A pre-release of a new minor (`X.Y.0-*`): the weekly beta route, or Cut Beta by hand | Beta testers |
 | `:edge` | Every PR merges to `main` | Developers and testers |
 | `:5.2.0.0` | Same time as `:latest` — exact pinned version | Production deployments needing controlled upgrades |
-| `:5.3.0-beta.1` | Same time as `:beta` — exact pre-release version | Testers who want a reproducible pre-release build |
+| `:5.3.0-beta.1` | Every pre-release, including the release line's patch betas, which never move `:beta` | Testers who want a reproducible pre-release build |
 
 See [Docker Setup](docker-setup.md) for how to select a channel via `IMAGE_TAG`.
 
@@ -171,7 +174,7 @@ See [Docker Setup](docker-setup.md) for how to select a channel via `IMAGE_TAG`.
 
 ## Repository Rulesets
 
-Branch protection is configured via two GitHub rulesets. If you ever need to recreate them (e.g. after transferring the repo), do so manually in **Settings → Rules → Rulesets**.
+Branch protection is configured via GitHub rulesets: the two below, plus *Protect release branches* for `release/**` (see [Maintaining a release line](../process/maintaining-a-release-line.md#why-the-ruleset-requires-the-checks-it-does)) and *Protect release tags*. If you ever need to recreate them (e.g. after transferring the repo), do so manually in **Settings → Rules → Rulesets**.
 
 ### Protect main
 

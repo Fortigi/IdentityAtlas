@@ -11,6 +11,17 @@
 #   3. The workflow creates tag v5.3.0-beta.1 on that ref — which must be a
 #      commit on main (tools/release/Assert-ReleaseFromMain.ps1)
 #   4. docker-publish builds and pushes :beta + :5.3.0-beta.1
+#
+# The weekly routes (release-weekly.yml → release-route.yml) cut most betas,
+# through workflow_call with an exact commit SHA as ref.
+#
+# hotfix: true cuts the beta of the RELEASE LINE instead (release/X.Y: a stable
+# tag plus Dependabot updates and `git cherry-pick -x` of main commits), checked
+# in -Mode Hotfix. Its version is X.Y.(Z+1)-beta.N, which docker-publish gives
+# only its own tag: :beta stays on the next minor's preview.
+#
+# dry_run: true does everything up to the tag but pushes no tag and creates no
+# release, so nothing is published and docker-publish does not run.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Beta
@@ -25,6 +36,36 @@ on:
         description: 'Branch, tag, or commit to cut from (default: main)'
         required: false
         default: 'main'
+      hotfix:
+        description: 'The ref is on the release line (release/X.Y), not on main'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Check and build everything, but push no tag and publish nothing'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      ref:
+        type: string
+        default: 'main'
+      hotfix:
+        type: boolean
+        default: false
+      dry_run:
+        type: boolean
+        default: false
+    # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
+    # BOT_PRIVATE_KEY is not passed at all: the job reads it from its own
+    # release-automation environment, which a caller cannot hand in.
+    secrets:
+      BOT_APP_ID:
+        required: true
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
 
 jobs:
   cut-beta:
@@ -39,7 +80,7 @@ jobs:
     steps:
       - name: Validate version input
         run: |
-          if ! echo "${{ github.event.inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-(beta|rc|alpha)\.[0-9]+$'; then
+          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-(beta|rc|alpha)\.[0-9]+$'; then
             echo "::error::Version must be in Major.Minor.Patch-(beta|rc|alpha).N format (e.g. 5.3.0-beta.1)"
             exit 1
           fi
@@ -53,28 +94,40 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.ref }}
+          ref: ${{ inputs.ref }}
           token: ${{ steps.bot-token.outputs.token }}
           fetch-depth: 0
 
       # Only code already merged to main (approved PR) may be released. Loaded
       # from this workflow's own commit, never from the ref being released.
+      # A hotfix branch is checked the way Cut Hotfix checks it: every commit
+      # after the stable tag is on main or a clean cherry-pick -x of one.
       - name: Refuse a ref that is not on main
+        env:
+          HOTFIX: ${{ inputs.hotfix }}
         run: |
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
             echo "::error::Run Cut Beta from main (it ran from $GITHUB_REF)."; exit 1
           fi
+          MODE=Release
+          if [ "$HOTFIX" = "true" ]; then MODE=Hotfix; fi
           git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
-          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Release -Ref HEAD
+          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode "$MODE" -Ref HEAD
 
       - name: Create and push pre-release tag
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ inputs.version }}"
           TAG="v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Pre-release $TAG"
-          git push origin "$TAG"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Dry run: $TAG is tagged on the runner only, not pushed."
+          else
+            git push origin "$TAG"
+          fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
@@ -140,6 +193,7 @@ jobs:
           cat release-notes.md
 
       - name: Synthesize release notes with Claude
+        if: ${{ !inputs.dry_run }}
         id: polish
         continue-on-error: true
         # continue-on-error: this step only polishes wording — release-notes.md already has valid,
@@ -151,7 +205,7 @@ jobs:
           claude_args: "--allowedTools Read,Write"
           prompt: |
             Read `release-notes.md`. It contains a flat list of raw changelog bullets for
-            Identity Atlas ${{ github.event.inputs.version }}, collected from merged PRs
+            Identity Atlas ${{ inputs.version }}, collected from merged PRs
             since the previous release.
 
             Rewrite it as polished GitHub release notes following these rules:
@@ -185,6 +239,7 @@ jobs:
           cat release-notes.md
 
       - name: Create GitHub pre-release with portable ZIPs
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: |
@@ -200,9 +255,18 @@ jobs:
             --prerelease
 
       - name: Post run summary
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            HEADING="🧪 Dry run: pre-release checked, nothing published"
+            NEXT="No tag was pushed and no release was created, so docker-publish does not run."
+          else
+            HEADING="✅ Pre-release tagged"
+            NEXT="docker-publish is now building \`:beta\` + \`:${VERSION}\` — check the [Actions tab](../../actions) for progress."
+          fi
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## ✅ Pre-release tagged
+          ## ${HEADING}
 
           | | |
           |---|---|
@@ -210,7 +274,7 @@ jobs:
           | **Version** | \`${VERSION}\` |
           | **Commit** | \`$(git rev-parse --short HEAD)\` |
 
-          docker-publish is now building \`:beta\` + \`:${VERSION}\` — check the [Actions tab](../../actions) for progress.
+          ${NEXT}
 
           > \`:latest\` is **not** affected. Users on \`docker-compose.prod.yml\` will not receive this build automatically.
 
