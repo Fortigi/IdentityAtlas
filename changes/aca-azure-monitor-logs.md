@@ -1,1 +1,0 @@
-- The worker's Container Apps environment now sends its logs through Azure Monitor diagnostic settings instead of the older direct Log Analytics connection, which Microsoft is retiring. Worker logs land in the `ContainerAppConsoleLogs` and `ContainerAppSystemLogs` tables (no longer `ContainerAppConsoleLogs_CL`), together with the environment's metrics.
