@@ -1,17 +1,17 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    What the nightly release run decides to cut and test (tools/release/ReleaseNightly.Functions.ps1).
+    What the weekly release run decides to cut and test (tools/release/ReleaseWeekly.Functions.ps1).
 
 .USAGE
-    Invoke-Pester -Path test/unit/ReleaseNightly.Tests.ps1 -Output Detailed
+    Invoke-Pester -Path test/unit/ReleaseWeekly.Tests.ps1 -Output Detailed
 #>
 
 BeforeAll {
     $script:Root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     . (Join-Path $script:Root 'tools/release/ReleaseTest.Functions.ps1')
     . (Join-Path $script:Root 'tools/release/ReleaseRoute.Functions.ps1')
-    . (Join-Path $script:Root 'tools/release/ReleaseNightly.Functions.ps1')
+    . (Join-Path $script:Root 'tools/release/ReleaseWeekly.Functions.ps1')
     # Today's real shape: the newest pre-release (rc of 6.0.0) is behind stable 6.1.1.
     $script:Today = @('v5.9.0-beta.2', 'v6.0.0-rc.1', 'v6.0.0', 'v6.1.0', 'v6.1.1')
 }
@@ -43,44 +43,44 @@ Describe 'Get-NewestPreRelease' {
     }
 }
 
-Describe 'Get-NightlyPlan' {
+Describe 'Get-WeeklyPlan' {
     It 'tests an untested beta, with Azure' {
-        $p = Get-NightlyPlan -Tags ($script:Today + 'v6.2.0-beta.1')
+        $p = Get-WeeklyPlan -Tags ($script:Today + 'v6.2.0-beta.1')
         $p.Candidate | Should -Be 'v6.2.0-beta.1'
         $p.Azure | Should -BeTrue
     }
     It 'falls back to edge without Azure once that beta is tested' {
-        $p = Get-NightlyPlan -Tags ($script:Today + 'v6.2.0-beta.1') -Tested 'v6.2.0-beta.1'
+        $p = Get-WeeklyPlan -Tags ($script:Today + 'v6.2.0-beta.1') -Tested 'v6.2.0-beta.1'
         $p.Candidate | Should -Be 'edge'
         $p.Azure | Should -BeFalse
         $p.Reason | Should -BeLike '*v6.2.0-beta.1, was tested before*'
     }
     It 'tests the newer beta when only the older one is tested' {
-        (Get-NightlyPlan -Tags ($script:Today + 'v6.2.0-beta.1', 'v6.2.0-beta.2') -Tested 'v6.2.0-beta.1').Candidate | Should -Be 'v6.2.0-beta.2'
+        (Get-WeeklyPlan -Tags ($script:Today + 'v6.2.0-beta.1', 'v6.2.0-beta.2') -Tested 'v6.2.0-beta.1').Candidate | Should -Be 'v6.2.0-beta.2'
     }
-    It 'runs edge without Azure on a night with no candidate (today)' {
-        $p = Get-NightlyPlan -Tags $script:Today
+    It 'runs edge without Azure on a run with no candidate (today)' {
+        $p = Get-WeeklyPlan -Tags $script:Today
         $p.Candidate | Should -Be 'edge'
         $p.Azure | Should -BeFalse
     }
     It 'tests what a person asked for, Azure included' {
-        $p = Get-NightlyPlan -Tags $script:Today -Override 'v6.1.1'
+        $p = Get-WeeklyPlan -Tags $script:Today -Override 'v6.1.1'
         $p.Candidate | Should -Be 'v6.1.1'
         $p.Azure | Should -BeTrue
     }
     It 'keeps Azure off when a person asks for edge' {
-        (Get-NightlyPlan -Tags $script:Today -Override 'edge').Azure | Should -BeFalse
+        (Get-WeeklyPlan -Tags $script:Today -Override 'edge').Azure | Should -BeFalse
     }
     It 'refuses an override that is not a candidate' {
-        { Get-NightlyPlan -Tags $script:Today -Override 'main; rm -rf /' } | Should -Throw '*is not*'
+        { Get-WeeklyPlan -Tags $script:Today -Override 'main; rm -rf /' } | Should -Throw '*is not*'
     }
-    It 'tests nothing else when the beta route cuts a beta of main tonight, even an untested older beta' {
-        $p = Get-NightlyPlan -Tags ($script:Today + 'v6.2.0-beta.1') -BetaRoute
+    It 'tests nothing else when the beta route cuts a beta of main this run, even an untested older beta' {
+        $p = Get-WeeklyPlan -Tags ($script:Today + 'v6.2.0-beta.1') -BetaRoute
         $p.Candidate | Should -Be ''
         $p.Azure | Should -BeFalse
     }
-    It 'still tests what a person asked for on a night the beta route would run' {
-        (Get-NightlyPlan -Tags $script:Today -Override 'v6.1.1' -BetaRoute).Candidate | Should -Be 'v6.1.1'
+    It 'still tests what a person asked for on a run where the beta route would run' {
+        (Get-WeeklyPlan -Tags $script:Today -Override 'v6.1.1' -BetaRoute).Candidate | Should -Be 'v6.1.1'
     }
 }
 
@@ -261,14 +261,14 @@ Describe 'ConvertTo-RouteOutput' {
     }
 }
 
-Describe 'Format-NightlySummary' {
+Describe 'Format-WeeklySummary' {
     BeforeAll {
         $script:Stable = @{ Needed = $true; Beta = '6.1.2-beta.1'; Version = '6.1.2'; Azure = $false; Reason = 'release/6.1 has 1 commit(s) after v6.1.1' }
         $script:Beta = @{ Needed = $false; Reason = 'no Dependabot update of shipped code on main since v6.2.0-beta.3' }
         $script:Test = @{ Candidate = 'edge'; Azure = $false; Reason = 'early warning' }
     }
     It 'names what each route does and why' {
-        $s = (Format-NightlySummary -Stable $script:Stable -Beta $script:Beta -Test $script:Test) -join "`n"
+        $s = (Format-WeeklySummary -Stable $script:Stable -Beta $script:Beta -Test $script:Test) -join "`n"
         $s | Should -BeLike '*Stable route:** v6.1.2-beta.1 then v6.1.2, no Azure. release/6.1 has 1 commit(s) after v6.1.1.*'
         $s | Should -BeLike '*Beta route:** nothing to do. no Dependabot update*'
         # Contains, not -like: a backtick is -like's escape character.
@@ -277,11 +277,11 @@ Describe 'Format-NightlySummary' {
     }
     It 'says when Azure is included' {
         $b = @{ Needed = $true; Version = '6.2.0-beta.1'; Azure = $true; Reason = 'first beta' }
-        (Format-NightlySummary -Stable $script:Stable -Beta $b -Test @{ Candidate = ''; Reason = 'beta route' }) -join "`n" |
+        (Format-WeeklySummary -Stable $script:Stable -Beta $b -Test @{ Candidate = ''; Reason = 'beta route' }) -join "`n" |
             Should -BeLike '*Beta route:** v6.2.0-beta.1, with Azure.*Test:** nothing else.*'
     }
     It 'warns when Dependabot does not target the line' {
-        $s = (Format-NightlySummary -Stable $script:Stable -Beta $script:Beta -Test $script:Test -LineWarning 'release/6.1') -join "`n"
+        $s = (Format-WeeklySummary -Stable $script:Stable -Beta $script:Beta -Test $script:Test -LineWarning 'release/6.1') -join "`n"
         $s.Contains('**Warning:** `.github/dependabot.yml` does not point its release-line entries at `release/6.1`') | Should -BeTrue
     }
 }

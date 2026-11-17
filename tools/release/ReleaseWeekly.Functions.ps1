@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    What the nightly release run tests tonight. Dot-source after
+    What the weekly release run tests this run. Dot-source after
     ReleaseTest.Functions.ps1.
 
 .DESCRIPTION
@@ -13,9 +13,9 @@
                                         in Azure
 
     "Tested before" is recorded as an artifact named release-tested-<tag>
-    (Get-TestedMarkerName), uploaded by the nightly run once the test has
+    (Get-TestedMarkerName), uploaded by the weekly run once the test has
     finished, green or red. So a beta is tested once; testing it again is a
-    manual run (Actions → Release nightly → candidate).
+    manual run (Actions → Release weekly → candidate).
 #>
 
 Set-StrictMode -Version Latest
@@ -58,18 +58,18 @@ function Get-TestedMarkerName {
     "release-tested-$Candidate"
 }
 
-function Get-NightlyPlan {
+function Get-WeeklyPlan {
     <#
     .SYNOPSIS
-        Tonight's candidate and whether Azure is part of it.
+        This run's candidate and whether Azure is part of it.
     .PARAMETER Override
         A candidate a person asked for (workflow_dispatch). Always tested, with
         Azure unless it is edge.
     .PARAMETER Tested
         The pre-release tags that already carry a tested marker.
     .PARAMETER BetaRoute
-        Tonight's beta route cuts and tests a new beta of main, which is newer
-        than :edge's last-night state and than any older beta: nothing else to
+        This run's beta route cuts and tests a new beta of main, which is newer
+        than :edge's state at the last run and than any older beta: nothing else to
         test then (Candidate is empty).
     #>
     [CmdletBinding()]
@@ -79,7 +79,7 @@ function Get-NightlyPlan {
         Assert-Candidate $Override
         return @{ Candidate = $Override; Azure = ($Override -ne 'edge'); Reason = 'asked for by hand' }
     }
-    if ($BetaRoute) { return @{ Candidate = ''; Azure = $false; Reason = 'the beta route tests tonight''s new beta of main' } }
+    if ($BetaRoute) { return @{ Candidate = ''; Azure = $false; Reason = 'the beta route tests this run''s new beta of main' } }
     $beta = Get-NewestPreRelease $Tags
     if ($beta -and $Tested -notcontains $beta) {
         return @{ Candidate = $beta; Azure = $true; Reason = "$beta has not been tested yet" }
@@ -88,8 +88,8 @@ function Get-NightlyPlan {
     @{ Candidate = 'edge'; Azure = $false; Reason = "$why; early warning on edge, without Azure" }
 }
 
-# ── The two release routes: what to cut tonight ─────────────────────────────
-# Both decide from facts the plan script gathers from git (Get-NightlyPlan.ps1),
+# ── The two release routes: what to cut this run ────────────────────────────
+# Both decide from facts the plan script gathers from git (Get-WeeklyPlan.ps1),
 # so every rule here is unit-tested without a repository.
 
 function Get-ReleaseLineName {
@@ -111,7 +111,7 @@ function Get-NextMinorBeta {
         started a later one (7.0.0-beta.1): the highest X.Y.0 beta ahead of
         stable wins. Patch betas (6.1.2-beta.1) belong to the release line and
         never count here. Previous is the newest beta tag of that version, or
-        empty when tonight's would be its first.
+        empty when this run's would be its first.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -150,7 +150,7 @@ function Test-ShippedDependencyCommit {
 function Get-StableRoutePlan {
     <#
     .SYNOPSIS
-        Whether tonight cuts a patch release of the newest stable line.
+        Whether this run cuts a patch release of the newest stable line.
     .PARAMETER BranchExists
         release/X.Y exists on the remote.
     .PARAMETER ContainsStable
@@ -159,7 +159,7 @@ function Get-StableRoutePlan {
     .PARAMETER NewCommits
         Commits on release/X.Y after the stable tag.
     .PARAMETER AttemptedAtHead
-        Pre-release tags already on the line's newest commit: an earlier night
+        Pre-release tags already on the line's newest commit: an earlier run
         tried exactly this, and its result stands until the line moves.
     .PARAMETER TemplatesChanged
         The Azure templates differ between the stable tag and the line.
@@ -192,7 +192,7 @@ function Get-StableRoutePlan {
 function Get-BetaRoutePlan {
     <#
     .SYNOPSIS
-        Whether tonight cuts a new beta of main, and whether it gets Azure.
+        Whether this run cuts a new beta of main, and whether it gets Azure.
     .PARAMETER ShippedUpdates
         Dependabot commits on main, since the previous beta of this minor (or
         since main and the stable release parted), that change shipped code
@@ -266,8 +266,8 @@ function ConvertTo-RouteOutput {
     $out
 }
 
-function Format-NightlySummary {
-    <# The run summary's "Tonight" block: what each route does and why. #>
+function Format-WeeklySummary {
+    <# The run summary's "This run" block: what each route does and why. #>
     [CmdletBinding()]
     [OutputType([string[]])]
     param([Parameter(Mandatory)][hashtable] $Stable, [Parameter(Mandatory)][hashtable] $Beta, [Parameter(Mandatory)][hashtable] $Test, [string] $LineWarning = '')
@@ -275,7 +275,7 @@ function Format-NightlySummary {
     $stableText = if ($Stable['Needed']) { "v$($Stable.Beta) then v$($Stable.Version)$(& $azure $Stable)" } else { 'nothing to do' }
     $betaText = if ($Beta['Needed']) { "v$($Beta.Version)$(& $azure $Beta)" } else { 'nothing to do' }
     $testText = if ($Test['Candidate']) { "``$($Test.Candidate)``$(& $azure $Test)" } else { 'nothing else' }
-    $lines = @('## Tonight', '',
+    $lines = @('## This run', '',
         "- **Stable route:** $stableText. $($Stable.Reason).",
         "- **Beta route:** $betaText. $($Beta.Reason).",
         "- **Test:** $testText. $($Test.Reason).")

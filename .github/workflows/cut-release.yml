@@ -16,9 +16,9 @@
 #      points Dependabot's release-line entries at it. Only the newest stable
 #      minor is maintained, so the previous line stops getting updates.
 #
-# Patch releases (X.Y.1, X.Y.2 …) are not cut here: the nightly stable route
-# (release-nightly.yml) releases release/X.Y whenever it moved — Dependabot's
-# daily updates, and bug fixes cherry-picked there with -x from main.
+# Patch releases (X.Y.1, X.Y.2 …) are not cut here: the weekly stable route
+# (release-weekly.yml) releases release/X.Y whenever it moved — Dependabot's
+# weekly updates, and bug fixes cherry-picked there with -x from main.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Release
@@ -223,10 +223,10 @@ jobs:
             --latest
 
       # A new minor (X.Y.0) becomes the one maintained stable line: release/X.Y
-      # from this tag, where Dependabot lands daily updates that the nightly
+      # from this tag, where Dependabot lands weekly updates that the weekly
       # stable route releases as X.Y.1, X.Y.2 … Dependabot is moved over by a
       # pull request into main (main takes nothing without one); until it is
-      # merged the new line gets no updates and the nightly plan warns.
+      # merged the new line gets no updates and the weekly plan warns.
       # The previous line simply stops: only the newest minor is maintained.
       - name: Start the release line
         if: endsWith(github.event.inputs.version, '.0')
@@ -255,7 +255,7 @@ jobs:
           git push --force origin "HEAD:refs/heads/$PR_BRANCH"
           if ! gh pr create --base main --head "$PR_BRANCH" \
                --title "chore: point Dependabot's release-line updates at $LINE" \
-               --body "Cut Release cut ${TAG} and created \`$LINE\`. This moves the release-line entries in \`.github/dependabot.yml\` there, so the new stable line gets its daily dependency updates and the previous one stops. Opened by Cut Release; see docs/contributing/release-process.md → Release lines."; then
+               --body "Cut Release cut ${TAG} and created \`$LINE\`. This moves the release-line entries in \`.github/dependabot.yml\` there, so the new stable line gets its weekly dependency updates and the previous one stops. Opened by Cut Release; see docs/contributing/release-process.md → Release lines."; then
             echo "::warning::Could not open the pull request for $PR_BRANCH; open it by hand."
           fi
 
@@ -273,10 +273,10 @@ jobs:
 
           docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress.
 
-          From here the nightly stable route releases this line's Dependabot updates as patch releases.
+          From here the weekly stable route releases this line's Dependabot updates as patch releases.
           For a new X.Y.0, merge the pull request that points Dependabot at the new release line.
 
           ### A bug fix for this release
           Fix it on main first, then open a PR into the release line with one
-          \`git cherry-pick -x <main commit>\` — the nightly stable route releases it.
+          \`git cherry-pick -x <main commit>\` — the weekly stable route releases it.
           EOF

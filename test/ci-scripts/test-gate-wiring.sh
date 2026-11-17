@@ -133,7 +133,7 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #                      DoR workflow changes. Fork PRs skip it (no secrets), so it cannot be required.
 #   release-test.yml   ADVISORY. Runs the release test against :edge only on PRs that change the
 #                      release test itself, so a broken harness shows before it is merged. Its real
-#                      job is the nightly run; a PR touching nothing else must not be gated by it.
+#                      job is the weekly run; a PR touching nothing else must not be gated by it.
 #
 # (Diff coverage used to be its own workflow here. It now lives in pr.yml as the advisory
 # `diff-coverage` job — see section 1 — reusing the suites' lcov instead of re-running them.)

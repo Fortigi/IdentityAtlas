@@ -43,14 +43,15 @@ Only the newest stable minor version is maintained.
 
 | Version | Docker tag | Security and dependency updates |
 |---|---|---|
-| The newest stable minor (6.1.x today, branch `release/6.1`) | `:latest`, `:6.1.x.0` | Yes. Dependency updates, security fixes among them, are released as a new patch version every day something was updated, after the release test passes. |
-| The preview of the next minor | `:beta`, `:X.Y.0-beta.N` | Yes, as a new beta every day `main` received a dependency update. A preview: not for production. |
+| The newest stable minor (6.1.x today, branch `release/6.1`) | `:latest`, `:6.1.x.0` | Yes. Dependency updates, security fixes among them, are released as a new patch version once a week when something was updated, after the release test passes. |
+| The preview of the next minor | `:beta`, `:X.Y.0-beta.N` | Yes, as a new beta once a week when `main` received a dependency update. A preview: not for production. |
 | `main` development builds | `:edge` | Fixes are merged here first. This is a development build and may be unstable. |
 | Older minors (6.0.x and earlier) and the 5.x line | pinned older tags | No. Upgrade to the newest stable minor: an in-place upgrade, tested for every release. |
 
 We do not distinguish security updates from other dependency updates: every patch
-and minor update of a production dependency reaches `:latest` the same way, usually
-within a day or two of the fixed version being published. A fix that needs a *major*
+and minor update of a production dependency reaches `:latest` the same way, within about
+a week of the fixed version being published (the stable line checks for updates on
+Mondays and releases on Tuesdays); one that cannot wait is released by hand. A fix that needs a *major*
 upgrade of a dependency, or a change to Identity Atlas itself, ships with the next
 minor version, or as a patch release when it is urgent enough to cherry-pick onto the
 stable line. A fix is made on `main` first, so it can be in `:edge` before it is in

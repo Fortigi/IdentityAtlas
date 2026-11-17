@@ -5,7 +5,7 @@
 .DESCRIPTION
     Run by Cut Release after it cuts X.Y.0, on a branch from main, before it
     opens the pull request that moves Dependabot to the new line. The rewrite
-    is Set-DependabotReleaseLine (ReleaseNightly.Functions.ps1).
+    is Set-DependabotReleaseLine (ReleaseWeekly.Functions.ps1).
 
 .EXAMPLE
     pwsh tools/release/Set-DependabotReleaseLine.ps1 -Line release/6.2
@@ -18,7 +18,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'ReleaseTest.Functions.ps1')
-. (Join-Path $PSScriptRoot 'ReleaseNightly.Functions.ps1')
+. (Join-Path $PSScriptRoot 'ReleaseWeekly.Functions.ps1')
 
 $before = Get-Content -Raw $Path
 $after = Set-DependabotReleaseLine -Config $before -Line $Line

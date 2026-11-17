@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Shared pieces of the two nightly release routes (release-route.yml): version
+    Shared pieces of the two weekly release routes (release-route.yml): version
     numbers, waiting for the images, and what a finished route means.
 
 .DESCRIPTION
-    The nightly run (release-nightly.yml) can start two routes, each a call of
+    The weekly run (release-weekly.yml) can start two routes, each a call of
     release-route.yml: cut a beta, wait for its images, release-test it, and
     for the stable route only, cut the stable release from the same commit.
 
@@ -13,7 +13,7 @@
       beta     main has Dependabot updates of shipped code since the last beta
                of the next minor -> vX.(Y+1).0-beta.N, test
 
-    What to start is decided in ReleaseNightly.Functions.ps1. Dot-source after
+    What to start is decided in ReleaseWeekly.Functions.ps1. Dot-source after
     ReleaseTest.Functions.ps1.
 #>
 

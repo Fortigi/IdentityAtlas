@@ -19,7 +19,7 @@
 # ReleaseTest.*.ps1 helpers, unit-tested by test/unit/ReleaseTest*.Tests.ps1).
 # This file only wires jobs together.
 #
-# Who runs it: the nightly release run (workflow_call), a person (Actions →
+# Who runs it: the weekly release run (workflow_call), a person (Actions →
 # Release Test → Run workflow), and every PR that changes the test itself, against
 # :edge, so a broken harness is seen before it is merged. GitHub-hosted runners
 # only: never a self-hosted sidekick.
@@ -284,8 +284,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # ia-reltest-<run>-<attempt>-<candidate>-<variant>. The candidate is in it
-      # because one nightly run can test two candidates (a new beta and the
-      # security hotfix's beta), each with the same variants.
+      # because one weekly run can test two candidates (a beta of main and the
+      # stable route's patch beta), each with the same variants.
       - name: Name the resource group
         shell: pwsh
         env:

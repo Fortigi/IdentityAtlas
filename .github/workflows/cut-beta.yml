@@ -12,7 +12,7 @@
 #      commit on main (tools/release/Assert-ReleaseFromMain.ps1)
 #   4. docker-publish builds and pushes :beta + :5.3.0-beta.1
 #
-# The nightly routes (release-nightly.yml → release-route.yml) cut most betas,
+# The weekly routes (release-weekly.yml → release-route.yml) cut most betas,
 # through workflow_call with an exact commit SHA as ref.
 #
 # hotfix: true cuts the beta of the RELEASE LINE instead (release/X.Y: a stable

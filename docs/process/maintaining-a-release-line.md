@@ -9,17 +9,17 @@ The whole route, from Dependabot's PR to `:latest`, and the policy behind it are
 ```
 v6.1.1 ──→ release/6.1 ──→ 6.1.2 ──→ 6.1.3 …     what customers run
                 ↑
-     Dependabot lands production updates here, daily; the nightly stable route releases them
+     Dependabot lands production updates here on Mondays; the weekly stable route releases them on Tuesdays
 
 main ─────────────────────────────────────────→  :edge, :beta, feature work
 ```
 
 ## What happens without anyone doing anything
 
-1. **Dependabot** checks the manifests **on `release/6.1`** every day and opens one grouped PR per ecosystem for production dependencies that moved, patch and minor only.
+1. **Dependabot** checks the manifests **on `release/6.1`** every Monday and opens one grouped PR per ecosystem for production dependencies that moved, patch and minor only.
 2. **CI runs**: `pr.yml` and `pr-integration.yml` trigger on `release/**`.
 3. **Auto-merge lands it** once the required checks are green (`.github/workflows/dependabot-auto-merge.yml`). The *Protect release branches* ruleset requires no approving review, so nothing waits on a person.
-4. **The nightly stable route releases it**: a beta of the line's newest commit, the release test, and `6.1.(Z+1)` on `:latest` if it is green. The release notes name every dependency that moved, derived from the lockfiles.
+4. **The weekly stable route releases it** on Tuesday: a beta of the line's newest commit, the release test, and `6.1.(Z+1)` on `:latest` if it is green. The release notes name every dependency that moved, derived from the lockfiles.
 
 These commits are not on `main`, and they are released anyway. That is the one exception to "main first", and `tools/release/Assert-ReleaseFromMain.ps1` checks it narrowly: Dependabot's, merged through a PR, only dependency versions. See [Release process → The Dependabot exception](../contributing/release-process.md#the-dependabot-exception).
 
@@ -33,14 +33,14 @@ These commits are not on `main`, and they are released anyway. That is the one e
 > updates because security updates always use the default branch for the
 > repository.
 
-This is why the release-line entries run **daily** instead of weekly. We cannot route security alerts to the branch, so we do not rely on them: a daily version check picks up the fixed release of a vulnerable package within a day by itself, with no cherry-pick and nobody watching an alert feed.
+We cannot route security alerts to the branch, so we do not rely on them: the weekly version check picks up the fixed release of a vulnerable package by itself, with no cherry-pick and nobody watching an alert feed. It runs on Monday, the day before the weekly release, so a fixed version reaches `:latest` one to eight days after it is published. One release a week is enough to keep the line current; when a fix cannot wait, run Dependabot for the line by hand (Insights → Dependency graph → Dependabot → *Check for updates*) and then **Release weekly** with *dry_run* unticked.
 
 ## What reaches the line, and what does not
 
 | | On the release line |
 |---|---|
-| Production npm dependencies (`app/api`, `app/ui`), patch and minor | ✅ Daily, grouped |
-| Container base images (`app/api`, `setup/docker`), patch and minor | ✅ Daily |
+| Production npm dependencies (`app/api`, `app/ui`), patch and minor | ✅ Weekly (Monday), grouped |
+| Container base images (`app/api`, `setup/docker`), patch and minor | ✅ Weekly (Monday) |
 | Major versions of anything | ❌ Ignored: they arrive with the next minor |
 | Dev dependencies: eslint, vitest, vite, playwright | ❌ Never |
 | GitHub Actions versions | ❌ Never |
@@ -67,7 +67,7 @@ The PR needs no approval but must pass CI. Keep it to one cherry-pick: the squas
 Cut Release does this when it cuts `X.Y.0`:
 
 1. It creates `release/X.Y` from the `vX.Y.0` tag.
-2. It opens a PR into `main` that moves every `target-branch` in `.github/dependabot.yml` to `release/X.Y` (`tools/release/Set-DependabotReleaseLine.ps1`). **Merge it the same day**: until then the new line gets no updates, and the nightly plan warns.
+2. It opens a PR into `main` that moves every `target-branch` in `.github/dependabot.yml` to `release/X.Y` (`tools/release/Set-DependabotReleaseLine.ps1`). **Merge it the same day**: until then the new line gets no updates, and the weekly plan warns.
 3. The previous line simply stops. Its branch stays as history; nothing deletes it.
 
 The auto-merge workflow and the ruleset both match `release/**`, so nothing else is per-line.

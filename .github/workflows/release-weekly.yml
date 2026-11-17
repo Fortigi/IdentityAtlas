@@ -1,12 +1,12 @@
-# ─── Release nightly ──────────────────────────────────────────────────────────
-# Once a night: release what Dependabot updated, and test it on the way.
+# ─── Release weekly ──────────────────────────────────────────────────────────
+# Once a week: release what Dependabot updated, and test it on the way.
 # Security updates and other updates are treated the same; staying current is
 # the point. docs/contributing/release-process.md describes the whole route.
 #
-#   plan     tools/release/Get-NightlyPlan.ps1 (decisions unit-tested in
-#            test/unit/ReleaseNightly.Tests.ps1) decides up to three things:
+#   plan     tools/release/Get-WeeklyPlan.ps1 (decisions unit-tested in
+#            test/unit/ReleaseWeekly.Tests.ps1) decides up to three things:
 #
-#   stable   release/X.Y (the newest stable minor, updated daily by Dependabot)
+#   stable   release/X.Y (the newest stable minor, updated weekly by Dependabot)
 #            moved since vX.Y.Z -> release-route.yml: vX.Y.(Z+1)-beta.N, the
 #            release test, and vX.Y.(Z+1) on :latest only if it is green.
 #            Azure only when the Azure templates changed.
@@ -27,19 +27,24 @@
 # dry_run (manual runs only; on by default there) does everything except push
 # tags and open issues.
 #
-# 02:07 UTC = 03:07 in Amsterdam in winter (04:07 in summer). Not on the hour:
-# GitHub delays top-of-hour schedules, sometimes by much more than 7 minutes.
+# Tuesdays 02:07 UTC = 03:07 in Amsterdam in winter (04:07 in summer). One
+# release a week is enough to keep dependencies current. Tuesday, because the
+# release line's Dependabot runs on Monday (dependabot.yml), which leaves a day
+# for its PRs to pass CI and merge themselves. Not on the hour: GitHub delays
+# top-of-hour schedules, sometimes by much more than 7 minutes. Something that
+# cannot wait a week (an actively exploited dependency) is released by running
+# this by hand with dry_run unticked.
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Release nightly
+name: Release weekly
 
 on:
   schedule:
-    - cron: '7 2 * * *'
+    - cron: '7 2 * * 2'
   workflow_dispatch:
     inputs:
       candidate:
-        description: 'Only test this tag (or edge); cut nothing. Empty = decide as the night does.'
+        description: 'Only test this tag (or edge); cut nothing. Empty = decide as the weekly run does.'
         type: string
         default: ''
       dry_run:
@@ -51,9 +56,9 @@ on:
         type: boolean
         default: false
 
-# One night at a time; a run that is still going is never cancelled by the next.
+# One run at a time; a run that is still going is never cancelled by the next.
 concurrency:
-  group: release-nightly
+  group: release-weekly
   cancel-in-progress: false
 
 permissions:
@@ -61,7 +66,7 @@ permissions:
 
 jobs:
   plan:
-    name: 'Plan: what to release and test tonight'
+    name: 'Plan: what to release and test this run'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -97,7 +102,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OVERRIDE: ${{ inputs.candidate }}
           RETRY: ${{ inputs.retry_stable }}
-        run: ./tools/release/Get-NightlyPlan.ps1 -Repository $env:GITHUB_REPOSITORY -Override "$env:OVERRIDE" -RetryStable:($env:RETRY -eq 'true')
+        run: ./tools/release/Get-WeeklyPlan.ps1 -Repository $env:GITHUB_REPOSITORY -Override "$env:OVERRIDE" -RetryStable:($env:RETRY -eq 'true')
 
   # ═══ Stable route: a patch release of the release line ═════════════════
   stable:
@@ -143,7 +148,7 @@ jobs:
       BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-  # ═══ Test an existing candidate (no beta of main tonight) ═════════════
+  # ═══ Test an existing candidate (no beta of main this run) ═════════════
   release-test:
     name: 'Test ${{ needs.plan.outputs.candidate }}'
     needs: plan

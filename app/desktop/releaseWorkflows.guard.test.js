@@ -69,7 +69,7 @@ describe('every cut-* workflow refuses code that is not on main', () => {
   });
 });
 
-// The nightly routes (release-route.yml) call Cut Beta and Cut Hotfix with dry_run. A dry
+// The weekly routes (release-route.yml) call Cut Beta and Cut Hotfix with dry_run. A dry
 // run must leave nothing behind on GitHub: no tag (which would make
 // docker-publish push images) and no release.
 describe('a dry run of a cut-* workflow publishes nothing', () => {
@@ -177,7 +177,7 @@ describe('cut-hotfix checks the branch before tagging it', () => {
   });
 });
 
-// :beta is the preview of the next minor. The nightly stable route cuts patch
+// :beta is the preview of the next minor. The weekly stable route cuts patch
 // betas of the release line (6.1.2-beta.1) as test candidates for :latest; if
 // those moved :beta, everyone on :beta would go back a whole minor, onto a
 // database the newer version had already migrated.

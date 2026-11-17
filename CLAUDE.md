@@ -66,7 +66,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | `main` | Integration trunk. Never commit directly. Merges push `:edge` Docker tag. | Yes | Yes (at least 1) |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
 | `bugfixes/<name>` | Bug fixes. Branch from `main`. To bring a merged fix to the stable line, branch from `release/X.Y` and `cherry-pick -x` it. | Yes (to `main`, or to `release/X.Y`) | No |
-| `release/X.Y` | The **one** maintained stable line (newest stable minor). Created by Cut Release at `vX.Y.0`; Dependabot updates it daily; the nightly stable route releases it. | Yes | No (CI must pass) |
+| `release/X.Y` | The **one** maintained stable line (newest stable minor). Created by Cut Release at `vX.Y.0`; Dependabot updates it weekly; the weekly stable route releases it. | Yes | No (CI must pass) |
 
 **Rules:**
 - `feature/` branches must be branched off `main`.
@@ -93,8 +93,8 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Context | Who updates it | When |
 |---------|---------------|------|
 | `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp. `Major` follows the highest `vX.Y.Z` tag (Minor restarts when it moves), so cutting `v7.0.0` puts `main` on `7.x` |
-| Pre-release tags | `cut-beta.yml` (automated) | Nightly: a beta of `main` when it got Dependabot updates of shipped code, a patch beta of `release/X.Y` when that moved. Or by hand (Actions → Cut Beta) |
-| Release tags | `cut-hotfix.yml` / `cut-release.yml` (automated) | Patch releases: the nightly stable route, once the patch beta passed the release test. A new minor `X.Y.0`: by hand, Actions → Cut Release |
+| Pre-release tags | `cut-beta.yml` (automated) | Weekly (Tuesday): a beta of `main` when it got Dependabot updates of shipped code, a patch beta of `release/X.Y` when that moved. Or by hand (Actions → Cut Beta) |
+| Release tags | `cut-hotfix.yml` / `cut-release.yml` (automated) | Patch releases: the weekly stable route, once the patch beta passed the release test. A new minor `X.Y.0`: by hand, Actions → Cut Release |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 ### Changelog Fragments
@@ -267,7 +267,7 @@ git checkout -b bugfixes/<name>-on-6.1 origin/release/6.1
 git cherry-pick -x <merged commit on main>
 git push origin bugfixes/<name>-on-6.1
 gh pr create --base release/6.1        # ONE cherry-pick per PR; CI must pass, no approval needed
-# 3. Nothing else: the nightly stable route releases release/6.1 as 6.1.(Z+1)
+# 3. Nothing else: the weekly stable route releases release/6.1 as 6.1.(Z+1)
 ```
 
 ### Making Changes
@@ -305,14 +305,14 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 ### Release policy (Nov 2026)
 
-- `Major.Minor` = features built and tested together (6.1 ≠ 6.2). The last digit counts dependency updates since `X.Y.0`; a new stable every day is fine.
-- **Every Dependabot update ships, once a day**, security or not: no labels, no triage.
+- `Major.Minor` = features built and tested together (6.1 ≠ 6.2). The last digit counts dependency updates since `X.Y.0`; at most one new stable a week.
+- **Every Dependabot update ships, once a week** (Tuesday), security or not: no labels, no triage. Something that cannot wait a week: run Release weekly by hand.
 - **Only the newest stable minor is maintained**; no major library upgrades on it (they come with the next minor).
 - **Test what changed**: Docker upgrade + backup/restore, fresh install, sign-in and portable for every release; Azure only for the first beta of a minor and when the Azure templates changed.
 
-Details, the nightly routes, failure handling and the one-time setup: [`docs/contributing/release-process.md`](docs/contributing/release-process.md).
+Details, the weekly routes, failure handling and the one-time setup: [`docs/contributing/release-process.md`](docs/contributing/release-process.md).
 
-### What happens each night (`release-nightly.yml`, 02:07 UTC)
+### What happens each week (`release-weekly.yml`, Tuesday 02:07 UTC)
 
 - **Stable route:** `release/X.Y` moved since `vX.Y.Z` → `vX.Y.(Z+1)-beta.N` → release test → `vX.Y.(Z+1)` on `:latest`, same commit, only if green.
 - **Beta route:** `main` got Dependabot updates of shipped code → `vX.(Y+1).0-beta.N` on `:beta` → release test. No promotion.
@@ -320,11 +320,11 @@ Details, the nightly routes, failure handling and the one-time setup: [`docs/con
 
 ### Cutting a Release (a new minor, by hand)
 
-1. Pick the `X.Y.0-beta.N` you are promoting and make sure it passed a **full** release test, Azure included (the first beta of a minor always does; otherwise run Release nightly by hand with that tag as `candidate`)
+1. Pick the `X.Y.0-beta.N` you are promoting and make sure it passed a **full** release test, Azure included (the first beta of a minor always does; otherwise run Release weekly by hand with that tag as `candidate`)
 2. **Actions → Cut Release → Run workflow**, version `X.Y.0`, ref = that beta tag
 3. The workflow tags it (it must be on `main`), `docker-publish.yml` pushes `:latest` + `:X.Y.0.0`, and it creates `release/X.Y` and opens a PR that points Dependabot's release-line entries at it. **Merge that PR the same day.** The previous line then stops.
 
-Patch releases are never cut by hand: bring a fix to `release/X.Y` (see "Fix for the stable line" above) and the nightly stable route releases it.
+Patch releases are never cut by hand: bring a fix to `release/X.Y` (see "Fix for the stable line" above) and the weekly stable route releases it.
 
 ---
 

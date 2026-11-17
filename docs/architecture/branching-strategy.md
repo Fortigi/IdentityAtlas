@@ -11,7 +11,7 @@ This document covers branch naming, PR rules, version format, and the release wo
 | `main` | Stable trunk. Never commit directly. | Yes | Yes (at least 1) |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes | No |
 | `bugfixes/<name>` | Bug fixes. Branch from `main`. To bring a merged fix to the stable line, branch from `release/X.Y` and cherry-pick it. | Yes (to `main`, or to `release/X.Y`) | No |
-| `release/X.Y` | The one maintained stable line: the newest stable minor. Created by Cut Release at `vX.Y.0`; Dependabot updates it daily; the nightly stable route releases it. | Yes | No (CI must pass) |
+| `release/X.Y` | The one maintained stable line: the newest stable minor. Created by Cut Release at `vX.Y.0`; Dependabot updates it weekly; the weekly stable route releases it. | Yes | No (CI must pass) |
 
 **Rules:**
 
@@ -57,8 +57,8 @@ git cherry-pick -x <merged commit on main>
 | Action | Who | When |
 |--------|-----|------|
 | `Minor` bump + timestamp | `bump-version.yml` GitHub Action | Automatically on every PR merge to `main` |
-| Beta of the next minor | `cut-beta.yml`, called by the nightly beta route | Each night `main` got a Dependabot update of shipped code; or by hand |
-| Patch release (`X.Y.1`, `X.Y.2` …) | `cut-beta.yml` then `cut-hotfix.yml`, called by the nightly stable route | Each night `release/X.Y` moved, once the beta passed the release test |
+| Beta of the next minor | `cut-beta.yml`, called by the weekly beta route | Once a week (Tuesday), when `main` got a Dependabot update of shipped code; or by hand |
+| Patch release (`X.Y.1`, `X.Y.2` …) | `cut-beta.yml` then `cut-hotfix.yml`, called by the weekly stable route | Once a week (Tuesday), when `release/X.Y` moved, once the beta passed the release test |
 | New minor (`X.Y.0`) | `cut-release.yml` | When you run Actions → Cut Release |
 | `Major` bump | `bump-version.yml` GitHub Action | On the first PR merge after a release (or beta) of a new major is tagged — `Major` follows the highest `vX.Y.Z` tag and `Minor` restarts at 1 |
 | Branch work | Nobody | Never touch `setup/IdentityAtlas.psd1` on a branch |
@@ -93,7 +93,7 @@ Write in user-facing language. One bullet per functional change. Add the file al
 
 ## Cutting a Pre-Release (Beta / RC)
 
-The nightly beta route cuts most betas. To publish one by hand without touching `:latest`:
+The weekly beta route cuts most betas. To publish one by hand without touching `:latest`:
 
 1. Go to **Actions → Cut Beta → Run workflow**
 2. Enter the version: `Major.Minor.Patch-beta.N` (e.g. `5.3.0-beta.1`, `5.3.0-rc.1`, `5.3.0-alpha.1`)
@@ -122,9 +122,9 @@ Customers who track `:latest` will receive the new version on their next `docker
 
 ## Patch Releases
 
-Nobody cuts these by hand. Each night that `release/X.Y` moved, the nightly stable route (`release-nightly.yml`) cuts a beta of its newest commit, runs the release test, and cuts `X.Y.(Z+1)` on that same commit if it is green. The line moves in two ways:
+Nobody cuts these by hand. Each Tuesday that `release/X.Y` moved, the weekly stable route (`release-weekly.yml`) cuts a beta of its newest commit, runs the release test, and cuts `X.Y.(Z+1)` on that same commit if it is green. The line moves in two ways:
 
-- **Dependabot**, daily: patch and minor updates of production dependencies and base images, merged by `dependabot-auto-merge.yml` once CI is green.
+- **Dependabot**, weekly on Monday: patch and minor updates of production dependencies and base images, merged by `dependabot-auto-merge.yml` once CI is green.
 - **A bug fix**, by hand: fix it on `main` first (PR, approval, merge), then open a PR into the line with one `-x` cherry-pick:
 
 ```bash
@@ -162,8 +162,8 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 | Tag | Published when | Who uses it |
 |-----|---------------|-------------|
-| `:latest` | A release tag: a new minor via Cut Release, or a patch release by the nightly stable route | Customers (default) |
-| `:beta` | A pre-release of a new minor (`X.Y.0-*`): the nightly beta route, or Cut Beta by hand | Beta testers |
+| `:latest` | A release tag: a new minor via Cut Release, or a patch release by the weekly stable route | Customers (default) |
+| `:beta` | A pre-release of a new minor (`X.Y.0-*`): the weekly beta route, or Cut Beta by hand | Beta testers |
 | `:edge` | Every PR merges to `main` | Developers and testers |
 | `:5.2.0.0` | Same time as `:latest` — exact pinned version | Production deployments needing controlled upgrades |
 | `:5.3.0-beta.1` | Every pre-release, including the release line's patch betas, which never move `:beta` | Testers who want a reproducible pre-release build |

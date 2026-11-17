@@ -9,8 +9,8 @@
 # release line. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
 # before the tag is created (v6.0.1 was cut before its PR was approved).
 #
-# Normally nobody runs this by hand: the nightly stable route
-# (release-nightly.yml → release-route.yml) calls it through workflow_call with
+# Normally nobody runs this by hand: the weekly stable route
+# (release-weekly.yml → release-route.yml) calls it through workflow_call with
 # the exact commit whose beta passed the release test. By hand (Actions → Cut
 # Hotfix, from main): branch = release/X.Y or a commit on it, version X.Y.(Z+1).
 # dry_run: true does everything up to the tag but pushes no tag and creates no

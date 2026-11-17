@@ -196,8 +196,8 @@ Library updates, security fixes among them, are not treated differently from eac
 | Tag | When the update arrives |
 |---|---|
 | `edge` | When the update is merged into the main branch (weekly, or as soon as a security alert is raised). |
-| `beta` | The night after it is merged into main. |
-| `latest` | Usually within a day or two: the stable line checks for updates daily, and each night it changed, a new patch version is published once its beta has passed the release test. If the test fails, nothing is published and the maintainers are told. |
+| `beta` | The Tuesday after it is merged into main. |
+| `latest` | Within about a week: the stable line checks for updates every Monday, and each Tuesday it changed, a new patch version is published once its beta has passed the release test. If the test fails, nothing is published and the maintainers are told. |
 | An exact version | Never by itself. Move the pin to the new version. |
 
 A fix that needs a *major* library upgrade, or a change to Identity Atlas itself, ships with the next minor version, or as a patch release when it is urgent. Whatever tag you run, an update reaches your deployment only when you pull it: `docker compose -f docker-compose.prod.yml up -d --pull always`, or [automatic updates](../admin/auto-updates.md). With automatic updates on `latest`, expect a new patch version most working days.

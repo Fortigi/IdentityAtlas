@@ -1,6 +1,6 @@
 # Release process
 
-How a change travels from `main` to the image operators run, what is tested on the way, how dependency updates reach stable every day without anyone cutting anything, and what to do when that goes wrong. For the one-time Azure and GitHub setup the automation needs, see [One-time setup](#one-time-setup) at the end.
+How a change travels from `main` to the image operators run, what is tested on the way, how dependency updates reach stable every week without anyone cutting anything, and what to do when that goes wrong. For the one-time Azure and GitHub setup the automation needs, see [One-time setup](#one-time-setup) at the end.
 
 The branching rules themselves (main first, branch names, version numbers on `main`) are in `CLAUDE.md` and [Release & Branching Strategy](../architecture/branching-strategy.md). This page is the operational side.
 
@@ -10,10 +10,10 @@ The branching rules themselves (main first, branch names, version numbers on `ma
 
 These are decisions, agreed in November 2026. The automation below implements them; change them here first.
 
-1. **Major.Minor says what the product can do. The last digit counts dependency updates.** 6.1 and 6.2 differ in functionality, which was built and tested as a whole. 6.1.2, 6.1.3, 6.1.4 … are the same 6.1 with newer libraries (and the odd cherry-picked bug fix). A new stable every day is fine.
-2. **Every Dependabot update ships, once a day.** There is no distinction between security updates and other updates: staying current is the point, and it means a security fix is never missed because nobody labelled it. Each night that something was updated, a new beta and, if its release test is green, a new stable are cut.
+1. **Major.Minor says what the product can do. The last digit counts dependency updates.** 6.1 and 6.2 differ in functionality, which was built and tested as a whole. 6.1.2, 6.1.3, 6.1.4 … are the same 6.1 with newer libraries (and the odd cherry-picked bug fix). At most one new stable a week.
+2. **Every Dependabot update ships, once a week.** There is no distinction between security updates and other updates: staying current is the point, and it means a security fix is never missed because nobody labelled it. Each week that something was updated, a new beta and, if its release test is green, a new stable are cut. One release a week is enough to keep the dependencies current, and it keeps the number of versions operators see, and the release tests we pay for, small. An update that cannot wait a week (an actively exploited vulnerability) is released by running **Release weekly** by hand.
 3. **Only the newest stable minor is maintained.** When 6.2.0 is released, 6.1 gets nothing more; operators on 6.1 upgrade to 6.2, an in-place upgrade the release test proves for every candidate. The 5.x line has ended: `release/5.9` is no longer updated or released.
-4. **No major library upgrades on the stable line.** A major is the one update expected to change behaviour, so it reaches customers with the next minor, after `main` and a full release test. The consequence: a security fix that exists *only* in a new major version arrives with that minor, not overnight.
+4. **No major library upgrades on the stable line.** A major is the one update expected to change behaviour, so it reaches customers with the next minor, after `main` and a full release test. The consequence: a security fix that exists *only* in a new major version arrives with that minor, not with the next weekly release.
 5. **Test what changed.** Every release gets the Docker, backup and restore, sign-in and portable tests. The Azure deployment is tested for the first beta of every new minor (the full end-to-end test) and whenever the Azure templates changed, and not for a release that only moves libraries: redeploying unchanged templates adds cost and false alarms when Azure itself misbehaves, and finds nothing new.
 6. **Main first, with one narrow exception.** Nothing is released that is not on `main`, except Dependabot's own updates of the release line. Those cannot be cherry-picked from `main`: a week after v6.1.1, 10 of 12 of `main`'s Dependabot commits conflicted on the 6.1 lockfiles. The exception is checked strictly; see [The Dependabot exception](#the-dependabot-exception).
 
@@ -24,19 +24,19 @@ These are decisions, agreed in November 2026. The automation below implements th
 | Channel | Docker tag | What it is | Made by | How often |
 |---|---|---|---|---|
 | **Edge** | `:edge` + `Major.Minor.yyyyMMdd.HHmm` | `main` as it is | `docker-publish.yml`, after every merge | Every merge to `main` |
-| **Beta** | `:beta` + `X.Y.0-beta.N` | A preview of the next minor, cut from `main` | The nightly **beta route**, or Actions → Cut Beta by hand | Each night a Dependabot update of shipped code landed on `main` |
-| **Stable** | `:latest` + `X.Y.Z.0` | The newest stable minor with today's libraries | The nightly **stable route** (patches); Actions → Cut Release by hand (a new minor) | Each night the release line moved |
+| **Beta** | `:beta` + `X.Y.0-beta.N` | A preview of the next minor, cut from `main` | The weekly **beta route**, or Actions → Cut Beta by hand | Once a week, when a Dependabot update of shipped code landed on `main` |
+| **Stable** | `:latest` + `X.Y.Z.0` | The newest stable minor with this week's libraries | The weekly **stable route** (patches); Actions → Cut Release by hand (a new minor) | Once a week, when the release line moved |
 
 A patch beta (`X.Y.Z-beta.N` with Z > 0) is the stable route's test candidate. It gets only its own version tag, never `:beta`: moving `:beta` to it would put everyone on `:beta` back a whole minor, onto a database the newer version already migrated. `docker-publish.yml` enforces this.
 
 ### Release lines
 
 ```
-                    Dependabot, daily, patch and minor, production dependencies only
+                    Dependabot, weekly, patch and minor, production dependencies only
                                  │        │        │
 v6.1.1 ──→ release/6.1 ──────────●────────●────────●──────→  what :latest runs
                 │                │        │        │
-              v6.1.1          v6.1.2   v6.1.3   v6.1.4         (one per night it moved)
+              v6.1.1          v6.1.2   v6.1.3   v6.1.4         (one per week it moved)
 
 main ───●────●────●────●────●────●────●────────────────────→  :edge, feature work
              │              │              │
@@ -44,21 +44,21 @@ main ───●────●────●────●────●─
                                                                             (6.1 stops)
 ```
 
-- **`release/X.Y`** is created by **Cut Release** when it cuts `X.Y.0`, at that tag. Cut Release also opens a pull request into `main` that points the release-line entries of `.github/dependabot.yml` at the new branch. Until that PR is merged the new line gets no updates (the nightly plan warns), so merge it the same day.
-- **Dependabot** checks the release line **daily** for production npm dependencies of `app/api` and `app/ui` and for the base images of `app/api` and `setup/docker`, patch and minor only. `dependabot-auto-merge.yml` merges each PR once CI (`CI Passed`, `Integration CI Passed`) is green; the *Protect release branches* ruleset requires no approving review.
-- **`main`** keeps its own weekly Dependabot schedule, and security updates always go to `main` (GitHub raises them only against the default branch). The two lines are updated from upstream independently and never merge into each other. The release line catches a security fix through its daily version check, usually within a day of the fixed version being published.
+- **`release/X.Y`** is created by **Cut Release** when it cuts `X.Y.0`, at that tag. Cut Release also opens a pull request into `main` that points the release-line entries of `.github/dependabot.yml` at the new branch. Until that PR is merged the new line gets no updates (the weekly plan warns), so merge it the same day.
+- **Dependabot** checks the release line **weekly, on Monday at 05:00 UTC,** for production npm dependencies of `app/api` and `app/ui` and for the base images of `app/api` and `setup/docker`, patch and minor only. `dependabot-auto-merge.yml` merges each PR once CI (`CI Passed`, `Integration CI Passed`) is green; the *Protect release branches* ruleset requires no approving review.
+- **`main`** keeps its own weekly Dependabot schedule, and security updates always go to `main` (GitHub raises them only against the default branch). The two lines are updated from upstream independently and never merge into each other. The release line catches a security fix through its weekly version check: a fixed version reaches `:latest` one to eight days after it is published, depending on where in the week it falls.
 
 ---
 
-## What happens each night
+## What happens each week
 
-`.github/workflows/release-nightly.yml`, every night at 02:07 UTC (03:07 in Amsterdam in winter, 04:07 in summer; not on the hour, because GitHub delays top-of-hour schedules).
+`.github/workflows/release-weekly.yml`, every Tuesday at 02:07 UTC (03:07 in Amsterdam in winter, 04:07 in summer). Tuesday, so the release line's Monday Dependabot PRs have had a day to pass CI and merge; not on the hour, because GitHub delays top-of-hour schedules.
 
-**1. Plan** (`tools/release/Get-NightlyPlan.ps1`; every rule unit-tested in `test/unit/ReleaseNightly.Tests.ps1`). It writes what it decided, and why, at the top of the run summary.
+**1. Plan** (`tools/release/Get-WeeklyPlan.ps1`; every rule unit-tested in `test/unit/ReleaseWeekly.Tests.ps1`). It writes what it decided, and why, at the top of the run summary.
 
 **2. The stable route**, when `release/X.Y` (for the newest stable `vX.Y.Z`) has commits that `vX.Y.Z` does not:
 
-1. **Cut Beta** (release-line mode) tags `vX.Y.(Z+1)-beta.N` on the line's newest commit. That commit is fixed at planning time: Dependabot may merge more while the route runs, and those wait for the next night.
+1. **Cut Beta** (release-line mode) tags `vX.Y.(Z+1)-beta.N` on the line's newest commit. That commit is fixed at planning time: Dependabot may merge more while the route runs, and those wait for the next week.
 2. Wait until docker-publish has pushed all three images of that beta (about 20 minutes).
 3. **The release test** of that beta. Azure only when the Azure templates differ between `vX.Y.Z` and the line.
 4. Only when it is green, **Cut Hotfix** tags `vX.Y.(Z+1)` on the **same commit**: `:latest` moves, the GitHub release gets the ZIPs, and its notes list every dependency that moved.
@@ -70,11 +70,11 @@ main ───●────●────●────●────●─
 
 There is no promotion: a new minor becomes stable only when a person cuts it (see [A new minor](#a-new-minor)).
 
-**4. Otherwise a test only.** On a night without a new beta of `main`: a pre-release nobody tested yet (one cut by hand) gets the full release test; failing that, `:edge` gets the Docker and portable parts, without Azure, as an early warning.
+**4. Otherwise a test only.** In a week without a new beta of `main`: a pre-release nobody tested yet (one cut by hand) gets the full release test; failing that, `:edge` gets the Docker and portable parts, without Azure, as an early warning.
 
-Each tested beta leaves an artifact `release-tested-<tag>` (90 days) with its result, so it is tested once. A route does not try the same commit twice: the stable route waits until the line moves again, the beta route until another Dependabot update lands. **A manual run** (Actions → Release nightly → Run workflow) is a **dry run** by default: it does everything except push tags and open issues, so there are no images to wait for and the release test is skipped. Untick *dry_run* to make it real; tick *retry_stable* to try the stable route again on a commit that was already tried; give a *candidate* to only test that tag and cut nothing.
+Each tested beta leaves an artifact `release-tested-<tag>` (90 days) with its result, so it is tested once. A route does not try the same commit twice: the stable route waits until the line moves again, the beta route until another Dependabot update lands. **A manual run** (Actions → Release weekly → Run workflow) is a **dry run** by default: it does everything except push tags and open issues, so there are no images to wait for and the release test is skipped. Untick *dry_run* to make it real; tick *retry_stable* to try the stable route again on a commit that was already tried; give a *candidate* to only test that tag and cut nothing.
 
-**How long:** from a Dependabot merge on the release line to `:latest` is the wait for 02:07 UTC (up to a day) plus about two hours: the beta build, the release test (about an hour without Azure) and the stable build.
+**How long:** from a Dependabot merge on the release line to `:latest` is the wait for Tuesday 02:07 UTC (up to a week) plus about two hours: the beta build, the release test (about an hour without Azure) and the stable build.
 
 ---
 
@@ -88,7 +88,7 @@ Each tested beta leaves an artifact `release-tested-<tag>` (90 days) with its re
 | A stable patch (`X.Y.Z`, Z > 0), dependency updates only | ✅ | ✅ | ✅ | ✅ | — |
 | A stable patch whose release line changed the Azure templates (a cherry-picked fix) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A new minor going stable (`X.Y.0`, by hand) | Through the beta it is cut from, which must have had a full test: see [A new minor](#a-new-minor) |||||
-| `:edge`, a night without a beta of `main` | ✅ | ✅ | ✅ | ✅ | — |
+| `:edge`, a week without a beta of `main` | ✅ | ✅ | ✅ | ✅ | — |
 
 The backup and restore test runs for **every** release, dependency-only patches included: a library update can change how the database is written as much as a feature can.
 
@@ -123,7 +123,7 @@ Know these before you read a green run as "safe":
 
 ## When a route fails
 
-A red stage publishes nothing after it and opens one issue per route, *Scheduled workflow failing: Release nightly: stable patch release* or *… beta*, with the reason and the run link. Later failures of the same route are added to that issue as comments. Nothing is cleaned up: a failed beta keeps its tag, and the next attempt gets the next number.
+A red stage publishes nothing after it and opens one issue per route, *Scheduled workflow failing: Release weekly: stable patch release* or *… beta*, with the reason and the run link. Later failures of the same route are added to that issue as comments. Nothing is cleaned up: a failed beta keeps its tag, and the next attempt gets the next number.
 
 | Reason in the issue | What to do |
 |---|---|
@@ -134,7 +134,7 @@ A red stage publishes nothing after it and opens one issue per route, *Scheduled
 | The release test is red | Open the Release Test run. If an update broke something, fix it on `main` (or pin the dependency there) and cherry-pick the fix onto the line; if the test itself is wrong, fix the test. |
 | Cut Hotfix failed | Open the Cut Hotfix run. If the tag was pushed before it failed, docker-publish may already be building `:latest`: check before retrying. |
 
-**To retry:** the stable route tries again by itself as soon as the release line moves. To try the same commit again, run Release nightly by hand with *dry_run* unticked and *retry_stable* ticked. The beta route tries again with the next Dependabot update on `main`, or cut a beta by hand.
+**To retry:** the stable route tries again by itself as soon as the release line moves. To try the same commit again, run Release weekly by hand with *dry_run* unticked and *retry_stable* ticked. The beta route tries again with the next Dependabot update on `main`, or cut a beta by hand.
 
 ---
 
@@ -144,7 +144,7 @@ A red stage publishes nothing after it and opens one issue per route, *Scheduled
 
 The only release a person cuts. Do it when `main` has the features you want in it and its betas have proven themselves.
 
-1. Pick the beta you are promoting, `vX.Y.0-beta.N`, and make sure **it** passed a full release test, Azure included. The nightly run tests every beta of `main`, but includes Azure only for the first beta of a minor and when the templates changed; if the beta you are promoting skipped Azure, run **Release nightly** by hand with that tag as *candidate*: a candidate asked for by hand always gets Azure.
+1. Pick the beta you are promoting, `vX.Y.0-beta.N`, and make sure **it** passed a full release test, Azure included. The weekly run tests every beta of `main`, but includes Azure only for the first beta of a minor and when the templates changed; if the beta you are promoting skipped Azure, run **Release weekly** by hand with that tag as *candidate*: a candidate asked for by hand always gets Azure.
 2. Nobody running the beta has reported a regression.
 3. Actions → **Cut Release** → version `X.Y.0`, ref **the beta tag**, so stable is the commit that was tested and not whatever `main` has become since.
 4. Cut Release tags it, builds both portable ZIPs and the Azure package, creates the GitHub release (`:latest` moves), creates `release/X.Y` from the tag, and opens the PR that moves Dependabot to it. **Approve and merge that PR the same day.**
@@ -162,11 +162,11 @@ git push origin bugfixes/<name>-on-X.Y
 gh pr create --base release/X.Y --title "fix: <what> (cherry-pick of #<PR>)"
 ```
 
-**One cherry-pick per PR**: the squash merge must reproduce the main commit's exact lines, which a PR of two commits would not. The PR needs no approval but must pass CI; the next night the stable route releases it with whatever Dependabot added. If the cherry-pick conflicts, the fix needs an earlier change from `main`: cherry-pick that first, or ship the fix with the next minor.
+**One cherry-pick per PR**: the squash merge must reproduce the main commit's exact lines, which a PR of two commits would not. The PR needs no approval but must pass CI; the next weekly run's stable route releases it with whatever Dependabot added. A fix that cannot wait for Tuesday: run **Release weekly** by hand with *dry_run* unticked once the PR has merged. If the cherry-pick conflicts, the fix needs an earlier change from `main`: cherry-pick that first, or ship the fix with the next minor.
 
 ### A beta by hand
 
-Actions → **Cut Beta**, version `X.Y.0-beta.N` (the next free number), ref `main` or a commit on it. The next night tests it in full, Azure included.
+Actions → **Cut Beta**, version `X.Y.0-beta.N` (the next free number), ref `main` or a commit on it. The next weekly run tests it in full, Azure included; run **Release weekly** by hand with that tag as *candidate* to test it sooner.
 
 ---
 
@@ -247,7 +247,7 @@ The sign-in checks need an app registration that plays Identity Atlas's own SSO 
 
 1. GitHub → **Fortigi/IdentityAtlas → Settings → Environments → New environment** → name `azure-release-test` → **Configure environment**.
 2. **Deployment branches and tags** → **Selected branches and tags** → **Add deployment branch or tag rule**: type **Branch**, pattern `main` → **Add rule**. Again: type **Tag**, pattern `v*` → **Add rule**.
-3. No required reviewers: the nightly run is unattended.
+3. No required reviewers: the weekly run is unattended.
 4. **Environment variables → Add variable**, five times:
 
    | Name | Value |
@@ -262,12 +262,12 @@ The sign-in checks need an app registration that plays Identity Atlas's own SSO 
 
 ### 5. Check what is already there
 
-- The **release-automation** environment holds `BOT_PRIVATE_KEY` and admits `main`; Cut Beta, Cut Hotfix and Cut Release read it from there when the nightly run calls them.
+- The **release-automation** environment holds `BOT_PRIVATE_KEY` and admits `main`; Cut Beta, Cut Hotfix and Cut Release read it from there when the weekly run calls them.
 - The *Protect release branches* ruleset (`release/**`) requires a pull request, **no** approving review, and the status checks `CI Passed` and `Integration CI Passed`. It must not require a review, or Dependabot's updates wait for a person; it must keep those checks, because they are all that stands between a Dependabot PR and `:latest`. It has no creation rule, so Cut Release's release App can create `release/X.Y`.
 
 ### 6. First run
 
-After merging: Actions → **Release nightly** → **Run workflow** with *dry_run* ticked (the default). Read the plan at the top of the run summary. Expect, on the first real night, `6.2.0-beta.1` from `main` with the full test including Azure, and, once Dependabot has merged something into `release/6.1`, `6.1.2-beta.1` → `6.1.2`.
+After merging: Actions → **Release weekly** → **Run workflow** with *dry_run* ticked (the default). Read the plan at the top of the run summary. Expect, on the first real run, `6.2.0-beta.1` from `main` with the full test including Azure, and, once Dependabot has merged something into `release/6.1`, `6.1.2-beta.1` → `6.1.2`.
 
 ---
 
@@ -275,11 +275,11 @@ After merging: Actions → **Release nightly** → **Run workflow** with *dry_ru
 
 Estimates: the Azure part has not run yet when this page was written.
 
-| Night | Wall clock | Azure |
+| Run | Wall clock | Azure |
 |---|---|---|
 | Nothing to cut (`:edge`, Docker and portable) | about 30 minutes | none |
 | A stable patch, dependency updates only | about 2 hours (beta build, release test without Azure, stable build) | none |
 | A beta of `main`, templates unchanged | about 1.5 hours | none |
 | The first beta of a minor, or templates changed | about 2 hours (the Azure upgrades are the longest jobs) | 6 resource groups, about €1–2 |
 
-The two routes run side by side. Each resource group runs the `xs` profile for roughly half an hour to an hour: an App Service B1, a Burstable B1ms PostgreSQL server with 32 GB, the worker Container App, a Key Vault, a storage account and a Log Analytics workspace, plus a few minutes of deployment-script container. At about €0.10–0.20 per group-hour that is €1–2 a night with Azure. GitHub-hosted runners cost nothing for this public repository.
+The two routes run side by side. Each resource group runs the `xs` profile for roughly half an hour to an hour: an App Service B1, a Burstable B1ms PostgreSQL server with 32 GB, the worker Container App, a Key Vault, a storage account and a Log Analytics workspace, plus a few minutes of deployment-script container. At about €0.10–0.20 per group-hour that is €1–2 a run with Azure. GitHub-hosted runners cost nothing for this public repository.

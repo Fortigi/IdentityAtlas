@@ -21,7 +21,7 @@
               (release/X.Y for a vX.Y.* tag).
 
     The Dependabot case is the one exception to "main first" (agreed Nov 2026),
-    so the stable line gets its library updates every day. Those updates cannot
+    so the stable line gets its library updates every week. Those updates cannot
     be cherry-picked from main: a week after v6.1.1, 10 of 12 conflicted in the
     lockfiles. The exception is narrow: authored by Dependabot, merged through a
     GitHub pull request, on that release branch, changing only package.json /

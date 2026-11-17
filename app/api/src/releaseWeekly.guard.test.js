@@ -1,8 +1,8 @@
-// Guards for the nightly release run and its two routes
-// (.github/workflows/release-nightly.yml, release-route.yml, release-test.yml).
+// Guards for the weekly release run and its two routes
+// (.github/workflows/release-weekly.yml, release-route.yml, release-test.yml).
 //
 // These workflows only run on a schedule from main, so a wiring mistake would
-// surface at 03:07 some night as a stable release that should not have been
+// surface at 03:07 some Tuesday as a stable release that should not have been
 // cut — or as one that silently never is. The invariants that make the routes
 // safe are checked here, over the workflow files themselves:
 //
@@ -11,10 +11,10 @@
 //   * only the stable route promotes; a new minor goes stable by hand;
 //   * a dry run reaches Cut Beta / Cut Hotfix as a dry run;
 //   * every job runs on a GitHub-hosted runner, never a self-hosted sidekick;
-//   * the schedule is 02:07 UTC, off the hour GitHub delays.
+//   * the schedule is once a week, Tuesday 02:07 UTC, off the hour GitHub delays.
 //
 // The decisions themselves (what to cut, which version, Azure or not, what a
-// failure means) are PowerShell, unit-tested in test/unit/ReleaseNightly.Tests.ps1
+// failure means) are PowerShell, unit-tested in test/unit/ReleaseWeekly.Tests.ps1
 // and test/unit/ReleaseRoute.Tests.ps1.
 
 import { describe, it, expect } from 'vitest';
@@ -25,18 +25,18 @@ import { repoRoot as findCheckoutRoot } from './lib/repoRoot.js';
 
 const WORKFLOWS = join(findCheckoutRoot(), '.github', 'workflows');
 const load = (file) => parse(readFileSync(join(WORKFLOWS, file), 'utf8'));
-const nightly = load('release-nightly.yml');
-const jobs = nightly.jobs;
+const weekly = load('release-weekly.yml');
+const jobs = weekly.jobs;
 const route = load('release-route.yml');
 const steps = route.jobs;
 
-describe('release-nightly.yml: when it runs', () => {
-  it('runs at 02:07 UTC, off the hour', () => {
-    expect(nightly.on.schedule).toEqual([{ cron: '7 2 * * *' }]);
+describe('release-weekly.yml: when it runs', () => {
+  it('runs once a week, Tuesday 02:07 UTC, off the hour', () => {
+    expect(weekly.on.schedule).toEqual([{ cron: '7 2 * * 2' }]);
   });
 
   it('is a dry run by default when started by hand, and never on the schedule', () => {
-    expect(nightly.on.workflow_dispatch.inputs.dry_run).toMatchObject({ type: 'boolean', default: true });
+    expect(weekly.on.workflow_dispatch.inputs.dry_run).toMatchObject({ type: 'boolean', default: true });
     const mode = jobs.plan.steps.find((s) => s.id === 'mode');
     expect(mode.env.DRY).toBe("${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}");
   });
@@ -47,7 +47,7 @@ describe('release-nightly.yml: when it runs', () => {
   });
 });
 
-describe('release-nightly.yml: the two routes', () => {
+describe('release-weekly.yml: the two routes', () => {
   it('the stable route cuts the release line\'s beta in hotfix mode and promotes the next patch', () => {
     const stable = jobs.stable;
     expect(stable.uses).toBe('./.github/workflows/release-route.yml');
@@ -77,7 +77,7 @@ describe('release-nightly.yml: the two routes', () => {
 
   it('cuts from commit SHAs the plan resolved, never from a branch name that can move', () => {
     // ConvertTo-RouteOutput (unit-tested) turns each route's resolved SHA into <name>_sha.
-    const plan = readFileSync(join(findCheckoutRoot(), 'tools', 'release', 'Get-NightlyPlan.ps1'), 'utf8');
+    const plan = readFileSync(join(findCheckoutRoot(), 'tools', 'release', 'Get-WeeklyPlan.ps1'), 'utf8');
     expect(plan).toContain("ConvertTo-RouteOutput -Name stable -Plan $stableRoute.Plan -Sha $stableRoute.Sha -Keys @('Version', 'Beta')");
     expect(plan).toContain('ConvertTo-RouteOutput -Name beta -Plan $betaRoute.Plan -Sha $betaRoute.Sha');
     expect(plan).toMatch(/\$sha = \(& git rev-parse --verify --quiet "\$branch\^\{commit\}"\)/);
@@ -132,7 +132,7 @@ describe('release-route.yml: from beta to verdict', () => {
     const finish = steps.finish;
     expect(finish.if).toBe('always()');
     const run = finish.steps.find((s) => s.env?.RESULTS);
-    expect(run.run).toContain('Complete-NightlyRoute.ps1');
+    expect(run.run).toContain('Complete-WeeklyRoute.ps1');
     for (const [stage, job] of [['beta', 'cut-beta'], ['images', 'images'], ['test', 'test'], ['release', 'promote']]) {
       expect(run.env.RESULTS).toContain(`"${stage}":"\${{ needs.${job}.result }}"`);
     }
@@ -142,14 +142,14 @@ describe('release-route.yml: from beta to verdict', () => {
 describe('the security-only route is gone', () => {
   it('no workflow labels or looks up security fixes any more', () => {
     expect(existsSync(join(WORKFLOWS, 'dependabot-security-label.yml'))).toBe(false);
-    for (const file of ['release-nightly.yml', 'release-route.yml']) {
+    for (const file of ['release-weekly.yml', 'release-route.yml']) {
       expect(readFileSync(join(WORKFLOWS, file), 'utf8')).not.toMatch(/security-fix|SECURITY_LOOKUP|security-hotfix/);
     }
   });
 });
 
 describe('the release workflows never run on a self-hosted runner', () => {
-  it.each(['release-nightly.yml', 'release-route.yml', 'release-test.yml'])('%s', (file) => {
+  it.each(['release-weekly.yml', 'release-route.yml', 'release-test.yml'])('%s', (file) => {
     for (const [id, job] of Object.entries(load(file).jobs)) {
       if (job.uses) continue;   // a reusable workflow: its own jobs are checked here too
       expect(JSON.stringify(job['runs-on']), `${file} → ${id}`).toMatch(/^"(ubuntu|windows)-latest"$/);

@@ -1,18 +1,18 @@
 <#
 .SYNOPSIS
-    Decides what tonight's release run does; writes it to $GITHUB_OUTPUT. Read-only.
+    Decides what this week's release run does; writes it to $GITHUB_OUTPUT. Read-only.
 
 .DESCRIPTION
     Gathers the facts from the checkout (tags, origin/main, origin/release/X.Y,
     the Dependabot commits on main) and the Actions API (has the newest
     pre-release a release-tested-<tag> artifact?). The decisions themselves are
-    pure functions in ReleaseNightly.Functions.ps1, unit-tested in
-    test/unit/ReleaseNightly.Tests.ps1.
+    pure functions in ReleaseWeekly.Functions.ps1, unit-tested in
+    test/unit/ReleaseWeekly.Tests.ps1.
 
     Outputs:
       candidate, azure, marker        test an existing candidate (edge, or a
                                       pre-release nobody tested); an empty
-                                      candidate means nothing extra tonight
+                                      candidate means nothing extra this run
       stable_needed, stable_version, stable_beta, stable_sha, stable_azure
                                       the stable route: a patch release of
                                       release/X.Y
@@ -22,7 +22,7 @@
     -Override (a candidate asked for by hand) tests only that and starts no route.
 
 .EXAMPLE
-    pwsh tools/release/Get-NightlyPlan.ps1 -Repository Fortigi/IdentityAtlas
+    pwsh tools/release/Get-WeeklyPlan.ps1 -Repository Fortigi/IdentityAtlas
 #>
 [CmdletBinding()]
 param(
@@ -36,7 +36,7 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'ReleaseTest.Functions.ps1')
 . (Join-Path $PSScriptRoot 'ReleaseRoute.Functions.ps1')
-. (Join-Path $PSScriptRoot 'ReleaseNightly.Functions.ps1')
+. (Join-Path $PSScriptRoot 'ReleaseWeekly.Functions.ps1')
 
 $Templates = @('azure')
 $Shipped = @('app/api', 'app/ui', 'setup/docker')
@@ -82,7 +82,7 @@ function Get-BetaFacts([string[]] $Tags) {
 function Get-TestPlan([string[]] $Tags, [bool] $BetaRoute) {
     $preRelease = Get-NewestPreRelease $Tags
     $tested = @(if ($preRelease -and (Test-MarkerExists (Get-TestedMarkerName $preRelease))) { $preRelease })
-    Get-NightlyPlan -Tags $Tags -Tested $tested -Override $Override -BetaRoute:$BetaRoute
+    Get-WeeklyPlan -Tags $Tags -Tested $tested -Override $Override -BetaRoute:$BetaRoute
 }
 
 # The release line the stable route would use, when Dependabot does not point at it.
@@ -108,7 +108,7 @@ foreach ($route in $routes) { foreach ($key in $route.Keys) { $out[$key] = $rout
 $lines = $out.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }
 if ($env:GITHUB_OUTPUT) { $lines | Add-Content $env:GITHUB_OUTPUT }
 
-$summary = Format-NightlySummary -Stable $stableRoute.Plan -Beta $betaRoute.Plan -Test $test -LineWarning (Get-LineWarning $stableRoute.Plan)
+$summary = Format-WeeklySummary -Stable $stableRoute.Plan -Beta $betaRoute.Plan -Test $test -LineWarning (Get-LineWarning $stableRoute.Plan)
 if ($env:GITHUB_STEP_SUMMARY) { $summary | Add-Content $env:GITHUB_STEP_SUMMARY }
 $lines
 $summary

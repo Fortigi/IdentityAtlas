@@ -1,7 +1,7 @@
 #Requires -Modules @{ ModuleName='Pester'; ModuleVersion='5.0.0' }
 <#
 .SYNOPSIS
-    The shared pieces of the nightly release routes (tools/release/ReleaseRoute.Functions.ps1):
+    The shared pieces of the weekly release routes (tools/release/ReleaseRoute.Functions.ps1):
     version numbers, waiting for the images, and what a finished route means.
 
 .USAGE

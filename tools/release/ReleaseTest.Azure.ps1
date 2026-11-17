@@ -13,7 +13,7 @@
 
     One resource group per variant per run, deleted at the end. Never reused:
     the Key Vault has purge protection on and its name derives from the
-    resource group id, so a reused group would collide with last night's
+    resource group id, so a reused group would collide with the last run's
     soft-deleted vault.
 #>
 
@@ -96,7 +96,7 @@ function Select-StaleReleaseTestGroup {
         A group qualifies only when its name passes the gate AND its createdAt
         tag is a date older than the limit. A group without a readable
         createdAt is left alone: it is not old enough to prove it is ours to
-        delete, and the next night will see it again.
+        delete, and the next run will see it again.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]

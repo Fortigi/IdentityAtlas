@@ -1,6 +1,6 @@
 # ─── Release route ────────────────────────────────────────────────────────────
-# One candidate from cut to verdict. Called by release-nightly.yml, twice a
-# night at most:
+# One candidate from cut to verdict. Called by release-weekly.yml, twice a
+# run at most:
 #
 #   stable route   ref = the newest commit of release/X.Y (Dependabot updates
 #                  of the stable line), hotfix: true, promote: X.Y.(Z+1)
@@ -163,5 +163,5 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          ./tools/release/Complete-NightlyRoute.ps1 -Route $env:ROUTE -Results $env:RESULTS -Beta $env:BETA `
+          ./tools/release/Complete-WeeklyRoute.ps1 -Route $env:ROUTE -Results $env:RESULTS -Beta $env:BETA `
             -Version "$env:VERSION" -RunUrl $env:RUN_URL -DryRun:($env:DRY_RUN -eq 'true')
