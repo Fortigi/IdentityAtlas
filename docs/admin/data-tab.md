@@ -12,7 +12,7 @@ The tab groups three things:
 |---|---|---|
 | **Excel Power Query Workbook** | Generate a read-only workbook + token for BI/Excel | `data.export.ui` |
 | **Deleted Data & History Retention** | Control how long soft-deleted rows and audit history are kept | `admin.systems` |
-| **Danger Zone → Clean Database** | Wipe all identity data, keep your setup | `admin.systems` |
+| **Danger Zone → Clean Database** | Remove everything a crawler or plugin can recreate, keep what people made | `admin.systems` |
 
 !!! note "The tab appears if you hold *any* of its permissions"
     Admin → Data is visible to anyone with `data.export.ui`, `admin.systems`,
@@ -76,30 +76,80 @@ are gated by `admin.systems`.
 ## Danger Zone → Clean Database
 
 **Clean Database** (`POST /api/admin/clean-database`, permission `admin.systems`)
-wipes all identity data so you can re-sync from a clean slate without rebuilding
-your setup.
+removes everything a crawler or a plugin can recreate, and nothing a person
+made. Use it to re-sync from a clean slate without losing your setup or your
+curated work.
 
-**What it wipes:** every data table — Principals, Resources, ResourceAssignments,
-ResourceRelationships, Identities, IdentityMembers, Contexts, governance catalogs,
-risk scores, systems, and the crawler runtime artifacts (jobs and sync logs). The
-matching `_history` audit rows for those tables go too, and crawler configs are
-reset to "never run".
+!!! tip "Make a backup first"
+    There is no undo. [Make a backup first](backup-restore-upgrade.md) if you
+    might want any of the removed data back.
 
-**What it preserves:**
+The confirmation dialog shows the same lists as below. It reads them from the
+API (`GET /api/admin/clean-database/plan`), which takes them from the table
+classification the clean itself runs on, so the dialog cannot promise something
+the clean does not do.
 
-- **Crawler configurations** — your crawler connection entries and their credentials stay put (these are the Crawlers admin records, distinct from the `Systems` data table above, which *is* wiped).
-- **Risk profiles and classifiers.**
-- **Account-linking / correlation rules.**
-- **The audit log** for anything not tied to a wiped table.
+**What it removes:**
 
-After a clean, the sequences are reset and the tables are re-analyzed so the
-dashboard immediately reports zero rows. You then re-run your crawlers to
+- Systems, accounts, resources and access loaded by your crawlers
+- Governance data from your sources: catalogs, business roles, policies, requests and review decisions
+- Identities and the accounts linked to them
+- Synced and generated contexts (org charts, departments, clusters and other plugin trees) with their members
+- Crawler job history, the sync log and saved delta tokens, so the next crawl is a full one
+- Computed results: risk scores, dashboard trend snapshots, and the run history of plugins, risk scoring and account linking
+- The change history of everything removed
+
+**What it keeps:**
+
+- Manual contexts and tags, with the members you added
+- Uploaded lists, with their contexts, members and the owners you assigned to them
+- Analyst risk-score overrides
+- Settings: crawler configurations and registrations, feature flags, role mapping, LLM, history retention and personal preferences
+- Risk profiles, risk classifiers and account-linking rules
+- Stored secrets and read-API keys
+- Saved matrix views, matrix shares, saved reports and report views
+- Business-role categories and their assignments
+- Interviews, claims, decisions, change requests, tree adjustments, workbench investigations and role proposals on contexts that are kept
+- Audit logs: role changes, crawler audit, MCP tool calls, share access, update checks and bot conversations
+- The change history of everything kept
+
+**Work of yours that is removed anyway**, because it cannot exist without the
+data it hangs on:
+
+- Owners you assigned to a crawled system — the system is removed.
+- Manager overrides in the org chart — the account they move is removed.
+- Accountable and Responsible people on contexts, including the ones you set, and rejected suggestions — every holder is an account or an identity, and those are removed.
+- Your confirm, reject and move decisions on identity accounts, and analyst verification and notes on identities — the identities they belong to are removed.
+- Members and links you added to a synced or generated context — that context is removed.
+- Interviews, claims, decisions and workbench investigations (with their role proposals) on a synced or generated context — that context is removed.
+- Tree adjustments on a tree tied to a crawled system — that system is removed.
+
+**Kept, but changed:**
+
+- A manual context placed under a synced or generated context moves to the top level.
+- Kept interviews, claims and change requests lose their link to a removed account, context or system; the names they recorded stay.
+- A role proposal that extends a removed business role loses that link.
+- Crawler configurations show as never run.
+
+Members you added to a manual context or tag point at accounts and resources by
+their id, without a hard link. Entra object ids, and the ids the ingest derives
+for other sources, stay the same across a re-crawl, so those members come back
+once the next crawl brings the accounts back.
+
+**How it runs.** The clean runs in one database transaction. If any step fails,
+nothing is removed and the call answers `500` with
+`Clean database failed. Nothing was removed.` On success the tables are
+re-analyzed, the matrix views are rebuilt in the background, and each table's id
+sequence restarts after the highest id still in use (at 1 for an emptied table).
+The response lists each table it cleaned with its row count (`wiped`), the rows
+of kept tables that went with removed data (`alsoRemoved`), and how many history
+rows were removed (`historyRowsRemoved`). You then re-run your crawlers to
 repopulate.
 
 !!! warning "This is irreversible"
     The UI requires two confirmations — a "Yes, continue" step and typing
-    `DELETE ALL DATA` — before the wipe runs. The API enforces the same phrase: a
+    `DELETE ALL DATA` — before the clean runs. The API enforces the same phrase: a
     call must send the JSON body `{"confirm": "DELETE ALL DATA"}`, otherwise it is
     refused with `400`. The endpoint is also rate-limited to **5 requests per minute
-    per admin** to guard against runaway automation. There is no undo; the data comes
-    back only by re-syncing.
+    per admin** to guard against runaway automation. There is no undo; the removed
+    data comes back only by re-syncing, or from a backup.

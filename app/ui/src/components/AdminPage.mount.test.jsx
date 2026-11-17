@@ -35,6 +35,9 @@ function adminRoutes(url) {
   if (u.includes('/api/admin/history-retention')) {
     return { retentionDays: 180, totalRows: 12345 };
   }
+  if (u.includes('/api/admin/clean-database/plan')) {
+    return { removed: [{ key: 'source', text: 'Crawled data', tables: [] }], kept: [{ key: 'manual', text: 'Manual contexts', tables: [] }], alsoRemoved: [], keptButChanged: [] };
+  }
 
   // ── LLM Settings tab ────────────────────────────────────────────
   if (u.includes('/api/admin/llm/config')) {
@@ -246,6 +249,7 @@ describe('AdminPage (mounted)', () => {
     await screen.findByText('Danger Zone');
     await user.click(screen.getByRole('button', { name: 'Clean Database' }));
     expect(await screen.findByText('Are you sure?')).toBeInTheDocument();
+    expect(await screen.findByText('Manual contexts')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Yes, continue' }));
     expect(await screen.findByText('Final confirmation')).toBeInTheDocument();
     // The confirm button stays disabled until the magic phrase is typed.

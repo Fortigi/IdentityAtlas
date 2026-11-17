@@ -4,7 +4,7 @@
 // so it's split by responsibility into focused routers under ./admin/:
 //
 //   admin/riskConfig.js  — /api/admin/risk-profile + /api/admin/classifiers
-//   admin/maintenance.js — /api/admin/clean-database + /api/admin/history-retention (read/write/prune)
+//   admin/maintenance.js — /api/admin/clean-database (+ /plan) + /api/admin/history-retention (read/write/prune)
 //   admin/dashboard.js   — /api/admin/dashboard-stats + /api/admin/dashboard-timeseries
 //   admin/settings.js    — /api/admin/features/toggle + /api/admin/auth-settings
 //   admin/mcp.js         — /api/admin/mcp (endpoint URL + MCP audit log)

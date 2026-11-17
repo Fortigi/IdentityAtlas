@@ -13,7 +13,7 @@ process.env.USE_SQL = 'true';
 // removed in #663). getPool() is still awaited by the table-existence + ensure*
 // helpers, but it's no longer used as an mssql-style request builder.
 vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
-import { query, queryOne } from '../db/connection.js';
+import { query, queryOne, tx } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('../config/authConfig.js', () => ({
   getAuthState: () => ({
@@ -27,6 +27,13 @@ vi.mock('../config/authConfig.js', () => ({
 const purgeExpiredTombstones = vi.fn(async () => ({ purged: { Principals: 3 } }));
 vi.mock('../ingest/tombstonePurge.js', () => ({ purgeExpiredTombstones: (...a) => purgeExpiredTombstones(...a) }));
 
+// The clean itself (db/cleanDatabase.js) has its own tests; here it is a stub so
+// the route's handling of success and failure can be pinned.
+const cleanDatabase = vi.fn();
+vi.mock('../db/cleanDatabase.js', () => ({ cleanDatabase: (...a) => cleanDatabase(...a) }));
+const scheduleRefresh = vi.fn();
+vi.mock('./ingest/matrixViews.js', () => ({ viewRefresh: { schedule: (...a) => scheduleRefresh(...a) } }));
+
 const { default: router } = await import('./admin.js');
 const app = mountRouter(router);
 
@@ -34,6 +41,9 @@ beforeEach(() => {
   query.mockReset();
   queryOne.mockReset();
   purgeExpiredTombstones.mockClear();
+  cleanDatabase.mockReset();
+  scheduleRefresh.mockClear();
+  tx.mockClear();
 });
 
 // ── GET /admin/risk-profile ──────────────────────────────────────────────────
@@ -245,31 +255,55 @@ describe('POST /admin/clean-database', () => {
     });
   }
 
-  it('wipes existing tables and reports skipped ones', async () => {
-    // 1) existence batch check — only two tables "exist"
-    query.mockResolvedValueOnce({
-      rows: [
-        { tbl: 'Identities', oid: 1234 },
-        { tbl: 'Systems', oid: 5678 },
-      ],
+  it('runs the clean inside one transaction, analyzes what it touched and rebuilds the matrix views', async () => {
+    cleanDatabase.mockResolvedValueOnce({
+      wiped: [{ table: 'Principals', rowsAffected: 4 }],
+      alsoRemoved: [{ table: 'SystemOwners', rowsAffected: 1 }],
+      historyRowsRemoved: 9,
+      touched: ['Principals', 'Systems'],
     });
-    // every subsequent query (DELETE, _history clean, ANALYZE, sequence lookup,
-    // setval, CrawlerConfigs reset) resolves with an empty result.
-    query.mockResolvedValue({ rowCount: 0, rows: [] });
+    query.mockResolvedValue({ rows: [], rowCount: 0 });
     const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe('Database cleaned');
-    const wipedTables = res.body.wiped.map(w => w.table);
-    expect(wipedTables).toContain('Identities');
-    expect(wipedTables).toContain('Systems');
-    expect(res.body.skipped.length).toBeGreaterThan(0);
+    expect(res.body).toEqual({
+      message: 'Database cleaned',
+      wiped: [{ table: 'Principals', rowsAffected: 4 }],
+      alsoRemoved: [{ table: 'SystemOwners', rowsAffected: 1 }],
+      historyRowsRemoved: 9,
+    });
+    expect(tx).toHaveBeenCalledTimes(1);
+    expect(cleanDatabase).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls.map(c => c[0])).toEqual(['ANALYZE "Principals"', 'ANALYZE "Systems"']);
+    expect(scheduleRefresh).toHaveBeenCalledWith('clean-database');
   });
 
-  it('500 when the existence batch check rejects (generic error, no leak)', async () => {
-    query.mockRejectedValueOnce(new Error('boom'));
+  it('still answers 200 when ANALYZE fails after the clean committed', async () => {
+    cleanDatabase.mockResolvedValueOnce({ wiped: [], alsoRemoved: [], historyRowsRemoved: 0, touched: ['Principals'] });
+    query.mockRejectedValue(new Error('analyze broke'));
+    const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
+    expect(res.status).toBe(200);
+    expect(scheduleRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('500 with no SQL detail and no follow-up work when the clean fails (the transaction rolls back)', async () => {
+    cleanDatabase.mockRejectedValueOnce(new Error('update or delete on table "Systems" violates foreign key constraint'));
     const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Clean database failed');
-    expect(JSON.stringify(res.body)).not.toContain('boom'); // internal detail not leaked
+    expect(res.body).toEqual({ error: 'Clean database failed. Nothing was removed.' });
+    expect(JSON.stringify(res.body)).not.toMatch(/Systems|foreign key/);
+    expect(query).not.toHaveBeenCalled();
+    expect(scheduleRefresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /admin/clean-database/plan', () => {
+  it('returns the classification-built lists the dialog shows, with the confirmation phrase', async () => {
+    const res = await request(app).get('/api/admin/clean-database/plan');
+    expect(res.status).toBe(200);
+    expect(res.body.confirmation).toBe('DELETE ALL DATA');
+    expect(res.body.removed.map(g => g.key)).toContain('source');
+    expect(res.body.kept.map(g => g.key)).toContain('manual');
+    expect(res.body.alsoRemoved.find(a => a.tables.includes('ManagerHierarchyOverrides'))).toBeTruthy();
+    expect(query).not.toHaveBeenCalled(); // no database needed to describe the clean
   });
 });

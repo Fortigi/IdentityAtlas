@@ -168,7 +168,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
             {canPowerQuery && <PowerQueryExportSection />}
             <MoveInstanceNote version={version} />
             {canManageSystems && <HistoryRetentionSection />}
-            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} />}
+            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} version={version} />}
           </>
         )}
 
