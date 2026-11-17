@@ -163,6 +163,11 @@ nav:
           - Back up, Restore & Upgrade: admin/backup-restore-upgrade.md
           - Automatic Updates: admin/auto-updates.md
           - Nightly Review: operations/nightly-review.md
+      - Security:
+          - Security Testing Programme: security/index.md
+          - Security Assessment (June 2026): security/assessment.md
+          - Security Assessment (Sept 2026): security/assessment-2026-09.md
+          - Maintenance Audit (June 2026): security/maintenance-audit-2026-06.md
       - Troubleshooting: reference/troubleshooting.md
 
   # ── Where the advanced reader goes for the one detail they need. Lookup
@@ -254,9 +259,6 @@ nav:
           - Documentation Remediation Plan: docs-remediation-plan.md
           - Maintenance Backlog: maintenance-backlog.md
           - User Experience Assessment: ux/assessment.md
-          - Security Assessment: security/assessment.md
-          - Security Assessment (Sept 2026): security/assessment-2026-09.md
-          - Maintenance Audit (June 2026): security/maintenance-audit-2026-06.md
           - Architecture Guidance Review (Sept 2026): architecture/architecture-guidance-review-2026-09.md
           - Architecture Decision Principles: architecture/decision-principles.md
       - Marketing & Press Kit:

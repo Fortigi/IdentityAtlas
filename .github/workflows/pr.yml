@@ -1067,6 +1067,7 @@ jobs:
           bash test/ci-scripts/test-recent-changes.sh
           bash test/ci-scripts/test-gate-wiring.sh
           bash test/ci-scripts/test-coverage-reuse.sh
+          bash test/ci-scripts/test-security-review-seal.sh
 
       # The two Python tools that render and feed the Test Coverage docs page.
       # Both are run only by post-merge workflows (coverage.yml, js-mutation.yml),

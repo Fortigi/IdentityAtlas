@@ -1,6 +1,8 @@
 # Security Assessment & Remediation
 
-Identity Atlas underwent an independent **white-box security assessment and penetration test** by Fortigi in June 2026, commissioned for a regulated financial-services deployment. The review combined a full source-code audit with authenticated and black-box testing of a live deployment.
+Identity Atlas underwent a **white-box security assessment and penetration test** by Fortigi, its supplier, in June 2026, commissioned for a regulated financial-services deployment. The review combined a full source-code audit with authenticated and black-box testing of a live deployment.
+
+How this fits with our other security testing is described in the [Security testing programme](index.md).
 
 This page is a **public, sanitized summary**: it records what was assessed, the findings by severity and status, and the pull requests that remediated them. Step-by-step exploit detail, proof-of-concept payloads, attack chains, and live-environment specifics are deliberately omitted. The full technical report is **confidential** and available to customers and auditors on request.
 
