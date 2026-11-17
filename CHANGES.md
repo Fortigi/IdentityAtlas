@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed the Missing Managers report listing every person under "Identity" even when their org chart was complete — the Entra ID crawler now records each identity's manager, not just each account's.
+- Manager links that point at somebody who was never imported are now cleared for identities as well as accounts, so a person never shows a manager that leads nowhere, and the sync log reports how many links were dropped.
+- The demo dataset now carries the same org chart at person level, so the Missing Managers report shows only the people who genuinely have nobody to certify their access.
+
+## Changes in this PR
+
 - Fixed: closing the detail tab you are looking at now always takes you back to where you came from, even when its address contains a space or an accented letter (e.g. a bookmarked `#department:Human Resources`). Previously the tab disappeared from the tab strip but its page stayed on screen with no tab highlighted.
 
 ## Changes in this PR
