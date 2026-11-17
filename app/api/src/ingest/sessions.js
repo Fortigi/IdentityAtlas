@@ -223,7 +223,7 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
     // the only point at which a manager link can be told apart from one whose
     // manager simply had not arrived yet.
     const managerLinks = await repairManagerLinks(session.client, session.tableName, session.systemId,
-                                                  columnsHaveManagerLink(session.activeColumns));
+                                                  columnsHaveManagerLink(session.activeColumns, session.tableName));
     // Same point, same reason: a contexts session's owners become Accountables
     // once the whole set is in (null for every other table).
     const accountable = await reconcileSessionAccountables(session.client, session.tableName, session.tempTable);

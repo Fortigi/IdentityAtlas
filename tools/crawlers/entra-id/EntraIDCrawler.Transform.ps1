@@ -771,6 +771,23 @@ function ConvertTo-EntraIdentityRecord {
         companyName = $u.companyName
         employeeId  = $u.employeeId
     }
+    # Manager relationship (from the full-sync fetch's $expand=manager).
+    #
+    # An identity's manager is another IDENTITY, so the column is
+    # managerIdentityId — "Identities" has no managerId. The manager's USER id is
+    # the right value because the identity sub-sync keys each identity by the
+    # user's own object id (Sync-EntraIdentities sends identityId = user id), so
+    # the manager's user id is also the manager's identity id.
+    #
+    # Delta runs can't $expand=manager (/users/delta rejects it), so they omit the
+    # key entirely and the upsert keeps the last full-sync value — the same
+    # behaviour principals already have. A manager outside the identity filter
+    # leaves a link to an identity that was never loaded; the ingest's
+    # manager-link repair sweep clears those once the whole set is in the table.
+    if ($u.manager -and $u.manager.id) {
+        $idRec['managerIdentityId'] = $u.manager.id
+    }
+
     # Identities also get custom attributes in extendedAttributes
     if ($CustomUserAttributes.Count -gt 0) {
         $ext = @{}
