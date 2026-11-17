@@ -108,7 +108,7 @@ Each optional feature has a switch in **Admin**. The switch is stored in the dat
 
 | Variable | Default | Feature |
 |---|---|---|
-| `FEATURE_RISK_SCORING` | off | Risk scoring |
+| `FEATURE_RISK_SCORING` | off | Risk scoring (experimental; see [Experimental features](experimental-features.md#risk-scoring)) |
 | `FEATURE_ACCOUNT_LINKING` | on | Account linking. `FEATURE_ACCOUNT_CORRELATION` is read as an older name. Only `false` turns it off. |
 | `FEATURE_EXPERIMENTAL_CRAWLERS` | off | Experimental crawlers |
 | `FEATURE_MATRIX_SHARING` | off | Sharing a matrix with colleagues |
@@ -125,7 +125,7 @@ A switch that is off by default takes `true` to turn on. [Experimental Features]
 
 ### Risk profiles (cloud LLM)
 
-The provider, model, endpoint and API key are set in **Admin → LLM Settings**; the key is stored in the vault. Supported providers are `anthropic`, `openai` and `azure-openai`. When no model is chosen, Anthropic uses `claude-sonnet-4-6` and OpenAI uses `gpt-4o`; Azure OpenAI always needs the deployment name.
+The provider, model, endpoint and API key are set in **Admin → Risk Scoring LLM** (shown while risk scoring is switched on); the key is stored in the vault. Supported providers are `anthropic`, `openai` and `azure-openai`. When no model is chosen, Anthropic uses `claude-sonnet-4-6` and OpenAI uses `gpt-4o`; Azure OpenAI always needs the deployment name.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -172,8 +172,8 @@ The worker never receives the database password or the vault master key. Crawler
 | Setting | Set in | Stored in |
 |---|---|---|
 | Crawler credentials, selected objects, custom attributes, identity filter, schedules | Admin → Crawlers | `CrawlerConfigs` (credentials encrypted in the vault) |
-| Feature switches | Admin → Experimental, Admin → Risk Scoring | `WorkerConfig`, keys `FEATURE_*` |
-| LLM provider and model | Admin → LLM Settings | `WorkerConfig`, key `LLM_CONFIG`; the API key in the vault |
+| Feature switches | Admin → Experimental | `WorkerConfig`, keys `FEATURE_*` |
+| LLM provider and model (risk scoring) | Admin → Risk Scoring LLM | `WorkerConfig`, key `LLM_CONFIG`; the API key in the vault |
 | Sign-in settings | The `auth-config` command | `WorkerConfig`, keys `AUTH_*` |
 | Role-to-permission mapping | Admin → Roles & Permissions | `WorkerConfig`, key `AUTH_ROLE_PERMISSIONS` |
 | Account linking | Admin → Account Linking | `AccountLinkingConfig` |

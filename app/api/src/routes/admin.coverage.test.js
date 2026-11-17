@@ -9,6 +9,13 @@ import { mountRouter, mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF
+// behaviour is asserted in admin.test.js.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
+
 // admin handlers use native db.query / db.queryOne (the mssql compat shim was
 // removed in #663). getPool() is still awaited by the table-existence + ensure*
 // helpers, but it's no longer used as an mssql-style request builder.

@@ -2,7 +2,7 @@
 
 These endpoints read risk scores, let an analyst adjust a single score, and start or follow a scoring run. Scoring is started from **Admin → Risk Scoring** in the UI, which calls the run endpoints below; you can call them yourself too. Authentication works as described in the [API overview](index.md#authentication).
 
-Risk scoring is an optional feature, switched off on a new install. See [How Scoring Works](../risk-scoring/overview.md) for what the scores mean.
+Risk scoring is an [experimental feature](../reference/experimental-features.md#risk-scoring), switched off on a new install. While it is off, every endpoint on this page answers `404` with `{"error":"This feature is not enabled"}`. See [How Scoring Works](../risk-scoring/overview.md) for what the scores mean.
 
 ---
 

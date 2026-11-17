@@ -1,7 +1,7 @@
 // PROTOTYPE — "describe it" assistant inside the report builder.
 //
 // The analyst types what they want; the local model (chosen by an admin under
-// Admin → LLM) answers with a report definition or one clarifying question.
+// Admin → Experimental, under Custom reports) answers with a report definition or one clarifying question.
 // Follow-up messages refine the definition currently in the builder — including
 // manual edits, which are sent along as the latest version.
 //
@@ -30,7 +30,7 @@ function Unavailable({ status }) {
   return (
     <p className="text-sm text-gray-600 dark:text-gray-400">
       The report generator is not available ({unavailableReason(status)}).
-      You can still build the report with the definition editor below. An administrator can choose the model under Admin → LLM.
+      You can still build the report with the definition editor below. An administrator can check the model under Admin → Experimental.
     </p>
   );
 }

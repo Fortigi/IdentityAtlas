@@ -45,6 +45,13 @@ const AdminRoute = ({ navigate, forceRefresh, onRiskScoresRefresh, features, ver
              features={features} version={version} />
 );
 
+// Risk scoring is experimental: a #risk-scores link followed while it is off (or
+// before /api/features has said it is on) shows a one-line notice, never the page
+// — whose endpoints the API refuses while the flag is off anyway.
+const RiskScoresRoute = ({ openDetailTab, riskScoresRefreshKey, features }) => (features?.riskScoring === true
+  ? <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />
+  : <p className="max-w-6xl mx-auto px-2 text-sm text-gray-600 dark:text-gray-400">Risk scoring is not switched on for this installation.</p>);
+
 // pageKey → component. Two things make dispatch on the user-controlled hash key
 // provably safe (CodeQL js/unvalidated-dynamic-method-call):
 //   1. a Map lookup can only return an explicitly-added entry — never an
@@ -62,7 +69,7 @@ export const PAGE_ROUTES = new Map([
   ['groups',          GroupsRoute],
   ['systems',         () => <SystemsPage />],
   ['access-packages', ({ openDetailTab }) => <AccessPackagesPage onOpenDetail={openDetailTab} />],
-  ['risk-scores',     ({ openDetailTab, riskScoresRefreshKey }) => <RiskScoringPage key={riskScoresRefreshKey} onOpenDetail={openDetailTab} />],
+  ['risk-scores',     RiskScoresRoute],
   ['identities',      ({ openDetailTab }) => <IdentitiesPage onOpenDetail={openDetailTab} />],
   ['contexts',        ({ navigate, openDetailTab }) => <ContextsPage onOpenDetail={openDetailTab} onNavigate={navigate} />],
   ['reports',         ({ openDetailTab }) => <ReportsPage onOpenDetail={openDetailTab} />],

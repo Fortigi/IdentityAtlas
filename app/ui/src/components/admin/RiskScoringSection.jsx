@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { useFetch } from '@ui/hooks/useFetch';
-import useFeatureToggle from '@ui/hooks/useFeatureToggle';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { MetaBadge, JsonViewer, Section, NotConfigured, FeatureToggleCard } from './adminUi';
+import { MetaBadge, JsonViewer, Section, NotConfigured } from './adminUi';
 import { RiskProfileIcon, ClassifiersIcon } from './adminIcons';
 import { fmt } from './adminFormat';
 const RiskProfileWizard = lazy(() => import('../RiskProfileWizard'));
@@ -334,22 +332,14 @@ function NewRiskProfileLauncher({ onRiskScoresRefresh }) {
   );
 }
 
-// ─── Risk Scoring sub-tab — combines profile + classifiers + feature toggle ──
+// ─── Risk Scoring sub-tab — profile + classifiers + on-demand run ────────────
+// The on/off switch lives on Admin → Experimental; this tab only exists while
+// risk scoring is on (adminTabs.js: feature 'riskScoring').
 export default function RiskScoringSection({ onRiskScoresRefresh }) {
   const { authFetch } = useAuth();
-  const { toggle, toggling, error } = useFeatureToggle('riskScoring');
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState(null);
   const [runErr, setRunErr] = useState(null);
-
-  // /api/features is public (no auth header needed); use a stable plain-fetch
-  // wrapper so useFetch's identity-based effect doesn't refetch every render.
-  const plainFetch = useCallback((u) => fetch(u), []);
-  const { data: features } = useFetch('/api/features', { authFetch: plainFetch });
-
-  const handleToggle = () => {
-    if (features) toggle(features.riskScoring === false);
-  };
 
   const runNow = async () => {
     setRunning(true); setRunMsg(null); setRunErr(null);
@@ -367,64 +357,38 @@ export default function RiskScoringSection({ onRiskScoresRefresh }) {
     }
   };
 
-  const enabled = features?.riskScoring !== false;
-
   return (
     <div className="space-y-4">
-      {/* Feature toggle card */}
-      <FeatureToggleCard
-        title="Risk Scoring Feature"
-        enabled={enabled}
-        busy={toggling}
-        disabled={features === null}
-        onToggle={handleToggle}
-        toggleTitle={enabled ? 'Disable risk scoring' : 'Enable risk scoring'}
-      >
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Risk scoring assigns a 0-100 risk score to every identity based on direct classifier matches,
-          membership analysis, structural hygiene checks, and cross-entity propagation.
-          When disabled, the Risk Scores tab is hidden from the main navigation and the scoring engine
-          is skipped during sync runs.
-        </p>
-        {error && (
-          <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-sm text-red-700 dark:text-red-300">{error}</div>
-        )}
-      </FeatureToggleCard>
+      <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-900 dark:text-amber-200">
+        Risk scoring is an <span className="font-medium">experimental</span> feature: it is kept, but not certified
+        per release. Switch it on or off under <span className="font-medium">Admin → Experimental</span>.
+      </div>
 
-      {/* Risk profile + classifiers — only render when feature is enabled */}
-      {enabled ? (
-        <>
-          <NewRiskProfileLauncher onRiskScoresRefresh={onRiskScoresRefresh} />
+      <NewRiskProfileLauncher onRiskScoresRefresh={onRiskScoresRefresh} />
 
-          {/* Run now */}
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Run risk scoring</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Scoring runs automatically after every crawl. Use this to re-score the active classifier on demand.
-                </p>
-                {runMsg && <div className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{runMsg}</div>}
-                {runErr && <div className="mt-2 text-sm text-red-700 dark:text-red-300">{runErr}</div>}
-              </div>
-              <button
-                onClick={runNow}
-                disabled={running}
-                className="flex-shrink-0 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {running ? 'Starting…' : 'Run now'}
-              </button>
-            </div>
+      {/* Run now */}
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Run risk scoring</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Scoring runs automatically after every crawl. Use this to re-score the active classifier on demand.
+            </p>
+            {runMsg && <div className="mt-2 text-sm text-emerald-700 dark:text-emerald-300">{runMsg}</div>}
+            {runErr && <div className="mt-2 text-sm text-red-700 dark:text-red-300">{runErr}</div>}
           </div>
-
-          <RiskProfileSection />
-          <ClassifiersSection />
-        </>
-      ) : (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
-          Risk Scoring is disabled. Enable the feature toggle above to configure profiles and classifiers.
+          <button
+            onClick={runNow}
+            disabled={running}
+            className="flex-shrink-0 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {running ? 'Starting…' : 'Run now'}
+          </button>
         </div>
-      )}
+      </div>
+
+      <RiskProfileSection />
+      <ClassifiersSection />
     </div>
   );
 }

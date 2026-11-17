@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
 import { formatRelativeTime as formatTimeAgo } from '@ui/utils/formatters';
 
 function formatDateTime(dateStr) {
@@ -42,6 +43,9 @@ function Badge({ value, map }) {
 
 export default function SyncLogPage({ navigate }) {
   const { authFetch } = useAuth();
+  // Risk scoring is experimental: while it is off the API refuses its run list
+  // (so no runs are listed) and there is no filter for them either.
+  const riskOn = useFeatureFlags().riskScoring === true;
   const [logs, setLogs] = useState([]);
   const [runs, setRuns] = useState([]);
   const [linkRuns, setLinkRuns] = useState([]);
@@ -59,7 +63,7 @@ export default function SyncLogPage({ navigate }) {
           authFetch('/api/sync-log?limit=200'),
           authFetch('/api/context-plugins/runs?limit=200').catch(() => null),
           authFetch('/api/account-linking/runs').catch(() => null),
-          authFetch('/api/risk-scoring/runs').catch(() => null),
+          riskOn ? authFetch('/api/risk-scoring/runs').catch(() => null) : null,
         ]);
         if (!logRes.ok) throw new Error(`HTTP ${logRes.status}`);
         const logData = await logRes.json();
@@ -75,7 +79,7 @@ export default function SyncLogPage({ navigate }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [authFetch]);
+  }, [authFetch, riskOn]);
 
   // Normalise the three sources into one time-sorted activity stream, each row
   // linking back to whatever produced it.
@@ -141,7 +145,7 @@ export default function SyncLogPage({ navigate }) {
     { key: 'plugin', label: 'Plugin runs' },
     { key: 'linking', label: 'Account linking' },
     { key: 'scoring', label: 'Risk scoring' },
-  ];
+  ].filter(c => riskOn || c.key !== 'scoring');
   const th = 'text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 sticky top-0 bg-gray-50 dark:bg-gray-700 z-10';
 
   return (

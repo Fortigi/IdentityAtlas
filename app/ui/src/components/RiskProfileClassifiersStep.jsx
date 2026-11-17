@@ -28,7 +28,7 @@ export default function RiskProfileClassifiersStep({
       {genClassifiers && (
         <RiskProfileProgressPanel title="Generating regex classifiers from the profile…" elapsedSec={classifierElapsedSec}>
           <div>The LLM is translating the profile's regulations, critical roles, and known systems into regex patterns that will match high-risk principals during scoring.</div>
-          <div className="opacity-70 mt-2">This typically takes 30–90 seconds with Opus — classifiers are larger than profiles. Switch to Sonnet or Haiku in Admin → LLM Settings for faster (but less nuanced) output.</div>
+          <div className="opacity-70 mt-2">This typically takes 30–90 seconds with Opus — classifiers are larger than profiles. Switch to Sonnet or Haiku in Admin → Risk Scoring LLM for faster (but less nuanced) output.</div>
         </RiskProfileProgressPanel>
       )}
       {classifierError && <div className="text-sm text-red-700 dark:text-red-400 mt-2">{classifierError}</div>}

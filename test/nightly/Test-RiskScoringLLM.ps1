@@ -44,6 +44,11 @@ Param(
 )
 
 $ErrorActionPreference = 'Continue'
+
+# Risk scoring is experimental and off on a fresh install; its endpoints 404 until
+# the flag is on. Shared helpers to read and switch it.
+. (Join-Path $PSScriptRoot 'RiskScoringFeature.ps1')
+
 $standaloneFailures = 0
 
 function Write-Result {
@@ -336,6 +341,9 @@ function Remove-TestData {
 # Early stops use `return <code>`; the script body decides exit vs return.
 function Invoke-RiskScoringLLMTest {
     Write-Host "`n=== Risk Scoring — full LLM flow ===" -ForegroundColor Cyan
+
+    # The pre-flight reads /admin/llm/status, which 404s while the flag is off.
+    if (-not (Initialize-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -ResultName 'RiskLLM/FeatureOn')) { return 1 }
 
     if (-not (Test-PreflightLLMConfigured)) { return 0 }
     if (-not (Test-PreflightDemoData))      { return 0 }

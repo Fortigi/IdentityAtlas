@@ -13,8 +13,12 @@
 import { Router } from 'express';
 import listRouter from './riskScores/list.js';
 import entityRouter from './riskScores/entity.js';
+import { requireFeature } from '../featureFlags.js';
 
 const router = Router();
+// Scores stay in the database while risk scoring is off, but are not served.
+// Path-scoped: the router shares the '/api' mount with every other one.
+router.use('/risk-scores', requireFeature('riskScoring'));
 router.use(listRouter);
 router.use(entityRouter);
 

@@ -1,7 +1,7 @@
 // Unit tests for routes/riskScoringRuns.js — start/list/get scoring runs.
 // DB + scoring engine mocked. Auth disabled by default so the gate passes.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
 
@@ -12,6 +12,12 @@ import { query, queryOne } from '../db/connection.js';
 
 const runScoring = vi.fn(() => Promise.resolve());
 vi.mock('../riskscoring/engine.js', () => ({ runScoring: (...a) => runScoring(...a) }));
+
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF behaviour is asserted below.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 
 const { default: router } = await import('./riskScoringRuns.js');
 const app = mountRouter(router);
@@ -113,5 +119,26 @@ describe('GET /risk-scoring/runs/:id', () => {
     queryOne.mockRejectedValueOnce(new Error('x'));
     const res = await request(app).get('/api/risk-scoring/runs/3');
     expect(res.status).toBe(500);
+  });
+});
+
+// While the experimental riskScoring flag is off, no run starts and no run
+// history is shown — the Logs page reads the list for every role.
+describe('with the riskScoring flag off', () => {
+  afterEach(() => { flags.riskScoring = true; });
+  const calls = [
+    ['POST /risk-scoring/runs', a => request(a).post('/api/risk-scoring/runs').send({})],
+    ['GET /risk-scoring/runs', a => request(a).get('/api/risk-scoring/runs')],
+    ['GET /risk-scoring/runs/:id', a => request(a).get('/api/risk-scoring/runs/3')],
+  ];
+
+  it.each(calls)('%s answers 404 without reading the database or starting the engine', async (_name, call) => {
+    flags.riskScoring = false;
+    const res = await call(app);
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'This feature is not enabled' });
+    expect(query).not.toHaveBeenCalled();
+    expect(queryOne).not.toHaveBeenCalled();
+    expect(runScoring).not.toHaveBeenCalled();
   });
 });

@@ -8,12 +8,16 @@
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { requirePermission } from '../../middleware/auth.js';
+import { requireFeature } from '../../featureFlags.js';
 
 const router = Router();
 // Same audience as the Admin → Risk Scoring tab that renders these
 // (SEC-2026-09 M-01).
 const readRiskConfig = requirePermission('admin.llm', 'admin.crawlers');
 const useSql = process.env.USE_SQL === 'true';
+
+// Only the Risk Scoring tab reads these; they do not exist while it is off.
+router.use(['/admin/risk-profile', '/admin/classifiers'], requireFeature('riskScoring'));
 
 // ── GET /api/admin/risk-profile ───────────────────────────────────
 // Returns the active v5 risk profile (or the most recent one if none is active).
