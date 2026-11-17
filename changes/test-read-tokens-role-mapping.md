@@ -1,0 +1,2 @@
+- Added automated checks, run with sign-in on against a real database, that a read API key works until it is revoked or expires, is refused on any write or admin page, and is never shown again in the key list
+- Added automated checks that a change on Admin → Roles & Permissions applies to the very next request, that resetting to the defaults works, that an admin cannot remove their own last admin access, and that unknown permission names are rejected
