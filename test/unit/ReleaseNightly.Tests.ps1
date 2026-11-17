@@ -206,10 +206,17 @@ Describe 'Dependabot''s release-line entries' {
         $script:Config = Get-Content -Raw (Join-Path $script:Root '.github/dependabot.yml')
         $script:Sample = "  # ─── The stable release line: release/6.1 ───`n  - package-ecosystem: npm`n    target-branch: `"release/6.1`"`n  - package-ecosystem: docker`n    target-branch: `"release/6.1`"`n"
     }
-    It 'the committed file points every entry at one line, the newest stable one' {
-        $tags = @(git -C $script:Root tag --list 'v*')
-        $line = Get-ReleaseLineName @(Get-StableTag $tags)[0]
-        Test-DependabotTargetsLine -Config $script:Config -Line $line | Should -BeTrue
+    It 'the committed file points every entry at one release line' {
+        $targets = @([regex]::Matches($script:Config, '(?m)^\s*target-branch:\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+        $targets.Count | Should -Be 1
+        $targets[0] | Should -Match '^release/\d+\.\d+$'
+        Test-DependabotTargetsLine -Config $script:Config -Line $targets[0] | Should -BeTrue
+    }
+    # CI checks out without tags; this half needs them, so it only runs where they exist.
+    It 'and that line is the newest stable one, when tags are available' {
+        $stable = Get-StableTag @(git -C $script:Root tag --list 'v*') | Select-Object -First 1
+        if (-not $stable) { Set-ItResult -Skipped -Because 'this checkout has no release tags'; return }
+        Test-DependabotTargetsLine -Config $script:Config -Line (Get-ReleaseLineName $stable) | Should -BeTrue
     }
     It 'is not on the line when one entry lags behind' {
         Test-DependabotTargetsLine -Config ($script:Sample + "    target-branch: `"release/6.0`"`n") -Line 'release/6.1' | Should -BeFalse
