@@ -10,6 +10,7 @@
 
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
+import { requireFeature } from '../featureFlags.js';
 import {
   getLLMConfig,
   saveLLMConfig,
@@ -24,6 +25,12 @@ import { hasSecret } from '../secrets/vault.js';
 
 const router = Router();
 const gate = requirePermission('admin.llm');
+
+// This provider is used only by risk scoring (routes/riskProfiles.js), so it
+// exists only while risk scoring is on. Path-scoped: the router is mounted on the
+// shared '/api' prefix, and an unscoped gate would answer 404 for every route
+// mounted after it.
+router.use('/admin/llm', requireFeature('riskScoring'));
 
 // GET /api/admin/llm/config — current settings (no API key)
 router.get('/admin/llm/config', gate, async (_req, res) => {

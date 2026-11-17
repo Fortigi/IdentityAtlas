@@ -1,0 +1,6 @@
+- Risk scoring is now an experimental feature: its on/off switch moved from Admin → Risk Scoring to Admin → Experimental. It is kept but not certified per release. Installs that had it switched on keep it on.
+- While risk scoring is off it does nothing and shows nothing: the Risk Scoring and LLM admin tabs, the Risk Scores page, the Dashboard's Risk Scoring card, the Risk scoring filter and runs on the Logs page, and risk data on user and resource details are all hidden, and no scoring run starts after a crawl.
+- While risk scoring is off, the API refuses every risk-scoring and risk-LLM endpoint (scores, profiles, classifiers, runs, the risk configuration and the LLM provider settings) with 404. Stored scores, profiles, classifiers and settings are kept, and come back when it is switched on again.
+- Renamed the Admin → LLM Settings tab to Risk Scoring LLM, because risk scoring is the only feature that uses that provider. A link to it, or to Admin → Risk Scoring, while risk scoring is off now opens Admin → Experimental, where the switch is.
+- Moved the status of the local model used by custom reports and the other assistants to Admin → Experimental, under Custom reports, so it stays reachable when risk scoring is off.
+- Fixed risk scoring still running after every crawl while the feature was switched off.

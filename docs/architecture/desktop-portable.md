@@ -368,4 +368,4 @@ In real PostgreSQL mode the database requires a password (`scram-sha-256`, no `t
 
 **Secret storage**
 
-The master encryption key is stored in `%APPDATA%\IdentityAtlas\.master-key` (plain text, user-only access). Crawler credentials are stored encrypted using AES-256-GCM in the database.
+The master encryption key is stored in `.master-key` in the [data directory](#data-location) (plain text, user-only access). To back it up or move it to another machine, see [Back up, restore and upgrade](../admin/backup-restore-upgrade.md#portable). Crawler credentials are stored encrypted using AES-256-GCM in the database.

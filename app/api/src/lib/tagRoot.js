@@ -5,7 +5,7 @@
 //
 // Every query that lists, reads or deletes tags must leave the root out, and
 // bootstrap must find it by the marker. One predicate for all of them, so the
-// three sites (bootstrap, tags routes, curated import) cannot drift apart.
+// sites that use it (bootstrap, tags routes) cannot drift apart.
 
 export const TAG_ROOT_MARKER = { tagRoot: true };
 

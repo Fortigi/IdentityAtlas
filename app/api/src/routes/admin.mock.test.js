@@ -4,7 +4,7 @@
 // load the router with USE_SQL=true). This file covers the complementary
 // "database not configured" guards that every admin handler checks up front —
 // the `if (!useSql)` / `if (process.env.USE_SQL !== 'true')` early returns the
-// split moved into admin/{curatedData,riskConfig,maintenance,dashboard,settings}.js.
+// split moved into admin/{riskConfig,maintenance,dashboard,settings}.js.
 // Auth-settings has no such guard, so it still renders.
 
 import { describe, it, expect, vi } from 'vitest';
@@ -13,6 +13,12 @@ import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'false';
 
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF
+// behaviour is asserted in admin.test.js.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 vi.mock('../db/connection.js', () => ({ getPool: async () => ({}), query: vi.fn(), queryOne: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('../config/authConfig.js', () => ({ getAuthState: () => ({ enabled: false, loaded: true }) }));
@@ -32,14 +38,6 @@ describe('admin — database-not-configured guards (USE_SQL off)', () => {
     const res = await request(app).get('/api/admin/classifiers');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ available: false });
-  });
-
-  it('GET /admin/export/curated -> 400 (SQL mode required)', async () => {
-    expect((await request(app).get('/api/admin/export/curated')).status).toBe(400);
-  });
-
-  it('POST /admin/import/curated -> 400 (SQL mode required)', async () => {
-    expect((await request(app).post('/api/admin/import/curated').send({ tags: [], categories: [] })).status).toBe(400);
   });
 
   const guarded503 = [

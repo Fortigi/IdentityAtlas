@@ -30,7 +30,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 
 | Permission | Label | Gated endpoint (representative) |
 |---|---|---|
-| `data.export.ui` | Export to Excel/CSV | `GET /api/admin/export/curated`, `POST /api/admin/data-export/workbook` |
+| `data.export.ui` | Export to Excel/CSV | `POST /api/admin/data-export/workbook` |
 | `data.export.apikey` | Generate read-only API keys | `POST /api/admin/read-tokens` (mint your own `fgr_` token) |
 | `data.share` | Create matrix share links | `POST /api/matrix/shares` (also `GET /api/matrix/shares` and `POST /api/matrix/shares/:id/revoke` — the Shared matrices management page). Only takes effect while the experimental **Matrix sharing** feature is switched on — see [Experimental features](experimental-features.md#matrix-sharing). See [Sharing a matrix](../ui/sharing-a-matrix.md). |
 
@@ -52,8 +52,8 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | Permission | Label | Gated endpoint (representative) |
 |---|---|---|
 | `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs, account-linking config + runs (`GET/PUT /api/account-linking/config`, `POST /api/account-linking/runs`), risk profile/classifier reads (`GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
-| `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database, history-retention (read + write), auto-update status/log/toggle (`/api/admin/updates/*`) |
-| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
+| `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database (and its `/plan`), history-retention (read + write), auto-update status/log/toggle (`/api/admin/updates/*`) |
+| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) — all `404` while risk scoring is switched off |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |

@@ -28,8 +28,8 @@ flowchart LR
 
 ## Setting it up
 
-1. **Configure an AI provider.** Go to **Admin → LLM Settings** and add credentials for Anthropic, OpenAI or Azure OpenAI. The provider is used to write the risk profile and the classifiers, never to score.
-2. **Switch the feature on.** In **Admin → Risk Scoring**, turn on **Risk Scoring Feature**. This also makes the **Risk Scores** tab available in the main navigation.
+1. **Switch the feature on.** Risk scoring is [experimental](../reference/experimental-features.md#risk-scoring): in **Admin → Experimental**, turn on **Risk scoring**. This adds the **Risk Scoring** and **Risk Scoring LLM** admin tabs and makes the **Risk Scores** tab available in the main navigation.
+2. **Configure an AI provider.** Go to **Admin → Risk Scoring LLM** and add credentials for Anthropic, OpenAI or Azure OpenAI. The provider is used to write the risk profile and the classifiers, never to score.
 3. **Click New profile.** The Risk Profile Wizard walks through five steps:
 
     | Step | What you do |

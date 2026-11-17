@@ -25,6 +25,7 @@ import { GATED_ENDPOINTS, IMPLICIT_PERMISSIONS, RESERVED_PERMISSIONS } from './p
 // the flags those representative endpoints sit behind start on.
 process.env.FEATURE_MATRIX_SHARING = 'true';
 process.env.FEATURE_MCP_SERVER = 'true';
+process.env.FEATURE_RISK_SCORING = 'true';
 // The MCP server only runs with its public address configured (mcp/resource.js, F-08);
 // without it /mcp answers 503 before any permission is looked at.
 process.env.PUBLIC_BASE_URL = 'https://atlas.example.com';

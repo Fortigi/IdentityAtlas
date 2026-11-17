@@ -38,7 +38,7 @@ function routes(overrides = {}) {
 describe('DashboardPage (mounted)', () => {
   it('renders stat cards and feature status after load', async () => {
     const onNavigate = vi.fn();
-    renderWithProviders(h(DashboardPage, { onNavigate }), { auth: { authFetch: routes() } });
+    renderWithProviders(h(DashboardPage, { onNavigate }), { auth: { authFetch: routes() }, features: { riskScoring: true } });
 
     // Stat grid populates only after the dashboard-stats fetch resolves.
     // "Business Roles" and "Identity Members" are unique to the stat cards
@@ -54,6 +54,24 @@ describe('DashboardPage (mounted)', () => {
 
     // Version card rendered from /api/version.
     expect(screen.getByText('v5.3.20260419.1430')).toBeInTheDocument();
+  });
+
+  // Risk scoring is experimental: while its flag is off the dashboard says nothing
+  // about it — even when the stats still carry risk numbers, the card is not drawn.
+  it('draws no Risk Scoring card while risk scoring is off', async () => {
+    renderWithProviders(h(DashboardPage), { auth: { authFetch: routes() }, features: { riskScoring: false } });
+    expect(await screen.findByText('Certifications')).toBeInTheDocument();
+    expect(screen.getByText('Crawlers')).toBeInTheDocument();
+    expect(screen.queryByText('Risk Scoring')).toBeNull();
+    expect(screen.queryByText(/entities scored/)).toBeNull();
+  });
+
+  it('the Risk Scoring card opens Admin → Risk Scoring and reports the scored count while on', async () => {
+    const onNavigate = vi.fn();
+    renderWithProviders(h(DashboardPage, { onNavigate }), { auth: { authFetch: routes() }, features: { riskScoring: true } });
+    expect(await screen.findByText('900 entities scored')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Risk Scoring'));
+    expect(onNavigate).toHaveBeenCalledWith('admin?sub=risk-scoring');
   });
 
   it('flattens stat cards to the standard surface — no gradient overuse (#756)', async () => {
