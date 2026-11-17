@@ -191,10 +191,10 @@ export function createApp() {
   app.use(cors(corsOptions));
 
   // ─── Body parsing with size limits ───────────────────────────────
-  // Route-specific parsers for large payloads are set below (ingest: 10mb, import: 2mb).
+  // The ingest routes set their own, larger parser below.
   // The global parser handles all other routes with a conservative limit.
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/ingest') || req.path.startsWith('/api/admin/import')) {
+    if (req.path.startsWith('/api/ingest')) {
       return next(); // Skip global parser — route-specific parsers handle these
     }
     express.json({ limit: '100kb' })(req, res, next);
@@ -426,7 +426,6 @@ export function createApp() {
   // for every admin request in mount order, so it would gate unrelated routers'
   // endpoints too. Per-route gates fire only when that router's route matches.
   app.use('/api', authMiddleware, contextPluginsRouter);
-  app.use('/api/admin/import', express.json({ limit: '2mb' }));  // larger limit for import payloads
   // Role -> permission mapping (Admin → Authentication page). Gated per-route
   // by admin.auth inside the router so it's editable only by someone whose own
   // mapping already grants it.
@@ -434,8 +433,8 @@ export function createApp() {
   // The context-owner access switch on the same page — admin.auth per route.
   app.use('/api', authMiddleware, contextOwnerAccessRouter);
   // adminRouter is a grab-bag of /admin/* endpoints with mixed permission needs
-  // (read dashboards, write retention config, toggle feature flags, export curated
-  // dumps, …). Every handler in routes/admin/*.js carries its own gate — none is
+  // (read dashboards, write retention config, toggle feature flags, clean the
+  // database, …). Every handler in routes/admin/*.js carries its own gate — none is
   // authentication-only; auth/adminRouteGates.test.js fails on an ungated
   // /admin/* route.
   app.use('/api', authMiddleware, adminRouter);

@@ -167,7 +167,7 @@ The Web App restarts automatically (~30 seconds). Refresh the app URL — you'll
 ### Quick smoke test
 
 - No yellow "Authentication is disabled" banner (it only shows if you explicitly set `AUTH_ENABLED=false`)
-- **Admin** sub-tabs visible (signed in with the `Admin` role): Crawlers · Plugins · Account Linking · Risk Scoring · LLM Settings · Performance · Authentication · Roles & Permissions · Data · Experimental · Updates · About
+- **Admin** sub-tabs visible (signed in with the `Admin` role): Crawlers · Plugins · Account Linking · Performance · Authentication · Roles & Permissions · Data · Experimental · Updates · About (Risk Scoring and Risk Scoring LLM appear only once risk scoring is switched on under Experimental)
 - **Authentication** shows the current sign-in settings but cannot change them — on Azure you change them in the Web App's environment variables (see [Changing something later](#changing-something-later))
 
 ### Common first-sign-in issues

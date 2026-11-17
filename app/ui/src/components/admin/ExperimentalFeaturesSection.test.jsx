@@ -46,14 +46,15 @@ const EDGE_VERSION = '5.649.20260908.1151';
 
 // matrixSharing defaults to the OPPOSITE of experimentalCrawlers, so the two
 // cards never agree: a switch wired to the wrong flag shows the wrong state.
-// customReports, contextAssistant, mcpServer, orgKnowledge and the two source-owner settings follow matrixSharing for the same reason.
-function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers) {
+// customReports, contextAssistant, mcpServer, orgKnowledge, riskScoring and the two source-owner settings follow matrixSharing for the same reason.
+// `overrides` sets a flag apart from both, for tests that need it to disagree with matrixSharing too.
+function render(experimentalCrawlers, toggleResponse, matrixSharing = !experimentalCrawlers, overrides = {}, auth = {}) {
   return renderWithProviders(
     h(ExperimentalFeaturesSection, {
-      features: { riskScoring: false, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, mcpServer: matrixSharing, sourceOwnerAccountables: matrixSharing, sourceOwnerNameMatch: matrixSharing, orgKnowledge: matrixSharing },
+      features: { riskScoring: matrixSharing, accountLinking: true, experimentalCrawlers, matrixSharing, customReports: matrixSharing, contextAssistant: matrixSharing, mcpServer: matrixSharing, sourceOwnerAccountables: matrixSharing, sourceOwnerNameMatch: matrixSharing, orgKnowledge: matrixSharing, ...overrides },
       version: EDGE_VERSION,
     }),
-    { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {} }) } },
+    { auth: { authFetch: makeAuthFetch({ '/api/admin/features/toggle': toggleResponse ?? {}, ...auth.routes }), ...auth.user } },
   );
 }
 
@@ -62,9 +63,9 @@ describe('ExperimentalFeaturesSection', () => {
     render(false);
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
-    // Eight cards: experimental crawlers off; matrix sharing, custom reports, the context assistant, the MCP server, organisation knowledge and both source-owner settings on.
+    // Nine cards: experimental crawlers off; matrix sharing, custom reports, the context assistant, the MCP server, organisation knowledge, risk scoring and both source-owner settings on.
     expect(screen.getAllByText('Disabled')).toHaveLength(1);
-    expect(screen.getAllByText('Enabled')).toHaveLength(7);
+    expect(screen.getAllByText('Enabled')).toHaveLength(8);
   });
 
   it('shows the flag as Enabled when the feature is on', async () => {
@@ -72,7 +73,7 @@ describe('ExperimentalFeaturesSection', () => {
     const toggle = await screen.findByRole('switch', { name: 'Experimental crawlers' });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(screen.getAllByText('Enabled')).toHaveLength(1);
-    expect(screen.getAllByText('Disabled')).toHaveLength(7);
+    expect(screen.getAllByText('Disabled')).toHaveLength(8);
   });
 
   it('lists the experimental crawlers this build ships, by name — so the switch says what it covers', async () => {
@@ -170,6 +171,68 @@ describe('ExperimentalFeaturesSection', () => {
       renderWithProviders(h(ExperimentalFeaturesSection, { features: null, version: EDGE_VERSION }),
         { auth: { authFetch: makeAuthFetch({}) } });
       expect(await screen.findByRole('switch', { name: 'Matrix sharing' })).toBeDisabled();
+    });
+  });
+
+  // Risk scoring is frozen as experimental: its switch moved here from the Risk
+  // Scoring tab. Its flag is set apart from every other one (crawlers on,
+  // matrixSharing and friends off, or the reverse), so a card wired to another
+  // flag shows the wrong state.
+  describe('Risk scoring', () => {
+    it('reads its own flag — and says what off guarantees', async () => {
+      render(false, undefined, true, { riskScoring: false });
+      const sw = await screen.findByRole('switch', { name: 'Risk scoring' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'));
+      expect(screen.getByText(/not certified per release/)).toBeInTheDocument();
+      expect(screen.getByText(/makes the API refuse every\s+risk endpoint/)).toBeInTheDocument();
+    });
+
+    it('turns it ON by posting riskScoring:true, then reloads', async () => {
+      const { authFetch } = render(true, undefined, true, { riskScoring: false });
+      await userEvent.click(await screen.findByRole('switch', { name: 'Risk scoring' }));
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'riskScoring', enabled: true });
+    });
+
+    it('turns it OFF by posting riskScoring:false', async () => {
+      const { authFetch } = render(false, undefined, false, { riskScoring: true });
+      const sw = await screen.findByRole('switch', { name: 'Risk scoring' });
+      await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'true'));
+      await userEvent.click(sw);
+      await waitFor(() => expect(reload).toHaveBeenCalled());
+      const [, opts] = authFetch.mock.calls.find(([u]) => String(u).includes('/features/toggle'));
+      expect(JSON.parse(opts.body)).toEqual({ feature: 'riskScoring', enabled: false });
+    });
+  });
+
+  // The local model behind custom reports moved here from the old LLM tab, which
+  // is now the risk-scoring provider only and disappears with that flag.
+  describe('Local model status (under Custom reports)', () => {
+    const MODEL = { '/api/admin/nl-reports/config': { reachable: true, model: 'local-model-x', fixed: true } };
+
+    it('is shown while custom reports are on, to a user with admin.llm', async () => {
+      render(true, undefined, false, { customReports: true }, {
+        routes: MODEL, user: { hasWildcard: false, permissions: new Set(['admin.feature-flags', 'admin.llm']) },
+      });
+      expect(await screen.findByText('local-model-x')).toBeInTheDocument();
+      expect(screen.getByText('Model server reachable')).toBeInTheDocument();
+    });
+
+    it('is not shown while custom reports are off, and is not even fetched', async () => {
+      const { authFetch } = render(true, undefined, false, { customReports: false }, { routes: MODEL });
+      await screen.findByRole('switch', { name: 'Custom reports' });
+      expect(screen.queryByText(/Local LLM for report generator/)).toBeNull();
+      expect(authFetch.mock.calls.some(([u]) => String(u).includes('/nl-reports/config'))).toBe(false);
+    });
+
+    it('is not shown to a user without admin.llm — its endpoint would refuse them', async () => {
+      const { authFetch } = render(true, undefined, false, { customReports: true }, {
+        routes: MODEL, user: { hasWildcard: false, permissions: new Set(['admin.feature-flags']) },
+      });
+      await screen.findByRole('switch', { name: 'Custom reports' });
+      expect(screen.queryByText(/Local LLM for report generator/)).toBeNull();
+      expect(authFetch.mock.calls.some(([u]) => String(u).includes('/nl-reports/config'))).toBe(false);
     });
   });
 

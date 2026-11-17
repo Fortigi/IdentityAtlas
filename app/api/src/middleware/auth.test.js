@@ -110,7 +110,7 @@ describe('authMiddleware — fgr_ token scoping', () => {
 
   it('rejects any /api/admin/* path with 403 (even on GET)', async () => {
     findActive.mockResolvedValue({ id: 7, name: 'x', expiresAt: null, revoked: false });
-    for (const path of ['/api/admin/read-tokens', '/api/admin/crawlers', '/api/admin/export/curated']) {
+    for (const path of ['/api/admin/read-tokens', '/api/admin/crawlers', '/api/admin/data-export/workbook']) {
       const { res, nextCalled } = await run(makeReq({ path, token: GOOD_TOKEN }));
       expect(nextCalled).toBe(false);
       expect(res.statusCode).toBe(403);

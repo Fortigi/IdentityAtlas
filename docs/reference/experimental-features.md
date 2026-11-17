@@ -23,8 +23,7 @@ optional in the spec but always absent in practice, a quirk that only shows up a
 **Admin → Experimental** lists every experimental feature in the running build, with
 a switch for each one and the exact contents of each group.
 
-You need the **Feature flags** permission (`admin.feature-flags`) to change a switch —
-the same permission that governs the Risk Scoring toggle.
+You need the **Feature flags** permission (`admin.feature-flags`) to change a switch.
 
 Every switch is **off by default**, including after an upgrade, and your choice is
 stored in the database, so it survives container restarts and redeployments.
@@ -235,6 +234,48 @@ former is listed like any other, and no claim facts are attached.
 Turning it off **deletes nothing**: the sources, the claims and every decision are kept, and
 turning it back on restores them. A role an analyst confirmed from a claim stays the role it
 became — it is an ordinary Accountable or Responsible.
+
+---
+
+## Risk scoring
+
+Scores every account, group, business role, context and person from 0 to 100, against
+classifiers that an AI provider drafts from a profile of your organisation. See
+[How Scoring Works](../risk-scoring/overview.md) for the feature and
+[LLM & Risk Scoring Internals](../architecture/llm-and-risk-scoring.md) for how it works.
+
+Risk scoring is kept, but **frozen as experimental** until it is folded into the Org Info
+building blocks. Unlike the other features on this page it is **not certified per
+release**: a release is not held back for it, and its behaviour may change when it is
+merged. Switch it on only if you accept that.
+
+Environment variable: `FEATURE_RISK_SCORING=true`. An install that had risk scoring
+switched on before it moved to this tab keeps it on — the stored choice is the same.
+
+### What the switch does, precisely
+
+**On** — the **Risk Scores** tab can be shown in the main navigation, detail pages get a
+**Risk** tab, the Dashboard shows a Risk Scoring card and the Logs page lists scoring runs.
+**Admin → Risk Scoring** (profile, classifiers, **Run now**) and **Admin → Risk Scoring
+LLM** (the AI provider and its key) appear, and a scoring run starts after every crawl.
+
+**Off** — all of that is hidden, and nothing is scored: the run after a crawl does not
+start. The API answers `404` on every risk endpoint — `/api/risk-scores…`,
+`/api/risk-profiles…`, `/api/risk-classifiers…`, `/api/risk-scoring/runs…`,
+`/api/admin/risk-profile`, `/api/admin/classifiers` and `/api/admin/llm/…` — so the AI
+provider is never called. User and resource details carry no risk fields, and the
+Dashboard statistics carry no risk counts. A link to `#admin?sub=risk-scoring` or
+`#admin?sub=llm` lands on this tab.
+
+### What the switch does *not* do
+
+Turning it off **deletes nothing**: scores, overrides, profiles, classifiers, run history
+and the AI provider settings stay in the database, and turning it back on restores them.
+
+The provider on **Risk Scoring LLM** is used by risk scoring only. Custom reports, the
+context assistant and organisation knowledge use the model that runs inside the deployment
+(see [Report Generator](report-generator.md)); its status is shown on this tab under
+**Custom reports** while that switch is on.
 
 ---
 

@@ -69,6 +69,12 @@ describe('countTerms', () => {
       .toEqual({ AppRoleViaGroup: 1, DirectoryRoleEligible: 1, 'Start-FGSync': 1 });
   });
 
+  it('finds both spellings of the curated-data cmdlets, and only the cmdlet names', () => {
+    expect(countTerms('Export-FGCuratedData then Import-FGCuratedData')).toEqual({ FGCuratedData: 2 });
+    // The old export file name is not a cmdlet a reader would try to run.
+    expect(countTerms('FGCuratedData_2026-01-01.json, Remove-FGCuratedData')).toEqual({});
+  });
+
   it('does not ban the current resource types that share a stem', () => {
     expect(countTerms('AppRole, EntraDirectoryRole, DirectoryRole, Eligible')).toEqual({});
   });

@@ -1,8 +1,7 @@
 // Additional unit tests for routes/admin.js — raises line coverage by exercising
 // the read endpoints (risk-profile/classifiers happy paths, dashboard-stats,
 // dashboard-timeseries, history-retention read + prune, auth-settings),
-// the danger-zone clean-database guard + happy path, the curated export/import
-// handlers, and error paths. DB + authConfig + tombstonePurge mocked; no network.
+// the danger-zone clean-database guard + happy path, and error paths. DB + authConfig + tombstonePurge mocked; no network.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -10,11 +9,18 @@ import { mountRouter, mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF
+// behaviour is asserted in admin.test.js.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
+
 // admin handlers use native db.query / db.queryOne (the mssql compat shim was
 // removed in #663). getPool() is still awaited by the table-existence + ensure*
 // helpers, but it's no longer used as an mssql-style request builder.
 vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
-import { query, queryOne } from '../db/connection.js';
+import { query, queryOne, tx } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));
 vi.mock('../config/authConfig.js', () => ({
   getAuthState: () => ({
@@ -28,17 +34,12 @@ vi.mock('../config/authConfig.js', () => ({
 const purgeExpiredTombstones = vi.fn(async () => ({ purged: { Principals: 3 } }));
 vi.mock('../ingest/tombstonePurge.js', () => ({ purgeExpiredTombstones: (...a) => purgeExpiredTombstones(...a) }));
 
-// tags.js / categories.js / bootstrap / memberCounts are dynamically imported by
-// the curated-import handler. Tags are written to Contexts + ContextMembers
-// (GraphTags/GraphTagAssignments are read-only views), reusing tags.js helpers.
-vi.mock('./tags.js', () => ({
-  ensureTagTables: vi.fn(async () => {}),
-  ENTITY_TO_TARGET: { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' },
-  UUID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-}));
-vi.mock('./categories.js', () => ({ ensureCategoryTables: vi.fn(async () => {}) }));
-vi.mock('../bootstrap.js', () => ({ getOrCreateTagRoot: vi.fn(async () => 'tag-root') }));
-vi.mock('../contexts/memberCounts.js', () => ({ recalcMemberCountsForChain: vi.fn(async () => {}) }));
+// The clean itself (db/cleanDatabase.js) has its own tests; here it is a stub so
+// the route's handling of success and failure can be pinned.
+const cleanDatabase = vi.fn();
+vi.mock('../db/cleanDatabase.js', () => ({ cleanDatabase: (...a) => cleanDatabase(...a) }));
+const scheduleRefresh = vi.fn();
+vi.mock('./ingest/matrixViews.js', () => ({ viewRefresh: { schedule: (...a) => scheduleRefresh(...a) } }));
 
 const { default: router } = await import('./admin.js');
 const app = mountRouter(router);
@@ -47,6 +48,9 @@ beforeEach(() => {
   query.mockReset();
   queryOne.mockReset();
   purgeExpiredTombstones.mockClear();
+  cleanDatabase.mockReset();
+  scheduleRefresh.mockClear();
+  tx.mockClear();
 });
 
 // ── GET /admin/risk-profile ──────────────────────────────────────────────────
@@ -258,101 +262,55 @@ describe('POST /admin/clean-database', () => {
     });
   }
 
-  it('wipes existing tables and reports skipped ones', async () => {
-    // 1) existence batch check — only two tables "exist"
-    query.mockResolvedValueOnce({
-      rows: [
-        { tbl: 'Identities', oid: 1234 },
-        { tbl: 'Systems', oid: 5678 },
-      ],
+  it('runs the clean inside one transaction, analyzes what it touched and rebuilds the matrix views', async () => {
+    cleanDatabase.mockResolvedValueOnce({
+      wiped: [{ table: 'Principals', rowsAffected: 4 }],
+      alsoRemoved: [{ table: 'SystemOwners', rowsAffected: 1 }],
+      historyRowsRemoved: 9,
+      touched: ['Principals', 'Systems'],
     });
-    // every subsequent query (DELETE, _history clean, ANALYZE, sequence lookup,
-    // setval, CrawlerConfigs reset) resolves with an empty result.
-    query.mockResolvedValue({ rowCount: 0, rows: [] });
+    query.mockResolvedValue({ rows: [], rowCount: 0 });
     const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe('Database cleaned');
-    const wipedTables = res.body.wiped.map(w => w.table);
-    expect(wipedTables).toContain('Identities');
-    expect(wipedTables).toContain('Systems');
-    expect(res.body.skipped.length).toBeGreaterThan(0);
+    expect(res.body).toEqual({
+      message: 'Database cleaned',
+      wiped: [{ table: 'Principals', rowsAffected: 4 }],
+      alsoRemoved: [{ table: 'SystemOwners', rowsAffected: 1 }],
+      historyRowsRemoved: 9,
+    });
+    expect(tx).toHaveBeenCalledTimes(1);
+    expect(cleanDatabase).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls.map(c => c[0])).toEqual(['ANALYZE "Principals"', 'ANALYZE "Systems"']);
+    expect(scheduleRefresh).toHaveBeenCalledWith('clean-database');
   });
 
-  it('500 when the existence batch check rejects (generic error, no leak)', async () => {
-    query.mockRejectedValueOnce(new Error('boom'));
+  it('still answers 200 when ANALYZE fails after the clean committed', async () => {
+    cleanDatabase.mockResolvedValueOnce({ wiped: [], alsoRemoved: [], historyRowsRemoved: 0, touched: ['Principals'] });
+    query.mockRejectedValue(new Error('analyze broke'));
+    const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
+    expect(res.status).toBe(200);
+    expect(scheduleRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('500 with no SQL detail and no follow-up work when the clean fails (the transaction rolls back)', async () => {
+    cleanDatabase.mockRejectedValueOnce(new Error('update or delete on table "Systems" violates foreign key constraint'));
     const res = await request(asAdmin()).post('/api/admin/clean-database').send(CONFIRM);
     expect(res.status).toBe(500);
-    expect(res.body.error).toBe('Clean database failed');
-    expect(JSON.stringify(res.body)).not.toContain('boom'); // internal detail not leaked
+    expect(res.body).toEqual({ error: 'Clean database failed. Nothing was removed.' });
+    expect(JSON.stringify(res.body)).not.toMatch(/Systems|foreign key/);
+    expect(query).not.toHaveBeenCalled();
+    expect(scheduleRefresh).not.toHaveBeenCalled();
   });
 });
 
-// ── GET /admin/export/curated ────────────────────────────────────────────────
-describe('GET /admin/export/curated', () => {
-  it('exports an empty payload when neither source table exists', async () => {
-    // tableExists() -> db.query(SELECT to_regclass) returns oid null for all
-    query.mockResolvedValue({ rows: [{ oid: null }] });
-    const res = await request(app).get('/api/admin/export/curated');
+describe('GET /admin/clean-database/plan', () => {
+  it('returns the classification-built lists the dialog shows, with the confirmation phrase', async () => {
+    const res = await request(app).get('/api/admin/clean-database/plan');
     expect(res.status).toBe(200);
-    expect(res.headers['content-disposition']).toMatch(/FGCuratedData_/);
-    expect(res.body).toMatchObject({ version: '1.0', tags: [], categories: [] });
-  });
-
-  it('500 when a lookup query rejects', async () => {
-    query.mockRejectedValueOnce(new Error('boom'));
-    const res = await request(app).get('/api/admin/export/curated');
-    expect(res.status).toBe(500);
-  });
-});
-
-// ── POST /admin/import/curated ───────────────────────────────────────────────
-describe('POST /admin/import/curated', () => {
-  it('400 when tags is not an array', async () => {
-    const res = await request(app).post('/api/admin/import/curated').send({ tags: 'nope' });
-    expect(res.status).toBe(400);
-  });
-
-  it('imports tags + categories and returns stats', async () => {
-    // Everything is native db.query / db.queryOne now (#663 removed the shim).
-    // db.query drives: to_regclass checks, resolveEntity GUID match (COUNT), tag
-    // upsert (Contexts), category upsert, assignment lookups/inserts. queryOne is
-    // the existing-tag lookup. Drive them through a default + specific mocks.
-    query.mockImplementation(async (sql) => {
-      if (/to_regclass/i.test(sql)) return { rows: [{ oid: 1 }] };            // tables exist
-      if (/COUNT\(\*\) AS n/i.test(sql)) return { rows: [{ n: 1 }] };          // resolveEntity GUID hit
-      if (/INSERT INTO "Contexts"/i.test(sql)) return { rows: [{ id: 'tag1' }] };
-      if (/INSERT INTO "GovernanceCategories"/i.test(sql)) return { rows: [{ id: 'cat1' }] };
-      if (/INSERT INTO "ContextMembers"/i.test(sql)) return { rows: [{ inserted: 1 }] };
-      if (/FROM "Resources"/i.test(sql)) return { rows: [{ id: 'apid' }] };    // BusinessRole GUID match
-      if (/INSERT INTO "GovernanceCategoryAssignments"/i.test(sql)) return { rows: [{ inserted: 1 }] };
-      return { rows: [] };
-    });
-    queryOne.mockResolvedValue(undefined); // no existing tag → insert path
-
-    const body = {
-      tags: [{
-        name: 'Sensitive', entityType: 'user', color: '#abcdef',
-        assignments: [{ entityId: '11111111-1111-1111-1111-111111111111', displayName: 'Alice' }],
-      }],
-      categories: [{
-        name: 'Finance', color: 'bad-color',
-        assignments: [{ accessPackageId: 'AP-1', accessPackageDisplayName: 'Finance AP' }],
-      }],
-    };
-    const res = await request(app).post('/api/admin/import/curated').send(body);
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.stats.tagsInserted).toBe(1);
-    expect(res.body.stats.assignmentsInserted).toBe(1);
-    expect(res.body.stats.catsInserted).toBe(1);
-  });
-
-  it('500 when an import query rejects', async () => {
-    // The category upsert is the first db.query the import runs; reject it.
-    query.mockRejectedValueOnce(new Error('boom'));
-    const res = await request(app)
-      .post('/api/admin/import/curated')
-      .send({ tags: [], categories: [{ name: 'Finance', color: '#3b82f6' }] });
-    expect(res.status).toBe(500);
+    expect(res.body.confirmation).toBe('DELETE ALL DATA');
+    expect(res.body.removed.map(g => g.key)).toContain('source');
+    expect(res.body.kept.map(g => g.key)).toContain('manual');
+    expect(res.body.alsoRemoved.find(a => a.tables.includes('ManagerHierarchyOverrides'))).toBeTruthy();
+    expect(query).not.toHaveBeenCalled(); // no database needed to describe the clean
   });
 });

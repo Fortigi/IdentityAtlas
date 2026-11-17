@@ -3,7 +3,7 @@ import { useState, useEffect, lazy, Suspense, createElement } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { hasPermission } from '@ui/auth/usePermissions';
 
-import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './admin/adminTabs';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab, leaveTarget } from './admin/adminTabs';
 
 // Lazy-load the heavy sub-tab pages so they don't bloat the initial Admin bundle
 const CrawlersPage = lazy(() => import('./CrawlersPage'));
@@ -19,11 +19,10 @@ const SharedMatricesPage = lazy(() => import('./SharedMatricesPage'));
 const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
 import PowerQueryExportSection from './admin/PowerQueryExportSection';
-import CuratedDataSection from './admin/CuratedDataSection';
+import MoveInstanceNote from './admin/MoveInstanceNote';
 import HistoryRetentionSection from './admin/HistoryRetentionSection';
 import DangerZoneSection from './admin/DangerZoneSection';
 import LLMSettingsSection from './admin/LLMSettingsSection';
-import ReportGeneratorLLMSection from './admin/ReportGeneratorLLMSection';
 import RiskScoringSection from './admin/RiskScoringSection';
 
 function AdminSubTabs({ activeTab, onTabChange, tabs }) {
@@ -80,10 +79,10 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
   // action with its own server-side gate — so render each only for the user
   // who can actually use it, instead of showing controls that 403 on click.
   // Mirrors the server: dataExport.js (workbook=data.export.ui, read-tokens=
-  // data.export.apikey/admin.read-tokens), curatedData.js (export=data.export.ui,
-  // import=admin.csv-import), maintenance.js (retention + clean=admin.systems).
+  // data.export.apikey/admin.read-tokens), maintenance.js (retention + clean=
+  // admin.systems). The move-to-a-new-instance note is only a docs link, so
+  // everyone who reaches the tab sees it.
   const canPowerQuery = hasPermission(permissions, hasWildcard, 'data.export.ui', 'data.export.apikey', 'admin.read-tokens');
-  const canCuratedData = hasPermission(permissions, hasWildcard, 'data.export.ui', 'admin.csv-import');
   const canManageSystems = hasPermission(permissions, hasWildcard, 'admin.systems');
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
@@ -91,7 +90,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
   // next render, so it doesn't trip react-hooks/set-state-in-effect. A tab whose
   // feature flag hasn't been reported yet is waited on, not bounced from.
   if (shouldLeaveTab(activeTab, visibleTabs, features)) {
-    setActiveTab(visibleTabs[0]?.key || 'crawlers');
+    setActiveTab(leaveTarget(activeTab, visibleTabs));
   }
 
   useEffect(() => {
@@ -143,7 +142,10 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
     plugins: { onNavigate },
     experimental: { features, version },
   };
-  const LazyTab = lazyTabComponent[activeTab];
+  // Nothing renders for a tab the user cannot see — including one whose feature
+  // flag has not been reported yet (it is waited on above, not shown meanwhile).
+  const shown = visibleTabs.some(t => t.key === activeTab) ? activeTab : null;
+  const LazyTab = lazyTabComponent[shown];
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -163,22 +165,17 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
           </Suspense>
         )}
 
-        {activeTab === 'data' && (
+        {shown === 'data' && (
           <>
             {canPowerQuery && <PowerQueryExportSection />}
-            {canCuratedData && <CuratedDataSection />}
+            <MoveInstanceNote version={version} />
             {canManageSystems && <HistoryRetentionSection />}
-            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} />}
+            {canManageSystems && <DangerZoneSection onRefresh={onRefresh} version={version} />}
           </>
         )}
 
-        {activeTab === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
-        {activeTab === 'llm' && (
-          <div className="space-y-4">
-            <LLMSettingsSection />
-            <ReportGeneratorLLMSection />
-          </div>
-        )}
+        {shown === 'risk-scoring' && <RiskScoringSection onRiskScoresRefresh={onRiskScoresRefresh} />}
+        {shown === 'llm' && <LLMSettingsSection />}
       </div>
     </div>
   );

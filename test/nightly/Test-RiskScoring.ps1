@@ -43,6 +43,11 @@ Param(
 )
 
 $ErrorActionPreference = 'Continue'
+
+# Risk scoring is experimental and off on a fresh install; its endpoints 404 until
+# the flag is on. Shared helpers to read and switch it.
+. (Join-Path $PSScriptRoot 'RiskScoringFeature.ps1')
+
 $standaloneFailures = 0
 $script:phaseOk = $true
 
@@ -311,6 +316,8 @@ Write-Host "`n=== Risk Scoring End-to-End ===" -ForegroundColor Cyan
 
 Test-DemoDataLoaded
 if (-not $script:phaseOk) { Stop-Test 0; return }
+
+if (-not (Initialize-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -ResultName 'Risk/FeatureOn')) { Stop-Test 1; return }
 
 Save-TestProfile
 if (-not $script:phaseOk) { Stop-Test 1; return }

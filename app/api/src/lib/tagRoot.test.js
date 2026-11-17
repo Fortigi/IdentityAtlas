@@ -1,5 +1,5 @@
-// The tag-root marker and its two SQL predicates are shared by bootstrap, the
-// tags routes and the curated import; pin that they agree with each other and
+// The tag-root marker and its two SQL predicates are shared by bootstrap and the
+// tags routes; pin that they agree with each other and
 // with migration 095's own exclusion.
 
 import { describe, it, expect } from 'vitest';

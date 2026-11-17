@@ -23,6 +23,11 @@
      10. POST /api/risk-scoring/runs with no active classifier — must 412
          (preconditions not met), not 500
 
+    Risk scoring is experimental and off on a fresh install. Before the checks
+    above, the script switches it OFF and asserts that every endpoint above
+    answers 404 (off is really off, against a real database), then switches it
+    on. At the end it puts the flag back the way it found it.
+
     Designed to be called from Run-NightlyLocal.ps1 with a `WriteResult` callback.
 
 .PARAMETER ApiBaseUrl
@@ -45,6 +50,10 @@ Param(
 
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
+
+# Risk scoring is experimental and off on a fresh install; its endpoints 404 until
+# the flag is on. Shared helpers to read and switch it.
+. (Join-Path $PSScriptRoot 'RiskScoringFeature.ps1')
 
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
@@ -226,6 +235,24 @@ function Test-LLMScoringPrecondition {
     }
 }
 
+# ─── 0. Off is really off ────────────────────────────────────────
+# With the flag off, every risk-scoring and risk-LLM endpoint must answer 404 —
+# reads included — and /api/features must say so.
+function Test-RiskEndpointsRefusedWhileOff {
+    Set-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -Enabled $false
+    $features = Invoke-LocalApi -Path '/features'
+    Write-Result 'LLM/FlagOff/Features' ($features.riskScoring -eq $false) "riskScoring=$($features.riskScoring)"
+    $endpoints = @(
+        @('Get', '/admin/llm/config'), @('Get', '/admin/llm/status'), @('Get', '/risk-profiles'),
+        @('Get', '/risk-classifiers'), @('Get', '/risk-scoring/runs'), @('Post', '/risk-scoring/runs'),
+        @('Get', '/risk-scores'), @('Get', '/admin/risk-profile'), @('Get', '/admin/classifiers')
+    )
+    foreach ($ep in $endpoints) {
+        $code = Get-RiskEndpointStatus -Uri "$ApiBaseUrl$($ep[1])" -Method $ep[0]
+        Write-Result "LLM/FlagOff/$($ep[0])$($ep[1])" ($code -eq 404) "got $code (expected 404)"
+    }
+}
+
 function Invoke-LLMSubstrate {
     Write-Host "`n=== LLM / Risk-scoring substrate ===" -ForegroundColor Cyan
     Test-LLMConfigEndpoint
@@ -238,6 +265,22 @@ function Invoke-LLMSubstrate {
     Test-LLMScoringPrecondition
 }
 
-Invoke-LLMSubstrate
+try {
+    $riskWasOn = Get-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl
+} catch {
+    Write-Result 'LLM/FeatureFlags' $false "could not read /features: $($_.Exception.Message)"
+    if (-not $WriteResult) { exit 1 }
+    return
+}
+try {
+    Test-RiskEndpointsRefusedWhileOff
+} catch {
+    Write-Result 'LLM/FlagOff' $false $_.Exception.Message
+}
+if (Initialize-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -ResultName 'LLM/FeatureOn') {
+    Invoke-LLMSubstrate
+}
+# Put the flag back the way this script found it.
+try { Set-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -Enabled $riskWasOn } catch { Write-Result 'LLM/RestoreFlag' $false $_.Exception.Message }
 
 if (-not $WriteResult) { exit $standaloneFailures }

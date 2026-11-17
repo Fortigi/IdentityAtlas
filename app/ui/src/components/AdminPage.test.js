@@ -13,7 +13,6 @@ const src = [
   'AdminPage.jsx',
   'admin/RiskScoringSection.jsx',
   'admin/PowerQueryExportSection.jsx',
-  'admin/CuratedDataSection.jsx',
   'admin/HistoryRetentionSection.jsx',
   'admin/DangerZoneSection.jsx',
   'admin/LLMSettingsSection.jsx',

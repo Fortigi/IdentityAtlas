@@ -80,7 +80,19 @@ describe('pageRegistry', () => {
   });
 
   it('remounts the risk-scores page when the refresh key changes', () => {
-    expect(resolvePageRoute('risk-scores')(ctx).key).toBe(String(ctx.riskScoresRefreshKey));
-    expect(resolvePageRoute('risk-scores')(ctx).props.onOpenDetail).toBe(ctx.openDetailTab);
+    const on = { ...ctx, features: { riskScoring: true } };
+    expect(resolvePageRoute('risk-scores')(on).key).toBe(String(ctx.riskScoresRefreshKey));
+    expect(resolvePageRoute('risk-scores')(on).props.onOpenDetail).toBe(ctx.openDetailTab);
+  });
+
+  // Risk scoring is experimental: a #risk-scores link shows no risk page while
+  // the flag is off, unreported, or anything but a real true.
+  it('renders a notice instead of the risk-scores page unless risk scoring is on', () => {
+    for (const features of [{ riskScoring: false }, {}, undefined, { riskScoring: 'true' }]) {
+      const el = resolvePageRoute('risk-scores')({ ...ctx, features });
+      expect(el.type).toBe('p');
+      expect(el.props.children).toMatch(/not switched on/);
+      expect(el.props.onOpenDetail).toBeUndefined();
+    }
   });
 });

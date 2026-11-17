@@ -1,8 +1,8 @@
 # Back up, restore and upgrade
 
-How to keep a Docker deployment of Identity Atlas safe and current: what to back up, how to get it back, how to move to a new version, and how to remove it.
+How to keep a deployment of Identity Atlas safe and current: what to back up, how to get it back, how to move it to a new instance, how to move to a new version, and how to remove it.
 
-This page is about the Docker deployment started from `docker-compose.prod.yml` (see [Docker Setup](../architecture/docker-setup.md)). Every command is run in the directory that holds that file and its `.env`. If you use a second compose file, for example for a reverse proxy, add it to each command with a second `-f`.
+Most of this page is about the Docker deployment started from `docker-compose.prod.yml` (see [Docker Setup](../architecture/docker-setup.md)). Every command is run in the directory that holds that file and its `.env`. If you use a second compose file, for example for a reverse proxy, add it to each command with a second `-f`. Moving to a new instance, and backing up and restoring on Azure and on the portable version, are under [Move Identity Atlas to a new instance](#move-identity-atlas-to-a-new-instance).
 
 !!! warning "Tested on every release, but rehearse it on your own host"
     The Docker back-up, upgrade and restore on this page are run by the [release test](../contributing/release-process.md#the-release-test) for every beta and stable release, with the commands as written here: it backs up the previous stable release, upgrades to the new one, then restores the backup onto an empty host, and checks that the data, and the [person-made data](../contributing/release-process.md#person-made-data) such as tags, crawler configurations and role mappings, come back unchanged. Your host, volumes and backup storage are not part of that test. Rehearse a restore on a spare machine before you rely on it. A backup you have never restored is a hope, not a backup.
@@ -107,6 +107,232 @@ The web container applies any migrations that are newer than the dump and then s
 **6. Check.** Open the app, then open a crawler under **Admin → Crawlers** and run it. A crawler that starts and reads data proves the master key matches: its credential was decrypted.
 
 If the web container logs `No master key found … A new key was NOT generated`, the database holds encrypted credentials and no key was supplied. Go back to step 2. The app deliberately does not make up a new key in this situation, because that key could not decrypt what is stored.
+
+---
+
+## Move Identity Atlas to a new instance
+
+To move Identity Atlas to another host, another Azure deployment or another laptop, back up the database and restore it there. The database holds everything: the synced data, and everything people made in the app, such as tags, contexts built by hand, risk-score overrides, crawler configurations and settings. Nothing needs to be exported or imported separately.
+
+Move two other things along with the database:
+
+- **The vault master key.** Without it the crawler and LLM credentials in the database cannot be decrypted. Where it lives differs per deployment type; each section below says where.
+- **The version.** The new instance must run the same version as the old one, or a newer one. A newer version migrates the restored database on its first start. An older version cannot run on a database that a newer one has migrated.
+
+### Docker: from the old host to the new host
+
+The steps reuse [Back up](#back-up) and [Restore](#restore) above.
+
+**1. Prepare the new host, but do not start Identity Atlas yet.** Install Docker and create a directory for Identity Atlas. If you already started the stack there, that is fine: stop the web and worker containers (`docker compose -f docker-compose.prod.yml stop web worker`) before step 5.
+
+**2. Note the version on the old host.** Look under **Admin → Updates**, or run `curl http://localhost:3001/api/version`. If `.env` pins `IMAGE_TAG`, that pin moves along with `.env`.
+
+**3. Back up the old host.** Copy the master key out first if `IDENTITY_ATLAS_MASTER_KEY` is not in `.env` ([Back up](#back-up), step 2): that command needs the web container running. Then stop the web and worker containers, so nothing changes after the dump. The database container keeps running:
+
+```bash
+docker compose -f docker-compose.prod.yml stop web worker
+```
+
+Now make the dump and copy the configuration ([Back up](#back-up), steps 1 and 3).
+
+If you need the files uploaded for file-based crawlers, copy them out as well. `cp` also works on a stopped container:
+
+```bash
+docker compose -f docker-compose.prod.yml cp web:/data/uploads ./uploads
+```
+
+**4. Copy the files to the new host.** Copy `identity-atlas.dump`, `.env`, `docker-compose.prod.yml` (and any second compose file) and, if you made it, the `uploads` folder. Use a channel you trust, for example `scp`: `.env` holds the database password, and the dump together with the master key decrypts every stored credential.
+
+**5. Restore on the new host.** Follow [Restore](#restore) from step 1: put the configuration back, add the master key to `.env` as `IDENTITY_ATLAS_MASTER_KEY` if it is not there yet, start only the database, load the dump, and start the rest. Use the compose file of the old version or a newer one.
+
+If you copied the uploaded files, put them back once the stack runs, and give them to the user the container runs as:
+
+```bash
+docker compose -f docker-compose.prod.yml cp ./uploads/. web:/data/uploads
+docker compose -f docker-compose.prod.yml exec -u 0 web chown -R node:node /data/uploads
+```
+
+**6. Update what points at the old address.** If the new host has a different address:
+
+- Set `PUBLIC_BASE_URL` in `.env` to the new address if you use it, and recreate the containers (`docker compose -f docker-compose.prod.yml up -d`).
+- With sign-in on, add the new address as a redirect URI to the Entra ID app registration (see [Authentication](authentication.md)).
+- Excel Power Query workbooks made on the old host call the old address. Generate new ones under **Admin → Data**.
+
+**7. Check.** Do the check of [Restore](#restore), step 6: open the app and run a crawler, which proves the master key matches. Compare the counts on the Dashboard with the old host.
+
+**8. Retire the old host.** Keep it stopped, not deleted, until you trust the new one. Then remove it as under [Uninstall](#uninstall), and keep the dump.
+
+### Azure
+
+!!! warning "Written from the templates, not from a test run"
+    This section follows from the Bicep templates in `azure/` and the standard Azure CLI and PostgreSQL commands. It was not executed end to end. Rehearse it on a spare resource group before you rely on it.
+
+**What the templates set up.** The database is an Azure Database for PostgreSQL Flexible Server (PostgreSQL 16) with a database named `identity_atlas` and the admin user `identityatlas`. Its admin password is the Key Vault secret `postgres-admin-password`. The vault master key is the Key Vault secret `identityatlas-master-key`. The deployment script generates both once, only when they do not exist yet, and the web app reads the newest version of the master key through a Key Vault reference. See [Azure Deployment](../architecture/azure-deployment.md) for the whole shape.
+
+#### Built-in backups and point-in-time restore
+
+**What the template configures.** The template is kept as it is. This is what it sets, so you can judge whether it is enough for you:
+
+| Setting | What the template sets | What that means |
+|---|---|---|
+| Automatic backups with point-in-time restore | On, managed by Azure | You can return the database to any moment in the retention period. |
+| Backup retention | `backupRetentionDays: 7` | The minimum. Azure allows up to 35 days. |
+| Geo-redundant backup | `geoRedundantBackup: 'Disabled'` | The backups stay in the server's region. This can only be switched on when a server is created. |
+| High availability | Disabled | One server, no standby. |
+| Resource locks | None | Deleting the server or its resource group deletes its backups too. |
+| Key Vault (master key, database password) | Soft delete for 7 days, purge protection on | A deleted secret or vault can be recovered for 7 days, and cannot be purged sooner. |
+
+The settings come from `azure/modules/postgres.bicep` and `azure/modules/key-vault.bicep`.
+
+A point-in-time restore never overwrites the server. It creates a **new** server with the data as it was at the moment you choose, within those 7 days:
+
+```bash
+az postgres flexible-server restore \
+  --resource-group <rg> \
+  --name <new-server-name> \
+  --source-server <pgname> \
+  --restore-time "2026-11-17T09:00:00Z"
+```
+
+The web app keeps using the server the template created; the template cannot point it at another one. To bring the restored data back into the deployment, treat the restored server as the old instance in [Move to a new Azure deployment](#move-to-a-new-azure-deployment) below: dump from the restored server and restore into the deployment's own server. Delete the restored server afterwards. The template does not manage it, and it costs money for as long as it exists.
+
+A restore point is also the quickest way back from an upgrade that went wrong; see [Pinning an exact release](../architecture/azure-deployment.md#pinning-an-exact-release).
+
+#### Move to a new Azure deployment
+
+You need the Azure CLI and the PostgreSQL 16 (or newer) client tools `pg_dump` and `pg_restore` on the machine you run this from.
+
+**1. Deploy the new instance** into a new resource group, with the same image version as the old one or a newer one (the `imageTag` parameter; see [Pinning an exact release](../architecture/azure-deployment.md#pinning-an-exact-release)). Its deployment script generates its own master key and database password.
+
+**2. Stop both web apps.** The worker talks only to the web app, so stopping the web app stops all writes:
+
+```bash
+az webapp stop --resource-group <old-rg> --name <old-prefix>-web
+az webapp stop --resource-group <new-rg> --name <new-prefix>-web
+```
+
+**3. Open a path to both databases.** In the public network mode, add a temporary firewall rule for your own IP address to each server, as described under [Postgres access](../architecture/azure-deployment.md#postgres-access). In the private network mode the servers have no public access. Run the commands from a machine that can reach both private endpoints; the templates do not provide one.
+
+**4. Dump the old database.** Fetch the old admin password from the old Key Vault, then dump:
+
+```bash
+export PGPASSWORD="$(az keyvault secret show --vault-name <old-kv> --name postgres-admin-password --query value -o tsv)"
+pg_dump "host=<old-pgFqdn> port=5432 dbname=identity_atlas user=identityatlas sslmode=require" \
+  -Fc -f identity-atlas.dump
+```
+
+**5. Restore into the new database.**
+
+```bash
+export PGPASSWORD="$(az keyvault secret show --vault-name <new-kv> --name postgres-admin-password --query value -o tsv)"
+pg_restore --clean --if-exists --no-owner \
+  -d "host=<new-pgFqdn> port=5432 dbname=identity_atlas user=identityatlas sslmode=require" \
+  identity-atlas.dump
+unset PGPASSWORD
+```
+
+The template already allows the `pg_trgm` extension on the server, so the restore can create it.
+
+**6. Carry the master key.** Copy the old secret into the new Key Vault. This adds a new version of `identityatlas-master-key`, and the web app reads the newest version:
+
+```bash
+az keyvault secret set --vault-name <new-kv> --name identityatlas-master-key \
+  --value "$(az keyvault secret show --vault-name <old-kv> --name identityatlas-master-key --query value -o tsv)" \
+  --output none
+```
+
+App Service fetches a changed secret on its own within 24 hours. To use it at once, open the new web app in the portal, go to **Environment variables** and choose **Pull reference values**. Do this before the next step.
+
+**7. Start the new web app** and wait for the migrations, as under [Upgrade](#upgrade), step 3:
+
+```bash
+az webapp start --resource-group <new-rg> --name <new-prefix>-web
+```
+
+**8. Set up sign-in and the crawler identity again.** These are not in the database:
+
+- The tenant and client ID are settings of the web app. Set them on the new one, and add its URL as a redirect URI to the Entra ID app registration (Steps 2 and 3 of the [portal walkthrough](../architecture/azure-deployment-walkthrough.md)).
+- The new deployment has its own crawler managed identity, created without permissions. If a crawler signs in as that identity, grant it again (see [Crawler identity](../architecture/azure-deployment.md#crawler-identity-entra-id-without-a-client-secret)).
+- Files uploaded for file-based crawlers live on the old deployment's Azure Files share, not in the database. Upload them again in the new instance.
+
+**9. Check, then clean up.** Open the app and run a crawler: a crawler that starts and reads data proves the master key matches. Remove the temporary firewall rules. Delete the old resource group only once you trust the new deployment.
+
+#### Limits
+
+- **A point-in-time restore creates a new server** that the template does not manage. Getting its data into the deployment takes a dump and a restore.
+- **Changes made outside the template can be undone by a redeploy.** The template declares the backup settings, so a redeploy sets a value it declares, such as the retention, back to what the template says. Check them after each redeploy.
+- **Key Vault purge protection** means a deleted vault keeps its name for 7 days, so a deleted resource group cannot be redeployed with the same vault name within those 7 days.
+- **Private network mode** needs a machine with a network path to the private endpoints for any dump or restore.
+
+#### If you need more
+
+You can add any of these yourself, without changing the template:
+
+- **Longer retention.** Raise it to up to 35 days in the portal (the server's **Backup and restore** settings) or with `az postgres flexible-server update --resource-group <rg> --name <pgname> --backup-retention <days>`.
+- **Backups in a second region.** Choose geo-redundant backup when the server is created. For an existing deployment, that means a new server, filled with a dump and restore as above.
+- **Protection against deletion.** Add a `CanNotDelete` lock to the server or the resource group: `az lock create --name keep-identity-atlas --lock-type CanNotDelete --resource-group <rg>`. Remove it before you tear the deployment down on purpose.
+- **Long-term copies.** Use Azure Backup's vaulted backup for Azure Database for PostgreSQL Flexible Server, which keeps copies in a Backup vault for longer than 35 days and separately from the server.
+- **Your own dumps.** Take a periodic `pg_dump` as in step 4 above and keep it, with the master key stored separately, outside the deployment.
+
+### Portable
+
+!!! warning "Written from the launcher, not from a test run"
+    This section follows from the portable launcher and the standard PostgreSQL tools. It was not executed end to end. Rehearse a restore on a spare machine before you rely on it.
+
+**Where the data lives.** Everything is in one data directory: `IA_DATA_DIR` when it is set; otherwise `%APPDATA%\IdentityAtlas\` when an older install already keeps its data there; otherwise `%LOCALAPPDATA%\IdentityAtlas\`. The launcher prints the one it uses when it starts. In it:
+
+| What | Where in the data directory |
+|---|---|
+| The database, default ZIP (built-in database) | `pgdata\` |
+| The database, `IdentityAtlas-portable-postgres.zip` (real PostgreSQL) | `postgres\data\`, with its password in `postgres\password` |
+| The vault master key | `.master-key` |
+| Files uploaded for file-based crawlers | `uploads\` |
+
+The full list is under [Data Location](../architecture/desktop-portable.md#data-location).
+
+#### Back up
+
+**Copy the folder.** Stop the app (Ctrl+C in the launcher window, and wait until it has stopped), then copy the whole data directory. This works for both ZIPs and includes the master key. You can leave out `llm\` and `llm-slots\`: they are large, and are downloaded or rebuilt again when needed.
+
+**Or dump the database** (real PostgreSQL only). While the app runs, from the folder you unzipped:
+
+```powershell
+$data = "$env:LOCALAPPDATA\IdentityAtlas"   # the data directory the launcher printed
+$env:PGPASSWORD = (Get-Content "$data\postgres\password" -Raw).Trim()
+.\postgres\bin\pg_dump.exe -h 127.0.0.1 -p 5433 -U identityatlas -d identityatlas -Fc -f identity-atlas.dump
+Remove-Item Env:PGPASSWORD
+```
+
+Copy `.master-key` from the data directory along with the dump. The default ZIP's built-in database runs inside the app itself, so there is no server to run `pg_dump` against: for that ZIP, copying the folder is the backup.
+
+#### Restore
+
+**From a folder copy.** Stop the app, replace the data directory with the copy, and start the app with the same version of the ZIP or a newer one. Data from the real PostgreSQL ZIP needs that ZIP again.
+
+**From a dump** (real PostgreSQL only).
+
+1. Start the app once with `-Database Postgres` on the target, so the launcher creates the database server. Then stop it.
+2. Start only the database server, load the dump and stop the server again:
+
+    ```powershell
+    $data = "$env:LOCALAPPDATA\IdentityAtlas"
+    .\postgres\bin\pg_ctl.exe start -D "$data\postgres\data" -o "-p 5433" -w
+    $env:PGPASSWORD = (Get-Content "$data\postgres\password" -Raw).Trim()
+    .\postgres\bin\pg_restore.exe -h 127.0.0.1 -p 5433 -U identityatlas -d identityatlas --clean --if-exists --no-owner identity-atlas.dump
+    Remove-Item Env:PGPASSWORD
+    .\postgres\bin\pg_ctl.exe stop -D "$data\postgres\data" -m fast
+    ```
+
+3. Replace `.master-key` in the data directory with the one you saved. The first start generated a new key, and that key decrypts nothing in the restored database.
+4. Start the app as usual and run a crawler to check the key.
+
+#### Move to a new machine
+
+Copy the data directory, with the app stopped, to the same place on the new machine (or point `IA_DATA_DIR` at it). Unzip the same version of the ZIP or a newer one there, and start it. The copy carries the database, the master key and the uploaded files. Treat the copy like a password: the key in it decrypts every stored credential.
+
+### Between deployment types
+
+A dump from Docker, from Azure or from the real PostgreSQL ZIP is an ordinary PostgreSQL 16 dump. It can be restored into either of the other two with the steps above, as long as the master key goes along: as `IDENTITY_ATLAS_MASTER_KEY` in `.env` on Docker, as the `identityatlas-master-key` secret on Azure, and as the `.master-key` file on the portable version. The default portable ZIP's built-in database can only be moved by copying its folder to another portable install. To get its data anywhere else, run the crawlers again in the new place.
 
 ---
 

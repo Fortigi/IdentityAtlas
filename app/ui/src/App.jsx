@@ -87,7 +87,10 @@ export default function App() {
   const { account, me, logout, authFetch } = useAuth();
   const [page, navigate] = useHashPage();
   const [moduleVersion, setModuleVersion] = useState(null);
-  const [features, setFeatures] = useState({ riskScoring: true, accountLinking: true });
+  // Until /api/features answers, an off-by-default (experimental) flag is absent —
+  // unknown, so its tabs stay hidden rather than flashing in. Account linking is on
+  // by default, so it starts on.
+  const [features, setFeatures] = useState({ accountLinking: true });
   const [visibleTabs, setVisibleTabs] = useState(null); // null = loading, [] = loaded
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
@@ -124,7 +127,7 @@ export default function App() {
   }, []);
 
   // Re-fetch features whenever the user navigates — picks up runtime toggle changes
-  // from the admin Risk Scoring sub-tab so the feature-gated Risk Scores / Identities
+  // from Admin → Experimental so the feature-gated Risk Scores / Identities
   // tabs appear or disappear without a hard reload.
   useEffect(() => {
     fetch('/api/features').then(r => r.json()).then(d => setFeatures(d)).catch(() => {});

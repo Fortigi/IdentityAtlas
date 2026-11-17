@@ -30,7 +30,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 
 | Permission | Label | Gated endpoint (representative) |
 |---|---|---|
-| `data.export.ui` | Export to Excel/CSV | `GET /api/admin/export/curated`, `POST /api/admin/data-export/workbook` |
+| `data.export.ui` | Export to Excel/CSV | `POST /api/admin/data-export/workbook` |
 | `data.export.apikey` | Generate read-only API keys | `POST /api/admin/read-tokens` (mint your own `fgr_` token) |
 | `data.share` | Create matrix share links | `POST /api/matrix/shares` (also `GET /api/matrix/shares` and `POST /api/matrix/shares/:id/revoke` — the Shared matrices management page). Only takes effect while the experimental **Matrix sharing** feature is switched on — see [Experimental features](experimental-features.md#matrix-sharing). See [Sharing a matrix](../ui/sharing-a-matrix.md). |
 
@@ -52,8 +52,8 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | Permission | Label | Gated endpoint (representative) |
 |---|---|---|
 | `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs, account-linking config + runs (`GET/PUT /api/account-linking/config`, `POST /api/account-linking/runs`), risk profile/classifier reads (`GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
-| `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database, history-retention (read + write), auto-update status/log/toggle (`/api/admin/updates/*`) |
-| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
+| `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database (and its `/plan`), history-retention (read + write), auto-update status/log/toggle (`/api/admin/updates/*`) |
+| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) — all `404` while risk scoring is switched off |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |
@@ -111,6 +111,10 @@ The SPA calls `GET /api/auth-me` after sign-in to learn its own permissions and 
 Enforcement is verified by:
 
 - **`app/api/src/auth/permissionMatrix.test.js`** — for every gated permission, asserts the representative endpoint is reachable **with** the permission and returns `403` **without** it; plus a completeness guard that fails if any catalog permission is unclassified.
+- **`app/api/test-utils/routePermissions.js`** — the committed table of what **every** route requires (one or more permissions, any permission, or a crawler key). Adding a route means adding its line here.
+  - **`app/api/src/auth/routePermissionTable.test.js`** — the table covers every route the app serves, and each route opens for exactly the permissions it lists.
+  - **`app/api/src/auth/routeRoleMatrix.test.js`** — every route × every shipped role (Admin, RoleMiner, Servicedesk) answers as the table says.
+- **`app/api/contract-tests/matrixShareRecipients.integration.test.js`** — a matrix-share recipient without a role cannot open the share; with Servicedesk they open the share addressed to them, and only that one.
 - **`app/api/src/middleware/requirePermission.test.js`** — unit tests for the gate decision logic.
 - **`app/ui/e2e/permission-gating.spec.js`** — confirms the UI shows/hides the Admin tab and sub-tabs per permission.
 - **`app/api/src/auth/docsCoverage.test.js`** — fails if a catalog permission is missing from this page.
