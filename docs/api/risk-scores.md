@@ -1,30 +1,88 @@
 # Risk Scores API
 
-These endpoints expose identity risk scoring data and allow analysts to apply score adjustments with audit trails. In v5, scoring is driven from the UI (Admin > Risk Scoring) via the Node.js scoring engine. All endpoints require `Authorization: Bearer <JWT>`.
+These endpoints read risk scores, let an analyst adjust a single score, and start or follow a scoring run. Scoring is started from **Admin → Risk Scoring** in the UI, which calls the run endpoints below; you can call them yourself too. Authentication works as described in the [API overview](index.md#authentication).
+
+Risk scoring is an optional feature, switched off on a new install. See [How Scoring Works](../risk-scoring/overview.md) for what the scores mean.
 
 ---
 
-## Risk Score Overview
+## How a score is made
 
-The scoring engine assigns a numeric score (0–100) to every principal, resource, business role, context, and identity. Scores map to named tiers:
+A scoring run gives every account (`entityType` `Principal`) and every resource (`entityType` `Resource`, business roles included) a score from 0 to 100, built from four layers:
 
-| Tier | Score Range | Color |
+| Layer | Weight | What it looks at |
 |---|---|---|
-| Critical | 90–100 | Red |
-| High | 70–89 | Orange |
-| Medium | 40–69 | Yellow |
-| Low | 20–39 | Blue |
-| Minimal | 1–19 | Green |
-| None | 0 | Grey |
+| Direct match | 0.50 | The best classifier pattern matching the name, e-mail, job title, department, description and attributes. Non-production groups get a quarter of the score (at least 5). |
+| Membership | 0.20 | Groups: small groups, groups without an owner. Accounts: membership of many groups or of a high-risk group, owning several groups, a wide span of control. Capped at 40. |
+| Structural | 0.10 | Groups: no description, mail-enabled security group, role-assignable group, dynamic membership. Accounts: disabled but still a member, guest account, no sign-in for more than 90 days. Capped at 25. |
+| Propagated | 0.20 | An account inherits 30% of the score of its riskiest group; a group inherits 25% of the score of its riskiest member. One pass. |
 
-Scoring runs in four layers:
+The final score is the weighted sum, capped at 100. It maps to a tier:
 
-1. **Direct match** — classifier regex patterns matched against display names, job titles, and attributes
-2. **Membership analysis** — score contributions from high-risk resources the principal is a member of
-3. **Structural hygiene** — stale sign-ins, never-signed-in accounts, accounts with no expiration, orphaned identities
-4. **Cross-entity propagation** — risk flowing from high-risk principals upward to their contexts
+| Tier | Score |
+|---|---|
+| Critical | 90–100 |
+| High | 70–89 |
+| Medium | 40–69 |
+| Low | 20–39 |
+| Minimal | 1–19 |
+| None | 0 |
 
-Analyst overrides (+50 to −50) are preserved across re-scoring runs and applied after all four layers, with the final score clamped to 0–100.
+The engine writes `Principal` and `Resource` rows only. The endpoints below also accept business roles, contexts and identities as types, but no scoring run writes rows of those types: the business-role and identity lists come back empty and single lookups answer `404`. The contexts list answers `500`, because its query reads context columns that do not exist.
+
+!!! warning "A scoring run removes overrides"
+    A run replaces every row of the scores table. Analyst overrides made before the run are not carried over: after the run each entity has its computed score and no override.
+
+---
+
+## Scoring runs
+
+### POST /api/risk-scoring/runs
+
+Starts a scoring run in the background. Requires the `admin.crawlers` permission.
+
+**Request body** (optional)
+
+```json
+{ "classifierId": 12 }
+```
+
+Without `classifierId` the active classifier set is used.
+
+**Responses**
+
+| Status | When |
+|---|---|
+| `202` | The run started. The body is the new run (see below). |
+| `404` | `classifierId` does not exist |
+| `409` | A run is already in progress |
+| `412` | No `classifierId` given and no classifier set is active |
+
+### GET /api/risk-scoring/runs
+
+The 50 most recent runs, newest first, as `{ "data": [ ... ] }`. Any signed-in user with a role may read it.
+
+### GET /api/risk-scoring/runs/:id
+
+One run. The UI polls this every 2 seconds while a run is going.
+
+```json
+{
+  "id": 7,
+  "classifierId": 12,
+  "status": "running",
+  "step": "Propagating risk across memberships",
+  "pct": 75,
+  "totalEntities": 4210,
+  "scoredEntities": 0,
+  "errorMessage": null,
+  "startedAt": "2026-11-12T08:00:00Z",
+  "completedAt": null,
+  "triggeredBy": "admin@contoso.com"
+}
+```
+
+`status` moves from `pending` to `running` and ends as `completed` or `failed`.
 
 ---
 
@@ -32,251 +90,169 @@ Analyst overrides (+50 to −50) are preserved across re-scoring runs and applie
 
 ### GET /api/risk-scores
 
-Overall risk score summary across all entity types. Used by the Risk Scoring page header and dashboard widgets.
-
-**Response**
+Totals and top lists for the Risk Scores page.
 
 ```json
 {
+  "available": true,
+  "useResources": true,
+  "scoredAt": "2026-11-12T08:04:10Z",
   "summary": {
-    "totalEntities": 4210,
-    "scored": 4008,
-    "overrides": 23,
-    "lastScoredAt": "2026-03-27T04:05:00Z"
-  },
-  "tierDistribution": {
-    "Principal": {
-      "Critical": 12,
-      "High": 87,
-      "Medium": 341,
-      "Low": 1204,
-      "Minimal": 1809,
-      "None": 68
-    },
-    "Resource": {
-      "Critical": 4,
-      "High": 31,
-      "Medium": 128,
-      "Low": 249,
-      "Minimal": 0,
-      "None": 0
-    },
-    "BusinessRole": { ... },
-    "Context": { ... },
-    "Identity": { ... }
+    "totalUsers": 1475,
+    "totalGroups": 448,
+    "totalBusinessRoles": 0,
+    "totalContexts": 0,
+    "totalIdentities": 0,
+    "userOverrides": 3,
+    "groupOverrides": 1,
+    "usersByTier": { "High": 12, "Medium": 140, "Low": 610, "Minimal": 700, "None": 13 },
+    "groupsByTier": { "Critical": 2, "High": 9, "Medium": 51, "Low": 160, "Minimal": 226 },
+    "topUsers": [ ... ],
+    "topGroups": [ ... ],
+    "resourceTypeBreakdown": [ { "resourceType": "Group", "count": 448, "avgScore": 21.4 } ]
   }
 }
 ```
 
-**Reads From:** `RiskScores`
+The summary also has `businessRoleOverrides`, `contextOverrides`, `identityOverrides`, `businessRolesByTier`, `contextsByTier` and `identitiesByTier`. `topUsers` and `topGroups` hold the ten highest-scoring accounts and resources, in the row format described below.
+
+When no scores exist yet, the response is `{ "available": false, "message": "..." }`.
 
 ---
 
-## Entity Type Lists
+## Lists per type
 
-Each entity type has a dedicated paginated list endpoint.
-
-| Endpoint | Entity Type | Reads From |
+| Endpoint | Rows | Extra filter |
 |---|---|---|
-| `GET /api/risk-scores/users` | Principals | `RiskScores` + `Principals` |
-| `GET /api/risk-scores/groups` | Resources (non-BusinessRole) | `RiskScores` + `Resources` |
-| `GET /api/risk-scores/business-roles` | Resources (`resourceType='BusinessRole'`) | `RiskScores` + `Resources` |
-| `GET /api/risk-scores/contexts` | Contexts | `RiskScores` + `Contexts` |
-| `GET /api/risk-scores/identities` | Identities | `RiskScores` + `Identities` |
+| `GET /api/risk-scores/users` | Accounts | `department` (exact match) |
+| `GET /api/risk-scores/groups` | Resources | `resourceType` (exact match) |
+| `GET /api/risk-scores/business-roles` | Business roles | |
+| `GET /api/risk-scores/contexts` | Contexts | |
+| `GET /api/risk-scores/identities` | Identities | |
 
-### Common Query Parameters
+Deleted accounts and resources are left out.
 
-All list endpoints accept the same parameters:
+### Query parameters
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `search` | string | | Filter by `displayName` (SQL `LIKE %term%`) |
-| `tier` | string | | Filter by tier: `Critical`, `High`, `Medium`, `Low`, `Minimal`, `None` |
-| `overridesOnly` | string | | `true` = only entities that have an active analyst override |
-| `limit` | int | 100 | Page size. Maximum: 500. |
-| `offset` | int | 0 | Pagination offset. |
+| Parameter | Default | Description |
+|---|---|---|
+| `search` | | Case-insensitive text match on the display name and a few other columns per type (e-mail and department for accounts, description for resources) |
+| `tier` | | `Critical`, `High`, `Medium`, `Low`, `Minimal` or `None` |
+| `overridesOnly` | | `true` returns only rows that have an override value |
+| `limit` | 100 | Page size, at most 500 |
+| `offset` | 0 | Rows to skip |
 
-### Response Format
+Rows are sorted by score, highest first.
+
+### Response
 
 ```json
 {
   "data": [
     {
-      "entityId": "uuid",
-      "displayName": "Jane Doe",
+      "entityId": "6f1c2a8e-0b7d-4e58-9a51-3c2f1e7d9b40",
       "entityType": "Principal",
-      "score": 73,
-      "tier": "High",
-      "baseScore": 68,
-      "overrideAdjustment": 5,
-      "overrideReason": "Privileged project access — temporary elevation approved",
-      "overrideBy": "john.smith@contoso.com",
-      "overrideAt": "2026-03-15T11:00:00Z",
-      "topContributors": [
-        { "factor": "DirectMatch", "weight": 35, "detail": "Classifier: Finance-Privileged" },
-        { "factor": "MembershipRisk", "weight": 28, "detail": "Member of 3 Critical resources" },
-        { "factor": "StaleSignIn", "weight": 10, "detail": "Last sign-in: 95 days ago" }
-      ]
+      "displayName": "Megan Bowen",
+      "userPrincipalName": "megan.bowen@contoso.com",
+      "department": "Finance",
+      "jobTitle": "Finance Manager",
+      "riskScore": 73,
+      "riskTier": "High",
+      "riskDirectScore": 80,
+      "riskMembershipScore": 20,
+      "riskStructuralScore": 5,
+      "riskPropagatedScore": 40,
+      "riskOverride": null,
+      "riskOverrideReason": null,
+      "riskScoredAt": "2026-11-12T08:04:10Z",
+      "effectiveScore": 73,
+      "classifierMatches": [ ... ],
+      "explanation": {
+        "direct":     { "score": 80, "reasons": ["Matched 'Finance' on department [+80]"] },
+        "membership": { "score": 20, "reasons": [ ... ] },
+        "structural": { "score": 5,  "reasons": [ ... ] },
+        "propagated": { "score": 40, "reasons": [ ... ] }
+      }
     }
   ],
-  "total": 521
+  "total": 1475,
+  "available": true
 }
 ```
 
-**Response Fields**
+| Field | Description |
+|---|---|
+| `riskScore`, `riskTier` | The stored score and tier |
+| `riskDirectScore` … `riskPropagatedScore` | The four layer scores before weighting |
+| `riskOverride`, `riskOverrideReason` | The analyst adjustment and its reason; `null` when none was ever set |
+| `effectiveScore` | `riskScore` plus `riskOverride` when an override is present, clamped to 0–100; otherwise `riskScore` |
+| `classifierMatches` | Every classifier that matched |
+| `explanation` | Per layer: the score and the reasons behind it |
 
-| Field | Type | Description |
-|---|---|---|
-| `score` | int | Effective score (0–100) = base components + override, clamped |
-| `baseScore` | int | Score before any analyst override |
-| `overrideAdjustment` | int | Analyst adjustment (−50 to +50). `null` if no override. |
-| `overrideReason` | string | Required reasoning supplied by the analyst. `null` if no override. |
-| `topContributors` | array | Top scoring factors with weights and descriptions |
+The columns next to these depend on the type: account fields for `users`, resource fields for `groups`, catalog name for `business-roles`, and so on. `groups` responses also carry `"useResources": true`.
 
 ---
 
-## Single Entity & Override
+## One entity
 
 ### GET /api/risk-scores/:type/:id
 
-Retrieve the current risk score for a single entity.
-
-**Path Parameters**
-
 | Parameter | Values |
 |---|---|
-| `type` | `users`, `groups`, `business-roles`, `contexts`, `identities` |
-| `id` | Entity UUID |
+| `type` | `users`, `groups`, `resources`, `business-roles`, `contexts`, `identities` (`groups` and `resources` mean the same) |
+| `id` | The entity's UUID |
 
-**Response:** Same structure as a single item from the list endpoints above, plus full `contributors` array (not just top 3).
-
----
+Returns one row in the format above, plus `displayName`. `404` when the entity has no score.
 
 ### PUT /api/risk-scores/:type/:id/override
 
-Apply an analyst score adjustment to a single entity. The adjustment is stored with the analyst's identity (from JWT `upn` claim) and required reasoning.
-
-**Path Parameters**
-
-| Parameter | Values |
-|---|---|
-| `type` | `users`, `groups`, `business-roles`, `contexts`, `identities` |
-| `id` | Entity UUID |
-
-**Request Body**
+Sets an analyst adjustment on one entity. Requires the `data.write.risk` permission.
 
 ```json
 {
   "adjustment": -20,
-  "reason": "False positive — display name matches classifier but account is a shared mailbox with no sensitive access"
+  "reason": "Shared mailbox; the name matches a classifier but the account has no sensitive access"
 }
 ```
 
-| Field | Type | Required | Constraints |
-|---|---|---|---|
-| `adjustment` | int | Yes | Integer from −50 to +50 |
-| `reason` | string | Yes | Non-empty. Capped at **500 characters**. |
-
-**Response**
-
-```json
-{
-  "entityId": "uuid",
-  "newScore": 48,
-  "baseScore": 68,
-  "overrideAdjustment": -20,
-  "overrideReason": "False positive — ...",
-  "overrideBy": "john.smith@contoso.com",
-  "overrideAt": "2026-03-27T14:22:00Z"
-}
-```
-
-!!! note "Override Persistence"
-    Overrides are preserved when `Invoke-FGRiskScoring` re-runs. The engine writes the base score from its four-layer calculation; the override adjustment is applied on top when the API reads back the score.
-
-!!! note "Clearing an Override"
-    To remove an override, set `adjustment` to `0` and supply a `reason` explaining the removal.
-
----
-
-## Resource Clusters
-
-### GET /api/risk-scores/clusters
-
-List resource clusters created by `Save-FGResourceClusters`. Each cluster groups related resources by classifier or name-stem and has an aggregate risk score computed from its members.
-
-**Response**
-
-```json
-{
-  "data": [
-    {
-      "clusterId": "clust-001",
-      "displayName": "Finance Access Cluster",
-      "clusterType": "Classifier",
-      "ownerDisplayName": "Jane Doe",
-      "memberCount": 14,
-      "aggregateScore": 71,
-      "tier": "High",
-      "assignedBy": "john.smith@contoso.com"
-    }
-  ]
-}
-```
-
-**Response Fields**
-
-| Field | Description |
+| Field | Rules |
 |---|---|
-| `clusterType` | `Classifier` (grouped by risk classifier) or `NameStem` (grouped by shared display name prefix) |
-| `ownerDisplayName` | Analyst-assigned owner for remediation accountability |
-| `aggregateScore` | Weighted average of member entity scores |
-| `assignedBy` | Identity who assigned the cluster owner (derived from authenticated user, not request body) |
+| `adjustment` | Whole number from −50 to +50 |
+| `reason` | Required, 3 to 500 characters |
 
-**Reads From:** `ResourceClusters` + `ResourceClusterMembers` + `RiskScores`
-
----
-
-## Org Chart
-
-### GET /api/org-chart
-
-Manager hierarchy tree with risk scores propagated to department nodes. Used by the Org Chart page.
-
-**Caching:** Response is cached for **5 minutes** server-side. This avoids expensive recursive CTE execution on every page load.
-
-**Response**
+The API adds the four stored layer scores to the adjustment, clamps the result to 0–100, and stores it as the new `riskScore` and `riskTier`.
 
 ```json
 {
-  "tree": [
-    {
-      "principalId": "uuid",
-      "displayName": "Alice Johnson",
-      "jobTitle": "Chief Financial Officer",
-      "department": "Finance",
-      "riskScore": 42,
-      "riskTier": "Medium",
-      "directReportCount": 8,
-      "totalReportCount": 142,
-      "children": [
-        {
-          "principalId": "uuid",
-          "displayName": "Bob Chen",
-          "jobTitle": "Finance Director",
-          "riskScore": 67,
-          "riskTier": "High",
-          "directReportCount": 12,
-          "totalReportCount": 58,
-          "children": [ ... ]
-        }
-      ]
-    }
-  ],
-  "cachedAt": "2026-03-27T14:00:00Z"
+  "success": true,
+  "adjustment": -20,
+  "reason": "Shared mailbox; the name matches a classifier but the account has no sensitive access",
+  "riskScore": 48,
+  "riskTier": "Medium",
+  "assignedBy": "analyst@contoso.com"
 }
 ```
 
-**Reads From:** `Principals` (manager hierarchy via `managerId` self-join) + `RiskScores` + `Contexts`
+`assignedBy` is the signed-in user. It is returned, not stored.
 
-Risk tiers on manager nodes reflect the **highest risk tier among all direct and indirect reports** — allowing managers to identify high-risk subtrees at a glance.
+### DELETE /api/risk-scores/:type/:id/override
+
+Removes the adjustment. Requires the `data.write.risk` permission. The score is recomputed the same way with an adjustment of 0; `riskOverride` becomes `0` and `riskOverrideReason` becomes `null`.
+
+```json
+{ "success": true, "riskScore": 68, "riskTier": "Medium" }
+```
+
+---
+
+## Org chart
+
+These endpoints belong to the manager hierarchy, not to risk scoring. They carry no scores.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/org-chart` | `{ "available": true }` when the manager-hierarchy context plugin has built contexts, otherwise `false` |
+| `GET /api/org-chart/user/:id/manager` | `{ "manager": { ... } }`, or `{ "manager": null }` |
+| `GET /api/org-chart/user/:id/reports` | `{ "reports": [ ... ], "totalCount": 12 }`. `limit` defaults to 200, at most 1000. |
+
+A manager or report row has `id`, `displayName`, `email`, `department`, `jobTitle`, `companyName`, `deleted` and `deletedAt`.

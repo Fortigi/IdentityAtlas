@@ -1,6 +1,6 @@
 # Entity Detail API
 
-These endpoints power the detail pages for users, resources, business roles, systems, org units, and identities. All endpoints require `Authorization: Bearer <JWT>`.
+These endpoints power the detail pages for users, resources, business roles, systems, contexts, and identities. All endpoints require `Authorization: Bearer <JWT>`.
 
 ---
 
@@ -259,7 +259,7 @@ Paginated list of principals assigned to this resource, with membership type bad
 
 Version history for a resource. Same format as [`GET /api/user/:id/history`](#get-apiuseridhistory).
 
-**Reads From:** `Resources via `_history` audit table`
+**Reads From:** `_history` audit table (filtered by `tableName = 'Resources'`)
 
 ---
 
@@ -421,7 +421,7 @@ Pending (open) assignment requests for a business role.
 
 Version history for the business role resource record. Same format as [`GET /api/user/:id/history`](#get-apiuseridhistory).
 
-**Reads From:** `Resources via `_history` audit table`
+**Reads From:** `_history` audit table (filtered by `tableName = 'Resources'`)
 
 ---
 
@@ -653,7 +653,7 @@ Returns the current user's tab visibility preferences.
 }
 ```
 
-Optional tabs that can be toggled: `systems`, `identities`, `contexts`, `sync-log`. All are hidden by default until the user enables them via the settings dropdown (user avatar, top right). Any other key is dropped on save.
+The API keeps only these keys: `systems`, `identities`, `contexts`, `sync-log`, `risk-scores`, `performance`, `admin`. Any other key is dropped on read and on save. The first four are the tabs a user can switch on in the settings menu; they are hidden until the user does. The last three are accepted so that preferences saved by older versions still read back.
 
 ---
 
@@ -669,7 +669,7 @@ Update the current user's tab visibility.
 }
 ```
 
-**Response:** `204 No Content`
+**Response:** `{ "ok": true, "visibleTabs": [ ... ] }`, with the keys that were kept. `400` when `visibleTabs` is not an array.
 
 ---
 
