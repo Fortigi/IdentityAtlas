@@ -1,0 +1,1 @@
+- Findings from the monthly security review are filed automatically: Medium and higher as private security advisories with a public placeholder issue that reveals only the severity and OWASP category, Low and Informational as public issues. A finding that is already tracked is not filed twice, and one that comes back after being closed is filed as a regression.
