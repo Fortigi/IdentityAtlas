@@ -6,6 +6,8 @@ type: reference
 
 Identity Atlas was re-assessed in **September 2026** with a white-box security review of `main` (version `5.671`, commit `b9313bb5b`). This was the first full re-test after the [June 2026 assessment](assessment.md) and the [June maintenance audit](maintenance-audit-2026-06.md), with more than 1,100 commits merged between the two.
 
+How this fits with our other security testing is described in the [Security testing programme](index.md).
+
 This page is the **public, sanitised record** of that review: scope, method, every finding with its severity and remediation pull request, the regression check against June, and the controls that were confirmed sound. Step-by-step exploit detail is deliberately left out. The code changes in the linked pull requests are the technical reference.
 
 !!! info "Why we publish this"

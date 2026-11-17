@@ -55,6 +55,12 @@ To check whether the version you run contains a given fix, compare it with the
 
 ## Published security assessments
 
+The [Security testing programme](https://docs.identityatlas.io/edge/security/)
+([source](docs/security/index.md)) describes how Identity Atlas is tested: the
+standards we test against (NCSC, OWASP), the automated scans on every change, our
+security reviews, how findings are handled, and how to commission an independent
+penetration test.
+
 We publish sanitised summaries of our security reviews, with every finding, its
 status and the pull request that fixed it:
 
