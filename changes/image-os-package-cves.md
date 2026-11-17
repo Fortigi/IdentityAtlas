@@ -1,3 +1,0 @@
-- Fixed hundreds of known vulnerabilities in the published Docker images: all three images now install the latest operating-system security updates when they are built, instead of staying on whatever the base image shipped with.
-- The worker image now runs PowerShell 7.6 LTS on a current Ubuntu 24.04 base. Its previous base image, Microsoft's PowerShell image, had not been updated since January 2025 and still carried PowerShell 7.5.0 and its unpatched .NET libraries.
-- The web image no longer contains npm, which it never used at runtime; npm's own bundled packages were the source of every npm-related finding in the image scan.

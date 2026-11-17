@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed hundreds of known vulnerabilities in the published Docker images: all three images now install the latest operating-system security updates when they are built, instead of staying on whatever the base image shipped with.
+- The worker image now runs PowerShell 7.6 LTS on a current Ubuntu 24.04 base. Its previous base image, Microsoft's PowerShell image, had not been updated since January 2025 and still carried PowerShell 7.5.0 and its unpatched .NET libraries.
+- The web image no longer contains npm, which it never used at runtime; npm's own bundled packages were the source of every npm-related finding in the image scan.
+
+## Changes in this PR
+
 - The Azure template now sets up Key Vault with Azure role-based access control (RBAC) instead of vault access policies, which Microsoft is retiring. An existing deployment is switched over in place on its next redeploy; the stored secrets are kept.
 - The identity that runs the Azure deployment now needs the right to create role assignments on the resource group (Owner, User Access Administrator or Role Based Access Control Administrator); Contributor alone is no longer enough.
 - Fixed: the Azure deployment could replace the application's master key with a new one when it briefly could not read Key Vault, which would make every stored crawler and LLM secret unreadable. It now waits for access and stops with a clear error instead.
