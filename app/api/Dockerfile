@@ -14,7 +14,7 @@
 # pick up a different image behind the same tag. The tag is kept in the comment
 # for readability; refresh both together when bumping.
 # node:24-slim
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS frontend-build
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS frontend-build
 WORKDIR /build
 COPY app/ui/package*.json ./
 RUN npm ci
@@ -24,7 +24,7 @@ RUN npm --prefix app/ui run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
 # node:24-slim (same digest as the build stage)
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS runtime
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS runtime
 
 # Bake the module version into the image so /api/version returns the full
 # version string (e.g. 5.0.20260414.0900) without needing the .psd1 file.
@@ -34,7 +34,21 @@ ENV MODULE_VERSION=$MODULE_VERSION
 
 WORKDIR /app/backend
 COPY app/api/package*.json ./
-RUN npm ci --omit=dev
+# Install the production dependencies, then take the package managers out of the
+# runtime image. The container runs `node src/index.js` and never calls npm, npx
+# or corepack, yet npm's own bundled dependencies (undici, ip-address,
+# brace-expansion, ...) were the source of every npm finding in the image CVE
+# scan (image-scan.yml). `apt-get upgrade` pulls the Debian security updates
+# published since the pinned base digest was cut.
+RUN set -eux; \
+    npm ci --omit=dev; \
+    npm cache clean --force; \
+    rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /root/.npm; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get upgrade -y; \
+    rm -rf /var/lib/apt/lists/*
 COPY app/api/src ./src
 # Copy crawler manifests so the API can auto-discover valid job types and their
 # config schemas at startup. PS1 scripts are removed — the web container is

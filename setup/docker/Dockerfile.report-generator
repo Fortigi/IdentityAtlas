@@ -30,8 +30,13 @@ ARG MODULE_VERSION=""
 ENV MODULE_VERSION=$MODULE_VERSION
 
 USER root
+# `apt-get upgrade` pulls the Ubuntu security updates published since the pinned
+# llama.cpp digest was built. The digest itself stays put (see above), so without
+# this the OS packages under llama-server were never patched -- the image CVE scan
+# (image-scan.yml) reported over a hundred findings in them.
 RUN set -eux; \
-    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*; \
     mkdir -p /models /slots; \
     curl -fsSL -o /models/model.gguf "$MODEL_URL"; \
     if [ -z "${MODEL_SHA256:-}" ]; then echo "ERROR: MODEL_SHA256 is empty — refusing to ship an unverified model" >&2; exit 1; fi; \

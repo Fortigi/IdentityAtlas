@@ -8,10 +8,56 @@
 #
 # Build context: repo root
 
+# Plain Ubuntu, with PowerShell installed on top. This used to be
+# mcr.microsoft.com/powershell:7.5-ubuntu-24.04, but Microsoft stopped rebuilding
+# that image: the digest we pinned was built 2025-01-30 with PowerShell 7.5.0, and
+# it was still the newest one behind the tag in Nov 2026. Its Ubuntu packages and
+# PowerShell's bundled .NET libraries were never patched again, which the image
+# CVE scan (image-scan.yml) turned into several hundred findings. Dependabot could
+# not help, because there was no newer image to move to.
+#
 # Pinned by digest (SEC-2026-09 M-14) so a rebuild can't silently pick up a
-# different image behind the same tag. Refresh tag and digest together.
-# mcr.microsoft.com/powershell:7.5-ubuntu-24.04
-FROM mcr.microsoft.com/powershell:7.5-ubuntu-24.04@sha256:042240d57ec9e47e511033b92625a8d95875ee5860af3015992c248b58a8be81
+# different image behind the same tag. Refresh tag and digest together;
+# Dependabot (docker, /setup/docker) proposes new digests.
+# ubuntu:24.04
+FROM ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8
+
+# PowerShell release, installed from Microsoft's GitHub release and checked
+# against the SHA-256 that release publishes (hashes.sha256), so a tampered or
+# swapped download fails the build. 7.6 is the LTS line (.NET 10); 7.5 ran on
+# .NET 9, whose support ended in November 2026. Bump version and checksum
+# together. tools/update-sbom-doc.py reads POWERSHELL_VERSION for the SBOM page.
+ARG POWERSHELL_VERSION=7.6.10
+ARG POWERSHELL_DEB_SHA256=81a5a944702b116ea74c88b01ba5f1f46b1cd7c42c36d85e1bae90de1230b4d1
+
+# The environment the Microsoft image set, kept so crawler output is unchanged:
+# en-US culture (dates, number formatting) and ICU-backed globalisation.
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+    PS_INSTALL_FOLDER=/opt/microsoft/powershell/7 \
+    PSModuleAnalysisCachePath=/var/cache/microsoft/powershell/PSModuleAnalysisCache/ModuleAnalysisCache \
+    POWERSHELL_DISTRIBUTION_CHANNEL=PSDocker-Ubuntu-24.04 \
+    POWERSHELL_TELEMETRY_OPTOUT=1
+
+# `apt-get upgrade` pulls every Ubuntu security update published since the base
+# digest was cut, so a rebuild picks up OS fixes even between Dependabot bumps.
+# curl is only needed for the download and is removed again.
+RUN set -eux; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get upgrade -y; \
+    apt-get install -y --no-install-recommends ca-certificates curl locales tzdata; \
+    sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen; \
+    locale-gen; \
+    curl -fsSL -o /tmp/powershell.deb \
+      "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell_${POWERSHELL_VERSION}-1.deb_amd64.deb"; \
+    echo "${POWERSHELL_DEB_SHA256}  /tmp/powershell.deb" | sha256sum -c -; \
+    apt-get install -y --no-install-recommends /tmp/powershell.deb; \
+    rm /tmp/powershell.deb; \
+    apt-get purge -y --auto-remove curl; \
+    rm -rf /var/lib/apt/lists/*; \
+    pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 
 WORKDIR /app
 
