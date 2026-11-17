@@ -265,6 +265,10 @@
          <lastmod>2026-11-17</lastmod>
     </url>
     <url>
+         <loc>https://docs.identityatlas.io/stable/architecture/secrets-and-master-key/</loc>
+         <lastmod>2026-11-17</lastmod>
+    </url>
+    <url>
          <loc>https://docs.identityatlas.io/stable/architecture/soft-delete/</loc>
          <lastmod>2026-11-17</lastmod>
     </url>

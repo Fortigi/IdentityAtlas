@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#llm-secrets-vault-and-risk-scoring-v5" class="md-skip">
+        <a href="#llm-and-risk-scoring-internals" class="md-skip">
           Skip to content
         </a>
       
@@ -2638,6 +2638,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../secrets-and-master-key/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets and the Master Key
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/backup-restore-upgrade/" class="md-nav__link">
         
   
@@ -4145,10 +4173,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-secrets-vault-appapisrcsecretsvaultjs" class="md-nav__link">
+  <a href="#1-llm-provider-abstraction-appapisrcllmprovidersjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Secrets vault — app/api/src/secrets/vault.js
+        1. LLM provider abstraction — app/api/src/llm/providers.js
       
     </span>
   </a>
@@ -4156,10 +4184,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-llm-provider-abstraction-appapisrcllmprovidersjs" class="md-nav__link">
+  <a href="#2-llm-service-appapisrcllmservicejs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. LLM provider abstraction — app/api/src/llm/providers.js
+        2. LLM service — app/api/src/llm/service.js
       
     </span>
   </a>
@@ -4167,10 +4195,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-llm-service-appapisrcllmservicejs" class="md-nav__link">
+  <a href="#3-url-scraper-appapisrcllmscraperjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. LLM service — app/api/src/llm/service.js
+        3. URL scraper — app/api/src/llm/scraper.js
       
     </span>
   </a>
@@ -4178,10 +4206,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-url-scraper-appapisrcllmscraperjs" class="md-nav__link">
+  <a href="#4-risk-profile-and-classifier-api-appapisrcroutesriskprofilesjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. URL scraper — app/api/src/llm/scraper.js
+        4. Risk profile and classifier API — app/api/src/routes/riskProfiles.js
       
     </span>
   </a>
@@ -4189,10 +4217,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-risk-profile-classifier-api-appapisrcroutesriskprofilesjs" class="md-nav__link">
+  <a href="#5-risk-scoring-engine-appapisrcriskscoringenginejs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Risk profile + classifier API — app/api/src/routes/riskProfiles.js
+        5. Risk scoring engine — app/api/src/riskscoring/engine.js
       
     </span>
   </a>
@@ -4200,10 +4228,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#6-risk-scoring-engine-appapisrcriskscoringenginejs" class="md-nav__link">
+  <a href="#6-scoring-runs-appapisrcroutesriskscoringrunsjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6. Risk scoring engine — app/api/src/riskscoring/engine.js
+        6. Scoring runs — app/api/src/routes/riskScoringRuns.js
       
     </span>
   </a>
@@ -4211,21 +4239,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#7-scoring-runs-appapisrcroutesriskscoringrunsjs" class="md-nav__link">
+  <a href="#7-ui-appuisrccomponentsriskprofilewizardjsx" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. Scoring runs — app/api/src/routes/riskScoringRuns.js
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#8-ui-appuisrccomponentsriskprofilewizardjsx" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. UI — app/ui/src/components/RiskProfileWizard.jsx
+        7. UI — app/ui/src/components/RiskProfileWizard.jsx
       
     </span>
   </a>
@@ -4249,10 +4266,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#whats-intentionally-not-in-v1" class="md-nav__link">
+  <a href="#what-is-not-built" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What's intentionally not in v1
+        What is not built
       
     </span>
   </a>
@@ -4260,18 +4277,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#operational-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operational notes
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Operational notes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#master-key-rotation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4281,19 +4286,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#backups" class="md-nav__link">
-    <span class="md-ellipsis">
       
-        Backups
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
+        <li class="md-nav__item">
   <a href="#disabling-the-feature" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4301,11 +4295,6 @@
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -6110,10 +6099,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#1-secrets-vault-appapisrcsecretsvaultjs" class="md-nav__link">
+  <a href="#1-llm-provider-abstraction-appapisrcllmprovidersjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Secrets vault — app/api/src/secrets/vault.js
+        1. LLM provider abstraction — app/api/src/llm/providers.js
       
     </span>
   </a>
@@ -6121,10 +6110,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-llm-provider-abstraction-appapisrcllmprovidersjs" class="md-nav__link">
+  <a href="#2-llm-service-appapisrcllmservicejs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. LLM provider abstraction — app/api/src/llm/providers.js
+        2. LLM service — app/api/src/llm/service.js
       
     </span>
   </a>
@@ -6132,10 +6121,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#3-llm-service-appapisrcllmservicejs" class="md-nav__link">
+  <a href="#3-url-scraper-appapisrcllmscraperjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        3. LLM service — app/api/src/llm/service.js
+        3. URL scraper — app/api/src/llm/scraper.js
       
     </span>
   </a>
@@ -6143,10 +6132,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#4-url-scraper-appapisrcllmscraperjs" class="md-nav__link">
+  <a href="#4-risk-profile-and-classifier-api-appapisrcroutesriskprofilesjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. URL scraper — app/api/src/llm/scraper.js
+        4. Risk profile and classifier API — app/api/src/routes/riskProfiles.js
       
     </span>
   </a>
@@ -6154,10 +6143,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#5-risk-profile-classifier-api-appapisrcroutesriskprofilesjs" class="md-nav__link">
+  <a href="#5-risk-scoring-engine-appapisrcriskscoringenginejs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Risk profile + classifier API — app/api/src/routes/riskProfiles.js
+        5. Risk scoring engine — app/api/src/riskscoring/engine.js
       
     </span>
   </a>
@@ -6165,10 +6154,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#6-risk-scoring-engine-appapisrcriskscoringenginejs" class="md-nav__link">
+  <a href="#6-scoring-runs-appapisrcroutesriskscoringrunsjs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6. Risk scoring engine — app/api/src/riskscoring/engine.js
+        6. Scoring runs — app/api/src/routes/riskScoringRuns.js
       
     </span>
   </a>
@@ -6176,21 +6165,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#7-scoring-runs-appapisrcroutesriskscoringrunsjs" class="md-nav__link">
+  <a href="#7-ui-appuisrccomponentsriskprofilewizardjsx" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. Scoring runs — app/api/src/routes/riskScoringRuns.js
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#8-ui-appuisrccomponentsriskprofilewizardjsx" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. UI — app/ui/src/components/RiskProfileWizard.jsx
+        7. UI — app/ui/src/components/RiskProfileWizard.jsx
       
     </span>
   </a>
@@ -6214,10 +6192,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#whats-intentionally-not-in-v1" class="md-nav__link">
+  <a href="#what-is-not-built" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What's intentionally not in v1
+        What is not built
       
     </span>
   </a>
@@ -6225,18 +6203,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#operational-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Operational notes
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Operational notes">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#master-key-rotation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6246,19 +6212,8 @@
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
-  <a href="#backups" class="md-nav__link">
-    <span class="md-ellipsis">
       
-        Backups
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
+        <li class="md-nav__item">
   <a href="#disabling-the-feature" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6266,11 +6221,6 @@
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -6368,12 +6318,8 @@
   
 
 
-<h1 id="llm-secrets-vault-and-risk-scoring-v5">LLM, Secrets Vault, and Risk Scoring (v5)<a class="headerlink" href="#llm-secrets-vault-and-risk-scoring-v5" title="Permanent link">&para;</a></h1>
-<p>This document covers the substrate added in the postgres rewrite for in-app
-risk profiling and the surrounding plumbing (secrets vault, LLM provider
-abstraction, scoring engine). It supersedes the v4 PowerShell-based risk
-scoring docs — the worker no longer talks to an LLM directly. All LLM calls
-go through the API container.</p>
+<h1 id="llm-and-risk-scoring-internals">LLM and Risk Scoring Internals<a class="headerlink" href="#llm-and-risk-scoring-internals" title="Permanent link">&para;</a></h1>
+<p>This page describes how risk profiling and risk scoring work inside the API: the LLM provider layer, the risk-profile wizard and its endpoints, and the scoring engine. All LLM calls go through the API container; the worker container has no LLM dependency. The secrets vault that holds the LLM API key has its own page: <a href="../secrets-and-master-key/">Secrets and the Master Key</a>.</p>
 <h2 id="big-picture">Big picture<a class="headerlink" href="#big-picture" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                  ┌────────────────────┐
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   user (UI) ───▶ │  Risk Profile       │ ── chat with LLM via the API
@@ -6397,28 +6343,9 @@ go through the API container.</p>
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>                  │  Secrets (vault)    │
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>                  └────────────────────┘
 </code></pre></div>
-<p>The worker container has <strong>no</strong> LLM dependency. Risk scoring is initiated from
-the UI and runs inside the web container as a background job (the engine is a
-plain JS module loaded by the same Node process that serves the API).</p>
+<p>Risk scoring is started from the UI and runs inside the web container as a background job: the engine is a plain JavaScript module loaded by the same Node process that serves the API.</p>
 <h2 id="components">Components<a class="headerlink" href="#components" title="Permanent link">&para;</a></h2>
-<h3 id="1-secrets-vault-appapisrcsecretsvaultjs">1. Secrets vault — <code>app/api/src/secrets/vault.js</code><a class="headerlink" href="#1-secrets-vault-appapisrcsecretsvaultjs" title="Permanent link">&para;</a></h3>
-<p>General-purpose envelope-encrypted secret store for any secret the app needs
-(LLM API keys, scraper credentials, future Vault/AWS-SM-backed secrets all live
-here).</p>
-<ul>
-<li><strong>Schema</strong>: <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/010_secrets_and_risk.sql"><code>Secrets</code></a> — id, scope, label, ciphertext, iv, authTag + per-row encryptedKey/keyIv/keyAuthTag.</li>
-<li><strong>Encryption</strong>: AES-256-GCM. Per-row 32-byte data key. The data key is wrapped by a master key from <code>IDENTITY_ATLAS_MASTER_KEY</code> (32 bytes, base64).</li>
-<li><strong>Master key bootstrap</strong>:</li>
-<li><code>IDENTITY_ATLAS_MASTER_KEY</code> env var, or <code>IDENTITY_ATLAS_MASTER_KEY_FILE</code> (preferred — back this up like any other root secret)</li>
-<li>A key file, auto-generated on first boot: <code>$IDENTITY_ATLAS_KEY_DIR/.master-key</code> (the web-only <code>web_keys</code> volume in the compose files), or <code>/data/uploads/.master-key</code> when <code>IDENTITY_ATLAS_KEY_DIR</code> is unset (older compose files). A key found at the old location is moved to the key directory after it is verified. See <code>app/api/src/secrets/masterKeyStore.js</code>.</li>
-<li>No new key is generated while the vault already holds encrypted secrets — restore the key instead (or set <code>IDENTITY_ATLAS_ALLOW_NEW_MASTER_KEY=true</code> to start over).</li>
-<li><strong>Public API</strong>: <code>putSecret(id, scope, value, label)</code>, <code>getSecret(id, scope)</code>, <code>hasSecret(id, scope)</code>, <code>deleteSecret(id, scope)</code>, <code>listSecrets(scope)</code>, <code>selfTest()</code>. Every read, existence check and delete names the scope it may touch — a row in another scope is treated as absent.</li>
-<li><strong>Why envelope encryption</strong>: per-row keys mean a single compromised secret doesn't expose the others; rotating the master key only re-encrypts the small data keys, not the (potentially large) ciphertexts; the same shape works for an HSM/KMS later by swapping the wrapping function.</li>
-</ul>
-<p>For development, the bootstrap auto-generates and persists a master key on first
-start. <strong>For production deployments, always set <code>IDENTITY_ATLAS_MASTER_KEY</code>
-explicitly</strong> so the key can be backed up alongside other root secrets.</p>
-<h3 id="2-llm-provider-abstraction-appapisrcllmprovidersjs">2. LLM provider abstraction — <code>app/api/src/llm/providers.js</code><a class="headerlink" href="#2-llm-provider-abstraction-appapisrcllmprovidersjs" title="Permanent link">&para;</a></h3>
+<h3 id="1-llm-provider-abstraction-appapisrcllmprovidersjs">1. LLM provider abstraction — <code>app/api/src/llm/providers.js</code><a class="headerlink" href="#1-llm-provider-abstraction-appapisrcllmprovidersjs" title="Permanent link">&para;</a></h3>
 <p>One small adapter per provider behind a single <code>chat({system, messages, model, temperature, maxTokens})</code> signature.</p>
 <table>
 <thead>
@@ -6446,28 +6373,25 @@ explicitly</strong> so the key can be backed up alongside other root secrets.</p
 </tr>
 </tbody>
 </table>
-<p>The Azure adapter requires <code>endpoint</code>, <code>deployment</code>, and (optional) <code>apiVersion</code>
-in the config object. The deployment name is what appears in the <code>model</code> field
-when calling — Azure resolves it to the underlying model on its side.</p>
-<p>Default models: Anthropic <code>claude-sonnet-4-20250514</code>, OpenAI <code>gpt-4o</code>,
-Azure-OpenAI must be supplied per-tenant.</p>
-<p>All adapters use Node 20+'s built-in <code>fetch</code> — no external dependencies.</p>
-<h3 id="3-llm-service-appapisrcllmservicejs">3. LLM service — <code>app/api/src/llm/service.js</code><a class="headerlink" href="#3-llm-service-appapisrcllmservicejs" title="Permanent link">&para;</a></h3>
-<p>Glue between the vault, the WorkerConfig table, and the providers module:</p>
+<p>The Azure adapter requires <code>endpoint</code>, <code>deployment</code>, and (optional) <code>apiVersion</code> in the config object. The endpoint must be an Azure OpenAI host (<code>*.openai.azure.com</code>, <code>.us</code> or <code>.cn</code>) over HTTPS. The deployment name is what appears in the <code>model</code> field when calling; Azure resolves it to the underlying model on its side.</p>
+<p>Default models: Anthropic <code>claude-sonnet-4-6</code>, OpenAI <code>gpt-4o</code>. Azure OpenAI has no default: the deployment name must be supplied.</p>
+<p>All adapters use Node's built-in <code>fetch</code>. Every call has a time limit (<code>LLM_TIMEOUT_MS</code>, default 120 seconds), reads at most 16 MB of response, and refuses to follow redirects.</p>
+<h3 id="2-llm-service-appapisrcllmservicejs">2. LLM service — <code>app/api/src/llm/service.js</code><a class="headerlink" href="#2-llm-service-appapisrcllmservicejs" title="Permanent link">&para;</a></h3>
+<p>Glue between the vault, the <code>WorkerConfig</code> table, and the providers module:</p>
 <ul>
-<li><code>getLLMConfig()</code> / <code>saveLLMConfig({...})</code> / <code>clearLLMConfig()</code> — persist non-secret config (<code>provider</code>, <code>model</code>, <code>endpoint</code>, <code>deployment</code>, <code>apiVersion</code>) in <code>WorkerConfig</code> under key <code>LLM_CONFIG</code>. The API key goes into the vault under id <code>llm.apikey</code>, scope <code>llm</code>.</li>
-<li><code>chatWithSavedConfig({system, messages})</code> — convenience for code that just wants to make a chat call using whatever the user has configured.</li>
-<li><code>testLLMConfig({...})</code> — round-trip test, returns <code>{ok, model, latencyMs, sample}</code> or <code>{ok:false, error}</code>.</li>
+<li><code>getLLMConfig()</code> / <code>saveLLMConfig({...})</code> / <code>clearLLMConfig()</code> persist the non-secret config (<code>provider</code>, <code>model</code>, <code>endpoint</code>, <code>deployment</code>, <code>apiVersion</code>) in <code>WorkerConfig</code> under key <code>LLM_CONFIG</code>. The API key goes into the vault under id <code>llm.apikey</code>, scope <code>llm</code>.</li>
+<li><code>chatWithSavedConfig({system, messages})</code> makes a chat call with whatever the user has configured.</li>
+<li><code>testLLMConfig({...})</code> does a round-trip test and returns <code>{ok, model, latencyMs, sample}</code> or <code>{ok:false, error}</code>.</li>
 </ul>
-<h3 id="4-url-scraper-appapisrcllmscraperjs">4. URL scraper — <code>app/api/src/llm/scraper.js</code><a class="headerlink" href="#4-url-scraper-appapisrcllmscraperjs" title="Permanent link">&para;</a></h3>
-<p>Fetches one or more URLs and returns plain text suitable for stuffing into an LLM context window. Designed for <em>scrape-on-create</em> — the text is held in memory only as long as the profile-generation request that triggered it. No long-term indexing.</p>
+<h3 id="3-url-scraper-appapisrcllmscraperjs">3. URL scraper — <code>app/api/src/llm/scraper.js</code><a class="headerlink" href="#3-url-scraper-appapisrcllmscraperjs" title="Permanent link">&para;</a></h3>
+<p>Fetches one or more URLs and returns plain text suitable for an LLM context window. The text is held in memory only as long as the profile-generation request that triggered it; nothing is indexed.</p>
 <ul>
-<li>Per-URL credentials: <code>{username, password}</code> → Basic, or <code>{bearer}</code> → Bearer</li>
-<li>HTML stripping is intentionally crude (remove <code>&lt;script&gt;</code>, <code>&lt;style&gt;</code>, <code>&lt;nav&gt;</code>, decode entities, collapse whitespace). Real HTML parsers were not worth the dependency for "give the LLM enough text to identify the org".</li>
-<li>Caps: 50 KB per URL, 15s per request, 20 URLs per scrape call.</li>
+<li>Per-URL credentials: <code>{username, password}</code> → Basic, or <code>{bearer}</code> → Bearer. The credentials are stored in the vault.</li>
+<li>HTML stripping is intentionally crude (remove <code>&lt;script&gt;</code>, <code>&lt;style&gt;</code>, <code>&lt;nav&gt;</code>, decode entities, collapse whitespace). It only needs to give the LLM enough text to identify the organisation.</li>
+<li>Caps: 50 KB per URL, 15 seconds per request, at most 5 redirects.</li>
 </ul>
-<h3 id="5-risk-profile-classifier-api-appapisrcroutesriskprofilesjs">5. Risk profile + classifier API — <code>app/api/src/routes/riskProfiles.js</code><a class="headerlink" href="#5-risk-profile-classifier-api-appapisrcroutesriskprofilesjs" title="Permanent link">&para;</a></h3>
-<p>Endpoints (all behind the standard auth middleware):</p>
+<h3 id="4-risk-profile-and-classifier-api-appapisrcroutesriskprofilesjs">4. Risk profile and classifier API — <code>app/api/src/routes/riskProfiles.js</code><a class="headerlink" href="#4-risk-profile-and-classifier-api-appapisrcroutesriskprofilesjs" title="Permanent link">&para;</a></h3>
+<p>All endpoints require the <code>admin.llm</code> permission. The three generation endpoints are limited to 10 calls per minute per caller.</p>
 <table>
 <thead>
 <tr>
@@ -6510,7 +6434,7 @@ Azure-OpenAI must be supplied per-tenant.</p>
 <tr>
 <td>POST</td>
 <td><code>/api/risk-profiles/:id/activate</code></td>
-<td>Mark as the active profile (trigger enforces uniqueness)</td>
+<td>Mark as the active profile</td>
 </tr>
 <tr>
 <td>DELETE</td>
@@ -6564,26 +6488,19 @@ Azure-OpenAI must be supplied per-tenant.</p>
 </tr>
 </tbody>
 </table>
-<p>The generation endpoints <strong>do not write to the database</strong>. Drafts live only in
-the wizard's React state. The user clicks "Save" to persist. This makes the
-"discard" path trivial and means a half-finished refinement doesn't pollute
-history.</p>
-<h3 id="6-risk-scoring-engine-appapisrcriskscoringenginejs">6. Risk scoring engine — <code>app/api/src/riskscoring/engine.js</code><a class="headerlink" href="#6-risk-scoring-engine-appapisrcriskscoringenginejs" title="Permanent link">&para;</a></h3>
-<p>Postgres-native port of the v4 PowerShell scoring logic. v1 implements two of
-the four v4 layers; the formula stays the same shape so the others can be
-filled in later.</p>
+<p>The generation endpoints <strong>do not write to the database</strong>. Drafts live only in the wizard's React state until the user clicks Save. Discarding is trivial, and a half-finished refinement never pollutes the history.</p>
+<h3 id="5-risk-scoring-engine-appapisrcriskscoringenginejs">5. Risk scoring engine — <code>app/api/src/riskscoring/engine.js</code><a class="headerlink" href="#5-risk-scoring-engine-appapisrcriskscoringenginejs" title="Permanent link">&para;</a></h3>
+<p>The engine scores every account (<code>Principal</code>) and every resource (<code>Resource</code>, business roles included) in four layers:</p>
 <ul>
-<li><strong>Layer 1 — direct classifier match</strong> (weight 0.60). For every Principal and Resource, run the classifier patterns against displayName / email / jobTitle / department / description. The best matching classifier's score becomes the <code>directScore</code>. Multiple matches are recorded for the UI.</li>
-<li><strong>Layer 2 — lightweight membership signal</strong> (weight 0.25). Small groups (≤5 members) get +5. Membership analysis from v4 (PIM eligibility, owner concentration, downstream propagation) is a planned extension.</li>
-<li><strong>Layer 3 — structural</strong> (weight 0.15) — placeholder, returns 0.</li>
-<li><strong>Layer 4 — propagated</strong> (weight 0.00) — not yet implemented.</li>
+<li><strong>Layer 1 — direct classifier match</strong> (weight 0.50). The classifier patterns run against the display name, e-mail, job title, department, description, mail, external ID and the flattened extended attributes. The best match becomes the direct score; all matches are recorded for the UI. A group whose name looks like a non-production environment (acceptance, test, development and similar) gets a quarter of its direct score, at least 5.</li>
+<li><strong>Layer 2 — membership</strong> (weight 0.20, capped at 40). Groups: +5 for 1 to 5 members, +5 for members but no owner. Accounts: up to +15 for membership of more than 15 groups, +15 for membership of a group whose direct score is 70 or more, +5 for owning more than 3 groups. When the manager hierarchy is known, managers also get points for a wide span of control, a large subtree and high-risk direct reports.</li>
+<li><strong>Layer 3 — structural hygiene</strong> (weight 0.10, capped at 25). Groups: no description (+3), mail-enabled security group (+3), role-assignable group (+15), dynamic membership (+3). Accounts: disabled but still a member (+5), guest (+5), last sign-in more than 90 days ago (+10).</li>
+<li><strong>Layer 4 — propagation</strong> (weight 0.20). One pass: an account inherits 30% of the pre-propagation score of its riskiest group, and a group 25% of its riskiest member's.</li>
 </ul>
-<p>Final score = <code>min(100, round(0.60·direct + 0.25·membership + 0.15·structural))</code>.
-Tier thresholds: 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None.</p>
-<p>Service-principal-style entities (<code>principalType</code> in
-<code>ServicePrincipal/ManagedIdentity/WorkloadIdentity/AIAgent</code>) use the
-<code>agentClassifiers</code> set instead of <code>userClassifiers</code> when one is present.</p>
-<h3 id="7-scoring-runs-appapisrcroutesriskscoringrunsjs">7. Scoring runs — <code>app/api/src/routes/riskScoringRuns.js</code><a class="headerlink" href="#7-scoring-runs-appapisrcroutesriskscoringrunsjs" title="Permanent link">&para;</a></h3>
+<p>Final score = <code>min(100, round(0.50·direct + 0.20·membership + 0.10·structural + 0.20·propagated))</code>. Tier thresholds (<code>riskscoring/tiers.js</code>): 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None.</p>
+<p>Accounts whose <code>principalType</code> is <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code> or <code>AIAgent</code> are matched against the <code>agentClassifiers</code> set instead of <code>userClassifiers</code> when one is present.</p>
+<p>A run deletes every row in <code>RiskScores</code> and writes the new scores in one transaction. Analyst overrides are not carried over; see the <a href="../../api/risk-scores/">Risk Scores API</a>.</p>
+<h3 id="6-scoring-runs-appapisrcroutesriskscoringrunsjs">6. Scoring runs — <code>app/api/src/routes/riskScoringRuns.js</code><a class="headerlink" href="#6-scoring-runs-appapisrcroutesriskscoringrunsjs" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -6596,120 +6513,52 @@ Tier thresholds: 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None
 <tr>
 <td>POST</td>
 <td><code>/api/risk-scoring/runs</code></td>
-<td>Start a run, returns 202 + the row. Engine fires in the background.</td>
+<td>Start a run (<code>admin.crawlers</code>); returns <code>202</code> and the row. The engine runs in the background.</td>
 </tr>
 <tr>
 <td>GET</td>
 <td><code>/api/risk-scoring/runs</code></td>
-<td>List recent runs</td>
+<td>The 50 most recent runs</td>
 </tr>
 <tr>
 <td>GET</td>
 <td><code>/api/risk-scoring/runs/:id</code></td>
-<td>Single-run progress (used by polling UI)</td>
+<td>Progress of one run (polled by the UI)</td>
 </tr>
 </tbody>
 </table>
-<p>Runs are tracked in the <code>ScoringRuns</code> table with <code>status / step / pct /
-totalEntities / scoredEntities / errorMessage</code>. The wizard polls every 2
-seconds. Status transitions: <code>pending → running → completed | failed</code>.</p>
-<h3 id="8-ui-appuisrccomponentsriskprofilewizardjsx">8. UI — <code>app/ui/src/components/RiskProfileWizard.jsx</code><a class="headerlink" href="#8-ui-appuisrccomponentsriskprofilewizardjsx" title="Permanent link">&para;</a></h3>
-<p>Multi-step modal launched from the "New profile" button on Admin → Risk
-Scoring. Steps:</p>
+<p>Runs are tracked in the <code>ScoringRuns</code> table with <code>status / step / pct / totalEntities / scoredEntities / errorMessage</code>. Only one run can be in progress at a time; a second start answers <code>409</code>. Status transitions: <code>pending → running → completed | failed</code>.</p>
+<h3 id="7-ui-appuisrccomponentsriskprofilewizardjsx">7. UI — <code>app/ui/src/components/RiskProfileWizard.jsx</code><a class="headerlink" href="#7-ui-appuisrccomponentsriskprofilewizardjsx" title="Permanent link">&para;</a></h3>
+<p>A multi-step modal launched from the <strong>New profile</strong> button on Admin → Risk Scoring. Steps:</p>
 <ol>
-<li><strong>Sources</strong> — domain, optional org name, hints, optional URLs (with credentials).</li>
-<li><strong>Generate &amp; Refine</strong> — POST <code>/risk-profiles/generate</code>, then a chat panel for <code>/risk-profiles/refine</code> calls. The current profile JSON is shown side-by-side with the chat history.</li>
-<li><strong>Save Profile</strong> — name + activate toggle.</li>
-<li><strong>Classifiers</strong> — POST <code>/risk-classifiers/generate</code>, review JSON, save.</li>
-<li><strong>Run Scoring</strong> — POST <code>/risk-scoring/runs</code>, poll for progress.</li>
+<li><strong>Sources</strong> — domain, optional organisation name, hints, optional URLs (with credentials).</li>
+<li><strong>Generate &amp; Refine</strong> — <code>POST /risk-profiles/generate</code>, then a chat panel for <code>/risk-profiles/refine</code> calls. The current profile JSON is shown next to the chat history.</li>
+<li><strong>Save Profile</strong> — name and activate toggle.</li>
+<li><strong>Classifiers</strong> — <code>POST /risk-classifiers/generate</code>, review the JSON, save.</li>
+<li><strong>Run Scoring</strong> — <code>POST /risk-scoring/runs</code>, polled every 2 seconds for progress.</li>
 </ol>
-<p>All draft state lives client-side. Refreshing the wizard mid-flow loses the
-draft — that's the v1 trade-off. Persisting drafts is a future improvement.</p>
-<p>The <strong>LLM Settings</strong> sub-tab on Admin lets the operator pick provider, model,
-(Azure-only) endpoint/deployment/apiVersion, and API key. The "Test connection"
-button does a single ping using either the form values or the saved config so
-you can verify before clicking Save. The API key is never returned by the
-server; the form shows <code>apiKeySet: true|false</code> and a placeholder.</p>
+<p>All draft state lives in the browser. Refreshing the wizard mid-flow loses the draft.</p>
+<p>The <strong>LLM Settings</strong> tab in Admin lets the operator pick the provider, the model, (Azure only) the endpoint, deployment and API version, and the API key. <strong>Test connection</strong> makes a single call with either the form values or the saved config, so you can check before saving. The API key is never returned by the server; the form only shows whether one is stored.</p>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
-<p>Coverage added in this work:</p>
 <ul>
-<li><code>app/api/src/secrets/vault.test.js</code> — selfTest round-trip</li>
-<li><code>app/api/src/llm/providers.test.js</code> — adapter URL/headers/parsing for all three providers (mocked fetch)</li>
-<li><code>app/api/src/llm/riskPrompts.test.js</code> — prompt builders + JSON extractor (markdown fence stripping, leading/trailing prose, nested objects)</li>
-<li><code>app/api/src/llm/scraper.test.js</code> — protocol/MIME validation, HTML stripping, Basic/Bearer auth header construction, error handling</li>
-<li><code>app/api/src/riskscoring/engine.test.js</code> — tier thresholds, weighted formula, regex compilation tolerance</li>
+<li><code>app/api/src/secrets/vault.test.js</code> — vault round-trip</li>
+<li><code>app/api/src/llm/providers.test.js</code> — adapter URL, headers and parsing for all three providers (mocked fetch)</li>
+<li><code>app/api/src/llm/riskPrompts.test.js</code> — prompt builders and the JSON extractor (markdown fence stripping, leading/trailing prose, nested objects)</li>
+<li><code>app/api/src/llm/scraper.test.js</code> — protocol/MIME validation, HTML stripping, Basic/Bearer header construction, error handling</li>
+<li><code>app/api/src/riskscoring/engine.test.js</code>, <code>engine.passes.test.js</code>, <code>engine.helpers.test.js</code>, <code>tiers.test.js</code> — tier thresholds, the weighted formula, the scoring passes, regex compilation tolerance</li>
 </ul>
-<p>Run with <code>npm test</code> from <code>app/api/</code>. The test runner is vitest; no DB required
-(database-backed code paths are exercised by the smoke tests against a real
-postgres in the docker stack).</p>
-<h2 id="whats-intentionally-not-in-v1">What's intentionally not in v1<a class="headerlink" href="#whats-intentionally-not-in-v1" title="Permanent link">&para;</a></h2>
+<p>Run them with <code>npm test</code> from <code>app/api/</code>. The runner is Vitest; no database is required.</p>
+<h2 id="what-is-not-built">What is not built<a class="headerlink" href="#what-is-not-built" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Local LLM</strong> (Ollama / Llama / Mistral container). Easy add later — the provider abstraction is the right substrate. Quality on a no-GPU CPU box: Qwen 2.5 14B or Mistral Small 22B will be acceptable for the structured-JSON tasks but noticeably worse than Claude/GPT-4 on industry-specific nuance.</li>
-<li><strong>News-feed-driven re-scoring</strong> (M&amp;A events, security incidents). The classifier system is the right substrate for this — Phase 3 would add scheduled news-source ingestion that produces "candidate adjustments" for the operator to approve.</li>
-<li><strong>RAG over a long-term wiki/ISMS index</strong>. Current approach is scrape-on-create. RAG (e.g. with <code>pgvector</code>) is the right answer once you have hundreds of internal docs.</li>
-<li><strong>LLM account correlation</strong>. Account correlation was <em>not</em> built as an LLM wizard — it shipped as the deterministic, dictionary-based <a href="../account-linking/">Account Linking</a> engine instead (no prompts, no model calls). The earlier "same wizard shape, different prompts" idea was dropped.</li>
-<li><strong>Layers 2/3/4 of the scoring engine</strong>. Membership analysis (PIM eligibility, owner concentration), structural hygiene (orphan groups, never-signed-in users), and cross-entity propagation. The formula stays the same shape, so adding these is additive rather than a rewrite.</li>
+<li><strong>A local model for risk profiles.</strong> The provider list is Anthropic, OpenAI and Azure OpenAI. Identity Atlas does ship a local model, but it serves custom reports and the context assistant, not risk profiles; see <a href="../../reference/report-generator/">Report Generator</a>.</li>
+<li><strong>News-driven re-scoring</strong> (mergers, security incidents). The classifier system is the right place for it: scheduled news ingestion could produce candidate adjustments for an operator to approve.</li>
+<li><strong>Retrieval over a long-term document index.</strong> Profiles are built by scraping on creation. Retrieval (for example with <code>pgvector</code>) becomes worthwhile once there are hundreds of internal documents.</li>
+<li><strong>LLM account correlation.</strong> Account correlation was built as the deterministic, dictionary-based <a href="../account-linking/">Account Linking</a> engine instead: no prompts, no model calls.</li>
 </ul>
-<h2 id="operational-notes">Operational notes<a class="headerlink" href="#operational-notes" title="Permanent link">&para;</a></h2>
-<h3 id="master-key-rotation">Master key rotation<a class="headerlink" href="#master-key-rotation" title="Permanent link">&para;</a></h3>
-<p>Use the <code>rotate-master-key</code> CLI. It re-wraps only each row's <code>encryptedKey</code>
-(the per-row data key) from the previous master key to the new one, in a single
-transaction. Secret values are never decrypted by the CLI and nothing secret is
-printed — the output is row counts, plus the ids of any rows neither key opens
-(in which case nothing is written).</p>
-<p>Both keys are read from environment variables, never from command-line
-arguments:</p>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>IDENTITY_ATLAS_MASTER_KEY_PREVIOUS</code></td>
-<td>the key the vault is encrypted with today (the current env value, or the contents of <code>/data/uploads/.master-key</code>)</td>
-</tr>
-<tr>
-<td><code>IDENTITY_ATLAS_MASTER_KEY</code></td>
-<td>the new key — <code>node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"</code></td>
-</tr>
-</tbody>
-</table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 1. Stop the containers that use the vault, so nothing writes with the old key</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>stop<span class="w"> </span>web<span class="w"> </span>worker
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># 2. Put both keys in your shell environment without echoing them</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1">#    (read -s keeps them out of shell history)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">read</span><span class="w"> </span>-rs<span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY_PREVIOUS<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">export</span><span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY_PREVIOUS
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nb">read</span><span class="w"> </span>-rs<span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">export</span><span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># 3. Dry run, then the real rotation. `-e NAME` without a value passes the</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1">#    variable through from your shell.</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>docker<span class="w"> </span>compose<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--no-deps<span class="w">   </span>-e<span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY_PREVIOUS<span class="w"> </span>-e<span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY<span class="w">   </span>web<span class="w"> </span>node<span class="w"> </span>/app/backend/src/cli/rotate-master-key.js<span class="w"> </span>--dry-run
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>docker<span class="w"> </span>compose<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--no-deps<span class="w">   </span>-e<span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY_PREVIOUS<span class="w"> </span>-e<span class="w"> </span>IDENTITY_ATLAS_MASTER_KEY<span class="w">   </span>web<span class="w"> </span>node<span class="w"> </span>/app/backend/src/cli/rotate-master-key.js
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1"># 4. Point the web container at the new key: set IDENTITY_ATLAS_MASTER_KEY in</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="c1">#    your compose env / secret store, or (auto-generated key) replace the</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1">#    contents of /data/uploads/.master-key. Then start the stack again.</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
-</code></pre></div>
-<p>The rotation is idempotent: rows already wrapped by the new key are skipped, so
-an interrupted run can simply be repeated. Keep the previous key until the web
-container has started cleanly on the new one.</p>
-<p>Vault rows are also bound to their own id and scope (AES-GCM additional data),
-so a ciphertext copied onto a different row does not decrypt. Rows written by
-older versions are re-bound automatically at startup.</p>
-<h3 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h3>
-<p>Back up the postgres database <strong>and</strong> the auto-generated key file (<code>/data/keys/.master-key</code>
-in the <code>web_keys</code> volume, or <code>/data/uploads/.master-key</code> with an older compose file) <strong>and</strong> the <code>IDENTITY_ATLAS_MASTER_KEY</code> env var (if you
-set it explicitly). Without the master key, every secret in the vault is
-unrecoverable.</p>
-<h3 id="disabling-the-feature">Disabling the feature<a class="headerlink" href="#disabling-the-feature" title="Permanent link">&para;</a></h3>
-<p>The Risk Scoring sub-tab has a feature toggle (the "Risk Scoring Feature" card).
-Disabling it hides the Risk Scores main-nav tab and skips scoring during sync
-runs. The LLM config and saved profiles/classifiers are preserved.</p>
+<h2 id="master-key-rotation">Master key rotation<a class="headerlink" href="#master-key-rotation" title="Permanent link">&para;</a></h2>
+<p>Rotation, backups and the master key are described on <a href="../secrets-and-master-key/#rotating-the-master-key">Secrets and the Master Key</a>.</p>
+<h2 id="disabling-the-feature">Disabling the feature<a class="headerlink" href="#disabling-the-feature" title="Permanent link">&para;</a></h2>
+<p>The Risk Scoring tab in Admin has a feature toggle (the <strong>Risk Scoring Feature</strong> card). Switching it off hides the Risk Scores tab in the main navigation. The LLM config and the saved profiles and classifiers are kept.</p>
 
 
 

@@ -2638,6 +2638,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/secrets-and-master-key/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets and the Master Key
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/backup-restore-upgrade/" class="md-nav__link">
         
   
@@ -7239,7 +7267,7 @@
 
 
 <h1 id="entity-detail-api">Entity Detail API<a class="headerlink" href="#entity-detail-api" title="Permanent link">&para;</a></h1>
-<p>These endpoints power the detail pages for users, resources, business roles, systems, org units, and identities. All endpoints require <code>Authorization: Bearer &lt;JWT&gt;</code>.</p>
+<p>These endpoints power the detail pages for users, resources, business roles, systems, contexts, and identities. All endpoints require <code>Authorization: Bearer &lt;JWT&gt;</code>.</p>
 <hr />
 <h2 id="users">Users<a class="headerlink" href="#users" title="Permanent link">&para;</a></h2>
 <h3 id="column-discovery">Column Discovery<a class="headerlink" href="#column-discovery" title="Permanent link">&para;</a></h3>
@@ -7507,7 +7535,7 @@
 <hr />
 <h4 id="get-apiresourcesidhistory">GET /api/resources/:id/history<a class="headerlink" href="#get-apiresourcesidhistory" title="Permanent link">&para;</a></h4>
 <p>Version history for a resource. Same format as <a href="#get-apiuseridhistory"><code>GET /api/user/:id/history</code></a>.</p>
-<p><strong>Reads From:</strong> <code>Resources via</code>_history<code>audit table</code></p>
+<p><strong>Reads From:</strong> <code>_history</code> audit table (filtered by <code>tableName = 'Resources'</code>)</p>
 <hr />
 <h4 id="get-apigroupidaccess-packages">GET /api/group/:id/access-packages<a class="headerlink" href="#get-apigroupidaccess-packages" title="Permanent link">&para;</a></h4>
 <p>Business roles that include this resource as a contained resource (i.e. granting membership or ownership of this group as part of a business role).</p>
@@ -7635,7 +7663,7 @@
 <hr />
 <h3 id="get-apiaccess-packageidhistory">GET /api/access-package/:id/history<a class="headerlink" href="#get-apiaccess-packageidhistory" title="Permanent link">&para;</a></h3>
 <p>Version history for the business role resource record. Same format as <a href="#get-apiuseridhistory"><code>GET /api/user/:id/history</code></a>.</p>
-<p><strong>Reads From:</strong> <code>Resources via</code>_history<code>audit table</code></p>
+<p><strong>Reads From:</strong> <code>_history</code> audit table (filtered by <code>tableName = 'Resources'</code>)</p>
 <hr />
 <h2 id="systems-contexts">Systems &amp; Contexts<a class="headerlink" href="#systems-contexts" title="Permanent link">&para;</a></h2>
 <h3 id="systems">Systems<a class="headerlink" href="#systems" title="Permanent link">&para;</a></h3>
@@ -7914,7 +7942,7 @@ in the background. <strong>Permission:</strong> <code>admin.crawlers</code></p>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">"visibleTabs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"risk-scores"</span><span class="p">,</span><span class="w"> </span><span class="s2">"identities"</span><span class="p">,</span><span class="w"> </span><span class="s2">"performance"</span><span class="p">]</span>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="p">}</span>
 </code></pre></div>
-<p>Optional tabs that can be toggled: <code>systems</code>, <code>identities</code>, <code>contexts</code>, <code>sync-log</code>. All are hidden by default until the user enables them via the settings dropdown (user avatar, top right). Any other key is dropped on save.</p>
+<p>The API keeps only these keys: <code>systems</code>, <code>identities</code>, <code>contexts</code>, <code>sync-log</code>, <code>risk-scores</code>, <code>performance</code>, <code>admin</code>. Any other key is dropped on read and on save. The first four are the tabs a user can switch on in the settings menu; they are hidden until the user does. The last three are accepted so that preferences saved by older versions still read back.</p>
 <hr />
 <h3 id="put-apipreferences">PUT /api/preferences<a class="headerlink" href="#put-apipreferences" title="Permanent link">&para;</a></h3>
 <p>Update the current user's tab visibility.</p>
@@ -7923,7 +7951,7 @@ in the background. <strong>Permission:</strong> <code>admin.crawlers</code></p>
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">"visibleTabs"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"risk-scores"</span><span class="p">,</span><span class="w"> </span><span class="s2">"performance"</span><span class="p">]</span>
 <a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Response:</strong> <code>204 No Content</code></p>
+<p><strong>Response:</strong> <code>{ "ok": true, "visibleTabs": [ ... ] }</code>, with the keys that were kept. <code>400</code> when <code>visibleTabs</code> is not an array.</p>
 <hr />
 <h2 id="operations">Operations<a class="headerlink" href="#operations" title="Permanent link">&para;</a></h2>
 <h3 id="performance-metrics">Performance Metrics<a class="headerlink" href="#performance-metrics" title="Permanent link">&para;</a></h3>

@@ -2638,6 +2638,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../architecture/secrets-and-master-key/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Secrets and the Master Key
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../admin/backup-restore-upgrade/" class="md-nav__link">
         
   
@@ -3051,13 +3079,63 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#risk-score-overview" class="md-nav__link">
+  <a href="#how-a-score-is-made" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Risk Score Overview
+        How a score is made
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scoring-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoring runs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scoring runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-apirisk-scoringruns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/risk-scoring/runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apirisk-scoringruns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/risk-scoring/runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apirisk-scoringrunsid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/risk-scoring/runs/:id
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3090,22 +3168,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#entity-type-lists" class="md-nav__link">
+  <a href="#lists-per-type" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Entity Type Lists
+        Lists per type
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Entity Type Lists">
+    <nav class="md-nav" aria-label="Lists per type">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#common-query-parameters" class="md-nav__link">
+  <a href="#query-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Common Query Parameters
+        Query parameters
       
     </span>
   </a>
@@ -3113,10 +3191,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#response-format" class="md-nav__link">
+  <a href="#response" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Response Format
+        Response
       
     </span>
   </a>
@@ -3129,15 +3207,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#single-entity-override" class="md-nav__link">
+  <a href="#one-entity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Single Entity &amp; Override
+        One entity
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Single Entity &amp; Override">
+    <nav class="md-nav" aria-label="One entity">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3162,28 +3240,11 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#resource-clusters" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resource Clusters
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Resource Clusters">
-      <ul class="md-nav__list">
-        
           <li class="md-nav__item">
-  <a href="#get-apirisk-scoresclusters" class="md-nav__link">
+  <a href="#delete-apirisk-scorestypeidoverride" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/risk-scores/clusters
+        DELETE /api/risk-scores/:type/:id/override
       
     </span>
   </a>
@@ -3199,27 +3260,10 @@
   <a href="#org-chart" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Org Chart
+        Org chart
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Org Chart">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#get-apiorg-chart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GET /api/org-chart
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -6072,13 +6116,63 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#risk-score-overview" class="md-nav__link">
+  <a href="#how-a-score-is-made" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Risk Score Overview
+        How a score is made
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scoring-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoring runs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scoring runs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#post-apirisk-scoringruns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/risk-scoring/runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apirisk-scoringruns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/risk-scoring/runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-apirisk-scoringrunsid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/risk-scoring/runs/:id
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -6111,22 +6205,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#entity-type-lists" class="md-nav__link">
+  <a href="#lists-per-type" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Entity Type Lists
+        Lists per type
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Entity Type Lists">
+    <nav class="md-nav" aria-label="Lists per type">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#common-query-parameters" class="md-nav__link">
+  <a href="#query-parameters" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Common Query Parameters
+        Query parameters
       
     </span>
   </a>
@@ -6134,10 +6228,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#response-format" class="md-nav__link">
+  <a href="#response" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Response Format
+        Response
       
     </span>
   </a>
@@ -6150,15 +6244,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#single-entity-override" class="md-nav__link">
+  <a href="#one-entity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Single Entity &amp; Override
+        One entity
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Single Entity &amp; Override">
+    <nav class="md-nav" aria-label="One entity">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -6183,28 +6277,11 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#resource-clusters" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Resource Clusters
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Resource Clusters">
-      <ul class="md-nav__list">
-        
           <li class="md-nav__item">
-  <a href="#get-apirisk-scoresclusters" class="md-nav__link">
+  <a href="#delete-apirisk-scorestypeidoverride" class="md-nav__link">
     <span class="md-ellipsis">
       
-        GET /api/risk-scores/clusters
+        DELETE /api/risk-scores/:type/:id/override
       
     </span>
   </a>
@@ -6220,27 +6297,10 @@
   <a href="#org-chart" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Org Chart
+        Org chart
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Org Chart">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#get-apiorg-chart" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        GET /api/org-chart
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -6339,141 +6399,206 @@
 
 
 <h1 id="risk-scores-api">Risk Scores API<a class="headerlink" href="#risk-scores-api" title="Permanent link">&para;</a></h1>
-<p>These endpoints expose identity risk scoring data and allow analysts to apply score adjustments with audit trails. In v5, scoring is driven from the UI (Admin &gt; Risk Scoring) via the Node.js scoring engine. All endpoints require <code>Authorization: Bearer &lt;JWT&gt;</code>.</p>
+<p>These endpoints read risk scores, let an analyst adjust a single score, and start or follow a scoring run. Scoring is started from <strong>Admin → Risk Scoring</strong> in the UI, which calls the run endpoints below; you can call them yourself too. Authentication works as described in the <a href="../#authentication">API overview</a>.</p>
+<p>Risk scoring is an optional feature, switched off on a new install. See <a href="../../risk-scoring/overview/">How Scoring Works</a> for what the scores mean.</p>
 <hr />
-<h2 id="risk-score-overview">Risk Score Overview<a class="headerlink" href="#risk-score-overview" title="Permanent link">&para;</a></h2>
-<p>The scoring engine assigns a numeric score (0–100) to every principal, resource, business role, context, and identity. Scores map to named tiers:</p>
+<h2 id="how-a-score-is-made">How a score is made<a class="headerlink" href="#how-a-score-is-made" title="Permanent link">&para;</a></h2>
+<p>A scoring run gives every account (<code>entityType</code> <code>Principal</code>) and every resource (<code>entityType</code> <code>Resource</code>, business roles included) a score from 0 to 100, built from four layers:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Weight</th>
+<th>What it looks at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Direct match</td>
+<td>0.50</td>
+<td>The best classifier pattern matching the name, e-mail, job title, department, description and attributes. Non-production groups get a quarter of the score (at least 5).</td>
+</tr>
+<tr>
+<td>Membership</td>
+<td>0.20</td>
+<td>Groups: small groups, groups without an owner. Accounts: membership of many groups or of a high-risk group, owning several groups, a wide span of control. Capped at 40.</td>
+</tr>
+<tr>
+<td>Structural</td>
+<td>0.10</td>
+<td>Groups: no description, mail-enabled security group, role-assignable group, dynamic membership. Accounts: disabled but still a member, guest account, no sign-in for more than 90 days. Capped at 25.</td>
+</tr>
+<tr>
+<td>Propagated</td>
+<td>0.20</td>
+<td>An account inherits 30% of the score of its riskiest group; a group inherits 25% of the score of its riskiest member. One pass.</td>
+</tr>
+</tbody>
+</table>
+<p>The final score is the weighted sum, capped at 100. It maps to a tier:</p>
 <table>
 <thead>
 <tr>
 <th>Tier</th>
-<th>Score Range</th>
-<th>Color</th>
+<th>Score</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Critical</td>
 <td>90–100</td>
-<td>Red</td>
 </tr>
 <tr>
 <td>High</td>
 <td>70–89</td>
-<td>Orange</td>
 </tr>
 <tr>
 <td>Medium</td>
 <td>40–69</td>
-<td>Yellow</td>
 </tr>
 <tr>
 <td>Low</td>
 <td>20–39</td>
-<td>Blue</td>
 </tr>
 <tr>
 <td>Minimal</td>
 <td>1–19</td>
-<td>Green</td>
 </tr>
 <tr>
 <td>None</td>
 <td>0</td>
-<td>Grey</td>
 </tr>
 </tbody>
 </table>
-<p>Scoring runs in four layers:</p>
-<ol>
-<li><strong>Direct match</strong> — classifier regex patterns matched against display names, job titles, and attributes</li>
-<li><strong>Membership analysis</strong> — score contributions from high-risk resources the principal is a member of</li>
-<li><strong>Structural hygiene</strong> — stale sign-ins, never-signed-in accounts, accounts with no expiration, orphaned identities</li>
-<li><strong>Cross-entity propagation</strong> — risk flowing from high-risk principals upward to their contexts</li>
-</ol>
-<p>Analyst overrides (+50 to −50) are preserved across re-scoring runs and applied after all four layers, with the final score clamped to 0–100.</p>
+<p>The engine writes <code>Principal</code> and <code>Resource</code> rows only. The endpoints below also accept business roles, contexts and identities as types, but no scoring run writes rows of those types: the business-role and identity lists come back empty and single lookups answer <code>404</code>. The contexts list answers <code>500</code>, because its query reads context columns that do not exist.</p>
+<div class="admonition warning">
+<p class="admonition-title">A scoring run removes overrides</p>
+<p>A run replaces every row of the scores table. Analyst overrides made before the run are not carried over: after the run each entity has its computed score and no override.</p>
+</div>
+<hr />
+<h2 id="scoring-runs">Scoring runs<a class="headerlink" href="#scoring-runs" title="Permanent link">&para;</a></h2>
+<h3 id="post-apirisk-scoringruns">POST /api/risk-scoring/runs<a class="headerlink" href="#post-apirisk-scoringruns" title="Permanent link">&para;</a></h3>
+<p>Starts a scoring run in the background. Requires the <code>admin.crawlers</code> permission.</p>
+<p><strong>Request body</strong> (optional)</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"classifierId"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>Without <code>classifierId</code> the active classifier set is used.</p>
+<p><strong>Responses</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>202</code></td>
+<td>The run started. The body is the new run (see below).</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td><code>classifierId</code> does not exist</td>
+</tr>
+<tr>
+<td><code>409</code></td>
+<td>A run is already in progress</td>
+</tr>
+<tr>
+<td><code>412</code></td>
+<td>No <code>classifierId</code> given and no classifier set is active</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-apirisk-scoringruns">GET /api/risk-scoring/runs<a class="headerlink" href="#get-apirisk-scoringruns" title="Permanent link">&para;</a></h3>
+<p>The 50 most recent runs, newest first, as <code>{ "data": [ ... ] }</code>. Any signed-in user with a role may read it.</p>
+<h3 id="get-apirisk-scoringrunsid">GET /api/risk-scoring/runs/:id<a class="headerlink" href="#get-apirisk-scoringrunsid" title="Permanent link">&para;</a></h3>
+<p>One run. The UI polls this every 2 seconds while a run is going.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">"classifierId"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">"status"</span><span class="p">:</span><span class="w"> </span><span class="s2">"running"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">"step"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Propagating risk across memberships"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">"pct"</span><span class="p">:</span><span class="w"> </span><span class="mi">75</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">"totalEntities"</span><span class="p">:</span><span class="w"> </span><span class="mi">4210</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">"scoredEntities"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">"errorMessage"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">"startedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-12T08:00:00Z"</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="nt">"completedAt"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="nt">"triggeredBy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"admin@contoso.com"</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>status</code> moves from <code>pending</code> to <code>running</code> and ends as <code>completed</code> or <code>failed</code>.</p>
 <hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <h3 id="get-apirisk-scores">GET /api/risk-scores<a class="headerlink" href="#get-apirisk-scores" title="Permanent link">&para;</a></h3>
-<p>Overall risk score summary across all entity types. Used by the Risk Scoring page header and dashboard widgets.</p>
-<p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"summary"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"totalEntities"</span><span class="p">:</span><span class="w"> </span><span class="mi">4210</span><span class="p">,</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"scored"</span><span class="p">:</span><span class="w"> </span><span class="mi">4008</span><span class="p">,</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">"overrides"</span><span class="p">:</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nt">"lastScoredAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-27T04:05:00Z"</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">"tierDistribution"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">"Principal"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="nt">"Critical"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">"High"</span><span class="p">:</span><span class="w"> </span><span class="mi">87</span><span class="p">,</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">      </span><span class="nt">"Medium"</span><span class="p">:</span><span class="w"> </span><span class="mi">341</span><span class="p">,</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">"Low"</span><span class="p">:</span><span class="w"> </span><span class="mi">1204</span><span class="p">,</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">"Minimal"</span><span class="p">:</span><span class="w"> </span><span class="mi">1809</span><span class="p">,</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">"None"</span><span class="p">:</span><span class="w"> </span><span class="mi">68</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="nt">"Resource"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">      </span><span class="nt">"Critical"</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">      </span><span class="nt">"High"</span><span class="p">:</span><span class="w"> </span><span class="mi">31</span><span class="p">,</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">      </span><span class="nt">"Medium"</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">      </span><span class="nt">"Low"</span><span class="p">:</span><span class="w"> </span><span class="mi">249</span><span class="p">,</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">      </span><span class="nt">"Minimal"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">      </span><span class="nt">"None"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">    </span><span class="p">},</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">    </span><span class="nt">"BusinessRole"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">    </span><span class="nt">"Context"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">    </span><span class="nt">"Identity"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="p">}</span>
+<p>Totals and top lists for the Risk Scores page.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"available"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"useResources"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">"scoredAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-12T08:04:10Z"</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">"summary"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">"totalUsers"</span><span class="p">:</span><span class="w"> </span><span class="mi">1475</span><span class="p">,</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">"totalGroups"</span><span class="p">:</span><span class="w"> </span><span class="mi">448</span><span class="p">,</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">"totalBusinessRoles"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">    </span><span class="nt">"totalContexts"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="nt">"totalIdentities"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">    </span><span class="nt">"userOverrides"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">    </span><span class="nt">"groupOverrides"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">    </span><span class="nt">"usersByTier"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"High"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="nt">"Medium"</span><span class="p">:</span><span class="w"> </span><span class="mi">140</span><span class="p">,</span><span class="w"> </span><span class="nt">"Low"</span><span class="p">:</span><span class="w"> </span><span class="mi">610</span><span class="p">,</span><span class="w"> </span><span class="nt">"Minimal"</span><span class="p">:</span><span class="w"> </span><span class="mi">700</span><span class="p">,</span><span class="w"> </span><span class="nt">"None"</span><span class="p">:</span><span class="w"> </span><span class="mi">13</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">    </span><span class="nt">"groupsByTier"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"Critical"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nt">"High"</span><span class="p">:</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="nt">"Medium"</span><span class="p">:</span><span class="w"> </span><span class="mi">51</span><span class="p">,</span><span class="w"> </span><span class="nt">"Low"</span><span class="p">:</span><span class="w"> </span><span class="mi">160</span><span class="p">,</span><span class="w"> </span><span class="nt">"Minimal"</span><span class="p">:</span><span class="w"> </span><span class="mi">226</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="nt">"topUsers"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">    </span><span class="nt">"topGroups"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">    </span><span class="nt">"resourceTypeBreakdown"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Group"</span><span class="p">,</span><span class="w"> </span><span class="nt">"count"</span><span class="p">:</span><span class="w"> </span><span class="mi">448</span><span class="p">,</span><span class="w"> </span><span class="nt">"avgScore"</span><span class="p">:</span><span class="w"> </span><span class="mf">21.4</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>RiskScores</code></p>
+<p>The summary also has <code>businessRoleOverrides</code>, <code>contextOverrides</code>, <code>identityOverrides</code>, <code>businessRolesByTier</code>, <code>contextsByTier</code> and <code>identitiesByTier</code>. <code>topUsers</code> and <code>topGroups</code> hold the ten highest-scoring accounts and resources, in the row format described below.</p>
+<p>When no scores exist yet, the response is <code>{ "available": false, "message": "..." }</code>.</p>
 <hr />
-<h2 id="entity-type-lists">Entity Type Lists<a class="headerlink" href="#entity-type-lists" title="Permanent link">&para;</a></h2>
-<p>Each entity type has a dedicated paginated list endpoint.</p>
+<h2 id="lists-per-type">Lists per type<a class="headerlink" href="#lists-per-type" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Endpoint</th>
-<th>Entity Type</th>
-<th>Reads From</th>
+<th>Rows</th>
+<th>Extra filter</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>GET /api/risk-scores/users</code></td>
-<td>Principals</td>
-<td><code>RiskScores</code> + <code>Principals</code></td>
+<td>Accounts</td>
+<td><code>department</code> (exact match)</td>
 </tr>
 <tr>
 <td><code>GET /api/risk-scores/groups</code></td>
-<td>Resources (non-BusinessRole)</td>
-<td><code>RiskScores</code> + <code>Resources</code></td>
+<td>Resources</td>
+<td><code>resourceType</code> (exact match)</td>
 </tr>
 <tr>
 <td><code>GET /api/risk-scores/business-roles</code></td>
-<td>Resources (<code>resourceType='BusinessRole'</code>)</td>
-<td><code>RiskScores</code> + <code>Resources</code></td>
+<td>Business roles</td>
+<td></td>
 </tr>
 <tr>
 <td><code>GET /api/risk-scores/contexts</code></td>
 <td>Contexts</td>
-<td><code>RiskScores</code> + <code>Contexts</code></td>
+<td></td>
 </tr>
 <tr>
 <td><code>GET /api/risk-scores/identities</code></td>
 <td>Identities</td>
-<td><code>RiskScores</code> + <code>Identities</code></td>
+<td></td>
 </tr>
 </tbody>
 </table>
-<h3 id="common-query-parameters">Common Query Parameters<a class="headerlink" href="#common-query-parameters" title="Permanent link">&para;</a></h3>
-<p>All list endpoints accept the same parameters:</p>
+<p>Deleted accounts and resources are left out.</p>
+<h3 id="query-parameters">Query parameters<a class="headerlink" href="#query-parameters" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th>Parameter</th>
-<th>Type</th>
 <th>Default</th>
 <th>Description</th>
 </tr>
@@ -6481,102 +6606,103 @@
 <tbody>
 <tr>
 <td><code>search</code></td>
-<td>string</td>
 <td></td>
-<td>Filter by <code>displayName</code> (SQL <code>LIKE %term%</code>)</td>
+<td>Case-insensitive text match on the display name and a few other columns per type (e-mail and department for accounts, description for resources)</td>
 </tr>
 <tr>
 <td><code>tier</code></td>
-<td>string</td>
 <td></td>
-<td>Filter by tier: <code>Critical</code>, <code>High</code>, <code>Medium</code>, <code>Low</code>, <code>Minimal</code>, <code>None</code></td>
+<td><code>Critical</code>, <code>High</code>, <code>Medium</code>, <code>Low</code>, <code>Minimal</code> or <code>None</code></td>
 </tr>
 <tr>
 <td><code>overridesOnly</code></td>
-<td>string</td>
 <td></td>
-<td><code>true</code> = only entities that have an active analyst override</td>
+<td><code>true</code> returns only rows that have an override value</td>
 </tr>
 <tr>
 <td><code>limit</code></td>
-<td>int</td>
 <td>100</td>
-<td>Page size. Maximum: 500.</td>
+<td>Page size, at most 500</td>
 </tr>
 <tr>
 <td><code>offset</code></td>
-<td>int</td>
 <td>0</td>
-<td>Pagination offset.</td>
+<td>Rows to skip</td>
 </tr>
 </tbody>
 </table>
-<h3 id="response-format">Response Format<a class="headerlink" href="#response-format" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Jane Doe"</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">"entityType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Principal"</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">73</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">"tier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"High"</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">"baseScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">68</span><span class="p">,</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">"overrideAdjustment"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">"overrideReason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Privileged project access — temporary elevation approved"</span><span class="p">,</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">"overrideBy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"john.smith@contoso.com"</span><span class="p">,</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">      </span><span class="nt">"overrideAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-15T11:00:00Z"</span><span class="p">,</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">"topContributors"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"factor"</span><span class="p">:</span><span class="w"> </span><span class="s2">"DirectMatch"</span><span class="p">,</span><span class="w"> </span><span class="nt">"weight"</span><span class="p">:</span><span class="w"> </span><span class="mi">35</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Classifier: Finance-Privileged"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"factor"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MembershipRisk"</span><span class="p">,</span><span class="w"> </span><span class="nt">"weight"</span><span class="p">:</span><span class="w"> </span><span class="mi">28</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Member of 3 Critical resources"</span><span class="w"> </span><span class="p">},</span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">"factor"</span><span class="p">:</span><span class="w"> </span><span class="s2">"StaleSignIn"</span><span class="p">,</span><span class="w"> </span><span class="nt">"weight"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Last sign-in: 95 days ago"</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="p">]</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">  </span><span class="nt">"total"</span><span class="p">:</span><span class="w"> </span><span class="mi">521</span>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p">}</span>
+<p>Rows are sorted by score, highest first.</p>
+<h3 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">      </span><span class="nt">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"6f1c2a8e-0b7d-4e58-9a51-3c2f1e7d9b40"</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">"entityType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Principal"</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Megan Bowen"</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">"userPrincipalName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"megan.bowen@contoso.com"</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">"department"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance"</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="nt">"jobTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Manager"</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">"riskScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">73</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">      </span><span class="nt">"riskTier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"High"</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">      </span><span class="nt">"riskDirectScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">      </span><span class="nt">"riskMembershipScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="nt">"riskStructuralScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="nt">"riskPropagatedScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">40</span><span class="p">,</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">      </span><span class="nt">"riskOverride"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">      </span><span class="nt">"riskOverrideReason"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="nt">"riskScoredAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-11-12T08:04:10Z"</span><span class="p">,</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">      </span><span class="nt">"effectiveScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">73</span><span class="p">,</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">      </span><span class="nt">"classifierMatches"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="w">      </span><span class="nt">"explanation"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="w">        </span><span class="nt">"direct"</span><span class="p">:</span><span class="w">     </span><span class="p">{</span><span class="w"> </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">80</span><span class="p">,</span><span class="w"> </span><span class="nt">"reasons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Matched 'Finance' on department [+80]"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a><span class="w">        </span><span class="nt">"membership"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="nt">"reasons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="w">        </span><span class="nt">"structural"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">  </span><span class="nt">"reasons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="w">        </span><span class="nt">"propagated"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">40</span><span class="p">,</span><span class="w"> </span><span class="nt">"reasons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="w">      </span><span class="p">}</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a><span class="w">  </span><span class="nt">"total"</span><span class="p">:</span><span class="w"> </span><span class="mi">1475</span><span class="p">,</span>
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a><span class="w">  </span><span class="nt">"available"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Response Fields</strong></p>
 <table>
 <thead>
 <tr>
 <th>Field</th>
-<th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>score</code></td>
-<td>int</td>
-<td>Effective score (0–100) = base components + override, clamped</td>
+<td><code>riskScore</code>, <code>riskTier</code></td>
+<td>The stored score and tier</td>
 </tr>
 <tr>
-<td><code>baseScore</code></td>
-<td>int</td>
-<td>Score before any analyst override</td>
+<td><code>riskDirectScore</code> … <code>riskPropagatedScore</code></td>
+<td>The four layer scores before weighting</td>
 </tr>
 <tr>
-<td><code>overrideAdjustment</code></td>
-<td>int</td>
-<td>Analyst adjustment (−50 to +50). <code>null</code> if no override.</td>
+<td><code>riskOverride</code>, <code>riskOverrideReason</code></td>
+<td>The analyst adjustment and its reason; <code>null</code> when none was ever set</td>
 </tr>
 <tr>
-<td><code>overrideReason</code></td>
-<td>string</td>
-<td>Required reasoning supplied by the analyst. <code>null</code> if no override.</td>
+<td><code>effectiveScore</code></td>
+<td><code>riskScore</code> plus <code>riskOverride</code> when an override is present, clamped to 0–100; otherwise <code>riskScore</code></td>
 </tr>
 <tr>
-<td><code>topContributors</code></td>
-<td>array</td>
-<td>Top scoring factors with weights and descriptions</td>
+<td><code>classifierMatches</code></td>
+<td>Every classifier that matched</td>
+</tr>
+<tr>
+<td><code>explanation</code></td>
+<td>Per layer: the score and the reasons behind it</td>
 </tr>
 </tbody>
 </table>
+<p>The columns next to these depend on the type: account fields for <code>users</code>, resource fields for <code>groups</code>, catalog name for <code>business-roles</code>, and so on. <code>groups</code> responses also carry <code>"useResources": true</code>.</p>
 <hr />
-<h2 id="single-entity-override">Single Entity &amp; Override<a class="headerlink" href="#single-entity-override" title="Permanent link">&para;</a></h2>
+<h2 id="one-entity">One entity<a class="headerlink" href="#one-entity" title="Permanent link">&para;</a></h2>
 <h3 id="get-apirisk-scorestypeid">GET /api/risk-scores/:type/:id<a class="headerlink" href="#get-apirisk-scorestypeid" title="Permanent link">&para;</a></h3>
-<p>Retrieve the current risk score for a single entity.</p>
-<p><strong>Path Parameters</strong></p>
 <table>
 <thead>
 <tr>
@@ -6587,170 +6713,81 @@
 <tbody>
 <tr>
 <td><code>type</code></td>
-<td><code>users</code>, <code>groups</code>, <code>business-roles</code>, <code>contexts</code>, <code>identities</code></td>
+<td><code>users</code>, <code>groups</code>, <code>resources</code>, <code>business-roles</code>, <code>contexts</code>, <code>identities</code> (<code>groups</code> and <code>resources</code> mean the same)</td>
 </tr>
 <tr>
 <td><code>id</code></td>
-<td>Entity UUID</td>
+<td>The entity's UUID</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Response:</strong> Same structure as a single item from the list endpoints above, plus full <code>contributors</code> array (not just top 3).</p>
-<hr />
+<p>Returns one row in the format above, plus <code>displayName</code>. <code>404</code> when the entity has no score.</p>
 <h3 id="put-apirisk-scorestypeidoverride">PUT /api/risk-scores/:type/:id/override<a class="headerlink" href="#put-apirisk-scorestypeidoverride" title="Permanent link">&para;</a></h3>
-<p>Apply an analyst score adjustment to a single entity. The adjustment is stored with the analyst's identity (from JWT <code>upn</code> claim) and required reasoning.</p>
-<p><strong>Path Parameters</strong></p>
-<table>
-<thead>
-<tr>
-<th>Parameter</th>
-<th>Values</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>type</code></td>
-<td><code>users</code>, <code>groups</code>, <code>business-roles</code>, <code>contexts</code>, <code>identities</code></td>
-</tr>
-<tr>
-<td><code>id</code></td>
-<td>Entity UUID</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Request Body</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">"adjustment"</span><span class="p">:</span><span class="w"> </span><span class="mi">-20</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"False positive — display name matches classifier but account is a shared mailbox with no sensitive access"</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">}</span>
+<p>Sets an analyst adjustment on one entity. Requires the <code>data.write.risk</code> permission.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"adjustment"</span><span class="p">:</span><span class="w"> </span><span class="mi">-20</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Shared mailbox; the name matches a classifier but the account has no sensitive access"</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="p">}</span>
 </code></pre></div>
 <table>
 <thead>
 <tr>
 <th>Field</th>
-<th>Type</th>
-<th>Required</th>
-<th>Constraints</th>
+<th>Rules</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>adjustment</code></td>
-<td>int</td>
-<td>Yes</td>
-<td>Integer from −50 to +50</td>
+<td>Whole number from −50 to +50</td>
 </tr>
 <tr>
 <td><code>reason</code></td>
-<td>string</td>
-<td>Yes</td>
-<td>Non-empty. Capped at <strong>500 characters</strong>.</td>
+<td>Required, 3 to 500 characters</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"entityId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">"newScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">48</span><span class="p">,</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">"baseScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">68</span><span class="p">,</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">"overrideAdjustment"</span><span class="p">:</span><span class="w"> </span><span class="mi">-20</span><span class="p">,</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">"overrideReason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"False positive — ..."</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">"overrideBy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"john.smith@contoso.com"</span><span class="p">,</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">"overrideAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-27T14:22:00Z"</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">}</span>
+<p>The API adds the four stored layer scores to the adjustment, clamps the result to 0–100, and stores it as the new <code>riskScore</code> and <code>riskTier</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">"adjustment"</span><span class="p">:</span><span class="w"> </span><span class="mi">-20</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">"reason"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Shared mailbox; the name matches a classifier but the account has no sensitive access"</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">"riskScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">48</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">"riskTier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Medium"</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">"assignedBy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"analyst@contoso.com"</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">}</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Override Persistence</p>
-<p>Overrides are preserved when <code>Invoke-FGRiskScoring</code> re-runs. The engine writes the base score from its four-layer calculation; the override adjustment is applied on top when the API reads back the score.</p>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Clearing an Override</p>
-<p>To remove an override, set <code>adjustment</code> to <code>0</code> and supply a <code>reason</code> explaining the removal.</p>
-</div>
+<p><code>assignedBy</code> is the signed-in user. It is returned, not stored.</p>
+<h3 id="delete-apirisk-scorestypeidoverride">DELETE /api/risk-scores/:type/:id/override<a class="headerlink" href="#delete-apirisk-scorestypeidoverride" title="Permanent link">&para;</a></h3>
+<p>Removes the adjustment. Requires the <code>data.write.risk</code> permission. The score is recomputed the same way with an adjustment of 0; <code>riskOverride</code> becomes <code>0</code> and <code>riskOverrideReason</code> becomes <code>null</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="w"> </span><span class="nt">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"riskScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">68</span><span class="p">,</span><span class="w"> </span><span class="nt">"riskTier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Medium"</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
 <hr />
-<h2 id="resource-clusters">Resource Clusters<a class="headerlink" href="#resource-clusters" title="Permanent link">&para;</a></h2>
-<h3 id="get-apirisk-scoresclusters">GET /api/risk-scores/clusters<a class="headerlink" href="#get-apirisk-scoresclusters" title="Permanent link">&para;</a></h3>
-<p>List resource clusters created by <code>Save-FGResourceClusters</code>. Each cluster groups related resources by classifier or name-stem and has an aggregate risk score computed from its members.</p>
-<p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">"clusterId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"clust-001"</span><span class="p">,</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Access Cluster"</span><span class="p">,</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">"clusterType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Classifier"</span><span class="p">,</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">"ownerDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Jane Doe"</span><span class="p">,</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">      </span><span class="nt">"memberCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">14</span><span class="p">,</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">      </span><span class="nt">"aggregateScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">71</span><span class="p">,</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">      </span><span class="nt">"tier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"High"</span><span class="p">,</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">      </span><span class="nt">"assignedBy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"john.smith@contoso.com"</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">}</span>
-</code></pre></div>
-<p><strong>Response Fields</strong></p>
+<h2 id="org-chart">Org chart<a class="headerlink" href="#org-chart" title="Permanent link">&para;</a></h2>
+<p>These endpoints belong to the manager hierarchy, not to risk scoring. They carry no scores.</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Description</th>
+<th>Endpoint</th>
+<th>Returns</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>clusterType</code></td>
-<td><code>Classifier</code> (grouped by risk classifier) or <code>NameStem</code> (grouped by shared display name prefix)</td>
+<td><code>GET /api/org-chart</code></td>
+<td><code>{ "available": true }</code> when the manager-hierarchy context plugin has built contexts, otherwise <code>false</code></td>
 </tr>
 <tr>
-<td><code>ownerDisplayName</code></td>
-<td>Analyst-assigned owner for remediation accountability</td>
+<td><code>GET /api/org-chart/user/:id/manager</code></td>
+<td><code>{ "manager": { ... } }</code>, or <code>{ "manager": null }</code></td>
 </tr>
 <tr>
-<td><code>aggregateScore</code></td>
-<td>Weighted average of member entity scores</td>
-</tr>
-<tr>
-<td><code>assignedBy</code></td>
-<td>Identity who assigned the cluster owner (derived from authenticated user, not request body)</td>
+<td><code>GET /api/org-chart/user/:id/reports</code></td>
+<td><code>{ "reports": [ ... ], "totalCount": 12 }</code>. <code>limit</code> defaults to 200, at most 1000.</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Reads From:</strong> <code>ResourceClusters</code> + <code>ResourceClusterMembers</code> + <code>RiskScores</code></p>
-<hr />
-<h2 id="org-chart">Org Chart<a class="headerlink" href="#org-chart" title="Permanent link">&para;</a></h2>
-<h3 id="get-apiorg-chart">GET /api/org-chart<a class="headerlink" href="#get-apiorg-chart" title="Permanent link">&para;</a></h3>
-<p>Manager hierarchy tree with risk scores propagated to department nodes. Used by the Org Chart page.</p>
-<p><strong>Caching:</strong> Response is cached for <strong>5 minutes</strong> server-side. This avoids expensive recursive CTE execution on every page load.</p>
-<p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">"tree"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">      </span><span class="nt">"principalId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Alice Johnson"</span><span class="p">,</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">"jobTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Chief Financial Officer"</span><span class="p">,</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="nt">"department"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance"</span><span class="p">,</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">      </span><span class="nt">"riskScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">      </span><span class="nt">"riskTier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Medium"</span><span class="p">,</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">      </span><span class="nt">"directReportCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">      </span><span class="nt">"totalReportCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">142</span><span class="p">,</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">      </span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">        </span><span class="p">{</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">          </span><span class="nt">"principalId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">          </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bob Chen"</span><span class="p">,</span>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">          </span><span class="nt">"jobTitle"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Director"</span><span class="p">,</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">          </span><span class="nt">"riskScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">67</span><span class="p">,</span>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">          </span><span class="nt">"riskTier"</span><span class="p">:</span><span class="w"> </span><span class="s2">"High"</span><span class="p">,</span>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">          </span><span class="nt">"directReportCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">          </span><span class="nt">"totalReportCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">58</span><span class="p">,</span>
-<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">          </span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">]</span>
-<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">        </span><span class="p">}</span>
-<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">      </span><span class="p">]</span>
-<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">  </span><span class="nt">"cachedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-27T14:00:00Z"</span>
-<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="p">}</span>
-</code></pre></div>
-<p><strong>Reads From:</strong> <code>Principals</code> (manager hierarchy via <code>managerId</code> self-join) + <code>RiskScores</code> + <code>Contexts</code></p>
-<p>Risk tiers on manager nodes reflect the <strong>highest risk tier among all direct and indirect reports</strong> — allowing managers to identify high-risk subtrees at a glance.</p>
+<p>A manager or report row has <code>id</code>, <code>displayName</code>, <code>email</code>, <code>department</code>, <code>jobTitle</code>, <code>companyName</code>, <code>deleted</code> and <code>deletedAt</code>.</p>
 
 
 
