@@ -279,8 +279,6 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'GET /admin/context-owner-access': ['admin.auth'],
   'PUT /admin/context-owner-access': ['admin.auth'],
   'GET /admin/mcp': ['admin.feature-flags'],
-  'GET /admin/export/curated': ['data.export.ui'],
-  'POST /admin/import/curated': ['admin.csv-import'],
   'GET /admin/risk-profile': ['admin.crawlers', 'admin.llm'],
   'GET /admin/classifiers': ['admin.crawlers', 'admin.llm'],
   // NOTE: wiping all identity data needs only Systems configuration.
