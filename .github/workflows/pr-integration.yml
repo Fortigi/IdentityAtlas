@@ -518,13 +518,16 @@ jobs:
 
       # ── Smoke test all read endpoints ────────────────────────────
       - name: 'Test: Smoke test read endpoints'
+        # /risk-profiles is not listed: risk scoring is experimental and off on this
+        # stack, so it 404s by design. Test-LLMSubstrate.ps1 checks it both off (404)
+        # and on (200).
         run: |
           FAILED=0
           ENDPOINTS=(
             /auth-config /features /admin/status /admin/auth-settings
             /systems /users?limit=1 /resources?limit=1
             /permissions?userLimit=1 /sync-log /categories
-            /tags /access-packages /risk-profiles
+            /tags /access-packages
             /account-linking/config /admin/crawler-configs
             /version /openapi.json
           )
