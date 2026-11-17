@@ -134,3 +134,68 @@ describe('business-role coverage — a role covers its own membership row (061)'
     expect(await coverage(U_GAP)).toEqual([]);
   });
 });
+
+// Issue #1629 — a business role deleted in the source governs nothing. Resources
+// is a soft-delete table and resources/assignments reconcile independently, so a
+// role can be tombstoned while its membership row is still live. Neither the
+// coverage matview nor the matrix matview's managedByAccessPackage flag may keep
+// claiming such a role governs the resources it Contains.
+describe('business-role coverage — a soft-deleted role governs nothing (#1629)', () => {
+  const BR_DEL = '33333333-3333-3333-3333-333333333333'; // role tombstoned in the source
+  const G_LIVE = '44444444-4444-4444-4444-444444444444'; // live group BR_DEL Contains
+  const G_DEL  = '55555555-5555-5555-5555-555555555555'; // tombstoned group the live BR Contains
+
+  beforeAll(async () => {
+    await pool.query(
+      `INSERT INTO "Resources" ("id","systemId","resourceType","displayName","governanceResource","deletedAt") VALUES
+         ($1,$2,'BusinessRole','Deleted Role', true,  now()),
+         ($3,$2,'Group','Live Group',          false, NULL),
+         ($4,$2,'Group','Deleted Group',       false, now())`,
+      [BR_DEL, systemId, G_LIVE, G_DEL],
+    );
+    await pool.query(
+      `INSERT INTO "ResourceRelationships" ("parentResourceId","childResourceId","relationshipType","roleName")
+       VALUES ($1,$2,'Contains','Member'), ($3,$4,'Contains','Member')`,
+      [BR_DEL, G_LIVE, BR, G_DEL],
+    );
+  });
+
+  afterAll(async () => {
+    await pool.query(`DELETE FROM "ResourceRelationships" WHERE "parentResourceId" IN ($1,$2)`, [BR_DEL, BR]);
+    await pool.query(`DELETE FROM "ResourceAssignments" WHERE "systemId" = $1`, [systemId]);
+    await pool.query(`DELETE FROM "Resources" WHERE "id" IN ($1,$2,$3)`, [BR_DEL, G_LIVE, G_DEL]);
+  });
+
+  async function coveredResources(principalId) {
+    await pool.query(`REFRESH MATERIALIZED VIEW "vw_UserPermissionAssignmentViaBusinessRole"`);
+    const r = await pool.query(
+      `SELECT "resourceId" FROM "vw_UserPermissionAssignmentViaBusinessRole"
+        WHERE "userId" = $1 ORDER BY "resourceId"`,
+      [principalId],
+    );
+    return r.rows.map((x) => x.resourceId);
+  }
+
+  it('emits no coverage rows for a soft-deleted role whose membership row is still live', async () => {
+    await assign({ resourceId: BR_DEL, principalId: U_OK, governed: true });  // live assignment, dead role
+    await assign({ resourceId: G_LIVE, principalId: U_OK, governed: false }); // live child membership
+    expect(await coveredResources(U_OK)).toEqual([]);
+  });
+
+  it('does not flag the live child cell managedByAccessPackage via the deleted role', async () => {
+    await assign({ resourceId: BR_DEL, principalId: U_OK, governed: true });
+    await assign({ resourceId: G_LIVE, principalId: U_OK, governed: false });
+    await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
+    const r = await pool.query(
+      `SELECT "managedByAccessPackage" FROM "vw_ResourceUserPermissionAssignments"
+        WHERE "resourceId" = $1 AND "principalId" = $2`,
+      [G_LIVE, U_OK],
+    );
+    expect(r.rows).toEqual([{ managedByAccessPackage: false }]);
+  });
+
+  it('keeps a live role’s self row and live-child row, drops the soft-deleted-child row', async () => {
+    await assign({ resourceId: BR, principalId: U_OK, governed: true }); // BR Contains G (live) and G_DEL (deleted)
+    expect((await coveredResources(U_OK)).sort()).toEqual([BR, G].sort());
+  });
+});

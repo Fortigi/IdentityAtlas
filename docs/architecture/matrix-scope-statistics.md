@@ -41,6 +41,8 @@ A `(principal, resource)` membership is **governed** when it is **covered by a b
 
 Governed is a property of *coverage*, not of the assignment row: users hold the **business role** while their group membership is recorded as a plain `Direct` assignment. The whole feature (panel counts, the **Governed** / **Non-governed** toggle, and the trends) keys off that business-role coverage, so every surface agrees.
 
+Only a **live** role covers anything: a business role deleted in the source is tombstoned rather than removed, and since migration [`112_live_business_roles_govern.sql`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/112_live_business_roles_govern.sql) the coverage view leaves out rows whose role (or whose contained resource) carries a `deletedAt`. A membership whose only governing role is gone counts as non-governed, so the governed share never credits a control that no longer exists.
+
 **Ownership** is its own resource (for example `Owner @ Sales Team`), so the same rule applies to it: an ownership row is governed only when a held business role contains the ownership resource itself. A role that contains the group covers the group membership, not the ownership of that group.
 
 ## Matrix view behaviour
