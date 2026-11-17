@@ -62,6 +62,21 @@ When in doubt, schedule at least one **Full** run a day.
 
 ---
 
+## Force one full run outside its slot
+
+**Run Full** on the card starts a full run straight away. To make the *next scheduled* run a full one instead — for example before a daily full is due — set the crawler's `nextRunMode` to `full`:
+
+```bash
+curl -X PATCH http://localhost:3001/api/admin/crawler-configs/<id> \
+  -H 'Content-Type: application/json' -d '{"nextRunMode":"full"}'
+```
+
+The next run from **any** of that crawler's schedules is then a full run, whatever mode that schedule itself names — a schedule set to **Delta** is upgraded for this one run. The setting stays in place until a full run completes successfully, so a full run that fails is retried on the next occurrence rather than lost.
+
+Setting it back to `delta` is the default and means "no override": it never turns a schedule set to **Full** into a delta run. Entra ID clears the setting itself once its forced full run has succeeded; for the other crawlers, set it back to `delta` the same way when you no longer want full runs.
+
+---
+
 ## When two runs collide
 
 A crawler runs one job at a time.
