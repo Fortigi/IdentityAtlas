@@ -1,5 +1,81 @@
 ## Changes in this PR
 
+- Tests now cover the detail tabs of the app: opening one, returning to the page it was opened from when it is closed, and renaming a tab in place.
+- Tests now cover the matrix filter in the address bar: applying the default matrix, opening a shared matrix link, and ignoring a link with a broken filter.
+- Tests now cover the rest of the app shell: choosing which optional tabs to show, closing the settings menu, the "Backend not responding" screen, and applying or cancelling the matrix wizard.
+- The Azure deploy script (`azure/deploy.ps1`) now ends with the right next steps: sign-in is required from the first deploy, so it tells you to register the Entra app, create the `Admin` app role and assign it to yourself, and fill in the tenant and client IDs, before pointing you at Admin → Crawlers.
+- Azure walkthrough and authentication guide: a signed-in user without a role sees the "You don't have access to Identity Atlas yet" page and no data. "Restricting which users can sign in" now explains that you control access by assigning roles, and what `AUTH_REQUIRED_ROLES` still adds.
+- Fixed the Azure deployment pages so they agree with each other and with the product: sign-in is required from the first deploy, and the app shows a setup page until the Entra app is linked.
+- The Azure walkthrough now includes creating the `Admin` app role and assigning it to yourself. Without that step the first user could sign in but had no Admin tab.
+- Role names in the Azure walkthrough now match the built-in roles (`Admin`, `RoleMiner`, `Servicedesk`).
+- Corrected the list of Admin tabs on Azure (the Authentication tab is shown, not hidden) and removed the statement that there is no deploy workflow.
+- The authentication guide now mentions the SPA redirect URI and the `access` scope, and says what to do on Azure when you can sign in but have no Admin tab.
+- **Breaking:** with sign-in enabled, users without an Identity Atlas role no longer see any data. Before, anyone in the tenant who could sign in could read everything unless assignment was required on the Entra application or `AUTH_REQUIRED_ROLES` was set. Give people who should read the **Servicedesk** role (or another role); context owners keep their own access as before.
+- Users signed in without a role now see a page that explains they have no role and what to ask their administrator for, instead of empty screens.
+- Matrix share links now need the recipient to hold a role, such as Servicedesk.
+- The startup warning about `AUTH_REQUIRED_ROLES` not being set is gone, because leaving it unset no longer exposes data.
+- Fixed the advisory "Diff coverage" check failing on pull requests that only change the UI (or only the API): it could not find the coverage report when just one test suite had run.
+- Fixed the remaining broken links and file references in the documentation: the nightly-review page names the scripts and options that exist, the crawler authoring guide and the Secrets schema are linked at their real locations, and five in-page anchors that pointed at renamed headings resolve again.
+- Added a **Build a matrix** guide to the documentation: the four wizard steps, what the live counts mean, what happens when a matrix is too large, and how to save, reopen and adjust one.
+- Added a "Choose a deployment" page to the documentation: the public demo, Docker, Azure and Portable side by side, with who each is for, what it needs, its limits and how upgrades work.
+- Added a "Connect your systems: overview" page: which crawler to use for which system, what each one brings in, how scheduling works, what a refresh removes, and exactly what is supported for SailPoint.
+- The connector pages for Entra ID, Azure Resource Manager, Omada, midPoint and CSV Import now follow one layout: what you get, what you need first, the wizard steps with the labels you see on screen, a settings table with defaults, scheduling, what a refresh removes, limitations and troubleshooting.
+- New page "Schedule and run crawlers" explains the run buttons, schedules, delta versus full runs per crawler, and what to do when a crawler type is missing from Add Crawler.
+- The Entra ID page now lists, for each Graph permission, which object types it unlocks in the wizard.
+- The midPoint configuration reference is merged into the midPoint page.
+- The CSV Import page now starts with uploading files through the wizard and points to the CSV schema reference for the columns, instead of a shorter copy that disagreed with it.
+- The documentation now lives at docs.identityatlas.io; links in the app, the README and the website point there (the old fortigi.github.io address forwards to it)
+- The website's "Read the deployment documentation" link now opens the quick start instead of the documentation home page
+- Pull requests now fail when a documentation page uses retired vocabulary (SOLL/IST, org unit, the retired assignment types, `Start-FGSync`) more often than it did, so old terms cannot creep back while pages are being cleaned up.
+- Pull requests now fail on a new broken link, missing image or dead `#anchor` anywhere in the documentation, using the same anchor rules as the published site.
+- Added `npm run docs:check` and `npm run docs:baseline` (in `app/api`) to run these checks locally and record a page that was cleaned up.
+- Added a "Back up, restore and upgrade" guide for Docker deployments: what to back up (database, vault master key, configuration), a pg_dump/pg_restore procedure, the upgrade steps, what happens while migrations run or fail, rolling back, and uninstalling.
+- The Docker Setup page is now the single Docker reference: every setting the containers read, sizing, container security, a new section on running behind an HTTPS reverse proxy, and a new section on using your own PostgreSQL server.
+- The Troubleshooting page now opens with the problems people hit on a first start (missing or changed database password, migrations still running, no role after sign-in, unknown host name, missing master key, and the size limits behind a 413).
+- Corrected the Automatic Updates page: a failed migration does not stop the container; it is retried while the API answers 503.
+- Added a user-level "Reading the matrix" guide to the documentation: the layout, the Direct / Indirect / Eligible badges, governed cells, the markers above a badge, folding and roll-up, scope statistics and the Excel export.
+- Added a "Reading a detail page" guide: how to open the detail page of an account, identity, resource or business role, and what the Attributes, Relationships, Timeline, Diff and Risk tabs answer.
+- The engineering descriptions of the matrix and the detail pages moved from the Use tab to Reference → Under the hood ("Matrix Internals", "Detail Pages Internals").
+- Rewrote the risk scoring documentation to describe how scoring works today: set up in Admin → Risk Scoring, calculated by the built-in engine after every crawl. The retired PowerShell commands are gone from these pages.
+- "What a Risk Score Means" now explains the four layers and their weights, the tiers, how to read a score's explanation, and how overrides work.
+- "How Scoring Works" lists every signal the engine scores, with its points, and when a scoring run happens.
+- "Classifiers" now explains how to read the active classifier set in the Admin screen, what happens when a classifier matches, and how to change the classifiers.
+- "AI Agents & Non-Human Identities" now describes only the account types and scoring behaviour the product has.
+- Troubleshooting: the "Risk scores not visible" entry now lists the three things to check in Admin → Risk Scoring.
+- Documentation: the matrix architecture, scope statistics, style guide, SQL views and API reference pages now describe only the three assignment types (Direct, Indirect, Eligible), with ownership as its own resource and governance as a flag, and use "governed / non-governed" and "business-role columns" wording throughout.
+- Rewrote the SQL Server connector page as a short operator guide: what you get, what to prepare, the wizard steps with their real labels, every setting explained where it is listed, how refreshes and removals work, the SailPoint IdentityIQ example sets, limitations and troubleshooting.
+- Documented which run settings are not in the wizard (staged load, concurrency, watermark overlap and key-sweep limits) and how to set them.
+- Added a "SQL Connector Internals" reference page describing how loading, removal, watermarks, key sweeps and verification work, replacing the former "SQL Connector Delta Loading" design page.
+- Rewrote the "Who can access resource X, and why" guide to follow the real resource page: the Relationships tab's Direct Members, Indirect Members and Eligible nodes, the owner in the header, and how to trace an inherited holder through nested groups or the "How this inherited access arose" panel in the matrix.
+- Corrected the Contexts guide: contexts scope a matrix through **+ Context** in the matrix wizard's Subjects and Resources steps, the New context tree dialog's five options (including the experimental Describe it card) are listed as they appear, and "context type" is now explained.
+- Shortened "The app at a glance" to an accurate map of the app: the full tab list including Reports and which tabs are optional, how to switch optional tabs on, every Admin page, the difference between business roles in the grid and the Governed lens, and how risk scoring gets its scores.
+- Fixed the step numbering in the Custom Reports guide and linked each kind of record the builder offers to the glossary.
+- The Entitlement Pivot guide now says where the report lives and how "entitlement" relates to "resource".
+- The context assistant guide now names the buttons you actually click and uses English examples.
+- Added a "Reading the Trends tab" section to the Dashboard guide.
+- The automated issue interview now reads only comments by the requester, Fortigi members and the author of a vouched request; comments by other accounts no longer reach the build pipeline.
+- Added a secret-free sign-in for the Entra ID crawler: in an Azure deployment the crawler can sign in to Microsoft Graph with the deployment's managed identity instead of an app registration's client secret, so there is no secret to store, leak or renew.
+- The Azure deployment now creates a crawler identity (`<prefix>-mi-crawler`) with no permissions; `azure/Grant-CrawlerIdentityGraphPermissions.ps1` grants it the read-only Microsoft Graph permissions.
+- The Entra ID crawler wizard offers "Managed identity" as a sign-in method where the deployment has a crawler identity, and checks the permissions the identity actually holds.
+- Fixed the supported-sources table in the README: Azure RBAC, Omada, midPoint, SQL Server and SCIM 2.0 are listed with their built-in crawlers instead of as CSV-only or not at all.
+- Fixed the "Bug report" and "Feature request" links on the Report an issue page, which opened a blank issue instead of the form.
+- Fixed the command-line example on the SQL crawler page, which pointed at a folder that does not exist.
+- Fixed in-page links in the documentation that no longer jumped to the right section.
+- Corrected the Dashboard trends page: governed assignments are counted by the governed flag, not by a retired assignment type.
+- Security: the MCP server now only accepts sign-ins for the address in `PUBLIC_BASE_URL`. It no longer works out its own address from the incoming request, which someone in the same tenant could use to get in with a token from an app they registered themselves. **If you use the MCP server, set `PUBLIC_BASE_URL`**: without it the MCP endpoint is unavailable, and Admin → Experimental → MCP server tells you what to set.
+- Security: an installation behind a reverse proxy (nginx, Caddy, Traefik) can now be configured from the `.env` file: `docker-compose.prod.yml` passes `PUBLIC_BASE_URL`, `BEHIND_TLS`, `TRUST_PROXY_HOPS`, `TRUST_PROXY` and `ALLOWED_HOSTS` to the web container. Re-download the compose file to use them.
+- Security: behind a reverse proxy that is not configured as trusted, one client sending bad credentials can no longer get every user blocked. The API also logs once which setting is missing.
+- The key that lets release automation push to protected branches is now only available to workflows running on `main` or a release branch.
+- Security: the last two workflows that read the release automation key outside its protected environment (the weekly PowerShell module update and the Bot App check) now read it from there too, so the key is no longer needed as a repository-wide secret. A check now fails any future workflow that reads the key outside that environment.
+- A resource's page now shows its owner: named in the header as a link to that person, and as an **Owners** node on the Relationships tab. It is the same owner the context page already showed — the ownership link from the source, or otherwise the owner the source names on the resource.
+- A person's page now shows what they own: an **Owned Resources** node on the Relationships tab lists the resources they are the owner of.
+- Updated the September 2026 security assessment page: the 48 findings whose fixes have merged now show as fixed, with the merge date of each remediation pull request.
+- The website now shows the product: a screenshot of the access matrix near the top, plus a user detail page, a report and the crawler wizard, each in a light and a dark version.
+- The website now tells visitors how to reach us: a Contact link in the menu and the footer, and a support address under the closing call to action.
+- Corrected the website text on how access is held (direct, indirect or eligible, and whether it is governed), and the getting-started snippet now points to "Load Demo Data" first, as the README and quick start do.
+
+## Changes in this PR
+
 - A pull request that pushes a PowerShell function over the complexity ceiling now gets the finding on the line itself, through GitHub code scanning, as well as a failed complexity check. Each metric is its own rule, so cyclomatic and cognitive findings can be told apart.
 - The PowerShell complexity ceilings are now kept in one file, `.pscomplexity.json`, which both the complexity ratchet and the code-scanning findings read.
 - Each PowerShell mutant that no test catches now appears as a code-scanning alert on the line it changed. Alerts persist from week to week and close by themselves once a test starts catching the mutant, so the work of raising the mutation score has a visible list.

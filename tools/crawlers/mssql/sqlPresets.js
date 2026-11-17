@@ -69,7 +69,7 @@ LEFT JOIN spt_identity owner  ON owner.id = ma.owner`;
 // cannot see a removal — a deleted row does not bump its own timestamp — so the
 // same slot enables the periodic key sweep, which reads the complete key set
 // and removes what is gone. Everything else in this preset reads in full and is
-// reconciled on completeness instead (docs/architecture/sql-connector-delta.md).
+// reconciled on completeness instead (docs/architecture/sql-connector-internals.md).
 function entitlementGrants(byRole) {
   return {
     name: byRole ? 'Entitlement grants via a role' : 'Entitlement grants',

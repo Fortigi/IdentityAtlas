@@ -1,0 +1,4 @@
+{
+  "_comment": "Link-and-anchor ratchet for docs/. Links that are broken today (app/api/src/docs/docsLinks.js), per page, with the number of occurrences. The list may only shrink; a new broken link or anchor fails the Unit Tests: Vitest (API) check. Lower it with: cd app/api && npm run docs:baseline",
+  "pages": {}
+}

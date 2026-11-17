@@ -3,15 +3,21 @@
 #
 #   fortigi-ci-bot   (BOT_APP_ID / BOT_PRIVATE_KEY)         — release automation. It is a
 #                    bypass actor on the `main` ruleset so bump-version, the coverage/SBOM/
-#                    mutation reports and the Cut workflows can push. Its key must only ever
-#                    be used by jobs on GitHub-hosted runners.
+#                    mutation reports and the Cut workflows can push. Its key is a secret of
+#                    the `release-automation` environment, which only admits runs on main or
+#                    a release/* branch, and must only ever be used on GitHub-hosted runners.
 #   fortigi-dor-bot  (DOR_BOT_APP_ID / DOR_BOT_PRIVATE_KEY) — the DoR pipeline. It opens PRs,
 #                    pushes implementation branches and moves the boards. It has NO ruleset
 #                    bypass, so a sidekick that holds its key can never write to main.
 #
 # This workflow mints a token from each App and lists the repositories the installation can
-# reach. It runs on every same-repo PR that touches a DoR workflow or this file, and by hand
-# after rotating a key or re-installing an App. It never pushes anything.
+# reach. It never pushes anything.
+#
+#   * The DoR App is checked on every same-repo PR that touches a DoR workflow or this file,
+#     and by hand.
+#   * The release App is checked by hand only (Actions → Bot App check → Run workflow, on
+#     main), after rotating its key or re-installing it. A pull request cannot read its key:
+#     that is the point of the environment, so there is nothing for a PR run to check.
 name: Bot App check
 
 on:
@@ -24,27 +30,32 @@ on:
 
 permissions: {}
 
+env:
+  # Shared by both jobs: fail when the installation reaches more than this repository.
+  CHECK_SCRIPT: |
+    set -euo pipefail
+    repos="$(gh api installation/repositories --jq '.repositories[].full_name' | sort)"
+    echo "App: ${APP}"
+    echo "Repositories:"
+    echo "$repos" | sed 's/^/  /'
+    if [ "$repos" != "Fortigi/IdentityAtlas" ]; then
+      echo "::error::${APP} is installed on more than this repository — restrict it to Fortigi/IdentityAtlas"
+      exit 1
+    fi
+
 jobs:
-  check:
+  dor:
+    name: fortigi-dor-bot (DoR pipeline)
     # Fork PRs carry no secrets, so the mint step could only fail there.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: fortigi-ci-bot (release automation)
-            app: ci
-          - name: fortigi-dor-bot (DoR pipeline)
-            app: dor
-    name: ${{ matrix.name }}
     steps:
       - name: Mint a token
         id: token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ matrix.app == 'dor' && secrets.DOR_BOT_APP_ID || secrets.BOT_APP_ID }}
-          private-key: ${{ matrix.app == 'dor' && secrets.DOR_BOT_PRIVATE_KEY || secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-metadata: read
 
@@ -52,13 +63,29 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           APP: ${{ steps.token.outputs.app-slug }}
-        run: |
-          set -euo pipefail
-          repos="$(gh api installation/repositories --jq '.repositories[].full_name' | sort)"
-          echo "App: ${APP}"
-          echo "Repositories:"
-          echo "$repos" | sed 's/^/  /'
-          if [ "$repos" != "Fortigi/IdentityAtlas" ]; then
-            echo "::error::${APP} is installed on more than this repository — restrict it to Fortigi/IdentityAtlas"
-            exit 1
-          fi
+        run: bash -c "$CHECK_SCRIPT"
+
+  ci:
+    name: fortigi-ci-bot (release automation)
+    # By hand only: the environment refuses a pull request's ref, so on a PR this job could
+    # only fail.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
+    steps:
+      - name: Mint a token
+        id: token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: Fortigi
+          permission-metadata: read
+
+      - name: List the repositories this installation can reach
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          APP: ${{ steps.token.outputs.app-slug }}
+        run: bash -c "$CHECK_SCRIPT"

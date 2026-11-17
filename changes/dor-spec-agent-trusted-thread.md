@@ -1,1 +1,0 @@
-- The automated issue interview now reads only comments by the requester, Fortigi members and the author of a vouched request; comments by other accounts no longer reach the build pipeline.

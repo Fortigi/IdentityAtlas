@@ -53,7 +53,7 @@ export default defineConfig({
       // coverage.yml runs tools/coverage/aggregate_floors.py on main's numbers.
       // Measured Nov 2026: S89.7 B83.0 F88.3 L91.4.
       thresholds: {
-        statements: 87,
+        statements: 88,
         branches: 81,
         functions: 86,
         lines: 89,

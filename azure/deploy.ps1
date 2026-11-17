@@ -203,5 +203,8 @@ Write-Host "  LA workspace created : $($outputs.logAnalyticsCreated.value) (fals
 
 Write-Host "`nNext steps:" -ForegroundColor Cyan
 Write-Host "  1. Open $($outputs.appUrl.value) — first paint takes ~20-30s while the container warms up"
-Write-Host "  2. Admin → Crawlers to load demo data or connect Microsoft Graph"
-Write-Host "  3. (Optional) Admin → Authentication to enable Entra ID sign-in"
+Write-Host "     Sign-in is required from the first deploy: until an Entra app is linked you see the 'Entra ID setup required' page"
+Write-Host "  2. Set up Entra ID sign-in: register an Entra app (SPA redirect URI = the App URL), create the 'Admin' app role"
+Write-Host "     and assign it to yourself, then fill in AUTH_TENANT_ID / AUTH_CLIENT_ID on the Web App"
+Write-Host "     Walkthrough (Steps 2 and 3): docs/architecture/azure-deployment-walkthrough.md"
+Write-Host "  3. Sign in, then Admin → Crawlers to load demo data or connect Microsoft Graph"

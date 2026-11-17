@@ -87,13 +87,13 @@ describe('DashboardPage (mounted)', () => {
     const contribute = await screen.findByRole('link', { name: /Contribute/i });
     expect(contribute).toHaveAttribute(
       'href',
-      'https://fortigi.github.io/IdentityAtlas/edge/contributing/contribute/',
+      'https://docs.identityatlas.io/edge/contributing/contribute/',
     );
 
     const report = screen.getByRole('link', { name: /Report an issue or feature request/i });
     expect(report).toHaveAttribute(
       'href',
-      'https://fortigi.github.io/IdentityAtlas/edge/contributing/report-an-issue/',
+      'https://docs.identityatlas.io/edge/contributing/report-an-issue/',
     );
 
     // The support email was intentionally removed from the dashboard — support

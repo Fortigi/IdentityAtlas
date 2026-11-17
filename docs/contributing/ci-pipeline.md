@@ -56,6 +56,36 @@ These four jobs have **no path gate** — they always run when there are product
 |---|---|
 | `skip-hygiene` | Skips the PR Hygiene job |
 
+### Docs guards
+
+The documentation is checked by Vitest tests in `app/api/src/docs/`, so they run in **Unit Tests: Vitest (API)**. That job also runs on a docs-only PR (the `docs` path gate: `docs/**`, `mkdocs.yml`, `app/api/src/docs/**`, `ontology/**`).
+
+| Guard | Fails when |
+|---|---|
+| `docsStructure.guard.test.js` | A page is missing from the nav, a nav entry or a relative link points at a page that does not exist, a learning-path page lacks its `type` / `prereq` / `outcome`, or a learning-path `#anchor` is dead. Hard zero, no baseline. |
+| `docsDrift.guard.test.js`: retired vocabulary | A page uses a retired word more often than `.ci/docs-jargon-baseline.json` allows. |
+| `docsDrift.guard.test.js`: links and anchors | A page has a broken link that `.ci/docs-links-baseline.json` does not list. |
+
+**Retired vocabulary.** The banned words are listed in `app/api/src/docs/docsJargon.js`, each with the word to use instead: SOLL and IST (whole words, upper case, so "list" and "exist" do not match), org unit / OrgUnit, the retired assignment types (`assignmentType='Governed'`, `assignmentType='Owner'`, `AppRoleViaGroup`, `OAuth2Grant`, `DirectoryRoleEligible`) and the `Start-FGSync` cmdlet. Code samples count the same as prose, because a sample query is the line readers copy. The UI rule `local/no-legacy-jargon` keeps its own copy of the list; the guard fails if the UI bans a word that the docs list does not. Some pages keep the old words on purpose: the glossary note that maps them, the dated assessments (`security/`, `ux/` and the audit pages), the history page, and the design archive. They are listed with a reason in `EXEMPT` in the same file.
+
+**Links and anchors.** This check covers every page, not only the learning path. It looks at each relative link and image and reports:
+
+- an `#anchor` that the target page does not generate;
+- a file that does not exist (a missing screenshot, for example);
+- a target outside `docs/`, which the site does not publish.
+
+Anchors are computed the way mkdocs computes them. Punctuation is dropped, the text is lowercased, and each run of spaces and hyphens becomes ONE hyphen, so `## SMTP & mail` gives `#smtp-mail`, not `#smtp--mail`. A repeated heading gets `_1`, `_2`, and `{ #id }` sets an id by hand.
+
+**How the baselines work.** Each baseline lists, per page, what is still wrong today and how many times it occurs. A count above the baseline fails. So does a new page or a new term. A count below the baseline never fails, so fixing a page needs no baseline change in the same PR. Lock in an improvement, or see the result locally, with:
+
+```bash
+cd app/api
+npm run docs:check      # same comparison as CI, with what to write instead
+npm run docs:baseline   # lower both baselines to the current state of docs/
+```
+
+`docs:baseline` only lowers: anything that got worse keeps its old ceiling and the command exits 1. `npm run docs:baseline -- --allow-increase` writes the measurement as it is and prints every raised entry. Use it only for an exception a reviewer has agreed to.
+
 ---
 
 ## pr-integration.yml — Docker integration tests (~20–50 min)
