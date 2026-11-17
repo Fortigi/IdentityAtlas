@@ -16,7 +16,7 @@
         <link rel="prev" href="../style-guide/">
       
       
-        <link rel="next" href="../../architecture/ci-scope-testing/">
+        <link rel="next" href="../release-process/">
       
       
         
@@ -4718,6 +4718,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#release-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#post-merge-workflows-push-to-main" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4760,6 +4771,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../release-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -6260,6 +6299,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#release-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#post-merge-workflows-push-to-main" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6629,6 +6679,60 @@
 <tr>
 <td><code>skip-e2e</code></td>
 <td>Skips Playwright E2E</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="release-workflows">Release workflows<a class="headerlink" href="#release-workflows" title="Permanent link">&para;</a></h2>
+<p>None of these gate a PR. How they fit together, what the release test covers and the one-time setup are in <a href="../release-process/">Release process</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Triggers on</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>release-weekly.yml</code></td>
+<td>Schedule, Tuesdays 02:07 UTC; by hand</td>
+<td>Plans the run and starts up to two routes: the <strong>stable route</strong> when <code>release/X.Y</code> moved (a patch beta, the release test, then the stable patch on <code>:latest</code> if green) and the <strong>beta route</strong> when <code>main</code> got Dependabot updates of shipped code (a beta of the next minor and the release test). Azure only for the first beta of a minor and when the templates changed. Without a new beta of <code>main</code> it tests an untested pre-release or <code>:edge</code>. A manual run is a dry run by default</td>
+</tr>
+<tr>
+<td><code>release-route.yml</code></td>
+<td>Called by <code>release-weekly.yml</code></td>
+<td>One route: Cut Beta on an exact commit, wait for the images, the release test, and for the stable route Cut Hotfix on the same commit; one issue per route on failure</td>
+</tr>
+<tr>
+<td><code>release-test.yml</code></td>
+<td>Called by the weekly run and the routes; by hand; PRs that change the release test itself (against <code>:edge</code>, advisory)</td>
+<td>Docker upgrade, backup and restore, fresh install (with and without the report generator), sign-in with real Entra ID tokens, both portable ZIPs on Windows, and with <code>azure</code> the Azure templates in <code>ia-reltest-*</code> resource groups</td>
+</tr>
+<tr>
+<td><code>dependabot-auto-merge.yml</code></td>
+<td>Dependabot PRs into <code>release/**</code> (<code>pull_request_target</code>)</td>
+<td>Auto-merges patch and minor updates of the release line once CI is green</td>
+</tr>
+<tr>
+<td><code>cut-beta.yml</code></td>
+<td>By hand; called by the routes</td>
+<td>Tags <code>vX.Y.Z-beta.N</code> (on <code>main</code>, or on the release line with <code>hotfix</code>), builds the ZIPs, creates the pre-release. <code>dry_run</code> pushes no tag</td>
+</tr>
+<tr>
+<td><code>cut-release.yml</code></td>
+<td>By hand</td>
+<td>Tags <code>vX.Y.Z</code> on a commit on <code>main</code>, builds the ZIPs and the Azure package, creates the release. For <code>X.Y.0</code> also creates <code>release/X.Y</code> and opens the PR that moves Dependabot there</td>
+</tr>
+<tr>
+<td><code>cut-hotfix.yml</code></td>
+<td>Called by the stable route; by hand</td>
+<td>Tags <code>vX.Y.Z</code> on a commit of the release line (cherry-picks of <code>main</code> commits and Dependabot updates), creates the release. <code>dry_run</code> pushes no tag</td>
+</tr>
+<tr>
+<td><code>docker-publish.yml</code></td>
+<td>Every <code>bump-version.yml</code> run; every <code>v*</code> tag</td>
+<td>Builds, smoke-tests and CVE-scans the images, then pushes <code>:edge</code>, <code>:beta</code> (only for <code>X.Y.0</code> pre-releases) or <code>:latest</code>. Refuses a tag that is not on <code>main</code> or a release branch, unless main's checker accepts it as a hotfix</td>
 </tr>
 </tbody>
 </table>

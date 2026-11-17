@@ -2124,6 +2124,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Image channels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-tag-to-run-and-how-fast-updates-reach-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which tag to run, and how fast updates reach it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4889,6 +4906,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../contributing/release-process/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Process
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../ci-scope-testing/" class="md-nav__link">
         
   
@@ -6376,6 +6421,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Image channels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#which-tag-to-run-and-how-fast-updates-reach-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which tag to run, and how fast updates reach it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6934,13 +6996,13 @@
 <tbody>
 <tr>
 <td><em>(empty)</em> or <code>latest</code></td>
-<td>The last stable release.</td>
+<td>The newest stable minor version with the latest dependency updates.</td>
 <td>Production.</td>
 </tr>
 <tr>
 <td><code>beta</code></td>
-<td>The latest pre-release.</td>
-<td>Trying a release before it is final.</td>
+<td>A preview of the next minor version.</td>
+<td>Trying new features before they are final.</td>
 </tr>
 <tr>
 <td><code>edge</code></td>
@@ -6955,6 +7017,37 @@
 </tbody>
 </table>
 <p>When you pin an older release, use the <code>docker-compose.prod.yml</code> from that release as well. Switching channels and pinning are covered in <a href="../../admin/backup-restore-upgrade/#upgrade">Back up, restore and upgrade</a>.</p>
+<h3 id="which-tag-to-run-and-how-fast-updates-reach-it">Which tag to run, and how fast updates reach it<a class="headerlink" href="#which-tag-to-run-and-how-fast-updates-reach-it" title="Permanent link">&para;</a></h3>
+<p>Run <code>latest</code> in production. The version number says what you get: <code>6.1</code> and <code>6.2</code> differ in features, and the last digit counts dependency updates. Only the newest minor version is maintained, so <code>latest</code> moves from <code>6.1.x</code> to <code>6.2.0</code> when 6.2 is released; that is an in-place upgrade, with migrations that run on start.</p>
+<p>Before any stable release is published, its beta has passed a release test of upgrades, backup and restore, a fresh install, sign-in and the portable ZIPs; the Azure templates are tested for every new minor version and whenever they change (<a href="../../contributing/release-process/#the-release-test">what that covers</a>).</p>
+<p>Library updates, security fixes among them, are not treated differently from each other. When a library Identity Atlas depends on publishes a new patch or minor version, it reaches each tag like this:</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>When the update arrives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>edge</code></td>
+<td>When the update is merged into the main branch (weekly, or as soon as a security alert is raised).</td>
+</tr>
+<tr>
+<td><code>beta</code></td>
+<td>The Tuesday after it is merged into main.</td>
+</tr>
+<tr>
+<td><code>latest</code></td>
+<td>Within about a week: the stable line checks for updates every Monday, and each Tuesday it changed, a new patch version is published once its beta has passed the release test. If the test fails, nothing is published and the maintainers are told.</td>
+</tr>
+<tr>
+<td>An exact version</td>
+<td>Never by itself. Move the pin to the new version.</td>
+</tr>
+</tbody>
+</table>
+<p>A fix that needs a <em>major</em> library upgrade, or a change to Identity Atlas itself, ships with the next minor version, or as a patch release when it is urgent. Whatever tag you run, an update reaches your deployment only when you pull it: <code>docker compose -f docker-compose.prod.yml up -d --pull always</code>, or <a href="../../admin/auto-updates/">automatic updates</a>. With automatic updates on <code>latest</code>, expect a new patch version most working days.</p>
 <hr />
 <h2 id="sizing">Sizing<a class="headerlink" href="#sizing" title="Permanent link">&para;</a></h2>
 <p>Identity Atlas runs all three services (postgres, web, worker) on one host. These numbers are the floor: RAM first, disk second. The RAM figure is what the crawler's peak workload needs; tight provisioning makes the host thrash when a sync runs, not at idle. The disk figure is for the <code>postgres_data</code> volume plus the image layers.</p>
