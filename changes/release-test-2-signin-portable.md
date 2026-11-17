@@ -1,2 +1,0 @@
-- The release test now checks sign-in with real Entra ID tokens: a caller with a role gets in, a caller without a role is refused, and a token for another service is rejected.
-- The release test now starts both portable Windows ZIPs (the default one and the PostgreSQL one), loads demo data, opens the matrix, and upgrades each from the previous stable release's ZIP while keeping its data.

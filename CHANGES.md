@@ -1,5 +1,29 @@
 ## Changes in this PR
 
+- Corrected the API reference overview: errors are returned as `{ "error": ... }`, the sign-in variables are `AUTH_TENANT_ID` / `AUTH_CLIENT_ID`, and the real rate limits and request-size limits per route group are listed
+- The API reference now points to the OpenAPI document served at `/api/docs` and lists the API areas that have no reference page yet
+- Corrected the Risk Scores API reference: removed the non-existent clusters endpoint, documented starting scoring runs and removing an override, and stated that a scoring run replaces earlier overrides
+- The Configuration page now lists every environment variable the containers read, grouped, with defaults; the outdated JSON config-file reference was removed
+- Moved the secrets vault and master-key material to its own page, "Secrets and the Master Key", and brought the LLM and risk-scoring internals page up to date with the four-layer engine and the current default model
+- Added a release test that checks a published beta, hotfix or edge build the way an operator uses it: an upgrade from the previous stable release with demo data, a backup and a restore as the backup documentation describes, and a fresh install that follows the quick start word for word, each with and without the local report generator.
+- The release test now checks sign-in with real Entra ID tokens: a caller with a role gets in, a caller without a role is refused, and a token for another service is rejected.
+- The release test now starts both portable Windows ZIPs (the default one and the PostgreSQL one), loads demo data, opens the matrix, and upgrades each from the previous stable release's ZIP while keeping its data.
+- The release test can now deploy a candidate to Azure with both templates (with and without sign-in), each with and without the report generator, check that it comes up, and upgrade the previous stable release's deployment to the candidate while keeping its data. Every test deployment gets its own resource group, which is deleted afterwards, also when the test fails.
+- Added a weekly release run, every Tuesday. It cuts a new beta and a new stable release in any week a dependency was updated, and gives every new beta the release test first. Weeks with nothing new test the latest development build as an early warning.
+- Which parts of the release test run now depends on what changed. Every release gets the upgrade, backup and restore, fresh install, sign-in and portable checks. The Azure deployment is tested for the first beta of every new minor version and whenever the Azure templates change, but not for a release that only updates libraries.
+- The stable release now receives every dependency update automatically, once a week, whether or not it is a security fix. Each week the stable line changed, a new patch version (for example 6.1.2, then 6.1.3) is published first as a test beta and released only once that beta passes the release test. When anything fails, nothing is published and an issue explains why.
+- Each week that the main branch received a dependency update, a new beta of the next minor version is published and tested.
+- The `beta` image tag now always points at the preview of the next minor version. A stable patch release's test beta gets only its own version tag, so `beta` users are never moved back to an older version.
+- Patch releases are published again: the image publishing check no longer refuses a release made only of changes already merged to the main branch.
+- Cut Beta can now cut a beta of the release line, and Cut Beta and Cut Hotfix have a dry-run option that checks everything without publishing.
+- Only the newest stable minor version is maintained. Releasing a new minor version now creates its release line and moves the weekly dependency updates there; the previous minor gets no more updates, and the 5.9 line has ended.
+- Dependabot now updates the 6.1 stable line every Monday with patch and minor updates of production dependencies and base images. Each update merges itself once CI passes. Major upgrades are left for the next minor version.
+- A release may now include Dependabot updates merged into the release line without first being on the main branch. The check only accepts updates that change nothing but dependency versions; everything else must still come from the main branch.
+- Added a release-process guide for maintainers. It covers the release policy (version numbers, weekly dependency releases, one maintained minor, what is tested when), the edge, beta and stable channels, the weekly routes step by step, what the release test covers and what it does not, what to do when a route fails, and a step-by-step checklist for the one-time Azure and GitHub setup.
+- The Docker setup page and the security policy now say which versions are supported, which image tag to run, and how quickly a dependency update reaches each tag.
+
+## Changes in this PR
+
 - Fixed the Missing Managers report listing every person under "Identity" even when their org chart was complete — the Entra ID crawler now records each identity's manager, not just each account's.
 - Manager links that point at somebody who was never imported are now cleared for identities as well as accounts, so a person never shows a manager that leads nowhere, and the sync log reports how many links were dropped.
 - The demo dataset now carries the same org chart at person level, so the Missing Managers report shows only the people who genuinely have nobody to certify their access.

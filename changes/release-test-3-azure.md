@@ -1,1 +1,0 @@
-- The release test can now deploy a candidate to Azure with both templates (with and without sign-in), each with and without the report generator, check that it comes up, and upgrade the previous stable release's deployment to the candidate while keeping its data. Every test deployment gets its own resource group, which is deleted afterwards, also when the test fails.
