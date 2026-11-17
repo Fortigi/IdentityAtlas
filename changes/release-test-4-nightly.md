@@ -1,0 +1,1 @@
+- Added a nightly release run: when a new beta is out it gets the full release test, Azure included; on other nights the latest development build gets the Docker and portable checks only, as an early warning.

@@ -42,7 +42,9 @@ describe('docs are deployed by docs.yml alone', () => {
 describe('every cut-* workflow refuses code that is not on main', () => {
   it.each([
     ['cut-release.yml', 'Release'],
-    ['cut-beta.yml', 'Release'],
+    // Cut Beta checks a hotfix branch's beta the way Cut Hotfix checks the hotfix:
+    // $MODE is Release unless `hotfix: true` (asserted below).
+    ['cut-beta.yml', '"$MODE"'],
     ['cut-hotfix.yml', 'Hotfix'],
   ])('%s runs the checker in %s mode before pushing the tag', (file, mode) => {
     const all = steps(read(`.github/workflows/${file}`));
@@ -52,10 +54,59 @@ describe('every cut-* workflow refuses code that is not on main', () => {
     expect(tag).toBeGreaterThan(gate);
     const step = all[gate];
     expect(step).toMatch(/git show "\$GITHUB_WORKFLOW_SHA:tools\/release\/Assert-ReleaseFromMain\.ps1" > "\$RUNNER_TEMP\/assert\.ps1"/);
-    expect(step).toMatch(new RegExp(`pwsh -NoProfile -File "\\$RUNNER_TEMP/assert\\.ps1" -Mode ${mode} -Ref HEAD\\n`));
+    expect(step).toContain(`pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode ${mode} -Ref HEAD\n`);
     expect(step).toMatch(/if \[ "\$GITHUB_REF" != "refs\/heads\/main" \]; then\n.*exit 1/);
     // Not softened into a warning that lets the run carry on.
     expect(step).not.toMatch(/continue-on-error|\|\| true/);
+  });
+
+  it('cut-beta checks in Release mode unless asked for a hotfix branch, and in no other mode', () => {
+    const gate = steps(read('.github/workflows/cut-beta.yml')).find((s) => /Assert-ReleaseFromMain\.ps1/.test(s));
+    expect(gate).toContain('HOTFIX: ${{ inputs.hotfix }}');
+    const modes = [...gate.matchAll(/MODE=(\w+)/g)].map((m) => m[1]);
+    expect(modes).toEqual(['Release', 'Hotfix']);
+    expect(gate).toMatch(/MODE=Release\n\s+if \[ "\$HOTFIX" = "true" \]; then MODE=Hotfix; fi/);
+  });
+});
+
+// The nightly security route calls Cut Beta and Cut Hotfix with dry_run. A dry
+// run must leave nothing behind on GitHub: no tag (which would make
+// docker-publish push images) and no release.
+describe('a dry run of a cut-* workflow publishes nothing', () => {
+  it.each(['cut-beta.yml', 'cut-hotfix.yml'])('%s pushes the tag only outside a dry run', (file) => {
+    const tagStep = steps(read(`.github/workflows/${file}`)).find((s) => /git push origin "\$TAG"/.test(s));
+    expect(tagStep).toContain('DRY_RUN: ${{ inputs.dry_run }}');
+    expect(tagStep).toMatch(/if \[ "\$DRY_RUN" = "true" \]; then\n[^\n]*\n\s+else\n\s+git push origin "\$TAG"\n\s+fi/);
+  });
+
+  it.each(['cut-beta.yml', 'cut-hotfix.yml'])('%s creates the release only outside a dry run', (file) => {
+    const release = steps(read(`.github/workflows/${file}`)).filter((s) => s.includes('gh release create'));
+    expect(release).toHaveLength(1);
+    expect(release[0]).toMatch(/^ {6}- name: [^\n]+\n {8}if: \$\{\{ !inputs\.dry_run \}\}\n/);
+  });
+
+  it.each(['cut-beta.yml', 'cut-hotfix.yml'])('%s reads its inputs from `inputs`, so workflow_call works', (file) => {
+    const text = read(`.github/workflows/${file}`);
+    expect(text).toMatch(/\n {2}workflow_call:\n/);
+    expect(text).not.toContain('github.event.inputs');
+  });
+});
+
+// docker-publish refuses a tag whose commit is not on main (F-52). A hotfix tag
+// is not on main by construction, so it must be admitted by main's own checker
+// — read from origin/main, never from the tag being published.
+describe('docker-publish admits a hotfix only through main\'s checker', () => {
+  const guard = steps(read('.github/workflows/docker-publish.yml')).find((s) => s.includes('Refuse a release tag that is not on main'));
+
+  it('loads Assert-ReleaseFromMain.ps1 from origin/main and runs it in Hotfix mode', () => {
+    expect(guard).toContain('git show "origin/main:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"');
+    expect(guard).toContain('if pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD; then');
+  });
+
+  it('still refuses everything else', () => {
+    expect(guard).toMatch(/exit 1\n?$/);
+    expect(guard).not.toMatch(/continue-on-error|\|\| true/);
+    expect(guard).not.toMatch(/git show "?\$?\{?REF|git show "HEAD:tools/);
   });
 });
 

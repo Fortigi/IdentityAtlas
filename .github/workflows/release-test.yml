@@ -9,9 +9,14 @@
 #                     before/after, then restore that backup onto an empty host
 #   Docker: fresh     docs/quickstart.md line for line with the candidate's tag
 #   Both with and without the report-generator profile (the local model).
+#   Docker: sign-in   fresh install with sign-in on; real Entra ID tokens with and
+#                     without a role (F-01). Needs the azure-release-test
+#                     environment, so it does not run on pull requests.
+#   Portable          both ZIPs on windows-latest: fresh start, and an upgrade
+#                     from the previous stable's ZIP on a kept data directory.
 #
-# The logic lives in tools/release/ (Invoke-DockerReleaseTest.ps1 and the
-# ReleaseTest.*.ps1 helpers, unit-tested by test/unit/ReleaseTestFunctions.Tests.ps1).
+# The logic lives in tools/release/ (Invoke-*ReleaseTest.ps1 and the
+# ReleaseTest.*.ps1 helpers, unit-tested by test/unit/ReleaseTest*.Tests.ps1).
 # This file only wires jobs together.
 #
 # Who runs it: the nightly release run (workflow_call), a person (Actions →
@@ -29,12 +34,20 @@ on:
         description: 'Tag to test (v6.2.0-beta.1, v6.1.2) or edge'
         type: string
         required: true
+      azure:
+        description: 'Also deploy to Azure (IIDemos subscription; costs money)'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       candidate:
         description: 'Tag to test (v6.2.0-beta.1, v6.1.2) or edge'
         type: string
         default: edge
+      azure:
+        description: 'Also deploy to Azure (IIDemos subscription; costs money)'
+        type: boolean
+        default: false
   pull_request:
     paths:
       - '.github/workflows/release-test.yml'
@@ -105,9 +118,227 @@ jobs:
           ./tools/release/Invoke-DockerReleaseTest.ps1 -Scenario $env:SCENARIO -Candidate $env:CANDIDATE `
             -PreviousStable $env:PREVIOUS_STABLE -ReportGenerator:($env:REPORT_GENERATOR -eq 'true')
 
+  # Real Entra ID tokens, no secret: GitHub's OIDC token is exchanged through a
+  # federated credential that only this environment's runs match. The
+  # environment admits main and v* tags only, which is why this job is skipped
+  # on pull requests. See docs/contributing/release-process.md for the app
+  # registrations and the four variables.
+  docker-signin:
+    name: 'Docker: sign-in on'
+    needs: plan
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: azure-release-test
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the sign-in variables are set
+        env:
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          ROLE: ${{ vars.AZURE_CLIENT_ID }}
+          SSO: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
+          NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+        run: |
+          missing=""
+          for v in TENANT:AZURE_TENANT_ID ROLE:AZURE_CLIENT_ID SSO:RELEASE_TEST_SSO_CLIENT_ID NOROLE:RELEASE_TEST_NOROLE_CLIENT_ID; do
+            [ -n "${!v%%:*}" ] || missing="$missing ${v#*:}"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Set these variables on the azure-release-test environment:$missing (docs/contributing/release-process.md → One-time setup)."; exit 1
+          fi
+
+      - name: Run the sign-in scenario
+        shell: pwsh
+        env:
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          ROLE: ${{ vars.AZURE_CLIENT_ID }}
+          SSO: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
+          NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+        run: |
+          ./tools/release/Invoke-DockerReleaseTest.ps1 -Scenario SignIn -Candidate $env:CANDIDATE `
+            -SsoTenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE
+
+  # The ZIPs both Windows jobs start: the previous stable release's from its
+  # GitHub release, the candidate's from its (pre-)release, or, for edge, which
+  # has none, built here by the same script the Cut workflows use.
+  portable-zips:
+    name: 'Portable: get the ZIPs'
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the previous stable release's ZIPs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS: ${{ needs.plan.outputs.previous_stable }}
+        run: gh release download "$PREVIOUS" --pattern 'IdentityAtlas-portable*.zip' --dir zips/previous
+
+      - name: Download the candidate's ZIPs
+        if: needs.plan.outputs.candidate != 'edge'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$CANDIDATE" --pattern 'IdentityAtlas-portable*.zip' --dir zips/candidate
+
+      - name: Set up Node.js
+        if: needs.plan.outputs.candidate == 'edge'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Build the candidate's ZIPs (edge has no release)
+        if: needs.plan.outputs.candidate == 'edge'
+        run: |
+          (cd app/desktop && npm install --prefer-offline)
+          bash .github/scripts/build_portable_zips.sh
+          mkdir -p zips/candidate
+          cp app/api/dist-node-launcher/release/IdentityAtlas-portable*.zip zips/candidate/
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: portable-zips-${{ needs.plan.outputs.candidate }}
+          path: zips/
+          retention-days: 3
+
+  portable:
+    name: 'Portable: ${{ matrix.variant }} ${{ matrix.scenario }}'
+    needs: [plan, portable-zips]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [default, postgres]
+        scenario: [Fresh, Upgrade]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: portable-zips-${{ needs.plan.outputs.candidate }}
+          path: zips
+
+      - name: Run the portable ${{ matrix.scenario }} scenario
+        shell: pwsh
+        env:
+          VARIANT: ${{ matrix.variant }}
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          ./tools/release/Invoke-PortableReleaseTest.ps1 -Scenario $env:SCENARIO -Variant $env:VARIANT `
+            -CandidateZipDir zips/candidate -PreviousZipDir zips/previous
+
+  # ── Azure (IIDemos subscription) ────────────────────────────────────────
+  # Only ever touches resource groups named ia-reltest-*: every az call that
+  # names a group goes through Assert-ReleaseTestGroupName
+  # (tools/release/ReleaseTest.Azure.ps1, proven by ReleaseTestAzure.Tests.ps1).
+  # One new group per variant per run, deleted at the end whatever happened.
+  azure-sweep:
+    name: 'Azure: delete leftover groups older than a day'
+    if: inputs.azure && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: azure-release-test
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Delete stale release-test groups
+        shell: pwsh
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          . ./tools/release/ReleaseTest.Azure.ps1
+          $stale = @(Get-StaleReleaseTestGroup -MaxAgeHours 24)
+          "Stale release-test groups: $(if ($stale) { $stale -join ', ' } else { 'none' })"
+          foreach ($g in $stale) { Remove-ReleaseTestGroup -Name $g }
+
+  azure:
+    name: 'Azure: ${{ matrix.variant }}'
+    needs: plan
+    if: inputs.azure && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: azure-release-test
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [main, main-rg, auth, auth-rg, main-upgrade, auth-upgrade]
+    env:
+      VARIANT: ${{ matrix.variant }}
+      # `az containerapp` is a CLI extension; install it on first use instead of prompting.
+      AZURE_EXTENSION_USE_DYNAMIC_INSTALL: yes_without_prompt
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ia-reltest-<run>-<attempt>-<candidate>-<variant>. The candidate is in it
+      # because one nightly run can test two candidates (a new beta and the
+      # security hotfix's beta), each with the same variants.
+      - name: Name the resource group
+        shell: pwsh
+        env:
+          RUN_ID: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          . ./tools/release/ReleaseTest.Azure.ps1
+          $name = New-ReleaseTestGroupName -RunId $env:RUN_ID -Attempt $env:ATTEMPT -Variant "$(ConvertTo-GroupNamePart $env:CANDIDATE)-$env:VARIANT"
+          "GROUP=$name" | Add-Content $env:GITHUB_ENV
+          "Resource group: $name"
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create the resource group
+        shell: pwsh
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          . ./tools/release/ReleaseTest.Azure.ps1
+          New-ReleaseTestGroup -Name $env:GROUP -RunUrl $env:RUN_URL
+
+      - name: Deploy and test
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS: ${{ needs.plan.outputs.previous_stable }}
+          TENANT: ${{ vars.AZURE_TENANT_ID }}
+          ROLE: ${{ vars.AZURE_CLIENT_ID }}
+          SSO: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
+          NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+        run: |
+          ./tools/release/Invoke-AzureReleaseTest.ps1 -Variant $env:VARIANT -Candidate $env:CANDIDATE -PreviousStable $env:PREVIOUS `
+            -Group $env:GROUP -TenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE
+
+      # Always, also after a failure or a cancel. The deletion is started, not
+      # awaited; a group that survives anyway is removed by azure-sweep a day later.
+      - name: Delete the resource group
+        if: always()
+        shell: pwsh
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          . ./tools/release/ReleaseTest.Azure.ps1
+          Remove-ReleaseTestGroup -Name $env:GROUP
+
   result:
     name: 'Release Test Passed'
-    needs: [plan, docker]
+    needs: [plan, docker, docker-signin, portable-zips, portable, azure-sweep, azure]
     if: always()
     runs-on: ubuntu-latest
     steps:
