@@ -1,0 +1,3 @@
+- Security fixes from Dependabot now reach the stable release on their own: each night, fixes merged to the main branch that are not yet released are bundled into one hotfix, published first as a beta, put through the full release test, and released as the new stable version only if that test passes. When anything goes wrong nothing is published and an issue explains why.
+- Hotfix releases are published again: the image publishing check no longer refuses a hotfix that consists only of changes already merged to the main branch.
+- Cut Beta can now cut a beta of a hotfix branch, and Cut Beta and Cut Hotfix have a dry-run option that checks everything without publishing.

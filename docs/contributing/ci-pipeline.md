@@ -138,6 +138,22 @@ Example: only `omada` changed → `testSet = [omada]`, `runSet = [odata, omada]`
 
 ---
 
+## Release workflows
+
+None of these gate a PR. How they fit together, what the release test covers and the one-time setup are in [Release process](release-process.md).
+
+| Workflow | Triggers on | What it does |
+|---|---|---|
+| `release-nightly.yml` | Schedule, 02:07 UTC; by hand | Plans the night: the full release test (Azure included) for a beta that has not been tested, otherwise the Docker and portable parts against `:edge`. Alongside, the **security route**: Dependabot security fixes merged to `main` but in no release yet go into one hotfix branch, a beta of it, the release test, and Cut Hotfix if green. A manual run is a dry run by default |
+| `release-test.yml` | Called by `release-nightly.yml`; by hand; PRs that change the release test itself (against `:edge`, advisory) | Docker upgrade, backup and restore, fresh install (with and without the report generator), sign-in with real Entra ID tokens, both portable ZIPs on Windows, and with `azure` the Azure templates in `ia-reltest-*` resource groups |
+| `dependabot-security-label.yml` | Dependabot PRs into `main` (`pull_request_target`) | Labels a patch or minor update that fixes a Dependabot alert `security-fix`, for the security route |
+| `cut-beta.yml` | By hand; called by the security route | Tags `vX.Y.Z-beta.N` (on `main`, or on a hotfix branch with `hotfix`), builds the ZIPs, creates the pre-release. `dry_run` pushes no tag |
+| `cut-release.yml` | By hand | Tags `vX.Y.Z` on a commit on `main`, builds the ZIPs and the Azure package, creates the release |
+| `cut-hotfix.yml` | By hand; called by the security route | Tags `vX.Y.Z` on a hotfix branch of cherry-picks of `main` commits, creates the release. `dry_run` pushes no tag |
+| `docker-publish.yml` | Every `bump-version.yml` run; every `v*` tag | Builds, smoke-tests and CVE-scans the images, then pushes `:edge`, `:beta` or `:latest`. Refuses a tag that is not on `main` or a release branch, unless main's checker accepts it as a hotfix |
+
+---
+
 ## Post-merge workflows (push to main)
 
 These run **after** a PR merges, on the push to `main` — not as PR gates. They push their results back to `main` with the GitHub App token (branch protection blocks `GITHUB_TOKEN`), each rebasing-and-retrying to absorb the concurrent `bump-version.yml` commit on the same merge.
