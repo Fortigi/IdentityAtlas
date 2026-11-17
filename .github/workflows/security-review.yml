@@ -1,0 +1,283 @@
+# ─── Monthly security review (AI-assisted penetration test) ──────────────────
+# Once a month, and on demand (run it before cutting a release), a model reviews
+# the whole code base and tests a running stack against the checklist in
+# .github/security-review/prompt.md: OWASP Top 10 (2025), OWASP API Top 10,
+# ASVS 5.0, the NCSC web application guidelines, OWASP LLM Top 10, CWE Top 25,
+# CIS Docker and the OWASP CI/CD Top 10. See docs/security/index.md.
+#
+# Two jobs, split on purpose so the model never holds a credential that can
+# write anything:
+#
+#   review  The model. Read-only GITHUB_TOKEN, no repository secrets except the
+#           model token. Tests only the stack started inside this job. Its
+#           findings are validated and then SEALED with a public key
+#           (security_review_seal.sh) before they leave the job, because
+#           artifacts of a public repository can be downloaded by anyone.
+#   file    No model. Runs in the `security-review` environment, the only place
+#           the private key and the GitHub App key exist. Validates the findings
+#           again, files them (filings.js: Medium+ as private advisories with a
+#           public placeholder issue, Low/Info as public issues, all on the
+#           board), and opens a pull request with the public summary page. A
+#           maintainer reviews that page before it is published.
+#
+# Inert until the repository variable SECURITY_REVIEW_ENABLED is 'true'.
+#
+# Repository variables:
+#   SECURITY_REVIEW_ENABLED          'true' to run
+#   SECURITY_REVIEW_SEAL_PUBLIC_KEY  RSA public key PEM (seal)
+#   SECURITY_REVIEW_MODEL            optional, default claude-fable-5
+#   SECURITY_BOARD_PROJECT_ID        optional, Projects v2 node id for new issues
+# Secrets:
+#   CLAUDE_CODE_OAUTH_TOKEN          repository secret (shared with the other Claude workflows)
+#   environment `security-review` (branch policy: main only):
+#     SECURITY_REVIEW_SEAL_PRIVATE_KEY   RSA private key PEM matching the public key
+#     SECURITY_REVIEW_APP_ID             client id of the security-review GitHub App
+#     SECURITY_REVIEW_APP_KEY            private key of that App
+#
+# Not on pull_request: it reviews main, it is not a gate (test-gate-wiring.sh).
+# ─────────────────────────────────────────────────────────────────────────────
+name: Monthly security review
+
+on:
+  schedule:
+    - cron: '0 3 2 * *' # 03:00 UTC on the 2nd of every month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: 'Review: code and running stack'
+    if: vars.SECURITY_REVIEW_ENABLED == 'true' && vars.SECURITY_REVIEW_SEAL_PUBLIC_KEY != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    permissions:
+      contents: read
+    env:
+      REVIEW_INPUT: /tmp/security-review/input
+      REVIEW_OUT: /tmp/security-review/out
+    outputs:
+      review-id: ${{ steps.meta.outputs.review-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Describe the review
+        id: meta
+        run: |
+          mkdir -p "$REVIEW_INPUT" "$REVIEW_OUT"
+          version="$(grep -oP "ModuleVersion\s*=\s*'\K[^']+" setup/IdentityAtlas.psd1)"
+          {
+            echo "review-id=$(date -u +%Y-%m)"
+            echo "commit=$(git rev-parse HEAD)"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        with:
+          driver-opts: image=moby/buildkit:buildx-stable-1
+
+      - name: Build web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: ./app/api/Dockerfile
+          push: false
+          load: true
+          tags: identity-atlas-web:ci
+          cache-from: type=gha,scope=web
+
+      - name: Build worker image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: ./setup/docker/Dockerfile.powershell
+          push: false
+          load: true
+          tags: identity-atlas-worker:ci
+          cache-from: type=gha,scope=worker
+
+      - name: Start the stack with demo data
+        run: |
+          bash .github/scripts/security_review_stack.sh up
+          bash .github/scripts/security_review_stack.sh demo
+
+      # Active scan of every documented endpoint. It sends attack payloads to
+      # write endpoints too, so the stack is reset afterwards (next step).
+      - name: OWASP ZAP API scan
+        run: |
+          docker run --rm --network host -u root -v "$REVIEW_INPUT:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-api-scan.py -t http://localhost:3001/api/openapi.json -f openapi -J zap.json -I \
+            || echo "::warning::ZAP exited non-zero; the review continues without a complete scan"
+          [ -s "$REVIEW_INPUT/zap.json" ] || echo '{}' > "$REVIEW_INPUT/zap.json"
+
+      - name: Dependency audit
+        run: |
+          (cd app/api && npm audit --json --package-lock-only > "$REVIEW_INPUT/npm-audit-api.json" || true)
+          (cd app/ui && npm audit --json --package-lock-only > "$REVIEW_INPUT/npm-audit-ui.json" || true)
+
+      - name: Reset the stack for the review
+        run: |
+          bash .github/scripts/security_review_stack.sh reset
+          (umask 077; bash .github/scripts/security_review_stack.sh worker-key > "$REVIEW_INPUT/worker-key")
+
+      - name: Security review
+        timeout-minutes: 300
+        uses: anthropics/claude-code-action@9eb012b6d0900c2b9eede65ee1758cec4d2973e9 # v1
+        env:
+          REVIEW_ID: ${{ steps.meta.outputs.review-id }}
+          REVIEW_COMMIT: ${{ steps.meta.outputs.commit }}
+          REVIEW_VERSION: ${{ steps.meta.outputs.version }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The job's own token: contents read, nothing else.
+          github_token: ${{ github.token }}
+          show_full_output: false
+          claude_args: >-
+            --model ${{ vars.SECURITY_REVIEW_MODEL || 'claude-fable-5' }}
+            --fallback-model claude-opus-5
+            --allowedTools Read,Grep,Glob,Agent,Bash,Write
+          prompt: |
+            Read .github/security-review/prompt.md and carry out the review it describes, exactly as written.
+
+            REVIEW_ID=${{ steps.meta.outputs.review-id }}
+            REVIEW_COMMIT=${{ steps.meta.outputs.commit }}
+            REVIEW_VERSION=${{ steps.meta.outputs.version }}
+            REVIEW_INPUT=${{ env.REVIEW_INPUT }}
+            REVIEW_OUT=${{ env.REVIEW_OUT }}
+
+      - name: Validate the findings
+        run: node app/api/src/securityReview/cli.js validate "$REVIEW_OUT/findings.json"
+
+      - name: Seal the findings
+        env:
+          SEAL_PUBLIC_KEY: ${{ vars.SECURITY_REVIEW_SEAL_PUBLIC_KEY }}
+        run: bash .github/scripts/security_review_seal.sh seal "$REVIEW_OUT/findings.json" "$RUNNER_TEMP/sealed"
+
+      - name: Upload the sealed findings
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: security-review-sealed
+          path: ${{ runner.temp }}/sealed
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Stop the stack
+        if: always()
+        run: bash .github/scripts/security_review_stack.sh down || true
+
+  file:
+    name: 'File findings and open the summary PR'
+    needs: review
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: security-review
+    permissions:
+      contents: read
+    env:
+      REVIEW_ID: ${{ needs.review.outputs.review-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Download the sealed findings
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: security-review-sealed
+          path: ${{ runner.temp }}/sealed
+
+      - name: Open the findings
+        env:
+          SEAL_PRIVATE_KEY: ${{ secrets.SECURITY_REVIEW_SEAL_PRIVATE_KEY }}
+        run: bash .github/scripts/security_review_seal.sh open "$RUNNER_TEMP/sealed" "$RUNNER_TEMP/findings.json"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
+      - name: Validate the findings again
+        run: node app/api/src/securityReview/cli.js validate "$RUNNER_TEMP/findings.json"
+
+      - name: Mint the security-review App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.SECURITY_REVIEW_APP_ID }}
+          private-key: ${{ secrets.SECURITY_REVIEW_APP_KEY }}
+
+      - name: Make sure the labels exist
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh label create security --color B60205 --description "Security finding or hardening" --force
+          gh label create ai-security-review --color 5319E7 --description "Filed by the monthly security review" --force
+          for s in critical high medium low informational; do
+            gh label create "severity:$s" --color D4C5F9 --force
+          done
+
+      - name: File the findings
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SECURITY_BOARD_PROJECT_ID: ${{ vars.SECURITY_BOARD_PROJECT_ID }}
+          REVIEW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node app/api/src/securityReview/cli.js file "$RUNNER_TEMP/findings.json" "$RUNNER_TEMP/filings.json"
+
+      - name: Write the public summary
+        run: node app/api/src/securityReview/cli.js publish "$RUNNER_TEMP/findings.json" "$RUNNER_TEMP/filings.json" docs/security
+
+      - name: Open the summary pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          branch="security-review/$REVIEW_ID"
+          git config user.name "identity-atlas-security-review[bot]"
+          git config user.email "security-review@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add docs/security
+          git commit -m "docs(security): monthly security review $REVIEW_ID"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$branch"
+          if gh pr view "$branch" --json number >/dev/null 2>&1; then
+            echo "The pull request for $branch already exists; it now has this run's page."
+            exit 0
+          fi
+          gh pr create --base main --head "$branch" \
+            --title "docs(security): monthly security review $REVIEW_ID" \
+            --body "Public summary of the monthly security review ($RUN_URL).
+
+          Before approving, read docs/security/review-$REVIEW_ID.md as an outsider would: it must not reveal how to exploit anything that is not fixed yet. Medium-or-higher findings are listed by severity and OWASP category only; their write-ups are in private security advisories.
+
+          🤖 Generated by the monthly security review workflow"
+
+  report-failure:
+    name: Report a failed run
+    needs: [review, file]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/scheduled_failure_issue.sh "${{ github.workflow }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

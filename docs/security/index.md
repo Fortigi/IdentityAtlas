@@ -64,6 +64,16 @@ A security review is a white-box review of the whole product combined with testi
 - **Who.** The reviews to date were carried out by Fortigi, the supplier of Identity Atlas, using AI review agents directed and checked by a Fortigi engineer. They are not independent third-party penetration tests. See [Independent penetration tests](#independent-penetration-tests).
 - **Frequency.** At least once a year, and again when significant new functionality is introduced. Three reviews were completed in 2026.
 
+### Monthly automated review
+
+On top of the full reviews, an automated security review and penetration test runs every month, and on demand before a release. An AI reviewer reads the whole code base at the current `main` and tests a freshly built stack with demo data. The checklist it works through is published with the code ([`.github/security-review/prompt.md`](https://github.com/Fortigi/IdentityAtlas/blob/main/.github/security-review/prompt.md)): the OWASP Top 10, OWASP API Security Top 10, OWASP ASVS 5.0, the NCSC web application guidelines, the OWASP Top 10 for LLM Applications, the CWE Top 25, the CIS Docker Benchmark and the OWASP Top 10 CI/CD Security Risks. An OWASP ZAP scan of every documented API endpoint and a dependency audit feed into it.
+
+- **What happens to the findings.** Medium and higher findings are filed as private security advisories, with a public issue that only says a finding of that severity exists. Low and Informational findings are filed as public issues. All of them go on the maintainers' board and follow the rules under [How findings are handled](#how-findings-are-handled).
+- **What is published.** Each review gets a public summary page, listed under [Monthly reviews](#monthly-reviews). A maintainer checks it before it is published.
+- **How it is isolated.** The reviewer runs in a job that has read-only access to the repository and no credentials that can change anything. It tests only the stack started inside that job. Its findings are encrypted before they leave the job, and a separate job without the AI reviewer files them.
+
+The monthly review is a recurring check, not a replacement for the full reviews or for an independent penetration test.
+
 ---
 
 ## How findings are handled
@@ -85,6 +95,14 @@ A security review is a white-box review of the whole product combined with testi
 | June 2026 | Maintenance audit (security, quality, CI) | `main` @ `5e88565` | Security tier findings, see page | Security tier closed | [Maintenance audit, June 2026](maintenance-audit-2026-06.md) |
 | September 2026 | Full white-box re-test | 5.671, `b9313bb5b` | 1 Critical, 7 High, 14 Medium, 19 Low, 12 Informational | All Critical, High and Medium fixed | [Security assessment, September 2026](assessment-2026-09.md) |
 | November 2026 | Full white-box review, a live deployment and its Entra ID tenant, and the CI/CD pipeline | `main`, November 2026 | 108 findings | Critical and High fixes merged to `main` | Published once the fixes are in a release |
+
+### Monthly reviews
+
+The [monthly automated review](#monthly-automated-review) adds a row here each month, newest first.
+
+<!-- security-review-rows -->
+| Month | Type | Version reviewed | Findings | Result | Public summary |
+|---|---|---|---|---|---|
 
 ---
 
