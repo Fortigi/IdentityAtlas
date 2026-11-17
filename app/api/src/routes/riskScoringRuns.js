@@ -13,11 +13,16 @@ import { runScoring } from '../riskscoring/engine.js';
 import { insertScoringRunIfIdle } from '../riskscoring/scoringRunGuard.js';
 import { requirePermission } from '../middleware/auth.js';
 import { ALL_PERMISSION_KEYS } from '../auth/permissions.js';
+import { requireFeature } from '../featureFlags.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
 // Run history is shown on the Logs page to every mapped role (SEC-2026-09 M-01).
 const readRuns = requirePermission(...ALL_PERMISSION_KEYS);
+
+// Off means off: no runs started, and no run history shown (path-scoped — the
+// router shares the '/api' mount).
+router.use('/risk-scoring', requireFeature('riskScoring'));
 
 router.post('/risk-scoring/runs', requirePermission('admin.crawlers'), async (req, res) => {
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });

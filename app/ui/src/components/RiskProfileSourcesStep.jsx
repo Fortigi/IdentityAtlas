@@ -35,7 +35,7 @@ export default function RiskProfileSourcesStep({
           <button onClick={addUrl} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">+ Add URL</button>
         </div>
         {urls.length === 0 && (
-          <div className="text-xs text-gray-500 dark:text-gray-400">Add wiki, ISMS, intranet pages here. Use credentials for auth-protected URLs (configure them on the Admin → LLM Settings page or below).</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">Add wiki, ISMS, intranet pages here. Use credentials for auth-protected URLs (configure them on the Admin → Risk Scoring LLM page or below).</div>
         )}
         {urls.map((row, i) => (
           <div key={i} className="flex gap-2 mb-2">

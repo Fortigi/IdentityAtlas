@@ -12,8 +12,13 @@
 // set of toggleable feature names are both derived from this table.
 
 export const FEATURE_FLAGS = {
-  // Risk scoring is opt-in on a fresh install: it needs an LLM provider and a
-  // risk profile before it produces anything, so default OFF.
+  // Risk scoring is experimental (frozen until it joins the Org Info building
+  // blocks) and opt-in on a fresh install: it needs an LLM provider and a risk
+  // profile before it produces anything, so default OFF. While off, every
+  // risk-scoring and risk-LLM endpoint answers 404 (/risk-scores, /risk-profiles,
+  // /risk-classifiers, /risk-scoring, /admin/llm, /admin/risk-profile,
+  // /admin/classifiers), the post-crawl run does not start, and entity details
+  // and the dashboard carry no risk data. Stored scores are kept, not deleted.
   riskScoring: {
     key: 'RISK_SCORING',
     envDefault: env => env.FEATURE_RISK_SCORING === 'true',
@@ -100,6 +105,9 @@ export const FEATURE_FLAGS = {
 
 // Is organisation knowledge on? One name for the many places that ask.
 export const orgKnowledgeEnabled = () => isFeatureEnabled('orgKnowledge');
+
+// Is risk scoring on? One name for the places outside its own routes that ask.
+export const riskScoringEnabled = () => isFeatureEnabled('riskScoring');
 
 // WorkerConfig key for a flag name, e.g. 'riskScoring' → 'FEATURE_RISK_SCORING'.
 export function workerConfigKey(name) {

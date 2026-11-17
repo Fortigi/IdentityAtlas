@@ -1,6 +1,8 @@
-// PROTOTYPE — Admin → LLM: status of the local model behind the report generator.
+// PROTOTYPE — Admin → Experimental, under Custom reports: status of the local model
+// behind the report generator (and the other assistants that use it).
 //
-// Separate from the cloud LLM provider above it: the report generator only talks to
+// Separate from the cloud LLM provider risk scoring uses (Admin → Risk Scoring LLM):
+// the report generator only talks to
 // the model server running next to Identity Atlas, so no question or data leaves the
 // deployment. The model is chosen per release — there is nothing to pick here.
 

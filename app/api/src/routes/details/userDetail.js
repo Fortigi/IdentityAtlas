@@ -11,6 +11,7 @@ import { isMissingSchema } from '../../db/schemaErrors.js';
 import { toPhotoDataUri } from '../../auth/resolveMe.js';
 import { cleanRow, countHistory } from './shared.js';
 import { countOwnedResources } from '../../lib/ownedResources.js';
+import { riskScoringEnabled } from '../../featureFlags.js';
 
 // 1. Current attributes from Principals (+ parsed extendedAttributes). Returns
 //    null when the user doesn't exist (handler → 404).
@@ -35,8 +36,10 @@ export async function fetchUserAttributes(pool, res, userId) {
 }
 
 // 1b. Risk score — stored in RiskScores keyed by (entityId, entityType). Merge
-//     onto attributes so the detail page's Risk tab can render.
+//     onto attributes so the detail page's Risk tab can render. Nothing is
+//     merged while risk scoring is off.
 export async function mergeUserRiskScore(attributes, userId) {
+  if (!(await riskScoringEnabled())) return;
   try {
     const rs = await db.query(
       `SELECT "riskScore", "riskTier", "riskDirectScore", "riskMembershipScore",

@@ -303,6 +303,12 @@ In public mode Postgres accepts only the web app's outbound addresses. To run ps
 3. `psql "postgres://identityatlas:<pw>@<pgFqdn>:5432/identity_atlas?sslmode=require"`.
 4. Delete the firewall rule when done.
 
+### Backups
+
+The template turns on Azure's automatic backups with point-in-time restore, and keeps them for 7 days (the minimum; Azure allows up to 35). Geo-redundant backup is off, so the backups stay in the region; that can only be switched on when a server is created. High availability is off, and there are no resource locks: deleting the server or the resource group deletes its backups too. Key Vault, which holds the master key, has soft delete for 7 days with purge protection on.
+
+If that is not enough for you, raise the retention, add a `CanNotDelete` lock, use Azure Backup's vaulted backup for long-term copies, or take your own periodic `pg_dump`. How to do each, how to restore, and how to move to a new deployment are in [Back up, restore and upgrade → Azure](../admin/backup-restore-upgrade.md#azure).
+
 ### Tearing down
 
 ```bash

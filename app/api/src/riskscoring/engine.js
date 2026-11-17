@@ -54,6 +54,7 @@
 import * as db from '../db/connection.js';
 import RE2 from 're2';
 import { tierFor } from './tiers.js';
+import { riskScoringEnabled } from '../featureFlags.js';
 import { OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL } from '../lib/ownershipTypes.js';
 import {
   indexDirectReports, indexMemberships, indexOwnerships, countSubtree,
@@ -262,7 +263,9 @@ export function scoreOne(textFields, classifiers) {
 // classifierId: id of the RiskClassifiers row to use. If null, the active set is loaded.
 // Start a scoring run: insert the run row + run the engine. Shared by the route and
 // the post-crawl pipeline. onlyIfConfigured skips when no active classifier exists.
+// Nothing starts while the riskScoring flag is off — the post-crawl run included.
 export async function startRiskScoringRun(triggeredBy = 'system', { onlyIfConfigured = false, awaitCompletion = false } = {}) {
+  if (!(await riskScoringEnabled())) return null;
   const active = await db.queryOne(`SELECT id FROM "RiskClassifiers" WHERE "isActive" = true LIMIT 1`);
   if (!active) { if (onlyIfConfigured) return null; throw new Error('No active classifier set'); }
   const run = await db.queryOne(

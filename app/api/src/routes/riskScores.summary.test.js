@@ -15,6 +15,12 @@ process.env.USE_SQL = 'true'; // module loads its db import + useSql at eval tim
 const captured = [];
 // Per-label response overrides: an array becomes the rows; an Error is thrown.
 let responses = {};
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF
+// behaviour is asserted in riskScores.routes.test.js.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 vi.mock('../perf/sqlTimer.js', () => ({
   timedQuery: async (_p, label, _res, text) => {
     captured.push({ label, sql: text });

@@ -485,9 +485,18 @@ jobs:
       # ── Clean + verify empty ─────────────────────────────────────
       - name: 'Test: Clean database and verify empty'
         run: |
+          # A tag is person-made: the clean must keep it (docs/admin/data-tab.md → Danger Zone)
+          curl -sf -X POST http://localhost:3001/api/tags -H 'Content-Type: application/json' \
+            -d '{"name":"ci-clean-keeps-me","entityType":"user"}' > /dev/null
           # Clean
           CLEAN=$(curl -sf -X POST http://localhost:3001/api/admin/clean-database -H 'Content-Type: application/json' -d '{"confirm":"DELETE ALL DATA"}')
           echo "Clean response: $CLEAN"
+          KEPT=$(curl -sf "http://localhost:3001/api/tags" | \
+            python3 -c "import sys,json; print(any(t.get('name') == 'ci-clean-keeps-me' for t in json.load(sys.stdin)))" 2>/dev/null || echo "error")
+          if [ "$KEPT" != "True" ]; then
+            echo "::error::Clean database removed a manual tag (or /api/tags failed): $KEPT"
+            exit 1
+          fi
           # Verify key tables are empty
           USERS=$(curl -sf "http://localhost:3001/api/users?limit=1" | \
             python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('total', d.get('totalCount', len(d.get('data',d.get('users',[]))))))" 2>/dev/null || echo "-1")
@@ -509,13 +518,16 @@ jobs:
 
       # ── Smoke test all read endpoints ────────────────────────────
       - name: 'Test: Smoke test read endpoints'
+        # /risk-profiles is not listed: risk scoring is experimental and off on this
+        # stack, so it 404s by design. Test-LLMSubstrate.ps1 checks it both off (404)
+        # and on (200).
         run: |
           FAILED=0
           ENDPOINTS=(
             /auth-config /features /admin/status /admin/auth-settings
             /systems /users?limit=1 /resources?limit=1
             /permissions?userLimit=1 /sync-log /categories
-            /tags /access-packages /risk-profiles
+            /tags /access-packages
             /account-linking/config /admin/crawler-configs
             /version /openapi.json
           )

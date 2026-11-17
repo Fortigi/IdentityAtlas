@@ -59,7 +59,7 @@ That split is the whole design, and it is what makes the feature defensible:
 | Licence | **Apache 2.0** — commercial use permitted. The licence text ships inside the image at `/models/MODEL-LICENSE.txt`, with an attribution notice. llama.cpp (MIT) ships its licence next to it |
 | Source | Pinned URL **and SHA-256** in `setup/docker/Dockerfile.report-generator`; the build fails if the file does not match |
 | Runtime | `llama.cpp` server, CPU only. No GPU, no external API, no telemetry |
-| Chosen by | The release. There is no model picker: **Admin → LLM** shows which model this version ships and whether it is answering |
+| Chosen by | The release. There is no model picker: **Admin → Experimental**, under **Custom reports**, shows which model this version ships and whether it is answering |
 
 The model is part of the release so that a given Identity Atlas version always behaves the same way
 and we can state what it was measured at. Changing the model is a new release.

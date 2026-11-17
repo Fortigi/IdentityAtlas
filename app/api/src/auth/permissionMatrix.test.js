@@ -25,6 +25,7 @@ import { GATED_ENDPOINTS, IMPLICIT_PERMISSIONS, RESERVED_PERMISSIONS } from './p
 // the flags those representative endpoints sit behind start on.
 process.env.FEATURE_MATRIX_SHARING = 'true';
 process.env.FEATURE_MCP_SERVER = 'true';
+process.env.FEATURE_RISK_SCORING = 'true';
 // The MCP server only runs with its public address configured (mcp/resource.js, F-08);
 // without it /mcp answers 503 before any permission is looked at.
 process.env.PUBLIC_BASE_URL = 'https://atlas.example.com';
@@ -71,19 +72,10 @@ vi.mock('./readTokens.js', async (importOriginal) => ({
 }));
 
 // Never touch a real Postgres. Deny happens before the handler; allow may query.
-vi.mock('../db/connection.js', () => {
-  const empty = { rows: [], rowCount: 0 };
-  // Native pg pool double — handlers query through pool.query / db.query (#663).
-  const pool = { query: async () => empty };
-  return {
-    query: async () => empty,
-    queryOne: async () => null,
-    tx: async (fn) => fn(pool),
-    getPool: async () => pool,
-    closePool: async () => {},
-  };
-});
+vi.mock('../db/connection.js');
 
+const { stageEmptyDb } = await import('../../test-utils/roleSweep.js');
+stageEmptyDb(await import('../db/connection.js'));
 const { createApp } = await import('../app.js');
 const { NO_ROLE_ERROR, NO_ROLE_CODE } = await import('../middleware/auth.js');
 const { listRoutes, sweepPath, sweepRoutes, PUBLIC_ROUTES, NEVER_DATA, OWN_AUTH } = await import('../../test-utils/routeSweep.js');

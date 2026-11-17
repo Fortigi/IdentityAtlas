@@ -145,6 +145,9 @@ Start with the demo, then Docker: that path costs nothing and nothing is wasted.
 The crawlers and the data model are the same everywhere, so what you learn about
 connecting a system in Docker applies unchanged on Azure and on Portable. The
 simplest way to move is to set the crawlers up again in the new place and run them.
+To take everything along, including the tags, contexts and overrides people made,
+back up the database and restore it in the new place: see
+[Move Identity Atlas to a new instance](../admin/backup-restore-upgrade.md#move-identity-atlas-to-a-new-instance).
 
 ## Release channels
 

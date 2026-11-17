@@ -1,0 +1,2 @@
+- Every API route is now checked against each built-in role (Admin, RoleMiner, Servicedesk) on every change, against a written-down list of what each route requires, so a route that is opened or closed to the wrong role is caught before release.
+- Added an end-to-end check that a person a matrix was shared with needs a role to open it, and with one (such as Servicedesk) opens only the shares addressed to them.

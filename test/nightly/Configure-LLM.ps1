@@ -39,6 +39,11 @@ Param(
 )
 
 $ErrorActionPreference = 'Continue'
+
+# Risk scoring is experimental and off on a fresh install; its endpoints 404 until
+# the flag is on. Shared helpers to read and switch it.
+. (Join-Path $PSScriptRoot 'RiskScoringFeature.ps1')
+
 $standaloneFailures = 0
 
 function Write-Result {
@@ -187,6 +192,9 @@ function Invoke-ConfigureLlm {
 
     Resolve-LlmConfig
     if (-not (Test-LlmConfigured)) { return 0 }
+
+    # The provider is risk scoring's own; /admin/llm 404s while that flag is off.
+    if (-not (Initialize-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -ResultName 'LLM-Config/RiskScoringOn')) { return 1 }
 
     $body = Build-LlmBody
     if (-not $body) { return 1 }

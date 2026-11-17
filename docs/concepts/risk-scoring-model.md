@@ -12,7 +12,7 @@ outcome: You know what the number on an account or resource means before you tru
 
 A risk score is a number from 0 to 100 on an account or a resource. It answers one question: *how much attention does this deserve compared to everything else?* It is a ranking aid, not a verdict. A high score means "look here first", not "this is wrong".
 
-Identity Atlas calculates the score itself, inside your own installation, from data the crawlers already collected. Risk scoring is an optional feature: it is switched off on a fresh install and turned on under **Admin → Risk Scoring**.
+Identity Atlas calculates the score itself, inside your own installation, from data the crawlers already collected. Risk scoring is an [experimental feature](../reference/experimental-features.md#risk-scoring): it is switched off on a fresh install and turned on under **Admin → Experimental**.
 
 ## What gets a score
 

@@ -7,7 +7,7 @@ Identity Atlas stores the secrets it needs in its own database, encrypted: crawl
 | Secret | Stored when |
 |---|---|
 | Crawler credentials (client secrets, passwords) | A crawler is saved in Admin → Crawlers |
-| The LLM API key | Admin → LLM Settings is saved |
+| The LLM API key | Admin → Risk Scoring LLM is saved |
 | Scraper credentials | A risk profile source needs a password or token |
 
 Each secret belongs to a scope (for example `llm` or `scraper`). Every read, existence check and delete names the scope it may touch, so a row in another scope is treated as absent.

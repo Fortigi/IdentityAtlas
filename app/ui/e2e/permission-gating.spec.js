@@ -48,9 +48,9 @@ test.describe('UI permission gating', () => {
 
   // Each admin permission should reveal the Admin tab AND only its own sub-tab(s).
   const cases = [
-    { perm: 'admin.crawlers', shows: 'Crawlers', hides: ['Authentication', 'LLM Settings'] },
-    { perm: 'admin.auth', shows: 'Authentication', hides: ['Crawlers', 'LLM Settings'] },
-    { perm: 'admin.llm', shows: 'LLM Settings', hides: ['Crawlers', 'Authentication'] },
+    { perm: 'admin.crawlers', shows: 'Crawlers', hides: ['Authentication', 'Risk Scoring LLM'] },
+    { perm: 'admin.auth', shows: 'Authentication', hides: ['Crawlers', 'Risk Scoring LLM'] },
+    { perm: 'admin.llm', shows: 'Risk Scoring LLM', hides: ['Crawlers', 'Authentication'] },
   ];
 
   for (const c of cases) {

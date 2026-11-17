@@ -12,6 +12,7 @@ import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { cleanRow, getPermissionTable } from '../details/shared.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { fetchResourceOwners } from '../../lib/resourceOwners.js';
+import { riskScoringEnabled } from '../../featureFlags.js';
 
 // 1. Current attributes (+ parsed extendedAttributes). Returns null when the
 //    resource doesn't exist (handler → 404).
@@ -28,8 +29,10 @@ export async function fetchResourceAttributes(pool, res, resourceId) {
 }
 
 // 1b. Risk score — stored in RiskScores keyed by (entityId, entityType). Merge
-//     it onto attributes so the detail page's Risk tab can render.
+//     it onto attributes so the detail page's Risk tab can render. Nothing is
+//     merged while risk scoring is off.
 export async function mergeResourceRiskScore(attributes, resourceId) {
+  if (!(await riskScoringEnabled())) return;
   try {
     const rs = await db.query(
       `SELECT "riskScore", "riskTier", "riskDirectScore", "riskMembershipScore",

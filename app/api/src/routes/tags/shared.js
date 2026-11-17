@@ -1,9 +1,9 @@
 // Shared helpers + runtime config for the tags endpoints.
 //
-// Extracted from routes/tags.js (audit finding C1). buildFilterWhere,
-// ensureTagTables, ENTITY_TO_TARGET and UUID_RE stay exported (re-exported by
-// routes/tags.js) because resources.js, admin/curatedData.js and
-// permissions/grid.js import them from ./tags.js. No behaviour change.
+// Extracted from routes/tags.js (audit finding C1). ensureTagTables,
+// buildFilterWhere and parseTags are re-exported by routes/tags.js because
+// resources.js and permissions/grid.js import them from ./tags.js;
+// ENTITY_TO_TARGET and UUID_RE are used by the tags routers here.
 
 import { EXT_PREFIX, extKeyOf, extValueSql } from '../../lib/extKeys.js';
 

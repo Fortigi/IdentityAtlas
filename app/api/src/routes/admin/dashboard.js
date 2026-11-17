@@ -9,6 +9,7 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { requirePermission } from '../../middleware/auth.js';
 import { ALL_PERMISSION_KEYS } from '../../auth/permissions.js';
+import { riskScoringEnabled } from '../../featureFlags.js';
 
 const router = Router();
 // Shown to every mapped role on the Dashboard; a zero-role caller is refused
@@ -24,6 +25,27 @@ const readDashboard = requirePermission(...ALL_PERMISSION_KEYS);
 // Single round-trip to the database: one multi-value SELECT. If any table
 // doesn't exist yet (fresh install before migrations fully land) each
 // subquery falls back to zero via COALESCE.
+// The risk-scoring part of the stats. While the experimental riskScoring flag is
+// off the dashboard says nothing about it: the risk counts are dropped from
+// `stats` (mutated) and there is no llmConfigured. Exported for unit testing.
+export const RISK_STAT_KEYS = ['riskScores', 'activeRiskProfile', 'activeClassifiers'];
+export async function riskStatus(stats) {
+  if (!(await riskScoringEnabled())) {
+    for (const k of RISK_STAT_KEYS) delete stats[k];
+    return {};
+  }
+  // Is the risk-scoring LLM configured? (needed for risk-scoring readiness)
+  let llmConfigured = false;
+  try {
+    const cfg = await db.queryOne(
+      `SELECT 1 FROM "WorkerConfig" WHERE "configKey" = 'LLM_CONFIG'`
+    );
+    const key = await db.queryOne(`SELECT 1 FROM "Secrets" WHERE id = 'llm.apikey'`);
+    llmConfigured = !!(cfg && key);
+  } catch { /* Secrets table may not exist on very old deployments */ }
+  return { llmConfigured };
+}
+
 router.get('/admin/dashboard-stats', readDashboard, async (_req, res) => {
   if (process.env.USE_SQL !== 'true') return res.status(503).json({ error: 'SQL not configured' });
   try {
@@ -79,15 +101,7 @@ router.get('/admin/dashboard-stats', readDashboard, async (_req, res) => {
         (SELECT COUNT(*)::int FROM "CrawlerJobs" WHERE status = 'running')                     AS "runningJobs"
     `);
 
-    // Is the LLM configured? (needed for risk-scoring readiness)
-    let llmConfigured = false;
-    try {
-      const cfg = await db.queryOne(
-        `SELECT 1 FROM "WorkerConfig" WHERE "configKey" = 'LLM_CONFIG'`
-      );
-      const key = await db.queryOne(`SELECT 1 FROM "Secrets" WHERE id = 'llm.apikey'`);
-      llmConfigured = !!(cfg && key);
-    } catch { /* Secrets table may not exist on very old deployments */ }
+    const risk = await riskStatus(stats);
 
     // pg_class.reltuples is always 0 in PGlite (no stats collector process),
     // so fall back to an exact COUNT when DESKTOP_MODE is set and reltuples says empty.
@@ -98,7 +112,7 @@ router.get('/admin/dashboard-stats', readDashboard, async (_req, res) => {
       );
       hasData = (check?.total || 0) > 0;
     }
-    res.json({ ...stats, llmConfigured, hasData });
+    res.json({ ...stats, ...risk, hasData });
   } catch (err) {
     console.error('dashboard-stats failed:', err.message);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
