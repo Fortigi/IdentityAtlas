@@ -134,16 +134,13 @@ assert "every continue-on-error step in static-gates feeds the Verdict" "" "${un
 #   release-test.yml   ADVISORY. Runs the release test against :edge only on PRs that change the
 #                      release test itself, so a broken harness shows before it is merged. Its real
 #                      job is the nightly run; a PR touching nothing else must not be gated by it.
-#   dependabot-security-label.yml
-#                      pull_request_target on main: labels a Dependabot PR that fixes a security
-#                      alert `security-fix`, for the nightly security route. Not a gate.
 #
 # (Diff coverage used to be its own workflow here. It now lives in pr.yml as the advisory
 # `diff-coverage` job — see section 1 — reusing the suites' lcov instead of re-running them.)
 #
 # Add a new PR-triggered workflow and this fails until it is either aggregated or added here with
 # a reason. That decision is the point of the test.
-ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml bot-apps-check.yml dependabot-auto-merge.yml release-test.yml dependabot-security-label.yml"
+ALLOWED="pr.yml pr-integration.yml codeql.yml bump-version.yml dor-deploy.yml dor-reset.yml sbom-update.yml bot-apps-check.yml dependabot-auto-merge.yml release-test.yml"
 unlisted=""
 for f in "$WF"/*.yml; do
   grep -qE '^[[:space:]]+pull_request(_target)?:' "$f" || continue

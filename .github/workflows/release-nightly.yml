@@ -1,34 +1,31 @@
 # ─── Release nightly ──────────────────────────────────────────────────────────
-# Once a night, decide what to release-test and test it:
+# Once a night: release what Dependabot updated, and test it on the way.
+# Security updates and other updates are treated the same; staying current is
+# the point. docs/contributing/release-process.md describes the whole route.
 #
-#   * a pre-release (beta/rc) ahead of the newest stable release that has not
-#     been tested yet  -> the full release test, Azure included
-#   * otherwise        -> Docker and portable against :edge only, as an early
-#                         warning; nights without a candidate cost nothing in Azure
+#   plan     tools/release/Get-NightlyPlan.ps1 (decisions unit-tested in
+#            test/unit/ReleaseNightly.Tests.ps1) decides up to three things:
 #
-# The decision is tools/release/Get-NightlyPlan.ps1 (unit-tested in
-# test/unit/ReleaseNightly.Tests.ps1). A tested candidate leaves an artifact
-# named release-tested-<tag>, green or red, so it is tested once; to test it
-# again, run this workflow by hand with that tag as `candidate`.
+#   stable   release/X.Y (the newest stable minor, updated daily by Dependabot)
+#            moved since vX.Y.Z -> release-route.yml: vX.Y.(Z+1)-beta.N, the
+#            release test, and vX.Y.(Z+1) on :latest only if it is green.
+#            Azure only when the Azure templates changed.
+#   beta     main has Dependabot updates of shipped code since the last beta
+#            of the next minor -> release-route.yml: vX.(Y+1).0-beta.N on
+#            :beta and the release test. Azure for the first beta of a minor
+#            and when the templates changed. No promotion: a new minor goes
+#            stable by hand (Cut Release).
+#   test     neither cuts a beta of main -> the release test of a pre-release
+#            nobody tested yet (Azure included), or else :edge without Azure
+#            as an early warning.
 #
-# The SECURITY ROUTE runs alongside, independently: Dependabot fixes for
-# security alerts (labelled security-fix by dependabot-security-label.yml) that
-# were merged to main but are in no release yet go to stable as ONE hotfix:
+# Each route's failure publishes nothing after it and opens one issue. A route
+# does not retry the same commit: the stable route waits until release/X.Y
+# moves (or a manual run with retry_stable), the beta route until a new
+# Dependabot update lands on main.
 #
-#   security-plan    which fixes, which version (tools/release/Get-SecurityHotfixPlan.ps1)
-#   security-branch  bugfixes/security-hotfix-<date> from the newest stable tag,
-#                    `git cherry-pick -x` of each merge commit in merge order
-#   security-beta    Cut Beta (hotfix mode) -> v<next patch>-beta.N, :beta
-#   security-images  wait until docker-publish has pushed that beta's images
-#   security-test    the release test of that beta, Azure included
-#   security-hotfix  Cut Hotfix -> v<next patch>, :latest — only if the test is green
-#   security-finish  delete the branch (released), or keep it and open one issue
-#
-# Anything red publishes nothing further and keeps the branch; while a
-# security-hotfix branch exists the route starts nothing new.
 # dry_run (manual runs only; on by default there) does everything except push
-# tags, open issues and delete branches — so no beta exists to test, and the
-# image wait and the release test are skipped.
+# tags and open issues.
 #
 # 02:07 UTC = 03:07 in Amsterdam in winter (04:07 in summer). Not on the hour:
 # GitHub delays top-of-hour schedules, sometimes by much more than 7 minutes.
@@ -42,13 +39,17 @@ on:
   workflow_dispatch:
     inputs:
       candidate:
-        description: 'Test this tag (or edge) instead of deciding. Empty = decide as the night does.'
+        description: 'Only test this tag (or edge); cut nothing. Empty = decide as the night does.'
         type: string
         default: ''
       dry_run:
-        description: 'Security route: do everything except push tags, open issues or delete branches'
+        description: 'Do everything except push tags or open issues'
         type: boolean
         default: true
+      retry_stable:
+        description: 'Try the stable route again on a release-line commit that was already tried'
+        type: boolean
+        default: false
 
 # One night at a time; a run that is still going is never cancelled by the next.
 concurrency:
@@ -60,31 +61,93 @@ permissions:
 
 jobs:
   plan:
-    name: 'Plan: what to test tonight'
+    name: 'Plan: what to release and test tonight'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read      # does the newest beta have its release-tested-<tag> artifact?
+      actions: read      # does the newest pre-release have its release-tested-<tag> artifact?
     outputs:
       candidate: ${{ steps.plan.outputs.candidate }}
       azure: ${{ steps.plan.outputs.azure }}
       marker: ${{ steps.plan.outputs.marker }}
+      stable_needed: ${{ steps.plan.outputs.stable_needed }}
+      stable_version: ${{ steps.plan.outputs.stable_version }}
+      stable_beta: ${{ steps.plan.outputs.stable_beta }}
+      stable_sha: ${{ steps.plan.outputs.stable_sha }}
+      stable_azure: ${{ steps.plan.outputs.stable_azure }}
+      beta_needed: ${{ steps.plan.outputs.beta_needed }}
+      beta_version: ${{ steps.plan.outputs.beta_version }}
+      beta_sha: ${{ steps.plan.outputs.beta_sha }}
+      beta_azure: ${{ steps.plan.outputs.beta_azure }}
+      dry_run: ${{ steps.mode.outputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          filter: tree:0
+          fetch-depth: 0     # all branches (release/X.Y) and tags
+      # Scheduled runs are real; a manual run is a dry run unless unticked.
+      - name: Dry run or not
+        id: mode
+        env:
+          DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: echo "dry_run=$([ "$DRY" = "true" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Decide
         id: plan
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           OVERRIDE: ${{ inputs.candidate }}
-        run: ./tools/release/Get-NightlyPlan.ps1 -Repository $env:GITHUB_REPOSITORY -Override "$env:OVERRIDE"
+          RETRY: ${{ inputs.retry_stable }}
+        run: ./tools/release/Get-NightlyPlan.ps1 -Repository $env:GITHUB_REPOSITORY -Override "$env:OVERRIDE" -RetryStable:($env:RETRY -eq 'true')
 
+  # ═══ Stable route: a patch release of the release line ═════════════════
+  stable:
+    name: 'Stable: v${{ needs.plan.outputs.stable_version }}'
+    needs: plan
+    if: needs.plan.outputs.stable_needed == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+    uses: ./.github/workflows/release-route.yml
+    with:
+      route: stable
+      version: ${{ needs.plan.outputs.stable_beta }}
+      ref: ${{ needs.plan.outputs.stable_sha }}
+      hotfix: true
+      azure: ${{ needs.plan.outputs.stable_azure == 'true' }}
+      promote: ${{ needs.plan.outputs.stable_version }}
+      dry_run: ${{ needs.plan.outputs.dry_run == 'true' }}
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # ═══ Beta route: a new beta of main ════════════════════════════════════
+  beta:
+    name: 'Beta: v${{ needs.plan.outputs.beta_version }}'
+    needs: plan
+    if: needs.plan.outputs.beta_needed == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+    uses: ./.github/workflows/release-route.yml
+    with:
+      route: beta
+      version: ${{ needs.plan.outputs.beta_version }}
+      ref: ${{ needs.plan.outputs.beta_sha }}
+      hotfix: false
+      azure: ${{ needs.plan.outputs.beta_azure == 'true' }}
+      promote: ''
+      dry_run: ${{ needs.plan.outputs.dry_run == 'true' }}
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # ═══ Test an existing candidate (no beta of main tonight) ═════════════
   release-test:
     name: 'Test ${{ needs.plan.outputs.candidate }}'
     needs: plan
+    if: needs.plan.outputs.candidate != ''
     permissions:
       contents: read
       id-token: write    # the sign-in and Azure jobs log in with GitHub OIDC
@@ -112,164 +175,3 @@ jobs:
           name: ${{ needs.plan.outputs.marker }}
           path: tested.json
           retention-days: 90
-
-  # ═══ Security route ════════════════════════════════════════════════════
-  security-plan:
-    name: 'Security: fixes on main not yet released'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      needed: ${{ steps.plan.outputs.needed }}
-      stable: ${{ steps.plan.outputs.stable }}
-      version: ${{ steps.plan.outputs.version }}
-      beta: ${{ steps.plan.outputs.beta }}
-      branch: ${{ steps.plan.outputs.branch }}
-      commits: ${{ steps.plan.outputs.commits }}
-      prs: ${{ steps.plan.outputs.prs }}
-      dry_run: ${{ steps.mode.outputs.dry_run }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      # Scheduled runs are real; a manual run is a dry run unless unticked.
-      - name: Dry run or not
-        id: mode
-        env:
-          DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: echo "dry_run=$([ "$DRY" = "true" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-      - name: Decide
-        id: plan
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./tools/release/Get-SecurityHotfixPlan.ps1 -Repository $env:GITHUB_REPOSITORY
-
-  security-branch:
-    name: 'Security: build ${{ needs.security-plan.outputs.branch }}'
-    needs: security-plan
-    if: needs.security-plan.outputs.needed == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write    # push the branch (a GITHUB_TOKEN push triggers no other workflow)
-    outputs:
-      reason: ${{ steps.build.outputs.reason }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Cherry-pick the fixes onto ${{ needs.security-plan.outputs.stable }}
-        id: build
-        shell: pwsh
-        env:
-          STABLE: ${{ needs.security-plan.outputs.stable }}
-          BRANCH: ${{ needs.security-plan.outputs.branch }}
-          COMMITS: ${{ needs.security-plan.outputs.commits }}
-          PRS: ${{ needs.security-plan.outputs.prs }}
-        run: ./tools/release/New-SecurityHotfix.ps1 -StableTag $env:STABLE -Branch $env:BRANCH -Commits $env:COMMITS -PullRequests $env:PRS
-
-  security-beta:
-    name: 'Security: cut ${{ needs.security-plan.outputs.beta }}'
-    needs: [security-plan, security-branch]
-    permissions:
-      contents: write
-      id-token: write
-    uses: ./.github/workflows/cut-beta.yml
-    with:
-      version: ${{ needs.security-plan.outputs.beta }}
-      ref: ${{ needs.security-plan.outputs.branch }}
-      hotfix: true
-      dry_run: ${{ needs.security-plan.outputs.dry_run == 'true' }}
-    secrets:
-      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-  security-images:
-    name: 'Security: wait for the ${{ needs.security-plan.outputs.beta }} images'
-    needs: [security-plan, security-beta]
-    if: needs.security-plan.outputs.dry_run != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 80
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Wait for docker-publish
-        shell: pwsh
-        env:
-          BETA: ${{ needs.security-plan.outputs.beta }}
-        run: |
-          . ./tools/release/ReleaseTest.Functions.ps1
-          . ./tools/release/SecurityHotfix.Functions.ps1
-          Wait-ImagePublished -Tag $env:BETA -TimeoutSec 4500
-
-  security-test:
-    name: 'Security: test v${{ needs.security-plan.outputs.beta }}'
-    needs: [security-plan, security-images]
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/release-test.yml
-    with:
-      candidate: v${{ needs.security-plan.outputs.beta }}
-      azure: true
-
-  security-hotfix:
-    name: 'Security: cut v${{ needs.security-plan.outputs.version }}'
-    needs: [security-plan, security-beta, security-test]
-    # A dry run has no beta images, so its test is skipped; everything else
-    # needs the release test green.
-    if: >-
-      always() && needs.security-beta.result == 'success' &&
-      (needs.security-test.result == 'success' ||
-       (needs.security-plan.outputs.dry_run == 'true' && needs.security-test.result == 'skipped'))
-    permissions:
-      contents: write
-      id-token: write
-    uses: ./.github/workflows/cut-hotfix.yml
-    with:
-      branch: ${{ needs.security-plan.outputs.branch }}
-      version: ${{ needs.security-plan.outputs.version }}
-      dry_run: ${{ needs.security-plan.outputs.dry_run == 'true' }}
-    secrets:
-      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-  security-finish:
-    name: 'Security: clean up or report'
-    needs: [security-plan, security-branch, security-beta, security-images, security-test, security-hotfix]
-    if: always() && needs.security-plan.outputs.needed == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write    # delete the branch after a release
-      issues: write      # one issue when the route fails
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Record that the beta was tested
-        if: needs.security-test.result == 'success' || needs.security-test.result == 'failure'
-        run: printf '{"candidate":"v%s","result":"%s"}\n' "$BETA" "$RESULT" > tested.json
-        env:
-          BETA: ${{ needs.security-plan.outputs.beta }}
-          RESULT: ${{ needs.security-test.result }}
-      - if: needs.security-test.result == 'success' || needs.security-test.result == 'failure'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: release-tested-v${{ needs.security-plan.outputs.beta }}
-          path: tested.json
-          retention-days: 90
-      - name: Delete the branch, or open an issue
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RESULTS: >-
-            {"branch":"${{ needs.security-branch.result }}","beta":"${{ needs.security-beta.result }}",
-             "images":"${{ needs.security-images.result }}","test":"${{ needs.security-test.result }}",
-             "hotfix":"${{ needs.security-hotfix.result }}"}
-          BETA: ${{ needs.security-plan.outputs.beta }}
-          VERSION: ${{ needs.security-plan.outputs.version }}
-          BRANCH: ${{ needs.security-plan.outputs.branch }}
-          BRANCH_REASON: ${{ needs.security-branch.outputs.reason }}
-          DRY_RUN: ${{ needs.security-plan.outputs.dry_run }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          ./tools/release/Complete-SecurityHotfix.ps1 -Results $env:RESULTS -Beta $env:BETA -Version $env:VERSION `
-            -Branch $env:BRANCH -RunUrl $env:RUN_URL -BranchReason "$env:BRANCH_REASON" -DryRun:($env:DRY_RUN -eq 'true')

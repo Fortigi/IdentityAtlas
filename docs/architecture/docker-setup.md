@@ -178,27 +178,29 @@ The web container understands more settings than `docker-compose.prod.yml` passe
 
 | `IMAGE_TAG` | What you get | For |
 |---|---|---|
-| *(empty)* or `latest` | The last stable release. | Production. |
-| `beta` | The latest pre-release. | Trying a release before it is final. |
+| *(empty)* or `latest` | The newest stable minor version with the latest dependency updates. | Production. |
+| `beta` | A preview of the next minor version. | Trying new features before they are final. |
 | `edge` | The latest build of the main branch. May contain unfinished work. | Testing what is coming. |
 | An exact version, such as `5.2.1.0` | That release and nothing else. | Production where you decide when to upgrade. |
 
 When you pin an older release, use the `docker-compose.prod.yml` from that release as well. Switching channels and pinning are covered in [Back up, restore and upgrade](../admin/backup-restore-upgrade.md#upgrade).
 
-### Which tag to run, and how fast security fixes reach it
+### Which tag to run, and how fast updates reach it
 
-Run `latest` in production. Before a stable release is published, its beta has passed a release test of upgrades, backup and restore, a fresh install, sign-in, the portable ZIPs and the Azure templates ([what that covers](../contributing/release-process.md#the-release-test)).
+Run `latest` in production. The version number says what you get: `6.1` and `6.2` differ in features, and the last digit counts dependency updates. Only the newest minor version is maintained, so `latest` moves from `6.1.x` to `6.2.0` when 6.2 is released; that is an in-place upgrade, with migrations that run on start.
 
-When a library Identity Atlas depends on gets a security fix, it reaches each tag like this:
+Before any stable release is published, its beta has passed a release test of upgrades, backup and restore, a fresh install, sign-in and the portable ZIPs; the Azure templates are tested for every new minor version and whenever they change ([what that covers](../contributing/release-process.md#the-release-test)).
 
-| Tag | When the fix arrives |
+Library updates, security fixes among them, are not treated differently from each other. When a library Identity Atlas depends on publishes a new patch or minor version, it reaches each tag like this:
+
+| Tag | When the update arrives |
 |---|---|
-| `edge` | Minutes after the fix is merged into the main branch. |
-| `beta` | The night after it is merged: a hotfix beta is built from the current stable release plus the fix. |
-| `latest` | The same night, a few hours later, once that beta has passed the release test. If the test fails, nothing is published and the maintainers are told. |
+| `edge` | When the update is merged into the main branch (weekly, or as soon as a security alert is raised). |
+| `beta` | The night after it is merged into main. |
+| `latest` | Usually within a day or two: the stable line checks for updates daily, and each night it changed, a new patch version is published once its beta has passed the release test. If the test fails, nothing is published and the maintainers are told. |
 | An exact version | Never by itself. Move the pin to the new version. |
 
-The fixes in question are patch and minor library updates. A security fix that needs a major library upgrade, or a change to Identity Atlas itself, ships with a normal release. Whatever tag you run, the fix reaches your deployment only when you pull it: `docker compose -f docker-compose.prod.yml up -d --pull always`, or [automatic updates](../admin/auto-updates.md).
+A fix that needs a *major* library upgrade, or a change to Identity Atlas itself, ships with the next minor version, or as a patch release when it is urgent. Whatever tag you run, an update reaches your deployment only when you pull it: `docker compose -f docker-compose.prod.yml up -d --pull always`, or [automatic updates](../admin/auto-updates.md). With automatic updates on `latest`, expect a new patch version most working days.
 
 ---
 

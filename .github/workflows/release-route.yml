@@ -1,0 +1,167 @@
+# ─── Release route ────────────────────────────────────────────────────────────
+# One candidate from cut to verdict. Called by release-nightly.yml, twice a
+# night at most:
+#
+#   stable route   ref = the newest commit of release/X.Y (Dependabot updates
+#                  of the stable line), hotfix: true, promote: X.Y.(Z+1)
+#   beta route     ref = main's newest commit, promote: '' (a new minor goes
+#                  stable by hand, after its own full release test)
+#
+#   cut-beta   Cut Beta: v<version>  (:beta only moves for X.Y.0 betas, see
+#              docker-publish.yml, so a patch beta never replaces the preview)
+#   images     wait until docker-publish has pushed all three images
+#   test       the release test of that beta; Azure when the caller says so
+#   promote    Cut Hotfix on the SAME commit -> :latest, only if the test is green
+#   finish     record the beta as tested; on failure, one issue per route
+#
+# The ref is a commit SHA, never a branch name: Dependabot keeps merging into
+# the release line while this runs, and the stable release must be exactly the
+# commit that was tested.
+#
+# dry_run does everything up to the tags: Cut Beta and Cut Hotfix check and
+# build but push nothing, so there are no images to wait for or test, and no
+# issue is opened.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release route
+
+on:
+  workflow_call:
+    inputs:
+      route:
+        description: 'stable or beta (names the issue on failure)'
+        type: string
+        required: true
+      version:
+        description: 'The beta to cut, e.g. 6.1.2-beta.1'
+        type: string
+        required: true
+      ref:
+        description: 'The commit SHA to cut it from'
+        type: string
+        required: true
+      hotfix:
+        description: 'The ref is on a release line (checked in -Mode Hotfix)'
+        type: boolean
+        default: false
+      azure:
+        type: boolean
+        default: false
+      promote:
+        description: 'Stable version to cut from the same commit when the test is green; empty = none'
+        type: string
+        default: ''
+      dry_run:
+        type: boolean
+        default: true
+    # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
+    secrets:
+      BOT_APP_ID:
+        required: true
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  cut-beta:
+    name: 'Cut v${{ inputs.version }}'
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/cut-beta.yml
+    with:
+      version: ${{ inputs.version }}
+      ref: ${{ inputs.ref }}
+      hotfix: ${{ inputs.hotfix }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  images:
+    name: 'Wait for the v${{ inputs.version }} images'
+    needs: cut-beta
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Wait for docker-publish
+        shell: pwsh
+        env:
+          BETA: ${{ inputs.version }}
+        run: |
+          . ./tools/release/ReleaseTest.Functions.ps1
+          . ./tools/release/ReleaseRoute.Functions.ps1
+          Wait-ImagePublished -Tag $env:BETA -TimeoutSec 4500
+
+  test:
+    name: 'Test v${{ inputs.version }}'
+    needs: images
+    permissions:
+      contents: read
+      id-token: write    # the sign-in and Azure jobs log in with GitHub OIDC
+    uses: ./.github/workflows/release-test.yml
+    with:
+      candidate: v${{ inputs.version }}
+      azure: ${{ inputs.azure }}
+
+  promote:
+    name: 'Cut v${{ inputs.promote }}'
+    needs: [cut-beta, test]
+    # A dry run has no beta images, so its test is skipped; everything else
+    # needs the release test green.
+    if: >-
+      always() && inputs.promote != '' && needs.cut-beta.result == 'success' &&
+      (needs.test.result == 'success' || (inputs.dry_run && needs.test.result == 'skipped'))
+    permissions:
+      contents: write
+      id-token: write
+    uses: ./.github/workflows/cut-hotfix.yml
+    with:
+      branch: ${{ inputs.ref }}
+      version: ${{ inputs.promote }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  finish:
+    name: 'Report the ${{ inputs.route }} route'
+    needs: [cut-beta, images, test, promote]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write      # one issue when the route fails
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Record that the beta was tested
+        if: needs.test.result == 'success' || needs.test.result == 'failure'
+        run: printf '{"candidate":"v%s","result":"%s"}\n' "$BETA" "$RESULT" > tested.json
+        env:
+          BETA: ${{ inputs.version }}
+          RESULT: ${{ needs.test.result }}
+      - if: needs.test.result == 'success' || needs.test.result == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-tested-v${{ inputs.version }}
+          path: tested.json
+          retention-days: 90
+      - name: Summary, and an issue on failure
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTS: >-
+            {"beta":"${{ needs.cut-beta.result }}","images":"${{ needs.images.result }}",
+             "test":"${{ needs.test.result }}","release":"${{ needs.promote.result }}"}
+          ROUTE: ${{ inputs.route }}
+          BETA: ${{ inputs.version }}
+          VERSION: ${{ inputs.promote }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ./tools/release/Complete-NightlyRoute.ps1 -Route $env:ROUTE -Results $env:RESULTS -Beta $env:BETA `
+            -Version "$env:VERSION" -RunUrl $env:RUN_URL -DryRun:($env:DRY_RUN -eq 'true')

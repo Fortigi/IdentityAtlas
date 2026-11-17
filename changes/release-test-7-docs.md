@@ -1,2 +1,2 @@
-- Added a release-process guide for maintainers: the edge, beta and stable channels, what makes a build ready for the next one, what the release test covers and what it does not, the security route step by step, what to do when it fails, and a step-by-step checklist for the one-time Azure and GitHub setup.
-- The Docker setup page now says which image tag to run and how quickly a security fix reaches each tag.
+- Added a release-process guide for maintainers. It covers the release policy (version numbers, daily dependency releases, one maintained minor, what is tested when), the edge, beta and stable channels, the nightly routes step by step, what the release test covers and what it does not, what to do when a route fails, and a step-by-step checklist for the one-time Azure and GitHub setup.
+- The Docker setup page and the security policy now say which versions are supported, which image tag to run, and how quickly a dependency update reaches each tag.

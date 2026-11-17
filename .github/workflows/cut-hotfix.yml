@@ -1,23 +1,20 @@
 # ─── Cut a Hotfix Release ─────────────────────────────────────────────────────
-# Manually triggered. Tags the HEAD of a hotfix branch with a new patch version,
+# Tags a commit of the release line (release/X.Y) with a new patch version,
 # triggering docker-publish to build :latest + :X.Y.Z.0. The GitHub release gets
 # both portable Windows ZIPs (IdentityAtlas-portable.zip and
 # IdentityAtlas-portable-postgres.zip).
 #
-# Main first: a hotfix may only contain commits already merged to main through
-# an approved PR. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
+# Main first: every commit after the stable tag must be on main, a clean
+# `git cherry-pick -x` of a main commit, or a Dependabot update merged into the
+# release line. tools/release/Assert-ReleaseFromMain.ps1 refuses anything else
 # before the tag is created (v6.0.1 was cut before its PR was approved).
 #
-# Usage:
-#   1. Fix the bug on a bugfixes/ branch from main; PR, approval, merge
-#   2. git checkout -b bugfixes/fix-foo v5.2.0   ← branch from the release tag
-#   3. git cherry-pick -x <the merged commit on main>   ← -x is required
-#   4. Push the branch, then Actions → Cut Hotfix → Run workflow (from main)
-#   5. Enter the branch name and new version (e.g. "5.2.1")
-#
-# The nightly security route (release-nightly.yml) calls this through
-# workflow_call once the hotfix's beta passed the release test. dry_run: true
-# does everything up to the tag but pushes no tag and creates no release.
+# Normally nobody runs this by hand: the nightly stable route
+# (release-nightly.yml → release-route.yml) calls it through workflow_call with
+# the exact commit whose beta passed the release test. By hand (Actions → Cut
+# Hotfix, from main): branch = release/X.Y or a commit on it, version X.Y.(Z+1).
+# dry_run: true does everything up to the tag but pushes no tag and creates no
+# release.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Hotfix
@@ -26,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Hotfix branch name (e.g. bugfixes/fix-login-crash)'
+        description: 'Release line, tag or commit to tag (e.g. release/6.1)'
         required: true
       version:
         description: 'New version (major.minor.patch, e.g. "5.2.1")'

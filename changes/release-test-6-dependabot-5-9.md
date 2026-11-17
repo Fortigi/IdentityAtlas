@@ -1,1 +1,0 @@
-- Dependency updates are no longer prepared for the 5.9 release line, which is not released any more; security fixes now reach the current stable release through the nightly security route.

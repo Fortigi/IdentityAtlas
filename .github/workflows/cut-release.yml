@@ -12,11 +12,13 @@
 #      IdentityAtlas-portable-postgres.zip and IdentityAtlas-azure-X.Y.Z.zip
 #      (the Azure template pinned to this release's images) attached
 #   5. docker-publish builds and pushes :latest + :5.2.0.0
+#   6. For X.Y.0 only: creates release/X.Y from the tag and opens a PR that
+#      points Dependabot's release-line entries at it. Only the newest stable
+#      minor is maintained, so the previous line stops getting updates.
 #
-# Hotfixes (shipping a bugfix without including features already on main):
-#   1. Merge the fix to main through an approved PR first
-#   2. git checkout -b bugfixes/fix-foo v5.2.0 && git cherry-pick -x <main commit>
-#   3. Run Actions → Cut Hotfix with the branch name and new version (e.g. 5.2.1)
+# Patch releases (X.Y.1, X.Y.2 …) are not cut here: the nightly stable route
+# (release-nightly.yml) releases release/X.Y whenever it moved — Dependabot's
+# daily updates, and bug fixes cherry-picked there with -x from main.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Release
@@ -220,6 +222,43 @@ jobs:
             --notes-file release-notes.md \
             --latest
 
+      # A new minor (X.Y.0) becomes the one maintained stable line: release/X.Y
+      # from this tag, where Dependabot lands daily updates that the nightly
+      # stable route releases as X.Y.1, X.Y.2 … Dependabot is moved over by a
+      # pull request into main (main takes nothing without one); until it is
+      # merged the new line gets no updates and the nightly plan warns.
+      # The previous line simply stops: only the newest minor is maintained.
+      - name: Start the release line
+        if: endsWith(github.event.inputs.version, '.0')
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: |
+          LINE="release/${VERSION%.*}"
+          echo "LINE=$LINE" >> "$GITHUB_ENV"
+          if git ls-remote --exit-code --heads origin "$LINE" >/dev/null; then
+            echo "::notice::$LINE already exists; leaving it as it is."
+          else
+            git push origin "HEAD:refs/heads/$LINE"
+            echo "::notice::Created $LINE at $TAG."
+          fi
+          # A worktree of main: this checkout is the tag, with the version
+          # stamped into it, and must not be switched.
+          PR_BRANCH="chore/dependabot-${LINE//\//-}"
+          git fetch --quiet origin main
+          git worktree add --quiet -B "$PR_BRANCH" "$RUNNER_TEMP/main" origin/main
+          cd "$RUNNER_TEMP/main"
+          pwsh -NoProfile -File tools/release/Set-DependabotReleaseLine.ps1 -Line "$LINE"
+          if git diff --quiet; then
+            echo "::notice::.github/dependabot.yml already targets $LINE."; exit 0
+          fi
+          git commit -qam "chore: point Dependabot's release-line updates at $LINE"
+          git push --force origin "HEAD:refs/heads/$PR_BRANCH"
+          if ! gh pr create --base main --head "$PR_BRANCH" \
+               --title "chore: point Dependabot's release-line updates at $LINE" \
+               --body "Cut Release cut ${TAG} and created \`$LINE\`. This moves the release-line entries in \`.github/dependabot.yml\` there, so the new stable line gets its daily dependency updates and the previous one stops. Opened by Cut Release; see docs/contributing/release-process.md → Release lines."; then
+            echo "::warning::Could not open the pull request for $PR_BRANCH; open it by hand."
+          fi
+
       - name: Post run summary
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
@@ -230,14 +269,14 @@ jobs:
           | **Tag** | \`${TAG}\` |
           | **Version** | \`${VERSION}.0\` |
           | **Commit** | \`$(git rev-parse --short HEAD)\` |
+          | **Release line** | \`${LINE:-unchanged}\` |
 
           docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress.
 
-          ### Hotfix workflow (if a bug is found in this release)
-          \`\`\`bash
-          git checkout -b bugfixes/fix-foo ${TAG}   # branch from the tag, not main
-          # fix the bug, commit, push
-          git push origin bugfixes/fix-foo
-          # then run Actions → Cut Hotfix
-          \`\`\`
+          From here the nightly stable route releases this line's Dependabot updates as patch releases.
+          For a new X.Y.0, merge the pull request that points Dependabot at the new release line.
+
+          ### A bug fix for this release
+          Fix it on main first, then open a PR into the release line with one
+          \`git cherry-pick -x <main commit>\` — the nightly stable route releases it.
           EOF

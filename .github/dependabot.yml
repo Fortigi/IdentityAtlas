@@ -167,3 +167,100 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # ─── The stable release line: release/6.1 ──────────────────────────────────
+  #
+  # Customers on :latest run the newest stable minor, not main. Its patch
+  # releases (6.1.2, 6.1.3 …) are cut from release/6.1, one per night that this
+  # branch moved (release-nightly.yml, the stable route). Only the NEWEST stable
+  # minor is maintained: when Cut Release cuts 6.2.0 it creates release/6.2 and
+  # opens a PR that moves every `target-branch` below to it, and 6.1 stops.
+  # docs/contributing/release-process.md has the whole route.
+  #
+  # Two things about how Dependabot reads this are easy to get wrong:
+  #
+  #   * This file is only ever read from the DEFAULT branch. These entries live
+  #     on main and describe work done on the release line — copying them onto
+  #     the release branch does nothing.
+  #   * `target-branch` is a VERSION-UPDATES-ONLY option. Alert-driven security
+  #     updates ignore it and always go to main. That is why these run DAILY: a
+  #     daily version check picks up the fixed release of a vulnerable package
+  #     within a day on its own.
+  #
+  # Each update merges itself once CI is green (dependabot-auto-merge.yml) and
+  # is released without being on main: the one exception to "main first",
+  # checked narrowly by tools/release/Assert-ReleaseFromMain.ps1 (Dependabot's,
+  # merged through a PR, only versions in package.json / package-lock.json /
+  # Dockerfile FROM lines).
+  #
+  # `dependency-type: production`: the API image is built with
+  # `npm ci --omit=dev` and the UI ships compiled dist/, so eslint / vitest /
+  # playwright change nothing a customer runs. On a stable line they are risk
+  # with no upside.
+  #
+  # Majors are ignored here: a major is the one update expected to change
+  # behaviour, and it reaches customers with the next minor, after main and a
+  # full release test. The catch: a security fix that only exists in a new
+  # major arrives with that minor, not overnight.
+  #
+  # All four entries must name the same branch: the nightly plan warns, and
+  # test/unit/ReleaseNightly.Tests.ps1 fails, when they do not.
+
+  - package-ecosystem: "npm"
+    directory: "/app/api"
+    target-branch: "release/6.1"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    allow:
+      - dependency-type: "production"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # One PR per day rather than one per package: one CI run, one merge.
+      api-production:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/app/ui"
+    target-branch: "release/6.1"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    allow:
+      - dependency-type: "production"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      ui-production:
+        patterns:
+          - "*"
+
+  # Base images carry most of what a container scanner reports, so they matter
+  # to the release line more than any npm package does.
+  - package-ecosystem: "docker"
+    directory: "/app/api"
+    target-branch: "release/6.1"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "docker"
+    directory: "/setup/docker"
+    target-branch: "release/6.1"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "build"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

@@ -65,12 +65,14 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 |--------|---------|-------------|-------------------|
 | `main` | Integration trunk. Never commit directly. Merges push `:edge` Docker tag. | Yes | Yes (at least 1) |
 | `feature/<name>` | All feature work. Created from `main`. Merged back to `main` via PR. | Yes (to `main`) | No |
-| `bugfixes/<name>` | Bug fixes. Branch from `main` for pre-release fixes; branch from a **release tag** for hotfixes. | Yes (to `main`) | No |
+| `bugfixes/<name>` | Bug fixes. Branch from `main`. To bring a merged fix to the stable line, branch from `release/X.Y` and `cherry-pick -x` it. | Yes (to `main`, or to `release/X.Y`) | No |
+| `release/X.Y` | The **one** maintained stable line (newest stable minor). Created by Cut Release at `vX.Y.0`; Dependabot updates it daily; the nightly stable route releases it. | Yes | No (CI must pass) |
 
 **Rules:**
 - `feature/` branches must be branched off `main`.
-- `bugfixes/` branches branch from `main` for pre-release fixes. For hotfixes to an already-released version, branch from the release tag: `git checkout -b bugfixes/fix-foo v5.2.0`.
-- **Main first — nothing is released that is not on `main`.** A hotfix is fixed on `main` (PR, approval, merge) *before* it is released; the hotfix branch then holds only `git cherry-pick -x <main commit>`s. Cut Release / Cut Beta / Cut Hotfix enforce this (`tools/release/Assert-ReleaseFromMain.ps1`) and refuse to tag anything else.
+- `bugfixes/` branches branch from `main`. A fix the stable line needs too is merged to `main` first, then brought over in a PR into `release/X.Y` holding one `git cherry-pick -x <main commit>`.
+- **Main first — nothing is released that is not on `main`,** with exactly one exception: Dependabot's own dependency updates merged into `release/X.Y` (they cannot be cherry-picked onto its drifted lockfiles). Cut Release / Cut Beta / Cut Hotfix enforce both (`tools/release/Assert-ReleaseFromMain.ps1`: the exception only admits Dependabot-authored, GitHub-merged commits on that line that change nothing but dependency versions) and refuse to tag anything else.
+- **Only the newest stable minor is maintained.** When `X.Y.0` is released, the previous line gets nothing more; 5.x has ended.
 - All merges go through a Pull Request — no direct pushes to `main` ever.
 - Branch names: `feature/<short-descriptive-name>` or `bugfixes/<short-descriptive-name>` (lowercase, hyphens).
 - When starting work, always create a new branch. Never work directly on `main`.
@@ -81,7 +83,8 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Context | Version format | Example | Docker tag pushed |
 |---------|---------------|---------|-------------------|
 | `main` dev builds | `Major.Minor.yyyyMMdd.HHmm` | `5.3.20260419.1430` | `:edge` |
-| Pre-release tags (`v*-beta.*` etc.) | `Major.Minor.Patch-beta.N` | `5.3.0-beta.1` | `:beta` |
+| Betas of the next minor | `Major.Minor.0-beta.N` | `6.2.0-beta.1` | `:beta` |
+| Patch betas of the release line | `Major.Minor.Patch-beta.N` | `6.1.2-beta.1` | its own tag only (never `:beta`) |
 | Release tags (`v*`) | `Major.Minor.Patch.0` | `5.2.1.0` | `:latest` |
 | `feature/*` / `bugfixes/*` | — | — | Nobody |
 
@@ -90,8 +93,8 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 | Context | Who updates it | When |
 |---------|---------------|------|
 | `main` dev builds | `bump-version.yml` (automated) | Every PR merge — increments `Minor`, updates timestamp. `Major` follows the highest `vX.Y.Z` tag (Minor restarts when it moves), so cutting `v7.0.0` puts `main` on `7.x` |
-| Pre-release tags | `cut-beta.yml` (automated) | When you run Actions → Cut Beta, or the nightly security route cuts a hotfix beta |
-| Release tags | `cut-release.yml` / `cut-hotfix.yml` (automated) | When you run Actions → Cut Release or Cut Hotfix, or the nightly security route releases a tested hotfix |
+| Pre-release tags | `cut-beta.yml` (automated) | Nightly: a beta of `main` when it got Dependabot updates of shipped code, a patch beta of `release/X.Y` when that moved. Or by hand (Actions → Cut Beta) |
+| Release tags | `cut-hotfix.yml` / `cut-release.yml` (automated) | Patch releases: the nightly stable route, once the patch beta passed the release test. A new minor `X.Y.0`: by hand, Actions → Cut Release |
 | `feature/*` / `bugfixes/*` | **Nobody** | Never touch `setup/IdentityAtlas.psd1` on a branch |
 
 ### Changelog Fragments
@@ -256,14 +259,15 @@ git checkout main && git pull
 git checkout -b bugfixes/<name>
 ```
 
-**Hotfix (bug in a released version):**
+**Fix for the stable line (bug in a released version):**
 ```bash
 # 1. Fix it on main first: bugfixes/<name> from main → PR → approval → merge
-# 2. Then branch from the release tag and cherry-pick the MERGED commit with -x
-git checkout -b bugfixes/<name>-hotfix v5.2.0
+# 2. Then branch from the release line and cherry-pick the MERGED commit with -x
+git checkout -b bugfixes/<name>-on-6.1 origin/release/6.1
 git cherry-pick -x <merged commit on main>
-git push origin bugfixes/<name>-hotfix
-# 3. Run Actions → Cut Hotfix (from main) with the branch name and new version
+git push origin bugfixes/<name>-on-6.1
+gh pr create --base release/6.1        # ONE cherry-pick per PR; CI must pass, no approval needed
+# 3. Nothing else: the nightly stable route releases release/6.1 as 6.1.(Z+1)
 ```
 
 ### Making Changes
@@ -299,29 +303,28 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 3. Requires 1 approval — then add it to the **merge queue** (`gh pr merge --squash --auto`, or "Merge when ready"). The queue re-runs PR Checks against the current `main` before it lands, because a PR's own green run can be weeks old. Integration tests are not re-run in the queue. See `docs/architecture/ci-scope-testing.md` → "Merge queue"
 4. After merge: `bump-version.yml` increments Minor + timestamp; `docker-publish.yml` pushes `:edge`
 
-### Cutting a Release
+### Release policy (Nov 2026)
 
-1. Cut a beta first (**Actions → Cut Beta**); the next night `release-nightly.yml` runs the full release test against it, Azure included
-2. Once it is green, go to **Actions → Cut Release → Run workflow**
-3. Enter the version: `Major.Minor.Patch` (e.g. `5.2.0`) and, as ref, the beta tag you are promoting
-4. The workflow creates tag `v5.2.0` on that commit (it must be on `main`)
-5. `docker-publish.yml` pushes `:latest` + `:5.2.0.0`
+- `Major.Minor` = features built and tested together (6.1 ≠ 6.2). The last digit counts dependency updates since `X.Y.0`; a new stable every day is fine.
+- **Every Dependabot update ships, once a day**, security or not: no labels, no triage.
+- **Only the newest stable minor is maintained**; no major library upgrades on it (they come with the next minor).
+- **Test what changed**: Docker upgrade + backup/restore, fresh install, sign-in and portable for every release; Azure only for the first beta of a minor and when the Azure templates changed.
 
-What the release test covers, when edge is ready for beta and beta for stable, and the one-time Azure/GitHub setup: [`docs/contributing/release-process.md`](docs/contributing/release-process.md).
+Details, the nightly routes, failure handling and the one-time setup: [`docs/contributing/release-process.md`](docs/contributing/release-process.md).
 
-### Hotfix Releases
+### What happens each night (`release-nightly.yml`, 02:07 UTC)
 
-Merge the fix to `main` through an approved PR first, then:
+- **Stable route:** `release/X.Y` moved since `vX.Y.Z` → `vX.Y.(Z+1)-beta.N` → release test → `vX.Y.(Z+1)` on `:latest`, same commit, only if green.
+- **Beta route:** `main` got Dependabot updates of shipped code → `vX.(Y+1).0-beta.N` on `:beta` → release test. No promotion.
+- A failure publishes nothing further and opens one issue per route. A manual run is a dry run unless unticked; do not untick it to "try it out".
 
-```bash
-git checkout -b bugfixes/fix-foo-hotfix v5.2.0
-git cherry-pick -x <merged commit on main>
-git push origin bugfixes/fix-foo-hotfix
-```
+### Cutting a Release (a new minor, by hand)
 
-Then: **Actions → Cut Hotfix** with branch name and new version (e.g. `5.2.1`). The workflow refuses any commit that is not a clean `-x` cherry-pick of a commit on `main`.
+1. Pick the `X.Y.0-beta.N` you are promoting and make sure it passed a **full** release test, Azure included (the first beta of a minor always does; otherwise run Release nightly by hand with that tag as `candidate`)
+2. **Actions → Cut Release → Run workflow**, version `X.Y.0`, ref = that beta tag
+3. The workflow tags it (it must be on `main`), `docker-publish.yml` pushes `:latest` + `:X.Y.0.0`, and it creates `release/X.Y` and opens a PR that points Dependabot's release-line entries at it. **Merge that PR the same day.** The previous line then stops.
 
-**Dependabot security fixes need none of this.** Merged patch/minor Dependabot PRs labelled `security-fix` are shipped by the nightly security route in `release-nightly.yml`: one `bugfixes/security-hotfix-<date>` branch of `-x` cherry-picks, a hotfix beta, the release test, and Cut Hotfix only if green; the branch is deleted afterwards. A kept branch means a failed attempt (an issue says why); fix the cause, delete the branch, and the route retries. Do not run it with `dry_run` unticked to "try it out".
+Patch releases are never cut by hand: bring a fix to `release/X.Y` (see "Fix for the stable line" above) and the nightly stable route releases it.
 
 ---
 

@@ -12,9 +12,13 @@
 #      commit on main (tools/release/Assert-ReleaseFromMain.ps1)
 #   4. docker-publish builds and pushes :beta + :5.3.0-beta.1
 #
-# hotfix: true cuts the beta of a HOTFIX branch instead (a stable tag plus
-# `git cherry-pick -x` of main commits), checked in -Mode Hotfix. The nightly
-# security route (release-nightly.yml) calls it that way through workflow_call.
+# The nightly routes (release-nightly.yml → release-route.yml) cut most betas,
+# through workflow_call with an exact commit SHA as ref.
+#
+# hotfix: true cuts the beta of the RELEASE LINE instead (release/X.Y: a stable
+# tag plus Dependabot updates and `git cherry-pick -x` of main commits), checked
+# in -Mode Hotfix. Its version is X.Y.(Z+1)-beta.N, which docker-publish gives
+# only its own tag: :beta stays on the next minor's preview.
 #
 # dry_run: true does everything up to the tag but pushes no tag and creates no
 # release, so nothing is published and docker-publish does not run.
@@ -33,7 +37,7 @@ on:
         required: false
         default: 'main'
       hotfix:
-        description: 'The ref is a hotfix branch (stable tag + cherry-picks of main commits)'
+        description: 'The ref is on the release line (release/X.Y), not on main'
         type: boolean
         default: false
       dry_run:

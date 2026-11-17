@@ -1,0 +1,5 @@
+- The stable release now receives every dependency update automatically, at most once a day, whether or not it is a security fix. Each night the stable line changed, a new patch version (for example 6.1.2, then 6.1.3) is published first as a test beta and released only once that beta passes the release test. When anything fails, nothing is published and an issue explains why.
+- Each night that the main branch received a dependency update, a new beta of the next minor version is published and tested.
+- The `beta` image tag now always points at the preview of the next minor version. A stable patch release's test beta gets only its own version tag, so `beta` users are never moved back to an older version.
+- Patch releases are published again: the image publishing check no longer refuses a release made only of changes already merged to the main branch.
+- Cut Beta can now cut a beta of the release line, and Cut Beta and Cut Hotfix have a dry-run option that checks everything without publishing.

@@ -39,17 +39,22 @@ prefer otherwise. There is no paid bug bounty.
 
 ## Supported versions
 
-| Version | Docker tag | Security fixes |
-|---|---|---|
-| Current release line (5.9.x today, branch `release/5.9`) | `:latest`, `:5.9.x.0` | Yes. Shipped as a new release from that line. |
-| `main` development builds | `:edge` | Fixes are merged here first. This is a development build and may be unstable. |
-| Pre-releases | `:beta` | No |
-| Older release lines | pinned older tags | No. Upgrade to the current release. |
+Only the newest stable minor version is maintained.
 
-A security fix is made on `main` first and then applied to the current release line,
-which ships it as a patch release, so a fix can be in `:edge` before it is in `:latest`. Updates to production dependencies are
-checked for daily on the release branch and ship with its next patch release
-(see [Maintaining a release line](docs/process/maintaining-a-release-line.md)).
+| Version | Docker tag | Security and dependency updates |
+|---|---|---|
+| The newest stable minor (6.1.x today, branch `release/6.1`) | `:latest`, `:6.1.x.0` | Yes. Dependency updates, security fixes among them, are released as a new patch version every day something was updated, after the release test passes. |
+| The preview of the next minor | `:beta`, `:X.Y.0-beta.N` | Yes, as a new beta every day `main` received a dependency update. A preview: not for production. |
+| `main` development builds | `:edge` | Fixes are merged here first. This is a development build and may be unstable. |
+| Older minors (6.0.x and earlier) and the 5.x line | pinned older tags | No. Upgrade to the newest stable minor: an in-place upgrade, tested for every release. |
+
+We do not distinguish security updates from other dependency updates: every patch
+and minor update of a production dependency reaches `:latest` the same way, usually
+within a day or two of the fixed version being published. A fix that needs a *major*
+upgrade of a dependency, or a change to Identity Atlas itself, ships with the next
+minor version, or as a patch release when it is urgent enough to cherry-pick onto the
+stable line. A fix is made on `main` first, so it can be in `:edge` before it is in
+`:latest`. See [Release process](docs/contributing/release-process.md) for the details.
 To check whether the version you run contains a given fix, compare it with the
 [release notes](https://github.com/Fortigi/IdentityAtlas/releases).
 

@@ -144,13 +144,14 @@ None of these gate a PR. How they fit together, what the release test covers and
 
 | Workflow | Triggers on | What it does |
 |---|---|---|
-| `release-nightly.yml` | Schedule, 02:07 UTC; by hand | Plans the night: the full release test (Azure included) for a beta that has not been tested, otherwise the Docker and portable parts against `:edge`. Alongside, the **security route**: Dependabot security fixes merged to `main` but in no release yet go into one hotfix branch, a beta of it, the release test, and Cut Hotfix if green. A manual run is a dry run by default |
-| `release-test.yml` | Called by `release-nightly.yml`; by hand; PRs that change the release test itself (against `:edge`, advisory) | Docker upgrade, backup and restore, fresh install (with and without the report generator), sign-in with real Entra ID tokens, both portable ZIPs on Windows, and with `azure` the Azure templates in `ia-reltest-*` resource groups |
-| `dependabot-security-label.yml` | Dependabot PRs into `main` (`pull_request_target`) | Labels a patch or minor update that fixes a Dependabot alert `security-fix`, for the security route |
-| `cut-beta.yml` | By hand; called by the security route | Tags `vX.Y.Z-beta.N` (on `main`, or on a hotfix branch with `hotfix`), builds the ZIPs, creates the pre-release. `dry_run` pushes no tag |
-| `cut-release.yml` | By hand | Tags `vX.Y.Z` on a commit on `main`, builds the ZIPs and the Azure package, creates the release |
-| `cut-hotfix.yml` | By hand; called by the security route | Tags `vX.Y.Z` on a hotfix branch of cherry-picks of `main` commits, creates the release. `dry_run` pushes no tag |
-| `docker-publish.yml` | Every `bump-version.yml` run; every `v*` tag | Builds, smoke-tests and CVE-scans the images, then pushes `:edge`, `:beta` or `:latest`. Refuses a tag that is not on `main` or a release branch, unless main's checker accepts it as a hotfix |
+| `release-nightly.yml` | Schedule, 02:07 UTC; by hand | Plans the night and starts up to two routes: the **stable route** when `release/X.Y` moved (a patch beta, the release test, then the stable patch on `:latest` if green) and the **beta route** when `main` got Dependabot updates of shipped code (a beta of the next minor and the release test). Azure only for the first beta of a minor and when the templates changed. Without a new beta of `main` it tests an untested pre-release or `:edge`. A manual run is a dry run by default |
+| `release-route.yml` | Called by `release-nightly.yml` | One route: Cut Beta on an exact commit, wait for the images, the release test, and for the stable route Cut Hotfix on the same commit; one issue per route on failure |
+| `release-test.yml` | Called by the nightly run and the routes; by hand; PRs that change the release test itself (against `:edge`, advisory) | Docker upgrade, backup and restore, fresh install (with and without the report generator), sign-in with real Entra ID tokens, both portable ZIPs on Windows, and with `azure` the Azure templates in `ia-reltest-*` resource groups |
+| `dependabot-auto-merge.yml` | Dependabot PRs into `release/**` (`pull_request_target`) | Auto-merges patch and minor updates of the release line once CI is green |
+| `cut-beta.yml` | By hand; called by the routes | Tags `vX.Y.Z-beta.N` (on `main`, or on the release line with `hotfix`), builds the ZIPs, creates the pre-release. `dry_run` pushes no tag |
+| `cut-release.yml` | By hand | Tags `vX.Y.Z` on a commit on `main`, builds the ZIPs and the Azure package, creates the release. For `X.Y.0` also creates `release/X.Y` and opens the PR that moves Dependabot there |
+| `cut-hotfix.yml` | Called by the stable route; by hand | Tags `vX.Y.Z` on a commit of the release line (cherry-picks of `main` commits and Dependabot updates), creates the release. `dry_run` pushes no tag |
+| `docker-publish.yml` | Every `bump-version.yml` run; every `v*` tag | Builds, smoke-tests and CVE-scans the images, then pushes `:edge`, `:beta` (only for `X.Y.0` pre-releases) or `:latest`. Refuses a tag that is not on `main` or a release branch, unless main's checker accepts it as a hotfix |
 
 ---
 
