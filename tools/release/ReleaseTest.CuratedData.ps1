@@ -257,14 +257,29 @@ function New-CuratedAccess {
             name = $Seed.TokenName; prefix = "$($Manifest.ReadToken)".Substring(0, [Math]::Min(12, "$($Manifest.ReadToken)".Length)); revoked = 'False'
         })
 
-    $identity = @(Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Token $Token -Path '/identities?limit=1&minAccounts=2') 'data') | Select-Object -First 1
-    if (-not $identity) { throw 'The demo data has no identity with two accounts to record an analyst decision on.' }
-    $Manifest.Ids.Identity = Get-Prop $identity 'id'
-    $member = @(Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Token $Token -Path "/identities/$($Manifest.Ids.Identity)") 'members') | Select-Object -First 1
-    $Manifest.Ids.IdentityMember = Get-Prop $member 'principalId'
+    $link = Find-IdentityLink -BaseUrl $BaseUrl -Token $Token
+    if (-not $link) {
+        # Not every release's demo data links accounts into identities; say so instead of passing quietly.
+        Write-Warning 'No identity with a linked account in the demo data: the identity-link decision is not checked in this run.'
+        return
+    }
+    $Manifest.Ids.Identity = $link.Identity
+    $Manifest.Ids.IdentityMember = $link.Member
     Invoke-Api -BaseUrl $BaseUrl -Token $Token -Method Put -Body @{ action = $Seed.Override } `
-        -Path "/identities/$($Manifest.Ids.Identity)/members/$($Manifest.Ids.IdentityMember)/override" | Out-Null
+        -Path "/identities/$($link.Identity)/members/$($link.Member)/override" | Out-Null
     $Manifest.Expected['identity link decision'] = $Seed.Override
+}
+
+function Find-IdentityLink {
+    <# The first identity (of the first 25) with a linked account, as @{ Identity; Member }, or $null. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $BaseUrl, [string] $Token)
+    foreach ($identity in @(Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Token $Token -Path '/identities?limit=25') 'data')) {
+        $id = Get-Prop $identity 'id'
+        $member = @(Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Token $Token -Path "/identities/$id") 'members' | Where-Object { Get-Prop $_ 'principalId' }) | Select-Object -First 1
+        if ($member) { return @{ Identity = $id; Member = Get-Prop $member 'principalId' } }
+    }
+    $null
 }
 
 function New-CuratedData {
@@ -333,6 +348,7 @@ function Read-CuratedAccess {
     if ($matrix) { $Actual['saved matrix'] = Format-CuratedRecord ([ordered]@{ name = Get-Prop $matrix 'name'; filter = ConvertTo-CanonicalJson (Get-Prop $matrix 'filter') }) }
     $key = Find-ById (Invoke-Api -BaseUrl $BaseUrl -Token $Token -Path '/admin/read-tokens') $Manifest.Ids.ReadToken
     if ($key) { $Actual['read API key'] = Format-CuratedRecord ([ordered]@{ name = Get-Prop $key 'name'; prefix = Get-Prop $key 'tokenPrefix'; revoked = "$(Get-Prop $key 'revoked')" }) }
+    if (-not $Manifest.Ids.ContainsKey('Identity')) { return }   # none was made (see New-CuratedAccess)
     $members = @(Get-Prop (Invoke-Api -BaseUrl $BaseUrl -Token $Token -Path "/identities/$($Manifest.Ids.Identity)") 'members')
     $member = @($members | Where-Object { $_ -and "$(Get-Prop $_ 'principalId')" -eq "$($Manifest.Ids.IdentityMember)" }) | Select-Object -First 1
     if ($member) { $Actual['identity link decision'] = "$(Get-Prop $member 'analystOverride')" }

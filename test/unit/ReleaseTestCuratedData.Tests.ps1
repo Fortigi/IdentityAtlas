@@ -41,7 +41,11 @@ BeforeAll {
             Features = [pscustomobject]@{ matrixSharing = $false; accountLinking = $true }
             Matrices = [System.Collections.Generic.List[object]]::new()
             Keys     = [System.Collections.Generic.List[object]]::new()
-            Identity = @{ id = 'dddddddd-0000-0000-0000-000000000004'; members = @([pscustomobject]@{ principalId = 'eeeeeeee-0000-0000-0000-000000000005'; analystOverride = $null }) }
+            # The first identity has no linked account, so the helper has to look past it.
+            Identities = @(
+                @{ id = 'ffffffff-0000-0000-0000-000000000006'; members = @() }
+                @{ id = 'dddddddd-0000-0000-0000-000000000004'; members = @([pscustomobject]@{ principalId = 'eeeeeeee-0000-0000-0000-000000000005'; analystOverride = $null }) }
+            )
         }
     }
 
@@ -79,10 +83,10 @@ BeforeAll {
                 $s.Keys.Add($row); return [pscustomobject]@{ token = 'fgr_abcdefghijklmnopqrstuvwxyz'; row = $row }
             }
             '^Get /admin/read-tokens$' { return @($s.Keys) }
-            '^Get /identities\?limit=1&minAccounts=2$' { return [pscustomobject]@{ data = @([pscustomobject]@{ id = $s.Identity.id }) } }
-            '^Get /identities/([^/?]+)$' { return [pscustomobject]@{ identity = @{}; members = $s.Identity.members } }
+            '^Get /identities\?limit=25$' { return [pscustomobject]@{ data = @($s.Identities | ForEach-Object { [pscustomobject]@{ id = $_.id } }) } }
+            '^Get /identities/([^/?]+)$' { return [pscustomobject]@{ identity = @{}; members = @(($s.Identities | Where-Object id -EQ $Matches[1]).members) } }
             '^Put /identities/[^/]+/members/([^/]+)/override$' {
-                ($s.Identity.members | Where-Object principalId -EQ $Matches[1]).analystOverride = $Body.action; return @{}
+                ($s.Identities.members | Where-Object principalId -EQ $Matches[1]).analystOverride = $Body.action; return @{}
             }
             '^Get /auth-config$' { return [pscustomobject]@{ enabled = $false } }
             default { throw "The fake API has no route for $Method $Path" }
@@ -209,6 +213,10 @@ Describe 'Make, read back and compare' {
         $script:Manifest = New-CuratedData -BaseUrl 'http://fake/api'
     }
 
+    It 'records the decision on the identity that has a linked account' {
+        $script:Manifest.Ids.Identity | Should -Be 'dddddddd-0000-0000-0000-000000000004'
+        $script:Store.Identities[1].members[0].analystOverride | Should -Be 'confirmed'
+    }
     It 'expects one record of each kind' {
         @($script:Manifest.Expected.Keys) | Should -Be @(
             'tag', 'tag members', 'manual context', 'manual context members', 'crawler configuration', 'category',
@@ -239,7 +247,7 @@ Describe 'Make, read back and compare' {
         @{ Label = 'feature switch'; Break = { $s.Features.matrixSharing = $false } }
         @{ Label = 'saved matrix'; Break = { $s.Matrices[0].filter.filters.department = 'Sales' } }
         @{ Label = 'read API key'; Break = { $s.Keys[0].revoked = $true } }
-        @{ Label = 'identity link decision'; Break = { $s.Identity.members[0].analystOverride = $null } }
+        @{ Label = 'identity link decision'; Break = { $s.Identities[1].members[0].analystOverride = $null } }
     ) {
         $s = $script:Store
         . $Break
@@ -247,6 +255,22 @@ Describe 'Make, read back and compare' {
         $problems.Count | Should -Be 1
         $problems[0] | Should -BeLike "${Label}: *"
         { Assert-CuratedData -BaseUrl 'http://fake/api' -Manifest $script:Manifest -Label 'After the restore' } | Should -Throw "After the restore: person-made data changed: ${Label}: *"
+    }
+}
+
+Describe 'Make and read back without a linked identity' {
+    It 'leaves the identity decision out, says so, and still checks the rest' {
+        $script:Store = New-FakeStore
+        $script:Store.Identities[1].members = @()
+        Mock Invoke-Api { Invoke-FakeApi -Method $(if ($Method) { $Method } else { 'Get' }) -Path $Path -Body $Body }
+        Mock Write-Step { }
+        $m = New-CuratedData -BaseUrl 'http://fake/api' -WarningVariable warned -WarningAction SilentlyContinue
+        "$warned" | Should -BeLike '*identity-link decision is not checked*'
+        $m.Expected.Contains('identity link decision') | Should -BeFalse
+        $m.Expected.Count | Should -Be 11
+        Compare-CuratedData -Expected $m.Expected -Actual (Read-CuratedData -BaseUrl 'http://fake/api' -Manifest $m) | Should -BeNullOrEmpty
+        $script:Store.Tags[0].color = '#3b82f6'
+        @(Compare-CuratedData -Expected $m.Expected -Actual (Read-CuratedData -BaseUrl 'http://fake/api' -Manifest $m)).Count | Should -Be 1
     }
 }
 

@@ -128,7 +128,7 @@ Backup and restore is the way to move an instance, so it has to keep what people
 - one feature flag switched the other way
 - a saved matrix with its filter
 - a read API key: name, prefix and not revoked; on Docker also that its stored hash still matches the key, which is what sign-in checks (the Docker scenarios run with sign-in off, where no request would test it); with sign-in on, that the key still gets in and a changed key does not
-- an analyst's confirmation of one identity link
+- an analyst's confirmation of one identity link (skipped with a warning when the demo data has no identity with a linked account)
 
 The previous stable release makes the records, so only endpoints it already has are used. Risk profiles and risk overrides are left out: risk scoring is experimental (see [Release blockers](#release-blockers)).
 
