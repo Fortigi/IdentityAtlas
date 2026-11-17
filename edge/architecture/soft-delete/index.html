@@ -6347,6 +6347,10 @@
 <td><strong>Excluded.</strong> The matview filters out any cell whose assignment, holder, or target is tombstoned (<code>deletedAt IS NULL</code> + <code>NOT EXISTS</code> a deleted principal/resource), so the live access picture never shows access via a deleted entity. <code>NOT EXISTS</code> (not a join) is used so a row whose endpoint is merely missing is kept — only explicit tombstones are excluded.</td>
 </tr>
 <tr>
+<td><strong>Governance coverage</strong> (<code>vw_UserPermissionAssignmentViaBusinessRole</code> + the matrix's <code>managedByAccessPackage</code>)</td>
+<td><strong>Excluded.</strong> A business role deleted in the source governs nothing: migration <code>112_live_business_roles_govern.sql</code> requires the governance resource — and, on the <code>Contains</code> arm, the resource it contains — to be live in both derivations. This matters because resources and assignments are reconciled per table with no cascade, so a role can be tombstoned while its own membership row is still live; the cell then reads as ungoverned (no business-role colour, out of the Governed view, out of the governed share) unless another live role covers it. See <a href="../matrix/">matrix</a> → <em>Cell coloring is independent</em>.</td>
+</tr>
+<tr>
 <td><strong>Account Linking</strong> (candidate set, <code>orphansRemaining</code>, the Orphaned Accounts report + context)</td>
 <td><strong>Excluded.</strong> A tombstoned account is not an orphan: it is never newly linked to an identity and never counted as outstanding work (<a href="../account-linking/">account linking</a> → <em>Candidate scope</em>). This is what stops a leaver's account being attached to a live namesake — the leaver's own identity is gone, so the namesake is the only thing left matching it. An account linked <em>before</em> it was tombstoned stays linked — soft-delete never detaches a person's history.</td>
 </tr>
