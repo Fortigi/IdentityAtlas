@@ -1,5 +1,12 @@
 # Maintaining a release line
 
+!!! warning "Retired: Dependabot no longer updates `release/5.9`"
+    The `release/5.9` entries are gone from `.github/dependabot.yml`. The line was
+    never tagged again, so its updates reached nobody. Security fixes now reach the
+    current stable release through the nightly security route instead: see
+    [Release process → The security route](../contributing/release-process.md#the-security-route).
+    The rest of this page describes how the line worked, for the record.
+
 Customers on `:latest` track a release tag, not `main`. Keeping their libraries
 current therefore means updating the branch those tags are cut from — which is
 what a *release line* is.
