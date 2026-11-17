@@ -46,8 +46,13 @@ env:
 jobs:
   dor:
     name: fortigi-dor-bot (DoR pipeline)
-    # Fork PRs carry no secrets, so the mint step could only fail there.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Fork PRs carry no secrets, so the mint step could only fail there. The same holds for
+    # runs Dependabot triggers: they get only Dependabot secrets, never Actions secrets, so
+    # DOR_BOT_APP_ID is empty and the check could only go red on every actions bump.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     steps:
       - name: Mint a token
