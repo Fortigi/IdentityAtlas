@@ -14,7 +14,7 @@
 # pick up a different image behind the same tag. The tag is kept in the comment
 # for readability; refresh both together when bumping.
 # node:24-slim
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS frontend-build
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS frontend-build
 WORKDIR /build
 COPY app/ui/package*.json ./
 RUN npm ci
@@ -24,7 +24,7 @@ RUN npm --prefix app/ui run build
 
 # ── Stage 2: Backend runtime ──────────────────────────────────────────────────
 # node:24-slim (same digest as the build stage)
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS runtime
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS runtime
 
 # Bake the module version into the image so /api/version returns the full
 # version string (e.g. 5.0.20260414.0900) without needing the .psd1 file.
