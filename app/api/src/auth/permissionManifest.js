@@ -19,7 +19,7 @@
 // body-parsing — a denied request never reaches validation, and an allowed one
 // only needs to get PAST the gate (any non-403 status counts).
 export const GATED_ENDPOINTS = {
-  'data.export.ui':        { method: 'GET',  path: '/api/admin/export/curated' },
+  'data.export.ui':        { method: 'POST', path: '/api/admin/data-export/workbook', body: { name: 'matrix-test' } },
   'data.export.apikey':    { method: 'POST', path: '/api/admin/read-tokens', body: { name: 'matrix-test' } },
   'data.share':            { method: 'POST', path: '/api/matrix/shares', body: { name: 'matrix-test', filter: {} } },
   'data.write.tags':       { method: 'POST', path: '/api/tags', body: { name: 'matrix-test' } },

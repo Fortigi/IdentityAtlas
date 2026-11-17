@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderWithProviders, screen } from '@ui/test-utils/renderWithProviders';
 import {
-  CuratedDataIcon,
+  BackupIcon,
   WorkbookIcon,
   RiskProfileIcon,
   ClassifiersIcon,
@@ -17,7 +17,7 @@ import {
 import { Section } from './adminUi';
 import DangerZoneSection from './DangerZoneSection';
 
-const ICONS = { CuratedDataIcon, WorkbookIcon, RiskProfileIcon, ClassifiersIcon, WarningIcon, PencilIcon };
+const ICONS = { BackupIcon, WorkbookIcon, RiskProfileIcon, ClassifiersIcon, WarningIcon, PencilIcon };
 
 describe('admin section icons (#755)', () => {
   for (const [name, IconCmp] of Object.entries(ICONS)) {
@@ -39,11 +39,11 @@ describe('admin section icons (#755)', () => {
 
   it('adminUi Section renders an SVG icon in its header instead of an emoji glyph', () => {
     const { container } = renderWithProviders(
-      <Section title="Curated Data" icon={<CuratedDataIcon />} defaultOpen>
+      <Section title="Move to a new instance" icon={<BackupIcon />} defaultOpen>
         <div>body</div>
       </Section>,
     );
-    expect(screen.getByText('Curated Data')).toBeInTheDocument();
+    expect(screen.getByText('Move to a new instance')).toBeInTheDocument();
     expect(container.querySelector('svg')).toBeTruthy();
     expect(container.textContent).not.toMatch(/📦|📊|🏢|🎯/);
   });

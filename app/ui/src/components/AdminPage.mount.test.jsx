@@ -172,7 +172,7 @@ describe('AdminPage (mounted)', () => {
     expect(window.location.hash).toBe('#admin?sub=shares');
   });
 
-  it('renders the Data tab: Power Query tokens, curated data, history retention and danger zone', async () => {
+  it('renders the Data tab: Power Query tokens, the move-instance note, history retention and danger zone', async () => {
     renderAdmin();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Data' }));
@@ -183,8 +183,9 @@ describe('AdminPage (mounted)', () => {
     expect(await screen.findByText('PowerBI prod')).toBeInTheDocument();
     expect(screen.getByText(/fgr_abc/)).toBeInTheDocument();
 
-    // Curated data + history + danger zone all render in the Data tab
-    expect(screen.getByText('Curated Data')).toBeInTheDocument();
+    // The curated export/import is gone; the move-instance note sits in its place.
+    expect(screen.queryByText('Curated Data')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /backup and restore guide/i })).toBeInTheDocument();
     expect(screen.getByText(/History Retention/)).toBeInTheDocument();
     // Locale-agnostic: the component formats via toLocaleString(), so build the
     // expected text the same way (the thousands separator differs per locale —
@@ -201,17 +202,37 @@ describe('AdminPage (mounted)', () => {
     // Lands on the Data tab (hash sub=data from beforeEach; admin.systems keeps it visible).
     expect(await screen.findByText('Danger Zone')).toBeInTheDocument();
     expect(screen.getByText(/History Retention/)).toBeInTheDocument();
-    // Export/import sections need data.export.* / admin.csv-import → hidden.
+    // The export section needs data.export.* / admin.read-tokens → hidden.
     expect(screen.queryByText('Excel Power Query Workbook')).not.toBeInTheDocument();
-    expect(screen.queryByText('Curated Data')).not.toBeInTheDocument();
+    // The move-instance note is only a docs link, so it shows for every Data-tab user.
+    expect(screen.getByRole('link', { name: /backup and restore guide/i })).toBeInTheDocument();
+  });
+
+  it('links the move-instance note to the docs version of the running build', async () => {
+    renderWithProviders(h(AdminPage, { version: '6.93.20261117.0846' }), {
+      auth: { authFetch: makeAuthFetch(adminRoutes), hasWildcard: false, permissions: new Set(['admin.systems']) },
+    });
+    const link = await screen.findByRole('link', { name: /backup and restore guide/i });
+    // An edge build links to the edge docs, at the move-instance section.
+    expect(link).toHaveAttribute('href',
+      'https://docs.identityatlas.io/edge/admin/backup-restore-upgrade/#move-identity-atlas-to-a-new-instance');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('no longer opens the Data tab for admin.csv-import alone (it only gated the removed curated import)', async () => {
+    renderWithProviders(h(AdminPage, {}), {
+      auth: { authFetch: makeAuthFetch(adminRoutes), hasWildcard: false, permissions: new Set(['admin.csv-import']) },
+    });
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Data' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Danger Zone')).not.toBeInTheDocument();
   });
 
   it('gates Data-tab sections: a data.export.ui-only user sees the export sections, not the destructive ones', async () => {
     renderWithProviders(h(AdminPage, {}), {
       auth: { authFetch: makeAuthFetch(adminRoutes), hasWildcard: false, permissions: new Set(['data.export.ui']) },
     });
-    expect(await screen.findByText('Curated Data')).toBeInTheDocument();
-    expect(screen.getByText('Excel Power Query Workbook')).toBeInTheDocument();
+    expect(await screen.findByText('Excel Power Query Workbook')).toBeInTheDocument();
     // Retention + clean-database need admin.systems → hidden.
     expect(screen.queryByText('Danger Zone')).not.toBeInTheDocument();
     expect(screen.queryByText(/History Retention/)).not.toBeInTheDocument();

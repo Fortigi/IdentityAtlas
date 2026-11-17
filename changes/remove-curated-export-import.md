@@ -1,0 +1,5 @@
+- Removed the Curated Data export and import from Admin → Data. It covered only tags and business-role categories; a database backup carries everything people made in the app.
+- Added a note on Admin → Data that links to the guide for moving Identity Atlas to a new instance by backing up and restoring the database.
+- Added a "Move Identity Atlas to a new instance" guide for Docker, Azure and the portable version, including where the master key lives in each.
+- Documented exactly which backup settings the Azure template configures (7-day point-in-time restore, no geo-redundant backup, no high availability, no resource locks) and what you can add yourself if you need more.
+- The CSV import permission on its own no longer shows the Admin → Data tab; it still gates file uploads for crawlers.

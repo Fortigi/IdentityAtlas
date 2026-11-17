@@ -1,8 +1,7 @@
 // Additional unit tests for routes/admin.js — raises line coverage by exercising
 // the read endpoints (risk-profile/classifiers happy paths, dashboard-stats,
 // dashboard-timeseries, history-retention read + prune, auth-settings),
-// the danger-zone clean-database guard + happy path, the curated export/import
-// handlers, and error paths. DB + authConfig + tombstonePurge mocked; no network.
+// the danger-zone clean-database guard + happy path, and error paths. DB + authConfig + tombstonePurge mocked; no network.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -27,18 +26,6 @@ vi.mock('../config/authConfig.js', () => ({
 }));
 const purgeExpiredTombstones = vi.fn(async () => ({ purged: { Principals: 3 } }));
 vi.mock('../ingest/tombstonePurge.js', () => ({ purgeExpiredTombstones: (...a) => purgeExpiredTombstones(...a) }));
-
-// tags.js / categories.js / bootstrap / memberCounts are dynamically imported by
-// the curated-import handler. Tags are written to Contexts + ContextMembers
-// (GraphTags/GraphTagAssignments are read-only views), reusing tags.js helpers.
-vi.mock('./tags.js', () => ({
-  ensureTagTables: vi.fn(async () => {}),
-  ENTITY_TO_TARGET: { user: 'Principal', group: 'Resource', resource: 'Resource', identity: 'Identity' },
-  UUID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-}));
-vi.mock('./categories.js', () => ({ ensureCategoryTables: vi.fn(async () => {}) }));
-vi.mock('../bootstrap.js', () => ({ getOrCreateTagRoot: vi.fn(async () => 'tag-root') }));
-vi.mock('../contexts/memberCounts.js', () => ({ recalcMemberCountsForChain: vi.fn(async () => {}) }));
 
 const { default: router } = await import('./admin.js');
 const app = mountRouter(router);
@@ -284,75 +271,5 @@ describe('POST /admin/clean-database', () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Clean database failed');
     expect(JSON.stringify(res.body)).not.toContain('boom'); // internal detail not leaked
-  });
-});
-
-// ── GET /admin/export/curated ────────────────────────────────────────────────
-describe('GET /admin/export/curated', () => {
-  it('exports an empty payload when neither source table exists', async () => {
-    // tableExists() -> db.query(SELECT to_regclass) returns oid null for all
-    query.mockResolvedValue({ rows: [{ oid: null }] });
-    const res = await request(app).get('/api/admin/export/curated');
-    expect(res.status).toBe(200);
-    expect(res.headers['content-disposition']).toMatch(/FGCuratedData_/);
-    expect(res.body).toMatchObject({ version: '1.0', tags: [], categories: [] });
-  });
-
-  it('500 when a lookup query rejects', async () => {
-    query.mockRejectedValueOnce(new Error('boom'));
-    const res = await request(app).get('/api/admin/export/curated');
-    expect(res.status).toBe(500);
-  });
-});
-
-// ── POST /admin/import/curated ───────────────────────────────────────────────
-describe('POST /admin/import/curated', () => {
-  it('400 when tags is not an array', async () => {
-    const res = await request(app).post('/api/admin/import/curated').send({ tags: 'nope' });
-    expect(res.status).toBe(400);
-  });
-
-  it('imports tags + categories and returns stats', async () => {
-    // Everything is native db.query / db.queryOne now (#663 removed the shim).
-    // db.query drives: to_regclass checks, resolveEntity GUID match (COUNT), tag
-    // upsert (Contexts), category upsert, assignment lookups/inserts. queryOne is
-    // the existing-tag lookup. Drive them through a default + specific mocks.
-    query.mockImplementation(async (sql) => {
-      if (/to_regclass/i.test(sql)) return { rows: [{ oid: 1 }] };            // tables exist
-      if (/COUNT\(\*\) AS n/i.test(sql)) return { rows: [{ n: 1 }] };          // resolveEntity GUID hit
-      if (/INSERT INTO "Contexts"/i.test(sql)) return { rows: [{ id: 'tag1' }] };
-      if (/INSERT INTO "GovernanceCategories"/i.test(sql)) return { rows: [{ id: 'cat1' }] };
-      if (/INSERT INTO "ContextMembers"/i.test(sql)) return { rows: [{ inserted: 1 }] };
-      if (/FROM "Resources"/i.test(sql)) return { rows: [{ id: 'apid' }] };    // BusinessRole GUID match
-      if (/INSERT INTO "GovernanceCategoryAssignments"/i.test(sql)) return { rows: [{ inserted: 1 }] };
-      return { rows: [] };
-    });
-    queryOne.mockResolvedValue(undefined); // no existing tag → insert path
-
-    const body = {
-      tags: [{
-        name: 'Sensitive', entityType: 'user', color: '#abcdef',
-        assignments: [{ entityId: '11111111-1111-1111-1111-111111111111', displayName: 'Alice' }],
-      }],
-      categories: [{
-        name: 'Finance', color: 'bad-color',
-        assignments: [{ accessPackageId: 'AP-1', accessPackageDisplayName: 'Finance AP' }],
-      }],
-    };
-    const res = await request(app).post('/api/admin/import/curated').send(body);
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.stats.tagsInserted).toBe(1);
-    expect(res.body.stats.assignmentsInserted).toBe(1);
-    expect(res.body.stats.catsInserted).toBe(1);
-  });
-
-  it('500 when an import query rejects', async () => {
-    // The category upsert is the first db.query the import runs; reject it.
-    query.mockRejectedValueOnce(new Error('boom'));
-    const res = await request(app)
-      .post('/api/admin/import/curated')
-      .send({ tags: [], categories: [{ name: 'Finance', color: '#3b82f6' }] });
-    expect(res.status).toBe(500);
   });
 });

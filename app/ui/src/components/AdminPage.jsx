@@ -19,7 +19,7 @@ const SharedMatricesPage = lazy(() => import('./SharedMatricesPage'));
 const ExperimentalFeaturesSection = lazy(() => import('./admin/ExperimentalFeaturesSection'));
 
 import PowerQueryExportSection from './admin/PowerQueryExportSection';
-import CuratedDataSection from './admin/CuratedDataSection';
+import MoveInstanceNote from './admin/MoveInstanceNote';
 import HistoryRetentionSection from './admin/HistoryRetentionSection';
 import DangerZoneSection from './admin/DangerZoneSection';
 import LLMSettingsSection from './admin/LLMSettingsSection';
@@ -80,10 +80,10 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
   // action with its own server-side gate — so render each only for the user
   // who can actually use it, instead of showing controls that 403 on click.
   // Mirrors the server: dataExport.js (workbook=data.export.ui, read-tokens=
-  // data.export.apikey/admin.read-tokens), curatedData.js (export=data.export.ui,
-  // import=admin.csv-import), maintenance.js (retention + clean=admin.systems).
+  // data.export.apikey/admin.read-tokens), maintenance.js (retention + clean=
+  // admin.systems). The move-to-a-new-instance note is only a docs link, so
+  // everyone who reaches the tab sees it.
   const canPowerQuery = hasPermission(permissions, hasWildcard, 'data.export.ui', 'data.export.apikey', 'admin.read-tokens');
-  const canCuratedData = hasPermission(permissions, hasWildcard, 'data.export.ui', 'admin.csv-import');
   const canManageSystems = hasPermission(permissions, hasWildcard, 'admin.systems');
 
   // If the user was on a now-hidden tab, bounce them to the first visible one.
@@ -166,7 +166,7 @@ export default function AdminPage({ onNavigate, onRefresh, onRiskScoresRefresh, 
         {activeTab === 'data' && (
           <>
             {canPowerQuery && <PowerQueryExportSection />}
-            {canCuratedData && <CuratedDataSection />}
+            <MoveInstanceNote version={version} />
             {canManageSystems && <HistoryRetentionSection />}
             {canManageSystems && <DangerZoneSection onRefresh={onRefresh} />}
           </>

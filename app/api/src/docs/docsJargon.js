@@ -34,6 +34,9 @@ export const TERMS = [
   { term: 'DirectoryRoleEligible', re: /\bDirectoryRoleEligible\b/g, use: 'Eligible on an EntraDirectoryRole resource' },
   // A cmdlet that does not exist in this product.
   { term: 'Start-FGSync', re: /Start-FGSync/g, use: 'a crawler added in Admin → Crawlers' },
+  // Cmdlets that do not exist in this product, tied to a curated-data export that
+  // is gone too: moving an instance is a database backup and restore.
+  { term: 'FGCuratedData', re: /\b(?:Export|Import)-FGCuratedData\b/g, use: 'a database backup and restore (admin/backup-restore-upgrade.md)' },
 ];
 
 // Pages that legitimately keep the old words. `true` exempts the whole page (or

@@ -28,20 +28,6 @@ test.describe('Export validation', () => {
       test.skip();
     }
   });
-
-  test('curated JSON export returns valid shape', async ({ request }) => {
-    const API = `${BASE}/api`;
-    // This endpoint may or may not exist -- skip if 404
-    const res = await request.get(`${API}/admin/export/curated`);
-    if (res.status() === 404) {
-      test.skip();
-      return;
-    }
-    if (res.ok()) {
-      const body = await res.json();
-      expect(body).toHaveProperty('exportedAt');
-    }
-  });
 });
 
 // ─── Matrix Excel export mirrors the grid (#942) ──────────────────────────────

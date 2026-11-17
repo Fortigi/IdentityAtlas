@@ -4,7 +4,7 @@
 // load the router with USE_SQL=true). This file covers the complementary
 // "database not configured" guards that every admin handler checks up front —
 // the `if (!useSql)` / `if (process.env.USE_SQL !== 'true')` early returns the
-// split moved into admin/{curatedData,riskConfig,maintenance,dashboard,settings}.js.
+// split moved into admin/{riskConfig,maintenance,dashboard,settings}.js.
 // Auth-settings has no such guard, so it still renders.
 
 import { describe, it, expect, vi } from 'vitest';
@@ -32,14 +32,6 @@ describe('admin — database-not-configured guards (USE_SQL off)', () => {
     const res = await request(app).get('/api/admin/classifiers');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ available: false });
-  });
-
-  it('GET /admin/export/curated -> 400 (SQL mode required)', async () => {
-    expect((await request(app).get('/api/admin/export/curated')).status).toBe(400);
-  });
-
-  it('POST /admin/import/curated -> 400 (SQL mode required)', async () => {
-    expect((await request(app).post('/api/admin/import/curated').send({ tags: [], categories: [] })).status).toBe(400);
   });
 
   const guarded503 = [

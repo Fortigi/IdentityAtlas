@@ -234,7 +234,7 @@ The Admin tab groups the administrative pages. You only see the ones your permis
 | **Performance** | See how fast the application answers |
 | **Authentication** | Set up single sign-on |
 | **Roles & Permissions** | Decide which roles from your identity provider get which permissions in the app |
-| **Data** | Export and import curated data, and clean the database |
+| **Data** | Excel Power Query export, history retention, and cleaning the database |
 | **Shared Matrices** | See which matrices are shared by link, with whom, and revoke them (shown while matrix sharing is on) |
 | **Experimental** | Switch on features that are built and tested but not yet proven in the field |
 | **Updates** | Automatic updates and the version history |
