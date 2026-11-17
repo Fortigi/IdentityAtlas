@@ -2,598 +2,598 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://docs.identityatlas.io/stable/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/about/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/docs-gap-audit/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/docs-remediation-plan/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/history/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/maintenance-backlog/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/quickstart/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/admin/authentication/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/admin/auto-updates/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/admin/backup-restore-upgrade/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/admin/data-tab/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/admin/excel-powerquery-export/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/admin/excel-template-authoring/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/api/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/api/entities/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/api/governance/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/api/matrix/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/api/risk-scores/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/account-linking/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/adjust-tree/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/architecture-guidance-review-2026-09/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/assignment-model-redesign/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/audit-history/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/azure-deployment-walkthrough/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/azure-deployment/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/azure-gitops/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/branching-strategy/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/change-requests/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/ci-scope-testing/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-assistant/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-interviews/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-owner-access/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-redesign-plan/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-redesign-ui/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-redesign/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-templates-phase-b/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/context-upload/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/core-ontology/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/crawler-architecture/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/csv-import-schema/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/custom-reports/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/dashboard-trends/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/decision-principles/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/demo-dataset/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/design-archive/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/desktop-portable/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/docker-setup/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/effective-access-engine/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/entity-detail-pages/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/identitytype-design/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/ingest-api/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/llm-and-risk-scoring/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/m1-brief/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/m1-discovery-and-design/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/matrix-scope-statistics/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/matrix/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/mcp-authorization/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/omada-crawler-datamodel/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/ownership-survey/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/reports/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/resource-assignments-identity-support/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/resource-cluster-algorithm/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/risk-scoring-plugins/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/rule-mining-discussion/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/scale-rehearsal/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/scaling/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/soft-delete/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/sql-connector-internals/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/architecture/template-ui/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/concepts/data-model/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/concepts/governance-model/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/concepts/ontology/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/concepts/risk-scoring-model/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/contributing/ci-pipeline/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/contributing/contribute/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/contributing/maintaining-the-ontology/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/contributing/report-an-issue/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/contributing/style-guide/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/contributing/writing-tests-that-assert/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/demo/before-you-play/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/demo/capture-the-flag/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/deploy/choose-a-deployment/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/boilerplate/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/competitive-landscape/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/faq/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/features/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/key-messages/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/product-brief/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/proof-points/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/marketing/use-cases/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/operations/nightly-review/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/autonomous-bug-pipeline/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/autonomy-roadmap/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/definition-of-ready/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/dor-sidekick-setup/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/dor-state-machine/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/epic-layer-session-2026-09/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/epic-layer/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/maintaining-a-release-line/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/operationalization/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/process/release-notes/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/ask-assistant/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/config/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/core-model/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/coverage/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/experimental-features/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/mcp-server/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/permissions/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/report-generator/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/sbom/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/sql-views/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/reference/troubleshooting/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/risk-scoring/ai-agents/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/risk-scoring/classifiers/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/risk-scoring/design/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/risk-scoring/overview/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/risk-scoring/plugin-architecture/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/security/assessment-2026-09/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/security/assessment/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/security/maintenance-audit-2026-06/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/start/first-15-minutes/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/start/glossary/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/azure-rm/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/building-a-crawler/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/csv-import/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/custom-connector/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/entra-id/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/midpoint/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/mssql/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/omada/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/overview/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/scheduling/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/sync/scim/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/access-review-adoption/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/build-a-matrix/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/context-assistant/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/contexts/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/custom-reports/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/dashboard/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/detail-pages/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/effective-access/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/entitlement-pivot/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/local-dev/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/overview/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/reading-the-matrix/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/sharing-a-matrix/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ui/unit-report/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
     <url>
          <loc>https://docs.identityatlas.io/stable/ux/assessment/</loc>
-         <lastmod>2026-11-16</lastmod>
+         <lastmod>2026-11-17</lastmod>
     </url>
 </urlset>
