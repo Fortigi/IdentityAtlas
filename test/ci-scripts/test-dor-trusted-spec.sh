@@ -40,6 +40,20 @@ cat > "$TMP/issue.json" <<'JSON'
  "labels":[{"name":"enhancement","color":"x"}]}
 JSON
 sed -e 's/"number":10/"number":11/' -e 's/"login":"alice"/"login":"outsider"/' "$TMP/issue.json" > "$TMP/issue11.json"
+# Issue 14: the same outsider, but a member applied `dor-vouched`. Issue 15: a vouched issue whose
+# author is a Bot account — the vouch must not lift a bot. Both carry an assignee.
+sed -e 's/"number":10/"number":14/' -e 's/"login":"alice"/"login":"outsider"/' \
+    -e 's/"labels":\[/"assignees":[{"login":"bob","id":1}],"labels":[{"name":"dor-vouched"},/' "$TMP/issue.json" > "$TMP/issue14.json"
+sed -e 's/"number":14/"number":15/' -e 's/"login":"outsider","type":"User"/"login":"outsider","type":"Bot"/' \
+    "$TMP/issue14.json" > "$TMP/issue15.json"
+cat > "$TMP/comments14.json" <<'JSON'
+[
+ {"user":{"login":"outsider","type":"User"},"created_at":"t1","body":"VOUCHED-AUTHOR-DETAIL"},
+ {"user":{"login":"mallory","type":"User"},"created_at":"t2","body":"STRANGER-AFTER-VOUCH"},
+ {"user":{"login":"outsider-2","type":"User"},"created_at":"t3","body":"PREFIX-LOOKALIKE"},
+ {"user":{"login":"bob","type":"User"},"created_at":"t4","body":"member note"}
+]
+JSON
 cat > "$TMP/comments.json" <<'JSON'
 [
  {"user":{"login":"alice","type":"User"},"created_at":"t1","body":"requestor detail"},
@@ -69,6 +83,9 @@ case "\$1" in
   repos/Fortigi/IdentityAtlas/issues/10)          cat "$TMP/issue.json" ;;
   repos/Fortigi/IdentityAtlas/issues/11)          cat "$TMP/issue11.json" ;;
   repos/Fortigi/IdentityAtlas/issues/1[01]/comments) jq -c '.[]' "$TMP/comments.json" ;;
+  repos/Fortigi/IdentityAtlas/issues/14)          cat "$TMP/issue14.json" ;;
+  repos/Fortigi/IdentityAtlas/issues/15)          cat "$TMP/issue15.json" ;;
+  repos/Fortigi/IdentityAtlas/issues/1[45]/comments) jq -c '.[]' "$TMP/comments14.json" ;;
   repos/Fortigi/IdentityAtlas/issues/12)          cat "$TMP/issue.json" ;;
   repos/Fortigi/IdentityAtlas/issues/12/comments) exit 1 ;;
   repos/Fortigi/IdentityAtlas/issues/13)          cat "$TMP/issue.json" ;;
@@ -126,7 +143,7 @@ out="$(run 10)"
 assert "without REQUESTOR a member author's body is kept" "Please add a filter." "$(jq -r '.body' <<<"$out")"
 assert "…after asking the membership API" 1 "$(grep -c 'members/alice ' "$TMP/calls.log")"
 
-# ── 4. An outsider-authored issue (vouched external request) ────────────────
+# ── 4. An outsider-authored issue that nobody vouched for ───────────────────
 out="$(REQUESTOR=bob run 11)"
 assert "an outsider's issue body is withheld" "yes" \
   "$(jq -r '.body' <<<"$out" | grep -q '^\[body omitted' && echo yes || echo no)"
@@ -135,6 +152,27 @@ assert "…and so is the title" "yes" \
 assert "…and the withholding is recorded" true "$(jq -r '.trust.issueBodyOmitted' <<<"$out")"
 assert "the certified bot comment still arrives, so the build has its plan" "yes" \
   "$(jq -r '.comments[].body' <<<"$out" | grep -q 'Certified spec' && echo yes || echo no)"
+
+# ── 4b. A vouched external request: the author may keep contributing ──────────
+out="$(REQUESTOR=bob run 14)"
+assert "a vouched author's issue body is kept" "Please add a filter." "$(jq -r '.body' <<<"$out")"
+assert "…and not flagged as omitted" false "$(jq -r '.trust.issueBodyOmitted' <<<"$out")"
+assert "keeps the vouched author and members, drops a stranger who joined after the vouch" \
+  "VOUCHED-AUTHOR-DETAIL|member note" "$(jq -r '[.comments[].body] | join("|")' <<<"$out")"
+assert "a login that merely starts with the vouched author's is not trusted" "no" \
+  "$(grep -q 'PREFIX-LOOKALIKE' <<<"$out" && echo yes || echo no)"
+assert "counts the two dropped comments" 2 "$(jq -r '.trust.omittedComments' <<<"$out")"
+assert "assignees keep the {login} shape the spec agent reads" "bob" "$(jq -r '.assignees[0].login' <<<"$out")"
+
+out="$(REQUESTOR=bob run 15)"
+assert "the vouch never lifts a Bot author" "yes" \
+  "$(jq -r '.body' <<<"$out" | grep -q '^\[body omitted' && echo yes || echo no)"
+assert "…nor a User comment under the Bot's login" "no" \
+  "$(grep -q 'VOUCHED-AUTHOR-DETAIL' <<<"$out" && echo yes || echo no)"
+
+out="$(VOUCH_LABEL=some-other-label REQUESTOR=bob run 14)"
+assert "the vouch label is configurable, and without it the outsider is dropped again" "no" \
+  "$(grep -q 'VOUCHED-AUTHOR-DETAIL' <<<"$out" && echo yes || echo no)"
 
 # ── 5. A long thread ─────────────────────────────────────────────────────────
 out="$(REQUESTOR=alice run 13)"; rc=$?

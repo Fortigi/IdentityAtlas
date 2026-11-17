@@ -3,7 +3,7 @@
 // LOCKED) are proven against real PostgreSQL in
 // contract-tests/crawlerJobQueue.contract.test.js; mocks here are SQL-blind.
 import { describe, it, expect, vi } from 'vitest';
-import { findActiveConfigJob, CLAIM_NEXT_JOB_SQL } from './crawlerJobQueue.js';
+import { findActiveConfigJob, CLAIM_NEXT_JOB_SQL, recentJobsQuery } from './crawlerJobQueue.js';
 
 const answering = (rows) => vi.fn(async () => ({ rows }));
 
@@ -49,5 +49,27 @@ describe('CLAIM_NEXT_JOB_SQL', () => {
   it('still claims atomically and returns the configId the credential lookup needs', () => {
     expect(CLAIM_NEXT_JOB_SQL).toContain('FOR UPDATE SKIP LOCKED');
     expect(CLAIM_NEXT_JOB_SQL).toContain('cj."configId"');
+  });
+});
+
+// What the two shapes RETURN is proven against PostgreSQL in
+// contract-tests/recentJobs.contract.test.js. These pin which shape a caller gets.
+describe('recentJobsQuery', () => {
+  it('is the plain newest-first page by default', () => {
+    const { sql, params } = recentJobsQuery(25);
+    expect(sql).toBe('SELECT * FROM "CrawlerJobs" ORDER BY "createdAt" DESC LIMIT $1');
+    expect(params).toEqual([25]);
+  });
+
+  it('is the plain page when latestPerMode is false', () => {
+    expect(recentJobsQuery(10, false).sql).not.toContain('DISTINCT ON');
+  });
+
+  it('adds the newest job of every crawler and sync mode when asked', () => {
+    const { sql, params } = recentJobsQuery(10, true);
+    expect(sql).toContain('UNION');
+    expect(sql).toContain(`DISTINCT ON (COALESCE("configId"::text, "jobType"), COALESCE(config->>'_syncMode', ''))`);
+    expect(sql).toContain('LIMIT $1');
+    expect(params).toEqual([10]);
   });
 });

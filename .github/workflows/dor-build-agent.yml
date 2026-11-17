@@ -70,8 +70,8 @@ jobs:
         id: auth
         uses: ./.github/actions/dor-authorize
         with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           actor: ${{ steps.req.outputs.login }}
   # ── Does this one still need a human to say go? ───────────────────────────────────────────────────
   # A certified BUG has already answered the only question the value gate asks. "Is this worth
@@ -103,8 +103,8 @@ jobs:
         id: members
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-members: read
       - name: Decide — autonomous, or hold for the value gate?
@@ -345,8 +345,8 @@ jobs:
         id: members
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-members: read
 
@@ -392,8 +392,8 @@ jobs:
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -443,8 +443,8 @@ jobs:
         if: steps.flow.outputs.needs-token == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -476,8 +476,8 @@ jobs:
         if: steps.flow_c1.outputs.needs-token == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -509,8 +509,8 @@ jobs:
         if: steps.flow_c2.outputs.needs-token == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -542,8 +542,8 @@ jobs:
         if: steps.flow_c3.outputs.needs-token == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -575,8 +575,8 @@ jobs:
         if: steps.flow_c4.outputs.needs-token == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -608,8 +608,8 @@ jobs:
         if: steps.flow_c5.outputs.needs-token == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -670,8 +670,8 @@ jobs:
         id: bot2
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: read

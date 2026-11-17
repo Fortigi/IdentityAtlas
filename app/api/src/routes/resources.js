@@ -15,6 +15,7 @@ import { withMatchedOn } from '../lib/entitySearch.js';
 import {
   fetchResourceAttributes, mergeResourceRiskScore, fetchResourceTags, fetchMemberBreakdown,
   fetchAccessPackageCount, fetchParentResourceCount, fetchResourceHistoryCount, fetchResourceContextCount,
+  fetchOwnersOf,
 } from './resources/detail.js';
 
 const router = Router();
@@ -129,8 +130,9 @@ router.get('/resources/:id', async (req, res) => {
     const parentResourceCount = await fetchParentResourceCount(pool, res, resourceId);
     const historyCount = await fetchResourceHistoryCount(resourceId);
     const contextCount = await fetchResourceContextCount(resourceId);
+    const owners = await fetchOwnersOf(attributes);
 
-    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0, contextCount });
+    res.json({ attributes, tags, memberCount, assignmentByType, accessPackageCount, parentResourceCount, historyCount, hasHistory: historyCount > 0, contextCount, owners });
   } catch (err) {
     console.error('Error fetching resource detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch resource details' });

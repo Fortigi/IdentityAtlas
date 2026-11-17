@@ -14,8 +14,14 @@ export default function Summary({ cfg }) {
     <div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3">
         <div><span className="text-gray-500 dark:text-gray-400">Tenant ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.tenantId || '—'}</span></div>
-        <div><span className="text-gray-500 dark:text-gray-400">Client ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.clientId || '—'}</span></div>
-        <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-600 dark:text-gray-500">{SECRET_MASK}</span></div>
+        {cfg.authMethod === 'ManagedIdentity' ? (
+          <div className="col-span-2"><span className="text-gray-500 dark:text-gray-400">Sign-in:</span> <span className="dark:text-gray-300">Managed identity</span> <span className="text-xs text-gray-600 dark:text-gray-500">(no secret)</span></div>
+        ) : (
+          <>
+            <div><span className="text-gray-500 dark:text-gray-400">Client ID:</span> <span className="font-mono text-xs dark:text-gray-300">{cfg.clientId || '—'}</span></div>
+            <div><span className="text-gray-500 dark:text-gray-400">Secret:</span> <span className="text-gray-600 dark:text-gray-500">{SECRET_MASK}</span></div>
+          </>
+        )}
         <div>
           <span className="text-gray-500 dark:text-gray-400">Objects:</span>{' '}
           {objectLabels.length > 0

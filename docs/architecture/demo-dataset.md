@@ -37,7 +37,7 @@ Everything described on the rest of this page is the standard dataset: 46 resour
 - ~520 Entra groups `SG-Vol-0001`…, each with its own description, one `Direct` assignment each (rotating over the provisioned employees, so each is a real matrix row);
 - one sentinel group **`SG-Zzz-Cap-Probe`**, description `Zzz - beyond the preloaded 500 (#928 probe)` — chosen to sort alphabetically last.
 
-That takes the dataset past **500 distinct `Resources.description` values**, which is the threshold above which filter and attribute dropdowns serve a *page* of values and flag the column as truncated. Below it, that behaviour is invisible, so an environment loaded from the standard dataset cannot demonstrate or verify it — see [Matrix → Attribute values](matrix.md#attribute-values--paged-discovery-not-a-silent-cap) for the walkthrough this slice enables.
+That takes the dataset past **500 distinct `Resources.description` values**, which is the threshold above which filter and attribute dropdowns serve a *page* of values and flag the column as truncated. Below it, that behaviour is invisible, so an environment loaded from the standard dataset cannot demonstrate or verify it — see [Matrix → Attribute values](matrix.md#attribute-values-paged-discovery-not-a-silent-cap) for the walkthrough this slice enables.
 
 Turn it on per environment from **Admin → Crawlers → Demo Dataset → "Also load high-cardinality test data"** (the crawler's `includeVolumeData` config key). To take it back off, clean the database and re-run with the box unticked — a plain re-run only soft-deletes the extra groups, and attribute-value discovery reads the whole table, so their descriptions would linger in the filter dropdowns.
 

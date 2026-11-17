@@ -108,6 +108,25 @@ describe('M-09 — proxy-aware limiter keys', () => {
     expect(remaining(b)).toBe(remaining(a));
   });
 
+  it('tells the operator once that a proxy is not trusted, and only when one is in front (F-35)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const said = () => warn.mock.calls.filter(([m]) => String(m).includes('TRUST_PROXY_HOPS')).length;
+      const app = createApp();
+      await request(app).get('/api/health');
+      expect(said()).toBe(0);
+      await request(app).get('/api/health').set('X-Forwarded-For', '203.0.113.1');
+      await request(app).get('/api/health').set('X-Forwarded-For', '203.0.113.2');
+      expect(said()).toBe(1);
+
+      process.env.BEHIND_TLS = 'true';
+      await request(createApp()).get('/api/health').set('X-Forwarded-For', '203.0.113.1');
+      expect(said()).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('loading the SPA shell does not spend the public API quota', async () => {
     const app = createApp();
     const before = await request(app).get('/api/version');

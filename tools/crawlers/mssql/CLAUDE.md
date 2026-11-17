@@ -66,7 +66,7 @@ again.
 ## Reading only what changed
 
 `SqlCrawler.Delta.ps1` + `SqlCrawler.Sweep.ps1`; the design and what it rests on are in
-[docs/architecture/sql-connector-delta.md](../../../docs/architecture/sql-connector-delta.md).
+[docs/architecture/sql-connector-internals.md](../../../docs/architecture/sql-connector-internals.md).
 A refresh has two halves and they need different mechanisms:
 
 | Half | Mechanism | Slot field |
@@ -250,7 +250,7 @@ stays there as well). Three decisions worth knowing before changing anything her
   could not enumerate it. The owned type travels on
   `extendedAttributes.ownedResourceType` instead.
 - **Opt-in per statement.** Three rows per owned resource is ~1.45 M rows on a production
-  IdentityIQ catalogue (measured: `docs/sync/mssql.md` → "What owners cost"). The shipped
+  IdentityIQ catalogue (measured: `docs/sync/mssql.md` → "Owners"). The shipped
   presets turn it on for business roles and leave it off — with the column already
   selected — for entitlements.
 - **An unresolvable owner is counted, never charged to the unplaced bound.** The owner

@@ -41,12 +41,9 @@ if (isProduction && !authEnabledAtBoot) {
 if (isDesktop && !authEnabledAtBoot) {
   console.warn('WARNING: Identity Atlas is running in portable mode with authentication disabled. The API is accessible to any process on this machine. Enable authentication via Admin → Authentication if this machine is shared or connected to an untrusted network.');
 }
-// Auth is on, but with no AUTH_REQUIRED_ROLES backstop any signed-in tenant user
-// can still READ all data (roleless users are denied write/admin since C-01, but
-// read endpoints aren't permission-gated). Nudge operators to lock sign-in down.
-if (authEnabledAtBoot && !process.env.AUTH_REQUIRED_ROLES) {
-  console.warn('WARNING: AUTH_ENABLED is true but AUTH_REQUIRED_ROLES is not set. Any authenticated tenant user can read data (they cannot perform admin/write actions without a mapped role). Assign Entra app roles and/or set AUTH_REQUIRED_ROLES to restrict who can sign in.');
-}
+// No AUTH_REQUIRED_ROLES warning any more: a signed-in user whose roles map to
+// no permission is refused everything (F-01, middleware/auth.js), so leaving it
+// unset no longer opens the data to the whole tenant.
 
 // Load auth config from DB (with env var fallback). Best-effort — if the DB
 // isn't reachable yet at startup we'll fall back to env vars and the admin

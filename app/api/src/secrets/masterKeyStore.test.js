@@ -211,6 +211,16 @@ describe('ensureMasterKey — relocation to the web-only key dir', () => {
     ]);
   });
 
+  it('says nothing about a legacy file that is not there', async () => {
+    // The common case once relocation has finished. A missing legacy file is not
+    // a "different key" and must not produce a warning on every boot.
+    mkdirSync(keyDir, { recursive: true });
+    writeFileSync(primaryFile, newKey());
+    expect(await ensureMasterKey(deps())).toBe('file');
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.log.mock.calls).toEqual([[`Master key loaded from ${primaryFile}`]]);
+  });
+
   it('never removes a legacy file that holds a DIFFERENT key', async () => {
     const key = newKey();
     const other = newKey();

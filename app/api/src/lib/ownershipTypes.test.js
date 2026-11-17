@@ -5,14 +5,14 @@
 // clause cannot take.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import {
   OWNERSHIP_RESOURCE_TYPES, OWNERSHIP_RELATIONSHIP_TYPES,
   OWNERSHIP_TYPES_SQL, OWNERSHIP_RELATIONSHIP_TYPES_SQL, sqlInList,
 } from './ownershipTypes.js';
+import { repoRoot as findCheckoutRoot } from './repoRoot.js';
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const repoRoot = findCheckoutRoot();
 
 describe('ownership vocabulary', () => {
   it('names every ownership type a crawler emits', () => {

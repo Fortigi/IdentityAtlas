@@ -10,6 +10,7 @@ import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { toPhotoDataUri } from '../../auth/resolveMe.js';
 import { cleanRow, countHistory } from './shared.js';
+import { countOwnedResources } from '../../lib/ownedResources.js';
 
 // 1. Current attributes from Principals (+ parsed extendedAttributes). Returns
 //    null when the user doesn't exist (handler → 404).
@@ -179,4 +180,13 @@ export async function fetchPrincipalRelationships(pool, userId, res) {
   } catch (e) { if (!isMissingSchema(e)) throw e; /* Resources always exists, but be defensive */ }
 
   return { ...counts, linkedResource };
+}
+
+// Resources this principal owns (lib/ownedResources.js — the reverse of the
+// owner shown on a resource's own page). `attributes` is what
+// fetchUserAttributes returned: the id plus the two values a source may name an
+// owner by.
+export async function fetchOwnedResourceCount(attributes) {
+  try { return await countOwnedResources(attributes); }
+  catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* tables may not exist on older deployments */ }
 }

@@ -267,3 +267,43 @@ def test_update_merge_allows_an_explicit_increase():
     merged, _, _, held = ratchet.merge_baseline(
         _over(**{"a.js": [35], "new.js": [40]}), {"a.js": [30]}, allow_increase=True)
     assert merged == {"a.js": [35], "new.js": [40]} and held == []
+
+
+# ─── PowerShell ceilings come from .pscomplexity.json ────────────────────────
+# Test-PSComplexity reads that file when it writes the SARIF log; the ratchet must
+# hold PowerShell to the same line, or a unit could pass one and be flagged by the other.
+def test_ps_ceilings_read_both_keys(tmp_path):
+    cfg = tmp_path / ".pscomplexity.json"
+    cfg.write_text('{"schemaVersion": 1, "maxCyclomatic": 12, "maxCognitive": 9}', encoding="utf-8")
+    assert ratchet.ps_ceilings(str(cfg)) == (12, 9)
+
+
+def test_ps_ceilings_default_to_pscomplexitys_own_15(tmp_path):
+    cfg = tmp_path / ".pscomplexity.json"
+    cfg.write_text('{"schemaVersion": 1, "maxCognitive": 9}', encoding="utf-8")
+    assert ratchet.ps_ceilings(str(cfg)) == (15, 9)
+
+
+def test_the_ratchet_holds_powershell_to_the_committed_config():
+    cc, cog = ratchet.ps_ceilings()
+    assert ratchet.METRICS["cyclomatic"]["thresholds"]["ps"] == cc
+    assert ratchet.METRICS["cognitive"]["thresholds"]["ps"] == cog
+
+
+def test_ps_sarif_path_is_handed_to_the_measurer(monkeypatch):
+    seen = {}
+
+    class Done:
+        returncode, stdout, stderr = 0, "[]", ""
+
+    def fake_run(cmd, **_kw):
+        seen["cmd"] = cmd
+        return Done()
+
+    monkeypatch.setattr(ratchet.shutil, "which", lambda _name: "pwsh")
+    monkeypatch.setattr(ratchet.subprocess, "run", fake_run)
+    ratchet.measure_ps("reports/x.sarif")
+    assert seen["cmd"][-2] == "-SarifPath"
+    assert seen["cmd"][-1] == os.path.abspath("reports/x.sarif")
+    ratchet.measure_ps()
+    assert "-SarifPath" not in seen["cmd"]

@@ -15,7 +15,7 @@ rebuilt by `049_governed_intent_rows.sql`.
 | View | Kind | Output columns | Purpose |
 |------|------|----------------|---------|
 | `vw_ResourceMembersRecursive` | Standard view | `resourceId`, `principalId`, `principalType`, `membershipType`, `depth`, `path` | All memberships (direct + indirect via nested groups) using a recursive CTE. Cycle-safe, max 10 levels deep. `membershipType` is `Direct` at depth 1 and `Indirect` deeper; `path` is the resolved chain of ids. |
-| `vw_ResourceUserPermissionAssignments` | **Materialized view** | `resourceId`, `principalId`, `principalType`, `membershipType`, `managedByAccessPackage` | The matrix surface — one row per effective (subject, resource, `membershipType`) cell. `managedByAccessPackage` flags cells covered by a governance resource, for IST vs SOLL analysis. |
+| `vw_ResourceUserPermissionAssignments` | **Materialized view** | `resourceId`, `principalId`, `principalType`, `membershipType`, `managedByAccessPackage` | The matrix surface — one row per effective (subject, resource, `membershipType`) cell. `managedByAccessPackage` flags cells covered by a business role the account holds, for governed vs non-governed analysis. |
 | `vw_UserPermissionAssignments` | Standard view (compat alias) | `groupId`, `memberId`, `principalType`, `membershipType`, `managedByAccessPackage` | Backward-compatible alias over `vw_ResourceUserPermissionAssignments` with the older `groupId`/`memberId` column names. |
 
 !!! warning "`vw_ResourceUserPermissionAssignments` is materialized — refresh it"
@@ -26,9 +26,8 @@ rebuilt by `049_governed_intent_rows.sql`.
     it, so it follows the same refresh.
 
 `membershipType` is one of `Direct`, `Indirect`, `Eligible` — the three
-universal "how does the subject have this" values. (`Owner` was retired in
-`046_owner_as_resource.sql`: ownership is now a `Direct` assignment on a
-separate `GroupOwnership` resource.)
+universal "how does the subject have this" values. Ownership is a `Direct`
+assignment on a separate `GroupOwnership` resource, not a value of its own.
 
 ```sql
 -- Who has access to a specific resource, including indirect memberships?

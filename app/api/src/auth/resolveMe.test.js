@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // db.getPool().
 vi.mock('../db/connection.js');
 
-import { query } from '../db/connection.js';
+import { query, getPool } from '../db/connection.js';
 import {
   claimsFrom, findPrincipal, findIdentity, resolveMe,
   toPhotoDataUri, getPrincipalPhoto,
@@ -83,6 +83,11 @@ describe('claimsFrom', () => {
     expect(claims.upn).toBe('ada@example.com');
   });
 
+  it('trims the address it picks', () => {
+    // A padded claim would never equal Principals.email, even case-insensitively.
+    expect(claimsFrom({ preferred_username: '  ada@example.com ' }).upn).toBe('ada@example.com');
+  });
+
   it('returns a null upn when no claim looks like an address', () => {
     expect(claimsFrom({ preferred_username: 'ADA', upn: 'DOMAIN\\ada' }).upn).toBeNull();
   });
@@ -96,6 +101,7 @@ describe('findPrincipal', () => {
     const hit = await findPrincipal(pool, { oid: PRINCIPAL.id, upn: 'ada@example.com' });
 
     expect(hit).toEqual({ principal: PRINCIPAL, matchedOn: 'oid' });
+    expect(pool.query.mock.calls[0][1]).toEqual([PRINCIPAL.id]);
     // The count is the real assertion: an implementation that ran both
     // lookups and preferred one would still return the right principal here.
     expect(pool.query).toHaveBeenCalledTimes(1);
@@ -140,6 +146,7 @@ describe('findIdentity', () => {
     const identity = { id: 'id-1', displayName: 'Ada Lovelace', accountCount: 2 };
     const pool = poolReturning([identity]);
     expect(await findIdentity(pool, PRINCIPAL.id)).toEqual(identity);
+    expect(pool.query.mock.calls[0][1]).toEqual([PRINCIPAL.id]);
   });
 
   it('returns null when the account is not linked to an identity', async () => {
@@ -175,6 +182,7 @@ describe('getPrincipalPhoto', () => {
   it('reads the row and shapes it', async () => {
     const pool = poolReturning([{ photo: Buffer.from([255]), photoContentType: 'image/jpeg' }]);
     expect(await getPrincipalPhoto(pool, PRINCIPAL.id)).toBe('data:image/jpeg;base64,/w==');
+    expect(pool.query.mock.calls[0][1]).toEqual([PRINCIPAL.id]);
   });
 
   it('returns null when the principal has no row', async () => {
@@ -207,21 +215,34 @@ describe('resolveMe', () => {
 
   it('returns null without touching the database when the token has no usable claim', async () => {
     expect(await resolveMe({ sub: 'no-oid-no-upn' })).toBeNull();
+    // Not even a pool: findPrincipal would also return null without querying,
+    // so only this tells the early return apart from falling through.
+    expect(getPool).not.toHaveBeenCalled();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('returns null when nothing in the crawled data matches', async () => {
+  it('returns null when nothing in the crawled data matches, quietly', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     stageQuery([], []);
     expect(await resolveMe({ oid: 'unknown', upn: 'nobody@example.com' })).toBeNull();
+    // No match is ordinary, not an error. Without the `!hit` return the code
+    // would read a property of null, land in the catch and log a failure.
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('returns null when the Principals table does not exist yet', async () => {
     // A deployment whose migrations have not finished. /api/auth-me is a
     // bootstrap endpoint the UI needs for permission gating, so this must
     // degrade to "no mapping" rather than throw and break sign-in.
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     query.mockRejectedValueOnce(Object.assign(new Error('relation does not exist'), { code: '42P01' }));
 
     expect(await resolveMe({ oid: PRINCIPAL.id })).toBeNull();
+    // ...and silently: a missing schema is expected mid-migration, unlike the
+    // connection failure below, which must be logged.
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('returns null and logs when the lookup fails for any other reason', async () => {

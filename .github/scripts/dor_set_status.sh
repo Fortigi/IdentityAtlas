@@ -3,7 +3,7 @@
 # build-side phase token. Idempotent — adds the issue to the board if it isn't there yet.
 #
 #   Usage:  dor_set_status.sh <issue-number> <state-label>
-#   Env:    GH_TOKEN  — a token with Organization Projects: write (mint from the fortigi-ci-bot app).
+#   Env:    GH_TOKEN  — a token with Organization Projects: write (mint from the fortigi-dor-bot app).
 #           REQ_BY_ACTOR (optional) — a GitHub login; if it matches a "Requested by" option, set it.
 #           OWNER / REPO have working defaults.
 #           PROJECT_ID (optional) — pin ONE board regardless of the issue. Only a caller that sweeps

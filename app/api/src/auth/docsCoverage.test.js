@@ -4,12 +4,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { PERMISSIONS } from './permissions.js';
+import { repoRoot } from '../lib/repoRoot.js';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const DOC_PATH = join(here, '../../../../docs/reference/permissions.md');
+const DOC_PATH = join(repoRoot(), 'docs', 'reference', 'permissions.md');
 const doc = readFileSync(DOC_PATH, 'utf8');
 
 describe('permissions reference documentation coverage', () => {

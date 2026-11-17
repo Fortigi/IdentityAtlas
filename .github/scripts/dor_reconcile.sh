@@ -4,7 +4,7 @@
 # board) and FLAGS everything else (drift, un-routed, stale, backlog, closed-but-active) into a single
 # "DoR pipeline health" issue. Deterministic — no LLM. Idempotent. Exception-only (silent when healthy).
 #
-#   Env: GH_TOKEN — a token with org Projects: write + Issues: write (mint from fortigi-ci-bot).
+#   Env: GH_TOKEN — a token with org Projects: write + Issues: write (mint from fortigi-dor-bot).
 #        OWNER / REPO / PROJECT_ID and the day/hour thresholds have working defaults.
 #
 # NOTE: Status is the canonical phase (D3), so this sweep never overwrites a human's Status from a

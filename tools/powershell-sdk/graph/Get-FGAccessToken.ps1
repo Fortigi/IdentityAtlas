@@ -140,6 +140,7 @@ function Get-FGAccessToken {
         $global:ClientId = $ClientId
         $global:ClientSecret = $ClientSecret
         $global:TenantId = $TenantId
+        $global:ManagedIdentity = $false
     }
     else {
         throw "Error retrieving Graph Access Token. Please validate parameter input for -ClientID, -ClientSecret and -TenantId and check API permissions of the (App Registration) client in AzureAD"

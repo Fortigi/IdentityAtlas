@@ -113,7 +113,7 @@ describe('ContextOwnerAccessSection', () => {
     await waitFor(() => expect(screen.getByRole('checkbox', { name: LABEL })).toBeChecked());
     const section = screen.getByRole('region', { name: 'Relative permissions' });
     expect(within(section).getByRole('checkbox', { name: LABEL })).toBeInTheDocument();
-    expect(within(section).getByText(/Matrix-share recipients are the other kind/)).toBeInTheDocument();
+    expect(within(section).getByText(/Matrix-share recipients are not one of them/)).toBeInTheDocument();
     // Its own section, after the role table — not nested inside it.
     const table = await screen.findByRole('heading', { name: 'Roles & Permissions' });
     expect(section.contains(table)).toBe(false);

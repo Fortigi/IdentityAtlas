@@ -14,7 +14,7 @@ get it merged. It links to the detailed guides instead of repeating them.
   what helps us most.
 - **Fix something.** Open a pull request. For a small fix you do not need an issue first.
 - **Improve the documentation.** Every page on the
-  [documentation site](https://fortigi.github.io/IdentityAtlas) has an edit button that
+  [documentation site](https://docs.identityatlas.io) has an edit button that
   opens a pull request from your browser. See
   [Contribute a change](docs/contributing/contribute.md).
 - **Build a crawler** for a system we do not read yet. Start with
@@ -87,11 +87,13 @@ npm run test:coverage
 Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser
 Install-Module PSScriptAnalyzer -Scope CurrentUser
 Invoke-Pester -Path test/unit
-Invoke-ScriptAnalyzer -Path tools/crawlers -Recurse -Severity Warning, Error
+pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1
 ```
 
-CI analyses more folders and excludes a fixed list of rules; the `lint-ps` job in
-`pr.yml` has the exact call.
+That is the exact check the `lint-ps` job in `pr.yml` runs: the folders, the
+excluded rules and why, and a baseline of findings that predate the dead-code
+rules (`.ci/psscriptanalyzer-baseline.json`). A new finding fails. When you fix
+a baselined one, run it again with `-Update` to take it out of the baseline.
 
 **Ratchets and other gates** (from the repository root)
 
@@ -107,7 +109,8 @@ npx --yes jscpd@3 . --config .jscpd.json           # duplicated code
 ```
 
 The complexity ratchet also needs `npm ci` in `app/api` and `app/ui`, and the PowerShell
-module `PSComplexity` 0.5.1. The coverage ratchet reads the `lcov.info` that
+module `PSComplexity` at its pinned version
+(`pwsh tools/psmodules/Install-PinnedModule.ps1 PSComplexity`). The coverage ratchet reads the `lcov.info` that
 `npm run test:coverage` writes. A documentation change is checked with
 `pip install -r docs/requirements.txt` followed by `mkdocs build --strict`.
 

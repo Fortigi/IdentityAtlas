@@ -88,6 +88,20 @@ describe('buildHostPolicy / isHostAllowed', () => {
     expect(policy.hosts.has('')).toBe(false);
   });
 
+  it('holds exactly what was configured: loopback, normalised entries, nothing empty or invented', () => {
+    // isHostAllowed hides most of this (loopback and malformed values also pass or
+    // fail the "inherently safe" shape test), so assert the policy itself.
+    expect([...buildHostPolicy({}).hosts].sort()).toEqual(['127.0.0.1', '::1', 'localhost']);
+    expect([...buildHostPolicy({}).origins]).toEqual([]);
+
+    const policy = buildHostPolicy({
+      PUBLIC_BASE_URL: 'not a url',
+      ALLOWED_ORIGINS: 'https://Partner.Example.com/, ,',
+    });
+    expect([...policy.hosts].sort()).toEqual(['127.0.0.1', '::1', 'localhost', 'partner.example.com']);
+    expect([...policy.origins]).toEqual(['https://partner.example.com']);
+  });
+
   it('ignores an unparsable PUBLIC_BASE_URL instead of allowing everything', () => {
     const policy = buildHostPolicy({ PUBLIC_BASE_URL: 'not a url' });
     expect(isHostAllowed('not a url', policy)).toBe(false);

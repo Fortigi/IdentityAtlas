@@ -18,9 +18,10 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { listReports } from './registry.js';
+import { repoRoot } from '../lib/repoRoot.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const appRoot = join(__dirname, '..', '..', '..');           // app/
+const appRoot = join(repoRoot(), 'app');
 const TEMPLATES_DIR = join(__dirname, 'templates');
 
 // Every report name the engine must stay ignorant of: the registered templates

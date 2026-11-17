@@ -11,6 +11,7 @@ import { timedQuery } from '../../perf/sqlTimer.js';
 import { parseJsonbColumn } from '../../lib/jsonb.js';
 import { cleanRow, getPermissionTable } from '../details/shared.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
+import { fetchResourceOwners } from '../../lib/resourceOwners.js';
 
 // 1. Current attributes (+ parsed extendedAttributes). Returns null when the
 //    resource doesn't exist (handler → 404).
@@ -144,4 +145,17 @@ export async function fetchResourceContextCount(resourceId) {
     );
     return r?.cnt ?? 0;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* ContextMembers may not exist on older deployments */ }
+}
+
+// 7. Owners — who answers for this resource, one entry per person. The same
+//    resolution the context page and the Entitlement Pivot use
+//    (lib/resourceOwners.js): the ownership link, else the source's own owner
+//    reference. `attributes` is what fetchResourceAttributes returned.
+export async function fetchOwnersOf(attributes) {
+  try {
+    return await fetchResourceOwners({
+      id: attributes.id,
+      extendedAttributes: attributes.extendedAttributesParsed ?? attributes.extendedAttributes,
+    });
+  } catch (e) { if (!isMissingSchema(e)) throw e; return []; /* tables may not exist on older deployments */ }
 }

@@ -95,7 +95,7 @@ describe('MatrixFilterWizard — Save & share', () => {
     it('asks for a name when people are picked without one, sending nothing', async () => {
       const { user, onApply, authFetch } = await openSaveStep();
       // A matrix nobody has yet gets the one-line introduction to sharing.
-      expect(screen.getByText(/Send it to colleagues who have no Identity Atlas role/)).toBeInTheDocument();
+      expect(screen.getByText(/Send it to colleagues with an Identity Atlas role/)).toBeInTheDocument();
       await pickPerson(user, 'Ann Manager');
       expect(primary('Save & show')).toBeEnabled();
       await user.click(primary('Save & show'));
@@ -179,7 +179,7 @@ describe('MatrixFilterWizard — Save & share', () => {
       expect(await screen.findByRole('button', { name: 'Stop sharing' })).toBeInTheDocument();
       expect(screen.queryByText(/they will see this change/)).not.toBeInTheDocument();
       // The recipients editor already says who has it; no second introduction.
-      expect(screen.queryByText(/Send it to colleagues who have no Identity Atlas role/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Send it to colleagues with an Identity Atlas role/)).not.toBeInTheDocument();
 
       await user.click(primary('Show matrix'));
       expect(onApply.mock.calls[0][0].savedFilterId).toBe('sf-1');

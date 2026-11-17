@@ -1672,7 +1672,7 @@ function Initialize-EntraCrawlerRun {
     param(
         [Parameter(Mandatory)] [string]$ApiBaseUrl,
         [Parameter(Mandatory)] [string]$ApiKey,
-        [string]$TenantId, [string]$ClientId, [string]$ClientSecret,
+        [string]$TenantId, [string]$ClientId, [string]$ClientSecret, [string]$AuthMethod,
         # The crawler's own name (`_configName`), threaded in from the entry point.
         [string]$ConfigName
     )
@@ -1691,8 +1691,8 @@ function Initialize-EntraCrawlerRun {
     }
 
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Authenticating to Microsoft Graph..." -ForegroundColor Cyan
-    # In memory only — never via a credentials file (SEC-2026-09 L-07).
-    Get-FGAccessToken -TenantId $TenantId -ClientId $ClientId -ClientSecret $ClientSecret | Out-Null
+    # Client secret or managed identity — see EntraIDCrawler.Auth.ps1.
+    Connect-EntraCrawlerGraph -AuthMethod $AuthMethod -TenantId $TenantId -ClientId $ClientId -ClientSecret $ClientSecret
 
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Registering system..." -ForegroundColor Cyan
     $systemResult = Invoke-IngestAPI -Endpoint 'ingest/systems' -Body @{

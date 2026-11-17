@@ -6,7 +6,7 @@
 // or a missing field that defaults the wrong way.
 
 import { describe, it, expect } from 'vitest';
-import { degradedPermState, permStateFromAuthMe, isContextOwnerSession } from './authMeState';
+import { degradedPermState, permStateFromAuthMe, isContextOwnerSession, isNoRoleSession } from './authMeState';
 
 describe('degradedPermState', () => {
   it('fails closed — no permissions, no wildcard', () => {
@@ -126,5 +126,51 @@ describe('isContextOwnerSession', () => {
 
   it('treats a missing permission set as none', () => {
     expect(isContextOwnerSession({ ...base, permissions: null })).toBe(true);
+  });
+});
+
+describe('answered — did auth-me itself respond?', () => {
+  it('is true for any response, even an empty one', () => {
+    expect(permStateFromAuthMe({}).answered).toBe(true);
+    expect(permStateFromAuthMe(null).answered).toBe(true);
+  });
+
+  it('is false in the degraded state, so a failed call is never read as "no role"', () => {
+    expect(degradedPermState().answered).toBe(false);
+  });
+});
+
+describe('isNoRoleSession (security review Nov 2026, F-01)', () => {
+  const base = {
+    authEnabled: true, permissionsLoaded: true, authMeAnswered: true,
+    hasWildcard: false, permissions: new Set(), contextOwner: null,
+  };
+
+  it('is true for a signed-in user with no permission who owns no context', () => {
+    expect(isNoRoleSession(base)).toBe(true);
+    expect(isNoRoleSession({ ...base, contextOwner: { contexts: [] } })).toBe(true);
+    expect(isNoRoleSession({ ...base, permissions: undefined })).toBe(true);
+  });
+
+  it('is false with a single real permission', () => {
+    expect(isNoRoleSession({ ...base, permissions: new Set(['data.read']) })).toBe(false);
+  });
+
+  it('is false for a context owner — they get the owner page', () => {
+    expect(isNoRoleSession({ ...base, contextOwner: { contexts: [{ id: 'c1' }] } })).toBe(false);
+  });
+
+  it('is false with the wildcard, or with auth off (open mode)', () => {
+    expect(isNoRoleSession({ ...base, hasWildcard: true })).toBe(false);
+    expect(isNoRoleSession({ ...base, authEnabled: false })).toBe(false);
+  });
+
+  it('is false before auth-me answered, and when the call failed', () => {
+    expect(isNoRoleSession({ ...base, permissionsLoaded: false })).toBe(false);
+    expect(isNoRoleSession({ ...base, authMeAnswered: false })).toBe(false);
+  });
+
+  it('is false with no argument', () => {
+    expect(isNoRoleSession()).toBe(false);
   });
 });

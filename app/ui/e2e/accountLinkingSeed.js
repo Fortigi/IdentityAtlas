@@ -11,9 +11,24 @@
 // Not a `*.spec.js`, so Playwright's testMatch never collects it as a suite.
 
 import { expect } from '@playwright/test';
+import { randomUUID } from 'crypto';
 
 export const BASE = process.env.E2E_BASE_URL || 'http://localhost:3001';
 export const API = `${BASE}/api`;
+
+/**
+ * A per-run name token made of LETTERS only, which every spec that seeds surname
+ * stems needs.
+ *
+ * The token keeps one run's people out of the next one's assertions, and a hex
+ * one would be wrong here *silently*: half of them end in a digit, so a surname
+ * built on one turns every login spelled after it into a **numbered** login
+ * (#1468) — a different shape with different rules. The digit cases would then
+ * pass on a surname rather than on the number they are about, and the unnumbered
+ * ones would be reading a spelling nobody provisioned.
+ */
+export const letterToken = () =>
+  randomUUID().replace(/-/g, '').slice(0, 8).replace(/[0-9]/g, d => 'ghijklmnop'[Number(d)]);
 
 const jsonBody = (res) => res.json().catch(() => ({}));
 
@@ -198,6 +213,17 @@ export async function linkingRules() {
 }
 
 /**
+ * The active weight of one signal, 0 for a signal this dictionary has not got.
+ *
+ * Which is how a spec states what the deployment has to have switched on, and
+ * how it asserts a link's confidence against the tenant's own numbers rather
+ * than against the shipped ones — a retuned dictionary must not read as a
+ * regression.
+ */
+export const signalWeight = (rules, name) =>
+  (rules?.signals || []).find(s => s.name === name)?.weight ?? 0;
+
+/**
  * Save a dictionary as the deployment's active rules — the same PUT the Save
  * button makes, which is how a tenant's stored rules come to exist at all.
  *
@@ -260,6 +286,21 @@ export const linkedAccountNames = async (identityId) =>
 /** The principal ids under an identity's Linked Accounts. */
 export const linkedPrincipalIds = async (identityId) =>
   (await identityMembers(identityId)).map(m => m.principalId);
+
+/**
+ * One identity's member row for an account — the link itself, which is where its
+ * `linkSignals` and `linkConfidence` are read from.
+ */
+export const memberFor = async (identityId, principalId) =>
+  (await identityMembers(identityId)).find(m => m.principalId === principalId);
+
+/** The newest completed run's held-for-review record for an account, if any. */
+export const heldMatchFor = async (principalId) =>
+  ((await latestCompletedRun())?.nameOnlySuggestions ?? []).find(s => s.principalId === principalId);
+
+/** Everything the newest completed run held back, by account id. */
+export const heldPrincipalIds = async () =>
+  ((await latestCompletedRun())?.nameOnlySuggestions ?? []).map(s => s.principalId);
 
 /** The Orphaned Accounts report as the API serves it — every row, not just a page. */
 export async function orphanReport() {

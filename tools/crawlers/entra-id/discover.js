@@ -9,10 +9,15 @@
 //   getConfigSecret — app/api/src/secrets/crawlerSecrets.js vault reader
 //
 // Branches on req.body.type:
+//   'authMethods' — whether this deployment has a managed identity for crawlers,
+//                so the wizard only offers that sign-in method where it works.
 //   'validate' — acquire a token + check granted Graph app-role permissions.
 //                Always receives explicit { config: { tenantId, clientId, clientSecret } } —
 //                the wizard skips validation client-side in edit mode when no new
 //                secret was entered, so this branch never sees a bare configId.
+//                With { config: { authMethod: 'ManagedIdentity' } } the token comes
+//                from the deployment's crawler identity instead, and the response
+//                also carries the tenantId that identity lives in.
 //   'users' | 'groups' — sample a Graph object + discover its attributes.
 //                Accepts either { config: {...} } (fresh credentials) or
 //                { configId } (edit mode) — the configId path resolves
@@ -189,10 +194,104 @@ async function acquireGraphToken({ tenantId, clientId, clientSecret }) {
   return data.access_token;
 }
 
+// ─── Managed identity ─────────────────────────────────────────────────────────
+//
+// In the Azure deployment the web app and the worker carry a user-assigned
+// managed identity for crawlers. The platform hands a token for it only to code
+// inside the container (IDENTITY_ENDPOINT + IDENTITY_HEADER), so no secret
+// exists. Which identity that is comes from the deployment
+// (IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID), never from the request: the web
+// app also holds the identity that reads Key Vault, and a caller must not be
+// able to pick that one.
+
+export const MANAGED_IDENTITY = 'ManagedIdentity';
+
+export function managedIdentityStatus(env = process.env) {
+  const clientId = String(env.IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID || '').trim();
+  const available = Boolean(env.IDENTITY_ENDPOINT && env.IDENTITY_HEADER && clientId);
+  return { available, clientId: available ? clientId : null };
+}
+
+async function acquireManagedIdentityToken(env = process.env) {
+  const { available, clientId } = managedIdentityStatus(env);
+  if (!available) {
+    throw new Error('This deployment has no managed identity for crawlers. Sign in with an app registration instead.');
+  }
+  const url = new URL(env.IDENTITY_ENDPOINT);
+  url.searchParams.set('resource', 'https://graph.microsoft.com');
+  url.searchParams.set('api-version', '2019-08-01');
+  url.searchParams.set('client_id', clientId);
+  const res = await fetch(url.toString(), { headers: { 'X-IDENTITY-HEADER': env.IDENTITY_HEADER } });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error_description || err.error || 'Managed identity token acquisition failed');
+  }
+  const data = await res.json();
+  return data.access_token;
+}
+
+// The claims of an access token, unverified — the token comes straight from the
+// platform's identity endpoint and is only read for display (tenant, roles).
+export function decodeTokenClaims(token) {
+  try {
+    return JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8'));
+  } catch {
+    return {};
+  }
+}
+
+// Which required permissions the token's `roles` claim carries. Read from the
+// token rather than from the identity's role assignments on purpose: Azure
+// caches managed-identity tokens, so a permission granted a minute ago is in
+// the directory but not yet in the token the crawler will actually be sent.
+// The broader `.ReadWrite.` variant of a permission counts as granted.
+export function permissionsFromRoles(roles) {
+  const granted = new Set(Array.isArray(roles) ? roles : []);
+  const permissions = {};
+  for (const name of Object.values(GRAPH_PERMISSION_MAP)) {
+    permissions[name] = granted.has(name) || granted.has(name.replace('.Read.', '.ReadWrite.'));
+  }
+  return permissions;
+}
+
+async function readOrganizationName(accessToken) {
+  const orgRes = await fetch('https://graph.microsoft.com/v1.0/organization', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!orgRes.ok) return null;
+  const orgData = await orgRes.json();
+  return orgData.value?.[0]?.displayName || null;
+}
+
+// ─── 'authMethods' ────────────────────────────────────────────────────────────
+
+function handleAuthMethods(res) {
+  res.json({ managedIdentity: managedIdentityStatus() });
+}
+
 // ─── 'validate' ───────────────────────────────────────────────────────────────
 
+async function handleValidateManagedIdentity(res) {
+  try {
+    const accessToken = await acquireManagedIdentityToken();
+    const claims = decodeTokenClaims(accessToken);
+    res.json({
+      valid: true,
+      authMethod: MANAGED_IDENTITY,
+      tenantId: claims.tid || null,
+      organization: await readOrganizationName(accessToken),
+      permissions: permissionsFromRoles(claims.roles),
+      objectTypes: ENTRA_OBJECT_TYPES,
+      permissionObjectMap: PERMISSION_OBJECT_MAP,
+    });
+  } catch (err) {
+    res.json({ valid: false, error: err.message.split('\r\n')[0] });
+  }
+}
+
 async function handleValidate(req, res) {
-  const { tenantId, clientId, clientSecret } = req.body.config || {};
+  const { tenantId, clientId, clientSecret, authMethod } = req.body.config || {};
+  if (authMethod === MANAGED_IDENTITY) return handleValidateManagedIdentity(res);
   if (!tenantId || !clientId || !clientSecret) {
     return res.status(400).json({ error: 'tenantId, clientId, and clientSecret are required' });
   }
@@ -200,14 +299,7 @@ async function handleValidate(req, res) {
   try {
     const accessToken = await acquireGraphToken({ tenantId, clientId, clientSecret });
 
-    let organization = null;
-    const orgRes = await fetch('https://graph.microsoft.com/v1.0/organization', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (orgRes.ok) {
-      const orgData = await orgRes.json();
-      if (orgData.value?.[0]) organization = orgData.value[0].displayName;
-    }
+    const organization = await readOrganizationName(accessToken);
 
     // Get granted permissions via service principal's appRoleAssignments
     const permissions = {};
@@ -265,7 +357,7 @@ async function handleValidate(req, res) {
 async function handleDiscoverAttributes(req, res, { db, getConfigSecret }) {
   const { type, configId, config: inlineConfig } = req.body;
 
-  let tenantId, clientId, clientSecret;
+  let tenantId, clientId, clientSecret, useManagedIdentity;
   if (configId != null) {
     try {
       const id = parseInt(configId, 10);
@@ -273,15 +365,19 @@ async function handleDiscoverAttributes(req, res, { db, getConfigSecret }) {
       const row = await db.queryOne(`SELECT config FROM "CrawlerConfigs" WHERE id = $1`, [id]);
       if (!row) return res.status(404).json({ error: 'Config not found' });
       const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+      useManagedIdentity = cfg.authMethod === MANAGED_IDENTITY;
       tenantId = cfg.tenantId;
       clientId = cfg.clientId;
       // clientSecret lives in the vault, not in the stored JSON — fetch it.
-      clientSecret = cfg.clientSecret || await getConfigSecret(id);
+      // A managed-identity config has none, and must not pick up one left
+      // behind from before it was switched over.
+      clientSecret = useManagedIdentity ? null : (cfg.clientSecret || await getConfigSecret(id));
     } catch (err) {
       console.error('entra-id/discover config lookup error:', err.message);
       return res.status(500).json({ error: 'Failed to load config' });
     }
   } else if (inlineConfig && typeof inlineConfig === 'object') {
+    useManagedIdentity = inlineConfig.authMethod === MANAGED_IDENTITY;
     tenantId = inlineConfig.tenantId;
     clientId = inlineConfig.clientId;
     clientSecret = inlineConfig.clientSecret;
@@ -289,12 +385,14 @@ async function handleDiscoverAttributes(req, res, { db, getConfigSecret }) {
     return res.status(400).json({ error: 'configId or config required' });
   }
 
-  if (!tenantId || !clientId || !clientSecret) {
+  if (!useManagedIdentity && (!tenantId || !clientId || !clientSecret)) {
     return res.status(400).json({ error: 'Credentials required (or pass configId)' });
   }
 
   try {
-    const accessToken = await acquireGraphToken({ tenantId, clientId, clientSecret });
+    const accessToken = useManagedIdentity
+      ? await acquireManagedIdentityToken()
+      : await acquireGraphToken({ tenantId, clientId, clientSecret });
     const knownAttrs = type === 'users' ? KNOWN_USER_ATTRS : KNOWN_GROUP_ATTRS;
     const select = knownAttrs.join(',');
 
@@ -491,7 +589,8 @@ async function handleDiscoverAttributes(req, res, { db, getConfigSecret }) {
 
 export default async function handler(req, res, ctx) {
   const { type } = req.body || {};
+  if (type === 'authMethods') return handleAuthMethods(res);
   if (type === 'validate') return handleValidate(req, res);
   if (type === 'users' || type === 'groups') return handleDiscoverAttributes(req, res, ctx);
-  return res.status(400).json({ error: 'type must be "validate", "users", or "groups"' });
+  return res.status(400).json({ error: 'type must be "authMethods", "validate", "users", or "groups"' });
 }

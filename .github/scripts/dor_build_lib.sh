@@ -51,8 +51,8 @@ TERSE=$'\n\nWork directly and without narration: make the edits and run the comm
 # workflow runs at `action_required` — five manual approvals per build, and an Exceptions bail when
 # nobody noticed. Dependabot avoids this the same way (`49699333+dependabot[bot]@users.noreply…`).
 # The number is the bot's user id; the address only resolves with it.
-git -C "$WORK" config user.email "280718603+fortigi-ci-bot[bot]@users.noreply.github.com" >/dev/null 2>&1 || true
-git -C "$WORK" config user.name  "fortigi-ci-bot[bot]"                                    >/dev/null 2>&1 || true
+git -C "$WORK" config user.email "354609129+fortigi-dor-bot[bot]@users.noreply.github.com" >/dev/null 2>&1 || true
+git -C "$WORK" config user.name  "fortigi-dor-bot[bot]"                                    >/dev/null 2>&1 || true
 
 issue_mentions() {  # requestor (author) + commenters, deduped, bots excluded, @-prefixed
   gh issue view "$ISSUE" --repo "$REPO" --json author,comments \

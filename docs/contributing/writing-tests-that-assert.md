@@ -145,9 +145,23 @@ Config: `.ci/psmutant.config.json`. Every eligible crawler file must be in
 `test/unit/PSMutationScope.Tests.ps1`.
 
 ```bash
-Install-Module PSMutant -RequiredVersion 0.4.0
+pwsh tools/psmodules/Install-PinnedModule.ps1 PSMutant   # the version CI pins
 Invoke-PSMutation -ConfigFile .ci/psmutant.config.json -SourceRoot .
 ```
+
+**A test must pass under PSMutant, not only under plain Pester.** PSMutant runs
+the mapped tests as a baseline and mutates nothing unless that baseline is green.
+It calls Pester from inside its own module, which changes two things a test can
+depend on without noticing. Two tests did, and the weekly run failed on them for
+eight weeks while PR Checks stayed green:
+
+- Never write `Mock … -ModuleName $null`. Under PSMutant it puts the mock outside
+  the scope the dot-sourced functions live in, so the real command runs.
+  `test/unit/PSMutantCompat.Tests.ps1` fails on it.
+- In a `-ParameterFilter`, test whether a parameter was passed with
+  `$PesterBoundParameters.ContainsKey('Name')`, not `-not $Name`. An unbound
+  parameter is not a variable in the filter, so `$Name` resolves up the caller
+  chain, which under PSMutant includes `Invoke-PSMutation -ConfigFile`.
 
 **Map a file to the cheapest suite that exercises it.** The mapped tests run once
 per mutant — one mapping to a suite that starts a mock HTTP server took a

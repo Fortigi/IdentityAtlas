@@ -63,18 +63,14 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
 import {
-  BASE, runAccountLinkingFromAdmin, latestCompletedRun, linkedAccountNames, linkedPrincipalIds,
-  identityMembers, linkedAccountsPanel, orphanReport, withLinkingFixture,
+  BASE, letterToken, runAccountLinkingFromAdmin, latestCompletedRun, linkedAccountNames, linkedPrincipalIds,
+  linkedAccountsPanel, orphanReport, withLinkingFixture,
+  signalWeight, memberFor, heldMatchFor, heldPrincipalIds,
 } from './accountLinkingSeed';
 
 /** The issue this spec replays, which names the throwaway connector and system. */
 const ISSUE = '1455';
-
-/**
- * A per-run name token made of LETTERS only — a surname ending in a digit run
- * reads as a numbered login form (#1468), which is a different question.
- */
-const TOKEN = randomUUID().replace(/-/g, '').slice(0, 8).replace(/[0-9]/g, d => 'ghijklmnop'[Number(d)]);
+const TOKEN = letterToken();
 
 // One surname stem per case, unique to this run, so no case can be answered by
 // another's fixture and the tenant's own people stay out of these assertions.
@@ -220,9 +216,6 @@ const ACCOUNTS = [
 
 const FIXTURE = { issue: ISSUE, token: TOKEN, identities: IDENTITIES, accounts: ACCOUNTS };
 
-/** The active weight of one signal, 0 for a signal this dictionary has not got. */
-const weightOf = (rules, name) => (rules?.signals || []).find(s => s.name === name)?.weight ?? 0;
-
 /**
  * Why this deployment cannot be asked whether a "Surname, Initials" account is
  * placeable, or `''` when it can.
@@ -238,26 +231,14 @@ function initialsLinkingBlocker(rules) {
   if (!(rules?.onlyLinkTypes || []).includes('Secondary')) return 'this deployment does not link Secondary accounts';
   if (rules?.allowNameOnlyLinks === false) return 'this deployment never links on a name alone';
   for (const name of ['surnameInitial', 'surnameInitials', 'nameUnique', 'department', 'manager']) {
-    if (!weightOf(rules, name)) return `the active dictionary has ${name} switched off`;
+    if (!signalWeight(rules, name)) return `the active dictionary has ${name} switched off`;
   }
-  const unique = weightOf(rules, 'surnameInitial') + weightOf(rules, 'nameUnique');
+  const unique = signalWeight(rules, 'surnameInitial') + signalWeight(rules, 'nameUnique');
   if ((rules?.linkThreshold ?? 0) > unique) {
     return `the certainty slider (${rules.linkThreshold}) sits above a unique initials match (${unique})`;
   }
   return '';
 }
-
-/** One identity's member row for an account, as the identities API serves it. */
-const memberFor = async (identityId, principalId) =>
-  (await identityMembers(identityId)).find(m => m.principalId === principalId);
-
-/** The newest completed run's held-for-review record for an account, if any. */
-const heldFor = async (principalId) =>
-  ((await latestCompletedRun())?.nameOnlySuggestions ?? []).find(s => s.principalId === principalId);
-
-/** Everything the newest completed run held back, by account id. */
-const heldIds = async () =>
-  ((await latestCompletedRun())?.nameOnlySuggestions ?? []).map(s => s.principalId);
 
 const fx = withLinkingFixture(test, FIXTURE);
 let firstRun = null;
@@ -285,7 +266,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     const link = await memberFor(IDS.robin, IDS.erpRobin);
     expect(link.linkSignals.split(',')).toEqual(['surnameInitial', 'nameUnique']);
     expect(link.linkConfidence)
-      .toBe(weightOf(fx.rules, 'surnameInitial') + weightOf(fx.rules, 'nameUnique'));
+      .toBe(signalWeight(fx.rules, 'surnameInitial') + signalWeight(fx.rules, 'nameUnique'));
 
     // Through the identity page, which is where the reporter looked.
     await page.goto(`${BASE}/#identity:${IDS.robin}`);
@@ -301,7 +282,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     expect(await linkedAccountNames(IDS.jan)).toEqual([]);
     expect(await linkedAccountNames(IDS.johannes)).toEqual([]);
 
-    const held = await heldFor(IDS.erpJansen);
+    const held = await heldMatchFor(IDS.erpJansen);
     expect(held, `the run did not report the held match for ${SHOWN.erpJansen} `
       + `(stored list is capped at 500; this run held ${firstRun?.nameOnlyMatches})`).toBeTruthy();
     expect(held.reason).toBe('ambiguousName');
@@ -321,7 +302,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     const link = await memberFor(IDS.laura, IDS.erpLaura);
     expect(link.linkSignals.split(',')).toEqual(['surnameInitials', 'nameUnique']);
     expect(link.linkConfidence)
-      .toBe(weightOf(fx.rules, 'surnameInitials') + weightOf(fx.rules, 'nameUnique'));
+      .toBe(signalWeight(fx.rules, 'surnameInitials') + signalWeight(fx.rules, 'nameUnique'));
 
     await page.goto(`${BASE}/#identity:${IDS.laura}`);
     const panel = await linkedAccountsPanel(page);
@@ -335,7 +316,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     expect(await linkedAccountNames(IDS.lieke)).toEqual([]);
     expect(await linkedAccountNames(IDS.lotte)).toEqual([]);
 
-    const held = await heldFor(IDS.erpDekker);
+    const held = await heldMatchFor(IDS.erpDekker);
     expect(held, `the run did not report the held match for ${SHOWN.erpDekker}`).toBeTruthy();
     expect(held.reason).toBe('ambiguousName');
     // Not `surnameInitial`: the rivals share the whole sequence, which is a
@@ -349,7 +330,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     // disagree are a statement about who the account is NOT, so holding it would
     // send a reviewer after a match the evidence has already answered.
     expect(await linkedAccountNames(IDS.lucasWillem)).toEqual([]);
-    expect(await heldIds()).not.toContain(IDS.erpHofman);
+    expect(await heldPrincipalIds()).not.toContain(IDS.erpHofman);
   });
 
   test('a department settles two namesakes, and the link says it did', async () => {
@@ -362,7 +343,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
 
     const link = await memberFor(IDS.annaFinance, IDS.erpAnna);
     expect(link.linkSignals.split(',')).toEqual(['fullName', 'department']);
-    expect(link.linkConfidence).toBe(weightOf(fx.rules, 'fullName') + weightOf(fx.rules, 'department'));
+    expect(link.linkConfidence).toBe(signalWeight(fx.rules, 'fullName') + signalWeight(fx.rules, 'department'));
   });
 
   test('two namesakes in one department leave the account held', async () => {
@@ -372,7 +353,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     expect(await linkedAccountNames(IDS.maraA)).toEqual([]);
     expect(await linkedAccountNames(IDS.maraB)).toEqual([]);
 
-    const held = await heldFor(IDS.erpMara);
+    const held = await heldMatchFor(IDS.erpMara);
     expect(held, `the run did not report the held match for ${SHOWN.erpMara}`).toBeTruthy();
     expect(held.reason).toBe('ambiguousName');
     expect(held.matchLevel).toBe('full');
@@ -383,7 +364,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     // account can belong to, never make it belong to somebody at random. Nobody
     // in this tenant is a Q. Zandvliet, so no identity may hold this account and
     // no held match may claim it either.
-    expect(await heldIds()).not.toContain(IDS.erpNobody);
+    expect(await heldPrincipalIds()).not.toContain(IDS.erpNobody);
     for (const identity of IDENTITIES) {
       expect(await linkedPrincipalIds(identity.id), `${identity.displayName} inherited the account that names nobody`)
         .not.toContain(IDS.erpNobody);
@@ -460,7 +441,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     expect(await linkedAccountNames(IDS.noraHers)).toEqual([]);
     const link = await memberFor(IDS.noraHis, IDS.erpNora);
     expect(link.linkSignals.split(',')).toEqual(['fullName', 'manager']);
-    expect(link.linkConfidence).toBe(weightOf(fx.rules, 'fullName') + weightOf(fx.rules, 'manager'));
+    expect(link.linkConfidence).toBe(signalWeight(fx.rules, 'fullName') + signalWeight(fx.rules, 'manager'));
   });
 
   test('a third run detaches nothing, so none of these links churns', async ({ page }) => {
@@ -480,7 +461,7 @@ test.describe('Account linking — accounts that show only "Surname, Initials" (
     expect(await linkedPrincipalIds(IDS.annaFinance)).toContain(IDS.erpAnna);
     expect(await linkedPrincipalIds(IDS.noraHis)).toContain(IDS.erpNora);
     // ...and the holds have not quietly become links either.
-    const stillHeld = await heldIds();
+    const stillHeld = await heldPrincipalIds();
     for (const id of [IDS.erpJansen, IDS.erpDekker, IDS.erpMara]) {
       expect(stillHeld, `${id} stopped being held for review`).toContain(id);
     }

@@ -67,8 +67,8 @@ jobs:
         id: auth
         uses: ./.github/actions/dor-authorize
         with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           actor: ${{ github.actor }}
       # Which ISSUE is this about, and what is the feedback text? On the issue side both are the
       # event. On the PR side the event's "issue" IS the pull request, so the real issue number comes
@@ -144,8 +144,8 @@ jobs:
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           # write (was read): acceptance is what takes the PR out of draft — see below.
@@ -263,8 +263,8 @@ jobs:
         id: bot
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-pull-requests: write
@@ -332,8 +332,8 @@ jobs:
         id: bot2
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          client-id: ${{ secrets.DOR_BOT_APP_ID }}
+          private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
           owner: Fortigi
           permission-organization-projects: write
           permission-issues: read

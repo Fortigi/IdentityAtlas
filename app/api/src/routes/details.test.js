@@ -357,3 +357,62 @@ describe('GET /user/:id/activity', () => {
     expect(res.body).toEqual({ error: 'Failed to fetch user activity' });
   });
 });
+
+describe('user endpoints — resources the principal owns', () => {
+  const OWNED = `"extendedAttributes"->>'ownerId' = ANY($2::text[])`;
+  const PRINCIPAL = { id: VALID_ID, externalId: 'spt-1', employeeId: null };
+  // db.query serves, by statement: the principal lookup, the reference
+  // resolution (it names this principal) and the owned-resources read.
+  const stageOwned = (owned) => dbQuery.mockImplementation(async (sql) => {
+    if (sql.includes(OWNED)) return { rows: owned };
+    if (sql.includes('unnest($1::text[])')) return { rows: [{ ref: 'spt-1', id: VALID_ID }] };
+    if (sql.includes('FROM "Principals" WHERE id = $1')) return { rows: [PRINCIPAL] };
+    return { rows: [] };
+  });
+  const ownedParams = () => dbQuery.mock.calls.find(([sql]) => sql.includes(OWNED))[1];
+
+  it('GET /user/:id carries the exact count, asked for this principal and its own reference', async () => {
+    stageQuery.mockResolvedValue({ recordset: [{ ...PRINCIPAL, displayName: 'X', cnt: 0 }] });
+    stageOwned([{ cnt: 7 }]);
+    const res = await request(app).get(`/api/user/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ownedResourceCount).toBe(7);
+    expect(ownedParams()).toEqual([VALID_ID, ['spt-1']]);
+  });
+
+  it('GET /user/:id reports zero when the tables are missing', async () => {
+    stageQuery.mockResolvedValue({ recordset: [{ ...PRINCIPAL, displayName: 'X', cnt: 0 }] });
+    dbQuery.mockRejectedValue(SCHEMA_ERR);
+    const res = await request(app).get(`/api/user/${VALID_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ownedResourceCount).toBe(0);
+  });
+
+  it('GET /user/:id/owned-resources lists what the principal owns', async () => {
+    const owned = [{ resourceId: 'r1', displayName: 'ENT_A', resourceType: 'Entitlement', via: 'link' }];
+    stageOwned(owned);
+    const res = await request(app).get(`/api/user/${VALID_ID}/owned-resources`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(owned);
+    expect(ownedParams()).toEqual([VALID_ID, ['spt-1']]);
+  });
+
+  it('GET /user/:id/owned-resources is empty for an unknown principal, without asking what it owns', async () => {
+    dbQuery.mockResolvedValue({ rows: [] });
+    const res = await request(app).get(`/api/user/${VALID_ID}/owned-resources`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(dbQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it('GET /user/:id/owned-resources → 400 on a malformed id, [] on a missing table, 500 otherwise', async () => {
+    expect((await request(app).get('/api/user/not-a-uuid/owned-resources')).status).toBe(400);
+    expect(dbQuery).not.toHaveBeenCalled();
+    dbQuery.mockRejectedValueOnce(SCHEMA_ERR);
+    const missing = await request(app).get(`/api/user/${VALID_ID}/owned-resources`);
+    expect(missing.status).toBe(200);
+    expect(missing.body).toEqual([]);
+    dbQuery.mockRejectedValueOnce(new Error('boom'));
+    expect((await request(app).get(`/api/user/${VALID_ID}/owned-resources`)).status).toBe(500);
+  });
+});

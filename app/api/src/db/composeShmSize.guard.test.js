@@ -10,8 +10,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { repoRoot } from '../lib/repoRoot.js';
 
-const REPO = join(import.meta.dirname, '..', '..', '..', '..');
+const REPO = repoRoot();
 const COMPOSE_FILES = ['docker-compose.yml', 'docker-compose.prod.yml', 'docker-compose.ci.yml'];
 
 // The body of the top-level `postgres:` service: its indented lines up to the

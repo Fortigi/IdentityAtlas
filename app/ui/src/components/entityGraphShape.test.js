@@ -124,6 +124,23 @@ describe('getRootNodes', () => {
     expect(by.contexts.count).toBe(8);
   });
 
+  it('adds an Owners node to a resource only when it has owners', () => {
+    const keys = (core) => getRootNodes('resource', core).map((n) => n.key);
+    expect(keys({})).not.toContain('owners');
+    expect(keys({ owners: [] })).not.toContain('owners');
+    const nodes = getRootNodes('resource', { owners: [{ principalId: 'p1' }, { principalId: null }] });
+    expect(nodes.find((n) => n.key === 'owners')).toEqual({ key: 'owners', label: 'Owners', count: 2, kind: 'category' });
+  });
+
+  it('adds an Owned Resources node to a user only when they own something', () => {
+    const keys = (core) => getRootNodes('user', core).map((n) => n.key);
+    expect(keys({})).not.toContain('owned-resources');
+    expect(keys({ ownedResourceCount: 0 })).not.toContain('owned-resources');
+    const nodes = getRootNodes('user', { ownedResourceCount: 3 });
+    expect(nodes.find((n) => n.key === 'owned-resources'))
+      .toEqual({ key: 'owned-resources', label: 'Owned Resources', count: 3, kind: 'category' });
+  });
+
   it('builds access-package root nodes and coerces string counts', () => {
     const core = {
       assignmentCount: '12',
@@ -299,6 +316,20 @@ describe('fetchCategoryItems — user categories', () => {
     expect(await fetchCategoryItems('user', 'u1', 'identity', stub(), {})).toEqual([]);
   });
 
+  it('owned-resources map to resource items carrying their type; a business role opens its own page', async () => {
+    const af = stub({
+      '/api/user/u1/owned-resources': [
+        { resourceId: 'r1', displayName: 'ENT_A', resourceType: 'Entitlement', via: 'link' },
+        { resourceId: 'b1', displayName: 'Clerk', resourceType: 'BusinessRole', via: 'reference' },
+      ],
+    });
+    const out = await fetchCategoryItems('user', 'u1', 'owned-resources', af, {});
+    expect(out).toEqual([
+      { key: 'resource:r1', label: 'ENT_A', kind: 'item', entityKind: 'resource', entityId: 'r1', resourceType: 'Entitlement' },
+      { key: 'access-package:b1', label: 'Clerk', kind: 'item', entityKind: 'access-package', entityId: 'b1', resourceType: 'BusinessRole' },
+    ]);
+  });
+
   it('unknown user category returns []', async () => {
     expect(await fetchCategoryItems('user', 'u1', 'nope', stub(), {})).toEqual([]);
   });
@@ -345,6 +376,19 @@ describe('fetchCategoryItems — resource categories', () => {
     const af = stub({ '/contexts': [{ id: 'c1', displayName: 'Ctx' }] });
     const out = await fetchCategoryItems('resource', 'r1', 'contexts', af, {});
     expect(out[0].entityKind).toBe('context');
+  });
+
+  it('owners come from the core payload: an account opens, a source-only name is a leaf', async () => {
+    const owners = [
+      { principalId: 'p1', displayName: 'Ada', via: 'link' },
+      { principalId: null, displayName: 'Gone Person', via: 'source' },
+    ];
+    const out = await fetchCategoryItems('resource', 'r1', 'owners', stub(), { owners });
+    expect(out).toEqual([
+      { key: 'user:p1', label: 'Ada', kind: 'item', entityKind: 'user', entityId: 'p1' },
+      { key: 'leaf:source:Gone Person', label: 'Gone Person', kind: 'item', entityKind: 'leaf', entityId: 'source:Gone Person' },
+    ]);
+    expect(await fetchCategoryItems('resource', 'r1', 'owners', stub(), {})).toEqual([]);
   });
 
   it('unknown resource category returns []', async () => {
@@ -496,6 +540,11 @@ describe('isExpandableItem', () => {
 describe('extrasFromCore', () => {
   it('returns {} for null core', () => {
     expect(extrasFromCore('user', null)).toEqual({});
+  });
+
+  it('resource pulls the owners that came with the core payload', () => {
+    const owners = [{ principalId: 'p1', displayName: 'Ada' }];
+    expect(extrasFromCore('resource', { owners })).toEqual({ owners });
   });
 
   it('access-package pulls catalog id/name from attributes', () => {

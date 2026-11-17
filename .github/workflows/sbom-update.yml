@@ -21,7 +21,10 @@
 name: Update SBOM on dependency change
 
 on:
-  pull_request:
+  # pull_request_target, not pull_request: the run then carries main as its ref, which the
+  # release-automation environment requires. Safe here because the job checks out `main`
+  # explicitly and never runs anything from the PR head.
+  pull_request_target:
     types: [closed]
     branches: [main]
     paths:
@@ -47,6 +50,9 @@ permissions:
 jobs:
   sbom:
     runs-on: ubuntu-latest
+    # The release App key lives in this environment, which only admits runs on main or a
+    # release/* branch — a workflow file edited on a PR branch cannot read it.
+    environment: release-automation
     # Only act on actual merges; the paths filter above already scoped this to
     # PRs that changed dependency files.
     if: github.event.pull_request.merged == true
@@ -74,6 +80,10 @@ jobs:
         run: python3 tools/update-sbom-doc.py
 
       - name: Commit updated SBOM
+        env:
+          # Intermediate env var — the PR title is attacker-chosen text and must never be
+          # interpolated into the shell (same rule as the DoR workflows).
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -82,7 +92,7 @@ jobs:
             echo "SBOM unchanged — nothing to commit"
             exit 0
           fi
-          git commit -m "chore: update SBOM after ${{ github.event.pull_request.title }}"
+          git commit -m "chore: update SBOM after ${PR_TITLE}"
           # bump-version.yml pushes to main on the same merge — rebase & retry.
           for attempt in 1 2 3 4 5; do
             if git push; then

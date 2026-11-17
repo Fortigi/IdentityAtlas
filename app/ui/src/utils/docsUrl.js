@@ -11,7 +11,7 @@
 //   edge/dev build → Major.Minor.yyyyMMdd.HHmm  (3rd segment is an 8-digit date)
 //   anything else (release Major.Minor.Patch.0, or unknown) → stable (the
 //   site default — safer than sending users to edge when unsure)
-const DOCS_BASE = 'https://fortigi.github.io/IdentityAtlas';
+const DOCS_BASE = 'https://docs.identityatlas.io';
 
 export function docsVersionAlias(version) {
   const parts = (version || '').split('.');

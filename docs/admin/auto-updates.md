@@ -95,13 +95,17 @@ Point the Docker agent script at the local compose file from the OS scheduler
 
 - **PostgreSQL** is pinned to `postgres:16-alpine` and is never rolled by the
   agent — database major-version upgrades are a deliberate, manual operation.
-- **Schema migrations** run automatically when the new web container starts, and
-  are **fail-closed**: if a migration fails the container refuses to start, so a
-  half-migrated database can't serve traffic.
+- **Schema migrations** run automatically when the new web container starts.
+  Until they are done the API answers `503` and no crawler runs. If a migration
+  fails, the container stays up, logs the cause and retries; each migration is
+  one transaction, so a failed one leaves nothing half-applied. See
+  [If a migration fails](backup-restore-upgrade.md#if-a-migration-fails).
+- **Backups.** The agent does not make one before it updates. Schedule your own;
+  see [Back up, restore and upgrade](backup-restore-upgrade.md).
 
 ## Keeping components in step
 
 The agent updates **web and worker together** so they never drift apart, and the
-web container runs the schema migrations on boot (fail-closed). Detection of
+web container runs the schema migrations when it starts. Detection of
 web/worker/database version skew — a banner when a partial or interrupted update
 leaves components out of step — is surfaced on the Updates screen as well.

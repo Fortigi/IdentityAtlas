@@ -5,6 +5,9 @@
 //
 // No ingress (the worker exposes no HTTP). Talks outbound to the web
 // App Service's public URL.
+//
+// Carries the crawler identity, so an Entra ID crawler can sign in to
+// Microsoft Graph without a client secret.
 
 @description('Resource name prefix')
 @minLength(3)
@@ -29,6 +32,12 @@ param registryServer string = ''
 @description('Image-pull identity (resource ID) for a private Azure Container Registry. Empty = anonymous pull from a public registry.')
 param pullIdentityId string = ''
 
+@description('Crawler identity (resource ID): the managed identity crawlers sign in to Microsoft Graph with.')
+param crawlerIdentityId string
+
+@description('Client ID of the crawler identity.')
+param crawlerIdentityClientId string
+
 @description('Web app FQDN, used to compute WEB_API_URL')
 param webAppHostname string
 
@@ -39,12 +48,13 @@ param cpu string = '0.25'
 param memory string = '0.5Gi'
 
 var privateRegistry = !empty(pullIdentityId)
+// The crawler identity always; the image-pull identity only for a private registry.
+var workerIdentities = union({ '${crawlerIdentityId}': {} }, privateRegistry ? { '${pullIdentityId}': {} } : {})
 
 resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
   name: '${namePrefix}-worker'
   location: location
-  // No identity of its own; only the image-pull identity, and only for a private registry.
-  identity: privateRegistry ? { type: 'UserAssigned', userAssignedIdentities: { '${pullIdentityId}': {} } } : null
+  identity: { type: 'UserAssigned', userAssignedIdentities: workerIdentities }
   properties: {
     managedEnvironmentId: envId
     configuration: {
@@ -64,6 +74,9 @@ resource app 'Microsoft.App/containerApps@2024-10-02-preview' = {
           }
           env: [
             { name: 'WEB_API_URL', value: 'https://${webAppHostname}/api' }
+            // Which of the attached identities crawlers sign in with. Named
+            // explicitly so a crawler can never end up using the pull identity.
+            { name: 'IDENTITY_ATLAS_CRAWLER_IDENTITY_CLIENT_ID', value: crawlerIdentityClientId }
             // CRAWLER_API_KEY is NOT set — scheduler.ps1 falls back to
             // reading /data/uploads/.builtin-worker-key which the web
             // container's bootstrap.js writes on first boot. The shared

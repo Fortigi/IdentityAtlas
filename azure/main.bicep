@@ -10,7 +10,7 @@
 //   - Postgres Flexible Server (firewall limited to the web app's outbound IPs)
 //   - Key Vault (access policies; holds master key + DB password)
 //   - Storage Account + Azure Files share (for /data/uploads)
-//   - 2 user-assigned managed identities (web, deployment-script)
+//   - 3 user-assigned managed identities (web, deployment-script, crawler)
 //   - One-shot deployment script: generates master key + DB password into KV
 //   - Container Apps Environment (Consumption profile)
 //   - Container App: worker (always-on, no ingress)
@@ -316,6 +316,8 @@ module web 'modules/app-service.bicep' = {
     pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
     pullIdentityClientId: privateRegistry ? pullIdentity!.outputs.clientId : ''
     identityId: identities.outputs.webIdentityId
+    crawlerIdentityId: identities.outputs.crawlerIdentityId
+    crawlerIdentityClientId: identities.outputs.crawlerIdentityClientId
     keyVaultUri: kv.outputs.kvUri
     pgFqdn: postgres.outputs.pgFqdn
     pgUsername: postgres.outputs.adminUsername
@@ -389,6 +391,8 @@ module worker 'modules/aca-app-worker.bicep' = {
     image: workerImage
     registryServer: registryServer
     pullIdentityId: privateRegistry ? pullIdentity!.outputs.identityId : ''
+    crawlerIdentityId: identities.outputs.crawlerIdentityId
+    crawlerIdentityClientId: identities.outputs.crawlerIdentityClientId
     webAppHostname: web.outputs.appHostname
     cpu: profile.workerCpu
     memory: profile.workerMemory
@@ -465,6 +469,12 @@ output namePrefixUsed string = namePrefix
 
 @description('Key Vault URI.')
 output keyVaultUri string = kv.outputs.kvUri
+
+@description('Name of the managed identity crawlers can sign in to Microsoft Graph with. It has no permissions until you grant them: azure/Grant-CrawlerIdentityGraphPermissions.ps1.')
+output crawlerIdentityName string = identities.outputs.crawlerIdentityName
+
+@description('Object (principal) ID of the crawler identity — the value Grant-CrawlerIdentityGraphPermissions.ps1 takes.')
+output crawlerIdentityPrincipalId string = identities.outputs.crawlerIdentityPrincipalId
 
 @description('Postgres FQDN.')
 output postgresFqdn string = postgres.outputs.pgFqdn

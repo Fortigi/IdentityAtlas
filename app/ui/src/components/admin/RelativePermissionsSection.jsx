@@ -19,9 +19,9 @@ export default function RelativePermissionsSection() {
       </p>
       <ContextOwnerAccessSection />
       <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
-        Matrix-share recipients are the other kind: someone a matrix is shared with can open that shared
-        matrix without a role. That is decided per share, by whoever shares it (switched on under
-        Admin → Experimental → Matrix sharing), so it has no setting here.
+        Matrix-share recipients are not one of them: someone a matrix is shared with needs a role above,
+        such as Servicedesk, to open it. Signing in without a role opens nothing except a context
+        owner&apos;s own contexts.
       </p>
     </section>
   );

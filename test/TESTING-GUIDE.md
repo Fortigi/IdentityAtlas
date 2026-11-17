@@ -109,7 +109,8 @@ These checks run on every pull request and take under 5 minutes. They require no
 
 ```powershell
 Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-Invoke-ScriptAnalyzer -Path ./Functions -Recurse -Severity Warning,Error
+pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1           # what CI runs
+pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1 -Update   # after fixing a baselined finding
 ```
 
 ### ESLint — JavaScript Linting
@@ -549,7 +550,7 @@ app/
 | Pester unit tests | `Invoke-Pester -Path test/unit/IdentityAtlas.Tests.ps1` | No | ~15 s |
 | Vitest API tests | `cd app/api && npm test` | No | ~5 s |
 | ESLint | `cd app/ui && npm run lint` | No | ~5 s |
-| PSScriptAnalyzer | `Invoke-ScriptAnalyzer -Path ./tools -Recurse` | No | ~10 s |
+| PSScriptAnalyzer | `pwsh tools/psscriptanalyzer/Invoke-PSAnalyzerGate.ps1` | No | ~60 s |
 | Docker suite | `pwsh -File test/run-docker-tests.ps1` | Yes | ~30 s |
 | Playwright E2E | `cd app/ui && npm run test:e2e` | No | ~45 s |
 

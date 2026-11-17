@@ -70,7 +70,10 @@ function conditionalRequirements(schema, config) {
   for (const branch of Array.isArray(schema.allOf) ? schema.allOf : []) {
     const conditions = Object.entries(branch?.if?.properties || {});
     if (!conditions.length) continue;
-    const holds = conditions.every(([field, rule]) => (
+    // As in JSON Schema, a `properties` condition holds for a field the config
+    // does not have — which is how a schema makes one branch the default for an
+    // optional `authMethod`.
+    const holds = conditions.every(([field, rule]) => !(field in config) || (
       'const' in (rule || {}) ? config[field] === rule.const : (rule?.enum || []).includes(config[field])
     ));
     if (holds) required.push(...(branch?.then?.required || []));

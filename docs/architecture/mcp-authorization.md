@@ -185,10 +185,9 @@ failed 3.
 
 ## Remaining risks
 
-- **Roleless REST read (pre-existing).** A signed-in user with no permission who
-  answers for no context reads every REST read endpoint unless
-  `AUTH_REQUIRED_ROLES` is set. Unchanged here, and not reachable through MCP.
-  Worth its own issue: deny-by-default for roleless callers.
+- **Roleless REST read — closed (November 2026).** A signed-in user with no
+  permission who answers for no context is now refused on every REST endpoint
+  except `/api/auth-me`, as they always were on MCP.
 - **Role-based callers are unscoped by design.** Anyone whose role has `mcp.use`
   and `data.read` sees everything over MCP, as in the app. Their `scope` says
   `restricted: false`.

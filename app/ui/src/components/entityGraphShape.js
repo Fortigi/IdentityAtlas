@@ -104,6 +104,9 @@ function principalRelationshipNodes(core) {
     ...((core.sponsorCount || 0) > 0        ? [{ key: 'sponsors',          label: 'Sponsors',          count: core.sponsorCount,        kind: 'category' }] : []),
     ...((core.ownedAgentCount || 0) > 0     ? [{ key: 'owned-agents',      label: 'Owned Agents',      count: core.ownedAgentCount,     kind: 'category' }] : []),
     ...((core.sponsoredGuestCount || 0) > 0 ? [{ key: 'sponsored-guests',  label: 'Sponsored Guests',  count: core.sponsoredGuestCount, kind: 'category' }] : []),
+    // Resources this principal answers for as owner — the reverse of the
+    // "Owners" node on a resource. Shown only when there are any.
+    ...((core.ownedResourceCount || 0) > 0  ? [{ key: 'owned-resources',   label: 'Owned Resources',   count: core.ownedResourceCount,  kind: 'category' }] : []),
   ];
 }
 
@@ -161,6 +164,14 @@ async function fetchUserItems(userId, categoryKey, authFetch, extras = {}) {
   if (categoryKey === 'identity') {
     return identityInfo?.identity ? [toItem(identityInfo.identity, 'identity')] : [];
   }
+  if (categoryKey === 'owned-resources') {
+    const rows = await get(`/api/user/${encodeURIComponent(userId)}/owned-resources`);
+    return rows.map(r => toItem(
+      { id: r.resourceId, displayName: r.displayName },
+      r.resourceType === 'BusinessRole' ? 'access-package' : 'resource',
+      r.resourceType,
+    ));
+  }
   if (categoryKey === 'linked-resource') {
     return extras.linkedResource
       ? [toItem(extras.linkedResource, 'resource', extras.linkedResource.resourceType)]
@@ -199,10 +210,23 @@ function resourceRootNodes(core) {
     // v6: many-to-many context membership via ContextMembers, not a single
     // contextId column on Resources.
     { key: 'contexts',         label: 'Contexts',        count: core.contextCount || 0, kind: 'category' },
+    // Who answers for this resource. The people come with the core payload
+    // (`owners`), resolved by the API: the ownership link, else the owner the
+    // source itself names. Shown only when there is one, like the principal
+    // relationship nodes, so a resource without an owner keeps its graph.
+    ...((core.owners?.length || 0) > 0 ? [{ key: 'owners', label: 'Owners', count: core.owners.length, kind: 'category' }] : []),
   ];
 }
 
-async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = {}) {
+// An owner we hold an account for opens that account; one only the source names
+// (no account matched) is listed but leads nowhere.
+function ownerItem(owner) {
+  return owner.principalId
+    ? toItem({ id: owner.principalId, displayName: owner.displayName }, 'user')
+    : toItem({ id: `source:${owner.displayName}`, displayName: owner.displayName }, 'leaf');
+}
+
+async function fetchResourceItems(resourceId, categoryKey, authFetch, extras = {}) {
   const get = (p) => authFetch(p).then(r => r.ok ? r.json() : []);
 
   if (categoryKey?.startsWith('members-')) {
@@ -211,6 +235,9 @@ async function fetchResourceItems(resourceId, categoryKey, authFetch, _extras = 
     return all.filter(a => a.assignmentType === want).map(a => toItem({
       id: a.principalId, displayName: a.principalDisplayName, ...hist(a),
     }, 'user'));
+  }
+  if (categoryKey === 'owners') {
+    return (extras.owners || []).map(ownerItem);
   }
   if (categoryKey === 'business-roles') {
     const rows = await get(`/api/resources/${encodeURIComponent(resourceId)}/business-roles`);
@@ -490,6 +517,9 @@ export function extrasFromCore(entityKind, core) {
       // So the "Linked Resource" node resolves when you drill into a user node
       // from another entity's graph (not just on the user's own detail page).
       return { linkedResource: core.linkedResource };
+    case 'resource':
+      // The owners travel with the core payload; no endpoint to ask again.
+      return { owners: core.owners };
     case 'access-package':
       return { catalogId: core.attributes?.catalogId, catalogName: core.attributes?.catalogName };
     case 'identity':

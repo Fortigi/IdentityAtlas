@@ -126,7 +126,7 @@ The pipeline only accepts requests from **Fortigi org members**. That is a secur
 an administrative one: this is a **public** repo, so `issues` / `issue_comment` events run **with
 secrets** for anyone who can type in a text box, and org membership is the only real defense for
 the Claude subscription token (see the injection note in
-[`operationalization.md`](operationalization.md#security-note--the-dor-agents-injection-residual-phase-1)).
+[`operationalization.md`](operationalization.md#security-note-the-dor-agents-injection-residual-phase-1)).
 
 But customers and partners *do* file good requests. Rather than widening the gate, we **transfer
 the request**:
@@ -175,7 +175,7 @@ requestor*; needs real tenant/data → *Blocked (external)*; a fix with a genuin
 **Runtime** reproduction (running the fix against a live demo env until the red test goes green) is
 the deferred build-side step. Bugs live on their **own board** (Bug Pipeline, project #3) and are
 **org-members-only** — an external report is parked as `needs-vouch` and enters the same way a
-feature does, via [the vouch](#external-requests--the-vouch). The wiring — `bug` gate
+feature does, via [the vouch](#external-requests-the-vouch). The wiring — `bug` gate
 label, `dor-bug-agent`, the Bug Form, and the shared scripts — is in
 [`operationalization.md`](operationalization.md#bug-pipeline-spec-side-live).
 

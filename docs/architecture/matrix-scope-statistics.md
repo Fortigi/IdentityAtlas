@@ -18,7 +18,7 @@ The **Scope Statistics** panel sits above the matrix and summarises the selectio
 
 - **Principals / Identities** in scope
 - **Resources** in scope
-- **Assignments** in scope, split into **governed vs non-governed** — the share managed by a Business Role / Access Package (the matrix's "managed / SOLL" semantics).
+- **Assignments** in scope, split into **governed vs non-governed** — the share covered by a business role the account holds (the same rule the matrix's **Governed** view uses).
 
 Expand **Trends & breakdown** for:
 
@@ -37,16 +37,16 @@ A roll-up has no Sort step, so switch the panel on before rolling up; the flag t
 
 ## What counts as "governed"
 
-A `(principal, resource)` membership is **governed** when it is **covered by a business role the user holds** — i.e. it appears in [`vw_UserPermissionAssignmentViaBusinessRole`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql): there is a `BusinessRole` that **Contains** the group (`ResourceRelationships.relationshipType = 'Contains'`) **and** the user holds that role (a `Governed` assignment to it). This is exactly what the matrix paints as **SOLL**.
+A `(principal, resource)` membership is **governed** when it is **covered by a business role the user holds** — i.e. it appears in [`vw_UserPermissionAssignmentViaBusinessRole`](https://github.com/Fortigi/IdentityAtlas/blob/main/app/api/src/db/migrations/013_matrix_matviews_and_indexes.sql): there is a `BusinessRole` that **Contains** the group (`ResourceRelationships.relationshipType = 'Contains'`) **and** the user holds that role (a `Direct` assignment on the role, flagged `governed=true`). Holding the business role itself counts as governed too. This is exactly what the matrix colours as governed.
 
-This is deliberately *not* the same as `vw_ResourceUserPermissionAssignments.managedByAccessPackage`, which is only true for the rare assignment recorded directly as `Governed` on the group itself. In real data, users hold the **business role** while their group membership is recorded as `Direct`, so that flag reads as ~0% governed — which is why the whole feature (panel counts, the `Governed` / `Non-governed` toggle, and the trends) keys off business-role *coverage* instead, so every surface agrees.
+Governed is a property of *coverage*, not of the assignment row: users hold the **business role** while their group membership is recorded as a plain `Direct` assignment. The whole feature (panel counts, the **Governed** / **Non-governed** toggle, and the trends) keys off that business-role coverage, so every surface agrees.
 
-**Owner memberships** are always **non-governed**: access packages provision Direct / Eligible / Member roles, never ownership.
+**Ownership** is its own resource (for example `Owner @ Sales Team`), so the same rule applies to it: an ownership row is governed only when a held business role contains the ownership resource itself. A role that contains the group covers the group membership, not the ownership of that group.
 
 ## Matrix view behaviour
 
-- The view toggle reads **All / Governed / Non-governed / Gaps** (renamed from SOLL / IST). *Governed* shows memberships covered by a held business role; *Non-governed* shows the rest (the role-mining backlog); *Gaps* shows memberships a held business role *should* grant but the user lacks.
-- The **Non-governed** view hides the access-package (SOLL) columns — they only ever show governed memberships — and orders rows by member count (Direct desc → Eligible → Owner → total) rather than the AP staircase, since there are no AP columns to stair-step against.
+- The view toggle reads **All / Governed / Non-governed / Gaps**. *Governed* shows memberships covered by a held business role; *Non-governed* shows the rest (the role-mining backlog); *Gaps* shows memberships a held business role *should* grant but the user lacks.
+- The **Non-governed** view hides the business-role columns — they only ever show governed memberships — and orders rows by member count (Direct descending, then Eligible, then total) rather than the business-role staircase, since there are no business-role columns to stair-step against.
 
 ## Where the history comes from
 
@@ -63,7 +63,7 @@ The union of those two branches is the exact set of rows alive at D, with the at
  for each sample date D:
    alive(D) = { prevData of first change after D }  ∪  { current rows with no change after D }
    assignments(D)  = distinct (principal, resource) pairs in alive(D), within scope-at-D
-   coverage(D)     = (user, group) where the user held a business role (Governed
+   coverage(D)     = (user, group) where the user held a business role (governed
                      assignment) that 'Contains' the group at D   ← reconstructed from
                      ResourceAssignments + ResourceRelationships history
    governed(D)     = assignment pairs that are in coverage(D)

@@ -15,7 +15,7 @@ promise.
 
 That review has three answers, not one: approve, *"let me see it running myself"*, or *"the evidence
 isn't enough"* — and the last two are one command each, not manual work
-([§5](#5-the-review-loop--when-the-reviewer-is-not-satisfied)).
+([§5](#5-the-review-loop-when-the-reviewer-is-not-satisfied)).
 
 ---
 
@@ -36,7 +36,7 @@ to drop:
 |---|---|---|
 | **Value** | Is this worth building at all? | Answered by certification → **drop** |
 | **Spend** | What will this cost in runner time and model quota? | Real, but a *policy* question — bound it with concurrency + budget caps, not a per-issue click ([§8](#8-concurrency-budget-and-kill-switches)) |
-| **Blast radius** | Should the AI change *this part of the codebase* unsupervised? | Real, and the one worth keeping — but as an **automatic rule**, not a human judgement call ([§6](#6-stop-conditions--when-the-machine-must-escalate)) |
+| **Blast radius** | Should the AI change *this part of the codebase* unsupervised? | Real, and the one worth keeping — but as an **automatic rule**, not a human judgement call ([§6](#6-stop-conditions-when-the-machine-must-escalate)) |
 
 The trade this makes: **the gate moves from before the work to after it.** Before, a human guesses
 whether the work is worth doing. After, a human reads what was actually done, with proof. The second
@@ -154,7 +154,7 @@ flowchart TD
 
 Steps 6–11 are the Definition of Done. **All** must hold; any failure routes to Exceptions with the
 evidence of *why*, and never silently degrades to "probably fine". Steps 14–15 are the reviewer's
-two ways of saying "not yet" — see [§5](#5-the-review-loop--when-the-reviewer-is-not-satisfied).
+two ways of saying "not yet" — see [§5](#5-the-review-loop-when-the-reviewer-is-not-satisfied).
 
 ---
 
@@ -267,7 +267,7 @@ Unchanged in shape, three fixes the loss of the human gate makes load-bearing:
   still claims an `sk:*` sidekick with no open PR, and a closed issue that never released one.
   Without a human gate, a stranded runner silently shrinks the pool until it starves.
 - **A box can be claimed twice in a PR's life** — once by the build, later by a validation session
-  ([§5.1](#51-i-want-to-see-it-for-myself--a-validation-session)). The reservation file therefore
+  ([§5.1](#51-i-want-to-see-it-for-myself-a-validation-session)). The reservation file therefore
   records *why* it is held (`build` vs `validation`) and, for a session, its expiry. A human-held box
   must never be swept as a stuck build, and a session must be released on merge/close even if the
   human never says so.
@@ -285,7 +285,7 @@ The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 
 - **Concurrency cap** — at most *N* autonomous builds in flight (N ≤ pool size − 1, so a human can
   always grab a box). Excess queues; queue order by severity then age. Validation sessions count
-  against the pool but **jump the queue** — see [§5.1](#51-i-want-to-see-it-for-myself--a-validation-session).
+  against the pool but **jump the queue** — see [§5.1](#51-i-want-to-see-it-for-myself-a-validation-session).
 - **Budget guard** — a weekly quota ceiling; on breach the pipeline queues instead of building and
   says so on the issue. Bugs share the Max subscription with the spec side, which must never starve:
   triage and certification are cheap and always run.
@@ -300,7 +300,7 @@ The human gate was also, accidentally, the rate limiter. Replace it explicitly:
 - **Approves the merge.** The single gate. Already required by the ruleset (1 approval + CODEOWNERS
   + required checks), so this is not new machinery — it is the machinery we stop duplicating.
 - **Says "not yet" cheaply.** `/validate` to get the thing running under your own hands, or state the
-  gap and let the pipeline close it ([§5](#5-the-review-loop--when-the-reviewer-is-not-satisfied)).
+  gap and let the pipeline close it ([§5](#5-the-review-loop-when-the-reviewer-is-not-satisfied)).
   Neither costs you manual work, which is the point: an expensive "no" is not a real gate.
 - **Reads Exceptions.** The pipeline's job is to be honest about what it could not prove.
 - **Objects, if the reporter disagrees.** The reporter is notified when the PR opens, with the live

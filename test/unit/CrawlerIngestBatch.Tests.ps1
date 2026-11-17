@@ -15,7 +15,7 @@ Describe 'Invoke-CrawlerIngestBatch' {
         Mock Invoke-IngestAPI {
             $script:sent.Add($Body)
             return @{ inserted = $Body.records.Count; updated = 0; deleted = 0; syncId = 'sync-1' }
-        } -ModuleName $null
+        }
 
         # A DEFAULT Write-Host mock, declared before the filtered ones the progress
         # tests add. A mock that only has a -ParameterFilter has nothing to fall back
@@ -30,17 +30,25 @@ Describe 'Invoke-CrawlerIngestBatch' {
     Context 'single batch' {
         # The ingest can accept a batch it will not fully act on (synced contexts
         # that name no owning system are never reconciled); the job log must say so.
-        It 'prints each warning the ingest returns, and nothing extra when there are none' {
-            $script:lines = [System.Collections.Generic.List[string]]::new()
-            Mock Write-Host { $script:lines.Add([string]$Object) } -ModuleName $null
-            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0; warnings = @('first thing', 'second thing') } } -ModuleName $null
+        #
+        # No `-ModuleName $null` on any mock in this file. PSMutant runs Pester from
+        # inside its own module, so the functions dot-sourced above live in that
+        # module's scope; `-ModuleName $null` put the mocks outside it, where those
+        # functions never look. The calls went to the real commands, this test saw no
+        # warnings, and the weekly mutation baseline failed on it from 27 Sep onwards
+        # while the ordinary Pester run stayed green.
+        It 'prints each warning the ingest returns' {
+            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0; warnings = @('first thing', 'second thing') } }
             Invoke-CrawlerIngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -Records (New-Recs 1) | Out-Null
-            @($script:lines | Where-Object { $_ -like '*WARNING:*' }) | Should -Be @('  WARNING: first thing', '  WARNING: second thing')
+            Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -eq '  WARNING: first thing' }
+            Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -eq '  WARNING: second thing' }
+            Should -Invoke Write-Host -Exactly 2 -ParameterFilter { "$Object" -like '*WARNING:*' }
+        }
 
-            $script:lines.Clear()
-            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0 } } -ModuleName $null
+        It 'prints no warning line when the ingest returns none' {
+            Mock Invoke-IngestAPI { @{ inserted = 1; updated = 0; deleted = 0 } }
             Invoke-CrawlerIngestBatch -Endpoint 'ingest/contexts' -SystemId 7 -Records (New-Recs 1) | Out-Null
-            @($script:lines | Where-Object { $_ -like '*WARNING:*' }).Count | Should -Be 0
+            Should -Invoke Write-Host -Exactly 0 -ParameterFilter { "$Object" -like '*WARNING:*' }
         }
 
         It 'sends one full-sync batch with the records as a JSON array' {
@@ -174,7 +182,7 @@ Describe 'Invoke-CrawlerIngestBatch' {
     # is exactly the kind of number nobody re-checks.
     Context 'result accumulation' {
         It 'sums inserted and updated across every chunk' {
-            Mock Invoke-IngestAPI { return @{ inserted = 10; updated = 3; deleted = 0; syncId = 's' } } -ModuleName $null
+            Mock Invoke-IngestAPI { return @{ inserted = 10; updated = 3; deleted = 0; syncId = 's' } }
             $r = Invoke-CrawlerIngestBatch -Endpoint 'ingest/resources' -Records (New-Recs 5) -BatchSize 2
             $r.inserted | Should -Be 30   # 3 batches x 10
             $r.updated  | Should -Be 9    # 3 batches x 3
@@ -183,7 +191,7 @@ Describe 'Invoke-CrawlerIngestBatch' {
         It 'treats missing counters in the response as zero, not as one' {
             # DeletedIds included so the separate delete-batch counter is seeded
             # from a response with no `deleted` field too, not just the chunks.
-            Mock Invoke-IngestAPI { return @{ syncId = 's' } } -ModuleName $null
+            Mock Invoke-IngestAPI { return @{ syncId = 's' } }
             $r = Invoke-CrawlerIngestBatch -Endpoint 'ingest/resources' -Records (New-Recs 5) -DeletedIds @('x') -BatchSize 2
             $r.inserted | Should -Be 0
             $r.updated  | Should -Be 0
@@ -191,7 +199,7 @@ Describe 'Invoke-CrawlerIngestBatch' {
         }
 
         It 'adds the separate delete batch to the final deleted total' {
-            Mock Invoke-IngestAPI { return @{ inserted = 0; updated = 0; deleted = 2; syncId = 's' } } -ModuleName $null
+            Mock Invoke-IngestAPI { return @{ inserted = 0; updated = 0; deleted = 2; syncId = 's' } }
             $r = Invoke-CrawlerIngestBatch -Endpoint 'ingest/resources' -Records (New-Recs 3) -DeletedIds @('x', 'y') -BatchSize 2
             # 2 from the leading delete-only batch + 2 reported by the last chunk.
             $r.deleted | Should -Be 4
@@ -233,8 +241,8 @@ Describe 'Send-CrawlerIngestDeletedKeys' {
         Mock Invoke-IngestAPI {
             $script:sent.Add(@{ Endpoint = $Endpoint; Body = $Body })
             return @{ inserted = 0; updated = 0; deleted = $Body.deletedKeys.Count - 1 }
-        } -ModuleName $null
-        Mock Write-Host { } -ModuleName $null
+        }
+        Mock Write-Host { }
     }
 
     It 'sends nothing for no keys' {

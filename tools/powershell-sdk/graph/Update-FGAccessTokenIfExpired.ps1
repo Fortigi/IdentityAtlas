@@ -5,7 +5,8 @@ function Update-FGAccessTokenIfExpired {
 
     .DESCRIPTION
     Validates the current access token and, if expired, refreshes it using
-    either the client secret (service principal) or refresh token (interactive).
+    the managed identity, the client secret (service principal) or the refresh
+    token (interactive) — whichever the token was obtained with.
     This is a shared helper used by all Invoke-FG*Request functions to avoid
     duplicating token refresh logic.
 
@@ -31,7 +32,10 @@ function Update-FGAccessTokenIfExpired {
             }
         }
 
-        If ($global:ClientSecret) {
+        If ($global:ManagedIdentity) {
+            Get-FGAccessTokenManagedIdentity -ClientId $global:ManagedIdentityClientId
+        }
+        ElseIf ($global:ClientSecret) {
             Get-FGAccessToken -ClientID $Global:ClientID -TenantId $Global:TenantId -ClientSecret $global:ClientSecret
         }
         Elseif ($global:RefreshToken) {

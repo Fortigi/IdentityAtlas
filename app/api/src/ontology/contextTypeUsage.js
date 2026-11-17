@@ -10,10 +10,10 @@
 // they emit in their `contextTypes` field instead (contexts/plugins/types.js).
 
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { dirname, join, relative, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { join, relative } from 'path';
+import { repoRoot } from '../lib/repoRoot.js';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const ROOT = repoRoot();
 
 /** Source trees whose comparisons count, relative to the repository root. */
 export const SCANNED_DIRS = ['app/api/src', 'app/ui/src'];

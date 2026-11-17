@@ -35,7 +35,7 @@ If nothing matches, carry on and open a new one.
 A bug is something that behaves differently from what you'd expect — an error
 message, a button that does nothing, wrong numbers on a page.
 
-1. Open **[New issue → Bug report :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/issues/new?template=bug_report.md){ target=_blank rel=noopener }**.
+1. Open **[New issue → Bug report :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/issues/new?template=bug_report.yml){ target=_blank rel=noopener }**.
 2. The form already lists the details that help us the most. Fill in what you
    can — anything is better than nothing:
     - **What happened** and **what you expected** to happen instead.
@@ -55,7 +55,7 @@ message, a button that does nothing, wrong numbers on a page.
 A feature request is any idea for something new or improved — a new column, a
 different export format, a whole new data source.
 
-1. Open **[New issue → Feature request :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/issues/new?template=feature_request.md){ target=_blank rel=noopener }**.
+1. Open **[New issue → Feature request :material-open-in-new:](https://github.com/Fortigi/IdentityAtlas/issues/new?template=feature_request.yml){ target=_blank rel=noopener }**.
 2. Tell us:
     - **The problem** you're trying to solve ("I can't easily see who owns…").
     - **The solution** you'd like.

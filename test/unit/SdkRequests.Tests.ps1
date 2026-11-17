@@ -1238,3 +1238,192 @@ Describe 'Invoke-FGGetRequestBytes' {
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+# Get-FGAccessTokenManagedIdentity — Azure managed identity (no secret)
+# ---------------------------------------------------------------------------
+Describe 'Get-FGAccessTokenManagedIdentity' {
+    BeforeAll {
+        # An unsigned JWT carrying the given claims — Get-FGAccessTokenDetail only decodes.
+        function New-TestJwt {
+            param([hashtable]$Claims)
+            $encode = {
+                param($Object)
+                [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($Object | ConvertTo-Json -Compress))).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+            }
+            "$(& $encode @{ alg = 'none'; typ = 'JWT' }).$(& $encode $Claims).sig"
+        }
+
+        $script:savedEndpoint = $env:IDENTITY_ENDPOINT
+        $script:savedHeader = $env:IDENTITY_HEADER
+    }
+
+    BeforeEach {
+        $env:IDENTITY_ENDPOINT = 'http://localhost:42356/msi/token'
+        $env:IDENTITY_HEADER = 'header-value'
+        $script:jwt = New-TestJwt @{ tid = 'tenant-from-token'; appid = 'app-from-token' }
+    }
+
+    AfterEach {
+        $Global:AccessToken = $null
+        $Global:ClientId = $null
+        $Global:ClientSecret = $null
+        $Global:RefreshToken = $null
+        $Global:TenantId = $null
+        $Global:ManagedIdentity = $null
+        $Global:ManagedIdentityClientId = $null
+    }
+
+    AfterAll {
+        $env:IDENTITY_ENDPOINT = $script:savedEndpoint
+        $env:IDENTITY_HEADER = $script:savedHeader
+    }
+
+    It 'asks the identity endpoint for a Graph token for the named identity' {
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        Get-FGAccessTokenManagedIdentity -ClientId 'id 1'
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
+            $Method -eq 'Get' -and
+            $Uri -eq 'http://localhost:42356/msi/token?resource=https%3A%2F%2Fgraph.microsoft.com&api-version=2019-08-01&client_id=id%201' -and
+            $Headers['X-IDENTITY-HEADER'] -eq 'header-value' -and
+            $Headers.Count -eq 1
+        }
+    }
+
+    It 'takes the tenant and the client ID from the token, not from the caller' {
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        Get-FGAccessTokenManagedIdentity -ClientId 'asked-for'
+
+        $Global:AccessToken | Should -Be $script:jwt
+        $Global:TenantId | Should -Be 'tenant-from-token'
+        $Global:ClientId | Should -Be 'app-from-token'
+        $Global:ManagedIdentity | Should -BeTrue
+        $Global:ManagedIdentityClientId | Should -Be 'asked-for'
+    }
+
+    It 'falls back to the azp claim when the token has no appid (v2 token)' {
+        $v2 = New-TestJwt @{ tid = 't2'; azp = 'azp-client' }
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $v2 } }
+
+        Get-FGAccessTokenManagedIdentity
+
+        $Global:ClientId | Should -Be 'azp-client'
+    }
+
+    It 'drops a client secret and refresh token left over from an earlier sign-in' {
+        $Global:ClientSecret = 'old-secret'
+        $Global:RefreshToken = 'old-refresh'
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        Get-FGAccessTokenManagedIdentity -ClientId 'id1'
+
+        $Global:ClientSecret | Should -BeNullOrEmpty
+        $Global:RefreshToken | Should -BeNullOrEmpty
+    }
+
+    It 'sends no client_id for a system-assigned identity' {
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        Get-FGAccessTokenManagedIdentity
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
+            $Uri -eq 'http://localhost:42356/msi/token?resource=https%3A%2F%2Fgraph.microsoft.com&api-version=2019-08-01'
+        }
+    }
+
+    It 'appends to an endpoint that already has a query string' {
+        $env:IDENTITY_ENDPOINT = 'http://localhost:42356/msi/token?x=1'
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        Get-FGAccessTokenManagedIdentity
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
+            $Uri -eq 'http://localhost:42356/msi/token?x=1&resource=https%3A%2F%2Fgraph.microsoft.com&api-version=2019-08-01'
+        }
+    }
+
+    It 'requests the resource it is asked for' {
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        Get-FGAccessTokenManagedIdentity -Resource 'https://management.azure.com/'
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 1 -ParameterFilter {
+            $Uri -like '*?resource=https%3A%2F%2Fmanagement.azure.com&api-version=*'
+        }
+    }
+
+    It 'refuses, without calling anything, when <Missing> is not set' -ForEach @(
+        @{ Missing = 'IDENTITY_ENDPOINT' }
+        @{ Missing = 'IDENTITY_HEADER' }
+    ) {
+        Remove-Item "Env:$Missing"
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = $script:jwt } }
+
+        { Get-FGAccessTokenManagedIdentity -ClientId 'id1' } | Should -Throw '*No managed identity is available*'
+
+        Should -Invoke -ModuleName IdentityAtlas Invoke-RestMethod -Exactly 0
+        $Global:ManagedIdentity | Should -BeNullOrEmpty
+    }
+
+    It 'throws and leaves the session untouched when the endpoint returns no token' {
+        $Global:AccessToken = 'previous-token'
+        $Global:ClientSecret = 'previous-secret'
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ error = 'nope' } }
+
+        { Get-FGAccessTokenManagedIdentity -ClientId 'id1' } | Should -Throw '*Error retrieving a managed identity access token*'
+
+        $Global:AccessToken | Should -Be 'previous-token'
+        $Global:ClientSecret | Should -Be 'previous-secret'
+        $Global:ManagedIdentity | Should -BeNullOrEmpty
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Token renewal follows the way the token was obtained
+# ---------------------------------------------------------------------------
+Describe 'Token renewal with a managed identity' {
+    AfterEach {
+        $Global:AccessToken = $null
+        $Global:ClientId = $null
+        $Global:ClientSecret = $null
+        $Global:TenantId = $null
+        $Global:ManagedIdentity = $null
+        $Global:ManagedIdentityClientId = $null
+    }
+
+    It 'renews through the managed identity, for the same identity, even with a stale secret around' {
+        $Global:ManagedIdentity = $true
+        $Global:ManagedIdentityClientId = 'crawler-identity'
+        $Global:ClientSecret = 'stale-secret'
+        Mock -ModuleName IdentityAtlas Confirm-FGAccessTokenValidity { $false }
+        Mock -ModuleName IdentityAtlas Get-FGAccessTokenManagedIdentity { }
+        Mock -ModuleName IdentityAtlas Get-FGAccessToken { }
+
+        Update-FGAccessTokenIfExpired
+
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenManagedIdentity -Exactly 1 -ParameterFilter { $ClientId -eq 'crawler-identity' }
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessToken -Exactly 0
+    }
+
+    It 'does not touch the identity endpoint while the token is still valid' {
+        $Global:ManagedIdentity = $true
+        Mock -ModuleName IdentityAtlas Confirm-FGAccessTokenValidity { $true }
+        Mock -ModuleName IdentityAtlas Get-FGAccessTokenManagedIdentity { }
+
+        Update-FGAccessTokenIfExpired
+
+        Should -Invoke -ModuleName IdentityAtlas Get-FGAccessTokenManagedIdentity -Exactly 0
+    }
+
+    It 'a client-secret sign-in switches renewal back to the secret' {
+        $Global:ManagedIdentity = $true
+        Mock -ModuleName IdentityAtlas Invoke-RestMethod { [pscustomobject]@{ access_token = 'NEW-TOKEN' } }
+
+        Get-FGAccessToken -ClientId 'cid' -ClientSecret 'secret' -TenantId 'tid'
+
+        $Global:ManagedIdentity | Should -BeFalse
+    }
+}

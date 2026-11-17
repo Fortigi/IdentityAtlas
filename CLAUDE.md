@@ -30,7 +30,7 @@ The five principles above are framed identically ("MUST"), but they are **not** 
 | **Reuse before creating** | Reviewer judgement, backed by the `jscpd` duplication gate — `Lint: Code duplication (jscpd)` in `.github/workflows/pr.yml`, threshold in `.jscpd.json`. It catches copy-paste, not all missed-reuse. |
 | **Fix at the source, not the surface** | Reviewer only — no automated gate. Call out in the PR when you took a surface fix and why. |
 | **Architecture fit** | Reviewer/architect judgement per `docs/architecture/decision-principles.md` — no automated gate. The 🟢/🟡 confidence labels are the only signal of how settled an answer is. |
-| **Coverage never down** | Hard gate — two committed ratchets, both enforced by the `Unit Tests: Vitest (API)` / `Unit Tests: Vitest (UI)` PR Checks jobs (`npm run test:coverage`): the **aggregate** floor (Vitest thresholds in `app/api/vitest.config.js` + `app/ui/vite.config.js`) and a **per-file** floor (`tools/coverage/ratchet.py` + `.ci/coverage-baseline.json`, only ratchets up) so one file can't quietly shed coverage while another rises. A drop below either floor fails the PR. Changed-line coverage (80% of a PR's changed lines) is reported by the separate `Diff coverage` workflow, which is **advisory, not blocking** — it is not aggregated into `CI Passed` and no ruleset requires it, because pure-JSX page shells still produce expected reds ([#725](https://github.com/Fortigi/IdentityAtlas/issues/725)). Treat a red there as a question to answer, not a gate to pass. |
+| **Coverage never down** | Hard gate — two committed ratchets, both enforced by the `Unit Tests: Vitest (API)` / `Unit Tests: Vitest (UI)` PR Checks jobs (`npm run test:coverage`): the **aggregate** floor (Vitest thresholds in `app/api/vitest.config.js` + `app/ui/vite.config.js`) and a **per-file** floor (`tools/coverage/ratchet.py` + `.ci/coverage-baseline.json`, only ratchets up) so one file can't quietly shed coverage while another rises. A drop below either floor fails the PR. Changed-line coverage (80% of a PR's changed lines) is reported by the `Diff coverage (advisory)` job in PR Checks (it reuses the suites' lcov rather than re-running them), which is **advisory, not blocking** — it is not aggregated into `CI Passed` and no ruleset requires it, because pure-JSX page shells still produce expected reds ([#725](https://github.com/Fortigi/IdentityAtlas/issues/725)). Treat a red there as a question to answer, not a gate to pass. |
 | **Keep files small (>1000 must split)** | Hard gate — the file-length ratchet: `.github/workflows/filesize.yml` + `tools/filesize/ratchet.py` + `.ci/filesize-baseline.json`. Grandfathered files may only shrink; a new/crossing-the-ceiling oversized file fails. |
 
 **Related gate — per-function complexity ratchet:** `.github/workflows/complexity.yml` + `tools/complexity/ratchet.py`, with baselines in `.ci/complexity-baseline.json` (cyclomatic) and `.ci/cognitive-baseline.json` (cognitive). No unit may exceed its grandfathered baseline, and new/touched units must stay under the per-language threshold. Both baselines only ratchet down.
@@ -229,7 +229,7 @@ no longer used).
 | Secret | Purpose |
 |--------|---------|
 | `BOT_APP_ID` | Client ID of the GitHub App used to mint the installation token. |
-| `BOT_PRIVATE_KEY` | Private key (PEM) for that GitHub App. |
+| `BOT_PRIVATE_KEY` | Private key (PEM) for that GitHub App. An **environment** secret of `release-automation` (main and `release/*` only), never a repository secret: every job that reads it must declare `environment: release-automation` (`app/api/src/releaseKeyEnvironment.guard.test.js` enforces this). |
 
 ### Branch Protection
 
@@ -296,7 +296,7 @@ When a bottom PR merges, retarget the next one: `gh pr edit <number> --base main
 
 1. Open PR from `feature/<name>` or `bugfixes/<name>` into `main`
 2. Use the fragment content from `changes/<branch-name>.md` as the PR description
-3. Requires 1 approval — merge when CI passes
+3. Requires 1 approval — then add it to the **merge queue** (`gh pr merge --squash --auto`, or "Merge when ready"). The queue re-runs PR Checks against the current `main` before it lands, because a PR's own green run can be weeks old. Integration tests are not re-run in the queue. See `docs/architecture/ci-scope-testing.md` → "Merge queue"
 4. After merge: `bump-version.yml` increments Minor + timestamp; `docker-publish.yml` pushes `:edge`
 
 ### Cutting a Release

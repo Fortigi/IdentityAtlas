@@ -11,6 +11,10 @@
 //     for the same reason.
 //   - a share link ("#shared:<token>", #1166) renders the recipient's bare
 //     shared-matrix shell.
+//   - somebody signed in without a role who owns no context gets the "no role"
+//     page: the API refuses them everything (F-01), so the app would be a
+//     screen of errors. This wins over a share link too: a share link opens
+//     for a signed-in user only through the API.
 //
 // Both sit inside the AuthGate mounted in main.jsx, so a visitor on an
 // auth-enabled install is signed in through the ordinary MSAL flow before this
@@ -22,10 +26,11 @@ import App from './App';
 import { parseSharedRoute } from './App.helpers';
 import { useHashPage } from './hooks/useHashPage';
 import { useAuth } from './auth/AuthGate';
-import { isContextOwnerSession } from './auth/authMeState';
+import { isContextOwnerSession, isNoRoleSession } from './auth/authMeState';
 
 const SharedMatrixPage = lazy(() => import('./components/SharedMatrixPage'));
 const ContextOwnerPage = lazy(() => import('./components/ContextOwnerPage'));
+const NoRolePage = lazy(() => import('./components/NoRolePage'));
 
 function Waiting({ label }) {
   return (
@@ -45,6 +50,14 @@ export default function AppRoot() {
     return (
       <Suspense fallback={<Waiting label="Loading your contexts..." />}>
         <ContextOwnerPage />
+      </Suspense>
+    );
+  }
+
+  if (isNoRoleSession(auth)) {
+    return (
+      <Suspense fallback={<Waiting label="Signing in..." />}>
+        <NoRolePage />
       </Suspense>
     );
   }

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import ScheduleEditor from '@ui/components/ScheduleEditor';
 import WizardShell from '@ui/components/WizardShell';
+import SignInMethodFields from './SignInMethodFields.jsx';
+import {
+  CLIENT_SECRET, MANAGED_IDENTITY, credentialConfig, canSubmitCredentials, usesStoredCredentials, signInConfig,
+} from './signInMethod.js';
 
 // ─── Attribute Picker ───────────────────────────────────────────────────────
 function AttributePicker({ title, available, selected, onChange, coreAttrs = [] }) {
@@ -149,19 +153,15 @@ export const DEFAULT_SCHEDULES = [
 // object that never carried them), so it gets dedicated unit tests instead
 // of being only reachable through a full save round-trip.
 export function buildEntraConfigPayload({
+  authMethod = CLIENT_SECRET,
   crawlerName, organization, tenantId, clientId, clientSecret, selectedObjects,
   identityAttrs, customUserAttrs, customGroupAttrs, schedules,
   idFilterEnabled, idFilterAttr, idFilterCondition, idFilterValue,
   signInLogsDays, aiNamePatterns,
 }) {
   const displayName = crawlerName.trim() || `Entra ID — ${organization || 'Unnamed'}`;
-  const configPayload = {
-    tenantId: tenantId.trim(),
-    clientId: clientId.trim(),
-    selectedObjects,
-  };
-  // Empty secret in edit mode means "keep existing"
-  if (clientSecret.trim()) configPayload.clientSecret = clientSecret.trim();
+  // Sign-in fields first (see signInConfig), then what to sync.
+  const configPayload = { ...signInConfig({ authMethod, tenantId, clientId, clientSecret }), selectedObjects };
   if (identityAttrs.length) configPayload.identityAttributes = identityAttrs;
   if (customUserAttrs.length) configPayload.customUserAttributes = customUserAttrs;
   if (customGroupAttrs.length) configPayload.customGroupAttributes = customGroupAttrs;
@@ -243,6 +243,23 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const [tenantId, setTenantId] = useState(initialConfig?.tenantId || '');
   const [clientId, setClientId] = useState(initialConfig?.clientId || '');
   const [clientSecret, setClientSecret] = useState('');
+  const [authMethod, setAuthMethod] = useState(initialConfig?.authMethod || CLIENT_SECRET);
+  // Whether this deployment has a managed identity for crawlers — asked once, so
+  // the option is only offered where it can work.
+  const [managedIdentity, setManagedIdentity] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    authFetch('/api/admin/crawlers/entra-id/discover', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'authMethods' }),
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(result => { if (!cancelled && result?.managedIdentity) setManagedIdentity(result.managedIdentity); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const isManagedIdentity = authMethod === MANAGED_IDENTITY;
+  const credentials = { authMethod, tenantId, clientId, clientSecret };
+  const storedCredentials = usesStoredCredentials({ authMethod, isEdit, clientSecret });
   const [validation, setValidation] = useState(initialConfig?.validation || null);
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState(null);
@@ -321,13 +338,12 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
 
   // Step 1: Validate
   const handleValidate = async () => {
-    if (!tenantId.trim() || !clientId.trim()) return;
-    if (!isEdit && !clientSecret.trim()) return;
+    if (!canSubmitCredentials({ ...credentials, crawlerName, isEdit })) return;
     setValidating(true);
     setValidationError(null);
     try {
       // In edit mode without a new secret, skip validation entirely
-      if (isEdit && !clientSecret.trim()) {
+      if (storedCredentials) {
         setValidation(initialConfig?.validation || { organization: 'edit mode', permissions: {}, objectTypes: [] });
         nextStep();
         return;
@@ -337,7 +353,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'validate',
-          config: { tenantId: tenantId.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim() },
+          config: credentialConfig(credentials),
         }),
       });
       const result = await r.json().catch(() => ({}));
@@ -347,6 +363,8 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       }
       if (result.valid) {
         setValidation(result);
+        // A managed identity reads the tenant it lives in — the server tells us which.
+        if (result.tenantId) setTenantId(result.tenantId);
         // Pre-check object selections based on permissions
         if (!initialConfig?.selectedObjects) {
           const initial = {};
@@ -370,13 +388,14 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   };
 
   // Discover attributes when entering steps 3 or 4
+  const discoverBody = (type) => (storedCredentials
+    ? { type, configId: initialConfig?.id }
+    : { type, config: credentialConfig(credentials) });
   const ensureUserAttrs = async () => {
     if (userAttrCatalog || discovering) return;
     setDiscovering(true);
     try {
-      const body = isEdit && !clientSecret.trim()
-        ? { type: 'users', configId: initialConfig?.id }
-        : { type: 'users', config: { tenantId: tenantId.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim() } };
+      const body = discoverBody('users');
       const r = await authFetch('/api/admin/crawlers/entra-id/discover', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -405,9 +424,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     if (groupAttrCatalog || discovering) return;
     setDiscovering(true);
     try {
-      const body = isEdit && !clientSecret.trim()
-        ? { type: 'groups', configId: initialConfig?.id }
-        : { type: 'groups', config: { tenantId: tenantId.trim(), clientId: clientId.trim(), clientSecret: clientSecret.trim() } };
+      const body = discoverBody('groups');
       const r = await authFetch('/api/admin/crawlers/entra-id/discover', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -450,7 +467,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     setError(null);
     try {
       const { displayName, configPayload } = buildEntraConfigPayload({
-        crawlerName, organization: validation?.organization, tenantId, clientId, clientSecret,
+        authMethod, crawlerName, organization: validation?.organization, tenantId, clientId, clientSecret,
         selectedObjects, identityAttrs, customUserAttrs, customGroupAttrs, schedules,
         idFilterEnabled, idFilterAttr, idFilterCondition, idFilterValue,
         signInLogsDays, aiNamePatterns,
@@ -511,7 +528,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
       {step === 1 && (
         <div>
           <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">
-            Enter a name for this crawler and your App Registration credentials. We'll validate them and check which permissions are granted.
+            Enter a name for this crawler and how it signs in to Microsoft Graph. We'll validate the sign-in and check which permissions are granted.
           </p>
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1 dark:text-gray-200">Crawler Name *</label>
@@ -519,6 +536,8 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
               placeholder="e.g., Entra ID — Production"
               className="w-full max-w-md p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
           </div>
+          <SignInMethodFields authMethod={authMethod} onChange={setAuthMethod} managedIdentity={managedIdentity} />
+          {!isManagedIdentity && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Tenant ID *</label>
@@ -541,14 +560,15 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
                 className="w-full p-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
             </div>
           </div>
+          )}
           {validationError && (
             <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300">{validationError}</div>
           )}
           <div className="flex justify-end">
             <button onClick={handleValidate}
-              disabled={validating || !tenantId.trim() || !clientId.trim() || (!isEdit && !clientSecret.trim()) || !crawlerName.trim()}
+              disabled={validating || !canSubmitCredentials({ ...credentials, crawlerName, isEdit })}
               className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
-              {validating ? 'Validating...' : (isEdit && !clientSecret.trim() ? 'Next' : 'Validate & Next')}
+              {validating ? 'Validating...' : (storedCredentials ? 'Next' : 'Validate & Next')}
             </button>
           </div>
         </div>

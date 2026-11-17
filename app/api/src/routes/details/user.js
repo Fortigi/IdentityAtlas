@@ -13,8 +13,10 @@ import {
   fetchUserAttributes, mergeUserRiskScore, fetchUserTags, fetchMembershipBreakdown,
   fetchUserAccessPackageCount, fetchUserHistoryCount, fetchOauth2GrantCount,
   fetchDirectReportCount, fetchUserContextCount, fetchPrincipalRelationships,
+  fetchOwnedResourceCount,
 } from './userDetail.js';
 import { fetchPrincipalActivity } from './userActivity.js';
+import { fetchOwnedResources } from '../../lib/ownedResources.js';
 
 const router = Router();
 
@@ -45,6 +47,7 @@ router.get('/user/:id', async (req, res) => {
     const directReportCount = await fetchDirectReportCount(pool, res, userId);
     const contextCount = await fetchUserContextCount(pool, res, userId);
     const principalRel = await fetchPrincipalRelationships(pool, userId, res);
+    const ownedResourceCount = await fetchOwnedResourceCount(attributes);
 
     res.json({
       attributes,
@@ -58,6 +61,7 @@ router.get('/user/:id', async (req, res) => {
       directReportCount,
       contextCount,
       ...principalRel,
+      ownedResourceCount,
       lastActivity: null,
     });
   } catch (err) {
@@ -144,6 +148,25 @@ router.get('/user/:id/contexts', async (req, res) => {
   } catch (err) {
     console.error('Error fetching user contexts:', err.message);
     res.status(500).json({ error: 'Failed to fetch user contexts' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────
+// GET /api/user/:id/owned-resources — Lazy-loaded: what this principal owns
+// The reverse of the owner on a resource's page; see lib/ownedResources.js.
+// At most OWNED_LIST_LIMIT rows, by name — the count on GET /user/:id is exact.
+// ────────────────────────────────────────────────────────────────
+router.get('/user/:id/owned-resources', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
+  if (!useSql) return res.json([]);
+  try {
+    const { rows } = await db.query(
+      `SELECT id, "externalId", "employeeId" FROM "Principals" WHERE id = $1`, [req.params.id]);
+    res.json(rows.length ? await fetchOwnedResources(rows[0]) : []);
+  } catch (err) {
+    if (isMissingSchema(err)) return res.json([]);
+    console.error('Error fetching owned resources:', err.message);
+    res.status(500).json({ error: 'Failed to fetch owned resources' });
   }
 });
 

@@ -39,10 +39,43 @@ function getResourceAttributeEntries(data) {
 }
 
 function getResourceRootExtras(data) {
-  return { contextId: data.attributes?.contextId, recent: null };
+  return { contextId: data.attributes?.contextId, recent: null, owners: data.owners };
 }
 
-function ResourceHeader({ data }) {
+// How we know who the owner is, said on hover. The API resolves it
+// (lib/resourceOwners.js): the ownership link, else the owner the source names.
+const OWNER_HINTS = {
+  link: 'Owner in the source system',
+  reference: 'Named as owner by the source system, matched to this account',
+  source: 'Named as owner by the source system; no account we hold matches',
+};
+
+// The owner(s) of the resource, in the header: an account we hold opens its
+// page, a name only the source knows is shown as text.
+function ResourceOwners({ owners, onOpenDetail }) {
+  if (!owners?.length) return null;
+  return (
+    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+      <span className="font-medium text-gray-700 dark:text-gray-300">{owners.length > 1 ? 'Owners' : 'Owner'}:</span>{' '}
+      {owners.map((owner, i) => (
+        <span key={owner.principalId || `source:${owner.displayName}`}>
+          {i > 0 && ', '}
+          {owner.principalId ? (
+            <button type="button" title={OWNER_HINTS[owner.via]}
+              onClick={() => onOpenDetail?.('user', owner.principalId, owner.displayName)}
+              className="text-blue-600 dark:text-blue-400 hover:underline">
+              {owner.displayName || owner.principalId}
+            </button>
+          ) : (
+            <span title={OWNER_HINTS.source}>{owner.displayName}</span>
+          )}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function ResourceHeader({ data, onOpenDetail }) {
   const isDark = useIsDark();
   const { attributes, tags } = data;
   const resourceType = attributes.resourceType || attributes.groupTypeCalculated || '';
@@ -67,6 +100,7 @@ function ResourceHeader({ data }) {
       {attributes.description && (
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
       )}
+      <ResourceOwners owners={data.owners} onOpenDetail={onOpenDetail} />
       {tags?.length > 0 && (
         <div className="flex gap-1.5 mt-2">
           {tags.map(t => (
@@ -105,7 +139,7 @@ export default function ResourceDetailPage({ resourceId, cachedData, onCacheData
       graphCenterLabel="Resource"
       getTabs={getTabs}
       getAttributeEntries={getResourceAttributeEntries}
-      renderHeader={(data) => <ResourceHeader data={data} />}
+      renderHeader={(data) => <ResourceHeader data={data} onOpenDetail={onOpenDetail} />}
       renderRisk={(data) => (
         <RiskScoreSection attributes={data.attributes} entityType="group" entityId={resourceId} authFetch={authFetch} />
       )}

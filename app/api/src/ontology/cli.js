@@ -12,8 +12,8 @@
 // (contract-tests/coreOntology.contract.test.js), which have PostgreSQL.
 
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import { dirname, join, relative, resolve } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { join, relative } from 'path';
+import { pathToFileURL } from 'url';
 import { buildModel, parseOntology } from './model.js';
 import { checkIntegrity } from './checks/integrity.js';
 import { checkImplementation } from './checks/implementation.js';
@@ -24,8 +24,9 @@ import { renderReference } from './referenceDoc.js';
 import { checkExample, exampleDiagram, readInstances } from './example.js';
 import { TYPE_DIAGRAMS } from './typeDiagrams.js';
 import { loadRegistry } from './registry.js';
+import { repoRoot } from '../lib/repoRoot.js';
 
-export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+export const REPO_ROOT = repoRoot();
 export const PATHS = {
   ontology: 'ontology/core.ttl',
   config: 'ontology/validation.json',

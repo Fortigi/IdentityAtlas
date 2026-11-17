@@ -219,7 +219,7 @@ describe('ExperimentalFeaturesSection', () => {
     // An edge build (8-digit date segment) must link to /edge/, not /stable/.
     expect(link).toHaveAttribute(
       'href',
-      'https://fortigi.github.io/IdentityAtlas/edge/reference/experimental-features/'
+      'https://docs.identityatlas.io/edge/reference/experimental-features/'
     );
   });
 });
