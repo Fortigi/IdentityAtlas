@@ -142,11 +142,15 @@ test.describe('Crawler force-full-next-run', () => {
       // And what the operator actually reads: the Mode badge in Recent Jobs.
       // The row is located by the very list the page fetched, so a job queued
       // by another crawler in between cannot shift the assertion onto it.
+      // Reloaded, not navigated to: the page is already on #crawlers, and a
+      // goto to the URL it is already showing is a same-document fragment
+      // navigation — nothing remounts, so the jobs list is never re-fetched
+      // and there is no response to wait for.
       const listResponse = page.waitForResponse(
         r => r.url().includes('/api/admin/crawler-jobs?') && r.ok(),
         { timeout: 30000 }
       );
-      await page.goto(`${BASE}/#crawlers`);
+      await page.reload();
       const listed = await (await listResponse).json();
       const rowIndex = listed.findIndex(j => j.id === job.id);
       expect(rowIndex, 'the scheduled job has to be in the Recent Jobs list the page fetched').toBeGreaterThanOrEqual(0);
