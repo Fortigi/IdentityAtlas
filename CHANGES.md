@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- The Azure template now sets up Key Vault with Azure role-based access control (RBAC) instead of vault access policies, which Microsoft is retiring. An existing deployment is switched over in place on its next redeploy; the stored secrets are kept.
+- The identity that runs the Azure deployment now needs the right to create role assignments on the resource group (Owner, User Access Administrator or Role Based Access Control Administrator); Contributor alone is no longer enough.
+- Fixed: the Azure deployment could replace the application's master key with a new one when it briefly could not read Key Vault, which would make every stored crawler and LLM secret unreadable. It now waits for access and stops with a clear error instead.
+- The worker's Container Apps environment now sends its logs through Azure Monitor diagnostic settings instead of the older direct Log Analytics connection, which Microsoft is retiring. Worker logs land in the `ContainerAppConsoleLogs` and `ContainerAppSystemLogs` tables (no longer `ContainerAppConsoleLogs_CL`), together with the environment's metrics.
+- The Azure template now sends Key Vault and PostgreSQL logs to Log Analytics: Key Vault audit events (every secret read or write, including refused attempts) and the PostgreSQL server log (connections, failed sign-ins, errors), together with the metrics of both.
+
+## Changes in this PR
+
 - Fixed: a business role that was deleted in the source no longer marks matrix cells as governed. Such a role kept its business-role colour on every group it granted — and kept counting toward the governed share in the scope statistics, and kept being listed by the Governed view — for as long as the membership row behind it was still live.
 - A membership whose only governing business role is gone now reads as non-governed on every surface at once: the grid, the Governed / Non-governed views, the scope statistics and the governed trend. Access that lost its control is no longer presented to a reviewer as access that already has one.
 - The same rule now applies to the resources a role grants: a group deleted in the source is no longer reported as covered by a live business role.
