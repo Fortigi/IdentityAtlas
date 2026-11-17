@@ -154,7 +154,7 @@ Everything below is done once, by someone with admin rights on the IIDemos Azure
    - Name: `github-azure-release-test`. **Add**. Do not create a client secret.
 4. **Azure portal → Subscriptions → IIDemos → Access control (IAM) → Add → Add role assignment**:
    - Role **Contributor** → Members: **User, group, or service principal** → select `Identity Atlas release test (GitHub)` → **Review + assign**.
-   - Again, role **Role Based Access Control Administrator** → same member → **Conditions: Allow user to only assign selected roles to selected principals (fewer privileges)** → roles **AcrPull** and **Website Contributor** → **Review + assign**. These are the only roles the templates assign.
+   - Again, role **Role Based Access Control Administrator** → same member → **Conditions: Allow user to only assign selected roles to selected principals (fewer privileges)** → roles **AcrPull**, **Website Contributor**, **Key Vault Secrets User** and **Key Vault Secrets Officer** → **Review + assign**. These are the only roles the templates assign (the two Key Vault roles since the vault moved to Azure RBAC, #1638).
 5. Copy the **Subscription ID** of IIDemos.
 
 Neither role can remove a resource lock, and the workflow only ever names resource groups starting with `ia-reltest-` (`tools/release/ReleaseTest.Azure.ps1`, proven by `test/unit/ReleaseTestAzure.Tests.ps1`). The locks on HRSystem stay as they are.
