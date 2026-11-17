@@ -53,7 +53,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 |---|---|---|
 | `admin.crawlers` | Crawler configuration | `GET/POST/PATCH/DELETE /api/admin/crawlers…`, crawler jobs, trigger risk-scoring runs, account-linking config + runs (`GET/PUT /api/account-linking/config`, `POST /api/account-linking/runs`), risk profile/classifier reads (`GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
 | `admin.systems` | Systems configuration | `PUT /api/systems/:id`, owners, clean-database (and its `/plan`), history-retention (read + write), auto-update status/log/toggle (`/api/admin/updates/*`) |
-| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) |
+| `admin.llm` | LLM configuration | `/api/admin/llm/*`, risk profiles/classifiers (incl. `GET /api/admin/risk-profile`, `/api/admin/classifiers`) — all `404` while risk scoring is switched off |
 | `admin.context-plugins` | Context plugins | `/api/context-plugins…` (run/configure clustering, manager-hierarchy, etc.) |
 | `admin.csv-import` | CSV import | `/api/admin/crawler-configs/:id/files` (any upload-supporting crawler type), custom-connector ingest |
 | `admin.read-tokens` | Manage read API keys | `GET/DELETE /api/admin/read-tokens` (list/revoke tokens minted by others) |

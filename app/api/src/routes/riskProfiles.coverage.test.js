@@ -9,6 +9,12 @@ import { mountRouterAs } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
 
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF
+// behaviour is asserted in riskProfiles.test.js.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 vi.mock('../db/connection.js');   // picks up src/db/__mocks__/connection.js
 import { query, queryOne } from '../db/connection.js';
 vi.mock('../middleware/auth.js', () => ({ requirePermission: () => (_q, _s, next) => next() }));

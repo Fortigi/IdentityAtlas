@@ -7,11 +7,15 @@
 // status — gets its own small component to keep each unit trivial.
 
 import { formatCompactNumber as formatNumber } from '@ui/utils/formatters';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
 
+// The Risk Scoring card shows only while that experimental flag is on (the
+// dashboard-stats API drops the risk counts while it is off, too).
 export default function FeatureStatusRow({ stats, onNavigate }) {
+  const riskOn = useFeatureFlags().riskScoring === true;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <RiskScoringCard stats={stats} onNavigate={onNavigate} />
+    <div className={`grid grid-cols-1 ${riskOn ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4 mb-8`}>
+      {riskOn && <RiskScoringCard stats={stats} onNavigate={onNavigate} />}
       <FeatureCard
         label="Certifications"
         status={stats.certifications > 0 ? `${formatNumber(stats.certifications)} decisions` : 'None'}
@@ -33,7 +37,7 @@ function RiskScoringCard({ stats, onNavigate }) {
   const status = stats.activeClassifiers > 0 ? 'Active' : stats.llmConfigured ? 'Ready' : 'Not configured';
   const detail = stats.riskScores > 0
     ? `${formatNumber(stats.riskScores)} entities scored`
-    : stats.llmConfigured ? 'LLM configured, no profile yet' : 'Configure in Admin → LLM Settings';
+    : stats.llmConfigured ? 'LLM configured, no profile yet' : 'Configure in Admin → Risk Scoring LLM';
   return (
     <FeatureCard
       label="Risk Scoring"

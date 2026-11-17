@@ -17,6 +17,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { principalRateLimitKey } from '../middleware/rateLimitKeys.js';
 import { requirePermission } from '../middleware/auth.js';
+import { requireFeature } from '../featureFlags.js';
 import * as db from '../db/connection.js';
 import { chatWithSavedConfig, isLLMConfigured, getLLMConfig } from '../llm/service.js';
 import { scrapeAll, buildLLMContextFromScrapes } from '../llm/scraper.js';
@@ -35,6 +36,10 @@ import {
 const router = Router();
 const gate = requirePermission('admin.llm');
 const useSql = process.env.USE_SQL === 'true';
+
+// Risk scoring is experimental: while its flag is off, none of these exist.
+// Path-scoped because the router shares the '/api' mount with every other one.
+router.use(['/risk-profiles', '/risk-classifiers'], requireFeature('riskScoring'));
 
 // LLM generation calls are slow and billed per token (up to 16k output tokens
 // each), so each caller gets a small per-minute budget (SEC-2026-09 L-11).

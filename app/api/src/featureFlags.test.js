@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./db/connection.js');
 import { queryOne } from './db/connection.js';
 
-const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature, orgKnowledgeEnabled } =
+const { FEATURE_FLAGS, workerConfigKey, getFeatureOverride, isFeatureEnabled, readFeatures, requireFeature, orgKnowledgeEnabled, riskScoringEnabled } =
   await import('./featureFlags.js');
 
 // Stage WorkerConfig rows by key, e.g. { FEATURE_RISK_SCORING: 'true' }.
@@ -82,6 +82,17 @@ describe('env-var defaults (no stored override)', () => {
     expect(await isFeatureEnabled('riskScoring')).toBe(false);
     process.env.FEATURE_RISK_SCORING = 'true';
     expect(await isFeatureEnabled('riskScoring')).toBe(true);
+  });
+
+  it('an install that switched riskScoring on keeps it on — the stored choice beats the env default', async () => {
+    // Moving the switch to Admin → Experimental did not rename the stored key.
+    expect(workerConfigKey('riskScoring')).toBe('FEATURE_RISK_SCORING');
+    expect(await riskScoringEnabled()).toBe(false);
+    stageRows({ FEATURE_RISK_SCORING: 'true' });
+    expect(await riskScoringEnabled()).toBe(true);
+    process.env.FEATURE_RISK_SCORING = 'true';
+    stageRows({ FEATURE_RISK_SCORING: 'false' });
+    expect(await riskScoringEnabled()).toBe(false);
   });
 
   it('sourceOwnerAccountables is ON unless the env var says exactly "false"', async () => {

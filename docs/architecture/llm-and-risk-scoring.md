@@ -127,7 +127,7 @@ A multi-step modal launched from the **New profile** button on Admin → Risk Sc
 
 All draft state lives in the browser. Refreshing the wizard mid-flow loses the draft.
 
-The **LLM Settings** tab in Admin lets the operator pick the provider, the model, (Azure only) the endpoint, deployment and API version, and the API key. **Test connection** makes a single call with either the form values or the saved config, so you can check before saving. The API key is never returned by the server; the form only shows whether one is stored.
+The **Risk Scoring LLM** tab in Admin (shown only while risk scoring is on) lets the operator pick the provider, the model, (Azure only) the endpoint, deployment and API version, and the API key. **Test connection** makes a single call with either the form values or the saved config, so you can check before saving. The API key is never returned by the server; the form only shows whether one is stored.
 
 ## Tests
 
@@ -152,4 +152,4 @@ Rotation, backups and the master key are described on [Secrets and the Master Ke
 
 ## Disabling the feature
 
-The Risk Scoring tab in Admin has a feature toggle (the **Risk Scoring Feature** card). Switching it off hides the Risk Scores tab in the main navigation. The LLM config and the saved profiles and classifiers are kept.
+Risk scoring is an [experimental feature](../reference/experimental-features.md#risk-scoring), switched on and off under **Admin → Experimental** (flag `riskScoring`, WorkerConfig key `FEATURE_RISK_SCORING`). Off means off: the Risk Scores tab, the **Risk Scoring** and **Risk Scoring LLM** admin tabs and every risk badge are hidden; every risk-scoring and risk-LLM route answers `404` through `requireFeature('riskScoring')`; `startRiskScoringRun` returns without starting a run, so the post-crawl job is a no-op; and user / resource details and the dashboard statistics carry no risk fields. The LLM config, the saved profiles, classifiers, scores and overrides are kept.

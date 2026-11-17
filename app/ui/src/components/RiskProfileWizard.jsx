@@ -114,7 +114,7 @@ export default function RiskProfileWizard({ onClose, onSaved }) {
       <Modal onClose={onClose} title="Risk Profile Wizard">
         <div className="p-6">
           <div className="text-sm text-amber-700 dark:text-amber-400">
-            No LLM provider is configured yet. Open <strong>Admin → LLM Settings</strong> to add credentials, then come back.
+            No LLM provider is configured yet. Open <strong>Admin → Risk Scoring LLM</strong> to add credentials, then come back.
           </div>
         </div>
       </Modal>

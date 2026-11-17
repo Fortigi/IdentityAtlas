@@ -2,11 +2,17 @@
 // override validation. DB + queryRiskScoresPage mocked. (riskScores.summary.test.js
 // covers the GET /risk-scores summary LIMIT clauses.)
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { mountRouter } from '../../test-utils/routeTestKit.js';
 
 process.env.USE_SQL = 'true';
+
+// Risk scoring is an experimental flag (off on a fresh install); these tests
+// exercise the feature itself, so it starts on. Its OFF behaviour is asserted below.
+const flags = vi.hoisted(() => ({ riskScoring: true }));
+vi.mock('../featureFlags.js', async (orig) =>
+  (await import('../../test-utils/featureFlagMock.js')).steeredFeatureFlags(await orig(), flags));
 
 // riskTableExists() runs one timed query and checks rows[0].tbl != null.
 vi.mock('../perf/sqlTimer.js', () => ({
@@ -84,5 +90,34 @@ describe('PUT /risk-scores/:type/:id/override — validation', () => {
 describe('DELETE /risk-scores/:type/:id/override — validation', () => {
   it('400 on an invalid type', async () => {
     expect((await request(app).delete(`/api/risk-scores/bogus/${VALID}/override`)).status).toBe(400);
+  });
+});
+
+// While the experimental riskScoring flag is off, stored scores stay in the
+// database but are not served: every /risk-scores endpoint 404s before a query.
+describe('with the riskScoring flag off', () => {
+  afterEach(() => { flags.riskScoring = true; });
+  const calls = [
+    ['GET /risk-scores (summary)', a => request(a).get('/api/risk-scores')],
+    ...['users', 'groups', 'business-roles', 'contexts', 'identities'].map(t =>
+      [`GET /risk-scores/${t}`, a => request(a).get(`/api/risk-scores/${t}`)]),
+    ['GET /risk-scores/:type/:id', a => request(a).get(`/api/risk-scores/users/${VALID}`)],
+    ['PUT …/override', a => request(a).put(`/api/risk-scores/users/${VALID}/override`).send({ adjustment: 5, reason: 'valid reason' })],
+    ['DELETE …/override', a => request(a).delete(`/api/risk-scores/users/${VALID}/override`)],
+  ];
+
+  it.each(calls)('%s answers 404 without reading any score', async (_name, call) => {
+    flags.riskScoring = false;
+    const res = await call(app);
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'This feature is not enabled' });
+    expect(queryRiskScoresPage).not.toHaveBeenCalled();
+  });
+
+  it('gates only /risk-scores, not the rest of the shared /api mount', async () => {
+    flags.riskScoring = false;
+    const a = mountRouter(router);
+    a.get('/api/risk-scoresheet', (_req, res) => res.json({ ok: true }));
+    expect((await request(a).get('/api/risk-scoresheet')).status).toBe(200);
   });
 });

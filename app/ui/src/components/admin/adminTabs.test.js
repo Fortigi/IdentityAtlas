@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab } from './adminTabs.js';
+import { ADMIN_TABS, visibleAdminTabs, shouldLeaveTab, leaveTarget } from './adminTabs.js';
 
 describe('adminTabs', () => {
   it('keeps the Authentication tab, gated on admin.auth', () => {
@@ -53,8 +53,45 @@ describe('adminTabs', () => {
   });
 
   it('a wildcard user sees every tab once the flags they depend on are on', () => {
-    const tabs = visibleAdminTabs(new Set(), true, ADMIN_TABS, { matrixSharing: true });
+    const tabs = visibleAdminTabs(new Set(), true, ADMIN_TABS, { matrixSharing: true, riskScoring: true });
     expect(tabs).toHaveLength(ADMIN_TABS.length);
+  });
+
+  // Risk scoring is experimental: off means its tabs do not exist, whatever the
+  // permissions. Both tabs are checked against the SAME users with only the flag
+  // changing, so a tab that ignored the flag would still show and fail.
+  describe('risk scoring tabs', () => {
+    const keys = (perms, features) => visibleAdminTabs(new Set(perms), false, ADMIN_TABS, features).map(t => t.key);
+
+    it('are gated on the riskScoring flag', () => {
+      for (const key of ['risk-scoring', 'llm']) {
+        expect(ADMIN_TABS.find(t => t.key === key).feature).toBe('riskScoring');
+      }
+    });
+
+    it('show for their permissions while the flag is on', () => {
+      expect(keys(['admin.llm'], { riskScoring: true })).toEqual(expect.arrayContaining(['risk-scoring', 'llm']));
+      // admin.crawlers runs scoring but does not manage the provider.
+      const crawlers = keys(['admin.crawlers'], { riskScoring: true });
+      expect(crawlers).toContain('risk-scoring');
+      expect(crawlers).not.toContain('llm');
+    });
+
+    it('are hidden while the flag is off, unreported, or not a real true — wildcard included', () => {
+      for (const features of [{ riskScoring: false }, {}, undefined, { riskScoring: 'true' }]) {
+        const k = keys(['admin.llm', 'admin.crawlers'], features);
+        expect(k).not.toContain('risk-scoring');
+        expect(k).not.toContain('llm');
+        expect(k).toContain('crawlers'); // the flag only narrows
+      }
+      const wildcard = visibleAdminTabs(new Set(), true, ADMIN_TABS, { riskScoring: false }).map(t => t.key);
+      expect(wildcard).not.toContain('risk-scoring');
+      expect(wildcard).not.toContain('llm');
+    });
+
+    it('names the LLM tab after what it is for: the risk-scoring model only', () => {
+      expect(ADMIN_TABS.find(t => t.key === 'llm').label).toBe('Risk Scoring LLM');
+    });
   });
 
   it('gates the Experimental tab on admin.feature-flags — the permission that owns the toggle', () => {
@@ -78,7 +115,7 @@ describe('shouldLeaveTab', () => {
 
   it('waits on a flag /api/features has not reported yet, instead of bouncing', () => {
     // The app's placeholder flags before /api/features answers: matrixSharing absent.
-    const early = { riskScoring: true, accountLinking: true };
+    const early = { accountLinking: true };
     expect(visible(early).map(t => t.key)).not.toContain('shares');
     expect(shouldLeaveTab('shares', visible(early), early)).toBe(false);
   });
@@ -97,5 +134,29 @@ describe('shouldLeaveTab', () => {
     expect(shouldLeaveTab('crawlers', [], {})).toBe(false);
     expect(shouldLeaveTab('about', visible({}), {})).toBe(false);
     expect(shouldLeaveTab('about', visible({}), null)).toBe(false);
+  });
+});
+
+describe('leaveTarget', () => {
+  const tabs = (perms, features) => visibleAdminTabs(new Set(perms), false, ADMIN_TABS, features);
+
+  it('sends a risk-scoring or LLM deep link to Experimental — where the switch is — when that is visible', () => {
+    const visible = tabs(['admin.llm', 'admin.crawlers', 'admin.feature-flags'], { riskScoring: false });
+    expect(shouldLeaveTab('llm', visible, { riskScoring: false })).toBe(true);
+    expect(leaveTarget('llm', visible)).toBe('experimental');
+    expect(leaveTarget('risk-scoring', visible)).toBe('experimental');
+  });
+
+  it('falls back to the first visible tab when the user cannot see Experimental', () => {
+    const visible = tabs(['admin.llm', 'admin.crawlers'], { riskScoring: false });
+    expect(leaveTarget('llm', visible)).toBe('crawlers');
+    // Not Crawlers by default: the first tab THIS user can see (Performance needs no permission).
+    expect(leaveTarget('llm', tabs(['admin.auth'], {}))).toBe('performance');
+  });
+
+  it('a tab without leaveTo goes to the first visible tab, and nothing visible means Crawlers', () => {
+    const visible = tabs(['admin.auth', 'admin.feature-flags'], {});
+    expect(leaveTarget('crawlers', visible)).toBe('performance');
+    expect(leaveTarget('crawlers', [])).toBe('crawlers');
   });
 });

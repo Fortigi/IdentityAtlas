@@ -24,14 +24,18 @@ export const ALL_OPTIONAL_TABS = [
 ];
 
 /**
- * Feature flags the suite needs switched on. Empty today: `experimentalCrawlers`
- * used to be listed because the SCIM wizard specs needed it, but SCIM is no
- * longer experimental and no other crawler is. Add the flag back here when a
- * new experimental crawler ships with wizard specs. Its OFF behaviour is
- * asserted in isolation — CrawlersPage.SelectType.test.jsx for the picker and
- * jobs.experimentalGate.test.js for the 403.
+ * Feature flags the suite needs switched on.
+ *   • riskScoring — experimental and off on a fresh install; risk-scoring.spec.js
+ *     and the Risk Scoring LLM case in permission-gating.spec.js need its pages.
+ *     Its OFF behaviour is asserted in isolation: the API route tests (every
+ *     risk endpoint 404s), adminTabs.test.js and AdminPage.mount.test.jsx (tabs
+ *     hidden) and pageRegistry.test.jsx (no Risk Scores page).
+ * `experimentalCrawlers` used to be listed because the SCIM wizard specs needed
+ * it, but SCIM is no longer experimental and no other crawler is. Add it back
+ * when a new experimental crawler ships with wizard specs (its OFF behaviour:
+ * CrawlersPage.SelectType.test.jsx and jobs.experimentalGate.test.js).
  */
-export const REQUIRED_FEATURES = [];
+export const REQUIRED_FEATURES = ['riskScoring'];
 
 /** Where global-teardown.js reads the pre-run flag values back from. */
 export const PRIOR_FEATURES_ENV = 'E2E_PRIOR_FEATURES';
