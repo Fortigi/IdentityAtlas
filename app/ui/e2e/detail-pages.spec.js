@@ -194,5 +194,31 @@ test.describe('Entity Detail Pages', () => {
       expect(page.url()).toContain('#principals');
     });
 
+    test('closing the active tab navigates away when its address is percent-encoded (#1601)', async ({ page }) => {
+      // The reporter path: type/bookmark an address whose id contains a space.
+      // The browser stores it percent-encoded, so the tab's close handler used
+      // to compare 'department:Human%20Resources' with the decoded tab key
+      // 'department:Human Resources', conclude another tab was on screen and
+      // skip the navigation back — the tab vanished, the page stayed.
+      await page.goto('/#department:Human Resources');
+      await page.waitForTimeout(500);
+      expect(page.url()).toContain('#department:Human%20Resources');
+
+      // The department tab is the active one; hover it to reveal the ✕.
+      const detailTab = page.locator('nav button').filter({ hasText: 'Human Resources' }).last();
+      await expect(detailTab).toBeVisible();
+      await detailTab.hover();
+      await detailTab.locator('span[title="Close"]').click();
+      await page.waitForTimeout(300);
+
+      // A URL-opened tab carries no returnPage, so closing it falls back to
+      // the department kind's list page: Contexts.
+      expect(page.url()).toContain('#contexts');
+      expect(page.url()).not.toContain('department');
+      // ...and the tab is gone from the strip, rather than the page lingering
+      // with no tab highlighted.
+      await expect(page.locator('nav button').filter({ hasText: 'Human Resources' })).toHaveCount(0);
+    });
+
   });
 });

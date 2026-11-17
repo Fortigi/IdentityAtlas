@@ -50,7 +50,12 @@ export function useDetailTabs(page, navigate) {
 
   const closeDetailTab = useCallback((type, id) => {
     const tabKey = keyOf(type, id);
-    const isActive = window.location.hash.replace('#', '') === tabKey;
+    // Compare against the decoded page key, the same reader the rest of the
+    // shell uses. The raw hash keeps characters the browser percent-encodes in
+    // the fragment ('#department:Human%20Resources'), while the tab key is the
+    // decoded form — comparing the two made closing the tab you were looking
+    // at skip the navigation back (#1601).
+    const isActive = currentHashPage() === tabKey;
     setDetailTabs(prev => {
       const closing = prev.find(t => keyOf(t.type, t.id) === tabKey);
       // Any tab that pointed back to this one inherits this tab's returnPage,

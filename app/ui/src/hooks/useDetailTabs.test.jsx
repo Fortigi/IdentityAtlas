@@ -107,6 +107,16 @@ describe('useDetailTabs — closing a tab', () => {
     expect(window.location.hash).toBe(`#${home}`);
   });
 
+  it('treats a tab whose address the browser percent-encoded as the active one (#1601)', () => {
+    // The browser keeps the space encoded in location.hash; the tab key is the
+    // decoded "context:Human Resources". Closing it must still navigate away.
+    const { tabs, run } = mountAt('#context:Human%20Resources');
+    expect(keys(tabs())).toEqual(['context:Human Resources']);
+    run(s => s.closeDetailTab('context', 'Human Resources'));
+    expect(tabs()).toEqual([]);
+    expect(window.location.hash).toBe('#contexts');
+  });
+
   it('hands its origin to the tabs opened from it, so closing those does not reopen it', () => {
     const { tabs, run } = mountAt('#identities');
     run(s => s.openDetailTab('user', 'u-1', 'Alice'));      // from identities

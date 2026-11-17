@@ -1,0 +1,1 @@
+- Fixed: closing the detail tab you are looking at now always takes you back to where you came from, even when its address contains a space or an accented letter (e.g. a bookmarked `#department:Human Resources`). Previously the tab disappeared from the tab strip but its page stayed on screen with no tab highlighted.
