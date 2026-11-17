@@ -49,9 +49,9 @@ export default defineConfig({
       // Measured on this suite (unit only; contract tests add more), Nov 2026:
       // S92.7 B87.8 F94.6 L94.3.
       thresholds: {
-        statements: 90,
-        branches: 85,
-        functions: 92,
+        statements: 91,
+        branches: 86,
+        functions: 93,
         lines: 92,
       },
     },
