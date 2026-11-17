@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- Fixed: a business role that was deleted in the source no longer marks matrix cells as governed. Such a role kept its business-role colour on every group it granted — and kept counting toward the governed share in the scope statistics, and kept being listed by the Governed view — for as long as the membership row behind it was still live.
+- A membership whose only governing business role is gone now reads as non-governed on every surface at once: the grid, the Governed / Non-governed views, the scope statistics and the governed trend. Access that lost its control is no longer presented to a reviewer as access that already has one.
+- The same rule now applies to the resources a role grants: a group deleted in the source is no longer reported as covered by a live business role.
+- A role the source shows again is governed again after the next sync — no manual step.
+
+## Changes in this PR
+
 - The release test now proves that a backup, restore or upgrade keeps what people made in the app, not just the synced data: tags and their members, manual contexts, crawler configurations and their schedules, categories, the account-linking threshold, role → permission mappings, feature switches, saved matrices, read API keys and identity-link decisions are made before the backup and must come back with exactly the same values, on Docker and on the portable ZIPs
 - The backup and restore page now says that its Docker procedure is exercised by the release test for every release
 - The release criteria now require the authorization suites to be green before a beta or a stable release, and state that experimental features such as risk scoring are only checked for "off really is off"

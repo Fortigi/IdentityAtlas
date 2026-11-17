@@ -1,4 +1,0 @@
-- Fixed: a business role that was deleted in the source no longer marks matrix cells as governed. Such a role kept its business-role colour on every group it granted — and kept counting toward the governed share in the scope statistics, and kept being listed by the Governed view — for as long as the membership row behind it was still live.
-- A membership whose only governing business role is gone now reads as non-governed on every surface at once: the grid, the Governed / Non-governed views, the scope statistics and the governed trend. Access that lost its control is no longer presented to a reviewer as access that already has one.
-- The same rule now applies to the resources a role grants: a group deleted in the source is no longer reported as covered by a live business role.
-- A role the source shows again is governed again after the next sync — no manual step.
