@@ -1,5 +1,27 @@
 ## Changes in this PR
 
+- Admin → Data → Clean database now removes only what a crawler or plugin can recreate (systems, accounts, resources, access, identities, governance data, synced and generated contexts, computed results, job history and the change history of all of that) and keeps what people made: settings, manual contexts and tags with the members you added, uploaded lists, saved matrix views, shares, reports and report views, business-role categories, analyst risk-score overrides, audit logs, and interviews, claims, decisions, change requests, tree adjustments and workbench investigations on contexts that are kept. Before, it also removed manual contexts and tags, interviews, tree adjustments, workbench investigations and more without saying so.
+- The confirmation dialog now lists exactly what is removed and what is kept, names the work of yours that still goes because it hangs on removed data (owners of a crawled system, org-chart manager overrides, Accountable and Responsible people, identity link decisions, work on a synced or generated context), and links to "Make a backup first". The list comes from the server, so it always matches what the clean does.
+- Clean database now runs in one transaction: if any step fails, nothing is removed and it reports the failure, instead of reporting "Database cleaned" after skipping tables.
+- Clean database now also removes sign-in activity and dashboard trend snapshots, which it used to leave behind, rebuilds the matrix views, and makes sure no cached access result from before the clean is served.
+- Removed the Curated Data export and import from Admin → Data. It covered only tags and business-role categories; a database backup carries everything people made in the app.
+- Added a note on Admin → Data that links to the guide for moving Identity Atlas to a new instance by backing up and restoring the database.
+- Added a "Move Identity Atlas to a new instance" guide for Docker, Azure and the portable version, including where the master key lives in each.
+- Documented exactly which backup settings the Azure template configures (7-day point-in-time restore, no geo-redundant backup, no high availability, no resource locks) and what you can add yourself if you need more.
+- The CSV import permission on its own no longer shows the Admin → Data tab; it still gates file uploads for crawlers.
+- Risk scoring is now an experimental feature: its on/off switch moved from Admin → Risk Scoring to Admin → Experimental. It is kept but not certified per release. Installs that had it switched on keep it on.
+- While risk scoring is off it does nothing and shows nothing: the Risk Scoring and LLM admin tabs, the Risk Scores page, the Dashboard's Risk Scoring card, the Risk scoring filter and runs on the Logs page, and risk data on user and resource details are all hidden, and no scoring run starts after a crawl.
+- While risk scoring is off, the API refuses every risk-scoring and risk-LLM endpoint (scores, profiles, classifiers, runs, the risk configuration and the LLM provider settings) with 404. Stored scores, profiles, classifiers and settings are kept, and come back when it is switched on again.
+- Renamed the Admin → LLM Settings tab to Risk Scoring LLM, because risk scoring is the only feature that uses that provider. A link to it, or to Admin → Risk Scoring, while risk scoring is off now opens Admin → Experimental, where the switch is.
+- Moved the status of the local model used by custom reports and the other assistants to Admin → Experimental, under Custom reports, so it stays reachable when risk scoring is off.
+- Fixed risk scoring still running after every crawl while the feature was switched off.
+- Added automated checks, run with sign-in on against a real database, that a read API key works until it is revoked or expires, is refused on any write or admin page, and is never shown again in the key list
+- Added automated checks that a change on Admin → Roles & Permissions applies to the very next request, that resetting to the defaults works, that an admin cannot remove their own last admin access, and that unknown permission names are rejected
+- Every API route is now checked against each built-in role (Admin, RoleMiner, Servicedesk) on every change, against a written-down list of what each route requires, so a route that is opened or closed to the wrong role is caught before release.
+- Added an end-to-end check that a person a matrix was shared with needs a role to open it, and with one (such as Servicedesk) opens only the shares addressed to them.
+
+## Changes in this PR
+
 - Fixed hundreds of known vulnerabilities in the published Docker images: all three images now install the latest operating-system security updates when they are built, instead of staying on whatever the base image shipped with.
 - The worker image now runs PowerShell 7.6 LTS on a current Ubuntu 24.04 base. Its previous base image, Microsoft's PowerShell image, had not been updated since January 2025 and still carried PowerShell 7.5.0 and its unpatched .NET libraries.
 - The web image no longer contains npm, which it never used at runtime; npm's own bundled packages were the source of every npm-related finding in the image scan.
