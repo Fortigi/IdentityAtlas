@@ -627,7 +627,7 @@
     "app/ui/src/components/app/BackendErrorScreen.jsx": 99,
     "app/ui/src/components/app/Brand.jsx": 99,
     "app/ui/src/components/app/DetailRoute.jsx": 99,
-    "app/ui/src/components/app/DetailTab.jsx": 74,
+    "app/ui/src/components/app/DetailTab.jsx": 99,
     "app/ui/src/components/app/MatrixArea.jsx": 99,
     "app/ui/src/components/app/MatrixWizardHost.jsx": 99,
     "app/ui/src/components/app/NavTabButton.jsx": 99,
