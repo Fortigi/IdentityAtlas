@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the "Bot App check" failing on every Dependabot pull request that updates GitHub Actions; the check now skips runs started by Dependabot, which cannot read the bot's credentials.
+
+## Changes in this PR
+
 - Findings from the monthly security review are filed automatically: Medium and higher as private security advisories with a public placeholder issue that reveals only the severity and OWASP category, Low and Informational as public bug reports that a maintainer hands to the automated bug pipeline with one label. A finding that is already tracked is not filed twice, and one that comes back after being closed is filed as a regression.
 - Added a monthly automated security review and penetration test. It reviews the code and tests a freshly built stack against the OWASP Top 10, OWASP API Security Top 10, OWASP ASVS, the NCSC web application guidelines, the OWASP Top 10 for LLM Applications and more, with an OWASP ZAP scan and a dependency audit. Each run files its findings and proposes a public summary page, which is added to the Security testing programme page.
 - Added a Security testing programme page to the documentation: the standards Identity Atlas is tested against (NCSC web application guidelines, OWASP Top 10, OWASP API Security Top 10, OWASP ASVS), the automated security checks on every change, the recurring vulnerability scans, the history of security reviews and penetration tests, how findings are handled, and how to commission an independent penetration test or share the results of your own.

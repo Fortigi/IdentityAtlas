@@ -1,1 +1,0 @@
-- Fixed the "Bot App check" failing on every Dependabot pull request that updates GitHub Actions; the check now skips runs started by Dependabot, which cannot read the bot's credentials.
