@@ -92,6 +92,15 @@ Each tested beta leaves an artifact `release-tested-<tag>` (90 days) with its re
 
 The backup and restore test runs for **every** release, dependency-only patches included: a library update can change how the database is written as much as a feature can.
 
+### Release blockers
+
+Besides the release test itself, a candidate is held back when either of these is red on its commit:
+
+- **The authorization suites**: the **Security: authorization regression** job (`npm run test:security` in `app/api`), which includes the read-token and role-mapping contract tests in `app/api/contract-tests/`. A red one is a release blocker, never a flake to rerun past.
+- **CI Passed** and **Integration CI Passed** for the merges it contains.
+
+**Experimental features are not certified per release.** Risk scoring and everything else behind Admin → Experimental (see [Experimental features](../reference/experimental-features.md)) is checked for one thing only: off really is off, so an install that never switched it on is not affected. A release is not held back because an experimental feature misbehaves while switched on, and the release test does not exercise one.
+
 ---
 
 ## The release test
@@ -100,18 +109,33 @@ The backup and restore test runs for **every** release, dependency-only patches 
 
 | Part | What it does | Where |
 |---|---|---|
-| Docker: upgrade, backup and restore | Starts the previous stable release with its own `docker-compose.prod.yml`, loads the demo data, pushes one record of each kind through the ingest API, backs up exactly as [Back up, restore and upgrade](../admin/backup-restore-upgrade.md) says, switches to the candidate, waits for the migrations, checks the running version, the read endpoints, and that the core row counts did not change. Then **restores that backup onto an empty host** running the candidate and checks the same again: the backup procedure as documented must give back the same database. | `ubuntu-latest` |
+| Docker: upgrade, backup and restore | Starts the previous stable release with its own `docker-compose.prod.yml`, loads the demo data, pushes one record of each kind through the ingest API, makes [person-made data](#person-made-data) through the API the UI uses, backs up exactly as [Back up, restore and upgrade](../admin/backup-restore-upgrade.md) says, switches to the candidate, waits for the migrations, checks the running version, the read endpoints, that the core row counts did not change and that every person-made record reads back with exactly its values. Then **restores that backup onto an empty host** running the candidate and checks the same again: the backup procedure as documented must give back the same database. | `ubuntu-latest` |
 | Docker: fresh install | Runs the three [quickstart](../quickstart.md) commands with the candidate's tag, checks the containers, `/api/health`, `/api/admin/status` and the UI, loads the demo data. A unit test fails when the quickstart's commands change, so the two cannot drift apart. | `ubuntu-latest` |
 | Both of the above, with the report generator | The same with `COMPOSE_PROFILES=report-generator`, and one question to the local model at the end. | `ubuntu-latest` |
 | Docker: sign-in on | A fresh install with sign-in on, then real Entra ID access tokens: a caller with the `Servicedesk` role reads data and is kept out of admin, a caller without a role gets `403 NO_ROLE` (F-01), a missing, malformed or other-API token gets `401`. | `ubuntu-latest`, `azure-release-test` environment |
-| Portable | Both ZIPs (`IdentityAtlas-portable.zip`, PGlite; `-postgres`, started with `-Database Postgres` and checked to really run PostgreSQL): a fresh start with demo data and one page of the matrix, and an upgrade from the previous stable release's ZIP on the same data directory. | `windows-latest` |
+| Portable | Both ZIPs (`IdentityAtlas-portable.zip`, PGlite; `-postgres`, started with `-Database Postgres` and checked to really run PostgreSQL): a fresh start with demo data and one page of the matrix, and an upgrade from the previous stable release's ZIP on the same data directory, with the same [person-made data](#person-made-data) check across it. | `windows-latest` |
 | Azure | `main.json` (sign-in off) and `main.json` + `main-auth.json` (sign-in on), each with `deployReportGenerator` false and true: a fresh deploy, version and health check, the read endpoints or the sign-in checks. For both defaults also an upgrade: the previous stable release's template first, demo data, then the candidate's template over it, same totals afterwards. | IIDemos subscription, one new `ia-reltest-*` resource group per variant per run, always deleted |
+
+### Person-made data
+
+Backup and restore is the way to move an instance, so it has to keep what people made in the app, which no crawl brings back. Row counts cannot show that, so the upgrade tests make one of each through the API with values no install has by default, and read each back afterwards, comparing the exact values (`tools/release/ReleaseTest.CuratedData.ps1`, unit-tested by `test/unit/ReleaseTestCuratedData.Tests.ps1`):
+
+- a tag on two users, and a manual context holding the same two
+- a CSV crawler configuration with a (switched-off) weekly schedule
+- a governance category
+- the account-linking threshold, changed from its default
+- an extra role in the role → permission mapping
+- one feature flag switched the other way
+- a saved matrix with its filter
+- a read API key: name, prefix and not revoked; on Docker also that its stored hash still matches the key, which is what sign-in checks (the Docker scenarios run with sign-in off, where no request would test it); with sign-in on, that the key still gets in and a changed key does not
+- an analyst's confirmation of one identity link
+
+The previous stable release makes the records, so only endpoints it already has are used. Risk profiles and risk overrides are left out: risk scoring is experimental (see [Release blockers](#release-blockers)).
 
 ### What it does not cover
 
 Know these before you read a green run as "safe":
 
-- **Person-made data after a restore**, beyond the row counts: tags, manual contexts, crawler configurations, role mappings, saved matrices and the like are counted with their tables but not compared value by value. [#1644](https://github.com/Fortigi/IdentityAtlas/pull/1644) adds that comparison, after the upgrade and after the restore, on Docker and on the portable ZIPs.
 - **Credentials surviving a restore.** The restore checks that the web container did not start without its master key; it does not decrypt a stored crawler credential.
 - **Sign-in through a browser.** The tokens are app-only (client credentials through a federated credential). The MSAL redirect, the redirect URI, delegated user tokens, roles assigned through a group, Conditional Access and MFA are not exercised.
 - **Real data.** Only the synthetic demo dataset and a handful of ingested records. No crawler talks to a real system, and nothing is large: volume is covered, partly, by the load and soak tests in PR CI.

@@ -11,8 +11,9 @@
     -Scenario Upgrade
         The same with the previous stable release's ZIP first, then stops it,
         unpacks the candidate into a new folder and starts it on the SAME data
-        directory: the migrations must run, and the totals and the matrix must
-        come back as they were.
+        directory: the migrations must run, and the totals, the matrix and the
+        person-made data made before the stop (ReleaseTest.CuratedData.ps1)
+        must come back as they were.
 
     -Variant default is IdentityAtlas-portable.zip (PGlite); -Variant postgres
     is IdentityAtlas-portable-postgres.zip, started with -Database Postgres.
@@ -33,6 +34,7 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'ReleaseTest.Functions.ps1')
 . (Join-Path $PSScriptRoot 'ReleaseTest.Portable.ps1')
+. (Join-Path $PSScriptRoot 'ReleaseTest.CuratedData.ps1')
 
 $zipName = Get-PortableZipName $Variant
 $database = Get-PortableDatabase $Variant
@@ -71,6 +73,7 @@ function Invoke-Upgrade {
     Write-Step "Portable $Variant, upgrade on a kept data directory"
     $old = Start-Release $PreviousZipDir 'previous'
     Invoke-DemoLoad -BaseUrl $BaseUrl
+    $curated = New-CuratedData -BaseUrl $BaseUrl
     $before = Get-ApiTotal -BaseUrl $BaseUrl
     if (-not $before.Users) { throw 'The previous release shows no users after the demo load.' }
     Write-Step "Totals before the upgrade: $(Format-Total $before)"
@@ -81,6 +84,7 @@ function Invoke-Upgrade {
     Write-Step "Totals after the upgrade: $(Format-Total $after)"
     $problems = @(Compare-RowCount -Before $before -After $after)
     if ($problems.Count -gt 0) { throw "After the upgrade: $($problems -join '; ')" }
+    Assert-CuratedData -BaseUrl $BaseUrl -Manifest $curated -Label 'After the upgrade'
     Assert-MatrixPage -BaseUrl $BaseUrl
     Stop-Portable $new
 }

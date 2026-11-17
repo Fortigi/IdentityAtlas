@@ -6,10 +6,13 @@
     -Scenario Upgrade
         Starts the previous stable release with its own docker-compose.prod.yml,
         loads the demo data and pushes one record of each kind through the
-        ingest API, backs up as the docs describe, switches to the candidate,
-        and checks that the migrations finish, the read endpoints answer and the
-        core row counts are unchanged. Then restores that backup onto an empty
-        host running the candidate and checks the same again.
+        ingest API, makes person-made data through the API the UI uses
+        (ReleaseTest.CuratedData.ps1), backs up as the docs describe, switches
+        to the candidate, and checks that the migrations finish, the read
+        endpoints answer, the core row counts are unchanged and every
+        person-made record reads back with exactly its values. Then restores
+        that backup onto an empty host running the candidate and checks the
+        same again.
 
     -Scenario Fresh
         Follows docs/quickstart.md line for line with the candidate's tag and
@@ -50,6 +53,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'ReleaseTest.Functions.ps1')
 . (Join-Path $PSScriptRoot 'ReleaseTest.Docker.ps1')
 . (Join-Path $PSScriptRoot 'ReleaseTest.SignIn.ps1')
+. (Join-Path $PSScriptRoot 'ReleaseTest.CuratedData.ps1')
 
 $imageTag = ConvertTo-ImageTag $Candidate
 # Resolved here, in the checkout: the scenario itself runs in $WorkDir, which is no git repository.
@@ -71,6 +75,11 @@ function Assert-SameRows([hashtable] $Before, [string] $Label) {
     if ($problems.Count -gt 0) { throw "${Label}: $($problems -join '; ')" }
 }
 
+function Assert-KeptCuratedData([hashtable] $Manifest, [string] $Label) {
+    Assert-CuratedData -BaseUrl $BaseUrl -Manifest $Manifest -Label $Label
+    Assert-ReadTokenStored -Token $Manifest.ReadToken -Label $Label
+}
+
 function Invoke-UpgradeScenario {
     Write-Step "Upgrade $from -> $Candidate (image $imageTag)$(if ($ReportGenerator) { ' with the report generator' })"
 
@@ -82,6 +91,8 @@ function Invoke-UpgradeScenario {
     Invoke-DemoLoad -BaseUrl $BaseUrl
     Write-Step 'Demo data loaded; pushing records through the ingest API'
     Invoke-IngestProbe -BaseUrl $BaseUrl -ApiKey (Get-WorkerKey)
+    Write-Step 'Ingest done; making person-made data through the API'
+    $curated = New-CuratedData -BaseUrl $BaseUrl
     $before = Get-DbRowCount
     Assert-DataLoaded $before
     Write-Step "Before row counts: $(($before.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' ')"
@@ -95,12 +106,14 @@ function Invoke-UpgradeScenario {
     Assert-Healthy 'After the upgrade'
     Assert-RunningVersion -BaseUrl $BaseUrl -ImageTag $imageTag
     Assert-SameRows $before 'After the upgrade'
+    Assert-KeptCuratedData $curated 'After the upgrade'
     if ($ReportGenerator) { Assert-ReportGenerator -BaseUrl $BaseUrl }
 
     Write-Step 'Restoring the pre-upgrade backup onto an empty host'
     Restore-Deployment -MasterKey $masterKey
     Assert-Healthy 'After the restore'
     Assert-SameRows $before 'After the restore'
+    Assert-KeptCuratedData $curated 'After the restore'
     Assert-NoMissingKeyLog
 }
 

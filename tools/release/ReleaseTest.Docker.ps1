@@ -319,6 +319,22 @@ function Assert-NoMissingKeyLog {
     if ($log -match 'No master key found') { throw 'The web container started without the master key after the restore.' }
 }
 
+function Assert-ReadTokenStored {
+    <#
+    .SYNOPSIS
+        The kept read API key would still sign in: an unrevoked ReadApiKeys row
+        holds its hash, which is exactly what the API looks the key up by.
+    .DESCRIPTION
+        The Docker scenarios run with sign-in off, where the API never checks a
+        key, so a request with it would prove nothing. Assert-ReadTokenSignIn
+        (ReleaseTest.CuratedData.ps1) makes the request when sign-in is on.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Token, [Parameter(Mandatory)][string] $Label)
+    $found = ((Invoke-Psql (Get-ReadTokenHashQuery $Token)) -join '').Trim()
+    if ($found -ne '1') { throw "${Label}: the kept read API key is no longer stored (found $found matching rows)." }
+}
+
 function Write-Diagnostic {
     <# Container state and the last log lines, for a failed run. Never throws. #>
     [CmdletBinding()]
