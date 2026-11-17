@@ -31,7 +31,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | helmet | ^8.3.0 | Security headers middleware | MIT |
-| express-rate-limit | ^8.7.3 | Rate limiting protection | MIT |
+| express-rate-limit | ^8.7.4 | Rate limiting protection | MIT |
 | cors | ^2.8.5 | Cross-Origin Resource Sharing | MIT |
 | jsonwebtoken | ^9.0.2 | JWT token validation | MIT |
 | jwks-rsa | ^4.1.0 | JWKS key retrieval for Entra ID | MIT |
@@ -56,7 +56,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | vitest | ^5.0.0 | Unit testing framework | MIT |
 | supertest | ^7.3.2 | HTTP integration testing | MIT |
-| eslint | ^10.14.0 | JavaScript linter | MIT |
+| eslint | ^10.15.0 | JavaScript linter | MIT |
 | eslint-plugin-security | ^4.2.1 | Security-focused lint rules | Apache 2.0 |
 | esbuild | ^0.28.2 | Bundler for desktop launcher build | MIT |
 
@@ -83,7 +83,7 @@ This document lists all major software components, dependencies, and infrastruct
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| @azure/msal-browser | ^5.29.0 | Microsoft Authentication Library | MIT |
+| @azure/msal-browser | ^5.29.1 | Microsoft Authentication Library | MIT |
 
 ### UI Interactions
 
@@ -106,11 +106,11 @@ This document lists all major software components, dependencies, and infrastruct
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
 | @vitejs/plugin-react | ^6.3.0 | Vite React plugin | MIT |
-| eslint | ^10.14.0 | JavaScript linter | MIT |
+| eslint | ^10.15.0 | JavaScript linter | MIT |
 | eslint-plugin-react-hooks | ^7.1.1 | React hooks linting rules | MIT |
 | eslint-plugin-react-refresh | ^0.5.7 | React refresh linting | MIT |
 | globals | ^17.14.0 | Global variable definitions | MIT |
-| @playwright/test | ^1.65.0 | End-to-end testing framework | Apache 2.0 |
+| @playwright/test | ^1.65.1 | End-to-end testing framework | Apache 2.0 |
 | @axe-core/playwright | ^4.14.0 | Accessibility testing | MPL 2.0 |
 | @eslint/js | ^10.0.1 | ESLint JavaScript rules | MIT |
 | @types/react | ^19.3.0 | TypeScript type definitions for React | MIT |
