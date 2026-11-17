@@ -185,6 +185,21 @@ The web container understands more settings than `docker-compose.prod.yml` passe
 
 When you pin an older release, use the `docker-compose.prod.yml` from that release as well. Switching channels and pinning are covered in [Back up, restore and upgrade](../admin/backup-restore-upgrade.md#upgrade).
 
+### Which tag to run, and how fast security fixes reach it
+
+Run `latest` in production. Before a stable release is published, its beta has passed a release test of upgrades, backup and restore, a fresh install, sign-in, the portable ZIPs and the Azure templates ([what that covers](../contributing/release-process.md#the-release-test)).
+
+When a library Identity Atlas depends on gets a security fix, it reaches each tag like this:
+
+| Tag | When the fix arrives |
+|---|---|
+| `edge` | Minutes after the fix is merged into the main branch. |
+| `beta` | The night after it is merged: a hotfix beta is built from the current stable release plus the fix. |
+| `latest` | The same night, a few hours later, once that beta has passed the release test. If the test fails, nothing is published and the maintainers are told. |
+| An exact version | Never by itself. Move the pin to the new version. |
+
+The fixes in question are patch and minor library updates. A security fix that needs a major library upgrade, or a change to Identity Atlas itself, ships with a normal release. Whatever tag you run, the fix reaches your deployment only when you pull it: `docker compose -f docker-compose.prod.yml up -d --pull always`, or [automatic updates](../admin/auto-updates.md).
+
 ---
 
 ## Sizing
