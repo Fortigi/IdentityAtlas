@@ -69,7 +69,7 @@ analyst), the **triggers**, and **status + history** on the request.
 
 | The user says | On | Claim | Local effect | Request kind |
 |---|---|---|---|---|
-| *"This person doesn't belong in my team"* | an org unit's member | membership: left | member override (exists: `ContextMemberOverrides`) | `RelationshipRemove` |
+| *"This person doesn't belong in my team"* | a team context's member | membership: left | member override (exists: `ContextMemberOverrides`) | `RelationshipRemove` |
 | *"This entitlement should not be on my application"* | a resource context's member | membership: left, subject = resource (new: `ContextClaims.subjectKind` allows only `Context` / `Person` today) | member override, memberId = the resource | `RelationshipRemove` |
 | *"X is the owner, not me"* / *"I want X as owner"* | the context's Accountable | role: owner = X | `ContextRoles` Accountable → X (exists: the `decideClaim` role path, with `sourceClaimId`) | `AttributeUpdate` (owner) |
 | *"Add Y as a delegate"* | the context's Responsibles | role: dayToDay = Y | `ContextRoles` Responsible + Y | `RelationshipAdd` |
