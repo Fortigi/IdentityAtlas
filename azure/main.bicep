@@ -8,7 +8,7 @@
 // What this deploys:
 //   - App Service Plan (Linux) + App Service for Containers (web)
 //   - Postgres Flexible Server (firewall limited to the web app's outbound IPs)
-//   - Key Vault (access policies; holds master key + DB password)
+//   - Key Vault (Azure RBAC; holds master key + DB password)
 //   - Storage Account + Azure Files share (for /data/uploads)
 //   - 3 user-assigned managed identities (web, deployment-script, crawler)
 //   - One-shot deployment script: generates master key + DB password into KV
@@ -297,6 +297,17 @@ module postgres 'modules/postgres-kv-password.bicep' = {
   dependsOn: [bootstrap]
 }
 
+// ─── Diagnostics: Key Vault + Postgres → Log Analytics ──────────────────
+
+module resourceDiagnostics 'modules/resource-diagnostics.bicep' = {
+  name: 'resource-diagnostics'
+  params: {
+    keyVaultName: kv.outputs.kvName
+    postgresServerName: postgres.outputs.pgName
+    workspaceId: logs.outputs.workspaceId
+  }
+}
+
 // ─── App Service (web) ──────────────────────────────────────────────────
 
 // The report generator's hostname is deterministic (app name + environment domain),
@@ -370,7 +381,6 @@ module cae 'modules/aca-env.bicep' = {
   params: {
     namePrefix: namePrefix
     location: location
-    workspaceCustomerId: logs.outputs.customerId
     workspaceId: logs.outputs.workspaceId
     storageAccountName: storage.outputs.storageAccountName
     uploadsShareName: storage.outputs.uploadsShareName

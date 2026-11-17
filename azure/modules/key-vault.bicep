@@ -1,10 +1,17 @@
-// Key Vault — public endpoint, RBAC-only access. No private endpoint in the
-// Simple shape; the customer's CCoE owns networking and we don't provision
-// any. Future "Isolated" template will add a private endpoint.
+// Key Vault — Azure RBAC permission model (not vault access policies, which
+// Microsoft is retiring). Public endpoint in the public network mode; the
+// private network mode adds a private endpoint and a Deny default.
 //
 // "Public endpoint" doesn't mean "public read access" — secrets are only
-// accessible to identities with `Key Vault Secrets User` (read) or
-// `Key Vault Secrets Officer` (read+write). Anonymous access returns 403.
+// accessible to identities holding a data-plane role on this vault:
+//   - web app identity       → Key Vault Secrets User    (read)
+//   - bootstrap identity     → Key Vault Secrets Officer (read + write)
+// Anonymous and unauthorized callers get 403.
+//
+// The role assignments are created here, so the deploying principal needs
+// Microsoft.Authorization/roleAssignments/write on the resource group: Owner,
+// User Access Administrator or Role Based Access Control Administrator.
+// Contributor alone is not enough.
 
 @description('Azure region')
 param location string
@@ -29,22 +36,19 @@ param deployScriptPrincipalId string
 @allowed(['Allow', 'Deny'])
 param networkDefaultAction string = 'Allow'
 
-// Key Vault — public endpoint, access via access policies (NOT RBAC).
-//
-// We use access policies instead of RBAC because some tenants block
-// role-definition lookups required by Microsoft.Authorization/roleAssignments
-// (observed in IIDemos: "RoleDefinitionDoesNotExist" against the Key Vault
-// Secrets User built-in). Access policies are the older model but they
-// work in every tenant without depending on tenant-scope role catalog reads.
-//
-// Both models produce the same effective security: only identities with
-// the right secrets permission can read/write. Anonymous and unauthorized
-// callers still get 403.
+// Built-in data-plane roles.
+var secretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+var secretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+
 resource kv 'Microsoft.KeyVault/vaults@2024-11-01' = {
   name: kvName
   location: location
   properties: {
-    enableRbacAuthorization: false
+    // Switching an existing vault from access policies to RBAC is done in place:
+    // the secrets stay, the old policies stop being evaluated (and are cleared
+    // below), and the role assignments further down take over.
+    enableRbacAuthorization: true
+    accessPolicies: []
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     enablePurgeProtection: true
@@ -59,22 +63,28 @@ resource kv 'Microsoft.KeyVault/vaults@2024-11-01' = {
     }
     sku: { family: 'A', name: 'standard' }
     tenantId: subscription().tenantId
-    accessPolicies: [
-      {
-        tenantId: subscription().tenantId
-        objectId: webIdentityPrincipalId
-        permissions: {
-          secrets: ['get', 'list']
-        }
-      }
-      {
-        tenantId: subscription().tenantId
-        objectId: deployScriptPrincipalId
-        permissions: {
-          secrets: ['get', 'list', 'set']
-        }
-      }
-    ]
+  }
+}
+
+// Deterministic names, so a redeploy (and the private-mode lockdown pass, which
+// applies this module a second time) updates the same assignments.
+resource webSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(kv.id, webIdentityPrincipalId, secretsUserRoleId)
+  scope: kv
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', secretsUserRoleId)
+    principalId: webIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource deployScriptSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(kv.id, deployScriptPrincipalId, secretsOfficerRoleId)
+  scope: kv
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', secretsOfficerRoleId)
+    principalId: deployScriptPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 

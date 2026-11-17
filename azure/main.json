@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "3534540880565691815"
+      "templateHash": "14713790137879676678"
     }
   },
   "parameters": {
@@ -728,7 +728,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "222929792548404755"
+              "templateHash": "6418524270791156889"
             }
           },
           "parameters": {
@@ -768,6 +768,10 @@
               }
             }
           },
+          "variables": {
+            "secretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6",
+            "secretsOfficerRoleId": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+          },
           "resources": [
             {
               "type": "Microsoft.KeyVault/vaults",
@@ -775,7 +779,8 @@
               "name": "[parameters('kvName')]",
               "location": "[parameters('location')]",
               "properties": {
-                "enableRbacAuthorization": false,
+                "enableRbacAuthorization": true,
+                "accessPolicies": [],
                 "enableSoftDelete": true,
                 "softDeleteRetentionInDays": 7,
                 "enablePurgeProtection": true,
@@ -789,31 +794,36 @@
                   "family": "A",
                   "name": "standard"
                 },
-                "tenantId": "[subscription().tenantId]",
-                "accessPolicies": [
-                  {
-                    "tenantId": "[subscription().tenantId]",
-                    "objectId": "[parameters('webIdentityPrincipalId')]",
-                    "permissions": {
-                      "secrets": [
-                        "get",
-                        "list"
-                      ]
-                    }
-                  },
-                  {
-                    "tenantId": "[subscription().tenantId]",
-                    "objectId": "[parameters('deployScriptPrincipalId')]",
-                    "permissions": {
-                      "secrets": [
-                        "get",
-                        "list",
-                        "set"
-                      ]
-                    }
-                  }
-                ]
+                "tenantId": "[subscription().tenantId]"
               }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('webIdentityPrincipalId'), variables('secretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('secretsUserRoleId'))]",
+                "principalId": "[parameters('webIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('deployScriptPrincipalId'), variables('secretsOfficerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('secretsOfficerRoleId'))]",
+                "principalId": "[parameters('deployScriptPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -878,7 +888,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "10713929029052283703"
+              "templateHash": "4123118493514175856"
             }
           },
           "parameters": {
@@ -961,7 +971,7 @@
                 "cleanupPreference": "OnSuccess",
                 "forceUpdateTag": "[parameters('forceUpdateTag')]",
                 "environmentVariables": "[concat(createArray(createObject('name', 'KV_NAME', 'value', parameters('keyVaultName')), createObject('name', 'ROTATE_PG_PASSWORD', 'value', string(parameters('rotatePostgresPassword'))), createObject('name', 'EXISTING_LAW_ID', 'value', parameters('existingLogAnalyticsWorkspaceId')), createObject('name', 'ACR_ID', 'value', parameters('containerRegistryResourceId'))), if(empty(parameters('reportGeneratorApiKey')), createArray(), createArray(createObject('name', 'REPORT_GENERATOR_API_KEY', 'secureValue', parameters('reportGeneratorApiKey')))))]",
-                "scriptContent": "set -euo pipefail\n\necho \"==> Validating existingLogAnalyticsWorkspaceId\"\nif [ -n \"$EXISTING_LAW_ID\" ]; then\n  # Format check — must be the FULL workspace resource ID, not a resource group.\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$'\n  if ! [[ \"$EXISTING_LAW_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: existingLogAnalyticsWorkspaceId is not a valid Log Analytics workspace resource ID.\"\n    echo \"       You provided: $EXISTING_LAW_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>\"\n    echo \"\"\n    echo \"       Common mistake: copying the parent resource GROUP's ID instead of the workspace ID.\"\n    echo \"       To get the correct one: open the workspace in the portal → Overview → JSON View → copy 'id'.\"\n    echo \"       Or leave the field BLANK to create a fresh workspace inside this deployment's RG.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    LAW format OK — $EXISTING_LAW_ID\"\n  echo \"    (note: existence is verified by log-analytics module; if you see a ResourceNotFound\"\n  echo \"     error there, the workspace doesn't exist at that path or you lack Log Analytics Reader)\"\nelse\n  echo \"    no LAW provided — a new workspace will be created in this RG\"\nfi\n\necho \"==> Validating containerRegistryResourceId\"\nif [ -n \"$ACR_ID\" ]; then\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.ContainerRegistry/registries/[^/]+$'\n  if ! [[ \"$ACR_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: containerRegistryResourceId is not a valid Azure Container Registry resource ID.\"\n    echo \"       You provided: $ACR_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<registry-name>\"\n    echo \"       Copy it from the registry's Overview → JSON View → 'id', or leave it empty to pull from ghcr.io.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    registry format OK — $ACR_ID\"\nelse\n  echo \"    no registry provided — images are pulled from ghcr.io\"\nfi\n\necho \"==> Generating master key (if absent)\"\nif ! az keyvault secret show --vault-name \"$KV_NAME\" --name identityatlas-master-key >/dev/null 2>&1; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\n# Random, never derived. 32 random alphanumerics (~190 bits) plus a fixed\n# \"Aa1\" suffix so the value always meets the Postgres complexity rule\n# (upper + lower + digit), whatever the random part happens to contain.\nnew_pg_password() {\n  local random\n  random=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9')\n  printf '%sAa1' \"${random:0:32}\"\n}\n\necho \"==> Postgres admin password\"\nif [ \"$ROTATE_PG_PASSWORD\" = \"True\" ] || [ \"$ROTATE_PG_PASSWORD\" = \"true\" ]; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    rotated postgres-admin-password (rotatePostgresPassword=true)\"\nelif ! az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password >/dev/null 2>&1; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    generated postgres-admin-password\"\nelse\n  echo \"    postgres-admin-password already present, keeping it\"\nfi\n\n# The App Service references the exact secret version, so a rotation changes\n# the app setting and restarts the app onto the new password. The URI holds no\n# secret value, so it is safe as a script output.\nPG_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password --query id -o tsv)\n\n# Generated once and kept, so a redeploy does not hand both containers a new key\n# (it used to be a newGuid() template default). Written even when the report\n# generator is not deployed, so switching it on later needs no extra step.\necho \"==> Report generator API key\"\nif [ -n \"${REPORT_GENERATOR_API_KEY:-}\" ]; then\n  CURRENT=$(az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key --query value -o tsv 2>/dev/null || true)\n  if [ \"$CURRENT\" != \"$REPORT_GENERATOR_API_KEY\" ]; then\n    az keyvault secret set --vault-name \"$KV_NAME\" --name report-generator-api-key \\\n      --value \"$REPORT_GENERATOR_API_KEY\" --output none\n    echo \"    stored the supplied report-generator-api-key\"\n  else\n    echo \"    supplied report-generator-api-key already stored\"\n  fi\nelif ! az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key >/dev/null 2>&1; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name report-generator-api-key \\\n    --value \"$(openssl rand -hex 32)\" --output none\n  echo \"    generated report-generator-api-key\"\nelse\n  echo \"    report-generator-api-key already present, keeping it\"\nfi\nRG_KEY_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key --query id -o tsv)\n\nprintf '{\"pgPasswordSecretUri\":\"%s\",\"reportGeneratorKeySecretUri\":\"%s\"}' \"$PG_SECRET_URI\" \"$RG_KEY_SECRET_URI\" > \"$AZ_SCRIPTS_OUTPUT_PATH\"\n\necho \"==> Done\"\n"
+                "scriptContent": "set -euo pipefail\n\necho \"==> Validating existingLogAnalyticsWorkspaceId\"\nif [ -n \"$EXISTING_LAW_ID\" ]; then\n  # Format check — must be the FULL workspace resource ID, not a resource group.\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$'\n  if ! [[ \"$EXISTING_LAW_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: existingLogAnalyticsWorkspaceId is not a valid Log Analytics workspace resource ID.\"\n    echo \"       You provided: $EXISTING_LAW_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>\"\n    echo \"\"\n    echo \"       Common mistake: copying the parent resource GROUP's ID instead of the workspace ID.\"\n    echo \"       To get the correct one: open the workspace in the portal → Overview → JSON View → copy 'id'.\"\n    echo \"       Or leave the field BLANK to create a fresh workspace inside this deployment's RG.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    LAW format OK — $EXISTING_LAW_ID\"\n  echo \"    (note: existence is verified by log-analytics module; if you see a ResourceNotFound\"\n  echo \"     error there, the workspace doesn't exist at that path or you lack Log Analytics Reader)\"\nelse\n  echo \"    no LAW provided — a new workspace will be created in this RG\"\nfi\n\necho \"==> Validating containerRegistryResourceId\"\nif [ -n \"$ACR_ID\" ]; then\n  EXPECTED='^/subscriptions/[0-9a-fA-F-]+/resourceGroups/[^/]+/providers/Microsoft\\.ContainerRegistry/registries/[^/]+$'\n  if ! [[ \"$ACR_ID\" =~ $EXPECTED ]]; then\n    echo \"\"\n    echo \"ERROR: containerRegistryResourceId is not a valid Azure Container Registry resource ID.\"\n    echo \"       You provided: $ACR_ID\"\n    echo \"       Expected format:\"\n    echo \"         /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<registry-name>\"\n    echo \"       Copy it from the registry's Overview → JSON View → 'id', or leave it empty to pull from ghcr.io.\"\n    echo \"\"\n    exit 1\n  fi\n  echo \"    registry format OK — $ACR_ID\"\nelse\n  echo \"    no registry provided — images are pulled from ghcr.io\"\nfi\n\n# The vault uses Azure RBAC. A role assignment created earlier in this same\n# deployment can take a while (usually seconds, sometimes minutes) to reach Key\n# Vault, so wait until this identity can actually list secrets.\necho \"==> Waiting for Key Vault access\"\nattempt=1\nuntil KV_ERR=$(az keyvault secret list --vault-name \"$KV_NAME\" --maxresults 1 --output none 2>&1); do\n  if [ \"$attempt\" -ge 24 ]; then\n    echo \"ERROR: no access to Key Vault $KV_NAME after 4 minutes.\"\n    echo \"       The bootstrap identity needs the Key Vault Secrets Officer role on the vault.\"\n    printf '%s\\n' \"$KV_ERR\"\n    exit 1\n  fi\n  echo \"    no access yet (attempt $attempt/24), retrying in 10 s\"\n  attempt=$((attempt + 1))\n  sleep 10\ndone\necho \"    access OK\"\n\n# Succeeds when the secret exists, fails when Key Vault says it does not. Any\n# other error stops the script: treating an unreadable secret as missing would\n# generate a new master key over the old one and make every secret the app has\n# encrypted with it unreadable.\nsecret_exists() {\n  local err\n  if err=$(az keyvault secret show --vault-name \"$KV_NAME\" --name \"$1\" --output none 2>&1); then\n    return 0\n  fi\n  if printf '%s' \"$err\" | grep -q 'SecretNotFound'; then\n    return 1\n  fi\n  echo \"ERROR: could not check secret $1 in $KV_NAME:\"\n  printf '%s\\n' \"$err\"\n  exit 1\n}\n\necho \"==> Generating master key (if absent)\"\nif ! secret_exists identityatlas-master-key; then\n  MASTER_KEY=$(openssl rand -base64 32)\n  az keyvault secret set \\\n    --vault-name \"$KV_NAME\" \\\n    --name identityatlas-master-key \\\n    --value \"$MASTER_KEY\" \\\n    --output none\n  echo \"    wrote identityatlas-master-key\"\nelse\n  echo \"    identityatlas-master-key already present, skipping\"\nfi\n\n# Random, never derived. 32 random alphanumerics (~190 bits) plus a fixed\n# \"Aa1\" suffix so the value always meets the Postgres complexity rule\n# (upper + lower + digit), whatever the random part happens to contain.\nnew_pg_password() {\n  local random\n  random=$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9')\n  printf '%sAa1' \"${random:0:32}\"\n}\n\necho \"==> Postgres admin password\"\nif [ \"$ROTATE_PG_PASSWORD\" = \"True\" ] || [ \"$ROTATE_PG_PASSWORD\" = \"true\" ]; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    rotated postgres-admin-password (rotatePostgresPassword=true)\"\nelif ! secret_exists postgres-admin-password; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name postgres-admin-password \\\n    --value \"$(new_pg_password)\" --output none\n  echo \"    generated postgres-admin-password\"\nelse\n  echo \"    postgres-admin-password already present, keeping it\"\nfi\n\n# The App Service references the exact secret version, so a rotation changes\n# the app setting and restarts the app onto the new password. The URI holds no\n# secret value, so it is safe as a script output.\nPG_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name postgres-admin-password --query id -o tsv)\n\n# Generated once and kept, so a redeploy does not hand both containers a new key\n# (it used to be a newGuid() template default). Written even when the report\n# generator is not deployed, so switching it on later needs no extra step.\necho \"==> Report generator API key\"\nif [ -n \"${REPORT_GENERATOR_API_KEY:-}\" ]; then\n  CURRENT=$(az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key --query value -o tsv 2>/dev/null || true)\n  if [ \"$CURRENT\" != \"$REPORT_GENERATOR_API_KEY\" ]; then\n    az keyvault secret set --vault-name \"$KV_NAME\" --name report-generator-api-key \\\n      --value \"$REPORT_GENERATOR_API_KEY\" --output none\n    echo \"    stored the supplied report-generator-api-key\"\n  else\n    echo \"    supplied report-generator-api-key already stored\"\n  fi\nelif ! secret_exists report-generator-api-key; then\n  az keyvault secret set --vault-name \"$KV_NAME\" --name report-generator-api-key \\\n    --value \"$(openssl rand -hex 32)\" --output none\n  echo \"    generated report-generator-api-key\"\nelse\n  echo \"    report-generator-api-key already present, keeping it\"\nfi\nRG_KEY_SECRET_URI=$(az keyvault secret show --vault-name \"$KV_NAME\" --name report-generator-api-key --query id -o tsv)\n\nprintf '{\"pgPasswordSecretUri\":\"%s\",\"reportGeneratorKeySecretUri\":\"%s\"}' \"$PG_SECRET_URI\" \"$RG_KEY_SECRET_URI\" > \"$AZ_SCRIPTS_OUTPUT_PATH\"\n\necho \"==> Done\"\n"
               }
             }
           ],
@@ -1470,6 +1480,108 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', 'bootstrap')]",
         "[resourceId('Microsoft.Resources/deployments', 'key-vault')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "resource-diagnostics",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'key-vault'), '2025-04-01').outputs.kvName.value]"
+          },
+          "postgresServerName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.pgName.value]"
+          },
+          "workspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "11157128214356275496"
+            }
+          },
+          "parameters": {
+            "keyVaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Key Vault in this resource group."
+              }
+            },
+            "postgresServerName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the PostgreSQL flexible server in this resource group."
+              }
+            },
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics workspace resource ID (may be in another resource group)."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+              "name": "to-log-analytics",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "logs": [
+                  {
+                    "category": "AuditEvent",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('postgresServerName'))]",
+              "name": "to-log-analytics",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "logs": [
+                  {
+                    "category": "PostgreSQLLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'key-vault')]",
+        "[resourceId('Microsoft.Resources/deployments', 'log-analytics')]",
+        "[resourceId('Microsoft.Resources/deployments', 'postgres')]"
       ]
     },
     {
@@ -2183,9 +2295,6 @@
           "location": {
             "value": "[variables('location')]"
           },
-          "workspaceCustomerId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.customerId.value]"
-          },
           "workspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'log-analytics'), '2025-04-01').outputs.workspaceId.value]"
           },
@@ -2207,7 +2316,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "13785658019228118863"
+              "templateHash": "5999433287341358078"
             }
           },
           "parameters": {
@@ -2225,16 +2334,10 @@
                 "description": "Azure region"
               }
             },
-            "workspaceCustomerId": {
-              "type": "string",
-              "metadata": {
-                "description": "Log Analytics customer ID (GUID)"
-              }
-            },
             "workspaceId": {
               "type": "string",
               "metadata": {
-                "description": "Log Analytics workspace resource ID — used to read its shared key locally via listKeys(). The key is NOT passed in: module outputs persist in ARM deployment history (audit finding H-1)."
+                "description": "Log Analytics workspace resource ID (created here or BYO, possibly in another resource group) — the destination of the environment's diagnostic setting."
               }
             },
             "storageAccountName": {
@@ -2269,7 +2372,35 @@
               "apiVersion": "2024-10-02-preview",
               "name": "[format('{0}-cae', parameters('namePrefix'))]",
               "location": "[parameters('location')]",
-              "properties": "[union(createObject('appLogsConfiguration', createObject('destination', 'log-analytics', 'logAnalyticsConfiguration', createObject('customerId', parameters('workspaceCustomerId'), 'sharedKey', listKeys(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('workspaceId'), '/')[2], split(parameters('workspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', last(split(parameters('workspaceId'), '/'))), '2023-09-01').primarySharedKey))), if(empty(parameters('infrastructureSubnetId')), createObject(), createObject('vnetConfiguration', createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', false()))))]"
+              "properties": "[union(createObject('appLogsConfiguration', createObject('destination', 'azure-monitor')), if(empty(parameters('infrastructureSubnetId')), createObject(), createObject('vnetConfiguration', createObject('infrastructureSubnetId', parameters('infrastructureSubnetId'), 'internal', false()))))]"
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('namePrefix')))]",
+              "name": "to-log-analytics",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "logs": [
+                  {
+                    "category": "ContainerAppConsoleLogs",
+                    "enabled": true
+                  },
+                  {
+                    "category": "ContainerAppSystemLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments', format('{0}-cae', parameters('namePrefix')))]"
+              ]
             },
             {
               "type": "Microsoft.App/managedEnvironments/storages",
@@ -2964,7 +3095,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "222929792548404755"
+              "templateHash": "6418524270791156889"
             }
           },
           "parameters": {
@@ -3004,6 +3135,10 @@
               }
             }
           },
+          "variables": {
+            "secretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6",
+            "secretsOfficerRoleId": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+          },
           "resources": [
             {
               "type": "Microsoft.KeyVault/vaults",
@@ -3011,7 +3146,8 @@
               "name": "[parameters('kvName')]",
               "location": "[parameters('location')]",
               "properties": {
-                "enableRbacAuthorization": false,
+                "enableRbacAuthorization": true,
+                "accessPolicies": [],
                 "enableSoftDelete": true,
                 "softDeleteRetentionInDays": 7,
                 "enablePurgeProtection": true,
@@ -3025,31 +3161,36 @@
                   "family": "A",
                   "name": "standard"
                 },
-                "tenantId": "[subscription().tenantId]",
-                "accessPolicies": [
-                  {
-                    "tenantId": "[subscription().tenantId]",
-                    "objectId": "[parameters('webIdentityPrincipalId')]",
-                    "permissions": {
-                      "secrets": [
-                        "get",
-                        "list"
-                      ]
-                    }
-                  },
-                  {
-                    "tenantId": "[subscription().tenantId]",
-                    "objectId": "[parameters('deployScriptPrincipalId')]",
-                    "permissions": {
-                      "secrets": [
-                        "get",
-                        "list",
-                        "set"
-                      ]
-                    }
-                  }
-                ]
+                "tenantId": "[subscription().tenantId]"
               }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('webIdentityPrincipalId'), variables('secretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('secretsUserRoleId'))]",
+                "principalId": "[parameters('webIdentityPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('kvName')), parameters('deployScriptPrincipalId'), variables('secretsOfficerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('secretsOfficerRoleId'))]",
+                "principalId": "[parameters('deployScriptPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('kvName'))]"
+              ]
             }
           ],
           "outputs": {

@@ -14,10 +14,7 @@ param namePrefix string
 @description('Azure region')
 param location string
 
-@description('Log Analytics customer ID (GUID)')
-param workspaceCustomerId string
-
-@description('Log Analytics workspace resource ID — used to read its shared key locally via listKeys(). The key is NOT passed in: module outputs persist in ARM deployment history (audit finding H-1).')
+@description('Log Analytics workspace resource ID (created here or BYO, possibly in another resource group) — the destination of the environment\'s diagnostic setting.')
 param workspaceId string
 
 @description('Storage account name backing the uploads share')
@@ -32,17 +29,9 @@ param promptCacheShareName string
 @description('Private network mode: /23 subnet for the environment. Empty = no VNet (public mode). The VNet of an existing environment cannot be changed, so this is for new deployments only.')
 param infrastructureSubnetId string = ''
 
-// Reference the LA workspace + storage account so we can read their secrets
-// locally via listKeys(), instead of receiving them as params/outputs (outputs
-// persist in ARM deployment history — audit H-1). Same deploy principal as the
-// producing modules, which already called listKeys() on these, so no extra
-// permissions are required. The workspace may be BYO in another RG, so its
-// name + scope are parsed out of the full resource ID.
-resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
-  name: last(split(workspaceId, '/'))
-  scope: resourceGroup(split(workspaceId, '/')[2], split(workspaceId, '/')[4])
-}
-
+// Reference the storage account so we can read its key locally via listKeys(),
+// instead of receiving it as a param/output (outputs persist in ARM deployment
+// history — audit H-1).
 resource stg 'Microsoft.Storage/storageAccounts@2024-01-01' existing = {
   name: storageAccountName
 }
@@ -59,12 +48,11 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
   // vnetConfiguration is added only in the private network mode, so the public
   // shape sends exactly the same properties as before.
   properties: union({
+    // Logs go through Azure Monitor: the diagnostic setting below picks the
+    // destination. The older 'log-analytics' destination (workspace ID plus
+    // shared key) is being retired by Microsoft.
     appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: workspaceCustomerId
-        sharedKey: law.listKeys().primarySharedKey
-      }
+      destination: 'azure-monitor'
     }
   }, empty(infrastructureSubnetId) ? {} : {
     // Consumption-only environment inside the given subnet; still has public
@@ -74,6 +62,24 @@ resource env 'Microsoft.App/managedEnvironments@2024-10-02-preview' = {
       internal: false
     }
   })
+}
+
+// Worker console output and the environment's system events (image pulls,
+// restarts, scaling) into the workspace, as the ContainerAppConsoleLogs and
+// ContainerAppSystemLogs tables.
+resource diag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: env
+  name: 'to-log-analytics'
+  properties: {
+    workspaceId: workspaceId
+    logs: [
+      { category: 'ContainerAppConsoleLogs', enabled: true }
+      { category: 'ContainerAppSystemLogs',  enabled: true }
+    ]
+    metrics: [
+      { category: 'AllMetrics', enabled: true }
+    ]
+  }
 }
 
 resource uploadsStorage 'Microsoft.App/managedEnvironments/storages@2024-10-02-preview' = {
