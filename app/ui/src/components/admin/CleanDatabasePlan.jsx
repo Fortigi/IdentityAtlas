@@ -1,5 +1,5 @@
-// What a clean removes and keeps, as the API states it (GET
-// /api/admin/clean-database/plan). The lists come from the server's table
+// What a clean removes and keeps (GET /api/admin/clean-database/plan), and what
+// a finished clean reports. The lists come from the server's table
 // classification — the same one the clean runs on — so this dialog cannot
 // promise something the clean does not do. Nothing here is hard-coded.
 
@@ -40,6 +40,33 @@ export default function CleanDatabasePlan({ plan, backupUrl }) {
         </a>{' '}
         if you might want any of the removed data back.
       </p>
+    </div>
+  );
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+// What a finished clean reports (POST /api/admin/clean-database).
+export function CleanDatabaseResult({ result, onDismiss }) {
+  const wiped = result.wiped || [];
+  const alsoRemoved = result.alsoRemoved || [];
+  return (
+    <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded">
+      <div className="font-medium text-green-800 dark:text-green-300 text-sm mb-2">Database cleaned</div>
+      <div className="text-xs text-green-700 dark:text-green-400">
+        Cleaned {plural(wiped.length, 'table')}
+        {alsoRemoved.length > 0 && `; ${plural(alsoRemoved.length, 'kept table')} lost rows that hung on removed data`}
+      </div>
+      {wiped.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-xs text-green-700 dark:text-green-400 cursor-pointer hover:underline">Show details</summary>
+          <ul className="mt-1 text-xs text-green-600 dark:text-green-400 space-y-0.5">
+            {wiped.map(w => <li key={w.table}><code>{w.table}</code>: {w.rowsAffected} rows</li>)}
+            {alsoRemoved.map(a => <li key={`also-${a.table}`}><code>{a.table}</code>: {a.rowsAffected} rows (hung on removed data)</li>)}
+          </ul>
+        </details>
+      )}
+      <button onClick={onDismiss} className="mt-2 text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200">Dismiss</button>
     </div>
   );
 }

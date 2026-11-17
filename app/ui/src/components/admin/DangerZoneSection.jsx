@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { WarningIcon } from './adminIcons';
-import CleanDatabasePlan from './CleanDatabasePlan';
+import CleanDatabasePlan, { CleanDatabaseResult } from './CleanDatabasePlan';
 import { docsUrl } from '@ui/utils/docsUrl';
 
 const BACKUP_DOCS_PATH = '/admin/backup-restore-upgrade/';
@@ -78,33 +78,7 @@ export default function DangerZoneSection({ onRefresh, version }) {
           that goes because it hangs on removed data. Use this to re-sync from a clean slate.
         </p>
 
-        {result && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded">
-            <div className="font-medium text-green-800 dark:text-green-300 text-sm mb-2">Database cleaned</div>
-            <div className="text-xs text-green-700 dark:text-green-400">
-              Cleaned {result.wiped?.length || 0} table{result.wiped?.length !== 1 ? 's' : ''}
-              {result.alsoRemoved?.length > 0 && `; ${result.alsoRemoved.length} kept table${result.alsoRemoved.length !== 1 ? 's' : ''} lost rows that hung on removed data`}
-            </div>
-            {result.wiped?.length > 0 && (
-              <details className="mt-2">
-                <summary className="text-xs text-green-700 dark:text-green-400 cursor-pointer hover:underline">Show details</summary>
-                <ul className="mt-1 text-xs text-green-600 dark:text-green-400 space-y-0.5">
-                  {result.wiped.map(w => (
-                    <li key={w.table}>
-                      <code>{w.table}</code>: {w.rowsAffected} rows
-                    </li>
-                  ))}
-                  {(result.alsoRemoved || []).map(a => (
-                    <li key={`also-${a.table}`}>
-                      <code>{a.table}</code>: {a.rowsAffected} rows (hung on removed data)
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-            <button onClick={() => setResult(null)} className="mt-2 text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200">Dismiss</button>
-          </div>
-        )}
+        {result && <CleanDatabaseResult result={result} onDismiss={() => setResult(null)} />}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded">
