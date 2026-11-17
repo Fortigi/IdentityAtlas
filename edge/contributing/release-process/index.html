@@ -4660,6 +4660,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What each release is tested on">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#release-blockers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release blockers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -4673,6 +4690,17 @@
   
     <nav class="md-nav" aria-label="The release test">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#person-made-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Person-made data
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#what-it-does-not-cover" class="md-nav__link">
@@ -6274,6 +6302,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What each release is tested on">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#release-blockers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release blockers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6287,6 +6332,17 @@
   
     <nav class="md-nav" aria-label="The release test">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#person-made-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Person-made data
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#what-it-does-not-cover" class="md-nav__link">
@@ -6725,6 +6781,13 @@
 </tbody>
 </table>
 <p>The backup and restore test runs for <strong>every</strong> release, dependency-only patches included: a library update can change how the database is written as much as a feature can.</p>
+<h3 id="release-blockers">Release blockers<a class="headerlink" href="#release-blockers" title="Permanent link">&para;</a></h3>
+<p>Besides the release test itself, a candidate is held back when either of these is red on its commit:</p>
+<ul>
+<li><strong>The authorization suites</strong>: the <strong>Security: authorization regression</strong> job (<code>npm run test:security</code> in <code>app/api</code>), which includes the read-token and role-mapping contract tests in <code>app/api/contract-tests/</code>. A red one is a release blocker, never a flake to rerun past.</li>
+<li><strong>CI Passed</strong> and <strong>Integration CI Passed</strong> for the merges it contains.</li>
+</ul>
+<p><strong>Experimental features are not certified per release.</strong> Risk scoring and everything else behind Admin → Experimental (see <a href="../../reference/experimental-features/">Experimental features</a>) is checked for one thing only: off really is off, so an install that never switched it on is not affected. A release is not held back because an experimental feature misbehaves while switched on, and the release test does not exercise one.</p>
 <hr />
 <h2 id="the-release-test">The release test<a class="headerlink" href="#the-release-test" title="Permanent link">&para;</a></h2>
 <p><code>.github/workflows/release-test.yml</code>, logic in <code>tools/release/</code> (<code>Invoke-*ReleaseTest.ps1</code> and <code>ReleaseTest.*.ps1</code>, unit tests in <code>test/unit/ReleaseTest*.Tests.ps1</code>). It tests a <strong>published</strong> candidate (a beta tag, or <code>:edge</code>): the images from ghcr.io and the ZIPs from the GitHub release, not a build of the PR. Every part runs on GitHub-hosted runners, never on a sidekick.</p>
@@ -6739,7 +6802,7 @@
 <tbody>
 <tr>
 <td>Docker: upgrade, backup and restore</td>
-<td>Starts the previous stable release with its own <code>docker-compose.prod.yml</code>, loads the demo data, pushes one record of each kind through the ingest API, backs up exactly as <a href="../../admin/backup-restore-upgrade/">Back up, restore and upgrade</a> says, switches to the candidate, waits for the migrations, checks the running version, the read endpoints, and that the core row counts did not change. Then <strong>restores that backup onto an empty host</strong> running the candidate and checks the same again: the backup procedure as documented must give back the same database.</td>
+<td>Starts the previous stable release with its own <code>docker-compose.prod.yml</code>, loads the demo data, pushes one record of each kind through the ingest API, makes <a href="#person-made-data">person-made data</a> through the API the UI uses, backs up exactly as <a href="../../admin/backup-restore-upgrade/">Back up, restore and upgrade</a> says, switches to the candidate, waits for the migrations, checks the running version, the read endpoints, that the core row counts did not change and that every person-made record reads back with exactly its values. Then <strong>restores that backup onto an empty host</strong> running the candidate and checks the same again: the backup procedure as documented must give back the same database.</td>
 <td><code>ubuntu-latest</code></td>
 </tr>
 <tr>
@@ -6759,7 +6822,7 @@
 </tr>
 <tr>
 <td>Portable</td>
-<td>Both ZIPs (<code>IdentityAtlas-portable.zip</code>, PGlite; <code>-postgres</code>, started with <code>-Database Postgres</code> and checked to really run PostgreSQL): a fresh start with demo data and one page of the matrix, and an upgrade from the previous stable release's ZIP on the same data directory.</td>
+<td>Both ZIPs (<code>IdentityAtlas-portable.zip</code>, PGlite; <code>-postgres</code>, started with <code>-Database Postgres</code> and checked to really run PostgreSQL): a fresh start with demo data and one page of the matrix, and an upgrade from the previous stable release's ZIP on the same data directory, with the same <a href="#person-made-data">person-made data</a> check across it.</td>
 <td><code>windows-latest</code></td>
 </tr>
 <tr>
@@ -6769,10 +6832,23 @@
 </tr>
 </tbody>
 </table>
+<h3 id="person-made-data">Person-made data<a class="headerlink" href="#person-made-data" title="Permanent link">&para;</a></h3>
+<p>Backup and restore is the way to move an instance, so it has to keep what people made in the app, which no crawl brings back. Row counts cannot show that, so the upgrade tests make one of each through the API with values no install has by default, and read each back afterwards, comparing the exact values (<code>tools/release/ReleaseTest.CuratedData.ps1</code>, unit-tested by <code>test/unit/ReleaseTestCuratedData.Tests.ps1</code>):</p>
+<ul>
+<li>a tag on two users, and a manual context holding the same two</li>
+<li>a CSV crawler configuration with a (switched-off) weekly schedule</li>
+<li>a governance category</li>
+<li>the account-linking threshold, changed from its default</li>
+<li>an extra role in the role → permission mapping</li>
+<li>one feature flag switched the other way</li>
+<li>a saved matrix with its filter</li>
+<li>a read API key: name, prefix and not revoked; on Docker also that its stored hash still matches the key, which is what sign-in checks (the Docker scenarios run with sign-in off, where no request would test it); with sign-in on, that the key still gets in and a changed key does not</li>
+<li>an analyst's confirmation of one identity link (skipped with a warning when the demo data has no identity with a linked account)</li>
+</ul>
+<p>The previous stable release makes the records, so only endpoints it already has are used. Risk profiles and risk overrides are left out: risk scoring is experimental (see <a href="#release-blockers">Release blockers</a>).</p>
 <h3 id="what-it-does-not-cover">What it does not cover<a class="headerlink" href="#what-it-does-not-cover" title="Permanent link">&para;</a></h3>
 <p>Know these before you read a green run as "safe":</p>
 <ul>
-<li><strong>Person-made data after a restore</strong>, beyond the row counts: tags, manual contexts, crawler configurations, role mappings, saved matrices and the like are counted with their tables but not compared value by value. <a href="https://github.com/Fortigi/IdentityAtlas/pull/1644">#1644</a> adds that comparison, after the upgrade and after the restore, on Docker and on the portable ZIPs.</li>
 <li><strong>Credentials surviving a restore.</strong> The restore checks that the web container did not start without its master key; it does not decrypt a stored crawler credential.</li>
 <li><strong>Sign-in through a browser.</strong> The tokens are app-only (client credentials through a federated credential). The MSAL redirect, the redirect URI, delegated user tokens, roles assigned through a group, Conditional Access and MFA are not exercised.</li>
 <li><strong>Real data.</strong> Only the synthetic demo dataset and a handful of ingested records. No crawler talks to a real system, and nothing is large: volume is covered, partly, by the load and soak tests in PR CI.</li>

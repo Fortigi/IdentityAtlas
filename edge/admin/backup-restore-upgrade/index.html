@@ -6365,8 +6365,8 @@
 <p>How to keep a Docker deployment of Identity Atlas safe and current: what to back up, how to get it back, how to move to a new version, and how to remove it.</p>
 <p>This page is about the Docker deployment started from <code>docker-compose.prod.yml</code> (see <a href="../../architecture/docker-setup/">Docker Setup</a>). Every command is run in the directory that holds that file and its <code>.env</code>. If you use a second compose file, for example for a reverse proxy, add it to each command with a second <code>-f</code>.</p>
 <div class="admonition warning">
-<p class="admonition-title">Written from the compose file, not from a test run</p>
-<p>The procedures on this page follow from <code>docker-compose.prod.yml</code> and the standard PostgreSQL tools in its <code>postgres:16-alpine</code> image. They were not executed end to end for this page. Rehearse a restore on a spare machine before you rely on it. A backup you have never restored is a hope, not a backup.</p>
+<p class="admonition-title">Tested on every release, but rehearse it on your own host</p>
+<p>The Docker back-up, upgrade and restore on this page are run by the <a href="../../contributing/release-process/#the-release-test">release test</a> for every beta and stable release, with the commands as written here: it backs up the previous stable release, upgrades to the new one, then restores the backup onto an empty host, and checks that the data, and the <a href="../../contributing/release-process/#person-made-data">person-made data</a> such as tags, crawler configurations and role mappings, come back unchanged. Your host, volumes and backup storage are not part of that test. Rehearse a restore on a spare machine before you rely on it. A backup you have never restored is a hope, not a backup.</p>
 </div>
 <hr />
 <h2 id="what-to-back-up">What to back up<a class="headerlink" href="#what-to-back-up" title="Permanent link">&para;</a></h2>
