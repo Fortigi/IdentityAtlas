@@ -315,8 +315,11 @@ test.describe('#1629 — after the source deletes the role', () => {
     await expect(gridRow(page, GROUP_LIVE.displayName)).toBeVisible({ timeout: 60000 });
     await expect(gridRow(page, GROUP_GONE.displayName)).toHaveCount(0);
 
-    // And the Non-governed view — the role-mining backlog — has it back.
-    await page.goto(matrixUrl('unmanaged'));
+    // And the Non-governed view — the role-mining backlog — has it back. Switched
+    // with the toolbar lens, as the reporter would: a second `goto` that changes
+    // only the hash does not reload the page, and the lens is read from the hash
+    // once, on mount — so the grid would still be showing the Governed view.
+    await page.getByRole('button', { name: 'Non-governed', exact: true }).click();
     await expect(gridRow(page, GROUP_GONE.displayName)).toBeVisible({ timeout: 60000 });
     await expect(gridRow(page, GROUP_LIVE.displayName)).toHaveCount(0);
   });
