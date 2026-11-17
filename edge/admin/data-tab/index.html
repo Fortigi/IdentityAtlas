@@ -2686,10 +2686,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#curated-data-export-import" class="md-nav__link">
+  <a href="#moving-to-a-new-instance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Curated Data (export / import)
+        Moving to a new instance
       
     </span>
   </a>
@@ -6002,10 +6002,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#curated-data-export-import" class="md-nav__link">
+  <a href="#moving-to-a-new-instance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Curated Data (export / import)
+        Moving to a new instance
       
     </span>
   </a>
@@ -6140,12 +6140,12 @@
 
 
 <h1 id="admin-data">Admin → Data<a class="headerlink" href="#admin-data" title="Permanent link">&para;</a></h1>
-<p>The <strong>Data</strong> tab (Admin → Data) is where operators move curated data in and out
-of a deployment, keep the audit history trimmed, and — when they really mean it —
-wipe the database back to a clean slate. Everything here is gated by permission,
+<p>The <strong>Data</strong> tab (Admin → Data) is where operators hand out the Excel Power Query
+workbook, keep the audit history trimmed, and — when they really mean it — wipe
+the database back to a clean slate. Everything here is gated by permission,
 so which sections you see depends on the roles mapped to your account (see
 <a href="../../reference/permissions/">Permissions &amp; Role Mapping</a>).</p>
-<p>The tab groups four things:</p>
+<p>The tab groups three things:</p>
 <table>
 <thead>
 <tr>
@@ -6155,11 +6155,6 @@ so which sections you see depends on the roles mapped to your account (see
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><strong>Curated Data</strong></td>
-<td>Export/import tags and business-role categories as JSON</td>
-<td><code>data.export.ui</code> (export), <code>admin.csv-import</code> (import)</td>
-</tr>
 <tr>
 <td><strong>Excel Power Query Workbook</strong></td>
 <td>Generate a read-only workbook + token for BI/Excel</td>
@@ -6172,48 +6167,27 @@ so which sections you see depends on the roles mapped to your account (see
 </tr>
 <tr>
 <td><strong>Danger Zone → Clean Database</strong></td>
-<td>Wipe all identity data, keep your setup</td>
+<td>Remove everything a crawler or plugin can recreate, keep what people made</td>
 <td><code>admin.systems</code></td>
 </tr>
 </tbody>
 </table>
 <div class="admonition note">
 <p class="admonition-title">The tab appears if you hold <em>any</em> of its permissions</p>
-<p>Admin → Data is visible to anyone with <code>data.export.ui</code>, <code>admin.csv-import</code>,
-<code>admin.systems</code>, <code>admin.read-tokens</code>, or <code>data.export.apikey</code>. Individual
+<p>Admin → Data is visible to anyone with <code>data.export.ui</code>, <code>admin.systems</code>,
+<code>admin.read-tokens</code>, or <code>data.export.apikey</code>. Individual
 sections are still gated on their own permission, so a user who can export
 but not clean the database sees the export controls without the Danger Zone.</p>
 </div>
 <hr />
-<h2 id="curated-data-export-import">Curated Data (export / import)<a class="headerlink" href="#curated-data-export-import" title="Permanent link">&para;</a></h2>
-<p>Tags and business-role categories are curated by analysts inside the UI — they
-are not produced by a crawler, so a full re-sync or a fresh environment does not
-recreate them. This section exports that curated layer to a JSON file and imports
-it back.</p>
-<ul>
-<li><strong>Export tags &amp; categories</strong> — <code>GET /api/admin/export/curated</code> (permission
-  <code>data.export.ui</code>). Streams a <code>FGCuratedData_&lt;date&gt;.json</code> file containing every
-  user/group/resource tag with its assignments, and every business-role category
-  with its access-package assignments. The format is compatible with the
-  PowerShell <code>Export-FGCuratedData</code> / <code>Import-FGCuratedData</code> cmdlets.</li>
-<li><strong>Import from file</strong> — <code>POST /api/admin/import/curated</code> (permission
-  <code>admin.csv-import</code>). Reads a JSON file in the same format and re-attaches the
-  tags and categories.</li>
-</ul>
-<p><strong>How import resolves entities.</strong> Each assignment is matched to a live entity in
-two passes: first by GUID (the exact <code>entityId</code> / <code>accessPackageId</code>), then — if
-that GUID is no longer present — by display name (plus resource type for
-groups/resources). Anything that still can't be resolved is reported as "not
-found" rather than silently dropped.</p>
-<div class="admonition tip">
-<p class="admonition-title">Import after a sync, not before</p>
-<p>Import matches against records already in the database. If you import curated
-data into an empty environment, most assignments land as "entity not found".
-Run a full crawler sync first so the principals, resources, and business roles
-exist, then import — the GUID pass will match them cleanly.</p>
-</div>
-<p>Analyst score overrides are <strong>not</strong> part of this export — they are handled
-separately by the PowerShell <code>Export-FGCuratedData</code> cmdlet.</p>
+<h2 id="moving-to-a-new-instance">Moving to a new instance<a class="headerlink" href="#moving-to-a-new-instance" title="Permanent link">&para;</a></h2>
+<p>The tab also carries a short note: to move Identity Atlas to a new instance, back
+up the database and restore it there. A database backup carries everything,
+including what people made in the app: tags, contexts built by hand, risk-score
+overrides and settings. The steps for Docker, Azure and the portable version are in
+<a href="../backup-restore-upgrade/#move-identity-atlas-to-a-new-instance">Move Identity Atlas to a new instance</a>.</p>
+<p>Earlier versions had a <strong>Curated Data</strong> export and import on this tab. It covered
+only tags and business-role categories, so it has been removed.</p>
 <hr />
 <h2 id="excel-power-query-workbook">Excel Power Query Workbook<a class="headerlink" href="#excel-power-query-workbook" title="Permanent link">&para;</a></h2>
 <p>The same tab hosts the <strong>Excel Power Query Workbook</strong> export: it generates a
@@ -6249,31 +6223,81 @@ and query patterns — see
 <hr />
 <h2 id="danger-zone-clean-database">Danger Zone → Clean Database<a class="headerlink" href="#danger-zone-clean-database" title="Permanent link">&para;</a></h2>
 <p><strong>Clean Database</strong> (<code>POST /api/admin/clean-database</code>, permission <code>admin.systems</code>)
-wipes all identity data so you can re-sync from a clean slate without rebuilding
-your setup.</p>
-<p><strong>What it wipes:</strong> every data table — Principals, Resources, ResourceAssignments,
-ResourceRelationships, Identities, IdentityMembers, Contexts, governance catalogs,
-risk scores, systems, and the crawler runtime artifacts (jobs and sync logs). The
-matching <code>_history</code> audit rows for those tables go too, and crawler configs are
-reset to "never run".</p>
-<p><strong>What it preserves:</strong></p>
+removes everything a crawler or a plugin can recreate, and nothing a person
+made. Use it to re-sync from a clean slate without losing your setup or your
+curated work.</p>
+<div class="admonition tip">
+<p class="admonition-title">Make a backup first</p>
+<p>There is no undo. <a href="../backup-restore-upgrade/">Make a backup first</a> if you
+might want any of the removed data back.</p>
+</div>
+<p>The confirmation dialog shows the same lists as below. It reads them from the
+API (<code>GET /api/admin/clean-database/plan</code>), which takes them from the table
+classification the clean itself runs on, so the dialog cannot promise something
+the clean does not do.</p>
+<p><strong>What it removes:</strong></p>
 <ul>
-<li><strong>Crawler configurations</strong> — your crawler connection entries and their credentials stay put (these are the Crawlers admin records, distinct from the <code>Systems</code> data table above, which <em>is</em> wiped).</li>
-<li><strong>Risk profiles and classifiers.</strong></li>
-<li><strong>Account-linking / correlation rules.</strong></li>
-<li><strong>The audit log</strong> for anything not tied to a wiped table.</li>
+<li>Systems, accounts, resources and access loaded by your crawlers</li>
+<li>Governance data from your sources: catalogs, business roles, policies, requests and review decisions</li>
+<li>Identities and the accounts linked to them</li>
+<li>Synced and generated contexts (org charts, departments, clusters and other plugin trees) with their members</li>
+<li>Crawler job history, the sync log and saved delta tokens, so the next crawl is a full one</li>
+<li>Computed results: risk scores, dashboard trend snapshots, and the run history of plugins, risk scoring and account linking</li>
+<li>The change history of everything removed</li>
 </ul>
-<p>After a clean, the sequences are reset and the tables are re-analyzed so the
-dashboard immediately reports zero rows. You then re-run your crawlers to
+<p><strong>What it keeps:</strong></p>
+<ul>
+<li>Manual contexts and tags, with the members you added</li>
+<li>Uploaded lists, with their contexts, members and the owners you assigned to them</li>
+<li>Analyst risk-score overrides</li>
+<li>Settings: crawler configurations and registrations, feature flags, role mapping, LLM, history retention and personal preferences</li>
+<li>Risk profiles, risk classifiers and account-linking rules</li>
+<li>Stored secrets and read-API keys</li>
+<li>Saved matrix views, matrix shares, saved reports and report views</li>
+<li>Business-role categories and their assignments</li>
+<li>Interviews, claims, decisions, change requests, tree adjustments, workbench investigations and role proposals on contexts that are kept</li>
+<li>Audit logs: role changes, crawler audit, MCP tool calls, share access, update checks and bot conversations</li>
+<li>The change history of everything kept</li>
+</ul>
+<p><strong>Work of yours that is removed anyway</strong>, because it cannot exist without the
+data it hangs on:</p>
+<ul>
+<li>Owners you assigned to a crawled system — the system is removed.</li>
+<li>Manager overrides in the org chart — the account they move is removed.</li>
+<li>Accountable and Responsible people on contexts, including the ones you set, and rejected suggestions — every holder is an account or an identity, and those are removed.</li>
+<li>Your confirm, reject and move decisions on identity accounts, and analyst verification and notes on identities — the identities they belong to are removed.</li>
+<li>Members and links you added to a synced or generated context — that context is removed.</li>
+<li>Interviews, claims, decisions and workbench investigations (with their role proposals) on a synced or generated context — that context is removed.</li>
+<li>Tree adjustments on a tree tied to a crawled system — that system is removed.</li>
+</ul>
+<p><strong>Kept, but changed:</strong></p>
+<ul>
+<li>A manual context placed under a synced or generated context moves to the top level.</li>
+<li>Kept interviews, claims and change requests lose their link to a removed account, context or system; the names they recorded stay.</li>
+<li>A role proposal that extends a removed business role loses that link.</li>
+<li>Crawler configurations show as never run.</li>
+</ul>
+<p>Members you added to a manual context or tag point at accounts and resources by
+their id, without a hard link. Entra object ids, and the ids the ingest derives
+for other sources, stay the same across a re-crawl, so those members come back
+once the next crawl brings the accounts back.</p>
+<p><strong>How it runs.</strong> The clean runs in one database transaction. If any step fails,
+nothing is removed and the call answers <code>500</code> with
+<code>Clean database failed. Nothing was removed.</code> On success the tables are
+re-analyzed, the matrix views are rebuilt in the background, and each table's id
+sequence restarts after the highest id still in use (at 1 for an emptied table).
+The response lists each table it cleaned with its row count (<code>wiped</code>), the rows
+of kept tables that went with removed data (<code>alsoRemoved</code>), and how many history
+rows were removed (<code>historyRowsRemoved</code>). You then re-run your crawlers to
 repopulate.</p>
 <div class="admonition warning">
 <p class="admonition-title">This is irreversible</p>
 <p>The UI requires two confirmations — a "Yes, continue" step and typing
-<code>DELETE ALL DATA</code> — before the wipe runs. The API enforces the same phrase: a
+<code>DELETE ALL DATA</code> — before the clean runs. The API enforces the same phrase: a
 call must send the JSON body <code>{"confirm": "DELETE ALL DATA"}</code>, otherwise it is
 refused with <code>400</code>. The endpoint is also rate-limited to <strong>5 requests per minute
-per admin</strong> to guard against runaway automation. There is no undo; the data comes
-back only by re-syncing.</p>
+per admin</strong> to guard against runaway automation. There is no undo; the removed
+data comes back only by re-syncing, or from a backup.</p>
 </div>
 
 

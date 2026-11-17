@@ -6767,7 +6767,7 @@
 <tr>
 <td><code>FEATURE_RISK_SCORING</code></td>
 <td>off</td>
-<td>Risk scoring</td>
+<td>Risk scoring (experimental; see <a href="../experimental-features/#risk-scoring">Experimental features</a>)</td>
 </tr>
 <tr>
 <td><code>FEATURE_ACCOUNT_LINKING</code></td>
@@ -6819,7 +6819,7 @@
 <p>A switch that is off by default takes <code>true</code> to turn on. <a href="../experimental-features/">Experimental Features</a> describes what each switch does.</p>
 <h2 id="llm-and-report-generator">LLM and report generator<a class="headerlink" href="#llm-and-report-generator" title="Permanent link">&para;</a></h2>
 <h3 id="risk-profiles-cloud-llm">Risk profiles (cloud LLM)<a class="headerlink" href="#risk-profiles-cloud-llm" title="Permanent link">&para;</a></h3>
-<p>The provider, model, endpoint and API key are set in <strong>Admin → LLM Settings</strong>; the key is stored in the vault. Supported providers are <code>anthropic</code>, <code>openai</code> and <code>azure-openai</code>. When no model is chosen, Anthropic uses <code>claude-sonnet-4-6</code> and OpenAI uses <code>gpt-4o</code>; Azure OpenAI always needs the deployment name.</p>
+<p>The provider, model, endpoint and API key are set in <strong>Admin → Risk Scoring LLM</strong> (shown while risk scoring is switched on); the key is stored in the vault. Supported providers are <code>anthropic</code>, <code>openai</code> and <code>azure-openai</code>. When no model is chosen, Anthropic uses <code>claude-sonnet-4-6</code> and OpenAI uses <code>gpt-4o</code>; Azure OpenAI always needs the deployment name.</p>
 <table>
 <thead>
 <tr>
@@ -6967,12 +6967,12 @@
 </tr>
 <tr>
 <td>Feature switches</td>
-<td>Admin → Experimental, Admin → Risk Scoring</td>
+<td>Admin → Experimental</td>
 <td><code>WorkerConfig</code>, keys <code>FEATURE_*</code></td>
 </tr>
 <tr>
-<td>LLM provider and model</td>
-<td>Admin → LLM Settings</td>
+<td>LLM provider and model (risk scoring)</td>
+<td>Admin → Risk Scoring LLM</td>
 <td><code>WorkerConfig</code>, key <code>LLM_CONFIG</code>; the API key in the vault</td>
 </tr>
 <tr>

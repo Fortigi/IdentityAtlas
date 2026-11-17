@@ -6597,7 +6597,7 @@ and shown here.</p>
 <p>Accounts, resources, business roles and identities ranked by a risk score from 0 to 100, with a tier
 from <em>None</em> to <em>Critical</em>. Open a record's <strong>Risk</strong> view to see what produced its score and, as an
 analyst, to adjust it with a written reason.</p>
-<p>An administrator switches the feature on and sets it up under <strong>Admin → Risk Scoring</strong>. Scoring needs
+<p>Risk scoring is <a href="../../reference/experimental-features/#risk-scoring">experimental</a>: an administrator switches it on under <strong>Admin → Experimental</strong> and sets it up under <strong>Admin → Risk Scoring</strong>. Scoring needs
 an active set of classifiers; once there is one, the scores are recalculated after every crawl, and
 can also be run by hand from <strong>Admin → Risk Scoring</strong>. Until scores have been computed the tab says so
 and offers to run the scoring.
@@ -6653,11 +6653,11 @@ on the kind of run, or search by name or by who started it.</p>
 </tr>
 <tr>
 <td><strong>Risk Scoring</strong></td>
-<td>Switch risk scoring on and set up the risk profile and classifiers</td>
+<td>Set up the risk profile and classifiers, and run scoring (only while risk scoring is switched on)</td>
 </tr>
 <tr>
-<td><strong>LLM Settings</strong></td>
-<td>Choose the language model that risk scoring uses</td>
+<td><strong>Risk Scoring LLM</strong></td>
+<td>Choose the language model that risk scoring uses (only while risk scoring is switched on)</td>
 </tr>
 <tr>
 <td><strong>Performance</strong></td>
@@ -6673,7 +6673,7 @@ on the kind of run, or search by name or by who started it.</p>
 </tr>
 <tr>
 <td><strong>Data</strong></td>
-<td>Export and import curated data, and clean the database</td>
+<td>Excel Power Query export, history retention, and cleaning the database</td>
 </tr>
 <tr>
 <td><strong>Shared Matrices</strong></td>

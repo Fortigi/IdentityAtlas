@@ -6566,7 +6566,7 @@
 <li><strong>Run Scoring</strong> — <code>POST /risk-scoring/runs</code>, polled every 2 seconds for progress.</li>
 </ol>
 <p>All draft state lives in the browser. Refreshing the wizard mid-flow loses the draft.</p>
-<p>The <strong>LLM Settings</strong> tab in Admin lets the operator pick the provider, the model, (Azure only) the endpoint, deployment and API version, and the API key. <strong>Test connection</strong> makes a single call with either the form values or the saved config, so you can check before saving. The API key is never returned by the server; the form only shows whether one is stored.</p>
+<p>The <strong>Risk Scoring LLM</strong> tab in Admin (shown only while risk scoring is on) lets the operator pick the provider, the model, (Azure only) the endpoint, deployment and API version, and the API key. <strong>Test connection</strong> makes a single call with either the form values or the saved config, so you can check before saving. The API key is never returned by the server; the form only shows whether one is stored.</p>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>app/api/src/secrets/vault.test.js</code> — vault round-trip</li>
@@ -6586,7 +6586,7 @@
 <h2 id="master-key-rotation">Master key rotation<a class="headerlink" href="#master-key-rotation" title="Permanent link">&para;</a></h2>
 <p>Rotation, backups and the master key are described on <a href="../secrets-and-master-key/#rotating-the-master-key">Secrets and the Master Key</a>.</p>
 <h2 id="disabling-the-feature">Disabling the feature<a class="headerlink" href="#disabling-the-feature" title="Permanent link">&para;</a></h2>
-<p>The Risk Scoring tab in Admin has a feature toggle (the <strong>Risk Scoring Feature</strong> card). Switching it off hides the Risk Scores tab in the main navigation. The LLM config and the saved profiles and classifiers are kept.</p>
+<p>Risk scoring is an <a href="../../reference/experimental-features/#risk-scoring">experimental feature</a>, switched on and off under <strong>Admin → Experimental</strong> (flag <code>riskScoring</code>, WorkerConfig key <code>FEATURE_RISK_SCORING</code>). Off means off: the Risk Scores tab, the <strong>Risk Scoring</strong> and <strong>Risk Scoring LLM</strong> admin tabs and every risk badge are hidden; every risk-scoring and risk-LLM route answers <code>404</code> through <code>requireFeature('riskScoring')</code>; <code>startRiskScoringRun</code> returns without starting a run, so the post-crawl job is a no-op; and user / resource details and the dashboard statistics carry no risk fields. The LLM config, the saved profiles, classifiers, scores and overrides are kept.</p>
 
 
 

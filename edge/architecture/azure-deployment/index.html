@@ -2205,6 +2205,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backups
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tearing-down" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6361,6 +6372,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backups
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tearing-down" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6531,7 +6553,7 @@ One-click install: see the <a href="https://github.com/Fortigi/IdentityAtlas/blo
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>   ┌──────────────────┐     ┌────────────────────┐        ┌──────────────────┐
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>   │ Postgres Flex    │     │ Azure Files share  │        │ Key Vault         │
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>   │ Public endpoint, │     │ (Storage Account)  │        │ Public endpoint,  │
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ firewall: web    │     │ /data/uploads      │        │ access policies.  │
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>   │ firewall: web    │     │ /data/uploads      │        │ Azure RBAC.       │
 <a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>   │ app outbound IPs │     │ shared with worker │        │ master key +      │
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>   │ only             │     └────────────────────┘        │ DB password.      │
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>   └──────────────────┘                                   └──────────────────┘
@@ -6764,7 +6786,14 @@ for the steps.</p>
 </code></pre></div>
 <p>Or query Log Analytics (whether created here or BYO):
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">AppServiceConsoleLogs</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">_ResourceId</span><span class="w"> </span><span class="n">endswith</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-web"</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">ContainerAppConsoleLogs_CL</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ContainerAppName_s</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-worker"</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">ContainerAppConsoleLogs</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ContainerAppName</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"&lt;namePrefix&gt;-worker"</span>
+</code></pre></div></p>
+<p>Key Vault and PostgreSQL send their logs to the same workspace through
+diagnostic settings: Key Vault's audit events (every secret read or write,
+including refused attempts) and the PostgreSQL server log (connections, failed
+sign-ins, errors), plus the metrics of both.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">AzureDiagnostics</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ResourceProvider</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"MICROSOFT.KEYVAULT"</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">Category</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"AuditEvent"</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">AzureDiagnostics</span><span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="k">where</span><span class="w"> </span><span class="n">ResourceProvider</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"MICROSOFT.DBFORPOSTGRESQL"</span><span class="w"> </span><span class="k">and</span><span class="w"> </span><span class="n">Category</span><span class="w"> </span><span class="p">==</span><span class="w"> </span><span class="s">"PostgreSQLLogs"</span>
 </code></pre></div></p>
 <h3 id="network-modes">Network modes<a class="headerlink" href="#network-modes" title="Permanent link">&para;</a></h3>
 <p>The <code>networkMode</code> parameter picks the network shape.</p>
@@ -6784,7 +6813,7 @@ for the steps.</p>
 </tr>
 <tr>
 <td>Key Vault</td>
-<td>Public endpoint, default action Allow. Access still requires the managed identity's access policy.</td>
+<td>Public endpoint, default action Allow. Access still requires a Key Vault data-plane role (Azure RBAC) on the vault.</td>
 <td>Private endpoint. Default action Deny after the deployment finishes (trusted Azure services bypass).</td>
 </tr>
 <tr>
@@ -6818,7 +6847,7 @@ for the steps.</p>
 <p>The admin password is random, generated once by the bootstrap script and stored in Key Vault as <code>postgres-admin-password</code>; the template passes it to the server with <code>getSecret()</code> and the web app references the exact secret version. Nothing about it is derived from resource names.</p>
 <p>The <code>getSecret()</code> call sits in a wrapper module (<code>postgres-kv-password.bicep</code>) that gets the vault name from the key-vault module's output. Do not move it back to a vault named statically in <code>main.bicep</code>: ARM then resolves the reference during preflight validation, before the vault exists, and every fresh install fails with <code>KeyVaultParameterReferenceNotFound</code> (this happened in v6.0.0). <code>test/unit/AzureKeyVaultReferences.Tests.ps1</code> guards it.</p>
 <p><strong>Deployments created before this change</strong> used a password derived from the subscription ID and resource group name, which anyone who learns both can compute. Redeploying keeps that password (nothing rotates silently). Rotate it once, deliberately:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">az</span> <span class="n">deployment</span> <span class="nb">group </span><span class="n">create</span> <span class="n">-g</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span> <span class="p">-</span><span class="n">-template</span><span class="o">-file</span> <span class="n">azure</span><span class="p">/</span><span class="n">main</span><span class="p">.</span><span class="n">bicep</span> <span class="p">-</span><span class="n">-parameters</span> <span class="n">rotatePostgresPassword</span><span class="p">=</span><span class="n">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">az</span> <span class="n">deployment</span> <span class="nb">group </span><span class="n">create</span> <span class="n">-g</span> <span class="p">&lt;</span><span class="n">rg</span><span class="p">&gt;</span> <span class="p">-</span><span class="n">-template</span><span class="o">-file</span> <span class="n">azure</span><span class="p">/</span><span class="n">main</span><span class="p">.</span><span class="n">bicep</span> <span class="p">-</span><span class="n">-parameters</span> <span class="n">rotatePostgresPassword</span><span class="p">=</span><span class="n">true</span>
 </code></pre></div>
 <p>The bootstrap script writes a new random password to Key Vault, the Postgres server is updated, and the web app restarts onto the new secret version in the same deployment (expect a short interruption). Redeploy later without the parameter (it defaults to <code>false</code>); passing it again rotates again. In the portal, set <strong>Rotate Postgres Password</strong> to <code>true</code> on the Deploy to Azure form.</p>
 <p><strong>Entra ID authentication for Postgres</strong> (a managed-identity token instead of a password) is not enabled yet. It needs an Entra administrator on the server, a database role for the web app's managed identity, and token acquisition in the API; the schema is currently owned by the password-based admin role. Tracked as a follow-up.</p>
@@ -6828,8 +6857,11 @@ for the steps.</p>
 2. Fetch the admin password from Key Vault: <code>az keyvault secret show --vault-name &lt;kv&gt; --name postgres-admin-password --query value -o tsv</code>.
 3. <code>psql "postgres://identityatlas:&lt;pw&gt;@&lt;pgFqdn&gt;:5432/identity_atlas?sslmode=require"</code>.
 4. Delete the firewall rule when done.</p>
+<h3 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h3>
+<p>The template turns on Azure's automatic backups with point-in-time restore, and keeps them for 7 days (the minimum; Azure allows up to 35). Geo-redundant backup is off, so the backups stay in the region; that can only be switched on when a server is created. High availability is off, and there are no resource locks: deleting the server or the resource group deletes its backups too. Key Vault, which holds the master key, has soft delete for 7 days with purge protection on.</p>
+<p>If that is not enough for you, raise the retention, add a <code>CanNotDelete</code> lock, use Azure Backup's vaulted backup for long-term copies, or take your own periodic <code>pg_dump</code>. How to do each, how to restore, and how to move to a new deployment are in <a href="../../admin/backup-restore-upgrade/#azure">Back up, restore and upgrade → Azure</a>.</p>
 <h3 id="tearing-down">Tearing down<a class="headerlink" href="#tearing-down" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>az<span class="w"> </span>group<span class="w"> </span>delete<span class="w"> </span>--name<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--yes
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>az<span class="w"> </span>group<span class="w"> </span>delete<span class="w"> </span>--name<span class="w"> </span>&lt;rg&gt;<span class="w"> </span>--yes
 </code></pre></div>
 <p>Key Vault has soft delete + purge protection (7-day retention). To redeploy with the same KV name within those 7 days, either wait or deploy into a different resource group — the name prefix is derived from the resource group ID, so it can no longer be chosen directly.</p>
 <h2 id="decisions-taken-and-why">Decisions taken (and why)<a class="headerlink" href="#decisions-taken-and-why" title="Permanent link">&para;</a></h2>
@@ -6854,8 +6886,8 @@ for the steps.</p>
 </tr>
 <tr>
 <td><strong>Key Vault endpoint</strong></td>
-<td>Public, access policies (default); private endpoint + Deny (<code>networkMode=private</code>)</td>
-<td>The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by access policies either way.</td>
+<td>Public, Azure RBAC (default); private endpoint + Deny (<code>networkMode=private</code>)</td>
+<td>The bootstrap script and App Service Key Vault references need network access; without a VNet that means the public endpoint. Access is gated by Azure RBAC roles on the vault either way (the web app identity has Key Vault Secrets User, the bootstrap identity Key Vault Secrets Officer). Vault access policies are not used: Microsoft is retiring them.</td>
 </tr>
 <tr>
 <td><strong>App Service image source</strong></td>
@@ -6951,7 +6983,11 @@ for the steps.</p>
 </tr>
 <tr>
 <td><code>azure/modules/key-vault.bicep</code></td>
-<td>Key Vault + access policies + network ACL</td>
+<td>Key Vault (Azure RBAC) + its role assignments + network ACL</td>
+</tr>
+<tr>
+<td><code>azure/modules/resource-diagnostics.bicep</code></td>
+<td>Diagnostic settings: Key Vault audit events and PostgreSQL server logs (plus metrics) to Log Analytics</td>
 </tr>
 <tr>
 <td><code>azure/modules/network.bicep</code></td>

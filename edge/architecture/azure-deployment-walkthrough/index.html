@@ -6597,7 +6597,7 @@
 <tbody>
 <tr>
 <td>Subscription</td>
-<td><code>Owner</code> (or <code>Contributor</code> + the ability to assign Key Vault access policies)</td>
+<td><code>Owner</code> (or <code>Contributor</code> + <code>Role Based Access Control Administrator</code>/<code>User Access Administrator</code>: the template creates the Key Vault role assignments)</td>
 </tr>
 <tr>
 <td>Entra directory</td>
@@ -6772,7 +6772,7 @@
 <h3 id="quick-smoke-test">Quick smoke test<a class="headerlink" href="#quick-smoke-test" title="Permanent link">&para;</a></h3>
 <ul>
 <li>No yellow "Authentication is disabled" banner (it only shows if you explicitly set <code>AUTH_ENABLED=false</code>)</li>
-<li><strong>Admin</strong> sub-tabs visible (signed in with the <code>Admin</code> role): Crawlers · Plugins · Account Linking · Risk Scoring · LLM Settings · Performance · Authentication · Roles &amp; Permissions · Data · Experimental · Updates · About</li>
+<li><strong>Admin</strong> sub-tabs visible (signed in with the <code>Admin</code> role): Crawlers · Plugins · Account Linking · Performance · Authentication · Roles &amp; Permissions · Data · Experimental · Updates · About (Risk Scoring and Risk Scoring LLM appear only once risk scoring is switched on under Experimental)</li>
 <li><strong>Authentication</strong> shows the current sign-in settings but cannot change them — on Azure you change them in the Web App's environment variables (see <a href="#changing-something-later">Changing something later</a>)</li>
 </ul>
 <h3 id="common-first-sign-in-issues">Common first-sign-in issues<a class="headerlink" href="#common-first-sign-in-issues" title="Permanent link">&para;</a></h3>

@@ -7239,7 +7239,7 @@ the zip <em>before</em> extracting works too.</p>
 <p>The app binds to <code>127.0.0.1:3001</code> only, and in real PostgreSQL mode the database binds to <code>127.0.0.1:5433</code> only, so neither is reachable from other machines. Authentication is disabled by default, which means any process on this machine can call the API. Enable authentication (Admin → Authentication) on a shared machine.</p>
 <p>In real PostgreSQL mode the database requires a password (<code>scram-sha-256</code>, no <code>trust</code> entries). The password is random per install and stored in <code>postgres\password</code>, readable only by the current user.</p>
 <p><strong>Secret storage</strong></p>
-<p>The master encryption key is stored in <code>%APPDATA%\IdentityAtlas\.master-key</code> (plain text, user-only access). Crawler credentials are stored encrypted using AES-256-GCM in the database.</p>
+<p>The master encryption key is stored in <code>.master-key</code> in the <a href="#data-location">data directory</a> (plain text, user-only access). To back it up or move it to another machine, see <a href="../../admin/backup-restore-upgrade/#portable">Back up, restore and upgrade</a>. Crawler credentials are stored encrypted using AES-256-GCM in the database.</p>
 
 
 

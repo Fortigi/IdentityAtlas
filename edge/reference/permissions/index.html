@@ -6370,7 +6370,7 @@
 <tr>
 <td><code>data.export.ui</code></td>
 <td>Export to Excel/CSV</td>
-<td><code>GET /api/admin/export/curated</code>, <code>POST /api/admin/data-export/workbook</code></td>
+<td><code>POST /api/admin/data-export/workbook</code></td>
 </tr>
 <tr>
 <td><code>data.export.apikey</code></td>
@@ -6454,12 +6454,12 @@
 <tr>
 <td><code>admin.systems</code></td>
 <td>Systems configuration</td>
-<td><code>PUT /api/systems/:id</code>, owners, clean-database, history-retention (read + write), auto-update status/log/toggle (<code>/api/admin/updates/*</code>)</td>
+<td><code>PUT /api/systems/:id</code>, owners, clean-database (and its <code>/plan</code>), history-retention (read + write), auto-update status/log/toggle (<code>/api/admin/updates/*</code>)</td>
 </tr>
 <tr>
 <td><code>admin.llm</code></td>
 <td>LLM configuration</td>
-<td><code>/api/admin/llm/*</code>, risk profiles/classifiers (incl. <code>GET /api/admin/risk-profile</code>, <code>/api/admin/classifiers</code>)</td>
+<td><code>/api/admin/llm/*</code>, risk profiles/classifiers (incl. <code>GET /api/admin/risk-profile</code>, <code>/api/admin/classifiers</code>) — all <code>404</code> while risk scoring is switched off</td>
 </tr>
 <tr>
 <td><code>admin.context-plugins</code></td>
@@ -6544,6 +6544,10 @@
 <p>Enforcement is verified by:</p>
 <ul>
 <li><strong><code>app/api/src/auth/permissionMatrix.test.js</code></strong> — for every gated permission, asserts the representative endpoint is reachable <strong>with</strong> the permission and returns <code>403</code> <strong>without</strong> it; plus a completeness guard that fails if any catalog permission is unclassified.</li>
+<li><strong><code>app/api/test-utils/routePermissions.js</code></strong> — the committed table of what <strong>every</strong> route requires (one or more permissions, any permission, or a crawler key). Adding a route means adding its line here.</li>
+<li><strong><code>app/api/src/auth/routePermissionTable.test.js</code></strong> — the table covers every route the app serves, and each route opens for exactly the permissions it lists.</li>
+<li><strong><code>app/api/src/auth/routeRoleMatrix.test.js</code></strong> — every route × every shipped role (Admin, RoleMiner, Servicedesk) answers as the table says.</li>
+<li><strong><code>app/api/contract-tests/matrixShareRecipients.integration.test.js</code></strong> — a matrix-share recipient without a role cannot open the share; with Servicedesk they open the share addressed to them, and only that one.</li>
 <li><strong><code>app/api/src/middleware/requirePermission.test.js</code></strong> — unit tests for the gate decision logic.</li>
 <li><strong><code>app/ui/e2e/permission-gating.spec.js</code></strong> — confirms the UI shows/hides the Admin tab and sub-tabs per permission.</li>
 <li><strong><code>app/api/src/auth/docsCoverage.test.js</code></strong> — fails if a catalog permission is missing from this page.</li>

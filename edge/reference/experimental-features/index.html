@@ -3414,6 +3414,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#risk-scoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risk scoring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Risk scoring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6465,6 +6504,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#risk-scoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risk scoring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Risk scoring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6581,8 +6659,7 @@ optional in the spec but always absent in practice, a quirk that only shows up a
 <h2 id="turning-them-on">Turning them on<a class="headerlink" href="#turning-them-on" title="Permanent link">&para;</a></h2>
 <p><strong>Admin → Experimental</strong> lists every experimental feature in the running build, with
 a switch for each one and the exact contents of each group.</p>
-<p>You need the <strong>Feature flags</strong> permission (<code>admin.feature-flags</code>) to change a switch —
-the same permission that governs the Risk Scoring toggle.</p>
+<p>You need the <strong>Feature flags</strong> permission (<code>admin.feature-flags</code>) to change a switch.</p>
 <p>Every switch is <strong>off by default</strong>, including after an upgrade, and your choice is
 stored in the database, so it survives container restarts and redeployments.</p>
 <div class="admonition tip">
@@ -6735,6 +6812,37 @@ former is listed like any other, and no claim facts are attached.</p>
 <p>Turning it off <strong>deletes nothing</strong>: the sources, the claims and every decision are kept, and
 turning it back on restores them. A role an analyst confirmed from a claim stays the role it
 became — it is an ordinary Accountable or Responsible.</p>
+<hr />
+<h2 id="risk-scoring">Risk scoring<a class="headerlink" href="#risk-scoring" title="Permanent link">&para;</a></h2>
+<p>Scores every account, group, business role, context and person from 0 to 100, against
+classifiers that an AI provider drafts from a profile of your organisation. See
+<a href="../../risk-scoring/overview/">How Scoring Works</a> for the feature and
+<a href="../../architecture/llm-and-risk-scoring/">LLM &amp; Risk Scoring Internals</a> for how it works.</p>
+<p>Risk scoring is kept, but <strong>frozen as experimental</strong> until it is folded into the Org Info
+building blocks. Unlike the other features on this page it is <strong>not certified per
+release</strong>: a release is not held back for it, and its behaviour may change when it is
+merged. Switch it on only if you accept that.</p>
+<p>Environment variable: <code>FEATURE_RISK_SCORING=true</code>. An install that had risk scoring
+switched on before it moved to this tab keeps it on — the stored choice is the same.</p>
+<h3 id="what-the-switch-does-precisely_6">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely_6" title="Permanent link">&para;</a></h3>
+<p><strong>On</strong> — the <strong>Risk Scores</strong> tab can be shown in the main navigation, detail pages get a
+<strong>Risk</strong> tab, the Dashboard shows a Risk Scoring card and the Logs page lists scoring runs.
+<strong>Admin → Risk Scoring</strong> (profile, classifiers, <strong>Run now</strong>) and <strong>Admin → Risk Scoring
+LLM</strong> (the AI provider and its key) appear, and a scoring run starts after every crawl.</p>
+<p><strong>Off</strong> — all of that is hidden, and nothing is scored: the run after a crawl does not
+start. The API answers <code>404</code> on every risk endpoint — <code>/api/risk-scores…</code>,
+<code>/api/risk-profiles…</code>, <code>/api/risk-classifiers…</code>, <code>/api/risk-scoring/runs…</code>,
+<code>/api/admin/risk-profile</code>, <code>/api/admin/classifiers</code> and <code>/api/admin/llm/…</code> — so the AI
+provider is never called. User and resource details carry no risk fields, and the
+Dashboard statistics carry no risk counts. A link to <code>#admin?sub=risk-scoring</code> or
+<code>#admin?sub=llm</code> lands on this tab.</p>
+<h3 id="what-the-switch-does-not-do_6">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_6" title="Permanent link">&para;</a></h3>
+<p>Turning it off <strong>deletes nothing</strong>: scores, overrides, profiles, classifiers, run history
+and the AI provider settings stay in the database, and turning it back on restores them.</p>
+<p>The provider on <strong>Risk Scoring LLM</strong> is used by risk scoring only. Custom reports, the
+context assistant and organisation knowledge use the model that runs inside the deployment
+(see <a href="../report-generator/">Report Generator</a>); its status is shown on this tab under
+<strong>Custom reports</strong> while that switch is on.</p>
 <hr />
 <h2 id="accountables-from-source-owners-a-setting-not-experimental">Accountables from source owners (a setting, not experimental)<a class="headerlink" href="#accountables-from-source-owners-a-setting-not-experimental" title="Permanent link">&para;</a></h2>
 <p>Shown on the same tab, under <strong>Contexts — what a sync sets on its own</strong>, because it is
