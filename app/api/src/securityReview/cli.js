@@ -7,7 +7,8 @@
 //       Create the issues and private advisories for new findings and write
 //       which filing tracks which finding. Needs GH_TOKEN and GITHUB_REPOSITORY;
 //       SECURITY_BOARD_PROJECT_ID adds new issues to that board; REVIEW_URL is
-//       linked from every filing. --dry-run prints the plan and files nothing.
+//       linked from every filing; SECURITY_REVIEW_ASSIGNEES (comma-separated
+//       logins) are assigned every new issue. --dry-run prints the plan and files nothing.
 //   publish <findings.json> <filings.json> <docs/security>
 //       Write the public review page and add it to the assessment history.
 
@@ -48,13 +49,14 @@ function describePlan(plan) {
 }
 
 async function fileCommand(report, filingsPath, dryRun, deps) {
-  const { GH_TOKEN, GITHUB_REPOSITORY, SECURITY_BOARD_PROJECT_ID, REVIEW_URL = '' } = deps.env;
+  const { GH_TOKEN, GITHUB_REPOSITORY, SECURITY_BOARD_PROJECT_ID, REVIEW_URL = '', SECURITY_REVIEW_ASSIGNEES = '' } = deps.env;
+  const assignees = SECURITY_REVIEW_ASSIGNEES.split(',').map(s => s.trim()).filter(Boolean);
   const client = deps.createClient({ token: GH_TOKEN, repo: GITHUB_REPOSITORY, projectId: SECURITY_BOARD_PROJECT_ID });
   const existing = { issues: await client.listIssues(), advisories: await client.listAdvisories() };
   const plan = planFilings(report.findings, existing);
   describePlan(plan).forEach(line => deps.log(line));
   if (dryRun) return 0;
-  const filings = await executeFilings(plan, client, REVIEW_URL);
+  const filings = await executeFilings(plan, client, REVIEW_URL, { assignees });
   deps.writeFile(filingsPath, `${JSON.stringify(filings, null, 2)}\n`);
   return 0;
 }

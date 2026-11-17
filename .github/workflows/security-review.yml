@@ -16,9 +16,10 @@
 #   file    No model. Runs in the `security-review` environment, the only place
 #           the private key and the GitHub App key exist. Validates the findings
 #           again, files them (filings.js: Medium+ as private advisories with a
-#           public placeholder issue, Low/Info as public issues, all on the
-#           board), and opens a pull request with the public summary page. A
-#           maintainer reviews that page before it is published.
+#           public placeholder issue on the board, Low/Info as public Bug issues
+#           parked for the bug pipeline), and opens a pull request with the
+#           public summary page. A maintainer reviews that page before it is
+#           published.
 #
 # Inert until the repository variable SECURITY_REVIEW_ENABLED is 'true'.
 #
@@ -26,7 +27,12 @@
 #   SECURITY_REVIEW_ENABLED          'true' to run
 #   SECURITY_REVIEW_SEAL_PUBLIC_KEY  RSA public key PEM (seal)
 #   SECURITY_REVIEW_MODEL            optional, default claude-fable-5
-#   SECURITY_BOARD_PROJECT_ID        optional, Projects v2 node id for new issues
+#   SECURITY_BOARD_PROJECT_ID        optional, Projects v2 node id for the private-finding placeholders
+#   SECURITY_REVIEW_ASSIGNEES        optional, comma-separated maintainers assigned every new issue
+#
+# Low/Informational findings are filed as Bug issues parked with `needs-vouch`;
+# a maintainer applying `dor-vouched` hands one to the automated bug pipeline.
+#
 # Secrets:
 #   CLAUDE_CODE_OAUTH_TOKEN          repository secret (shared with the other Claude workflows)
 #   environment `security-review` (branch policy: main only):
@@ -236,6 +242,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           SECURITY_BOARD_PROJECT_ID: ${{ vars.SECURITY_BOARD_PROJECT_ID }}
+          SECURITY_REVIEW_ASSIGNEES: ${{ vars.SECURITY_REVIEW_ASSIGNEES || 'WimvandenHeijkant,TaekeK,robb536' }}
           REVIEW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node app/api/src/securityReview/cli.js file "$RUNNER_TEMP/findings.json" "$RUNNER_TEMP/filings.json"
 

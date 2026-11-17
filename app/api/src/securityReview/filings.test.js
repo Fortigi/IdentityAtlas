@@ -78,7 +78,11 @@ describe('issue and advisory bodies', () => {
       expect(out.body).toContain(text);
     }
     expect(out.body.startsWith(marker('low-finding'))).toBe(true);
-    expect(out.labels).toEqual(['security', 'ai-security-review', 'severity:low']);
+    // Filed as a parked Bug: the bug pipeline starts only after a maintainer vouches.
+    expect(out.labels).toEqual(['security', 'ai-security-review', 'severity:low', 'bug', 'needs-vouch']);
+    expect(out.type).toBe('Bug');
+    expect(out.assignees).toEqual([]);
+    expect(out.body).toContain('apply `dor-vouched`');
     expect(out.body).not.toContain('Regression');
   });
 
@@ -97,6 +101,10 @@ describe('issue and advisory bodies', () => {
       expect(out.body).not.toContain(leak);
     }
     expect(out.labels).toContain('severity:high');
+    // Never handed to the public bug pipeline: no bug label, no vouch label.
+    expect(out.labels).not.toContain('bug');
+    expect(out.labels).not.toContain('needs-vouch');
+    expect(out.type).toBe('Bug');
   });
 
   it('puts the full write-up in the private advisory', () => {
@@ -157,14 +165,28 @@ describe('executeFilings', () => {
     expect(result['low-finding']).toEqual({ issueUrl: 'https://gh/issues/8', isNew: false });
   });
 
+  it('files a private finding without a board when none is configured', async () => {
+    const client = fakeClient({ board: false });
+    await executeFilings(planFilings([high], {}), client, '');
+    expect(client.calls.map(c => c[0])).toEqual(['advisory', 'issue']);
+  });
+
   it('reports a known private finding without a placeholder issue as having no issue', async () => {
     const plan = planFilings([high], { advisories: [adv('GHSA-a', 'draft', 'high-finding')] });
     const result = await executeFilings(plan, fakeClient(), '');
     expect(result['high-finding'].issueUrl).toBeNull();
   });
 
-  it('creates a public issue for a new Low finding and works without a board', async () => {
-    const client = fakeClient({ board: false });
+  it('assigns new issues to the given maintainers, both kinds', async () => {
+    const client = fakeClient();
+    await executeFilings(planFilings([high, low], {}), client, '', { assignees: ['alice', 'bob'] });
+    const issues = client.calls.filter(c => c[0] === 'issue').map(c => c[1].assignees);
+    expect(issues).toEqual([['alice', 'bob'], ['alice', 'bob']]);
+  });
+
+  it('creates a public Bug issue for a new Low finding without putting it on the board itself', async () => {
+    // The vouch puts it on the Bug Pipeline board with its status; adding it here would race that.
+    const client = fakeClient();
     const result = await executeFilings(planFilings([low], {}), client, '');
     expect(client.calls.map(c => c[0])).toEqual(['issue']);
     expect(client.calls[0][1].body).toContain('Secret description of low-finding');

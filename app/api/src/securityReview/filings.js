@@ -9,7 +9,9 @@
 //                                public placeholder issue that says only the
 //                                severity and the OWASP category, so the work is
 //                                on the board without disclosing it.
-//   Low / Informational       -> a public issue with the full write-up.
+//   Low / Informational       -> a public Bug issue with the full write-up,
+//                                parked for one maintainer vouch before the
+//                                automated bug pipeline picks it up.
 //
 // Each filing carries a fingerprint marker, so next month's review of the same
 // problem finds the existing filing instead of opening a duplicate. The marker
@@ -75,7 +77,15 @@ function owaspLine(f) {
   return `**${f.severity}** · OWASP ${f.owasp} ${OWASP_TOP10[f.owasp]}${cwe}`;
 }
 
-export function publicIssue(entry, reviewUrl) {
+// A Low or Informational finding is a bug for the automated bug pipeline (DoR,
+// docs/process/definition-of-ready.md). The pipeline only acts on issues from
+// Fortigi members and ignores ones opened by a bot, so the issue is filed parked
+// (`needs-vouch`), exactly like a bug from an outside reporter: one maintainer
+// applying `dor-vouched` starts it. That click is the human gate between text a
+// model wrote and a pipeline that runs with repository secrets.
+export const VOUCH_LABELS = ['bug', 'needs-vouch'];
+
+export function publicIssue(entry, reviewUrl, assignees = []) {
   const f = entry.finding;
   const body = [
     marker(f.fingerprint),
@@ -86,12 +96,21 @@ export function publicIssue(entry, reviewUrl) {
     `## Impact\n\n${f.impact}`,
     `## Remediation\n\n${f.remediation}`,
     `## Evidence\n\n${f.evidence}`,
-    `---\nFound by the monthly security review ${f.id} (${reviewUrl}). See docs/security/index.md for how findings are handled.`,
+    '---\n**Maintainers:** apply `dor-vouched` to hand this to the automated bug pipeline (you become the requestor of record), or close it if it is not a real problem.',
+    `Found by the monthly security review ${f.id} (${reviewUrl}). See docs/security/index.md for how findings are handled.`,
   ];
-  return { title: `[Security review] ${f.title}`, body: body.join('\n\n'), labels: labelsFor(f) };
+  return {
+    title: `[Security review] ${f.title}`,
+    body: body.join('\n\n'),
+    labels: [...labelsFor(f), ...VOUCH_LABELS],
+    type: 'Bug',
+    assignees,
+  };
 }
 
-export function placeholderIssue(entry, advisoryUrl) {
+// Medium and above never go to the bug pipeline: its agents discuss the bug in
+// public comments, which would disclose the vulnerability before it is fixed.
+export function placeholderIssue(entry, advisoryUrl, assignees = []) {
   const f = entry.finding;
   const body = [
     marker(f.fingerprint),
@@ -99,9 +118,15 @@ export function placeholderIssue(entry, advisoryUrl) {
     'This finding from the monthly security review is tracked in a private security advisory, ' +
       'so its details stay out of public view until it is fixed. Maintainers can open it here: ' +
       advisoryUrl,
-    'When the fix is released, publish or close the advisory and close this issue.',
+    'Fix it in the advisory\'s private fork, not through the public bug pipeline. When the fix is released, publish or close the advisory and close this issue.',
   ];
-  return { title: `Security review ${f.id}: ${f.severity} finding (tracked privately)`, body: body.join('\n\n'), labels: labelsFor(f) };
+  return {
+    title: `Security review ${f.id}: ${f.severity} finding (tracked privately)`,
+    body: body.join('\n\n'),
+    labels: labelsFor(f),
+    type: 'Bug',
+    assignees,
+  };
 }
 
 export function advisory(entry, reviewUrl) {
@@ -125,33 +150,34 @@ export function advisory(entry, reviewUrl) {
   };
 }
 
-async function filePrivate(entry, client, reviewUrl) {
+async function filePrivate(entry, client, reviewUrl, assignees) {
   if (entry.action === 'known') {
     return { issueUrl: entry.placeholder?.html_url ?? null, advisoryUrl: entry.existing.html_url, isNew: false };
   }
   const adv = await client.createAdvisory(advisory(entry, reviewUrl));
-  const issue = await client.createIssue(placeholderIssue(entry, adv.html_url));
-  return { issueUrl: issue.html_url, issueNodeId: issue.node_id, advisoryUrl: adv.html_url, isNew: true };
+  const issue = await client.createIssue(placeholderIssue(entry, adv.html_url, assignees));
+  // Placeholders go on the board here; a public bug reaches the board through the
+  // vouch, which also sets its pipeline status (dor-vouch.yml).
+  if (client.addToBoard) await client.addToBoard(issue.node_id);
+  return { issueUrl: issue.html_url, advisoryUrl: adv.html_url, isNew: true };
 }
 
-async function filePublic(entry, client, reviewUrl) {
+async function filePublic(entry, client, reviewUrl, assignees) {
   if (entry.action === 'known') return { issueUrl: entry.existing.html_url, isNew: false };
-  const issue = await client.createIssue(publicIssue(entry, reviewUrl));
-  return { issueUrl: issue.html_url, issueNodeId: issue.node_id, isNew: true };
+  const issue = await client.createIssue(publicIssue(entry, reviewUrl, assignees));
+  return { issueUrl: issue.html_url, isNew: true };
 }
 
 /**
  * Carry out a plan. Returns { [fingerprint]: { issueUrl, advisoryUrl?, isNew } },
- * which publicPage.js uses to link each finding. New issues are added to the
- * board when the client supports it.
+ * which publicPage.js uses to link each finding. `assignees` are the
+ * maintainers every new issue is assigned to.
  */
-export async function executeFilings(plan, client, reviewUrl) {
+export async function executeFilings(plan, client, reviewUrl, { assignees = [] } = {}) {
   const result = {};
   for (const entry of plan) {
-    const filed = entry.private ? await filePrivate(entry, client, reviewUrl) : await filePublic(entry, client, reviewUrl);
-    if (filed.isNew && filed.issueNodeId && client.addToBoard) await client.addToBoard(filed.issueNodeId);
-    delete filed.issueNodeId;
-    result[entry.finding.fingerprint] = filed;
+    const file = entry.private ? filePrivate : filePublic;
+    result[entry.finding.fingerprint] = await file(entry, client, reviewUrl, assignees);
   }
   return result;
 }

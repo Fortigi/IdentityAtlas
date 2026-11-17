@@ -30,7 +30,7 @@ function deps({ files = {}, env = {}, existing = { issues: [], advisories: [] } 
       return {
         listIssues: async () => existing.issues,
         listAdvisories: async () => existing.advisories,
-        createIssue: async body => { created.push(['issue', body.title]); return { html_url: 'https://github.com/o/r/issues/50', node_id: 'I_50' }; },
+        createIssue: async body => { created.push(['issue', body.title, body.assignees]); return { html_url: 'https://github.com/o/r/issues/50', node_id: 'I_50' }; },
         createAdvisory: async body => { created.push(['advisory', body.summary]); return { html_url: 'https://gh/advisories/GHSA-x' }; },
       };
     },
@@ -81,7 +81,7 @@ describe('security review cli', () => {
   });
 
   it('files new findings with the configured repo and board and records where each one is tracked', async () => {
-    const env = { GH_TOKEN: 'tok', GITHUB_REPOSITORY: 'o/r', SECURITY_BOARD_PROJECT_ID: 'PVT_9', REVIEW_URL: 'https://run/5' };
+    const env = { GH_TOKEN: 'tok', GITHUB_REPOSITORY: 'o/r', SECURITY_BOARD_PROJECT_ID: 'PVT_9', REVIEW_URL: 'https://run/5', SECURITY_REVIEW_ASSIGNEES: ' alice, ,bob ' };
     const existing = { issues: [{ state: 'closed', body: marker('low-one'), html_url: 'https://gh/issues/8' }], advisories: [] };
     const d = deps({ files: { 'f.json': findingsJson }, env, existing });
     expect(await main(['file', 'f.json', 'filings.json'], d)).toBe(0);
@@ -89,8 +89,8 @@ describe('security review cli', () => {
     expect(d.lines[1]).toBe('SR-2026-12-02 Low: new public issue (regression)');
     expect(d.created).toEqual([
       ['advisory', 'Title of high-one'],
-      ['issue', 'Security review SR-2026-12-01: High finding (tracked privately)'],
-      ['issue', '[Security review] Title of low-one'],
+      ['issue', 'Security review SR-2026-12-01: High finding (tracked privately)', ['alice', 'bob']],
+      ['issue', '[Security review] Title of low-one', ['alice', 'bob']],
     ]);
     const filings = JSON.parse(d.written['filings.json']);
     expect(filings['high-one']).toEqual({ issueUrl: 'https://github.com/o/r/issues/50', advisoryUrl: 'https://gh/advisories/GHSA-x', isNew: true });
