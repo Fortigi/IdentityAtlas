@@ -70,7 +70,7 @@ This document lists all major software components, dependencies, and infrastruct
 |---------|---------|---------|---------|
 | react | ^19.3.1 | UI framework | MIT |
 | react-dom | ^19.3.1 | React DOM renderer | MIT |
-| vite | ^8.3.6 | Build tool and dev server | MIT |
+| vite | ^8.3.8 | Build tool and dev server | MIT |
 
 ### Styling
 
