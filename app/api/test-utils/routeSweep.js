@@ -63,16 +63,21 @@ export function sweepPath(routePath) {
   return /^\/(api|mcp|\.well-known)/.test(p) ? p : `/api${p}`;
 }
 
+// Call one route with `headers`: a GET as is, anything else with an empty JSON
+// body. `target` is the app or, faster for a long sweep, a server it listens on.
+export function callRoute(target, route, headers) {
+  const req = request(target)[route.method.toLowerCase()](sweepPath(route.path)).set(headers);
+  return route.method === 'GET' ? req : req.send({});
+}
+
 // Call every route except `skip` with `headers` and return the ones `refused`
 // does not accept, as "<status> <METHOD> <pattern>" — an empty list means every
 // route refused the caller.
-export async function sweepRoutes(app, { headers, skip = new Set(), refused }) {
+export async function sweepRoutes(app, { headers, skip = new Set(), refused, target = app }) {
   const leaked = [];
   for (const r of listRoutes(app)) {
     if (skip.has(r.key)) continue;
-    let req = request(app)[r.method.toLowerCase()](sweepPath(r.path)).set(headers);
-    if (r.method !== 'GET') req = req.send({});
-    const res = await req;
+    const res = await callRoute(target, r, headers);
     if (!refused(res, r)) leaked.push(`${res.status} ${r.key}`);
   }
   return leaked;

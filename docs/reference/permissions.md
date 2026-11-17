@@ -111,6 +111,10 @@ The SPA calls `GET /api/auth-me` after sign-in to learn its own permissions and 
 Enforcement is verified by:
 
 - **`app/api/src/auth/permissionMatrix.test.js`** — for every gated permission, asserts the representative endpoint is reachable **with** the permission and returns `403` **without** it; plus a completeness guard that fails if any catalog permission is unclassified.
+- **`app/api/test-utils/routePermissions.js`** — the committed table of what **every** route requires (one or more permissions, any permission, or a crawler key). Adding a route means adding its line here.
+  - **`app/api/src/auth/routePermissionTable.test.js`** — the table covers every route the app serves, and each route opens for exactly the permissions it lists.
+  - **`app/api/src/auth/routeRoleMatrix.test.js`** — every route × every shipped role (Admin, RoleMiner, Servicedesk) answers as the table says.
+- **`app/api/contract-tests/matrixShareRecipients.integration.test.js`** — a matrix-share recipient without a role cannot open the share; with Servicedesk they open the share addressed to them, and only that one.
 - **`app/api/src/middleware/requirePermission.test.js`** — unit tests for the gate decision logic.
 - **`app/ui/e2e/permission-gating.spec.js`** — confirms the UI shows/hides the Admin tab and sub-tabs per permission.
 - **`app/api/src/auth/docsCoverage.test.js`** — fails if a catalog permission is missing from this page.

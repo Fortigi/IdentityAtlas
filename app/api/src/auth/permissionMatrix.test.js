@@ -71,19 +71,10 @@ vi.mock('./readTokens.js', async (importOriginal) => ({
 }));
 
 // Never touch a real Postgres. Deny happens before the handler; allow may query.
-vi.mock('../db/connection.js', () => {
-  const empty = { rows: [], rowCount: 0 };
-  // Native pg pool double — handlers query through pool.query / db.query (#663).
-  const pool = { query: async () => empty };
-  return {
-    query: async () => empty,
-    queryOne: async () => null,
-    tx: async (fn) => fn(pool),
-    getPool: async () => pool,
-    closePool: async () => {},
-  };
-});
+vi.mock('../db/connection.js');
 
+const { stageEmptyDb } = await import('../../test-utils/roleSweep.js');
+stageEmptyDb(await import('../db/connection.js'));
 const { createApp } = await import('../app.js');
 const { NO_ROLE_ERROR, NO_ROLE_CODE } = await import('../middleware/auth.js');
 const { listRoutes, sweepPath, sweepRoutes, PUBLIC_ROUTES, NEVER_DATA, OWN_AUTH } = await import('../../test-utils/routeSweep.js');
