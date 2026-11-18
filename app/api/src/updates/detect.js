@@ -11,6 +11,7 @@
 // `fetchImpl` is injectable so unit tests don't hit the network.
 
 import { compareVersions } from './versionCompare.js';
+import { parseModuleVersion } from '../version.js';
 
 const REPO = 'Fortigi/IdentityAtlas';
 const GH_API = 'https://api.github.com';
@@ -39,9 +40,9 @@ async function latestEdge(fetchImpl) {
   const r = await fetchImpl(`${GH_RAW}/${REPO}/main/setup/IdentityAtlas.psd1`, { headers });
   if (!r.ok) throw new Error(`psd1 fetch returned ${r.status}`);
   const text = await r.text();
-  const m = text.match(/ModuleVersion\s*=\s*'([^']+)'/);
-  if (!m) throw new Error('ModuleVersion not found in manifest');
-  return m[1];
+  const version = parseModuleVersion(text);
+  if (!version) throw new Error('ModuleVersion not found in manifest');
+  return version;
 }
 
 async function latestRelease(fetchImpl) {

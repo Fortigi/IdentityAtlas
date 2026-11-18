@@ -137,8 +137,15 @@ jobs:
         with:
           node-version: '24'
 
+      # ModuleVersion must stay a System.Version or Import-Module refuses the
+      # manifest and every portable worker job fails, so 6.2.0-beta.1 is stamped
+      # as ModuleVersion 6.2.0 + PSData.Prerelease beta.1 (app/api/src/version.js
+      # joins them back). Loaded from this workflow's own commit, like the checks
+      # above, so a release-line ref without the script is still stamped.
       - name: Stamp pre-release version into .psd1
-        run: sed -i "s/ModuleVersion = '[^']*'/ModuleVersion = '${{ env.VERSION }}'/" setup/IdentityAtlas.psd1
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:tools/release/Set-ManifestVersion.ps1" > "$RUNNER_TEMP/stamp-version.ps1"
+          pwsh -NoProfile -File "$RUNNER_TEMP/stamp-version.ps1" -Path setup/IdentityAtlas.psd1 -Version "${VERSION}"
 
       - name: Install desktop dependencies (PGlite)
         run: npm install --prefer-offline
