@@ -267,7 +267,9 @@ jobs:
     needs: plan
     if: inputs.azure && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # A main.json deploy takes about 50 minutes, a failed one in a full region
+    # about 17 before the next region is tried.
+    timeout-minutes: 240
     environment: azure-release-test
     permissions:
       contents: read
@@ -304,19 +306,15 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Create the resource group
-        shell: pwsh
-        env:
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          . ./tools/release/ReleaseTest.Functions.ps1
-          . ./tools/release/ReleaseTest.Azure.ps1
-          New-ReleaseTestGroup -Name $env:GROUP -RunUrl $env:RUN_URL
-
+      # Creates the group itself, in the first region of $script:AzureRegions.
+      # On SkuNotAvailable (a regional capacity limit, not a defect) it deletes
+      # that group and runs the whole variant again in the next region, in
+      # <GROUP>-<region>. Any other failure fails the variant at once.
       - name: Deploy and test
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PREVIOUS: ${{ needs.plan.outputs.previous_stable }}
           TENANT: ${{ vars.AZURE_TENANT_ID }}
           ROLE: ${{ vars.AZURE_CLIENT_ID }}
@@ -324,17 +322,18 @@ jobs:
           NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
         run: |
           ./tools/release/Invoke-AzureReleaseTest.ps1 -Variant $env:VARIANT -Candidate $env:CANDIDATE -PreviousStable $env:PREVIOUS `
-            -Group $env:GROUP -TenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE
+            -Group $env:GROUP -RunUrl $env:RUN_URL -TenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE
 
       # Always, also after a failure or a cancel. The deletion is started, not
       # awaited; a group that survives anyway is removed by azure-sweep a day later.
+      # Covers the fallback-region groups too (<GROUP>-<region>).
       - name: Delete the resource group
         if: always()
         shell: pwsh
         run: |
           . ./tools/release/ReleaseTest.Functions.ps1
           . ./tools/release/ReleaseTest.Azure.ps1
-          Remove-ReleaseTestGroup -Name $env:GROUP
+          Remove-ReleaseTestRegionGroup -BaseName $env:GROUP
 
   result:
     name: 'Release Test Passed'
