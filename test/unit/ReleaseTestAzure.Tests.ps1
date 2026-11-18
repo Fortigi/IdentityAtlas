@@ -236,3 +236,144 @@ Describe 'ConvertTo-GroupNamePart' {
         Test-ReleaseTestGroupName (New-ReleaseTestGroupName -RunId 99999999999 -Attempt 9 -Variant "$(ConvertTo-GroupNamePart 'v10.10.10-beta.10')-auth-upgrade") | Should -BeTrue
     }
 }
+
+Describe 'Region fallback on SkuNotAvailable' {
+    BeforeAll {
+        $script:Base = 'ia-reltest-44172793802-1-v6-2-0-beta-1-auth-upgrade'
+        # The shape run 44172793802 got: the code four levels down in details,
+        # as Invoke-Az throws it.
+        $script:SkuError = 'az deployment group failed:' + "`n" + 'ERROR: {"status":"Failed","error":{"code":"DeploymentFailed","message":"At least one resource deployment operation failed.","details":[{"code":"ResourceDeploymentFailure","target":"/deployments/postgres","details":[{"code":"DeploymentFailed","details":[{"code":"ResourceDeploymentFailure","target":"/flexibleServers/idatlas-pg","details":[{"code":"SkuNotAvailable","message":"Specified SKU is not supported in this region. Please choose a different SKU."}]}]}]}]}}'
+        $script:OtherError = 'az deployment group failed:' + "`n" + 'ERROR: {"status":"Failed","error":{"code":"DeploymentFailed","details":[{"code":"ResourceDeploymentFailure","details":[{"code":"InvalidTemplateDeployment","message":"The template deployment failed."}]}]}}'
+    }
+
+    Context 'Test-SkuNotAvailable' {
+        It 'finds the code nested deep in details (the real failure)' { Test-SkuNotAvailable $script:SkuError | Should -BeTrue }
+        It 'finds it at the top level too' { Test-SkuNotAvailable 'ERROR: {"error":{"code":"SkuNotAvailable"}}' | Should -BeTrue }
+        It 'is false for another nested code' { Test-SkuNotAvailable $script:OtherError | Should -BeFalse }
+        It 'is false when the word is only in a message, not a code' {
+            Test-SkuNotAvailable 'ERROR: {"error":{"code":"QuotaExceeded","message":"not SkuNotAvailable, a quota"}}' | Should -BeFalse
+        }
+        It 'is false for <_>' -ForEach @('', 'Read endpoints failed: /systems -> 401', 'ERROR: {"error":{"code":"SkuNotAvailable"', 'ERROR: } SkuNotAvailable {') {
+            Test-SkuNotAvailable $_ | Should -BeFalse
+        }
+        It 'is false for $null' { Test-SkuNotAvailable $null | Should -BeFalse }
+    }
+
+    Context 'Get-ReleaseTestRegionGroup' {
+        It 'keeps the workflow''s name in the first region and suffixes the region after that' {
+            $slots = Get-ReleaseTestRegionGroup -BaseName $script:Base
+            @($slots.Region) | Should -Be @('westeurope', 'swedencentral', 'northeurope')
+            @($slots.Group) | Should -Be @($script:Base, "$($script:Base)-swedencentral", "$($script:Base)-northeurope")
+        }
+        It 'every group of the longest real case passes the gate' {
+            $base = New-ReleaseTestGroupName -RunId 99999999999 -Attempt 9 -Variant "$(ConvertTo-GroupNamePart 'v10.10.10-beta.10')-auth-upgrade"
+            (Get-ReleaseTestRegionGroup -BaseName $base).Group | ForEach-Object { Test-ReleaseTestGroupName $_ | Should -BeTrue }
+        }
+        It 'refuses a region that would leave the allowed characters' {
+            { Get-ReleaseTestRegionGroup -BaseName $script:Base -Regions 'westeurope', 'Sweden Central' } | Should -Throw '*Refusing*'
+        }
+        It 'refuses a foreign base name' { { Get-ReleaseTestRegionGroup -BaseName 'HRSystem' } | Should -Throw '*Refusing*' }
+        It 'refuses an empty region list' { { Get-ReleaseTestRegionGroup -BaseName $script:Base -Regions @() } | Should -Throw '*No Azure regions*' }
+    }
+
+    Context 'Invoke-InRegionWithFallback' {
+        BeforeEach {
+            # $script:Outcomes: one entry per deployment, in order: 'ok', 'sku' or 'other'.
+            $script:Deployments = [System.Collections.Generic.List[string]]::new()
+            $script:Outcomes = [System.Collections.Generic.Queue[string]]::new()
+            Mock Invoke-Az { $null } -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'create' }
+            Mock Invoke-Az { $true } -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'exists' }
+            Mock Invoke-Az { $null } -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'delete' }
+            Mock Invoke-Az {
+                $script:Deployments.Add("$($Arguments[6])@$($Arguments[4])")
+                switch ($script:Outcomes.Dequeue()) { 'sku' { throw $script:SkuError } 'other' { throw $script:OtherError } }
+            } -ParameterFilter { $Arguments[0] -eq 'deployment' }
+            # An upgrade: the previous release, then the candidate, in one group.
+            $script:Upgrade = {
+                param([string] $Group)
+                Invoke-Az deployment group create --resource-group $Group --name previous
+                Invoke-Az deployment group create --resource-group $Group --name candidate
+            }
+        }
+
+        It 'redoes the variant in the next region after SkuNotAvailable, in a new group' {
+            'sku', 'ok', 'ok' | ForEach-Object { $script:Outcomes.Enqueue($_) }
+            Invoke-InRegionWithFallback -BaseName $script:Base -Body $script:Upgrade | Should -Be 'swedencentral'
+            Should -Invoke Invoke-Az -Times 2 -Exactly -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'create' }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group create --name $($script:Base) --location westeurope --tags *" }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group create --name $($script:Base)-swedencentral --location swedencentral --tags *" }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -eq "group delete --name $($script:Base) --yes --no-wait" }
+            Should -Invoke Invoke-Az -Times 0 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group delete --name $($script:Base)-swedencentral *" }
+        }
+
+        It 'restarts an upgrade from the previous release, not half-way' {
+            'ok', 'sku', 'ok', 'ok' | ForEach-Object { $script:Outcomes.Enqueue($_) }
+            Invoke-InRegionWithFallback -BaseName $script:Base -Body $script:Upgrade | Should -Be 'swedencentral'
+            @($script:Deployments) | Should -Be @(
+                "previous@$($script:Base)", "candidate@$($script:Base)",
+                "previous@$($script:Base)-swedencentral", "candidate@$($script:Base)-swedencentral")
+        }
+
+        It 'fails at once on any other deployment error: no second region, no delete' {
+            $script:Outcomes.Enqueue('other')
+            { Invoke-InRegionWithFallback -BaseName $script:Base -Body $script:Upgrade } | Should -Throw '*InvalidTemplateDeployment*'
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'create' }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group create --name $($script:Base) --location westeurope *" }
+            Should -Invoke Invoke-Az -Times 0 -Exactly -ParameterFilter { $Arguments[1] -eq 'delete' }
+            @($script:Deployments) | Should -Be @("previous@$($script:Base)")
+        }
+
+        It 'fails on a non-az error in the body too, without a retry' {
+            { Invoke-InRegionWithFallback -BaseName $script:Base -Body { throw 'Read endpoints failed: /systems -> 401' } } | Should -Throw '*401*'
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'create' }
+        }
+
+        It 'fails with a clear message when every region answers SkuNotAvailable' {
+            'sku', 'sku', 'sku' | ForEach-Object { $script:Outcomes.Enqueue($_) }
+            { Invoke-InRegionWithFallback -BaseName $script:Base -Body $script:Upgrade } |
+                Should -Throw 'Azure answered SkuNotAvailable in every region tried (westeurope, swedencentral, northeurope); nothing deployed.'
+            Should -Invoke Invoke-Az -Times 3 -Exactly -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'create' }
+            Should -Invoke Invoke-Az -Times 3 -Exactly -ParameterFilter { $Arguments[1] -eq 'delete' }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group create --name $($script:Base)-northeurope --location northeurope *" }
+            @($script:Deployments) | Should -Be @("previous@$($script:Base)", "previous@$($script:Base)-swedencentral", "previous@$($script:Base)-northeurope")
+        }
+
+        It 'takes its regions from -Regions' {
+            'sku', 'ok', 'ok' | ForEach-Object { $script:Outcomes.Enqueue($_) }
+            Invoke-InRegionWithFallback -BaseName $script:Base -Regions 'francecentral', 'germanywestcentral' -Body $script:Upgrade | Should -Be 'germanywestcentral'
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group create --name $($script:Base) --location francecentral *" }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -like "group create --name $($script:Base)-germanywestcentral --location germanywestcentral *" }
+            Should -Invoke Invoke-Az -Times 0 -Exactly -ParameterFilter { ($Arguments -join ' ') -like '*westeurope*' }
+        }
+
+        It 'passes in the first region without touching another' {
+            'ok', 'ok' | ForEach-Object { $script:Outcomes.Enqueue($_) }
+            Invoke-InRegionWithFallback -BaseName $script:Base -Body $script:Upgrade | Should -Be 'westeurope'
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { $Arguments[0] -eq 'group' -and $Arguments[1] -eq 'create' }
+            Should -Invoke Invoke-Az -Times 0 -Exactly -ParameterFilter { $Arguments[1] -eq 'delete' }
+        }
+
+        It 'refuses a foreign base name before calling az' {
+            { Invoke-InRegionWithFallback -BaseName 'HRSystem' -Body { } } | Should -Throw '*Refusing*'
+            Should -Invoke Invoke-Az -Times 0 -Exactly
+        }
+    }
+
+    Context 'Remove-ReleaseTestRegionGroup' {
+        It 'deletes the group of every region that exists, and only those' {
+            Mock Invoke-Az { $true } -ParameterFilter { ($Arguments -join ' ') -eq "group exists --name $($script:Base)" }
+            Mock Invoke-Az { $false } -ParameterFilter { ($Arguments -join ' ') -eq "group exists --name $($script:Base)-swedencentral" }
+            Mock Invoke-Az { $true } -ParameterFilter { ($Arguments -join ' ') -eq "group exists --name $($script:Base)-northeurope" }
+            Mock Invoke-Az { $null } -ParameterFilter { $Arguments[1] -eq 'delete' }
+            Remove-ReleaseTestRegionGroup -BaseName $script:Base
+            Should -Invoke Invoke-Az -Times 2 -Exactly -ParameterFilter { $Arguments[1] -eq 'delete' }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -eq "group delete --name $($script:Base) --yes --no-wait" }
+            Should -Invoke Invoke-Az -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -eq "group delete --name $($script:Base)-northeurope --yes --no-wait" }
+        }
+        It 'refuses a foreign name before calling az' {
+            Mock Invoke-Az { throw 'az must not be called' }
+            { Remove-ReleaseTestRegionGroup -BaseName 'HRSystem' } | Should -Throw '*Refusing*'
+            Should -Invoke Invoke-Az -Times 0 -Exactly
+        }
+    }
+}

@@ -169,7 +169,14 @@ describe('release-test.yml: Azure', () => {
   it('deletes the resource group whatever happened', () => {
     const del = test.jobs.azure.steps.find((s) => s.name === 'Delete the resource group');
     expect(del.if).toBe('always()');
-    expect(del.run).toContain('Remove-ReleaseTestGroup -Name $env:GROUP');
+    // Every region the variant may have fallen back to (<GROUP>-<region>), not only the first.
+    expect(del.run).toContain('Remove-ReleaseTestRegionGroup -BaseName $env:GROUP');
+  });
+
+  it('lets the deploy step create its groups, so a fallback region gets one too', () => {
+    expect(test.jobs.azure.steps.map((s) => s.name)).not.toContain('Create the resource group');
+    const deploy = test.jobs.azure.steps.find((s) => s.name === 'Deploy and test');
+    expect(deploy.run).toContain('-Group $env:GROUP -RunUrl $env:RUN_URL');
   });
 
   it('names the group through the gate, with the candidate in it', () => {

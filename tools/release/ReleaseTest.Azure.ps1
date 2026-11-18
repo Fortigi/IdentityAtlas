@@ -15,12 +15,22 @@
     the Key Vault has purge protection on and its name derives from the
     resource group id, so a reused group would collide with the last run's
     soft-deleted vault.
+
+    Regions: a variant starts in the first of $script:AzureRegions. When Azure
+    answers SkuNotAvailable (a capacity restriction on the Burstable PostgreSQL
+    server, seen in westeurope), that group is thrown away and the whole variant
+    starts again in the next region, in a group of its own named
+    <group>-<region>. Any other failure fails the variant at once.
 #>
 
 Set-StrictMode -Version Latest
 
 $script:GroupPrefix = 'ia-reltest-'
 $script:GroupTag = 'purpose=ia-release-test'
+
+# Tried in this order. Each offers what the templates deploy: PostgreSQL
+# Flexible Server Burstable B1ms, App Service B1, Container Apps, Key Vault.
+$script:AzureRegions = @('westeurope', 'swedencentral', 'northeurope')
 
 # Variant -> what it deploys. Upgrade = previous stable's template first, then
 # the candidate's over it in the same group, data kept.
@@ -161,7 +171,7 @@ function Invoke-Az {
 
 function New-ReleaseTestGroup {
     [CmdletBinding(SupportsShouldProcess)]
-    param([Parameter(Mandatory)][string] $Name, [string] $Location = 'westeurope', [string] $RunUrl = '')
+    param([Parameter(Mandatory)][string] $Name, [string] $Location = $script:AzureRegions[0], [string] $RunUrl = '')
     Assert-ReleaseTestGroupName $Name
     if (-not $PSCmdlet.ShouldProcess($Name, 'create resource group')) { return }
     $created = (Get-Date).ToUniversalTime().ToString('o')
@@ -219,4 +229,98 @@ function ConvertTo-GroupNamePart {
     [OutputType([string])]
     param([Parameter(Mandatory)][string] $Text)
     ($Text.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+}
+
+function Get-ReleaseTestRegionGroup {
+    <#
+    .SYNOPSIS
+        One (Region, Group) per region, in order: the first region gets the
+        group the workflow named, every later one <group>-<region>.
+    .DESCRIPTION
+        Each region gets a group of its own: the one just thrown away is still
+        being deleted, and its Key Vault name is taken. Every name passes the gate.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject[]])]
+    param([Parameter(Mandatory)][string] $BaseName, [string[]] $Regions = $script:AzureRegions)
+    Assert-ReleaseTestGroupName $BaseName
+    if (-not $Regions) { throw 'No Azure regions to deploy into.' }
+    for ($i = 0; $i -lt $Regions.Count; $i++) {
+        $name = if ($i -eq 0) { $BaseName } else { "$BaseName-$($Regions[$i])" }
+        Assert-ReleaseTestGroupName $name
+        [pscustomobject]@{ Region = $Regions[$i]; Group = $name }
+    }
+}
+
+function Test-AzErrorCode {
+    <# True when $Node, or any error/details object below it, carries error code $Code. #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param($Node, [Parameter(Mandatory)][string] $Code)
+    if ($null -eq $Node) { return $false }
+    if ((Get-Prop $Node 'code') -eq $Code) { return $true }
+    foreach ($child in @(Get-Prop $Node 'error') + @(Get-Prop $Node 'details')) {
+        if (Test-AzErrorCode -Node $child -Code $Code) { return $true }
+    }
+    return $false
+}
+
+function Test-SkuNotAvailable {
+    <#
+    .SYNOPSIS
+        True when an Invoke-Az failure message holds az's error JSON with
+        SkuNotAvailable anywhere in its nested details.
+    .DESCRIPTION
+        Only the parsed code counts, not the word in some message text, so an
+        unrelated failure that merely mentions it is not retried.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()][AllowEmptyString()][string] $Message)
+    if (-not $Message) { return $false }
+    $start = $Message.IndexOf('{')
+    $end = $Message.LastIndexOf('}')
+    if ($start -lt 0 -or $end -lt $start) { return $false }
+    try { $err = $Message.Substring($start, $end - $start + 1) | ConvertFrom-Json -ErrorAction Stop } catch { return $false }
+    Test-AzErrorCode -Node $err -Code 'SkuNotAvailable'
+}
+
+function Invoke-InRegionWithFallback {
+    <#
+    .SYNOPSIS
+        Creates a group in the first region and runs & $Body <group> in it; on
+        SkuNotAvailable deletes that group and starts $Body over in the next
+        region. Returns the region it passed in.
+    .DESCRIPTION
+        $Body is the whole variant, so an upgrade starts again from the previous
+        release, not half-way. Any other failure is rethrown at once.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string] $BaseName,
+        [string[]] $Regions = $script:AzureRegions,
+        [string] $RunUrl = '',
+        [Parameter(Mandatory)][scriptblock] $Body
+    )
+    foreach ($slot in Get-ReleaseTestRegionGroup -BaseName $BaseName -Regions $Regions) {
+        Write-Step "Region $($slot.Region), resource group $($slot.Group)"
+        New-ReleaseTestGroup -Name $slot.Group -Location $slot.Region -RunUrl $RunUrl
+        try {
+            & $Body $slot.Group
+            return $slot.Region
+        } catch {
+            if (-not (Test-SkuNotAvailable "$_")) { throw }
+            Write-Host "::warning::SkuNotAvailable in $($slot.Region): deleting $($slot.Group)."
+            Remove-ReleaseTestGroup -Name $slot.Group
+        }
+    }
+    throw "Azure answered SkuNotAvailable in every region tried ($($Regions -join ', ')); nothing deployed."
+}
+
+function Remove-ReleaseTestRegionGroup {
+    <# Deletes the group of every region a variant may have used (those never created are skipped). #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $BaseName, [string[]] $Regions = $script:AzureRegions)
+    foreach ($slot in Get-ReleaseTestRegionGroup -BaseName $BaseName -Regions $Regions) { Remove-ReleaseTestGroup -Name $slot.Group }
 }
