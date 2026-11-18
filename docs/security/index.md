@@ -37,7 +37,7 @@ No change reaches `main` without passing these checks.
 | Check | What it finds | Blocks the change when |
 |---|---|---|
 | **CodeQL** static analysis (JavaScript) | Injection, path traversal, unsafe deserialisation, server-side request forgery and the other CWE classes CodeQL models | A new alert of High severity or above is raised (enforced by the `main` branch rules) |
-| **npm audit** (API and UI) | Dependencies with a published vulnerability | A dependency has a High or Critical advisory |
+| **npm audit** (API and UI) | Dependencies with a published vulnerability | A dependency has a High or Critical advisory. The only exceptions are advisories with no fixed version anywhere, listed with a reason and an expiry date of at most a few weeks in `.ci/npm-audit-exceptions.json`, after checking the vulnerable code is not reachable; an expired exception blocks again |
 | **Socket Firewall** | Malicious packages: typosquats, install-script malware, hijacked releases that have no advisory yet | A malicious package would be installed |
 | **ESLint with security rules** (API) | Unsafe patterns such as non-literal regular expressions, child processes and filesystem paths built from input | A rule fails |
 | **PSScriptAnalyzer** | Unsafe PowerShell in the worker and crawlers | A finding that is not in the recorded baseline appears. The baseline can only shrink |

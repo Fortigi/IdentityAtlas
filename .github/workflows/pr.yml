@@ -821,13 +821,21 @@ jobs:
         with:
           node-version: '24'
 
+      # High and critical advisories fail, except the time-boxed ones in
+      # .ci/npm-audit-exceptions.json (an advisory with no fixed version
+      # anywhere would otherwise block every PR). An expired exception fails.
+      # `|| true`: npm audit exits 1 whenever it finds anything; the gate decides.
       - name: Audit frontend dependencies
         working-directory: app/ui
-        run: npm audit --audit-level=high
+        run: |
+          npm audit --json > "$RUNNER_TEMP/audit-ui.json" || true
+          node ../../tools/npm-audit/auditGate.mjs "$RUNNER_TEMP/audit-ui.json" ../../.ci/npm-audit-exceptions.json
 
       - name: Audit API dependencies
         working-directory: app/api
-        run: npm audit --audit-level=high
+        run: |
+          npm audit --json > "$RUNNER_TEMP/audit-api.json" || true
+          node ../../tools/npm-audit/auditGate.mjs "$RUNNER_TEMP/audit-api.json" ../../.ci/npm-audit-exceptions.json
 
   # ── Stage 6b: Supply-chain firewall (Socket Firewall Free) ───────────────
   # Installs both Node projects through Socket Firewall, which proxies the npm

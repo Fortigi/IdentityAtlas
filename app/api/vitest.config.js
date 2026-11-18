@@ -30,6 +30,8 @@ export default defineConfig({
       '../../tools/scale-dataset/*.test.js',
       // The IdentityIQ-shaped SQL Server fixture generator — see tools/iiq-fixture/.
       '../../tools/iiq-fixture/*.test.js',
+      // The npm audit gate with time-boxed exceptions (pr.yml → Audit: npm audit).
+      '../../tools/npm-audit/*.test.js',
     ],
     coverage: {
       provider: 'v8',

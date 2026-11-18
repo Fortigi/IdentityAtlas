@@ -1,0 +1,2 @@
+- The dependency audit in pull-request checks can now hold back a High advisory for which no fixed version exists yet, for a few weeks at most, with the reason recorded; every other High or Critical advisory still blocks, and an exception that expires blocks again
+- Unblocked pull requests held up by the picomatch advisory GHSA-fc5q-39xc-vjpf, which has no fix yet and cannot be reached in Identity Atlas (only build tools use picomatch); the exception expires on 16 December 2026
