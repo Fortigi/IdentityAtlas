@@ -24,6 +24,7 @@ BeforeAll {
     . (Join-Path $script:Root 'tools/release/ReleaseTest.Azure.ps1')
     $script:AzureFile = Join-Path $script:Root 'tools/release/ReleaseTest.Azure.ps1'
     $script:EntryFile = Join-Path $script:Root 'tools/release/Invoke-AzureReleaseTest.ps1'
+    $script:FlowFile = Join-Path $script:Root 'tools/release/ReleaseTest.AzureFlow.ps1'
 }
 
 Describe 'Test-ReleaseTestGroupName' {
@@ -124,8 +125,10 @@ Describe 'No az call that names a resource group bypasses the gate (static)' {
             $Text -match 'Invoke-Az\s+(group\s+(create|delete|exists|update)|deployment\s+group|containerapp|resource\s)'
         }
     }
-    It 'every function in ReleaseTest.Azure.ps1 that touches a group calls Assert-ReleaseTestGroupName first' {
-        $offenders = foreach ($f in Get-Function $script:AzureFile) {
+    It 'every function in ReleaseTest.Azure.ps1 and ReleaseTest.AzureFlow.ps1 that touches a group calls Assert-ReleaseTestGroupName first' {
+        $functions = @(Get-Function $script:AzureFile) + @(Get-Function $script:FlowFile)
+        @($functions | Where-Object Name -eq 'Assert-ReportGeneratorDeployed').Count | Should -Be 1   # the scan reaches the flow file
+        $offenders = foreach ($f in $functions) {
             $body = $f.Body.Extent.Text
             if (-not (Test-TouchesGroup $body)) { continue }
             $gate = $body.IndexOf('Assert-ReleaseTestGroupName')
@@ -139,10 +142,11 @@ Describe 'No az call that names a resource group bypasses the gate (static)' {
         $lists.Count | Should -Be 1
         $lists[0].Value | Should -BeLike '*--tag $script:GroupTag*'
     }
-    It 'the entry script gates its -Group before anything else uses it' {
+    It 'the entry script gates its -Group before handing it on, and calls az only through the gated functions' {
         $text = Get-Content $script:EntryFile -Raw
         $text.IndexOf('Assert-ReleaseTestGroupName $Group') | Should -BeGreaterThan 0
-        $text.IndexOf('Assert-ReleaseTestGroupName $Group') | Should -BeLessThan $text.IndexOf('Invoke-Az ')
+        $text.IndexOf('Assert-ReleaseTestGroupName $Group') | Should -BeLessThan $text.IndexOf('New-AzureRunContext')
+        $text | Should -Not -Match 'Invoke-Az\s'
     }
     It 'no release-test script calls az directly, only through Invoke-Az' {
         $direct = Get-ChildItem (Join-Path $script:Root 'tools/release') -Filter '*.ps1' | ForEach-Object {

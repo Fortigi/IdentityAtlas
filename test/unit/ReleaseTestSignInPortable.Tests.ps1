@@ -28,6 +28,7 @@ BeforeAll {
     function Get-CorrectAnswer([string] $Uri, [hashtable] $Headers) {
         $token = if ($Headers.ContainsKey('Authorization')) { $Headers.Authorization -replace '^Bearer ', '' } else { '' }
         $status, $body = switch ($token) {
+            'A' { 200, '{}' }
             'R' { if ($Uri -like '*/admin/*') { 403, '{"error":"Insufficient permissions"}' } else { 200, '{}' } }
             'N' { if ($Uri -like '*/auth-me') { 200, '{}' } else { 403, '{"error":"no role","code":"NO_ROLE"}' } }
             default { 401, '{"error":"Missing or invalid authorization header"}' }
@@ -81,6 +82,23 @@ Describe 'Invoke-SignInCheck' {
         Mock Invoke-WebRequest { $a = Get-CorrectAnswer $Uri $Headers; if ($a.Content -like '*NO_ROLE*') { $a.Content = '{"error":"Forbidden"}' }; $a }
         Invoke-SignInCheck -BaseUrl 'http://x/api' -Tokens $script:Tokens | Should -BeLike "*with code '' instead of 'NO_ROLE'*"
     }
+    It 'lets the Admin caller into admin when its token is given' {
+        Mock Invoke-WebRequest { Get-CorrectAnswer $Uri $Headers }
+        Invoke-SignInCheck -BaseUrl 'http://x/api' -Tokens ($script:Tokens + @{ 'admin' = 'A' }) | Should -BeNullOrEmpty
+        Should -Invoke Invoke-WebRequest -Times 1 -Exactly -ParameterFilter { $Headers.Authorization -eq 'Bearer A' -and $Uri -eq 'http://x/api/admin/crawler-configs' }
+    }
+    It 'fails when the Admin caller is kept out of admin like a read-only role' {
+        Mock Invoke-WebRequest { if ($Headers['Authorization'] -eq 'Bearer A') { $Headers = @{ Authorization = 'Bearer R' } }; Get-CorrectAnswer $Uri $Headers }
+        $p = @(Invoke-SignInCheck -BaseUrl 'http://x/api' -Tokens ($script:Tokens + @{ 'admin' = 'A' }))
+        $p.Count | Should -Be 1
+        $p[0] | Should -BeLike "an Admin caller gets into admin*as 'admin' answered 403, expected 200"
+    }
+    It 'skips the Admin check, and only that one, without an admin token (the Docker scenario)' {
+        Mock Invoke-WebRequest { Get-CorrectAnswer $Uri $Headers }
+        Invoke-SignInCheck -BaseUrl 'http://x/api' -Tokens $script:Tokens | Out-Null
+        Should -Invoke Invoke-WebRequest -Times (@(Get-SignInExpectation).Count - 1) -Exactly
+        Should -Invoke Invoke-WebRequest -Times 0 -ParameterFilter { $Uri -like '*/admin/*' -and -not $Headers.ContainsKey('Authorization') }
+    }
     It 'sends no Authorization header for the no-token case' {
         Mock Invoke-WebRequest { Get-CorrectAnswer $Uri $Headers }
         Invoke-SignInCheck -BaseUrl 'http://x/api' -Tokens $script:Tokens | Out-Null
@@ -132,6 +150,14 @@ Describe 'Tokens' {
         $t['no-role'] | Should -Be 'norole|api://sso/.default'
         $t['other-audience'] | Should -Be 'withrole|https://management.azure.com/.default'
         $t['none'] | Should -Be ''
+        $t.ContainsKey('admin') | Should -BeFalse
+    }
+    It 'adds the Admin caller''s token for the SSO app when one is given' {
+        Mock Get-GitHubOidcToken { 'gh' }
+        Mock Get-FederatedAccessToken { "$ClientId|$Scope" }
+        $t = Get-SignInToken -TenantId t -SsoClientId sso -RoleCallerId withrole -NoRoleCallerId norole -AdminCallerId admin
+        $t['admin'] | Should -Be 'admin|api://sso/.default'
+        $t['role'] | Should -Be 'withrole|api://sso/.default'
     }
 }
 
