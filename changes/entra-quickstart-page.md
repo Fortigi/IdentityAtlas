@@ -1,0 +1,1 @@
+- Added the Entra ID quickstart page at identityatlas.io/entra-quickstart: a 90-second video for Entra ID Governance admins, the five steps from zero to insight (deploy to Azure, register the Entra app, add the Microsoft Graph crawler, build a matrix, share it) with links to the underlying documentation, the prerequisites, and a QR code to share the page.
