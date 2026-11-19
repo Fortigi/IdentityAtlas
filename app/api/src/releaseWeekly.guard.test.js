@@ -20,6 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { spawnSync } from 'child_process';
 import { parse } from 'yaml';
 import { repoRoot as findCheckoutRoot } from './lib/repoRoot.js';
 
@@ -170,6 +171,48 @@ describe('release-test.yml: Azure', () => {
     const del = test.jobs.azure.steps.find((s) => s.name === 'Delete the resource group');
     expect(del.if).toBe('always()');
     expect(del.run).toContain('Remove-ReleaseTestGroup -Name $env:GROUP');
+  });
+
+  // Runs the sign-in job's variable check itself: a static look can't tell
+  // `${!v%%:*}` (a bash error that failed the job with every variable set)
+  // from working shell.
+  describe('the sign-in variable check', () => {
+    const job = test.jobs['docker-signin'];
+    const check = job.steps.find((s) => s.name === 'Check the sign-in variables are set');
+    const scenario = job.steps.find((s) => s.name === 'Run the sign-in scenario');
+    const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    const bash = process.platform === 'win32' ? (existsSync(gitBash) ? gitBash : null) : 'bash';
+    // The same shell GitHub uses for a `run:` step.
+    const runCheck = (env) => spawnSync(bash, ['--noprofile', '--norc', '-eo', 'pipefail', '-c', check.run], {
+      env: { PATH: process.env.PATH, ...env }, encoding: 'utf8',
+    });
+    const all = Object.fromEntries(Object.keys(check.env).map((k) => [k, `value-of-${k}`]));
+
+    it('checks exactly the variables the sign-in scenario uses', () => {
+      expect(check.env).toEqual(scenario.env);
+    });
+
+    it.skipIf(!bash)('passes when every variable is set', () => {
+      const r = runCheck(all);
+      expect(r.stderr).toBe('');
+      expect(r.status).toBe(0);
+    });
+
+    it.skipIf(!bash)('fails naming only the missing variables', () => {
+      const r = runCheck({ ...all, SSO: '', NOROLE: undefined });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toBe('');
+      expect(r.stdout).toContain('environment: RELEASE_TEST_SSO_CLIENT_ID RELEASE_TEST_NOROLE_CLIENT_ID (');
+      expect(r.stdout).not.toMatch(/AZURE_TENANT_ID|AZURE_CLIENT_ID/);
+    });
+
+    it.skipIf(!bash)('names every variable in its env block when none is set', () => {
+      const r = runCheck({});
+      expect(r.status).toBe(1);
+      for (const expr of Object.values(check.env)) {
+        expect(r.stdout).toContain(` ${expr.match(/vars\.(\w+)/)[1]}`);
+      }
+    });
   });
 
   it('names the group through the gate, with the candidate in it', () => {
