@@ -21,13 +21,13 @@ ModuleVersion = '6.107.20261119.1141'
 GUID = '677e5d24-adcb-45dd-94ba-7b1ea7969119'
 
 # Author of this module
-Author = 'Wim van den Heijkant'
+Author = 'IdentityAtlas'
 
 # Company or vendor of this module
-CompanyName = 'Fortigi'
+CompanyName = 'IdentityAtlas'
 
 # Copyright statement for this module
-Copyright = '(c) 2026 Wim van den Heijkant / Fortigi. Licensed under the MIT License.'
+Copyright = '(c) 2025-2026 IdentityAtlas. Licensed under the MIT License.'
 
 # Description of the functionality provided by this module
 Description = 'PowerShell Module to assist with scripting against the Microsoft Graph. The sources for this module, including versioning can be found on GitHub: https://github.com/Fortigi/IdentityAtlas'
