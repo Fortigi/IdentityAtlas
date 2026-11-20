@@ -114,7 +114,7 @@ Besides the release test itself, a candidate is held back when either of these i
 | Both of the above, with the report generator | The same with `COMPOSE_PROFILES=report-generator`, and one question to the local model at the end. | `ubuntu-latest` |
 | Docker: sign-in on | A fresh install with sign-in on, then real Entra ID access tokens: a caller with the `Servicedesk` role reads data and is kept out of admin, a caller without a role gets `403 NO_ROLE` (F-01), a missing, malformed or other-API token gets `401`. | `ubuntu-latest`, `azure-release-test` environment |
 | Portable | Both ZIPs (`IdentityAtlas-portable.zip`, PGlite; `-postgres`, started with `-Database Postgres` and checked to really run PostgreSQL): a fresh start with demo data and one page of the matrix, and an upgrade from the previous stable release's ZIP on the same data directory, with the same [person-made data](#person-made-data) check across it. | `windows-latest` |
-| Azure | `main.json` (sign-in off) and `main.json` + `main-auth.json` (sign-in on), each with `deployReportGenerator` false and true: a fresh deploy, version and health check, the read endpoints or the sign-in checks. For both defaults also an upgrade: the previous stable release's template first, demo data, then the candidate's template over it, same totals afterwards. | IIDemos subscription, one new `ia-reltest-*` resource group per variant per run, always deleted |
+| Azure | An Azure install has sign-in on from the first deploy, with no Entra app yet, so it must come up **locked**: `/api/auth-config` reports enabled and not configured, and every data endpoint answers `401` without a token. `main`, `main-rg`: `main.json` alone (Step 1), with `deployReportGenerator` false and true, a fresh deploy, version and health, locked. `auth`, `auth-rg`: Step 1 (locked), then `main-auth.json` (Step 2); once the app reports the SSO client (the restart that applies Step 2 comes after the deployment returns), the sign-in checks of *Docker: sign-in on*, an `Admin` caller that gets into admin, and the demo data loaded and the read endpoints read as that Admin caller. `main-upgrade`: the previous stable release's `main.json`, then the candidate's over it, migrated and still locked. `auth-upgrade`: the previous release's Step 1 + Step 2, demo data and [person-made data](#person-made-data) made as the Admin caller, then the candidate's Step 1 (locked again: `main.json` clears the sign-in settings) and Step 2, then the same totals and every person-made record. | IIDemos subscription, one new `ia-reltest-*` resource group per variant per run, always deleted |
 
 ### Person-made data
 
@@ -138,6 +138,7 @@ Know these before you read a green run as "safe":
 
 - **Credentials surviving a restore.** The restore checks that the web container did not start without its master key; it does not decrypt a stored crawler credential.
 - **Sign-in through a browser.** The tokens are app-only (client credentials through a federated credential). The MSAL redirect, the redirect URI, delegated user tokens, roles assigned through a group, Conditional Access and MFA are not exercised.
+- **Data across an Azure upgrade without sign-in.** Nothing can be loaded into a locked install, so `main-upgrade` checks only that the upgrade migrates and stays locked; data surviving an Azure upgrade is checked by `auth-upgrade`.
 - **Real data.** Only the synthetic demo dataset and a handful of ingested records. No crawler talks to a real system, and nothing is large: volume is covered, partly, by the load and soak tests in PR CI.
 - **Upgrades across more than one release**, downgrades, and rolling back by restoring onto the older version.
 - **Azure beyond the defaults**: private network mode, your own container registry, `webAccessDefaultAction=Deny`, sizes other than `xs`. On Azure the report generator is checked to be deployed, not asked a question. And Azure is skipped for releases that did not change the templates (see [the policy](#release-policy)): an image that starts in Docker but not on App Service would be caught at the next minor.
@@ -247,13 +248,13 @@ Neither role can remove a resource lock, and the workflow only ever names resour
 
 ### 3. The sign-in apps (IIDemos tenant)
 
-The sign-in checks need an app registration that plays Identity Atlas's own SSO app, and two callers: the release-test app above with a role, and a second app without one.
+The sign-in checks need an app registration that plays Identity Atlas's own SSO app, and three callers: the release-test app above with the read-only `Servicedesk` role, a second app without a role, and a third app with the `Admin` role. The Azure test loads the demo data and reads it back as that Admin caller: an Azure install has sign-in on from the first deploy, so there is no way in without one. It is an app of its own, so the release-test app stays read-only and the check that keeps a read-only role out of admin still means something.
 
 **SSO app**
 
 1. **App registrations → New registration**: name `Identity Atlas release test SSO`, this directory only, **no redirect URI**. **Register**. Copy its **Application (client) ID**.
 2. **Expose an API → Add** next to *Application ID URI* → accept the default `api://<client id>` → **Save**. Then **Add a scope**: name `access`, who can consent **Admins and users**, any display texts → **Add scope**.
-3. **App roles → Create app role**: display name and value `Servicedesk`, Allowed member types **Applications**, any description, **Do you want to enable this app role?** ticked → **Apply**. This is the only role the test needs, and the only one that must be assignable to an app; in a customer's setup the roles are for *Users/Groups*, so no app can be given one.
+3. **App roles → Create app role**: display name and value `Servicedesk`, Allowed member types **Applications**, any description, **Do you want to enable this app role?** ticked → **Apply**. Then **Create app role** again: display name and value `Admin` (exactly this, case included: it is the role Identity Atlas maps to every permission by default), Allowed member types **Applications**, any description, enabled → **Apply**. These are the two roles the test needs, and they are assignable to apps only because the test's callers are apps; in a customer's setup the roles are for *Users/Groups*, so no app can be given one.
 4. **Enterprise applications** → `Identity Atlas release test SSO` → **Properties** → **Assignment required?** **No** → **Save**. This is deliberate: with *Yes*, Entra would refuse the no-role caller a token, and the test could not show that **Identity Atlas itself** refuses it, which is the F-01 finding.
 
 **The release-test app gets the `Servicedesk` role**
@@ -265,6 +266,12 @@ The sign-in checks need an app registration that plays Identity Atlas's own SSO 
 6. **App registrations → New registration**: `Identity Atlas release test no-role (GitHub)`, this directory only, no redirect URI. Copy its **Application (client) ID**.
 7. **Certificates & secrets → Federated credentials → Add credential**, exactly as in step 2.3 (environment `azure-release-test`). Give it **no** API permissions and **no** roles.
 
+**The Admin caller**
+
+8. **App registrations → New registration**: `Identity Atlas release test admin (GitHub)`, this directory only, no redirect URI. **Register**. Copy its **Application (client) ID**.
+9. **Certificates & secrets → Federated credentials → Add credential**, exactly as in step 2.3 (environment `azure-release-test`, name `github-azure-release-test`). Do not create a client secret.
+10. **API permissions → Add a permission → APIs my organization uses** → `Identity Atlas release test SSO` → **Application permissions** → tick **Admin** → **Add permissions** → **Grant admin consent for IIDemos** → **Yes**. Nothing else: no other API permission and no Azure role. It is an admin only inside the short-lived test deployments, which trust the SSO app, and only from runs in the `azure-release-test` environment.
+
 **About the redirect URI.** A deployment's address is `idatlas-<hash>-web.azurewebsites.net`, where the hash comes from the resource group's id. A new resource group every run, which purge protection on the Key Vault requires, means a new address every run, and Entra does not accept wildcards in redirect URIs. The release test does not need one: it does not sign in through a browser (see [What it does not cover](#what-it-does-not-cover)), and a redirect URI plays no part in an access token. So register none. To click through a deployment by hand, deploy it yourself into a resource group you keep and add that one address as a **Single-page application** redirect URI on the SSO app.
 
 ### 4. The GitHub environment
@@ -272,7 +279,7 @@ The sign-in checks need an app registration that plays Identity Atlas's own SSO 
 1. GitHub → **Fortigi/IdentityAtlas → Settings → Environments → New environment** → name `azure-release-test` → **Configure environment**.
 2. **Deployment branches and tags** → **Selected branches and tags** → **Add deployment branch or tag rule**: type **Branch**, pattern `main` → **Add rule**. Again: type **Tag**, pattern `v*` → **Add rule**.
 3. No required reviewers: the weekly run is unattended.
-4. **Environment variables → Add variable**, five times:
+4. **Environment variables → Add variable**, six times:
 
    | Name | Value |
    |---|---|
@@ -281,6 +288,7 @@ The sign-in checks need an app registration that plays Identity Atlas's own SSO 
    | `AZURE_SUBSCRIPTION_ID` | the IIDemos subscription ID |
    | `RELEASE_TEST_SSO_CLIENT_ID` | client ID of `Identity Atlas release test SSO` |
    | `RELEASE_TEST_NOROLE_CLIENT_ID` | client ID of `Identity Atlas release test no-role (GitHub)` |
+   | `RELEASE_TEST_ADMIN_CLIENT_ID` | client ID of `Identity Atlas release test admin (GitHub)` (only the Azure `auth*` variants use it; they fail at once without it) |
 
    They are not secrets: an ID alone grants nothing without a federated token from this environment.
 
