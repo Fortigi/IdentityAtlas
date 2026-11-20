@@ -5,8 +5,9 @@
 # Flow:  Build (local) → Start stack → Smoke test → Push
 #
 # Images published (only after smoke test passes):
-#   ghcr.io/fortigi/identity-atlas         — Node.js API + React frontend (web service)
-#   ghcr.io/fortigi/identity-atlas-worker  — PowerShell worker (crawlers, risk scoring)
+#   ghcr.io/<owner>/identity-atlas         — Node.js API + React frontend (web service)
+#   ghcr.io/<owner>/identity-atlas-worker  — PowerShell worker (crawlers, risk scoring)
+#   (<owner> = the lowercased org that owns this repository; see the legacy mirror step at the end)
 #
 # Tags pushed depend on the trigger:
 #   main (via bump-version):  :edge  + Major.Minor.yyyyMMdd.HHmm
@@ -326,7 +327,7 @@ jobs:
         run: |
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
-          REPO="${{ env.REGISTRY }}/fortigi/identity-atlas"
+          REPO="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/identity-atlas"
           if [ -n "$FLOAT" ]; then docker tag identity-atlas-web:qa "$REPO:$FLOAT"; fi
           docker tag identity-atlas-web:qa "$REPO:$VERSION"
           if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi
@@ -341,7 +342,7 @@ jobs:
         run: |
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
-          REPO="${{ env.REGISTRY }}/fortigi/identity-atlas-report-generator"
+          REPO="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/identity-atlas-report-generator"
           if [ -n "$FLOAT" ]; then docker tag identity-atlas-report-generator:qa "$REPO:$FLOAT"; fi
           docker tag identity-atlas-report-generator:qa "$REPO:$VERSION"
           if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi
@@ -352,7 +353,7 @@ jobs:
         run: |
           FLOAT="${{ steps.tags.outputs.float }}"
           VERSION="${{ steps.version.outputs.version }}"
-          REPO="${{ env.REGISTRY }}/fortigi/identity-atlas-worker"
+          REPO="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/identity-atlas-worker"
           if [ -n "$FLOAT" ]; then docker tag identity-atlas-worker:qa "$REPO:$FLOAT"; fi
           docker tag identity-atlas-worker:qa "$REPO:$VERSION"
           if [ -n "$FLOAT" ]; then docker push "$REPO:$FLOAT"; fi
@@ -366,7 +367,7 @@ jobs:
       # ── Supply-chain attestations (SEC-2026-09 M-14) ─────────────────
       # Signed build provenance and an SPDX SBOM for each pushed image digest,
       # stored in the registry next to the image. Verify with:
-      #   gh attestation verify oci://ghcr.io/fortigi/identity-atlas:<tag> --owner Fortigi
+      #   gh attestation verify oci://ghcr.io/<owner>/identity-atlas:<tag> --owner <Owner>
       # The images are pushed by retagging the smoke-tested local build (see
       # above), so provenance is attached here rather than by build-push-action.
       - name: Generate web SBOM
@@ -414,3 +415,37 @@ jobs:
           subject-digest: ${{ steps.push_worker.outputs.digest }}
           sbom-path: sbom-worker.spdx.json
           push-to-registry: true
+
+      # ── Legacy image path (repository moved out of the Fortigi org) ──
+      # Installs from before the move pull ghcr.io/fortigi/* (their compose file,
+      # Azure template or ACR cache rule names that path), and a package does not
+      # move with a transferred repository. So, for a transition period, the same
+      # tested images are also pushed there. Needs LEGACY_GHCR_TOKEN: a classic PAT
+      # with write:packages from a Fortigi org account that can write the packages
+      # (its user name in the LEGACY_GHCR_USER variable). Without it this step only
+      # warns. Its own DOCKER_CONFIG keeps that login away from the steps above.
+      - name: Mirror images to the legacy ghcr.io/fortigi path
+        if: github.repository_owner != 'Fortigi'
+        env:
+          LEGACY_GHCR_TOKEN: ${{ secrets.LEGACY_GHCR_TOKEN }}
+          LEGACY_GHCR_USER: ${{ vars.LEGACY_GHCR_USER }}
+          FLOAT: ${{ steps.tags.outputs.float }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LEGACY_GHCR_TOKEN}" ] || [ -z "${LEGACY_GHCR_USER}" ]; then
+            echo "::warning::LEGACY_GHCR_TOKEN / LEGACY_GHCR_USER not set: images NOT mirrored to ghcr.io/fortigi. Installs that still pull from there get no update."
+            exit 0
+          fi
+          DOCKER_CONFIG="$(mktemp -d)"; export DOCKER_CONFIG
+          printf '%s' "${LEGACY_GHCR_TOKEN}" | docker login ghcr.io -u "${LEGACY_GHCR_USER}" --password-stdin
+          for img in identity-atlas identity-atlas-worker identity-atlas-report-generator; do
+            # The local tested build of the web image is called identity-atlas-web.
+            if [ "$img" = identity-atlas ]; then src=identity-atlas-web; else src="$img"; fi
+            dst="${{ env.REGISTRY }}/fortigi/${img}"
+            docker tag "${src}:qa" "${dst}:${VERSION}"
+            docker push "${dst}:${VERSION}"
+            if [ -n "${FLOAT}" ]; then docker tag "${src}:qa" "${dst}:${FLOAT}"; docker push "${dst}:${FLOAT}"; fi
+          done
+          docker logout ghcr.io
+          rm -rf "${DOCKER_CONFIG}"

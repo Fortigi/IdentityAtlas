@@ -66,7 +66,19 @@ Describe 'Get-ComposeRef / Get-ComposeUrl' {
     It 'takes the compose file of the tag itself' { Get-ComposeRef 'v6.1.2-beta.1' | Should -Be 'v6.1.2-beta.1' }
     It 'takes main for edge' { Get-ComposeRef 'edge' | Should -Be 'main' }
     It 'builds the raw URL the quickstart uses' {
-        Get-ComposeUrl -Ref 'v6.1.1' | Should -Be 'https://raw.githubusercontent.com/Fortigi/IdentityAtlas/v6.1.1/docker-compose.prod.yml'
+        Get-ComposeUrl -Ref 'v6.1.1' -Repository 'Fortigi/IdentityAtlas' | Should -Be 'https://raw.githubusercontent.com/Fortigi/IdentityAtlas/v6.1.1/docker-compose.prod.yml'
+    }
+    Context 'without -Repository' {
+        BeforeEach { $script:SavedRepo = $env:GITHUB_REPOSITORY }
+        AfterEach { $env:GITHUB_REPOSITORY = $script:SavedRepo }
+        It 'takes the repository the workflow runs in' {
+            $env:GITHUB_REPOSITORY = 'IdentityAtlas/identity-atlas'
+            Get-ComposeUrl -Ref 'v6.1.1' | Should -Be 'https://raw.githubusercontent.com/IdentityAtlas/identity-atlas/v6.1.1/docker-compose.prod.yml'
+        }
+        It 'falls back to Fortigi/IdentityAtlas outside a workflow' {
+            $env:GITHUB_REPOSITORY = $null
+            Get-ComposeUrl -Ref 'main' | Should -Be 'https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/docker-compose.prod.yml'
+        }
     }
 }
 

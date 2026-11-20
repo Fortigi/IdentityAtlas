@@ -16,7 +16,8 @@
 set -euo pipefail
 
 PR="${1:?usage: dor_finalize_merged_pr.sh <pr-number>}"
-OWNER="${OWNER:-Fortigi}"
+OWNER="${OWNER:-${GITHUB_REPOSITORY_OWNER:-Fortigi}}"
+REPO="${REPO:-${GITHUB_REPOSITORY#*/}}"
 REPO="${REPO:-IdentityAtlas}"
 if [[ "$REPO" == */* ]]; then OWNER="${REPO%%/*}"; REPO="${REPO##*/}"; fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

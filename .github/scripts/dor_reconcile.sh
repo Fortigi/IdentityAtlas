@@ -11,7 +11,8 @@
 # (possibly stale) label — a Status≠label disagreement is FLAGGED for a human, not auto-"healed".
 set -euo pipefail
 
-OWNER="${OWNER:-Fortigi}"
+OWNER="${OWNER:-${GITHUB_REPOSITORY_OWNER:-Fortigi}}"
+REPO="${REPO:-${GITHUB_REPOSITORY#*/}}"
 REPO="${REPO:-IdentityAtlas}"
 # Accept an owner-qualified REPO (github.repository = "owner/name"); split so `--repo "$OWNER/$REPO"`
 # below doesn't become "owner/owner/name". Same guard as dor_set_status.sh.

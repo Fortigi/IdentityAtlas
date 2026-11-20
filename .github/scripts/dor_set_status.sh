@@ -24,7 +24,8 @@ set -euo pipefail
 
 ISSUE="${1:?usage: dor_set_status.sh <issue-number> <state-label>}"
 LABEL="${2:?usage: dor_set_status.sh <issue-number> <state-label>}"
-OWNER="${OWNER:-Fortigi}"
+OWNER="${OWNER:-${GITHUB_REPOSITORY_OWNER:-Fortigi}}"
+REPO="${REPO:-${GITHUB_REPOSITORY#*/}}"
 REPO="${REPO:-IdentityAtlas}"
 # Accept an owner-qualified REPO (GitHub Actions' github.repository is "owner/name"). Callers that
 # also `gh --repo "$REPO"` pass the qualified form, so split it — otherwise the GraphQL

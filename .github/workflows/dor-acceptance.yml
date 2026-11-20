@@ -146,7 +146,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-organization-projects: write
           # write (was read): acceptance is what takes the PR out of draft — see below.
           permission-pull-requests: write
@@ -265,7 +265,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-organization-projects: write
           permission-pull-requests: write
           permission-contents: write   # the adjustment PUSHES, and it must push AS THE APP: a
@@ -334,7 +334,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-organization-projects: write
           permission-issues: read
       - name: Reconcile the board column with the fresh token

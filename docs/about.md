@@ -30,4 +30,4 @@ Identity Atlas stands on the shoulders of the open-source community. We'd like t
 
 ## License
 
-Copyright © Maatschap Fortigi. See the repository `LICENSE` file for licensing terms.
+Copyright © IdentityAtlas. See the repository `LICENSE` file for licensing terms.

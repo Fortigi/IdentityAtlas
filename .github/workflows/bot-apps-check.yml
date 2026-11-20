@@ -38,8 +38,8 @@ env:
     echo "App: ${APP}"
     echo "Repositories:"
     echo "$repos" | sed 's/^/  /'
-    if [ "$repos" != "Fortigi/IdentityAtlas" ]; then
-      echo "::error::${APP} is installed on more than this repository — restrict it to Fortigi/IdentityAtlas"
+    if [ "$repos" != "${GITHUB_REPOSITORY}" ]; then
+      echo "::error::${APP} is installed on more than this repository — restrict it to ${GITHUB_REPOSITORY}"
       exit 1
     fi
 
@@ -61,7 +61,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-metadata: read
 
       - name: List the repositories this installation can reach
@@ -86,7 +86,7 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-metadata: read
 
       - name: List the repositories this installation can reach

@@ -88,7 +88,7 @@ Describe 'Waiting for the beta images' {
         Test-ImagePublished -Image 'fortigi/identity-atlas' -Tag 'x' | Should -BeFalse
     }
     It 'waits for all three images, not just the first' {
-        Mock Test-ImagePublished { $Image -ne 'fortigi/identity-atlas-report-generator' }
+        Mock Test-ImagePublished { $Image -notlike '*/identity-atlas-report-generator' }
         Mock Start-Sleep {}
         { Wait-ImagePublished -Tag '6.1.2-beta.1' -TimeoutSec 1 } | Should -Throw '*6.1.2-beta.1 images*'
     }
@@ -99,7 +99,26 @@ Describe 'Waiting for the beta images' {
     }
     It 'waits for the images docker-publish pushes' {
         $publish = Get-Content (Join-Path $script:Root '.github/workflows/docker-publish.yml') -Raw
-        foreach ($image in Get-ReleaseImage) { $publish | Should -BeLike "*/$image`"*" }
+        foreach ($image in Get-ReleaseImage) {
+            $name = $image.Split('/')[-1]
+            $publish | Should -BeLike "*/`${GITHUB_REPOSITORY_OWNER,,}/$name`"*"
+        }
+    }
+}
+
+Describe 'Get-ReleaseImage' {
+    BeforeEach { $script:SavedOwner = $env:GITHUB_REPOSITORY_OWNER }
+    AfterEach { $env:GITHUB_REPOSITORY_OWNER = $script:SavedOwner }
+    It 'puts the images under the lowercased owner it is given' {
+        Get-ReleaseImage -Owner 'IdentityAtlas' | Should -Be @('identityatlas/identity-atlas', 'identityatlas/identity-atlas-worker', 'identityatlas/identity-atlas-report-generator')
+    }
+    It 'takes the owner of the repository a workflow runs in' {
+        $env:GITHUB_REPOSITORY_OWNER = 'SomeOrg'
+        Get-ReleaseImage | Should -Be @('someorg/identity-atlas', 'someorg/identity-atlas-worker', 'someorg/identity-atlas-report-generator')
+    }
+    It 'falls back to fortigi outside a workflow' {
+        $env:GITHUB_REPOSITORY_OWNER = $null
+        (Get-ReleaseImage)[0] | Should -Be 'fortigi/identity-atlas'
     }
 }
 

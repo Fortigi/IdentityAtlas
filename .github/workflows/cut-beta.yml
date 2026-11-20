@@ -283,8 +283,8 @@ jobs:
           # docker-compose.override.yml
           services:
             web:
-              image: ghcr.io/fortigi/identity-atlas:${VERSION}
+              image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/identity-atlas:${VERSION}
             worker:
-              image: ghcr.io/fortigi/identity-atlas-worker:${VERSION}
+              image: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/identity-atlas-worker:${VERSION}
           \`\`\`
           EOF

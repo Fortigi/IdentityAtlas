@@ -33,7 +33,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-issues: write
       - name: Propose the build (reach the value gate)
         env:

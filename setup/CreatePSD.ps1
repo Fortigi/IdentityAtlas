@@ -1,6 +1,6 @@
-$Author = "Wim van den Heijkant"
-$Company = "Fortigi"
-$Copyright = "(c) 2026 Wim van den Heijkant / Fortigi. Licensed under the MIT License."
+$Author = "IdentityAtlas"
+$Company = "IdentityAtlas"
+$Copyright = "(c) 2025-2026 IdentityAtlas. Licensed under the MIT License."
 $Description = "PowerShell Module to assist with scripting against the Microsoft Graph. The sources for this module, including versioning can be found on GitHub: https://github.com/Fortigi/IdentityAtlas"
 
 $VersionMajor = "2"

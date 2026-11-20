@@ -42,7 +42,7 @@ Identity Atlas is a Docker-deployed application that pulls authorization data fr
 **Key Information:**
 - **Languages:** PowerShell (crawlers), JavaScript (Node API + React UI), SQL (postgres migrations)
 - **Stack:** PostgreSQL 16 + Node.js API (port 3001) + PowerShell worker — all in Docker
-- **Author:** Wim van den Heijkant / Fortigi — https://github.com/Fortigi/IdentityAtlas
+- **Author:** IdentityAtlas — https://github.com/Fortigi/IdentityAtlas
 - **Current Version:** 6.x.yyyyMMdd.HHmm (auto-bumped by `bump-version.yml` on every PR merge to `main`; `Major` follows the newest release tag)
 
 **Subdirectory coding guides (loaded contextually):**

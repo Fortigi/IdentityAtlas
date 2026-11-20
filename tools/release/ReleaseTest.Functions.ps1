@@ -114,8 +114,11 @@ function Get-ComposeUrl {
     [OutputType([string])]
     param(
         [Parameter(Mandatory)][string] $Ref,
-        [string] $Repository = 'Fortigi/IdentityAtlas'
+        # The repository this runs in ($env:GITHUB_REPOSITORY in a workflow), so the URL follows
+        # the repository when it moves to another org. Outside a workflow: Fortigi/IdentityAtlas.
+        [string] $Repository = $env:GITHUB_REPOSITORY
     )
+    if ([string]::IsNullOrWhiteSpace($Repository)) { $Repository = 'Fortigi/IdentityAtlas' }
     "https://raw.githubusercontent.com/$Repository/$Ref/docker-compose.prod.yml"
 }
 
