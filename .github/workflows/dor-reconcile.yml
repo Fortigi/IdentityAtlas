@@ -41,7 +41,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-organization-projects: write
           permission-issues: write
           permission-pull-requests: read   # "does this claimed sidekick still have an open PR?"

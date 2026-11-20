@@ -9,7 +9,7 @@
 #
 #   Usage: dor_requestor_of_record.sh <issue-number>
 #   Env:   GH_TOKEN — needs Issues: read (the default GITHUB_TOKEN is enough).
-#          OWNER / REPO default to Fortigi/IdentityAtlas; REPO may be owner-qualified.
+#          OWNER / REPO default to this repository ($GITHUB_REPOSITORY); REPO may be owner-qualified.
 #
 # This script only answers WHO. It deliberately does NOT check org membership — that stays in
 # `.github/actions/dor-authorize` (the one place that mints a Members:Read token), so callers keep
@@ -17,7 +17,8 @@
 # and then FAILS that gate, which is the fail-closed outcome we want.
 set -euo pipefail
 
-OWNER="${OWNER:-Fortigi}"
+OWNER="${OWNER:-${GITHUB_REPOSITORY_OWNER:-Fortigi}}"
+REPO="${REPO:-${GITHUB_REPOSITORY#*/}}"
 REPO="${REPO:-IdentityAtlas}"
 # Accept an owner-qualified REPO (github.repository = "owner/name") so `"$OWNER/$REPO"` below
 # doesn't become "owner/owner/name". Same guard as dor_set_status.sh / dor_reconcile.sh.

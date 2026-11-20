@@ -26,7 +26,7 @@
 #          REPO          — owner/name
 #          REQUESTOR     — the requestor of record (dor_requestor_of_record.sh); optional, saves a
 #                          membership lookup. It has already passed the org gate.
-#          ORG           — defaults to Fortigi
+#          ORG           — defaults to the org that owns the repo ($GITHUB_REPOSITORY_OWNER)
 #
 # Output keeps the shape `gh issue view --json number,title,body,author,labels,comments` produced,
 # so .comments[].body readers (read_contract in dor_build_lib.sh) keep working, plus a `trust` block.
@@ -36,7 +36,7 @@ set -euo pipefail
 ISSUE="${1:?usage: dor_trusted_spec.sh <issue-number>}"
 : "${REPO:?dor_trusted_spec: REPO (owner/name) required}"
 : "${MEMBERS_TOKEN:?dor_trusted_spec: MEMBERS_TOKEN (Members: read) required}"
-ORG="${ORG:-Fortigi}"
+ORG="${ORG:-${GITHUB_REPOSITORY_OWNER:-Fortigi}}"
 PIPELINE_BOTS=" github-actions[bot] fortigi-ci-bot[bot] fortigi-dor-bot[bot] "
 # Exported for the jq filter below (read as $ENV.VOUCH_LABEL), never interpolated into it.
 export VOUCH_LABEL="${VOUCH_LABEL:-dor-vouched}"

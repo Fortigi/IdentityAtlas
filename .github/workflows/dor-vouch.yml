@@ -120,7 +120,7 @@ jobs:
         with:
           client-id: ${{ secrets.DOR_BOT_APP_ID }}
           private-key: ${{ secrets.DOR_BOT_PRIVATE_KEY }}
-          owner: Fortigi
+          owner: ${{ github.repository_owner }}
           permission-organization-projects: write
           permission-issues: read          # dor_set_status.sh must read the issue node id first
 

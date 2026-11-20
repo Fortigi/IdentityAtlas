@@ -66,11 +66,20 @@ function Test-ImagePublished {
 }
 
 function Get-ReleaseImage {
-    <# The three images docker-publish.yml pushes for every tag. #>
+    <#
+    .SYNOPSIS
+        The three images docker-publish.yml pushes for every tag.
+    .DESCRIPTION
+        They live under the lowercased org that owns the repository ($env:GITHUB_REPOSITORY_OWNER
+        in a workflow), so the route keeps working after the repository moves to another org.
+        Outside a workflow the owner defaults to fortigi.
+    #>
     [CmdletBinding()]
     [OutputType([string[]])]
-    param()
-    @('fortigi/identity-atlas', 'fortigi/identity-atlas-worker', 'fortigi/identity-atlas-report-generator')
+    param([string] $Owner = $env:GITHUB_REPOSITORY_OWNER)
+    if ([string]::IsNullOrWhiteSpace($Owner)) { $Owner = 'fortigi' }
+    $ns = $Owner.ToLowerInvariant()
+    @('identity-atlas', 'identity-atlas-worker', 'identity-atlas-report-generator') | ForEach-Object { "$ns/$_" }
 }
 
 function Wait-ImagePublished {

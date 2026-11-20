@@ -1,0 +1,2 @@
+- Release and DoR automation now follow whichever GitHub organization owns the repository, instead of assuming Fortigi, so the project can move to its own organization without breaking releases.
+- After such a move, images can optionally keep being published to the old `ghcr.io/fortigi/*` location for a transition period, so existing installs keep receiving updates.
