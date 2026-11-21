@@ -360,6 +360,43 @@ describe('queueScheduledJob', () => {
     expect(storedJobConfig(db)._syncMode).toBe('full');
   });
 
+  // #1628 — "force a full sync next run" against schedules that name their own
+  // syncMode. Every wizard-created schedule carries one, so a schedule-first
+  // precedence makes the nextRunMode flag dead for all of them. These inputs
+  // discriminate; a schedule without a syncMode (the test above) does not.
+  describe("nextRunMode against schedules that name their own syncMode", () => {
+    const twoSchedules = [
+      { enabled: true, frequency: 'interval', intervalMinutes: 5, syncMode: 'delta' },
+      { enabled: true, frequency: 'daily', hour: 3, minute: 0, syncMode: 'full' },
+    ];
+    const withSchedules = (nextRunMode) => ({
+      ...baseConfig,
+      nextRunMode,
+      config: { ...baseConfig.config, schedules: twoSchedules },
+    });
+
+    it("queues a full run from the delta schedule when nextRunMode is 'full'", async () => {
+      const db = makeDb({ insertedId: 1 });
+      const { queueScheduledJob } = await loadScheduler(db);
+      await queueScheduledJob(withSchedules('full'), 0);   // fire the DELTA schedule
+      expect(storedJobConfig(db)._syncMode).toBe('full');
+    });
+
+    it("does not downgrade the full schedule when nextRunMode is 'delta' (the no-override default)", async () => {
+      const db = makeDb({ insertedId: 1 });
+      const { queueScheduledJob } = await loadScheduler(db);
+      await queueScheduledJob(withSchedules('delta'), 1);  // fire the FULL schedule
+      expect(storedJobConfig(db)._syncMode).toBe('full');
+    });
+
+    it("keeps the delta schedule on delta when nextRunMode is 'delta'", async () => {
+      const db = makeDb({ insertedId: 1 });
+      const { queueScheduledJob } = await loadScheduler(db);
+      await queueScheduledJob(withSchedules('delta'), 0);
+      expect(storedJobConfig(db)._syncMode).toBe('delta');
+    });
+  });
+
   // Both queue paths (Run Now and the scheduler) have to stamp the name, or a
   // crawler's system is named after its type on scheduled runs only.
   it('stamps the crawler name into the stored job config as _configName', async () => {

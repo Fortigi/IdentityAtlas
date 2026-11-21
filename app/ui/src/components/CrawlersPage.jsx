@@ -35,8 +35,9 @@ function CrawlerConfigCard({ config, onRunNow, onEdit, onRemove, onExport, onFor
 
   // Sync mode is now chosen per-run: two buttons (Run Delta / Run Full)
   // on this card, or per-schedule via the Mode dropdown on each schedule
-  // entry. The old `nextRunMode` column on CrawlerConfigs still works as
-  // a server-side scheduler fallback but has no UI surface anymore.
+  // entry. The `nextRunMode` column on CrawlerConfigs has no UI surface
+  // anymore; set server-side it still forces the next scheduled run to be
+  // a full one, overriding that run's own schedule mode (#1628).
 
   const isRunning = runningJob && ['queued', 'running'].includes(runningJob.status);
 

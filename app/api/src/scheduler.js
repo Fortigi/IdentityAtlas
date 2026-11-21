@@ -114,18 +114,24 @@ export async function queueScheduledJob(configRow, scheduleIndex) {
   const cfg = parseJsonbColumn(configRow.config);
 
   // Resolve the effective syncMode for this scheduled run.
-  //   1. Explicit `syncMode` on the schedule entry itself (operator config —
-  //      e.g. "daily deltas at 02/08/14/20, weekly full on Sunday").
-  //   2. Otherwise fall through to the config-level `nextRunMode` override
-  //      (the "Force full sync next run" toggle on the crawler card, which
-  //      stays sticky until the scheduler itself resets it below).
+  //   1. The config-level `nextRunMode` column ("force a full sync next run")
+  //      wins when it says 'full': it is an override, so it upgrades whatever
+  //      the firing schedule asked for. It stays set until a successful full
+  //      run resets it (POST /crawlers/configs/:id/mark-delta-mode, which the
+  //      Entra crawler's finalization calls), so a full run that fails is
+  //      retried rather than lost. Crawlers that don't call that endpoint keep
+  //      running full until an operator patches the column back to 'delta'.
+  //   2. Otherwise the explicit `syncMode` on the schedule entry itself
+  //      (operator config — e.g. "deltas every 5 minutes, full at 03:00").
   //   3. Otherwise default to 'delta'.
+  // 'delta' is the column's NOT NULL default (migration 020) and means "no
+  // override" — it must never downgrade a schedule that asked for a full run.
   const schedules = extractSchedules(cfg);
   const thisSchedule = schedules[scheduleIndex] || {};
   const scheduleSyncMode = ['full', 'delta'].includes(thisSchedule.syncMode) ? thisSchedule.syncMode : null;
-  const effectiveSyncMode = scheduleSyncMode
-    || (['full', 'delta'].includes(configRow.nextRunMode) ? configRow.nextRunMode : null)
-    || 'delta';
+  const effectiveSyncMode = configRow.nextRunMode === 'full'
+    ? 'full'
+    : (scheduleSyncMode || 'delta');
 
   // Stamp the schedule metadata into the job config for the UI and the worker.
   // Which config's credentials the job receives is decided by the "configId"
