@@ -16,6 +16,7 @@
   "mutate": [
     "src/components/businessRoles/BusinessRoleOwners.jsx",
     "src/components/businessRoles/BusinessRoleOverview.jsx",
+    "src/components/businessRoles/BusinessRoleLifecycle.jsx",
     "src/components/businessRoles/BusinessRoleParticipants.jsx",
     "src/components/businessRoles/BusinessRoleResources.jsx",
     "src/components/businessRoles/BusinessRoleMembers.jsx",

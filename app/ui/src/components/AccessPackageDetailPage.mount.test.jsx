@@ -31,7 +31,7 @@ function renderPage({ body = pkg(), risk = null, pkgOk = true } = {}) {
     // AccessPackageGovernance fetches three sub-resources off the same prefix and expects arrays;
     // they must be matched BEFORE the package itself, or it receives the package object and throws
     // "(reviews || []) is not iterable".
-    if (/\/api\/access-package\/[^/]+\/(policies|reviews|requests|owners)$/.test(s)) return [];
+    if (/\/api\/access-package\/[^/]+\/(policies|reviews|requests|owners|participants)$/.test(s)) return [];
     if (/\/api\/access-package\/[^/]+\/owners\/suggestions$/.test(s)) return {};
     if (s.includes('/api/access-package/')) {
       return pkgOk ? body : jsonResponse({ error: 'gone' }, { ok: false, status: 404 });
@@ -51,13 +51,11 @@ describe('AccessPackageDetailPage header', () => {
     expect(await screen.findByRole('heading', { name: 'Finance Access' })).toBeInTheDocument();
   });
 
-  it('states how the role is gained and lost under the name', async () => {
-    renderPage({ body: pkg({ accessModel: { waysIn: ['Request', 'Assigned'], waysOut: ['Review'] } }) });
-    const model = await screen.findByTestId('role-access-model');
-    expect(model).toHaveTextContent('Gained by');
-    expect(model).toHaveTextContent('Request');
-    expect(model).toHaveTextContent('Assigned');
-    expect(model).toHaveTextContent('Review');
+  it('labels the role by type only, next to its name', async () => {
+    renderPage({ body: pkg({ accessModel: { control: 'Manual', waysIn: ['Request', 'Assigned'], waysOut: ['Review'] } }) });
+    expect(await screen.findByTestId('role-type')).toHaveTextContent(/^Manual$/);
+    expect(screen.queryByText('Gained by')).toBeNull();
+    expect(screen.queryByText('Assigned')).toBeNull();
   });
 
   // A role deleted in the source used to look identical to its live re-created
@@ -82,8 +80,8 @@ describe('AccessPackageDetailPage header', () => {
   });
 });
 
-describe('AccessPackageDetailPage overview', () => {
-  it('lists review status, date, reviewer and category when governance data is present', async () => {
+describe('AccessPackageDetailPage lifecycle', () => {
+  it('lists review status, date, reviewer on Lifecycle and the category in the header', async () => {
     renderPage({
       body: pkg({
         complianceStatus: 'Overdue',
@@ -94,8 +92,9 @@ describe('AccessPackageDetailPage overview', () => {
       }),
     });
 
+    await userEvent.setup().click(await screen.findByRole('tab', { name: 'Lifecycle' }));
     expect(await screen.findByText(/Overdue \(12d ago\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Last reviewed .* by auditor@example\.com/)).toBeInTheDocument();
+    expect(screen.getByText(/by auditor@example\.com/)).toBeInTheDocument();
     // Category pill uses the contrast-safe tint rather than the raw hex as text.
     const cat = screen.getAllByText('Finance').find(el => (el.getAttribute('style') || '').includes('background-color'));
     expect(cat).toBeTruthy();
@@ -103,8 +102,9 @@ describe('AccessPackageDetailPage overview', () => {
 
   it('shows no review status when there is no governance data', async () => {
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'Finance Access' })).toBeInTheDocument();
-    expect(screen.queryByText(/Last reviewed/)).not.toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('tab', { name: 'Lifecycle' }));
+    expect(await screen.findByText('No regular review.')).toBeInTheDocument();
+    expect(screen.queryByText('Last review')).not.toBeInTheDocument();
   });
 });
 

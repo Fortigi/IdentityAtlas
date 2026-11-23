@@ -8,12 +8,12 @@ import RiskScoreSection from './RiskScoreSection';
 import AccessPackageGovernance from './AccessPackageGovernance';
 import DeletedBadge from './DeletedBadge';
 import BusinessRoleOverview from './businessRoles/BusinessRoleOverview';
+import BusinessRoleLifecycle from './businessRoles/BusinessRoleLifecycle';
 import BusinessRoleResources from './businessRoles/BusinessRoleResources';
 import BusinessRoleMembers from './businessRoles/BusinessRoleMembers';
 import WayChips from './businessRoles/WayChips';
 import { showsRequestsAndReviews } from './businessRoles/accessModel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
-import { formatDate } from '@ui/utils/formatters';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
 const HIDDEN_FIELDS = new Set([
@@ -43,7 +43,7 @@ function getAccessPackageRootExtras(data) {
 
 function AccessPackageHeader({ data }) {
   const isDark = useIsDark();
-  const { attributes, accessModel, category, lastReviewDate, lastReviewedBy } = data;
+  const { attributes, accessModel, category } = data;
   return (
     <>
       <div className="flex items-center gap-3">
@@ -51,6 +51,7 @@ function AccessPackageHeader({ data }) {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
+            <span data-testid="role-type"><WayChips ways={[accessModel?.control ?? 'Unknown']} direction="control" /></span>
             {category && (
               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
                 style={tagPillStyle(category.color, isDark)}>
@@ -66,18 +67,6 @@ function AccessPackageHeader({ data }) {
       </div>
       {attributes.description && (
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400" data-testid="role-access-model">
-        <WayChips ways={[accessModel?.control ?? 'Unknown']} direction="control" />
-        <span className="inline-flex items-center gap-1">Gained by <WayChips ways={accessModel?.waysIn} direction="in" /></span>
-        <span className="inline-flex items-center gap-1">Lost by <WayChips ways={accessModel?.waysOut} direction="out" none="no automatic removal" /></span>
-      </div>
-      {lastReviewDate && (
-        <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          <span className="text-gray-500 dark:text-gray-400">Last Certification:</span>{' '}
-          <span className="font-medium">{formatDate(lastReviewDate)}</span>
-          {lastReviewedBy && <span className="text-gray-500 dark:text-gray-400"> by {lastReviewedBy}</span>}
-        </div>
       )}
     </>
   );
@@ -101,6 +90,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
     return [
       { key: 'overview', label: 'Overview' },
+      { key: 'lifecycle', label: 'Lifecycle' },
       { key: 'resources', label: 'Resources', count: data.groupCount ?? 0 },
       { key: 'members', label: 'People', count: data.assignmentCount ?? 0 },
       showsRequestsAndReviews(data) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
@@ -114,6 +104,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
 
   const renderCustomTab = useCallback((key, data, openTab) => {
     if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
+    if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
     if (key === 'resources') return <BusinessRoleResources roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
     if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} control={data.accessModel?.control} onOpenDetail={onOpenDetail} />;
     if (key === 'requests') return <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} showPolicies={false} />;

@@ -5,10 +5,9 @@ import AccessPackageDetailPage from '@ui/components/AccessPackageDetailPage';
 import BusinessRoleMembers from './BusinessRoleMembers';
 import { countByWay, filterMembers, MEMBER_PAGE_SIZE } from './accessModel';
 import BusinessRoleResources from './BusinessRoleResources';
-import BusinessRoleOverview from './BusinessRoleOverview';
 import BusinessRoleOwnerImport from './BusinessRoleOwnerImport';
 import WayChips from './WayChips';
-import BusinessRoleParticipants from './BusinessRoleParticipants';
+import BusinessRoleLifecycle from './BusinessRoleLifecycle';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, within, userEvent } from '@ui/test-utils/renderWithProviders';
 
@@ -73,39 +72,17 @@ function mountPage(opts, wrap = (el) => el) {
   return { onOpenDetail, user: userEvent.setup() };
 }
 
+const openLifecycle = async (user) => user.click(await screen.findByRole('tab', { name: 'Lifecycle' }));
+
 describe('the business role page', () => {
-  it('opens on the Overview and states the ways in and out in the header', async () => {
+  it('opens on a calm Overview: the type by the name, the rest on Lifecycle', async () => {
     mountPage();
-    const header = await screen.findByTestId('role-access-model');
-    expect(within(header).getByText('Rule')).toBeInTheDocument();
-    expect(within(header).getByText('Request')).toBeInTheDocument();
-    expect(within(header).getByText('Removal rule')).toBeInTheDocument();
+    expect(await screen.findByTestId('role-type')).toHaveTextContent(/^Manual$/);
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('shows the rule and how many people hold the role through it', async () => {
-    mountPage();
-    expect(await screen.findByText('(user.department -eq "IT")')).toBeInTheDocument();
-    expect(screen.getByText('Added and removed by this rule')).toBeInTheDocument();
-    expect(screen.getByText(/12 people hold the role through this policy/)).toBeInTheDocument();
-    expect(screen.getByText(/1 person holds the role through this policy/)).toBeInTheDocument();
-  });
-
-  it('shows the approval, expiry and review of a requestable policy', async () => {
-    mountPage();
-    expect(await screen.findByText('Requests need approval')).toBeInTheDocument();
-    expect(screen.getByText('Ends after 90 days')).toBeInTheDocument();
-    expect(screen.getByText('Access review: recurs every 3 months')).toBeInTheDocument();
-  });
-
-  it('explains a removal rule that has no rule text', async () => {
-    mountPage({ policies: [{ ...REQUEST_POLICY, targetRule: null, hasAccessReview: false }] });
-    expect(await screen.findByText(/leaves the people this policy allows/)).toBeInTheDocument();
-  });
-
-  it('says so when the source delivers no policies', async () => {
-    mountPage({ policies: [], body: role({ accessModel: { waysIn: ['Unknown'], waysOut: ['Unknown'] } }) });
-    expect(await screen.findByText(/delivers no assignment policies/)).toBeInTheDocument();
+    expect(await screen.findByText('Who answers for this role')).toBeInTheDocument();
+    expect(screen.queryByText('Gained by')).toBeNull();
+    expect(screen.queryByText('Getting it')).toBeNull();
+    expect(screen.queryByText('(user.department -eq "IT")')).toBeNull();
   });
 
   it('offers Requests & reviews for a requestable role', async () => {
@@ -144,45 +121,99 @@ describe('the business role page', () => {
     const tab = await screen.findByRole('tab', { name: /Attributes/ });
     expect(tab).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'Overview' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Lifecycle' })).toBeNull();
   });
 });
 
-describe('the primary type', () => {
-  it('states that a Manual role needs a review of the part no rule covers', async () => {
-    mountPage();
-    const banner = await screen.findByTestId('role-control');
-    expect(banner).toHaveTextContent('Manual');
-    expect(banner).toHaveTextContent('1 person holds it without a rule');
-    expect(banner).not.toHaveTextContent('No access review');
+describe('BusinessRoleLifecycle', () => {
+  const mount = (opts = {}, data = role()) => {
+    const onOpenDetail = vi.fn();
+    renderWithProviders(h(BusinessRoleLifecycle, { roleId: ID, data, onOpenDetail }), { auth: { authFetch: api(opts) } });
+    return { onOpenDetail, user: userEvent.setup() };
+  };
+  const stage = async (title) => (await screen.findByRole('heading', { name: title })).closest('section');
+
+  it('says how much of a Manual role a review has to cover', async () => {
+    mount();
+    const summary = await screen.findByTestId('role-control');
+    expect(summary).toHaveTextContent('1 person holds it without a rule');
+    expect(summary).not.toHaveTextContent('No access review');
   });
 
   it('warns when a Manual role has no review', async () => {
-    mountPage({ body: role({ accessModel: { waysIn: ['Request'], waysOut: [], control: 'Manual', reviewGap: true } }) });
+    mount({}, role({ accessModel: { waysIn: ['Request'], waysOut: [], control: 'Manual', reviewGap: true } }));
     expect(await within(await screen.findByTestId('role-control')).findByRole('status')).toHaveTextContent('No access review');
   });
 
   it('states that a rule-only role needs no review', async () => {
-    mountPage({ body: role({ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'], control: 'Automatic', reviewGap: false } }) });
-    const banner = await screen.findByTestId('role-control');
-    expect(banner).toHaveTextContent('Rule only');
-    expect(banner).toHaveTextContent('nobody has to review');
+    mount({}, role({ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'], control: 'Automatic', reviewGap: false } }));
+    expect(await screen.findByTestId('role-control')).toHaveTextContent('nobody has to review');
   });
-});
 
-describe('BusinessRoleParticipants', () => {
-  const mount = (participants = PARTICIPANTS) => {
-    const onOpenDetail = vi.fn();
-    renderWithProviders(h(BusinessRoleParticipants, { roleId: ID, onOpenDetail }), { auth: { authFetch: api({ participants }) } });
-    return { onOpenDetail, user: userEvent.setup() };
-  };
-
-  it('shows approvers, reviewers and the request scope', async () => {
+  it('puts the request scope, approvers and approval under Getting it', async () => {
     mount();
-    expect(await screen.findByRole('button', { name: 'Carla Cash' })).toBeInTheDocument();
-    expect(screen.getByText("The person's manager")).toBeInTheDocument();
-    expect(screen.getByText('stage 2')).toBeInTheDocument();
-    expect(screen.getByText('fallback')).toBeInTheDocument();
-    expect(screen.getByText('(user.jobTitle -eq "x")')).toBeInTheDocument();
+    const getting = await stage('Getting it');
+    expect(within(getting).getByText('Who can request it')).toBeInTheDocument();
+    expect(within(getting).getByRole('button', { name: 'SG-Sales' })).toBeInTheDocument();
+    expect(within(getting).getByText('(user.jobTitle -eq "x")')).toBeInTheDocument();
+    expect(within(getting).getByRole('button', { name: 'Carla Cash' })).toBeInTheDocument();
+    expect(within(getting).getByText("The person's manager")).toBeInTheDocument();
+    expect(within(getting).getByText('stage 2')).toBeInTheDocument();
+    expect(within(getting).getByText('Requests need approval')).toBeInTheDocument();
+    expect(within(getting).getByText('(user.department -eq "IT")')).toBeInTheDocument();
+  });
+
+  it('puts the cadence, reviewers and last review under Keeping it', async () => {
+    mount({}, role({ complianceStatus: 'Missed', daysOverdue: 5, lastReviewDate: '2026-03-01T00:00:00Z', lastReviewedBy: 'auditor' }));
+    const keeping = await stage('Keeping it');
+    expect(within(keeping).getByText('Access review: recurs every 3 months')).toBeInTheDocument();
+    expect(within(keeping).getByRole('button', { name: 'Rita Review' })).toBeInTheDocument();
+    expect(within(keeping).getByText('fallback')).toBeInTheDocument();
+    expect(within(keeping).getByText('Missed (5d ago)')).toBeInTheDocument();
+    expect(within(keeping).getByText(/by auditor/)).toBeInTheDocument();
+  });
+
+  it('puts the expiry and the removal rule under Losing it', async () => {
+    mount();
+    const losing = await stage('Losing it');
+    expect(within(losing).getByText('Removal rule')).toBeInTheDocument();
+    expect(within(losing).getByText('Ends after 90 days')).toBeInTheDocument();
+    expect(within(losing).getByText('(user.department -eq "IT")')).toBeInTheDocument();
+  });
+
+  it('explains a removal rule that has no rule text', async () => {
+    mount({ policies: [{ ...REQUEST_POLICY, targetRule: null, hasAccessReview: false }] });
+    expect(within(await stage('Losing it')).getByText(/leaves the people this policy allows/)).toBeInTheDocument();
+  });
+
+  it('says when nothing keeps the role in check', async () => {
+    mount({ policies: [RULE_POLICY], participants: [] });
+    expect(within(await stage('Keeping it')).getByText('No regular review.')).toBeInTheDocument();
+  });
+
+  it('keeps the policy detail folded, with the people per policy', async () => {
+    mount();
+    const summary = await screen.findByText('Policies (2)');
+    const details = summary.closest('details');
+    expect(details.open).toBe(false);
+    const rows = within(details).getAllByTestId('role-policy');
+    expect(rows[0]).toHaveTextContent('Everyone in IT');
+    expect(rows[0]).toHaveTextContent('12 people');
+    expect(rows[0]).toHaveTextContent('Added and removed by this rule');
+    expect(rows[1]).toHaveTextContent('1 person');
+  });
+
+  it('shows no empty "gained by" on a removal-only policy', async () => {
+    mount({ policies: [{ id: 'p9', displayName: 'Auto Remove', hasAutoRemoveRule: true, targetRule: 'x', holderCount: 0 }] });
+    const row = within((await screen.findByText('Policies (1)')).closest('details')).getByTestId('role-policy');
+    expect(row).not.toHaveTextContent('Gained by');
+    expect(row).not.toHaveTextContent('Unknown');
+    expect(row).toHaveTextContent('Lost by');
+  });
+
+  it('says so when the source delivers no policies', async () => {
+    mount({ policies: [] }, role({ accessModel: { waysIn: ['Unknown'], waysOut: ['Unknown'], control: 'Unknown' } }));
+    expect(await screen.findByText(/delivers no assignment policies/)).toBeInTheDocument();
   });
 
   it('opens the person, the group and the matched context', async () => {
@@ -195,17 +226,16 @@ describe('BusinessRoleParticipants', () => {
     expect(onOpenDetail).toHaveBeenCalledWith('context', 'c1', 'Sales team');
   });
 
-  it('says when a part is empty', async () => {
-    mount([]);
-    expect(await screen.findByText('No approvers named.')).toBeInTheDocument();
-    expect(screen.getByText('No reviewers named.')).toBeInTheDocument();
-    expect(screen.getByText('Nobody can request this role.')).toBeInTheDocument();
-  });
-
   it('shows a load failure', async () => {
     const authFetch = makeAuthFetch(() => jsonResponse({ error: 'x' }, { ok: false, status: 500 }));
-    renderWithProviders(h(BusinessRoleParticipants, { roleId: ID }), { auth: { authFetch } });
+    renderWithProviders(h(BusinessRoleLifecycle, { roleId: ID, data: role() }), { auth: { authFetch } });
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load');
+  });
+
+  it('is reachable from its tab on the page', async () => {
+    const { user } = mountPage();
+    await openLifecycle(user);
+    expect(await screen.findByRole('heading', { name: 'Losing it' })).toBeInTheDocument();
   });
 });
 
@@ -230,15 +260,6 @@ describe('People who need a review', () => {
     await screen.findByText('Bo Request');
     expect(screen.queryByText('needs review')).toBeNull();
     expect(screen.queryByRole('button', { name: /Needs review/ })).toBeNull();
-  });
-});
-
-describe('BusinessRoleOverview', () => {
-  it('shows the review status with days overdue', async () => {
-    const data = role({ complianceStatus: 'Missed', daysOverdue: 5, lastReviewDate: '2026-03-01T00:00:00Z', lastReviewedBy: 'auditor' });
-    renderWithProviders(h(BusinessRoleOverview, { roleId: ID, data, onOpenTab: () => {} }), { auth: { authFetch: api() } });
-    expect(await screen.findByText('Missed (5d ago)')).toBeInTheDocument();
-    expect(screen.getByText(/by auditor/)).toBeInTheDocument();
   });
 });
 

@@ -156,6 +156,19 @@ export function groupParticipants(list) {
   return out;
 }
 
+// What all of a role's policies say, once each, for the Lifecycle tab.
+export function lifecycleFacts(policies, formatDate) {
+  const distinct = (values) => [...new Set(values.filter(Boolean))];
+  return {
+    addRules: distinct(policies.filter(p => p.hasAutoAddRule).map(p => p.targetRule)),
+    removeRules: distinct(policies.filter(p => p.hasAutoRemoveRule).map(p => p.targetRule)),
+    approvals: distinct(policies.map(approvalText)),
+    cadences: distinct(policies.filter(p => p.hasAccessReview).map(p => describeCadence(p.reviewSettings))),
+    expiries: distinct(policies.map(p => describeExpiry(p.expiration, formatDate))),
+    removalNotes: distinct(policies.map(removalText)),
+  };
+}
+
 // What the text of a policy's rule does here.
 export function ruleLabel(policy) {
   if (policy.hasAutoAddRule && policy.hasAutoRemoveRule) return 'Added and removed by this rule';
