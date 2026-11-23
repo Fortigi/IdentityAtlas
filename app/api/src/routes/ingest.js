@@ -20,12 +20,14 @@ import handlersRouter from './ingest/handlers.js';
 import matrixViewsRouter from './ingest/matrixViews.js';
 import stagesRouter from './ingest/stages.js';
 import contextLinksRouter from './ingest/contextLinks.js';
+import businessRoleOwnersIngestRouter from './ingest/businessRoleOwners.js';
 
 const router = Router();
 router.use(handlersRouter);
 router.use(matrixViewsRouter);
 router.use(stagesRouter);
 router.use(contextLinksRouter);
+router.use(businessRoleOwnersIngestRouter);
 
 export {
   applyIngestDefaults, recoverSystemPrefix, buildScope, conflictFilterFor, discoverCoreColumns,

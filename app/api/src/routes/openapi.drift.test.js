@@ -110,6 +110,8 @@ const INTENTIONALLY_UNDOCUMENTED = {
   // Context roles + SameUnitAs links from a crawler (ingest/contextLinks.js).
   'POST /ingest/context-relationships': 'internal-ingest',
   'POST /ingest/context-roles': 'internal-ingest',
+  // Business role owners from a crawler (ingest/businessRoleOwners.js).
+  'POST /ingest/business-role-owners': 'internal-ingest',
   'POST /ingest/matrix-default-filter': 'internal-ingest',
   'POST /ingest/principal-activity': 'internal-ingest',
   'POST /ingest/principals-presence': 'internal-ingest',
