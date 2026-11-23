@@ -74,7 +74,10 @@ describe('refsFor — where a response names other objects', () => {
   });
 
   it('the owner\'s own context pages are marked too: members, people, roles, timeline', () => {
-    expect(refsFor(`/api/contexts/${ID}/members`)).toEqual([{ at: 'data', kind: 'member', key: 'id' }]);
+    expect(refsFor(`/api/contexts/${ID}/members`)).toEqual([
+      { at: 'data', kind: 'member', key: 'id' },
+      { at: 'data.businessRoles', kind: 'resource', key: 'id' },
+    ]);
     expect(refsFor(`/api/contexts/${ID}/people`).map(r => r.kind)).toEqual(['principal', 'identity']);
     expect(refsFor(`/api/contexts/${ID}/team-overview`)).toEqual([
       { at: 'people', kindKey: 'kind', key: 'id' },

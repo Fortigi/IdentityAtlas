@@ -14,6 +14,8 @@ const status = (enabled) => (
   </span>
 );
 
+import EntityLink from '@ui/components/EntityLink';
+
 // The kind of account in plain words; an unknown type is shown as stored.
 const ACCOUNT_TYPE_WORDS = {
   User: 'Member',
@@ -30,8 +32,8 @@ export function accountTypeWord(principalType) {
 }
 
 // The columns after Name, per kind of member — what the API returns for it
-// (MEMBER_COLUMNS in routes/contexts/read.js; a resource also gets holderCount
-// and its owner from contexts/resourceMemberFacts.js). `value` decides whether a
+// (MEMBER_COLUMNS in routes/contexts/read.js; a resource also gets holderCount,
+// its owner and its business roles from contexts/resourceMemberFacts.js). `value` decides whether a
 // row has something to show; `render` draws it; `align: 'right'` for numbers.
 // What the added sources say about a unit's people is the People overview's.
 export const MEMBER_TABLE_COLUMNS = {
@@ -53,6 +55,8 @@ export const MEMBER_TABLE_COLUMNS = {
     // Owner before Users: a left-aligned name next to the right-aligned count
     // ran the two together. A resolved owner links to the account.
     { label: 'Owner', value: m => m.ownerDisplayName, render: (m, ctx) => ownerCell(m, ctx) },
+    // An empty list still shows the column: "in no role" is the answer, not a gap.
+    { label: 'Business roles', value: m => m.businessRoles, render: (m, ctx) => businessRolesCell(m, ctx) },
     {
       label: 'Users', align: 'right', value: m => m.holderCount,
       render: m => <span className="tabular-nums text-gray-700 dark:text-gray-300">{Number(m.holderCount).toLocaleString('en-US')}</span>,
@@ -76,6 +80,28 @@ function ownerCell(m, { onOpenDetail } = {}) {
       onClick={(e) => { e.stopPropagation(); onOpenDetail('user', m.ownerPrincipalId, m.ownerDisplayName); }}>
       {m.ownerDisplayName}
     </button>
+  );
+}
+
+const ROLES_SHOWN = 3;
+const ROLE_LINK = 'text-left text-xs text-blue-700 hover:underline dark:text-blue-300';
+
+// The business roles that contain this resource, each opening its own page where
+// the reader may. The row itself opens the resource, so a click here stops here.
+function businessRolesCell(m, { onOpenDetail } = {}) {
+  if (m.businessRoles.length === 0) return muted('—');
+  const hidden = m.businessRoles.slice(ROLES_SHOWN);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5" onClick={e => e.stopPropagation()}>
+      {m.businessRoles.slice(0, ROLES_SHOWN).map(role => (
+        <span key={role.id} className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
+          <EntityLink kind="access-package" id={role.id} label={role.displayName} accessible={role.accessible} onOpenDetail={onOpenDetail} className={ROLE_LINK} />
+        </span>
+      ))}
+      {hidden.length > 0 && (
+        <span className="text-xs text-gray-600 dark:text-gray-400" title={hidden.map(r => r.displayName).join(', ')}>+{hidden.length} more</span>
+      )}
+    </span>
   );
 }
 

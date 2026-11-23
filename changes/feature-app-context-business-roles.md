@@ -1,0 +1,1 @@
+- Application contexts now show a "Business roles" column: which business roles contain each permission, each opening the role's page, and a dash for a permission that is in no role.

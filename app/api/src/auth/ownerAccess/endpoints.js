@@ -110,7 +110,7 @@ export function entityEndpointFor(path) {
 // The context pages an owner already reads (auth/contextOwnerScope.js
 // CONTEXT_PATHS) whose responses name people or objects.
 const CONTEXT_REFS = [
-  [new RegExp(`^/api/contexts/${UUID}/members$`), [at('data', 'member', 'id')]],
+  [new RegExp(`^/api/contexts/${UUID}/members$`), [at('data', 'member', 'id'), at('data.businessRoles', 'resource', 'id')]],
   [new RegExp(`^/api/contexts/${UUID}/people$`), HOLDERS('data')],
   [new RegExp(`^/api/contexts/${UUID}/team-overview$`), [
     { at: 'people', kindKey: 'kind', key: 'id' },
