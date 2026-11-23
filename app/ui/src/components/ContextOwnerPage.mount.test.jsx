@@ -225,7 +225,7 @@ describe('ContextOwnerPage — sub-units', () => {
 
     await userEvent.click(within(subUnits).getByRole('button', { name: /Accounts payable/ }));
     expect(await screen.findByRole('heading', { name: 'Accounts payable', level: 2 })).toBeInTheDocument();
-    expect(fetched(authFetch, `/api/contexts/${OWN_SUB}/people`)).toBe(true);
+    await waitFor(() => expect(fetched(authFetch, `/api/contexts/${OWN_SUB}/people`)).toBe(true));
     expect(fetched(authFetch, OWNED_SUB)).toBe(false);
 
     // Its parent is the owner's own unit: a link back, opened in place.
@@ -284,7 +284,7 @@ describe('ContextOwnerPage — several contexts', () => {
     await userEvent.click(within(nav).getByRole('button', { name: /Payroll/ }));
     expect(await screen.findByRole('heading', { name: 'Payroll', level: 2 })).toBeInTheDocument();
     expect(within(nav).getByRole('button', { name: /Payroll/ })).toHaveAttribute('aria-current', 'true');
-    expect(fetched(authFetch, `/api/contexts/${SECOND}/people`)).toBe(true);
+    await waitFor(() => expect(fetched(authFetch, `/api/contexts/${SECOND}/people`)).toBe(true));
   });
 });
 

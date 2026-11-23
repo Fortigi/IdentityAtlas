@@ -360,6 +360,27 @@ describe('GET /api/reports/:name/export', () => {
     }
   });
 
+  it('puts a run\'s matrix on its own tab of the workbook, and gives it to no other reader', async () => {
+    const matrix = { name: 'Team roles', title: 'T', note: 'N', corner: 'Role', columns: ['Ann'], rows: [{ label: 'Finance', cells: [{ value: 'By hand', tone: 'manual' }] }], footer: [] };
+    const withMatrix = registerReport({
+      name: 'matrix-report',
+      displayName: 'Matrix Report',
+      form: 'list',
+      columns: [{ key: 'thing', label: 'Thing' }],
+      run: async () => ({ rows: [{ thing: 'widget' }], matrices: [matrix] }),
+    });
+    try {
+      const rows = await request(app).get('/api/reports/matrix-report/rows').expect(200);
+      expect(rows.body.matrices).toBeUndefined();
+      const json = await request(app).get('/api/reports/matrix-report/export?format=json').expect(200);
+      expect(JSON.parse(json.text).matrices).toBeUndefined();
+      const xlsx = await asBinary(request(app).get('/api/reports/matrix-report/export?format=xlsx')).expect(200);
+      expect(columnA(await sheetNamed(xlsx.body, 'Team roles'))).toEqual(expect.arrayContaining(['Role', 'Finance']));
+    } finally {
+      withMatrix();
+    }
+  });
+
   it('defaults the details to an empty list when a run returns something that is not a list', async () => {
     const odd = registerReport({
       name: 'odd-details-report', displayName: 'Odd', form: 'list', columns: [{ key: 'thing', label: 'Thing' }],

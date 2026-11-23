@@ -29,6 +29,7 @@
 import ExcelJS from 'exceljs';
 import { addPivotTables } from './xlsxPivots.js';
 import { addCharts, writeChartTables } from './xlsxCharts.js';
+import { writeMatrixSheets } from './xlsxMatrix.js';
 
 const FILENAME_PREFIX = 'identity-atlas';
 
@@ -233,6 +234,7 @@ async function toXlsx({
   displayName, columns: declared = [], rows = [], notices, total, generatedAt, truncated, constantColumns, pivots = [],
   details,
   charts = [],
+  matrices = [],
 } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Identity Atlas';
@@ -247,6 +249,8 @@ async function toXlsx({
   writeSummary(workbook.addWorksheet(SUMMARY_SHEET), {
     displayName, generatedAt, total, notices, truncated, header, details,
   });
+  // A matrix the run asked for sits right after the Summary (xlsxMatrix.js).
+  writeMatrixSheets(workbook, matrices, sheetName);
   const headerRow = HEADER_ROW;
   const capped = rows.length > SHEET_ROW_LIMIT - headerRow ? rows.slice(0, SHEET_ROW_LIMIT - headerRow) : rows;
   // Charts read the rows, not the table, so a column the run held constant can

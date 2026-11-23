@@ -14,6 +14,8 @@
 // gate as the role mapping they sit beside.
 
 import { Router } from 'express';
+import * as db from '../db/connection.js';
+import { loadOwnerTree } from '../auth/ownerTree.js';
 import { requirePermission } from '../middleware/auth.js';
 import {
   isContextOwnerAccessEnabled, setContextOwnerAccess, getContextOwnerMcpSwitch, setContextOwnerMcp,
@@ -43,6 +45,19 @@ router.put('/admin/context-owner-access', adminAuth, async (req, res) => {
   } catch (err) {
     console.error('PUT /admin/context-owner-access failed:', err.message);
     res.status(500).json({ error: 'Failed to save the setting' });
+  }
+});
+
+// The signed-in owner's own tree (auth/ownerTree.js), built from the scope the
+// auth middleware resolved for them. Anyone who is not an owner has none.
+router.get('/context-owner/tree', async (req, res) => {
+  const owner = req.user?.contextOwner;
+  if (!owner) return res.json([]);
+  try {
+    res.json(await loadOwnerTree(db, owner));
+  } catch (err) {
+    console.error('GET /context-owner/tree failed:', err.message);
+    res.status(500).json({ error: 'Failed to load your contexts' });
   }
 });
 

@@ -37,6 +37,7 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # ConvertTo-*/New-* pure record shapers the phases call.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceOrigin.ps1')
     # App-role record shapers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # Get-EntraDeltaSelect — builds the $select the full fetches prime their

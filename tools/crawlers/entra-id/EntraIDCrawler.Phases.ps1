@@ -1173,13 +1173,10 @@ function Sync-EntraGovernanceAssignments {
         # expanded assignment list (which OOM-killed the worker).
         $assignRecords = [System.Collections.Generic.List[hashtable]]::new()
         $seenKeys = @{}
+        $policyOrigins = Get-EntraPolicyOriginMap
         Invoke-FGGetRequestStream -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageAssignments?`$expand=target,accessPackage&`$top=500" | ForEach-Object {
-            $apaRec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $_
-            if (-not $apaRec) { return }
-            $key = "$($apaRec.resourceId)|$($apaRec.principalId)"
-            if ($seenKeys.ContainsKey($key)) { return }
-            $seenKeys[$key] = $true
-            $assignRecords.Add($apaRec)
+            $apaRec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $_ -PolicyOrigins $policyOrigins
+            if ($apaRec) { Add-EntraAccessPackageAssignment -Records $assignRecords -Seen $seenKeys -Record $apaRec }
         }
         $assignRecords = @($assignRecords)
 

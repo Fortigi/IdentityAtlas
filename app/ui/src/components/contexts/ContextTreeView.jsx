@@ -27,6 +27,7 @@ import { MemberOval, DraggableMemberOval, MemberDragPill, RenameInput, DragPill,
 // opened. `memberMovable(root)` limits the member drag to some top-level trees.
 // `renderRootActions(root)` draws a root row's own actions (the ⋯ menu), and
 // `rootSuffix(root)` a word after a root's name (its kind, on mixed tabs).
+// `openLevels`: how many levels start open (2: the roots and their children).
 
 const INDENT_PX = 22;  // horizontal offset per depth level
 const CONNECTOR = 'rgb(203 213 225)'; // slate-300 — matches the bubble ring
@@ -73,7 +74,7 @@ function findNode(nodes, id) {
 // stripSiblingPrefix) live in ContextTreeView.helpers.js so this file only
 // exports its component.
 
-export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onLoadMembers, onOpenMember, onMoveMember, selectedId, onSelect, onExpandNode, memberMovable, renderRootActions, rootSuffix }) {
+export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRename, onAddChild, onLoadMembers, onOpenMember, onMoveMember, selectedId, onSelect, onExpandNode, memberMovable, renderRootActions, rootSuffix, openLevels = 2 }) {
   const sensors = useSensors(
     // 6px activation distance — a plain click still opens the detail; only a
     // deliberate drag starts a re-parent.
@@ -110,7 +111,7 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
           // seeded once they arrive.
           if (!n.childrenPending && !seededRef.current.has(n.id)) {
             seededRef.current.add(n.id);
-            if (depth < 2) next.add(n.id);
+            if (depth < openLevels) next.add(n.id);
           }
           if (n.children?.length) walk(n.children, depth + 1);
         }
@@ -118,7 +119,7 @@ export default function ContextTreeView({ nodes, onOpenDetail, onReparent, onRen
       walk(nodes, 0);
       return next;
     });
-  }, [nodes]);
+  }, [nodes, openLevels]);
 
   const isExpanded = (id) => expandedIds.has(id);
   const toggleExpanded = (id) => setExpandedIds(prev => {

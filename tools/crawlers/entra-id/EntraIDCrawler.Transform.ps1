@@ -490,17 +490,18 @@ function ConvertTo-EntraAccessPackageScopeRelationship {
 
 # Maps one access-package assignment → a governed Direct BusinessRole assignment,
 # or $null when the package/target is missing or the state is inactive. Caller
-# owns dedup. Verbatim from the inline streaming `ForEach-Object { ... }` block.
+# owns dedup. $PolicyOrigins (ConvertTo-EntraPolicyOriginMap) says how the policy
+# behind the assignment hands it out; an unknown policy leaves the origin empty.
 function ConvertTo-EntraAccessPackageAssignmentRecord {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Assignment)
+    param([Parameter(Mandatory)] $Assignment, [hashtable]$PolicyOrigins = @{})
     $apId     = if ($Assignment.accessPackage) { $Assignment.accessPackage.id } else { $null }
     $targetId = if ($Assignment.target) { $Assignment.target.objectId } else { $null }
     if (-not $apId -or -not $targetId) { return $null }
     $state = $Assignment.assignmentState
     # Skip non-active states (Expired, Removed, Denied)
     if ($state -and $state -notin @('Delivered', 'PendingApproval', 'Active')) { return $null }
-    return @{
+    $record = @{
         resourceId         = $apId
         principalId        = $targetId
         principalType      = 'User'
@@ -511,6 +512,12 @@ function ConvertTo-EntraAccessPackageAssignmentRecord {
         assignmentStatus   = $Assignment.assignmentStatus
         expirationDateTime = $Assignment.expiredDateTime
     }
+    $policyId = [string]$Assignment.assignmentPolicyId
+    if ($policyId -and $PolicyOrigins.ContainsKey($policyId)) {
+        $record.origin = $PolicyOrigins[$policyId].origin
+        if ($PolicyOrigins[$policyId].originDetail) { $record.originDetail = $PolicyOrigins[$policyId].originDetail }
+    }
+    return $record
 }
 
 # Maps a distinct OAuth2 client SP id (+ its resolved info) → an Application

@@ -215,6 +215,7 @@ export default function ContextsPage({ onOpenDetail, onNavigate }) {
                 key={selectedId}
                 contextId={selectedId}
                 embedded
+                treeBeside
                 refreshKey={detailVersion}
                 onCacheData={selection.onDetailLoaded}
                 onOpenDetail={openFromDetail}

@@ -12,6 +12,7 @@ import PeopleSection from '@ui/components/contexts/people/PeopleSection';
 import AttentionLine from '@ui/components/contexts/AttentionLine';
 import { SubUnitsList, MembersPanel } from '@ui/components/ContextRelationshipsTab';
 import { useOrgKnowledge } from '@ui/hooks/useOrgKnowledge';
+import UnitTeamPeople from '@ui/components/contextOwner/UnitTeamPeople';
 
 // ─── The body of a unit's or an application's page ───────────────────────
 // In reading order: the analyst's attention line, People, the members as their
@@ -44,9 +45,15 @@ export default function ProfileBody({ contextId, attrs, profile, subContexts, an
 
   const open = openContradictions(ctx?.contradictions);
   function decide() {
-    if (open.some(isPersonContradiction)) { setPeopleFilter('decide'); scrollTo(ids.people); } else openSection('know');
+    if (open.some(isPersonContradiction)) { setPeopleFilter('decide'); openSection('people'); } else openSection('know');
   }
   const peopleMembers = PEOPLE_TARGETS.has(attrs.targetType);
+  const people = (
+    <PeopleSection id={ids.people} attrs={attrs} filter={peopleFilter} onFilterChange={setPeopleFilter} version={peopleVersion}
+      canEditMembers={peopleMembers && membersEditable} onOpenDetail={openEntity} onMembersChanged={onMembersChanged} hideWhenEmpty={!peopleMembers} />
+  );
+  // A unit of people opens on the team overview, for every reader, with this list folded under it.
+  const teamView = peopleMembers && attrs.contextCategory === 'OrganizationalUnit';
 
   return (
     <>
@@ -54,8 +61,7 @@ export default function ProfileBody({ contextId, attrs, profile, subContexts, an
         <AttentionLine toDecide={open.length} toReview={proposedClaims(ctx?.claims).length} toCorrect={requests.open.length}
           onDecide={decide} onReview={() => setReviewing(true)} onCorrect={() => openSection('changes')} />
       )}
-      <PeopleSection id={ids.people} attrs={attrs} filter={peopleFilter} onFilterChange={setPeopleFilter} version={peopleVersion}
-        canEditMembers={peopleMembers && membersEditable} onOpenDetail={openEntity} onMembersChanged={onMembersChanged} hideWhenEmpty={!peopleMembers} />
+      {teamView ? <UnitTeamPeople contextId={contextId} onOpenDetail={openEntity} {...fold('people')}>{people}</UnitTeamPeople> : people}
       {!peopleMembers && <MembersPanel {...members} title={profile.membersLabel} />}
       <WhatWeKnow id={ids.know} title={knowledge ? 'What we know' : 'Details'} attrs={attrs} profile={profile} analyst={analyst} onOpenDetail={onOpenDetail} {...fold('know')} />
       {onOpenRole && <ProposedRolesSection id={`proposed-roles-${contextId}`} contextId={contextId} list={proposals} onOpenRole={onOpenRole} />}

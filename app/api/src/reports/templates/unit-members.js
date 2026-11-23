@@ -27,6 +27,7 @@ import { fetchContextDetails, withAfterPeople } from '../contextDetails.js';
 import { fetchEntitlementCounts, fetchUnitMembers } from '../unitMembers.js';
 import { CLAIM_COLUMNS, claimCells, fetchUnitClaims, summaryEntries } from '../unitClaims.js';
 import { READER_STATUSES } from '../../contexts/interviews/claims.js';
+import { unitRoleMatrices } from '../teamRoleMatrix.js';
 
 // A unit of 120,000 accounts is a whole directory, not a team; the cap says so
 // rather than building a file nobody can open.
@@ -148,6 +149,11 @@ export default {
     const result = await memberRows(kind, [...members, ...claims.others], claims.personOf, { withClaims });
     notices.push(...result.notices);
     if (truncated) notices.push(truncationNotice());
+    // One unit's direct members: the team's business roles get a tab of their own.
+    const team = units.length === 1 && !includeSubUnits
+      ? await unitRoleMatrices(db, units[0], kind, members)
+      : { matrices: [], notices: [] };
+    notices.push(...team.notices);
     const withProposed = statuses.includes('proposed');
     const details = about.details.map(block => (claims.summaries.has(block.contextId)
       ? withAfterPeople(block, summaryEntries(claims.summaries.get(block.contextId), { withProposed }))
@@ -156,6 +162,7 @@ export default {
       rows: result.rows, columns: result.columns, notices, truncated, details,
       // One unit and no sub-units: the Unit column holds one value, stated once on the first tab.
       constantColumns: units.length === 1 && !includeSubUnits ? ['unit'] : [],
+      ...(team.matrices.length ? { matrices: team.matrices } : {}),
     };
   },
 };

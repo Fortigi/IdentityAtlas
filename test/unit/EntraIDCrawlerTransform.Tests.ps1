@@ -29,6 +29,7 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.Functions.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceOrigin.ps1')
     # App-role record shapers live here now (extracted for the file-length ratchet).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # ConvertTo-EntraAppOwnershipGraph lives here now (extracted for the file-length ratchet).
@@ -798,6 +799,99 @@ Describe 'ConvertTo-EntraAccessPackageAssignmentRecord' {
     It 'returns $null when the package or target is missing' {
         ConvertTo-EntraAccessPackageAssignmentRecord -Assignment ([pscustomobject]@{ target = [pscustomobject]@{ objectId = 'u1' } }) | Should -BeNullOrEmpty
         ConvertTo-EntraAccessPackageAssignmentRecord -Assignment ([pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' } }) | Should -BeNullOrEmpty
+    }
+
+    It 'takes the origin from the policy behind the assignment' {
+        $a = [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Delivered'; assignmentPolicyId = 'pol-auto' }
+        $map = @{ 'pol-auto' = @{ origin = 'Automatic'; originDetail = 'AutoAssign: All' }; 'pol-req' = @{ origin = 'Requested'; originDetail = 'Request' } }
+        $rec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $a -PolicyOrigins $map
+        $rec['origin']       | Should -Be 'Automatic'
+        $rec['originDetail'] | Should -Be 'AutoAssign: All'
+    }
+
+    It 'sends no origin at all for an unknown or absent policy' {
+        $known = @{ 'pol-auto' = @{ origin = 'Automatic'; originDetail = 'x' } }
+        foreach ($policy in @('pol-other', $null)) {
+            $a = [pscustomobject]@{ accessPackage = [pscustomobject]@{ id = 'ap1' }; target = [pscustomobject]@{ objectId = 'u1' }; assignmentState = 'Delivered'; assignmentPolicyId = $policy }
+            $rec = ConvertTo-EntraAccessPackageAssignmentRecord -Assignment $a -PolicyOrigins $known
+            $rec.ContainsKey('origin')       | Should -BeFalse
+            $rec.ContainsKey('originDetail') | Should -BeFalse
+        }
+    }
+}
+
+Describe 'ConvertTo-EntraPolicyOriginMap' {
+
+    It 'reads a rule as Automatic, and a policy without one, or with the rule off, as Requested' {
+        $map = ConvertTo-EntraPolicyOriginMap -Policies @(
+            [pscustomobject]@{ id = 'p1'; displayName = 'Auto'; automaticRequestSettings = [pscustomobject]@{ requestAccessForAllowedTargets = $true } }
+            [pscustomobject]@{ id = 'p2'; displayName = 'Off'; automaticRequestSettings = [pscustomobject]@{ requestAccessForAllowedTargets = $false } }
+            [pscustomobject]@{ id = 'p3'; displayName = 'Request'; automaticRequestSettings = $null }
+        )
+        $map['p1'].origin | Should -Be 'Automatic'
+        $map['p2'].origin | Should -Be 'Requested'
+        $map['p3'].origin | Should -Be 'Requested'
+        $map['p3'].originDetail | Should -Be 'Request'
+    }
+
+    It 'cuts the name at exactly the ingest limit of 100 and skips a policy without an id' {
+        $map = ConvertTo-EntraPolicyOriginMap -Policies @(
+            [pscustomobject]@{ id = 'long'; displayName = ('x' * 101) }
+            [pscustomobject]@{ id = 'fits'; displayName = ('y' * 100) }
+            [pscustomobject]@{ id = $null; displayName = 'none' }
+        )
+        $map['long'].originDetail.Length | Should -Be 100
+        $map['fits'].originDetail.Length | Should -Be 100
+        $map.Count | Should -Be 2
+    }
+}
+
+Describe 'Get-EntraPolicyOriginMap' {
+
+    It 'returns an empty map when Graph refuses, so the assignments still sync' {
+        function Invoke-FGGetRequest { param($URI) throw 'forbidden' }
+        (Get-EntraPolicyOriginMap).Count | Should -Be 0
+    }
+
+    It 'maps what Graph returns' {
+        function Invoke-FGGetRequest { param($URI) [pscustomobject]@{ id = 'p1'; displayName = 'Request' } }
+        (Get-EntraPolicyOriginMap)['p1'].origin | Should -Be 'Requested'
+    }
+}
+
+Describe 'Add-EntraAccessPackageAssignment' {
+
+    BeforeEach {
+        $script:records = [System.Collections.Generic.List[hashtable]]::new()
+        $script:seen = @{}
+    }
+
+    It 'keeps one record per package and person, and separate ones otherwise' {
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record @{ resourceId = 'a'; principalId = 'u1' }
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record @{ resourceId = 'a'; principalId = 'u1' }
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record @{ resourceId = 'a'; principalId = 'u2' }
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record @{ resourceId = 'b'; principalId = 'u1' }
+        $script:records.Count | Should -Be 3
+    }
+
+    It 'lets Automatic win in either order, with its own detail' {
+        $auto = @{ resourceId = 'a'; principalId = 'u1'; origin = 'Automatic'; originDetail = 'rule' }
+        $req = @{ resourceId = 'a'; principalId = 'u1'; origin = 'Requested'; originDetail = 'request' }
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record $req.Clone()
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record $auto.Clone()
+        $script:records[0].origin | Should -Be 'Automatic'
+        $script:records[0].originDetail | Should -Be 'rule'
+        $script:records.Clear(); $script:seen.Clear()
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record $auto.Clone()
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record $req.Clone()
+        $script:records[0].origin | Should -Be 'Automatic'
+        $script:records[0].originDetail | Should -Be 'rule'
+    }
+
+    It 'fills in an origin when the first record had none' {
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record @{ resourceId = 'a'; principalId = 'u1' }
+        Add-EntraAccessPackageAssignment -Records $script:records -Seen $script:seen -Record @{ resourceId = 'a'; principalId = 'u1'; origin = 'Requested'; originDetail = 'request' }
+        $script:records[0].origin | Should -Be 'Requested'
     }
 }
 

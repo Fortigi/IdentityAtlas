@@ -14,6 +14,7 @@ import { query, queryOne } from '../../db/connection.js';
 import report, { MAX_ROWS, NOT_LISTED, baseColumns, isTrue, memberStatus } from './unit-members.js';
 import { fetchContextDetails } from '../contextDetails.js';
 import { CLAIM_COLUMNS, CLAIM_NOTE } from '../unitClaims.js';
+import { TEAM_ACCOUNTS_SQL } from '../../contexts/teamOverview.js';
 
 const UNIT = '33333333-3333-3333-3333-333333333333';
 const PEOPLE = '44444444-4444-4444-4444-444444444444';
@@ -46,6 +47,7 @@ function stage({ units = [unit()], details = [detailRow()], members = [], counts
     if (sql.includes(MEMBERS_SQL)) return { rows: members };
     if (sql.includes(COUNTS_SQL)) return { rows: counts };
     if (sql.includes(`c."targetType" IN ('Principal', 'Identity')`)) return { rows: units };
+    if (sql === TEAM_ACCOUNTS_SQL) return { rows: [] };
     throw new Error(`unstaged query: ${sql.slice(0, 80)}`);
   });
   queryOne.mockResolvedValue({ total });
@@ -123,6 +125,14 @@ describe('unit report — a unit of accounts', () => {
     expect(result.details[0].entries).toContainEqual({ label: 'costCenter', value: 'FIN-01' });
   });
 
+  it('adds the Team roles tab for one unit, but not when sub-units are included', async () => {
+    stage({ members: [account('m1'), account('m2')] });
+    const one = await run();
+    expect(one.matrices.map(m => m.name)).toEqual(['Team roles']);
+    expect(one.matrices[0].columns).toEqual(['Account m1', 'Account m2']);
+    expect((await run({ includeSubUnits: true })).matrices).toBeUndefined();
+  });
+
   it('counts all members in one grouped read, whatever their number', async () => {
     const callsFor = async (n) => {
       query.mockReset();
@@ -132,9 +142,12 @@ describe('unit report — a unit of accounts', () => {
       return query.mock.calls.length + queryOne.mock.calls.length;
     };
     const few = await callsFor(2);
-    expect(await callsFor(400)).toBe(few);
-    // units, context rows, roles, the suggestion's member total, members, the claims, the holders, counts.
-    expect(few).toBe(8);
+    expect(await callsFor(150)).toBe(few);
+    // Past the Team roles cap the tab is left out, so one read fewer.
+    expect(await callsFor(400)).toBe(few - 1);
+    // units, context rows, roles, the suggestion's member total, members, the claims, the holders, counts,
+    // and the Team roles tab's accounts (no holdings read here: the stage has no accounts).
+    expect(few).toBe(9);
     const [sql, params] = sqlOf(COUNTS_SQL);
     expect(params[0]).toHaveLength(400);
     expect(sql).toContain('ra."principalId" = ANY($1::uuid[]) AND ra."deletedAt" IS NULL');
