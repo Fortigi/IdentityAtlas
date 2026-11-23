@@ -40,3 +40,18 @@ export function deriveAccessModel(row) {
     waysOut: waysOut.length > 0 || anyStated(OUT_FLAGS, row) ? waysOut : [UNKNOWN_WAY],
   };
 }
+
+const ORIGIN_WAY = { Automatic: 'Rule', Requested: 'Request' };
+
+// How one person holds the role: the ways in of the policies behind their
+// assignment (`via`: rows with inRule / inRequest / inAssigned). One policy can
+// allow two ways, and then the assignment's origin says which one this was. No
+// policy on the row falls back to the origin alone.
+export function deriveHowHeld({ via, origin } = {}) {
+  const policies = Array.isArray(via) ? via : [];
+  const ways = WAYS_IN.filter(way => policies.some(p => p[IN_FLAGS[way]] === true));
+  const fromOrigin = ORIGIN_WAY[origin];
+  if (ways.length === 0) return [fromOrigin ?? UNKNOWN_WAY];
+  if (policies.length === 1 && ways.length > 1 && ways.includes(fromOrigin)) return [fromOrigin];
+  return ways;
+}

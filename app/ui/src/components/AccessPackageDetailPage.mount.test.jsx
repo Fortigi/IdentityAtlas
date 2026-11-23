@@ -6,6 +6,7 @@ import {
   jsonResponse,
   screen,
   cleanup,
+  userEvent,
 } from '@ui/test-utils/renderWithProviders';
 import AccessPackageDetailPage from '@ui/components/AccessPackageDetailPage';
 
@@ -30,7 +31,8 @@ function renderPage({ body = pkg(), risk = null, pkgOk = true } = {}) {
     // AccessPackageGovernance fetches three sub-resources off the same prefix and expects arrays;
     // they must be matched BEFORE the package itself, or it receives the package object and throws
     // "(reviews || []) is not iterable".
-    if (/\/api\/access-package\/[^/]+\/(policies|reviews|requests)$/.test(s)) return [];
+    if (/\/api\/access-package\/[^/]+\/(policies|reviews|requests|owners)$/.test(s)) return [];
+    if (/\/api\/access-package\/[^/]+\/owners\/suggestions$/.test(s)) return {};
     if (s.includes('/api/access-package/')) {
       return pkgOk ? body : jsonResponse({ error: 'gone' }, { ok: false, status: 404 });
     }
@@ -49,12 +51,13 @@ describe('AccessPackageDetailPage header', () => {
     expect(await screen.findByRole('heading', { name: 'Finance Access' })).toBeInTheDocument();
   });
 
-  it('badges the assignment type next to the name', async () => {
-    const heading = await (async () => {
-      renderPage({ body: pkg({ assignmentType: 'Direct' }) });
-      return screen.findByRole('heading', { name: 'Finance Access' });
-    })();
-    expect(heading.parentElement).toHaveTextContent('Direct');
+  it('states how the role is gained and lost under the name', async () => {
+    renderPage({ body: pkg({ accessModel: { waysIn: ['Request', 'Assigned'], waysOut: ['Review'] } }) });
+    const model = await screen.findByTestId('role-access-model');
+    expect(model).toHaveTextContent('Gained by');
+    expect(model).toHaveTextContent('Request');
+    expect(model).toHaveTextContent('Assigned');
+    expect(model).toHaveTextContent('Review');
   });
 
   // A role deleted in the source used to look identical to its live re-created
@@ -79,11 +82,10 @@ describe('AccessPackageDetailPage header', () => {
   });
 });
 
-describe('AccessPackageDetailPage overview panel', () => {
-  it('lists review status, dates, reviewer and category when governance data is present', async () => {
+describe('AccessPackageDetailPage overview', () => {
+  it('lists review status, date, reviewer and category when governance data is present', async () => {
     renderPage({
       body: pkg({
-        assignmentType: 'Direct',
         complianceStatus: 'Overdue',
         daysOverdue: 12,
         lastReviewDate: '2026-03-01T00:00:00Z',
@@ -92,19 +94,17 @@ describe('AccessPackageDetailPage overview panel', () => {
       }),
     });
 
-    expect(await screen.findByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Review status')).toBeInTheDocument();
-    expect(screen.getByText(/Overdue \(12d ago\)/)).toBeInTheDocument();
-    expect(screen.getByText('auditor@example.com')).toBeInTheDocument();
+    expect(await screen.findByText(/Overdue \(12d ago\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Last reviewed .* by auditor@example\.com/)).toBeInTheDocument();
     // Category pill uses the contrast-safe tint rather than the raw hex as text.
     const cat = screen.getAllByText('Finance').find(el => (el.getAttribute('style') || '').includes('background-color'));
     expect(cat).toBeTruthy();
   });
 
-  it('omits the overview panel entirely when there is no governance data', async () => {
+  it('shows no review status when there is no governance data', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Finance Access' })).toBeInTheDocument();
-    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Last reviewed/)).not.toBeInTheDocument();
   });
 });
 
@@ -112,6 +112,12 @@ describe('AccessPackageDetailPage risk', () => {
   it('offers the Risk tab once the business-role score resolves', async () => {
     renderPage({ risk: { riskScore: 55, riskTier: 'Medium' } });
     expect(await screen.findByRole('tab', { name: /^Risk$/i })).toBeInTheDocument();
+  });
+
+  it('opens the risk section from its tab', async () => {
+    renderPage({ risk: { riskScore: 55, riskTier: 'Medium' } });
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Risk$/i }));
+    expect(await screen.findByText('55')).toBeInTheDocument();
   });
 
   it('omits the Risk tab when no score exists for the package', async () => {

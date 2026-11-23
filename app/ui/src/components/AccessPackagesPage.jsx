@@ -1,6 +1,6 @@
 import { useState, useEffect, useReducer, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
-import { useCanExportUi } from '@ui/auth/usePermissions';
+import { useCanExportUi, useHasPermission } from '@ui/auth/usePermissions';
 import { TAG_COLORS } from '@ui/utils/colors';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { useDebouncedValue } from '@ui/hooks/useDebouncedValue';
@@ -12,6 +12,8 @@ import AccessPackagesFilterBar from './accessPackages/AccessPackagesFilterBar';
 import SelectionActionBar from './accessPackages/SelectionActionBar';
 import AccessPackagesTable from './accessPackages/AccessPackagesTable';
 import Pagination from './Pagination';
+import BusinessRoleOwnerImport from './businessRoles/BusinessRoleOwnerImport';
+import { matchesAccessFilter } from './businessRoles/accessModel';
 
 const PAGE_SIZE = 100;
 
@@ -20,6 +22,8 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   const isDark = useIsDark();
   const dialog = useDialog();
   const canExport = useCanExportUi();
+  const canImportOwners = useHasPermission('data.write.contexts', 'admin.context-plugins');
+  const [importingOwners, setImportingOwners] = useState(false);
 
   // Data state
   const [packages, setPackages] = useState([]);
@@ -34,7 +38,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   const debouncedSearch = useDebouncedValue(search, 400);
   const [page, setPage] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState(null); // null = all, number = categoryId, 'uncategorized' = no category
-  const [typeFilter, setTypeFilter] = useState(null); // null = all, string = assignment type
+  const [typeFilter, setTypeFilter] = useState(null); // null = all, else "in:Rule" / "out:Review" (accessModel.js)
   // Business roles deleted in the source are hidden unless asked for (soft delete).
   const [includeDeleted, setIncludeDeleted] = useState(false);
 
@@ -143,7 +147,7 @@ export default function AccessPackagesPage({ onOpenDetail }) {
   // Apply client-side type filter only (sorting is server-side)
   const sortedPackages = useMemo(() => {
     if (!typeFilter) return packages;
-    return packages.filter(p => p.assignmentType === typeFilter);
+    return packages.filter(p => matchesAccessFilter(p, typeFilter));
   }, [packages, typeFilter]);
 
   // Category operations
@@ -293,7 +297,9 @@ export default function AccessPackagesPage({ onOpenDetail }) {
         setIncludeDeleted={setIncludeDeleted}
         hasAnyFilter={hasAnyFilter}
         onClearAll={() => { setCategoryFilter(null); setTypeFilter(null); setSearch(''); }}
+        onImportOwners={canImportOwners ? () => setImportingOwners(true) : undefined}
       />
+      {importingOwners && <BusinessRoleOwnerImport onClose={() => setImportingOwners(false)} />}
 
       <SelectionActionBar
         selectedCount={selected.size}

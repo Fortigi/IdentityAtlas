@@ -1,9 +1,9 @@
 import { formatDateOnly as formatDate } from '@ui/utils/formatters';
-import { ASSIGNMENT_TYPE_STYLES } from '@ui/utils/accessPackageStyles';
 import ComplianceStatusCell from './ComplianceStatusCell';
 import ReviewedByCell from './ReviewedByCell';
 import RowCategorySelect from './RowCategorySelect';
 import DeletedBadge from '@ui/components/DeletedBadge';
+import WayChips from '@ui/components/businessRoles/WayChips';
 
 // One business role row in the Business Roles table. Row click toggles the
 // checkbox; cells that carry their own controls stop propagation.
@@ -36,11 +36,10 @@ export default function AccessPackageRow({
         {ap.deletedAt && <DeletedBadge at={ap.deletedAt} label="Deleted in source" className="ml-2" />}
       </td>
       <td className="px-3 py-2">
-        {ap.assignmentType && (
-          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[ap.assignmentType] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-            {ap.assignmentType}
-          </span>
-        )}
+        <div className="flex flex-col gap-1">
+          <WayChips ways={ap.accessModel?.waysIn} direction="in" />
+          <WayChips ways={ap.accessModel?.waysOut} direction="out" none="No automatic removal" />
+        </div>
       </td>
       <td className="px-3 py-2 text-xs">
         <ComplianceStatusCell ap={ap} />

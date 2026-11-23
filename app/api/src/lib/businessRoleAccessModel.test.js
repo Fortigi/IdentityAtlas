@@ -1,5 +1,40 @@
 import { describe, it, expect } from 'vitest';
-import { deriveAccessModel, ACCESS_MODEL_AGGREGATES } from './businessRoleAccessModel.js';
+import { deriveAccessModel, deriveHowHeld, ACCESS_MODEL_AGGREGATES } from './businessRoleAccessModel.js';
+
+describe('deriveHowHeld', () => {
+  it('reads the way in from the policy behind the assignment', () => {
+    expect(deriveHowHeld({ via: [{ inRule: true }], origin: 'Automatic' })).toEqual(['Rule']);
+  });
+
+  it('lists every way when someone holds the role through two policies', () => {
+    expect(deriveHowHeld({ via: [{ inRequest: true }, { inAssigned: true }] })).toEqual(['Request', 'Assigned']);
+  });
+
+  it('uses the origin to pick the way when one policy allows two', () => {
+    expect(deriveHowHeld({ via: [{ inRule: true, inRequest: true }], origin: 'Requested' })).toEqual(['Request']);
+  });
+
+  it('keeps both ways when the origin does not settle it', () => {
+    expect(deriveHowHeld({ via: [{ inRequest: true, inAssigned: true }], origin: 'Automatic' })).toEqual(['Request', 'Assigned']);
+    expect(deriveHowHeld({ via: [{ inRule: true, inRequest: true }] })).toEqual(['Rule', 'Request']);
+  });
+
+  it('does not narrow by origin across two policies', () => {
+    expect(deriveHowHeld({ via: [{ inRule: true }, { inRequest: true }], origin: 'Automatic' })).toEqual(['Rule', 'Request']);
+  });
+
+  it.each([['Automatic', 'Rule'], ['Requested', 'Request']])('falls back to the origin %s without a policy', (origin, way) => {
+    expect(deriveHowHeld({ via: null, origin })).toEqual([way]);
+  });
+
+  it('falls back to the origin when the policy states no way in', () => {
+    expect(deriveHowHeld({ via: [{ inRule: false }], origin: 'Requested' })).toEqual(['Request']);
+  });
+
+  it.each([[{}], [undefined], [{ via: [], origin: 'Discovered' }]])('is Unknown for %j', (row) => {
+    expect(deriveHowHeld(row)).toEqual(['Unknown']);
+  });
+});
 
 const NO = { inRule: false, inRequest: false, inAssigned: false, outRule: false, outReview: false, outExpiry: false, outManual: false };
 

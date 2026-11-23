@@ -1,0 +1,4 @@
+- Redesigned the business role page. It now opens on an Overview with who answers for the role, how it is gained and lost, each policy's rule, approval, expiry and review, and how many people hold the role through it.
+- Added a Resources tab with what the role contains, and a People tab that shows how each person got the role, with search and a filter.
+- Requests and access reviews now have their own tab, shown for roles that can be requested or reviewed.
+- The Business Roles list now shows how each role is gained and lost, can filter on it, and has an Import owners button.
