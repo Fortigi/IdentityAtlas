@@ -3523,6 +3523,11 @@ paths:
     get:
       tags: [Contexts]
       summary: One team member's permissions that no business role of theirs covers
+      description: >-
+        Lists the permissions a member of this context holds outside their
+        business roles, by name and capped at 500. Access held only by
+        inheritance through a group in one of their roles counts as covered;
+        a direct grant on the same resource stays ungoverned.
       operationId: getContextMemberUngoverned
       security:
         - EntraIdBearer: []
