@@ -169,6 +169,25 @@ export async function fetchAccessModel(pool, res, apId) {
   } catch (e) { if (!isMissingSchema(e)) throw e; return deriveAccessModel(null); }
 }
 
+// 6a-bis. How many holders a rule both adds and removes. The rest is the part a
+// regular review has to cover.
+export async function fetchAutomaticHolderCount(pool, res, apId) {
+  try {
+    const r = await timedQuery(pool, 'ap-automatic-holders', res, `
+      SELECT COUNT(*)::int AS cnt
+        FROM "ResourceAssignments" a
+       WHERE a."resourceId" = $1 AND a."deletedAt" IS NULL
+         AND NOT EXISTS (SELECT 1 FROM "Principals" u WHERE u.id = a."principalId" AND u."deletedAt" IS NOT NULL)
+         AND EXISTS (
+           SELECT 1 FROM "AssignmentPolicies" p
+            WHERE p."resourceId" = a."resourceId" AND p."hasAutoAddRule" AND p."hasAutoRemoveRule"
+              AND (p.id = a."policyId"
+                   OR COALESCE(a."extendedAttributes"->'assignmentPolicyIds', '[]'::jsonb) ? p.id::text))
+    `, [apId]);
+    return r.rows[0].cnt;
+  } catch (e) { if (!isMissingSchema(e)) throw e; return 0; }
+}
+
 // Pure: derive the assignment-type label from the policy summary counts.
 export function deriveAssignmentType({ policyCount, autoAddPolicyCount, autoRemovePolicyCount }) {
   if (policyCount <= 0) return null;

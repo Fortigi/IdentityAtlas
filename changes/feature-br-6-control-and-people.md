@@ -1,0 +1,4 @@
+- Business roles are now either Automatic (only a rule adds and removes people) or Manual (anything else). A Manual role shows how many people a regular review has to cover, and warns when no review is set up.
+- The Entra ID crawler now collects each policy's approvers, reviewers and who may request the role, and other crawlers can send the same data.
+- The business role page shows the approvers, reviewers and request scope. Named approvers and reviewers count as Responsible.
+- A request scope links to a context when it matches exactly, and suggestions for the Accountable person now use that context and the managers of the approvers and reviewers.

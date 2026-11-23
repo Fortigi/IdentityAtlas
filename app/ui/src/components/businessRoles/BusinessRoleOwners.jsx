@@ -114,7 +114,7 @@ export default function BusinessRoleOwners({ roleId, onOpenDetail }) {
       )}
       {editing && (
         <ContextRoleModal role={editing} label={editing} helper={HELPERS[editing]}
-          holders={editing === 'Accountable' ? o.accountable : o.responsible}
+          holders={editing === 'Accountable' ? o.accountable : o.responsible.filter(r => !String(r.id).startsWith('policy:'))}
           onAdd={holder => o.add(editing, holder)} onRemove={o.remove}
           onClose={() => setEditing(null)} error={o.actionError} />
       )}

@@ -81,6 +81,7 @@ const RESOURCE = [
   [`access-package/${UUID}/resource-roles`, [at('', 'resource', 'childResourceId')]],
   [`access-package/${UUID}/(?:policies|reviews|requests|history)`, []],
   [`access-package/${UUID}/owners`, HOLDERS('')],
+  [`access-package/${UUID}/participants`, [at('', 'principal', 'principalId'), at('', 'resource', 'groupId', 'groupAccessible'), at('', 'context', 'contextId', 'contextAccessible')]],
 ];
 
 // eslint-disable-next-line security/detect-non-literal-regexp -- the suffixes are this file's own literals, never request input

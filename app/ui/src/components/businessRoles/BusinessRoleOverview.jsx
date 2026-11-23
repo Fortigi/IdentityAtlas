@@ -3,8 +3,9 @@ import { useFetch } from '@ui/hooks/useFetch';
 import { formatDate } from '@ui/utils/formatters';
 import { COMPLIANCE_STYLES } from '@ui/utils/accessPackageStyles';
 import BusinessRoleOwners from './BusinessRoleOwners';
+import BusinessRoleParticipants from './BusinessRoleParticipants';
 import WayChips from './WayChips';
-import { approvalText, describeCadence, describeExpiry, removalText, ruleLabel } from './accessModel';
+import { approvalText, controlSummary, describeCadence, describeExpiry, removalText, ruleLabel } from './accessModel';
 
 // ─── Overview of a business role ─────────────────────────────────────────
 // Who answers for it, then how people get it and lose it. What a policy shows
@@ -74,6 +75,23 @@ function PolicyCard({ policy }) {
   );
 }
 
+function ControlBanner({ data }) {
+  const model = data.accessModel;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800" data-testid="role-control">
+      <div className="flex flex-wrap items-center gap-2">
+        <WayChips ways={[model?.control ?? 'Unknown']} direction="control" />
+        <span className="text-sm text-gray-800 dark:text-gray-200">{controlSummary(model, data.assignmentCount, data.automaticHolderCount)}</span>
+      </div>
+      {model?.reviewGap && (
+        <p role="status" className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+          No access review is set up for this role.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ReviewStatus({ data }) {
   if (!data.complianceStatus && !data.lastReviewDate) return null;
   return (
@@ -96,6 +114,7 @@ export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpe
 
   return (
     <div className="space-y-4">
+      <ControlBanner data={data} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="People" value={data.assignmentCount ?? 0} onClick={() => onOpenTab('members')} />
         <Stat label="Resources" value={data.groupCount ?? 0} onClick={() => onOpenTab('resources')} />
@@ -105,6 +124,10 @@ export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpe
 
       <Card title="Who answers for this role">
         <BusinessRoleOwners roleId={roleId} onOpenDetail={onOpenDetail} />
+      </Card>
+
+      <Card title="Approvers, reviewers and request scope">
+        <BusinessRoleParticipants roleId={roleId} onOpenDetail={onOpenDetail} />
       </Card>
 
       <Card title="How people get and lose this role">

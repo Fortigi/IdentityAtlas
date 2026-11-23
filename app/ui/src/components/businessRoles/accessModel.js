@@ -11,6 +11,11 @@ const ORANGE = 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-9
 const GRAY = 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
 
 export const WAYS = {
+  control: {
+    Automatic: { label: 'Rule only', hint: 'Only a rule adds and removes people', style: GREEN },
+    Manual: { label: 'Manual', hint: 'People decide who holds this role, so it needs a regular review', style: AMBER },
+    Unknown: { label: 'Type unknown', hint: 'The source does not say enough to tell', style: GRAY },
+  },
   in: {
     Rule: { label: 'Rule', hint: 'A rule hands this role to everyone who matches it', style: GREEN },
     Request: { label: 'Request', hint: 'People can request this role', style: BLUE },
@@ -27,6 +32,7 @@ export const WAYS = {
 };
 
 export const ACCESS_FILTERS = [
+  { label: 'Type', direction: 'control', ways: ['Automatic', 'Manual', 'Unknown'] },
   { label: 'Gained by', direction: 'in', ways: ['Rule', 'Request', 'Assigned', 'Unknown'] },
   { label: 'Lost by', direction: 'out', ways: ['Rule', 'Review', 'Expiry', 'Manual', 'Unknown'] },
 ];
@@ -36,6 +42,7 @@ export const ACCESS_FILTERS = [
 export function matchesAccessFilter(role, filter) {
   if (!filter) return true;
   const [direction, way] = filter.split(':');
+  if (direction === 'control') return (role.accessModel?.control ?? 'Unknown') === way;
   const ways = direction === 'in' ? role.accessModel?.waysIn : role.accessModel?.waysOut;
   return (ways ?? ['Unknown']).includes(way);
 }
@@ -78,6 +85,9 @@ export function describeCadence(rs) {
 // The People tab: paged in the browser, so the list is never cut off.
 export const MEMBER_PAGE_SIZE = 100;
 
+// Filter value for the people no rule both adds and removes.
+export const REVIEW_FILTER = 'needsReview';
+
 // A person who got the role two ways counts under each.
 export function countByWay(rows) {
   const counts = {};
@@ -90,10 +100,60 @@ export function countByWay(rows) {
 export function filterMembers(rows, search, way) {
   const q = search.trim().toLowerCase();
   return rows.filter((r) => {
-    if (way && !(r.howHeld ?? ['Unknown']).includes(way)) return false;
+    if (way === REVIEW_FILTER && r.automatic) return false;
+    if (way && way !== REVIEW_FILTER && !(r.howHeld ?? ['Unknown']).includes(way)) return false;
     if (!q) return true;
     return `${r.targetDisplayName ?? ''} ${r.targetUPN ?? ''}`.toLowerCase().includes(q);
   });
+}
+
+// The sentence under a role's type. `manual` is how many holders no rule both
+// adds and removes: the part a regular review has to cover.
+export function controlSummary(accessModel, holders = 0, automatic = 0) {
+  const control = accessModel?.control ?? 'Unknown';
+  if (control === 'Automatic') return 'Only rules add and remove people, so nobody has to review who holds it.';
+  if (control === 'Unknown') return 'The source does not say enough to tell whether people decide who holds this role.';
+  const manual = Math.max(0, holders - automatic);
+  const who = manual === 1 ? '1 person holds' : `${manual} people hold`;
+  return `People decide who holds this role. ${who} it without a rule that adds and removes them, and need a regular review.`;
+}
+
+const SUBJECT_TEXT = {
+  Manager: (p) => (p.managerLevel > 1 ? `Manager, ${p.managerLevel} levels up` : "The person's manager"),
+  Sponsor: () => 'Sponsors',
+  Self: () => 'The person themselves',
+  Organization: (p) => p.displayName || 'A connected organization',
+};
+
+export function participantLabel(p) {
+  if (p.subjectType === 'Rule') return p.rule || p.displayName || 'A rule';
+  const relative = SUBJECT_TEXT[p.subjectType];
+  if (relative) return relative(p);
+  return p.displayName || p.principalId || p.groupId || 'Someone';
+}
+
+export function participantNotes(p) {
+  return [
+    p.subjectType === 'Group' && 'group',
+    p.isFallback && 'fallback',
+    p.onBehalf && 'on behalf of someone',
+    p.participation === 'Approver' && p.stage > 1 && `stage ${p.stage}`,
+  ].filter(Boolean);
+}
+
+// By participation, one line per distinct subject across the role's policies,
+// main ones before fallbacks.
+export function groupParticipants(list) {
+  const out = { Approver: [], Reviewer: [], Requestor: [] };
+  const seen = new Set();
+  for (const p of list) {
+    const key = [p.participation, p.subjectType, p.principalId, p.groupId, p.rule, p.managerLevel, p.displayName, p.isFallback, p.onBehalf, p.stage].join('|');
+    if (seen.has(key) || !out[p.participation]) continue;
+    seen.add(key);
+    out[p.participation].push({ ...p, key });
+  }
+  for (const rows of Object.values(out)) rows.sort((a, b) => Number(a.isFallback) - Number(b.isFallback));
+  return out;
 }
 
 // What the text of a policy's rule does here.

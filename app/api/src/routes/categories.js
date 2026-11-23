@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { createParams, likeContains } from '../db/sqlParams.js';
-import { ACCESS_MODEL_AGGREGATES, deriveAccessModel } from '../lib/businessRoleAccessModel.js';
+import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, deriveControl } from '../lib/businessRoleAccessModel.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -360,6 +360,7 @@ router.get('/access-packages', async (req, res) => {
           assignmentType = 'Request-based';
         }
       }
+      const accessModel = deriveAccessModel(r);
       return {
         id: r.id,
         displayName: r.displayName,
@@ -370,7 +371,7 @@ router.get('/access-packages', async (req, res) => {
         totalAssignments: r.totalAssignments,
         category: r.categoryId ? { id: r.categoryId, name: r.categoryName, color: r.categoryColor } : null,
         assignmentType,
-        accessModel: deriveAccessModel(r),
+        accessModel: { ...accessModel, ...deriveControl(accessModel) },
         lastReviewDate: r.lastReviewDate || null,
         lastReviewedBy: r.lastReviewedBy || null,
         // Suppress Overdue/In Progress when there are no active assignments — the reviewer

@@ -38,6 +38,7 @@ BeforeAll {
     # ConvertTo-*/New-* pure record shapers the phases call.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceOrigin.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceParticipants.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceRequests.ps1')
     # App-role record shapers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')

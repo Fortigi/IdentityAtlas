@@ -30,6 +30,7 @@ BeforeAll {
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceOrigin.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceParticipants.ps1')
     # App-role record shapers live here now (extracted for the file-length ratchet).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # ConvertTo-EntraAppOwnershipGraph lives here now (extracted for the file-length ratchet).
@@ -792,6 +793,23 @@ Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
     ) {
         $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p7'; accessPackageId = 'ap7'; expiration = [pscustomobject]@{ type = $type } })
         $rec['hasExpiration'] | Should -Be $expected
+    }
+
+    It 'stores the participants as one flat list, also for a single participant' {
+        $one = [pscustomobject]@{
+            id = 'p10'; accessPackageId = 'a'
+            reviewSettings = [pscustomobject]@{ isEnabled = $true; primaryReviewers = @([pscustomobject]@{ '@odata.type' = '#microsoft.graph.targetManager'; managerLevel = 1 }) }
+        }
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy $one
+        $json = @{ participants = $rec['participants'] } | ConvertTo-Json -Depth 6 | ConvertFrom-Json -NoEnumerate
+        @($json.participants).Count | Should -Be 1
+        @($json.participants)[0].participation | Should -Be 'Reviewer'
+    }
+
+    It 'sends an empty list for a policy that names nobody' {
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p11'; accessPackageId = 'a' })
+        $rec.ContainsKey('participants') | Should -BeTrue
+        (@{ participants = $rec['participants'] } | ConvertTo-Json -Compress) | Should -Be '{"participants":[]}'
     }
 
     It 'marks only the notSpecified scope as handed out by an administrator' {

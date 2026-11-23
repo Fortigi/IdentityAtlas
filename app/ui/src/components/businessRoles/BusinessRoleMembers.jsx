@@ -6,13 +6,15 @@ import EntityLink from '@ui/components/EntityLink';
 import DeletedBadge from '@ui/components/DeletedBadge';
 import Pagination from '@ui/components/Pagination';
 import WayChips from './WayChips';
-import { WAYS, MEMBER_PAGE_SIZE, countByWay, filterMembers } from './accessModel';
+import { WAYS, MEMBER_PAGE_SIZE, REVIEW_FILTER, countByWay, filterMembers } from './accessModel';
 
 // Who holds this role and how each of them got it. The list is complete: it is
 // paged in the browser, never cut off.
 
-function WayFilter({ counts, way, onChange }) {
+function WayFilter({ counts, way, onChange, reviewCount }) {
   const options = Object.keys(WAYS.in).filter(w => counts[w] > 0);
+  const labelOf = (w) => (w === REVIEW_FILTER ? `Needs review (${reviewCount})` : `${WAYS.in[w].label} (${counts[w]})`);
+  if (reviewCount > 0) options.push(REVIEW_FILTER);
   if (options.length < 2) return null;
   return (
     <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by how the role was gained">
@@ -23,7 +25,7 @@ function WayFilter({ counts, way, onChange }) {
             className={`rounded border px-2 py-0.5 text-xs ${active
               ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-300'
               : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50'}`}>
-            {w ? `${WAYS.in[w].label} (${counts[w]})` : 'All'}
+            {w ? labelOf(w) : 'All'}
           </button>
         );
       })}
@@ -31,7 +33,7 @@ function WayFilter({ counts, way, onChange }) {
   );
 }
 
-function MemberRow({ row, onOpenDetail }) {
+function MemberRow({ row, manualRole, onOpenDetail }) {
   const policies = (row.via ?? []).map(p => p.displayName).filter(Boolean);
   return (
     <tr>
@@ -40,14 +42,17 @@ function MemberRow({ row, onOpenDetail }) {
         {row.deleted && <DeletedBadge at={row.deletedAt} label="Deleted in source" className="ml-2" />}
       </td>
       <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.targetUPN || '—'}</td>
-      <td className="px-4 py-2"><WayChips ways={row.howHeld} direction="in" /></td>
+      <td className="px-4 py-2">
+        <WayChips ways={row.howHeld} direction="in" />
+        {manualRole && !row.automatic && <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">needs review</span>}
+      </td>
       <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-300">{policies.length > 0 ? policies.join(', ') : (row.originDetail || '—')}</td>
       <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-700 dark:text-gray-300">{row.expirationDateTime ? formatDateOnly(row.expirationDateTime) : '—'}</td>
     </tr>
   );
 }
 
-export default function BusinessRoleMembers({ roleId, onOpenDetail }) {
+export default function BusinessRoleMembers({ roleId, control, onOpenDetail }) {
   const { authFetch } = useAuth();
   const { data, loading, error } = useFetch(`/api/access-package/${encodeURIComponent(roleId)}/assignments`, { authFetch, initialData: [] });
   const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
@@ -56,6 +61,8 @@ export default function BusinessRoleMembers({ roleId, onOpenDetail }) {
   const [page, setPage] = useState(0);
   const counts = useMemo(() => countByWay(rows), [rows]);
   const shown = useMemo(() => filterMembers(rows, search, way), [rows, search, way]);
+  const manualRole = control === 'Manual';
+  const reviewCount = manualRole ? rows.filter(r => !r.automatic).length : 0;
 
   if (loading) return <p className="py-6 text-center text-sm text-gray-600 dark:text-gray-400">Loading people…</p>;
   if (error) return <p role="alert" className="py-6 text-center text-sm text-red-700 dark:text-red-400">Could not load the people.</p>;
@@ -71,7 +78,7 @@ export default function BusinessRoleMembers({ roleId, onOpenDetail }) {
       <div className="flex flex-wrap items-center gap-3">
         <input type="search" value={search} onChange={e => change(setSearch)(e.target.value)} aria-label="Search people in this role" placeholder="Search by name or e-mail…"
           className="w-56 rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500" />
-        <WayFilter counts={counts} way={way} onChange={change(setWay)} />
+        <WayFilter counts={counts} way={way} onChange={change(setWay)} reviewCount={reviewCount} />
         <span className="text-xs text-gray-600 dark:text-gray-400">{shown.length} of {rows.length}</span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -86,7 +93,7 @@ export default function BusinessRoleMembers({ roleId, onOpenDetail }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-            {pageRows.map(r => <MemberRow key={r.principalId} row={r} onOpenDetail={onOpenDetail} />)}
+            {pageRows.map(r => <MemberRow key={r.principalId} row={r} manualRole={manualRole} onOpenDetail={onOpenDetail} />)}
           </tbody>
         </table>
       </div>

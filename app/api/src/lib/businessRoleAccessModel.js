@@ -13,6 +13,11 @@ export const WAYS_IN = Object.freeze(['Rule', 'Request', 'Assigned']);
 export const WAYS_OUT = Object.freeze(['Rule', 'Review', 'Expiry', 'Manual']);
 export const UNKNOWN_WAY = 'Unknown';
 
+// The primary distinction. Automatic: only a rule hands the role out and a rule
+// takes it away, so nobody decides anything. Manual: anything else, which needs
+// a regular review of at least the part that is not automatic.
+export const CONTROLS = Object.freeze(['Automatic', 'Manual', 'Unknown']);
+
 // One row per role. BOOL_OR skips NULLs and is NULL when every policy is, which
 // is exactly "true if any policy says so, NULL if none says anything".
 export const ACCESS_MODEL_AGGREGATES = `
@@ -40,6 +45,23 @@ export function deriveAccessModel(row) {
     waysOut: waysOut.length > 0 || anyStated(OUT_FLAGS, row) ? waysOut : [UNKNOWN_WAY],
   };
 }
+
+// { control, reviewRequired, reviewGap } from { waysIn, waysOut }. A rule that adds
+// without removing is Manual: someone has to take the access away again.
+export function deriveControl({ waysIn = [], waysOut = [] } = {}) {
+  if (waysIn.length === 0 || waysIn.includes(UNKNOWN_WAY)) {
+    return { control: 'Unknown', reviewRequired: false, reviewGap: false };
+  }
+  const ruleOnly = waysIn.length === 1 && waysIn[0] === 'Rule';
+  if (ruleOnly && waysOut.includes('Rule')) return { control: 'Automatic', reviewRequired: false, reviewGap: false };
+  if (ruleOnly && waysOut.includes(UNKNOWN_WAY)) return { control: 'Unknown', reviewRequired: false, reviewGap: false };
+  return { control: 'Manual', reviewRequired: true, reviewGap: !waysOut.includes('Review') };
+}
+
+// A person is held automatically when a policy both adds and removes them by
+// rule. Everyone else is the part a review has to cover.
+export const isAutomaticHolder = ({ via } = {}) =>
+  Array.isArray(via) && via.some(p => p.inRule === true && p.outRule === true);
 
 const ORIGIN_WAY = { Automatic: 'Rule', Requested: 'Request' };
 

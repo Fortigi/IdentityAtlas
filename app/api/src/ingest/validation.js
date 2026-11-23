@@ -351,6 +351,7 @@ export const SCHEMAS = {
       hasExpiration: { type: 'boolean' },
       expiration: { type: 'json' },
       targetRule: { type: 'string' },
+      participants: { type: 'json' },
       automaticRequestSettings: { type: 'json' },
       policyConditions: { type: 'json' },
       reviewSettings: { type: 'json' },

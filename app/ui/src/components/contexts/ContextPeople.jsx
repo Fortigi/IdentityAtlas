@@ -236,6 +236,9 @@ function Holder({ role, sourceName, onOpenDetail }) {
       <EntityLink kind={kind} id={role.principalId || role.identityId} label={name} accessible={role.accessible}
         onOpenDetail={linkable ? onOpenDetail : undefined} className="font-medium hover:underline hover:text-blue-700 dark:hover:text-blue-300" plainClassName="font-medium" />
       {FROM_SOURCE.has(role.addedBy) && sourceName && <span className="text-xs text-gray-600 dark:text-gray-400">from {sourceName}</span>}
+      {role.derivedFrom?.length > 0 && (
+        <span className="text-xs text-gray-600 dark:text-gray-400">{role.derivedFrom.join(' and ').toLowerCase()}</span>
+      )}
       {role.sourceClaimId && (
         <span className="text-xs text-gray-600 dark:text-gray-400" title={role.sourceQuote || undefined}>
           from the interview with {role.sourceIntervieweeName}, {role.sourceInterviewedAt}

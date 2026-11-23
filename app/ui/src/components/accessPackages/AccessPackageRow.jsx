@@ -37,6 +37,10 @@ export default function AccessPackageRow({
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-col gap-1">
+          <span className="inline-flex flex-wrap items-center gap-1">
+            <WayChips ways={[ap.accessModel?.control ?? 'Unknown']} direction="control" />
+            {ap.accessModel?.reviewGap && <span className="text-xs text-amber-700 dark:text-amber-300">no review</span>}
+          </span>
           <WayChips ways={ap.accessModel?.waysIn} direction="in" />
           <WayChips ways={ap.accessModel?.waysOut} direction="out" none="No automatic removal" />
         </div>

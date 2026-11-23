@@ -110,5 +110,6 @@ function Get-EntraPolicyAccessDetails {
     $rule = Get-EntraPolicyTargetRule -Targets $Policy.specificAllowedTargets
     if ($rule) { $details.targetRule = $rule }
     if ($Policy.specificAllowedTargets) { $details.extendedAttributes = @{ specificAllowedTargets = @($Policy.specificAllowedTargets) } }
+    $details.participants = Get-EntraPolicyParticipants -Policy $Policy
     return $details
 }
