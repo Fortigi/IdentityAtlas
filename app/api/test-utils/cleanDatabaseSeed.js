@@ -161,6 +161,11 @@ export async function seedEverything(q) {
   exp('ContextRoles', '"contextId" = $1', [X.C_UPLOAD], 'removed');
   await q(`INSERT INTO "ContextRoleSuggestionRejections" ("contextId","principalId",role) VALUES ($1,$2,'Accountable')`, [X.C_MANUAL, X.P1]);
   exp('ContextRoleSuggestionRejections', '"contextId" = $1', [X.C_MANUAL], 'removed');
+  await q(`INSERT INTO "BusinessRoleOwners" ("resourceId","principalId",role,"addedBy") VALUES ($1,$2,'Accountable','analyst'),($1,$3,'Responsible','sync')`, [X.R1, X.P1, X.P2]);
+  exp('BusinessRoleOwners', '"resourceId" = $1 AND role = \'Accountable\'', [X.R1], 'removed');
+  exp('BusinessRoleOwners', '"resourceId" = $1 AND role = \'Responsible\'', [X.R1], 'removed');
+  await q(`INSERT INTO "BusinessRoleOwnerRejections" ("resourceId","principalId",role) VALUES ($1,$2,'Accountable')`, [X.R1, X.P2]);
+  exp('BusinessRoleOwnerRejections', '"resourceId" = $1', [X.R1], 'removed');
   await q(`INSERT INTO "ManagerHierarchyOverrides" ("principalId","managerPrincipalId","setBy") VALUES ($1,$2,$3)`, [X.P1, X.P2, MARK]);
   exp('ManagerHierarchyOverrides', '"principalId" = $1', [X.P1], 'removed');
 

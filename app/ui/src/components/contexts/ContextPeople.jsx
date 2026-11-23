@@ -181,7 +181,7 @@ function emptyRoleText(label) {
 
 // One role on one line: its name (what it means on hover, and for a screen
 // reader), then who holds it. Suggestions wrap below.
-function RoleBlock({ label, helper, holders, loading, sourceName, canWrite, onSet, onOpenDetail, children }) {
+export function RoleBlock({ label, helper, holders, loading, sourceName, canWrite, onSet, onOpenDetail, children }) {
   const empty = holders.length === 0;
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-start gap-x-3 gap-y-1">

@@ -1,0 +1,2 @@
+- Business roles can now have one Accountable and any number of Responsible people, as contexts do.
+- Identity Atlas suggests who could be Accountable or Responsible for a business role, from the managers of its holders and the owners of its resources. A suggestion you turn down is not offered again.

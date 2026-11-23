@@ -14,7 +14,10 @@
     "fileName": "reports/stryker-businessroles.json"
   },
   "mutate": [
-    "src/lib/businessRoleAccessModel.js"
+    "src/lib/businessRoleAccessModel.js",
+    "src/lib/businessRoleOwners.js",
+    "src/lib/businessRoleOwnerSuggestion.js",
+    "src/routes/details/businessRoleOwners.js"
   ],
   "testExclusions": {
     "src/lib/businessRoleAccessModel.guard.test.js": "Compares the vocabulary with ontology/core.ttl, a file outside the Stryker sandbox."

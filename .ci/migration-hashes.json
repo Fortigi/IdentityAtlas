@@ -109,6 +109,7 @@
     "110_context_member_history_once.sql": "a6f125a13f1d9e7dc9be7f5aa54025be7ac99b11e52a17e8daccfbf036367bfd",
     "111_resource_owner_reference_index.sql": "511a60aee9fff4aecf8139b3782d4b8ec1c1abf4aaf955333883760764e6e76a",
     "112_live_business_roles_govern.sql": "54adcc57263a551953b8eed0b94ede83f33a9f60a469cdb4297aca9e0499a50d",
-    "113_assignment_policy_access_details.sql": "a98ca86b756da2b4c281da120c2b1fbdb2ee4f099caf7ba981269a7945d496f6"
+    "113_assignment_policy_access_details.sql": "a98ca86b756da2b4c281da120c2b1fbdb2ee4f099caf7ba981269a7945d496f6",
+    "114_business_role_owners.sql": "3380c33af06d8ef30e8d8514d2aa9a1b132485266b745af8c396163d0b1c74fb"
   }
 }
