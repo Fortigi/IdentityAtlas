@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.4.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.4.0> ;
+    owl:versionInfo "2.5.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/2.5.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -517,6 +517,41 @@ ia:Accountability_Shared a owl:NamedIndividual, ia:Accountability ; ia:typeValue
 ia:Accountability_Autonomous a owl:NamedIndividual, ia:Accountability ; ia:typeValue "Autonomous" ;
     rdfs:label "Autonomous" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Acts on its own permissions; answered for through an Owner or Sponsor link." .
+
+ia:AccessWayIn a owl:Class ;
+    rdfs:label "Way into a business role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How a person can come to hold a ia:BusinessRole. A role has any number of these at once; they are derived from its assignment policies (app/api/src/lib/businessRoleAccessModel.js), not stored." .
+ia:AccessWayIn_Rule a owl:NamedIndividual, ia:AccessWayIn ; ia:typeValue "Rule" ;
+    rdfs:label "Rule" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A rule hands the role to everyone who matches it." .
+ia:AccessWayIn_Request a owl:NamedIndividual, ia:AccessWayIn ; ia:typeValue "Request" ;
+    rdfs:label "Request" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Someone can request the role, for themselves or for another person, with or without approval." .
+ia:AccessWayIn_Assigned a owl:NamedIndividual, ia:AccessWayIn ; ia:typeValue "Assigned" ;
+    rdfs:label "Assigned" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An administrator assigns the role directly." .
+ia:AccessWayIn_Unknown a owl:NamedIndividual, ia:AccessWayIn ; ia:typeValue "Unknown" ;
+    rdfs:label "Unknown" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source does not say how the role is gained." .
+
+ia:AccessWayOut a owl:Class ;
+    rdfs:label "Way out of a business role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How a person can lose a ia:BusinessRole. A role has any number of these at once, or none when its policies state that nothing removes access; derived from its assignment policies, not stored." .
+ia:AccessWayOut_Rule a owl:NamedIndividual, ia:AccessWayOut ; ia:typeValue "Rule" ;
+    rdfs:label "Rule" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The role is removed when a person no longer matches a rule. Independent of how the role was gained." .
+ia:AccessWayOut_Review a owl:NamedIndividual, ia:AccessWayOut ; ia:typeValue "Review" ;
+    rdfs:label "Review" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An access review can remove the role." .
+ia:AccessWayOut_Expiry a owl:NamedIndividual, ia:AccessWayOut ; ia:typeValue "Expiry" ;
+    rdfs:label "Expiry" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An assignment ends by itself after a date or a duration." .
+ia:AccessWayOut_Manual a owl:NamedIndividual, ia:AccessWayOut ; ia:typeValue "Manual" ;
+    rdfs:label "Manual" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Someone can request the role's removal, for themselves or for another person." .
+ia:AccessWayOut_Unknown a owl:NamedIndividual, ia:AccessWayOut ; ia:typeValue "Unknown" ;
+    rdfs:label "Unknown" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source does not say how the role is lost." .
 
 ia:ContextCategory a owl:Class ;
     rdfs:label "Context category" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { createParams, likeContains } from '../db/sqlParams.js';
+import { ACCESS_MODEL_AGGREGATES, deriveAccessModel } from '../lib/businessRoleAccessModel.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -304,7 +305,8 @@ router.get('/access-packages', async (req, res) => {
                COUNT(*)::int AS "policyCount",
                SUM(CASE WHEN "hasAutoAddRule" THEN 1 ELSE 0 END)::int AS "autoAddCount",
                SUM(CASE WHEN COALESCE("hasAutoAddRule", false) = false AND "hasAutoRemoveRule" THEN 1 ELSE 0 END)::int AS "autoRemoveOnlyCount",
-               BOOL_OR(COALESCE("hasAccessReview", false)) AS "hasReviewConfigured"
+               BOOL_OR(COALESCE("hasAccessReview", false)) AS "hasReviewConfigured",
+               ${ACCESS_MODEL_AGGREGATES}
           FROM "AssignmentPolicies"
          GROUP BY "resourceId"
       )${reviewCte}
@@ -315,7 +317,9 @@ router.get('/access-packages', async (req, res) => {
              COALESCE(pc."policyCount", 0) AS "policyCount",
              COALESCE(pc."autoAddCount", 0) AS "autoAddCount",
              COALESCE(pc."autoRemoveOnlyCount", 0) AS "autoRemoveOnlyCount",
-             COALESCE(pc."hasReviewConfigured", false) AS "hasReviewConfigured"
+             COALESCE(pc."hasReviewConfigured", false) AS "hasReviewConfigured",
+             pc."inRule", pc."inRequest", pc."inAssigned",
+             pc."outRule", pc."outReview", pc."outExpiry", pc."outManual"
              ${reviewCols}
         FROM "Resources" ap
         LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
@@ -366,6 +370,7 @@ router.get('/access-packages', async (req, res) => {
         totalAssignments: r.totalAssignments,
         category: r.categoryId ? { id: r.categoryId, name: r.categoryName, color: r.categoryColor } : null,
         assignmentType,
+        accessModel: deriveAccessModel(r),
         lastReviewDate: r.lastReviewDate || null,
         lastReviewedBy: r.lastReviewedBy || null,
         // Suppress Overdue/In Progress when there are no active assignments — the reviewer
