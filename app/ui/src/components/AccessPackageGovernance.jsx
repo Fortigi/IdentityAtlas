@@ -147,7 +147,7 @@ export default function AccessPackageGovernance({ accessPackageId, authFetch }) 
                     <p className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">{describeCadence(p.reviewSettings)}</p>
                   )}
                   {p.description && <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{p.description}</p>}
-                  {p.autoAssignmentFilter && <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 font-mono break-all">rule: {p.autoAssignmentFilter}</p>}
+                  {p.targetRule && <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 font-mono break-all">rule: {p.targetRule}</p>}
                 </li>
               ))}
             </ul>

@@ -77,7 +77,7 @@ export async function fetchPendingRequestCount(pool, res, apId) {
   try {
     const r = await timedQuery(pool, 'ap-pending-request-count', res, `
       SELECT COUNT(*)::int AS cnt FROM "AssignmentRequests"
-      WHERE "resourceId" = $1 AND "requestState" = 'PendingApproval'
+      WHERE "resourceId" = $1 AND lower("requestState") = 'pendingapproval'
     `, [apId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return null; /* table may not exist */ }

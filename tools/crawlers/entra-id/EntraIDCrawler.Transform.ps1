@@ -453,7 +453,7 @@ function ConvertTo-EntraAssignmentPolicyRecord {
     if ($Policy.reviewSettings) {
         $hasReview = [bool]$Policy.reviewSettings.isEnabled
     }
-    return @{
+    $record = @{
         id                 = $Policy.id
         resourceId         = $apId
         displayName        = $Policy.displayName
@@ -465,6 +465,9 @@ function ConvertTo-EntraAssignmentPolicyRecord {
         reviewSettings     = $Policy.reviewSettings
         policyConditions   = $Policy.requestorSettings
     }
+    $details = Get-EntraPolicyAccessDetails -Policy $Policy
+    foreach ($key in $details.Keys) { $record[$key] = $details[$key] }
+    return $record
 }
 
 # Maps one access-package resourceRoleScope → a Contains relationship (access
@@ -513,6 +516,10 @@ function ConvertTo-EntraAccessPackageAssignmentRecord {
         expirationDateTime = $Assignment.expiredDateTime
     }
     $policyId = [string]$Assignment.assignmentPolicyId
+    if ($policyId) {
+        $record.policyId = $policyId
+        $record.extendedAttributes = @{ assignmentPolicyIds = @($policyId) }
+    }
     if ($policyId -and $PolicyOrigins.ContainsKey($policyId)) {
         $record.origin = $PolicyOrigins[$policyId].origin
         if ($PolicyOrigins[$policyId].originDetail) { $record.originDetail = $PolicyOrigins[$policyId].originDetail }

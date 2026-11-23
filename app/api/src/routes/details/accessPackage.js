@@ -166,11 +166,13 @@ router.get('/access-package/:id/requests', async (req, res) => {
         SELECT
           req.id, req."requestType", req."requestState", req."requestStatus",
           req.justification, req."createdDateTime", req."completedDateTime",
-          u."displayName" AS "requestorDisplayName", u.email AS "requestorUPN"
+          req."requestorId",
+          COALESCE(u."displayName", req.requestor->>'displayName') AS "requestorDisplayName",
+          COALESCE(u.email, req.requestor->>'email') AS "requestorUPN"
         FROM "AssignmentRequests" req
         LEFT JOIN "Principals" u ON req."requestorId" = u.id
         WHERE req."resourceId" = $1
-          AND req."requestState" IN ('PendingApproval', 'Delivering', 'Accepted')
+          AND lower(req."requestState") IN ('submitted', 'pendingapproval', 'delivering', 'scheduled', 'accepted')
         ORDER BY req."createdDateTime" DESC
       `, [req.params.id]);
     res.json(r.rows);
@@ -205,16 +207,25 @@ router.get('/access-package/:id/policies', async (req, res) => {
   try {
     const pool = await db.getPool();
     const r = await timedQuery(pool, 'ap-policies', res, `
-      SELECT id, "displayName", description, "allowedTargetScope",
-             COALESCE("hasAutoAddRule", FALSE) AS "hasAutoAddRule",
-             COALESCE("hasAutoRemoveRule", FALSE) AS "hasAutoRemoveRule",
-             COALESCE("hasAccessReview", FALSE) AS "hasAccessReview",
-             "reviewSettings",
-             "automaticRequestSettings" #>> '{filter,rule}' AS "autoAssignmentFilter",
-             "createdDateTime", "modifiedDateTime"
-      FROM "AssignmentPolicies"
-      WHERE "resourceId" = $1
-      ORDER BY "displayName"
+      SELECT p.id, p."displayName", p.description, p."allowedTargetScope",
+             COALESCE(p."hasAutoAddRule", FALSE) AS "hasAutoAddRule",
+             COALESCE(p."hasAutoRemoveRule", FALSE) AS "hasAutoRemoveRule",
+             COALESCE(p."hasAccessReview", FALSE) AS "hasAccessReview",
+             p."allowsRequest", p."allowsDirectAssignment", p."allowsRemovalRequest",
+             p."requiresApproval", p."hasExpiration", p.expiration,
+             COALESCE(p."targetRule", p."automaticRequestSettings" #>> '{filter,rule}') AS "targetRule",
+             p."reviewSettings",
+             (SELECT COUNT(*)::int
+                FROM "ResourceAssignments" a
+               WHERE a."resourceId" = p."resourceId"
+                 AND a."deletedAt" IS NULL
+                 AND (a."policyId" = p.id
+                      OR COALESCE(a."extendedAttributes"->'assignmentPolicyIds', '[]'::jsonb) ? p.id::text)
+             ) AS "holderCount",
+             p."createdDateTime", p."modifiedDateTime"
+      FROM "AssignmentPolicies" p
+      WHERE p."resourceId" = $1
+      ORDER BY p."displayName"
     `, [req.params.id]);
     res.json(r.rows);
   } catch {

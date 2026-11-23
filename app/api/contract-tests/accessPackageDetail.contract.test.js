@@ -105,8 +105,8 @@ describe('GET /access-package/:id sub-resources', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].displayName).toBe('Policy A');
     expect(res.body[0].hasAutoAddRule).toBe(true);
-    // JSON_VALUE(...,'$.filter.rule') → postgres jsonb #>> '{filter,rule}'
-    expect(res.body[0].autoAssignmentFilter).toBe('dept eq IT');
+    // A source that keeps its rule in automaticRequestSettings.filter.rule.
+    expect(res.body[0].targetRule).toBe('dept eq IT');
   });
 
   it('/assignments lists the Direct assignee joined to Principals', async () => {
