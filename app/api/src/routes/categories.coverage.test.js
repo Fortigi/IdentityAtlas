@@ -201,6 +201,18 @@ describe('GET /access-packages', () => {
     expect(res.body.data[0]).toMatchObject({ id: RES, assignmentType: 'Auto-assigned', category: { id: 2, name: 'Finance' } });
   });
 
+  it.each([
+    [{ policyCount: 2, autoAddCount: 1, autoRemoveOnlyCount: 0 }, 'Both'],
+    [{ policyCount: 2, autoAddCount: 1, autoRemoveOnlyCount: 1 }, 'Both'],
+    [{ policyCount: 1, autoAddCount: 0, autoRemoveOnlyCount: 1 }, 'Request-based with auto-removal'],
+    [{ policyCount: 0, autoAddCount: 0, autoRemoveOnlyCount: 0 }, null],
+  ])('labels policy counts %j as %s', async (counts, label) => {
+    queryOne.mockResolvedValueOnce({ t: null });
+    query.mockResolvedValueOnce({ rows: [{ id: RES, displayName: 'AP', ...counts }] }).mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/access-packages');
+    expect(res.body.data[0].assignmentType).toBe(label);
+  });
+
   it('sends how many people hold each role and how many resources it contains', async () => {
     queryOne.mockResolvedValueOnce({ t: null });
     query

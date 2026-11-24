@@ -18,6 +18,16 @@ if (useSql) {
 async function ensureCategoryTables(_pool) {}
 export { ensureCategoryTables };
 
+// The list's older assignment-type label, from the policy counts of one row.
+function listAssignmentType(r) {
+  if (!(r.policyCount > 0)) return null;
+  const requestBasedCount = r.policyCount - r.autoAddCount - r.autoRemoveOnlyCount;
+  if (r.autoAddCount > 0 && (requestBasedCount > 0 || r.autoRemoveOnlyCount > 0)) return 'Both';
+  if (r.autoAddCount > 0) return 'Auto-assigned';
+  if (r.autoRemoveOnlyCount > 0) return 'Request-based with auto-removal';
+  return 'Request-based';
+}
+
 const TAG_COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
@@ -315,20 +325,7 @@ router.get('/access-packages', async (req, res) => {
     const countRes = await db.query(countSql, params.slice(0, params.length - 2));
 
     const data = dataRes.rows.map(r => {
-      // Derive assignment type from policy counts
-      let assignmentType = null;
-      if (r.policyCount > 0) {
-        const requestBasedCount = r.policyCount - r.autoAddCount - r.autoRemoveOnlyCount;
-        if (r.autoAddCount > 0 && (requestBasedCount > 0 || r.autoRemoveOnlyCount > 0)) {
-          assignmentType = 'Both';
-        } else if (r.autoAddCount > 0) {
-          assignmentType = 'Auto-assigned';
-        } else if (r.autoRemoveOnlyCount > 0) {
-          assignmentType = 'Request-based with auto-removal';
-        } else {
-          assignmentType = 'Request-based';
-        }
-      }
+      const assignmentType = listAssignmentType(r);
       const accessModel = deriveAccessModel(r);
       return {
         id: r.id,
