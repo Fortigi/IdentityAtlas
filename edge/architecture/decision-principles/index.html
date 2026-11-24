@@ -5761,6 +5761,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#c2-one-declaration-copies-are-derived-or-guarded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        C2. One declaration; copies are derived or guarded 🟢
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6393,6 +6404,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#c2-one-declaration-copies-are-derived-or-guarded" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        C2. One declaration; copies are derived or guarded 🟢
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6732,6 +6754,35 @@ describes a <em>third</em>, incompatible plugin shape for the same conceptual sl
 any of the above, and no status header. See the contradictions section of
 <a href="../architecture-guidance-review-2026-09/"><code>architecture-guidance-review-2026-09.md</code></a>. Do not treat
 that document as guidance until an architect resolves the conflict.</p>
+<h3 id="c2-one-declaration-copies-are-derived-or-guarded">C2. One declaration; copies are derived or guarded 🟢<a class="headerlink" href="#c2-one-declaration-copies-are-derived-or-guarded" title="Permanent link">&para;</a></h3>
+<p><strong>Q:</strong> Does the change add or extend a list or definition that <strong>more than one file</strong> needs: a
+closed vocabulary value, a per-type presentation entry (label, colour, wording, "non-human"), a test
+or mutation scope, a shared workflow body? → it must have <strong>one</strong> declaration, and every other place
+<strong>derives</strong> it (imports, generation with a staleness check in CI, <code>$ref</code>, a reusable workflow or
+composite action, a runtime read). Where a copy genuinely cannot derive (a JSON Schema enum, a
+PowerShell list in a crawler that cannot import JS), a <strong>guard test</strong> compares the copy to the
+declaration and fails CI naming the file. A spec whose implementation would make <strong>the same edit in
+two or more files</strong> fails this check unless it says which declaration the copies derive from or
+which guard covers them.</p>
+<p><strong>Why:</strong> hand-kept copies drift, and the drift is silent. An analysis of the 234 PRs merged between
+24 September and 24 November 2026 found three copy families behind most of the "many files per PR"
+effect: closed vocabularies copied into crawlers, schemas and UI (one principal type took 36 files,
+and two copies had already drifted: the CSV crawler mapped unknown types to <code>User</code>, and
+<code>WorkloadIdentity</code> was missing from the non-human list); mutation scopes declared twice per scope
+(29% of PRs edited one); and near-copy workflows that changed in lockstep in every PR that touched
+them. Where the repo already applies this rule it works: <code>ontology/core.ttl</code> → <code>npm run
+ontology:generate</code> / <code>ontology:check</code>, and <code>assignmentTypes.guard.test.js</code> for the closed assignment
+types.</p>
+<p><strong>Applies to:</strong> #1695 (closed vocabularies → one generated source plus a UI type registry), #1696
+(mutation scopes declared once, vitest side generated), #1697 (shared workflow bodies). Any new
+principal / assignment / relationship type value, any new per-type UI map, any new workflow that
+starts as a copy of an existing one.</p>
+<p><strong>Evidence:</strong> #1683 / PR #1692 (36 files for <code>MachineAccount</code>), the DoR probes of #1686 and #1683
+(quirks 14 and 19 in <code>docs/architecture/core-ontology.md</code>), <code>app/api/src/ingest/assignmentTypes.guard.test.js</code>,
+the <code>ontology:check</code> wiring in <code>.github/workflows/pr.yml</code>.</p>
+<p><strong>Ratified:</strong> asked for by an architect (Taeke) on 2026-11-24, after the analysis above. It
+complements C1: C1 says <em>where</em> new behaviour plugs in; C2 says shared definitions behind it are
+never duplicated by hand.</p>
 <hr />
 <h2 id="d-ui-design-system-boundary-a-routing-rule-not-an-architecture-rule">D. UI / design-system boundary — a routing rule, not an architecture rule<a class="headerlink" href="#d-ui-design-system-boundary-a-routing-rule-not-an-architecture-rule" title="Permanent link">&para;</a></h2>
 <h3 id="d1-does-adopting-a-shared-primitive-change-any-shipped-pages-appearance-half">D1. Does adopting a "shared" primitive change any shipped page's appearance? 🟡 (half 🟢)<a class="headerlink" href="#d1-does-adopting-a-shared-primitive-change-any-shipped-pages-appearance-half" title="Permanent link">&para;</a></h3>
