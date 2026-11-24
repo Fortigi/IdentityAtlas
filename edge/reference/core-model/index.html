@@ -7074,6 +7074,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     class Identity
     class LocationContext
     class LogicalApplicationContext
+    class MachineAccount
     class ManagedIdentity
     class ManagerHierarchyContext
     class OrgUnitContext
@@ -7143,6 +7144,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     ControlPermission &lt;|-- GroupOwnership
     Segment &lt;|-- LocationContext
     Context &lt;|-- LogicalApplicationContext
+    Software &lt;|-- MachineAccount
     Software &lt;|-- ManagedIdentity
     OrganizationalUnit &lt;|-- ManagerHierarchyContext
     OrganizationalUnit &lt;|-- OrgUnitContext
@@ -7829,6 +7831,13 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>A guest / B2B account from another organisation.</td>
 </tr>
 <tr>
+<td><code>MachineAccount</code></td>
+<td><code>ia:MachineAccount</code></td>
+<td>Software</td>
+<td>no built-in source</td>
+<td>A computer/server's own directory account (e.g. an Active Directory computer account), a security principal in its own right. Accepted from CSV, SQL, SCIM and midPoint sources; no built-in crawler classifies accounts this way.</td>
+</tr>
+<tr>
 <td><code>ManagedIdentity</code></td>
 <td><code>ia:ManagedIdentity</code></td>
 <td>Software</td>
@@ -7993,7 +8002,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>principalType</code></td>
 <td><code>ia:principalType</code></td>
 <td>text</td>
-<td><code>User</code>, <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>ExternalUser</code>, <code>SharedMailbox</code></td>
+<td><code>User</code>, <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>MachineAccount</code>, <code>AIAgent</code>, <code>ExternalUser</code>, <code>SharedMailbox</code></td>
 <td>The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type.</td>
 </tr>
 <tr>

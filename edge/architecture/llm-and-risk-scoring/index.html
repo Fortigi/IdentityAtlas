@@ -6614,7 +6614,7 @@
 <li><strong>Layer 4 — propagation</strong> (weight 0.20). One pass: an account inherits 30% of the pre-propagation score of its riskiest group, and a group 25% of its riskiest member's.</li>
 </ul>
 <p>Final score = <code>min(100, round(0.50·direct + 0.20·membership + 0.10·structural + 0.20·propagated))</code>. Tier thresholds (<code>riskscoring/tiers.js</code>): 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None.</p>
-<p>Accounts whose <code>principalType</code> is <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code> or <code>AIAgent</code> are matched against the <code>agentClassifiers</code> set instead of <code>userClassifiers</code> when one is present.</p>
+<p>Accounts whose <code>principalType</code> is <code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code> or <code>MachineAccount</code> are matched against the <code>agentClassifiers</code> set instead of <code>userClassifiers</code> when one is present.</p>
 <p>A run deletes every row in <code>RiskScores</code> and writes the new scores in one transaction. Analyst overrides are not carried over; see the <a href="../../api/risk-scores/">Risk Scores API</a>.</p>
 <h3 id="6-scoring-runs-appapisrcroutesriskscoringrunsjs">6. Scoring runs — <code>app/api/src/routes/riskScoringRuns.js</code><a class="headerlink" href="#6-scoring-runs-appapisrcroutesriskscoringrunsjs" title="Permanent link">&para;</a></h3>
 <table>

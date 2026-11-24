@@ -6699,7 +6699,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         uuid id PK
         string displayName
         uuid managerId FK
-        string principalType "User, ServicePrincipal, ManagedIdentity, WorkloadIdentity, AIAgent, ExternalUser, SharedMailbox"
+        string principalType "User, ServicePrincipal, ManagedIdentity, WorkloadIdentity, MachineAccount, AIAgent, ExternalUser, SharedMailbox"
         int systemId FK
     }
     ResourceAssignments {
@@ -7194,11 +7194,16 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <td>Shared mailboxes and room/equipment accounts</td>
 <td>CSV, SQL, SCIM and midPoint mappings only — no built-in crawler classifies accounts this way</td>
 </tr>
+<tr>
+<td><code>MachineAccount</code></td>
+<td>A computer's own directory account (an AD computer account), a security principal in its own right</td>
+<td>CSV, SQL, SCIM and midPoint mappings only — no built-in crawler classifies accounts this way</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
 <p class="admonition-title">Risk scoring behavior by principalType</p>
-<p><code>User</code> principals receive the full set of stale sign-in, never-signed-in, and guest-account checks. Non-human types (<code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>) receive structural signals only — no stale sign-in checks. All types participate in direct classifier matching, membership analysis, and risk propagation.</p>
+<p><code>User</code> principals receive the full set of stale sign-in, never-signed-in, and guest-account checks. Non-human types (<code>ServicePrincipal</code>, <code>ManagedIdentity</code>, <code>WorkloadIdentity</code>, <code>AIAgent</code>, <code>MachineAccount</code>) receive structural signals only — no stale sign-in checks. All types participate in direct classifier matching, membership analysis, and risk propagation.</p>
 </div>
 <hr />
 <h2 id="resourcetype-values">resourceType Values<a class="headerlink" href="#resourcetype-values" title="Permanent link">&para;</a></h2>

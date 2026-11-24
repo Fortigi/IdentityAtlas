@@ -6937,11 +6937,12 @@ its entry (the list only shrinks).</p>
 <li><strong>The CSV crawler scopes its principal reconcile to <code>principalType='User'</code></strong> even when its rows carry
     other types.</li>
 <li><strong>Two "non-human account" lists.</strong> <code>NON_HUMAN_PRINCIPAL_TYPES</code> (account linking) is ServicePrincipal,
-    ManagedIdentity, AIAgent; <code>riskscoring/engine.js</code> keeps its own inline list that also includes
-    WorkloadIdentity.</li>
-<li><strong><code>WorkloadIdentity</code> and <code>SharedMailbox</code> are accepted but no built-in crawler emits them.</strong> They
-    arrive only through CSV, SQL, SCIM or midPoint mappings; the Entra crawler deliberately does not
-    classify workload identities.</li>
+    ManagedIdentity, AIAgent, MachineAccount; <code>riskscoring/engine.js</code> keeps its own inline list that
+    also includes WorkloadIdentity.</li>
+<li><strong><code>WorkloadIdentity</code>, <code>SharedMailbox</code> and <code>MachineAccount</code> are accepted but no built-in crawler
+    emits them.</strong> They arrive only through CSV, SQL, SCIM or midPoint mappings; the Entra crawler
+    deliberately does not classify workload identities, and computer accounts come from a directory
+    source rather than from Graph.</li>
 <li><strong>A stale code comment, corrected here:</strong> <code>buildMemberRows</code> said reports of a manager missing from
     the dataset go to the root; they stay together under an <code>Unknown</code> node.</li>
 </ol>

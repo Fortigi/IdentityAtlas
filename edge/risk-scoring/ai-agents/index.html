@@ -6234,6 +6234,10 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <td><code>WorkloadIdentity</code></td>
 <td>An identity for a workload that signs in with a federated credential</td>
 </tr>
+<tr>
+<td><code>MachineAccount</code></td>
+<td>A computer's own directory account (an AD computer account)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="how-the-entra-id-crawler-decides-the-type">How the Entra ID crawler decides the type<a class="headerlink" href="#how-the-entra-id-crawler-decides-the-type" title="Permanent link">&para;</a></h2>
@@ -6244,12 +6248,12 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <li>Its display name contains <code>copilot</code>, <code>openai</code>, <code>azure-ai</code> or <code>cognitive-service</code>, or the separate word <code>gpt</code> or <code>bot</code> → <code>AIAgent</code>.</li>
 <li>Otherwise → <code>ServicePrincipal</code>.</li>
 </ol>
-<p>The Entra ID crawler does not assign <code>WorkloadIdentity</code>. The CSV and SQL crawlers accept all four types, so a source that knows the difference can supply it.</p>
+<p>The Entra ID crawler does not assign <code>WorkloadIdentity</code> or <code>MachineAccount</code>. The CSV and SQL crawlers accept all five types, so a source that knows the difference can supply it.</p>
 <p>Rule 3 is a name match, so check the outcome: an application called <em>Robot Arm Bot</em> becomes an <code>AIAgent</code>, and an agent with a neutral name stays a <code>ServicePrincipal</code>.</p>
 <h2 id="how-they-are-scored">How they are scored<a class="headerlink" href="#how-they-are-scored" title="Permanent link">&para;</a></h2>
 <p>Non-human accounts go through the same four layers as every other account. One thing differs:</p>
 <ul>
-<li><strong>Layer 1 uses the Agents classifiers.</strong> Accounts of the four types above are matched against the <strong>Agents</strong> tab of the active classifier set. If the set contains no agent classifiers, the <strong>Users</strong> classifiers are used instead.</li>
+<li><strong>Layer 1 uses the Agents classifiers.</strong> Accounts of the five types above are matched against the <strong>Agents</strong> tab of the active classifier set. If the set contains no agent classifiers, the <strong>Users</strong> classifiers are used instead.</li>
 </ul>
 <p>Layers 2 to 4 are identical for human and non-human accounts: the same membership, hygiene and propagation signals, with the same points. There is no extra score for being non-human.</p>
 <p>To see the agent classifiers, open <strong>Admin → Risk Scoring</strong>, expand <strong>Risk Classifiers</strong> and choose the <strong>Agents</strong> tab. See <a href="../classifiers/">Classifiers</a>.</p>
