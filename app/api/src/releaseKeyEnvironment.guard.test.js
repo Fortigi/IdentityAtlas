@@ -56,6 +56,12 @@ const workflowSources = readdirSync(WORKFLOW_DIR)
   .filter((f) => /\.ya?ml$/.test(f))
   .map((file) => ({ file, text: readFileSync(join(WORKFLOW_DIR, file), 'utf8') }));
 
+const ACTIONS_DIR = join(findCheckoutRoot(), '.github', 'actions');
+const actionSources = readdirSync(ACTIONS_DIR, { recursive: true })
+  .map(String)
+  .filter((f) => /(^|[\\/])action\.ya?ml$/.test(f))
+  .map((file) => ({ file, text: readFileSync(join(ACTIONS_DIR, file), 'utf8') }));
+
 describe('the release App key is only read from its environment', () => {
   const jobs = jobsReadingReleaseKey(workflowSources);
 
@@ -63,8 +69,16 @@ describe('the release App key is only read from its environment', () => {
     // A guard that matches nothing passes vacuously; fail loudly if the workflows
     // are restructured so that the scan no longer sees them.
     expect(jobs.map((j) => j.file)).toEqual(
-      expect.arrayContaining(['bump-version.yml', 'cut-release.yml', 'cut-hotfix.yml', 'ps-module-updates.yml']),
+      // cut-tag.yml is the shared body of cut-release / cut-hotfix / cut-beta.
+      expect.arrayContaining(['bump-version.yml', 'cut-tag.yml', 'ps-module-updates.yml']),
     );
+  });
+
+  it('no composite action names the key', () => {
+    // A composite action has no environment of its own; the key reaches one
+    // only as an input from a job, which is where this guard looks.
+    expect(actionSources.length).toBeGreaterThan(0);
+    expect(actionSources.filter(({ text }) => /\bBOT_PRIVATE_KEY\b/.test(text)).map(({ file }) => file)).toEqual([]);
   });
 
   it.each(jobs)('$id runs in the release-automation environment', (job) => {
