@@ -16,7 +16,7 @@
         <link rel="prev" href="../../sync/building-a-crawler/">
       
       
-        <link rel="next" href="../maintaining-the-ontology/">
+        <link rel="next" href="../mutation-scope-history/">
       
       
         
@@ -4865,6 +4865,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../mutation-scope-history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mutation Scope History
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../maintaining-the-ontology/" class="md-nav__link">
         
   
@@ -6677,7 +6705,9 @@ coverage cannot.</p>
 <h3 id="powershell-psmutant">PowerShell — PSMutant<a class="headerlink" href="#powershell-psmutant" title="Permanent link">&para;</a></h3>
 <p>Config: <code>.ci/psmutant.config.json</code>. Every eligible crawler file must be in
 <code>mutate</code> or in <code>exclusions</code> with a written reason, enforced by
-<code>test/unit/PSMutationScope.Tests.ps1</code>.</p>
+<code>test/unit/PSMutationScope.Tests.ps1</code>. A mutated file appears twice, in <code>mutate</code>
+and as a key of <code>tests</code> (its test files): PSMutant requires both lists, so one
+cannot be derived from the other, and the same guard fails when they disagree.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pwsh<span class="w"> </span>tools/psmodules/Install-PinnedModule.ps1<span class="w"> </span>PSMutant<span class="w">   </span><span class="c1"># the version CI pins</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Invoke-PSMutation<span class="w"> </span>-ConfigFile<span class="w"> </span>.ci/psmutant.config.json<span class="w"> </span>-SourceRoot<span class="w"> </span>.
 </code></pre></div>
@@ -6722,38 +6752,22 @@ Write which one you are claiming. Two declarations were withdrawn on review afte
 turning out to be system identifiers rather than display counters, and the giveaway
 was that their reasons asserted <em>provable</em> for something only argued.</p>
 <h3 id="javascript-stryker">JavaScript — Stryker<a class="headerlink" href="#javascript-stryker" title="Permanent link">&para;</a></h3>
-<p>Four scopes today, each its own config plus a narrow <code>vitest.stryker.*.config.js</code>:</p>
-<table>
-<thead>
-<tr>
-<th>Config</th>
-<th>Covers</th>
-<th>Score</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>app/api/stryker.auth.config.json</code></td>
-<td>credential + permission path</td>
-<td>100%</td>
-</tr>
-<tr>
-<td><code>app/api/stryker.effectiveaccess.config.json</code></td>
-<td>the effective-access engine, its policies and LRU</td>
-<td>94.7%</td>
-</tr>
-<tr>
-<td><code>app/api/stryker.accountlinking.config.json</code></td>
-<td>account correlation and its rules</td>
-<td>81.9%</td>
-</tr>
-<tr>
-<td><code>app/ui/stryker.pilot.config.json</code></td>
-<td><code>usePermissions</code>, <code>matrixFilter</code></td>
-<td>93.8%</td>
-</tr>
-</tbody>
-</table>
+<p>Each scope is declared <strong>once</strong>, in <code>app/{api,ui}/stryker.&lt;scope&gt;.config.json</code>:</p>
+<ul>
+<li><code>mutate</code> — the source files whose mutants are scored;</li>
+<li><code>tests</code> — the tests that run against them, as paths or globs under <code>src/</code>;</li>
+<li><code>tests_comment</code> — why those tests, and which were left out on purpose.</li>
+</ul>
+<p>The Vitest config Stryker runs with, <code>vitest.stryker.&lt;scope&gt;.config.js</code>, is
+<strong>generated</strong> from that file. Do not edit it; change the declaration and run
+<code>cd app/api &amp;&amp; npm run mutation-scopes:generate</code>. PR Checks runs
+<code>npm run mutation-scopes:check</code>, which fails on a stale, missing or orphaned
+generated file. <code>app/api/src/mutationScopes/mutationScopes.guard.test.js</code> fails
+when a <code>tests</code> entry matches no file, or when a mutated file is reached by no
+listed test (imports are followed, so a component that a page's mount test
+renders counts as reached). Such a file's mutants would have no killer in the
+run. A new scope is a new <code>stryker.&lt;scope&gt;.config.json</code> plus a generate; the
+weekly matrix picks it up by itself. Scores per scope are on the coverage page.</p>
 <p>Run one, or all of a package's:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>app/api<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>test:mutation:accountlinking<span class="w">   </span><span class="c1"># one scope</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>app/api<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>test:mutation<span class="w">                  </span><span class="c1"># all three, in sequence</span>
@@ -6774,7 +6788,7 @@ number must never be read as suite-wide.</p>
 <li><strong>Stryker sandboxes <code>app/api</code> alone.</strong> Any test reading the real filesystem —
   an upload path, or the crawler manifests at <code>../../tools/crawlers</code> — resolves
   nothing in the sandbox, fails the dry run, and aborts the whole run before a
-  single mutant is evaluated. <code>vitest.stryker.config.js</code> narrows the include for
+  single mutant is evaluated. Each scope's <code>tests</code> list is narrow for
   this reason. Prefer a narrow include over a growing exclude list: an excluded
   test that happened to be a mutant's only killer becomes a <strong>false survivor</strong>,
   and a wrong number is worse than a smaller true one.</li>
@@ -6877,7 +6891,7 @@ pattern is the same each time: an assertion built on a guess about <em>shape</em
 </tr>
 <tr>
 <td><code>test/unit/PSMutationScope.Tests.ps1</code></td>
-<td>Every eligible crawler file mutated or excluded with a reason; every mutated file names a suite that exercises it</td>
+<td>Every eligible crawler file mutated or excluded with a reason; every mutated file names a suite that exercises it; <code>mutate</code> and the <code>tests</code> keys name the same files</td>
 </tr>
 <tr>
 <td><code>test/lib/HttpErrorFixtures.psm1</code></td>
@@ -6890,6 +6904,10 @@ pattern is the same each time: an assertion built on a guess about <em>shape</em
 <tr>
 <td><code>app/api/src/mutationScope.guard.test.js</code></td>
 <td>Every eligible JS file mutated, backlogged, or excluded with a reason; the backlog free of stale and already-covered entries</td>
+</tr>
+<tr>
+<td><code>app/api/src/mutationScopes/mutationScopes.guard.test.js</code></td>
+<td>Every generated <code>vitest.stryker.&lt;scope&gt;.config.js</code> matches its declaration; every mutated JS file is reached by a test in its scope's <code>tests</code> list</td>
 </tr>
 <tr>
 <td><code>.ci/psmutant.config.json</code> / <code>app/*/stryker.*.config.json</code></td>
