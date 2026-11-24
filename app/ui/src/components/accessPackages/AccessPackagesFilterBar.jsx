@@ -22,7 +22,7 @@ export default function AccessPackagesFilterBar({
         onChange={e => setTypeFilter(e.target.value || null)}
         className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs dark:bg-gray-700 dark:text-gray-200"
       >
-        <option value="">Any way in or out</option>
+        <option value="">All types</option>
         {ACCESS_FILTERS.map(({ label, direction, ways }) => (
           <optgroup key={direction} label={label}>
             {ways.map(way => <option key={way} value={`${direction}:${way}`}>{WAYS[direction][way].label}</option>)}

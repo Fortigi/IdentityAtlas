@@ -13,6 +13,7 @@ export default defineConfig({
       'src/lib/businessRoleAccessModel.test.js',
       'src/lib/businessRoleOwners.test.js',
       'src/lib/businessRoleOwnerSuggestion.test.js',
+      'src/lib/businessRolePeople.test.js',
       'src/routes/details/businessRoleOwners.test.js',
       'src/lib/businessRoleOwnerImport.test.js',
       'src/routes/details/businessRoleOwnerImport.test.js',

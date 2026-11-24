@@ -1,5 +1,45 @@
 import { describe, it, expect } from 'vitest';
-import { deriveAccessModel, deriveHowHeld, ACCESS_MODEL_AGGREGATES } from './businessRoleAccessModel.js';
+import { deriveAccessModel, deriveControl, deriveHowHeld, isAutomaticHolder, ACCESS_MODEL_AGGREGATES } from './businessRoleAccessModel.js';
+
+describe('deriveControl', () => {
+  it('is Automatic only when a rule alone adds and a rule removes', () => {
+    expect(deriveControl({ waysIn: ['Rule'], waysOut: ['Rule'] })).toEqual({ control: 'Automatic', reviewRequired: false, reviewGap: false });
+    expect(deriveControl({ waysIn: ['Rule'], waysOut: ['Rule', 'Expiry'] }).control).toBe('Automatic');
+  });
+
+  it('is Manual for a rule that adds but never removes', () => {
+    expect(deriveControl({ waysIn: ['Rule'], waysOut: [] })).toEqual({ control: 'Manual', reviewRequired: true, reviewGap: true });
+  });
+
+  it.each([[['Request']], [['Assigned']], [['Rule', 'Request']], [['Rule', 'Assigned']]])('is Manual when gained by %j, even with a removal rule', (waysIn) => {
+    expect(deriveControl({ waysIn, waysOut: ['Rule'] })).toMatchObject({ control: 'Manual', reviewRequired: true });
+  });
+
+  it('has no review gap once a review can remove it', () => {
+    expect(deriveControl({ waysIn: ['Request'], waysOut: ['Review'] }).reviewGap).toBe(false);
+  });
+
+  it('flags the gap when manual access has no review', () => {
+    expect(deriveControl({ waysIn: ['Request'], waysOut: ['Rule', 'Expiry'] }).reviewGap).toBe(true);
+  });
+
+  it.each([[{ waysIn: ['Unknown'], waysOut: ['Unknown'] }], [{ waysIn: [], waysOut: ['Rule'] }], [undefined], [{ waysIn: ['Rule'], waysOut: ['Unknown'] }]])('is Unknown for %j, and claims no gap', (m) => {
+    expect(deriveControl(m)).toEqual({ control: 'Unknown', reviewRequired: false, reviewGap: false });
+  });
+
+  it('is Manual when a request is known even if the way out is not', () => {
+    expect(deriveControl({ waysIn: ['Request'], waysOut: ['Unknown'] })).toMatchObject({ control: 'Manual', reviewGap: true });
+  });
+});
+
+describe('isAutomaticHolder', () => {
+  it('is true when one policy adds and removes by rule', () => {
+    expect(isAutomaticHolder({ via: [{ inRequest: true }, { inRule: true, outRule: true }] })).toBe(true);
+  });
+  it.each([[{ via: [{ inRule: true, outRule: false }] }], [{ via: [{ inRule: false, outRule: true }] }], [{ via: [] }], [{}], [undefined]])('is false for %j', (row) => {
+    expect(isAutomaticHolder(row)).toBe(false);
+  });
+});
 
 describe('deriveHowHeld', () => {
   it('reads the way in from the policy behind the assignment', () => {

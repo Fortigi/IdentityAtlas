@@ -2,7 +2,7 @@ import AccessPackageRow from './AccessPackageRow';
 
 const SORT_COLUMNS = [
   { key: 'displayName',      label: 'Name' },
-  { key: 'assignmentType',   label: 'Gained / lost by' },
+  { key: 'assignmentType',   label: 'Type' },
   { key: 'complianceStatus', label: 'Review Status' },
   { key: 'lastReviewDate',   label: 'Review Date' },
   { key: 'lastReviewedBy',   label: 'Reviewed By' },

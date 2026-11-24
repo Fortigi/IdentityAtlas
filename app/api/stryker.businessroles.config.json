@@ -17,6 +17,7 @@
     "src/lib/businessRoleAccessModel.js",
     "src/lib/businessRoleOwners.js",
     "src/lib/businessRoleOwnerSuggestion.js",
+    "src/lib/businessRolePeople.js",
     "src/routes/details/businessRoleOwners.js",
     "src/lib/businessRoleOwnerImport.js",
     "src/routes/details/businessRoleOwnerImport.js",

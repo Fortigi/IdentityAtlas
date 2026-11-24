@@ -68,6 +68,7 @@ function AccessPackageHeader({ data }) {
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400" data-testid="role-access-model">
+        <WayChips ways={[accessModel?.control ?? 'Unknown']} direction="control" />
         <span className="inline-flex items-center gap-1">Gained by <WayChips ways={accessModel?.waysIn} direction="in" /></span>
         <span className="inline-flex items-center gap-1">Lost by <WayChips ways={accessModel?.waysOut} direction="out" none="no automatic removal" /></span>
       </div>
@@ -114,7 +115,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   const renderCustomTab = useCallback((key, data, openTab) => {
     if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
     if (key === 'resources') return <BusinessRoleResources roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
-    if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
+    if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} control={data.accessModel?.control} onOpenDetail={onOpenDetail} />;
     if (key === 'requests') return <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} showPolicies={false} />;
     return null;
   }, [accessPackageId, authFetch, onOpenDetail]);

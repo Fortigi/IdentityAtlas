@@ -111,6 +111,22 @@ describe('BusinessRoleOwners', () => {
     await waitFor(() => expect(state.deletes).toEqual(['o2']));
   });
 
+  it('shows a named approver as Responsible, but not as someone to remove here', async () => {
+    const { user } = mount({
+      suggestions: {},
+      owners: [
+        { id: 'policy:p9', role: 'Responsible', principalId: 'p9', displayName: 'Carla Cash', addedBy: 'policy', derivedFrom: ['Approver', 'Reviewer'] },
+        { id: 'o2', role: 'Responsible', principalId: 'p2', displayName: 'Rob Responsible', addedBy: 'sync' },
+      ],
+    });
+    const responsible = block('Responsible');
+    await within(responsible).findByText('Carla Cash');
+    expect(within(responsible).getByText('approver and reviewer')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit Responsible' }));
+    expect(await screen.findByRole('button', { name: 'Remove Rob Responsible as Responsible' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove Carla Cash as Responsible' })).toBeNull();
+  });
+
   it('gives a reader the suggestion without actions', async () => {
     mount({ auth: { hasWildcard: false, permissions: new Set(['data.read.matrix']) } });
     const guess = await screen.findByTestId('owner-guess-Accountable');

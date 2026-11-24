@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  WAYS, ACCESS_FILTERS, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
+  WAYS, ACCESS_FILTERS, REVIEW_FILTER, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
 } from './accessModel';
 
 const role = (waysIn, waysOut) => ({ accessModel: { waysIn, waysOut } });
@@ -26,6 +26,90 @@ describe('matchesAccessFilter', () => {
   it('treats a role without a model as Unknown', () => {
     expect(matchesAccessFilter({}, 'in:Unknown')).toBe(true);
     expect(matchesAccessFilter({}, 'out:Rule')).toBe(false);
+  });
+});
+
+describe('the type filter', () => {
+  it('matches the primary type', () => {
+    const r = { accessModel: { control: 'Manual', waysIn: ['Request'], waysOut: [] } };
+    expect(matchesAccessFilter(r, 'control:Manual')).toBe(true);
+    expect(matchesAccessFilter(r, 'control:Automatic')).toBe(false);
+  });
+  it('treats a role without a type as Unknown', () => {
+    expect(matchesAccessFilter({}, 'control:Unknown')).toBe(true);
+  });
+});
+
+describe('controlSummary', () => {
+  it('says nobody has to review a rule-only role', () => {
+    expect(controlSummary({ control: 'Automatic' }, 10, 10)).toMatch(/nobody has to review/);
+  });
+  it('counts only the people no rule covers', () => {
+    expect(controlSummary({ control: 'Manual' }, 13, 10)).toContain('3 people hold it');
+  });
+  it('words one person correctly', () => {
+    expect(controlSummary({ control: 'Manual' }, 3, 2)).toContain('1 person holds it');
+  });
+  it('never counts below zero', () => {
+    expect(controlSummary({ control: 'Manual' }, 1, 5)).toContain('0 people hold it');
+  });
+  it.each([[null], [{ control: 'Unknown' }]])('admits it cannot tell for %j', (m) => {
+    expect(controlSummary(m)).toMatch(/does not say enough/);
+  });
+});
+
+describe('participantLabel', () => {
+  it.each([
+    [{ subjectType: 'User', displayName: 'Ann' }, 'Ann'],
+    [{ subjectType: 'User', principalId: 'id' }, 'id'],
+    [{ subjectType: 'Group', groupId: 'g' }, 'g'],
+    [{ subjectType: 'Other' }, 'Someone'],
+    [{ subjectType: 'Manager', managerLevel: 1 }, "The person's manager"],
+    [{ subjectType: 'Manager' }, "The person's manager"],
+    [{ subjectType: 'Manager', managerLevel: 2 }, 'Manager, 2 levels up'],
+    [{ subjectType: 'Sponsor' }, 'Sponsors'],
+    [{ subjectType: 'Self' }, 'The person themselves'],
+    [{ subjectType: 'Organization', displayName: 'Contoso' }, 'Contoso'],
+    [{ subjectType: 'Organization' }, 'A connected organization'],
+    [{ subjectType: 'Rule', rule: 'r', displayName: 'd' }, 'r'],
+    [{ subjectType: 'Rule', displayName: 'd' }, 'd'],
+    [{ subjectType: 'Rule' }, 'A rule'],
+  ])('%j → %s', (p, text) => expect(participantLabel(p)).toBe(text));
+});
+
+describe('participantNotes', () => {
+  it('states everything that applies', () => {
+    expect(participantNotes({ participation: 'Approver', subjectType: 'Group', isFallback: true, onBehalf: true, stage: 2 }))
+      .toEqual(['group', 'fallback', 'on behalf of someone', 'stage 2']);
+  });
+  it('does not mention the first stage, or a stage for a reviewer', () => {
+    expect(participantNotes({ participation: 'Approver', subjectType: 'User', stage: 1 })).toEqual([]);
+    expect(participantNotes({ participation: 'Reviewer', subjectType: 'User', stage: 2 })).toEqual([]);
+  });
+});
+
+describe('groupParticipants', () => {
+  it('groups by participation, one line per subject, main before fallback', () => {
+    const out = groupParticipants([
+      { participation: 'Reviewer', subjectType: 'User', principalId: 'f', isFallback: true },
+      { participation: 'Reviewer', subjectType: 'Manager', isFallback: false },
+      { participation: 'Reviewer', subjectType: 'Manager', isFallback: false },
+      { participation: 'Approver', subjectType: 'User', principalId: 'a', isFallback: false },
+    ]);
+    expect(out.Reviewer.map(p => p.subjectType)).toEqual(['Manager', 'User']);
+    expect(out.Approver).toHaveLength(1);
+    expect(out.Requestor).toEqual([]);
+  });
+  it('skips a participation it does not know', () => {
+    const out = groupParticipants([{ participation: 'Owner', subjectType: 'User' }]);
+    expect(Object.values(out).flat()).toEqual([]);
+  });
+});
+
+describe('filterMembers — needs review', () => {
+  const rows = [{ principalId: 'a', automatic: true, howHeld: ['Rule'] }, { principalId: 'b', automatic: false, howHeld: ['Request'] }];
+  it('keeps only the people no rule covers', () => {
+    expect(filterMembers(rows, '', REVIEW_FILTER).map(r => r.principalId)).toEqual(['b']);
   });
 });
 

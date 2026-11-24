@@ -8,6 +8,7 @@ import BusinessRoleResources from './BusinessRoleResources';
 import BusinessRoleOverview from './BusinessRoleOverview';
 import BusinessRoleOwnerImport from './BusinessRoleOwnerImport';
 import WayChips from './WayChips';
+import BusinessRoleParticipants from './BusinessRoleParticipants';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, within, userEvent } from '@ui/test-utils/renderWithProviders';
 
@@ -26,7 +27,8 @@ const REQUEST_POLICY = {
 
 const role = (over = {}) => ({
   attributes: { id: ID, displayName: 'Finance Access' },
-  accessModel: { waysIn: ['Rule', 'Request'], waysOut: ['Rule', 'Review', 'Expiry'] },
+  accessModel: { waysIn: ['Rule', 'Request'], waysOut: ['Rule', 'Review', 'Expiry'], control: 'Manual', reviewRequired: true, reviewGap: false },
+  automaticHolderCount: 12,
   assignmentCount: 13, groupCount: 2, pendingRequestCount: 1, reviewCount: 4,
   ...over,
 });
@@ -41,12 +43,13 @@ const RESOURCES = [
   { childResourceId: 'g2', resourceDisplayName: 'Old group', resourceType: 'Group', roleName: 'Owner', deleted: true, deletedAt: '2026-01-01T00:00:00Z' },
 ];
 
-function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members = MEMBERS, resources = RESOURCES } = {}) {
+function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members = MEMBERS, resources = RESOURCES, participants = PARTICIPANTS } = {}) {
   return makeAuthFetch((url) => {
     const u = String(url);
     if (u.includes('/api/risk-scores/')) return jsonResponse(null, { ok: false, status: 404 });
     if (u === `${BASE}/owners`) return [];
     if (u === `${BASE}/owners/suggestions`) return {};
+    if (u === `${BASE}/participants`) return participants;
     if (u === `${BASE}/policies`) return policies;
     if (u === `${BASE}/assignments`) return members;
     if (u === `${BASE}/resource-roles`) return resources;
@@ -55,6 +58,14 @@ function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members 
     return undefined;
   });
 }
+
+const PARTICIPANTS = [
+  { participation: 'Approver', subjectType: 'User', principalId: 'u9', displayName: 'Carla Cash', stage: 1 },
+  { participation: 'Approver', subjectType: 'Manager', managerLevel: 1, stage: 2 },
+  { participation: 'Reviewer', subjectType: 'User', principalId: 'u8', displayName: 'Rita Review', isFallback: true },
+  { participation: 'Requestor', subjectType: 'Group', groupId: 'g7', displayName: 'SG-Sales', contextId: 'c1', contextName: 'Sales team' },
+  { participation: 'Requestor', subjectType: 'Rule', rule: '(user.jobTitle -eq "x")' },
+];
 
 function mountPage(opts, wrap = (el) => el) {
   const onOpenDetail = vi.fn();
@@ -133,6 +144,92 @@ describe('the business role page', () => {
     const tab = await screen.findByRole('tab', { name: /Attributes/ });
     expect(tab).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'Overview' })).toBeNull();
+  });
+});
+
+describe('the primary type', () => {
+  it('states that a Manual role needs a review of the part no rule covers', async () => {
+    mountPage();
+    const banner = await screen.findByTestId('role-control');
+    expect(banner).toHaveTextContent('Manual');
+    expect(banner).toHaveTextContent('1 person holds it without a rule');
+    expect(banner).not.toHaveTextContent('No access review');
+  });
+
+  it('warns when a Manual role has no review', async () => {
+    mountPage({ body: role({ accessModel: { waysIn: ['Request'], waysOut: [], control: 'Manual', reviewGap: true } }) });
+    expect(await within(await screen.findByTestId('role-control')).findByRole('status')).toHaveTextContent('No access review');
+  });
+
+  it('states that a rule-only role needs no review', async () => {
+    mountPage({ body: role({ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'], control: 'Automatic', reviewGap: false } }) });
+    const banner = await screen.findByTestId('role-control');
+    expect(banner).toHaveTextContent('Rule only');
+    expect(banner).toHaveTextContent('nobody has to review');
+  });
+});
+
+describe('BusinessRoleParticipants', () => {
+  const mount = (participants = PARTICIPANTS) => {
+    const onOpenDetail = vi.fn();
+    renderWithProviders(h(BusinessRoleParticipants, { roleId: ID, onOpenDetail }), { auth: { authFetch: api({ participants }) } });
+    return { onOpenDetail, user: userEvent.setup() };
+  };
+
+  it('shows approvers, reviewers and the request scope', async () => {
+    mount();
+    expect(await screen.findByRole('button', { name: 'Carla Cash' })).toBeInTheDocument();
+    expect(screen.getByText("The person's manager")).toBeInTheDocument();
+    expect(screen.getByText('stage 2')).toBeInTheDocument();
+    expect(screen.getByText('fallback')).toBeInTheDocument();
+    expect(screen.getByText('(user.jobTitle -eq "x")')).toBeInTheDocument();
+  });
+
+  it('opens the person, the group and the matched context', async () => {
+    const { onOpenDetail, user } = mount();
+    await user.click(await screen.findByRole('button', { name: 'Carla Cash' }));
+    await user.click(screen.getByRole('button', { name: 'SG-Sales' }));
+    await user.click(screen.getByRole('button', { name: 'Sales team' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('user', 'u9', 'Carla Cash');
+    expect(onOpenDetail).toHaveBeenCalledWith('resource', 'g7', 'SG-Sales');
+    expect(onOpenDetail).toHaveBeenCalledWith('context', 'c1', 'Sales team');
+  });
+
+  it('says when a part is empty', async () => {
+    mount([]);
+    expect(await screen.findByText('No approvers named.')).toBeInTheDocument();
+    expect(screen.getByText('No reviewers named.')).toBeInTheDocument();
+    expect(screen.getByText('Nobody can request this role.')).toBeInTheDocument();
+  });
+
+  it('shows a load failure', async () => {
+    const authFetch = makeAuthFetch(() => jsonResponse({ error: 'x' }, { ok: false, status: 500 }));
+    renderWithProviders(h(BusinessRoleParticipants, { roleId: ID }), { auth: { authFetch } });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load');
+  });
+});
+
+describe('People who need a review', () => {
+  const rows = [
+    { principalId: 'u1', targetDisplayName: 'Ann Rule', howHeld: ['Rule'], automatic: true },
+    { principalId: 'u2', targetDisplayName: 'Bo Request', howHeld: ['Request'], automatic: false },
+  ];
+
+  it('marks and filters them on a Manual role', async () => {
+    renderWithProviders(h(BusinessRoleMembers, { roleId: ID, control: 'Manual' }), { auth: { authFetch: api({ members: rows }) } });
+    const user = userEvent.setup();
+    const bo = (await screen.findByText('Bo Request')).closest('tr');
+    expect(within(bo).getByText('needs review')).toBeInTheDocument();
+    expect(within(screen.getByText('Ann Rule').closest('tr')).queryByText('needs review')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Needs review (1)' }));
+    expect(screen.queryByText('Ann Rule')).toBeNull();
+  });
+
+  it('marks nobody on a rule-only role', async () => {
+    renderWithProviders(h(BusinessRoleMembers, { roleId: ID, control: 'Automatic' }), { auth: { authFetch: api({ members: rows }) } });
+    await screen.findByText('Bo Request');
+    expect(screen.queryByText('needs review')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Needs review/ })).toBeNull();
   });
 });
 

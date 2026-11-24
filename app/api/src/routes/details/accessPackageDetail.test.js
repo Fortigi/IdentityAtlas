@@ -3,8 +3,31 @@
 // The DB-bound fetch helpers are covered through details.test.js +
 // accessPackageDetail.contract.test.js.
 
-import { describe, it, expect } from 'vitest';
-import { deriveAssignmentType, deriveCompliance, fetchAccessModel } from './accessPackageDetail.js';
+import { describe, it, expect, vi } from 'vitest';
+import { deriveAssignmentType, deriveCompliance, fetchAccessModel, fetchAutomaticHolderCount } from './accessPackageDetail.js';
+
+describe('fetchAutomaticHolderCount', () => {
+  it('returns the count', async () => {
+    const pool = { query: async () => ({ rows: [{ cnt: 7 }] }) };
+    expect(await fetchAutomaticHolderCount(pool, {}, 'ap')).toBe(7);
+  });
+
+  it('counts only policies that both add and remove by rule', async () => {
+    const query = vi.fn(async () => ({ rows: [{ cnt: 0 }] }));
+    await fetchAutomaticHolderCount({ query }, {}, 'ap');
+    expect(query.mock.calls[0][0]).toContain('p."hasAutoAddRule" AND p."hasAutoRemoveRule"');
+  });
+
+  it('is 0 when the table is missing', async () => {
+    const pool = { query: async () => { throw Object.assign(new Error('x'), { code: '42P01' }); } };
+    expect(await fetchAutomaticHolderCount(pool, {}, 'ap')).toBe(0);
+  });
+
+  it('rethrows any other error', async () => {
+    const pool = { query: async () => { throw Object.assign(new Error('boom'), { code: '57014' }); } };
+    await expect(fetchAutomaticHolderCount(pool, {}, 'ap')).rejects.toThrow('boom');
+  });
+});
 
 describe('fetchAccessModel', () => {
   const res = {};

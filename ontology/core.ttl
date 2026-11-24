@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.5.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.5.0> ;
+    owl:versionInfo "2.6.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/2.6.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -517,6 +517,19 @@ ia:Accountability_Shared a owl:NamedIndividual, ia:Accountability ; ia:typeValue
 ia:Accountability_Autonomous a owl:NamedIndividual, ia:Accountability ; ia:typeValue "Autonomous" ;
     rdfs:label "Autonomous" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Acts on its own permissions; answered for through an Owner or Sponsor link." .
+
+ia:BusinessRoleControl a owl:Class ;
+    rdfs:label "Business role control" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The primary distinction between business roles: whether anyone decides who holds it. Derived from its ways in and out (ia:AccessWayIn, ia:AccessWayOut), not stored." .
+ia:BusinessRoleControl_Automatic a owl:NamedIndividual, ia:BusinessRoleControl ; ia:typeValue "Automatic" ;
+    rdfs:label "Automatic" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Only a rule hands the role out and a rule takes it away. No person decides, so no regular review of who holds it is needed." .
+ia:BusinessRoleControl_Manual a owl:NamedIndividual, ia:BusinessRoleControl ; ia:typeValue "Manual" ;
+    rdfs:label "Manual" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Anything else: someone requests, assigns or has to remove it. Needs a regular review of at least the part that is not automatically assigned and removed." .
+ia:BusinessRoleControl_Unknown a owl:NamedIndividual, ia:BusinessRoleControl ; ia:typeValue "Unknown" ;
+    rdfs:label "Unknown" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source does not say enough to tell." .
 
 ia:AccessWayIn a owl:Class ;
     rdfs:label "Way into a business role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;

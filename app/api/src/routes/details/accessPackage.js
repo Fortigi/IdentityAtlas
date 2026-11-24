@@ -14,9 +14,9 @@ import { useSql, UUID_RE, cleanRow, fetchHistory } from './shared.js';
 import {
   fetchApAttributes, fetchAssignmentCount, fetchGroupCount, fetchReviewCount,
   fetchPendingRequestCount, fetchLastReview, fetchComplianceStatus,
-  fetchPolicySummary, deriveAssignmentType, fetchAccessModel, fetchCategory, fetchHistoryCount,
+  fetchPolicySummary, deriveAssignmentType, fetchAccessModel, fetchAutomaticHolderCount, fetchCategory, fetchHistoryCount,
 } from './accessPackageDetail.js';
-import { deriveHowHeld } from '../../lib/businessRoleAccessModel.js';
+import { deriveControl, deriveHowHeld, isAutomaticHolder } from '../../lib/businessRoleAccessModel.js';
 
 const router = Router();
 
@@ -46,11 +46,13 @@ router.get('/access-package/:id', async (req, res) => {
     const { complianceStatus, daysOverdue } = await fetchComplianceStatus(apId);
     const { policyCount, autoAddPolicyCount, autoRemovePolicyCount } = await fetchPolicySummary(pool, res, apId);
     const assignmentType = deriveAssignmentType({ policyCount, autoAddPolicyCount, autoRemovePolicyCount });
-    const accessModel = await fetchAccessModel(pool, res, apId);
+    const ways = await fetchAccessModel(pool, res, apId);
+    const accessModel = { ...ways, ...deriveControl(ways) };
+    const automaticHolderCount = await fetchAutomaticHolderCount(pool, res, apId);
     const category = await fetchCategory(pool, res, apId);
     const historyCount = await fetchHistoryCount(apId);
 
-    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, accessModel, category });
+    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, accessModel, automaticHolderCount, category });
   } catch (err) {
     console.error('Error fetching access package detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch access package details' });
@@ -91,7 +93,7 @@ router.get('/access-package/:id/assignments', async (req, res) => {
         LEFT JOIN LATERAL (
           SELECT jsonb_agg(jsonb_build_object(
                    'policyId', p.id, 'displayName', p."displayName",
-                   'inRule', p."hasAutoAddRule", 'inRequest', p."allowsRequest", 'inAssigned', p."allowsDirectAssignment"
+                   'inRule', p."hasAutoAddRule", 'outRule', p."hasAutoRemoveRule", 'inRequest', p."allowsRequest", 'inAssigned', p."allowsDirectAssignment"
                  ) ORDER BY p."displayName") AS via
             FROM "AssignmentPolicies" p
            WHERE p."resourceId" = a."resourceId"
@@ -106,7 +108,7 @@ router.get('/access-package/:id/assignments', async (req, res) => {
       console.error('ap-assignments failed:', e.message);
       r = { rows: [] };
     }
-    res.json(r.rows.map(row => ({ ...row, howHeld: deriveHowHeld(row) })));
+    res.json(r.rows.map(row => ({ ...row, howHeld: deriveHowHeld(row), automatic: isAutomaticHolder(row) })));
   } catch {
     res.json([]);
   }

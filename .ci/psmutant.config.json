@@ -152,11 +152,15 @@
     "tools/powershell-sdk/graph/Get-FGAccessTokenManagedIdentity.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.GroupDelta.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AccessReviews.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.GovernanceParticipants.ps1",
     "tools/crawlers/omada/OmadaCrawler.BusinessRoleOwners.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.GovernanceRequests.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.GovernanceOrigin.ps1"
   ],
   "tests": {
+    "tools/crawlers/entra-id/EntraIDCrawler.GovernanceParticipants.ps1": [
+      "test/unit/EntraIDCrawlerGovernanceParticipants.Tests.ps1"
+    ],
     "tools/crawlers/omada/OmadaCrawler.BusinessRoleOwners.ps1": [
       "test/unit/OmadaCrawlerBusinessRoleOwners.Tests.ps1"
     ],

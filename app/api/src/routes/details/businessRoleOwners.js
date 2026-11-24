@@ -2,6 +2,7 @@
 //
 //   GET    /api/access-package/:id/owners
 //   GET    /api/access-package/:id/owners/suggestions
+//   GET    /api/access-package/:id/participants       approvers, reviewers, request scope
 //   PUT    /api/access-package/:id/owners             { role, principalId | identityId }
 //   DELETE /api/access-package/:id/owners/:ownerId
 //   POST   /api/access-package/:id/owners/suggestions/reject  { role, principalId }
@@ -18,6 +19,7 @@ import {
   loadBusinessRoleOwners, setBusinessRoleOwner, removeBusinessRoleOwner, isBusinessRole,
 } from '../../lib/businessRoleOwners.js';
 import { suggestBusinessRoleOwners } from '../../lib/businessRoleOwnerSuggestion.js';
+import { loadParticipants, withPolicyResponsible } from '../../lib/businessRolePeople.js';
 
 const router = Router();
 
@@ -39,14 +41,21 @@ const failed = (res, label, err) => {
 };
 
 router.get('/access-package/:id/owners', requireRole, async (req, res) => {
-  try { res.json(await loadBusinessRoleOwners(req.params.id)); }
-  catch (err) { failed(res, 'Loading the owners', err); }
+  try {
+    const [owners, participants] = await Promise.all([loadBusinessRoleOwners(req.params.id), loadParticipants(req.params.id)]);
+    res.json(withPolicyResponsible(owners, participants));
+  } catch (err) { failed(res, 'Loading the owners', err); }
+});
+
+router.get('/access-package/:id/participants', requireRole, async (req, res) => {
+  try { res.json(await loadParticipants(req.params.id)); }
+  catch (err) { failed(res, 'Loading approvers and reviewers', err); }
 });
 
 router.get('/access-package/:id/owners/suggestions', requireRole, async (req, res) => {
   try {
-    const owners = await loadBusinessRoleOwners(req.params.id);
-    res.json(await suggestBusinessRoleOwners(req.params.id, owners));
+    const [stored, participants] = await Promise.all([loadBusinessRoleOwners(req.params.id), loadParticipants(req.params.id)]);
+    res.json(await suggestBusinessRoleOwners(req.params.id, withPolicyResponsible(stored, participants), participants));
   } catch (err) { failed(res, 'Suggesting owners', err); }
 });
 
