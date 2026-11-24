@@ -1,19 +1,30 @@
 // The unit report's "Team roles" tab: the team overview's matrix in the workbook
-// (business roles down, direct members across, how each role was assigned, and
-// each person's ungoverned count), from the same read as the screen
+// (business roles down with their type and last review, direct members across,
+// a tick where someone holds a role, and each person's ungoverned count), from the same read as the screen
 // (contexts/teamOverview.js loadTeamGrid), so the two cannot disagree.
 
 import { loadTeamGrid, MAX_TEAM } from '../contexts/teamOverview.js';
 
-const MARKS = {
+// A role's type is a property of the role, so it is a column, not a mark per person.
+const TYPES = {
   Automatic: { value: 'Rule based', tone: 'automatic' },
   Manual: { value: 'Manual', tone: 'manual' },
 };
-const NOT_RECORDED = { value: 'Unknown', tone: 'unknown' };
+const UNKNOWN_TYPE = { value: 'Unknown', tone: 'unknown' };
+const HELD = { value: '✓', tone: 'held' };
 
-export const MATRIX_NOTE = 'Rule based: a rule adds and removes it, so no periodic review of who holds it. '
-  + 'Manual: requested and approved, or assigned; needs a periodic review. Unknown: the source does not say. '
+export const MATRIX_NOTE = 'Type: Rule based means a rule adds and removes people, so no periodic review of who holds it; '
+  + 'Manual means requested and approved, or assigned, and needs a periodic review; Unknown means the source does not say. '
+  + 'Review status: the newest review of the role, as on the Business Roles list. ✓: this person holds the role. '
   + 'Ungoverned: access that no business role of this person explains, directly or through a group in one of their roles.';
+
+/** The Review Status words of the Business Roles list, for one role. Pure. */
+export function reviewCell(review = {}) {
+  const { complianceStatus, daysOverdue, hasReviewConfigured } = review;
+  if (complianceStatus === 'Missed') return { value: daysOverdue > 0 ? `Missed (${daysOverdue}d ago)` : 'Missed', tone: 'missed' };
+  if (complianceStatus) return { value: complianceStatus };
+  return { value: hasReviewConfigured ? 'Pending first review' : 'Not required' };
+}
 
 /** The matrix `reports/xlsxMatrix.js` writes. Pure. */
 export function teamRoleMatrix(unitName, { people, roles }) {
@@ -22,12 +33,16 @@ export function teamRoleMatrix(unitName, { people, roles }) {
     title: `Business roles: ${unitName}`,
     note: MATRIX_NOTE,
     corner: 'Business role',
-    columns: people.map(p => p.displayName),
+    columns: ['Type', 'Review status', ...people.map(p => p.displayName)],
     rows: roles.map(role => ({
       label: role.displayName,
-      cells: people.map(p => (role.holders.includes(p.id) ? (MARKS[role.origins?.[p.id]?.control] || NOT_RECORDED) : null)),
+      cells: [
+        TYPES[role.accessModel?.control] || UNKNOWN_TYPE,
+        reviewCell(role.review),
+        ...people.map(p => (role.holders.includes(p.id) ? HELD : null)),
+      ],
     })),
-    footer: [{ label: 'Ungoverned permissions', cells: people.map(p => p.ungoverned) }],
+    footer: [{ label: 'Ungoverned permissions', cells: [null, null, ...people.map(p => p.ungoverned)] }],
   };
 }
 

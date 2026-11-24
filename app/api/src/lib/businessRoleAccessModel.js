@@ -58,35 +58,40 @@ export function deriveControl({ waysIn = [], waysOut = [] } = {}) {
   return { control: 'Manual', reviewRequired: true, reviewGap: !waysOut.includes('Review') };
 }
 
-// The primary type of each of these roles: resourceId → control.
+// The ways in and out and the primary type of each of these roles.
 export const ROLE_CONTROL_SQL = `
     SELECT "resourceId", COUNT(*)::int AS "policyCount", ${ACCESS_MODEL_AGGREGATES}
       FROM "AssignmentPolicies"
      WHERE "resourceId" = ANY($1::uuid[])
      GROUP BY "resourceId"`;
 
-export function roleControls(rows) {
-  return new Map(rows.map(r => [r.resourceId, deriveControl(deriveAccessModel(r)).control]));
-}
+// How many people hold a role and how many resources it contains, counted the
+// same way on the list and on the role's page. A holder is a live, delivered
+// assignment of a live account, counted once however it is held (Direct and
+// Eligible are one person); a resource deleted in the source is history.
+// `roleId` is the SQL for the role's id.
+export const holderCountSql = (roleId) => `(
+    SELECT COUNT(DISTINCT a."principalId")::int
+      FROM "ResourceAssignments" a
+     WHERE a."resourceId" = ${roleId}
+       AND a."deletedAt" IS NULL
+       AND (LOWER(a.state) = 'delivered' OR a.state IS NULL)
+       AND NOT EXISTS (SELECT 1 FROM "Principals" p
+                        WHERE p.id = a."principalId" AND p."deletedAt" IS NOT NULL))`;
 
-// What the policies behind one assignment say, as SQL: Automatic when one of
-// them adds and removes by rule, Manual when they are linked but none does, NULL
-// when the assignment names no policy. `a` has "policyId" and "policyIds" (the
-// assignmentPolicyIds list); `resource` is the role's id expression.
-export const linkedHolderControlSql = (a, resource) => `(
-      SELECT CASE WHEN bool_or(p."hasAutoAddRule" AND p."hasAutoRemoveRule") THEN 'Automatic' ELSE 'Manual' END
-        FROM "AssignmentPolicies" p
-       WHERE p."resourceId" = ${resource}
-         AND (p.id = ${a}."policyId" OR COALESCE(${a}."policyIds", '[]'::jsonb) ? p.id::text)
-       HAVING COUNT(*) > 0)`;
+export const resourceCountSql = (roleId) => `(
+    SELECT COUNT(DISTINCT rrs."childResourceId")::int
+      FROM "ResourceRelationships" rrs
+     WHERE rrs."parentResourceId" = ${roleId} AND rrs."relationshipType" = 'Contains'
+       AND NOT EXISTS (SELECT 1 FROM "Resources" r
+                        WHERE r.id = rrs."childResourceId" AND r."deletedAt" IS NOT NULL))`;
 
-// One person's primary type for one role: what their own policies say, else the
-// role's. A role nobody can tell about is still Manual for someone whose access
-// the source says was requested.
-export function holderControl({ linked, roleControl, origin } = {}) {
-  if (linked === 'Automatic' || linked === 'Manual') return linked;
-  if (roleControl === 'Automatic' || roleControl === 'Manual') return roleControl;
-  return origin === 'Requested' ? 'Manual' : 'Unknown';
+/** resourceId → { waysIn, waysOut, control, reviewRequired, reviewGap }, as the list sends. Pure. */
+export function roleAccessModels(rows) {
+  return new Map(rows.map((r) => {
+    const model = deriveAccessModel(r);
+    return [r.resourceId, { ...model, ...deriveControl(model) }];
+  }));
 }
 
 // A person is held automatically when a policy both adds and removes them by

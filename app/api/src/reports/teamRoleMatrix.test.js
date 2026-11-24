@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ExcelJS from 'exceljs';
-import { teamRoleMatrix, unitRoleMatrices, MATRIX_NOTE } from './teamRoleMatrix.js';
+import { teamRoleMatrix, unitRoleMatrices, reviewCell, MATRIX_NOTE } from './teamRoleMatrix.js';
 import { EXPORT_FORMATS } from './export.js';
 import { TEAM_ACCOUNTS_SQL, TEAM_HOLDINGS_SQL, MAX_TEAM } from '../contexts/teamOverview.js';
+import { ROLE_CONTROL_SQL } from '../lib/businessRoleAccessModel.js';
 
 const PEOPLE = [
   { id: 'a', displayName: 'Ann Vos', ungoverned: 4 },
@@ -10,21 +11,38 @@ const PEOPLE = [
   { id: 'c', displayName: 'Cas Dam', ungoverned: 2 },
 ];
 const ROLES = [{
-  id: 'r1', displayName: 'Finance', holders: ['a', 'b', 'c'],
-  origins: { a: { control: 'Automatic' }, b: { control: 'Manual' }, c: { control: 'Unknown' } },
-}, { id: 'r2', displayName: 'Audit', holders: ['b'], origins: { b: {} } }];
+  id: 'r1', displayName: 'Finance', holders: ['a', 'c'], origins: {},
+  accessModel: { control: 'Manual' }, review: { complianceStatus: 'Missed', daysOverdue: 12 },
+}, {
+  id: 'r2', displayName: 'Audit', holders: ['b'], origins: {},
+  accessModel: { control: 'Automatic' }, review: { complianceStatus: null, hasReviewConfigured: false },
+}, { id: 'r3', displayName: 'Old', holders: ['a'], origins: {} }];
+
+const TICK = { value: '✓', tone: 'held' };
 
 describe('teamRoleMatrix', () => {
-  it('says per person how each role was assigned, and leaves the rest empty', () => {
+  it('gives each role its type and review once, and ticks who holds it', () => {
     const m = teamRoleMatrix('CTO', { people: PEOPLE, roles: ROLES });
     expect(m.title).toBe('Business roles: CTO');
-    expect(m.columns).toEqual(['Ann Vos', 'Bob Kok', 'Cas Dam']);
+    expect(m.columns).toEqual(['Type', 'Review status', 'Ann Vos', 'Bob Kok', 'Cas Dam']);
     expect(m.rows[0]).toEqual({ label: 'Finance', cells: [
-      { value: 'Rule based', tone: 'automatic' }, { value: 'Manual', tone: 'manual' }, { value: 'Unknown', tone: 'unknown' },
+      { value: 'Manual', tone: 'manual' }, { value: 'Missed (12d ago)', tone: 'missed' }, TICK, null, TICK,
     ] });
-    expect(m.rows[1].cells).toEqual([null, { value: 'Unknown', tone: 'unknown' }, null]);
-    expect(m.footer).toEqual([{ label: 'Ungoverned permissions', cells: [4, 0, 2] }]);
+    expect(m.rows[1].cells).toEqual([{ value: 'Rule based', tone: 'automatic' }, { value: 'Not required' }, null, TICK, null]);
+    expect(m.rows[2].cells.slice(0, 2)).toEqual([{ value: 'Unknown', tone: 'unknown' }, { value: 'Not required' }]);
+    expect(m.footer).toEqual([{ label: 'Ungoverned permissions', cells: [null, null, 4, 0, 2] }]);
   });
+});
+
+describe('reviewCell', () => {
+  it.each([
+    [{ complianceStatus: 'Missed', daysOverdue: 3 }, { value: 'Missed (3d ago)', tone: 'missed' }],
+    [{ complianceStatus: 'Missed', daysOverdue: 0 }, { value: 'Missed', tone: 'missed' }],
+    [{ complianceStatus: 'Compliant' }, { value: 'Compliant' }],
+    [{ complianceStatus: null, hasReviewConfigured: true }, { value: 'Pending first review' }],
+    [{ complianceStatus: null, hasReviewConfigured: false }, { value: 'Not required' }],
+    [undefined, { value: 'Not required' }],
+  ])('%j → %j', (review, cell) => expect(reviewCell(review)).toEqual(cell));
 });
 
 describe('unitRoleMatrices', () => {
@@ -40,13 +58,14 @@ describe('unitRoleMatrices', () => {
   it('leaves out someone marked former and reads the rest', async () => {
     const db = { query: vi.fn(async (sql) => {
       if (sql === TEAM_ACCOUNTS_SQL) return { rows: [{ memberId: 'a', accountId: 'a', identityId: null }] };
-      if (sql === TEAM_HOLDINGS_SQL) return { rows: [{ memberId: 'a', permissions: 3, ungoverned: 1, roles: [{ id: 'r', displayName: 'Finance', origin: 'Automatic', linked: 'Automatic' }] }] };
+      if (sql === TEAM_HOLDINGS_SQL) return { rows: [{ memberId: 'a', permissions: 3, ungoverned: 1, roles: [{ id: 'r', displayName: 'Finance', origin: 'Automatic' }] }] };
+      if (sql === ROLE_CONTROL_SQL) return { rows: [{ resourceId: 'r', policyCount: 1, inRule: true, outRule: true }] };
       return { rows: [] };
     }) };
     const { matrices } = await unitRoleMatrices(db, unit, 'Principal', [{ id: 'a', displayName: 'Ann' }, { id: 'z', displayName: 'Zed', markedFormer: true }]);
-    expect(matrices[0].columns).toEqual(['Ann']);
-    expect(matrices[0].rows[0].cells).toEqual([{ value: 'Rule based', tone: 'automatic' }]);
-    expect(matrices[0].footer[0].cells).toEqual([1]);
+    expect(matrices[0].columns).toEqual(['Type', 'Review status', 'Ann']);
+    expect(matrices[0].rows[0].cells).toEqual([{ value: 'Rule based', tone: 'automatic' }, { value: 'Not required' }, TICK]);
+    expect(matrices[0].footer[0].cells).toEqual([null, null, 1]);
     expect(db.query.mock.calls[0][1]).toEqual([['a', 'z'].slice(0, 1)]);
   });
 
@@ -68,7 +87,7 @@ describe('unitRoleMatrices', () => {
 });
 
 describe('the Team roles tab in the workbook', () => {
-  it('comes right after the Summary, with the marks and counts in their cells', async () => {
+  it('comes right after the Summary, with the type, review, ticks and counts in their cells', async () => {
     const matrix = teamRoleMatrix('CTO', { people: PEOPLE, roles: ROLES });
     const buffer = await EXPORT_FORMATS.xlsx.serialize({
       displayName: 'Unit report', columns: [{ key: 'n', label: 'Name' }], rows: [{ n: 'Ann' }], total: 1, matrices: [matrix],
@@ -79,12 +98,15 @@ describe('the Team roles tab in the workbook', () => {
     const s = wb.getWorksheet('Team roles');
     expect(s.getCell('A1').value).toBe('Business roles: CTO');
     expect(s.getCell('A2').value).toBe(MATRIX_NOTE);
-    expect(s.getRow(4).values.slice(1)).toEqual(['Business role', 'Ann Vos', 'Bob Kok', 'Cas Dam']);
-    expect(s.getRow(5).values.slice(1)).toEqual(['Finance', 'Rule based', 'Manual', 'Unknown']);
-    expect(s.getCell('B6').value).toBeNull();
-    expect(s.getCell('C6').value).toBe('Unknown');
-    expect(s.getRow(7).values.slice(1)).toEqual(['Ungoverned permissions', 4, 0, 2]);
-    expect(s.getCell('C5').fill.fgColor.argb).toBe('FFFEF3C7');
+    expect(s.getRow(4).values.slice(1)).toEqual(['Business role', 'Type', 'Review status', 'Ann Vos', 'Bob Kok', 'Cas Dam']);
+    expect(s.getRow(5).values.slice(1)).toEqual(['Finance', 'Manual', 'Missed (12d ago)', '✓', undefined, '✓']);
+    expect(s.getCell('E5').value).toBeNull();
+    expect(s.getCell('B6').value).toBe('Rule based');
+    expect(s.getRow(8).values.slice(4)).toEqual([4, 0, 2]);
+    expect(s.getCell('B5').fill.fgColor.argb).toBe('FFFEF3C7');
+    expect(s.getCell('B6').fill.fgColor.argb).toBe('FFDCFCE7');
+    expect(s.getCell('C5').fill.fgColor.argb).toBe('FFFEE2E2');
+    expect(s.getCell('D5').fill.fgColor.argb).toBe('FFDBEAFE');
   });
 
   it('a report without a matrix keeps its tabs', async () => {

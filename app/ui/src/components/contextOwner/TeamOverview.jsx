@@ -1,17 +1,20 @@
 // The team at a glance, for the person who answers for a unit: business roles
-// down, direct team members across, whether each role is rule based or manual
-// for that person, what no role covers per person (click for the list), and who
-// joined, left or changed role lately. The grid leaves out what is inside a role;
+// down with their type and last review (as on the Business Roles list; the type
+// belongs to the role, not to a holder), direct team members across with a tick
+// where someone holds a role, what no role covers per person (click for the
+// list), and who joined, left or changed role lately. The grid leaves out what is inside a role;
 // a role's name opens its own page, which shows that.
 // Data: GET /api/contexts/:id/team-overview (app/api/src/contexts/teamOverview.js).
 
 import { Fragment, useState } from 'react';
 import EntityLink from '@ui/components/EntityLink';
 import { formatDateOnly } from '@ui/utils/formatters';
+import HeldTick from '@ui/components/HeldTick';
+import RoleTypeCell from '@ui/components/businessRoles/RoleTypeCell';
+import ComplianceStatusCell from '@ui/components/accessPackages/ComplianceStatusCell';
 import UngovernedPanel from './UngovernedPanel';
 import {
-  changeSentence, changeTone, groupChanges, nameSeparator, ungovernedLabel,
-  ORIGIN_KINDS, originKind, originKindsIn, roleMarkLabel,
+  changeSentence, changeTone, groupChanges, nameSeparator, ungovernedLabel, roleMarkLabel,
 } from './teamOverview.helpers';
 
 const CARD = 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6';
@@ -20,6 +23,12 @@ const NOTE = 'text-sm text-gray-600 dark:text-gray-400';
 const STICKY = 'sticky left-0 z-10 bg-white dark:bg-gray-800';
 const PERSON_LINK = 'font-medium text-gray-900 hover:text-blue-700 hover:underline dark:text-gray-100 dark:hover:text-blue-300';
 
+// A person's name read bottom to top, as the roles on an application's page, so
+// a whole team fits side by side.
+const VERTICAL = 'inline-block max-h-40 rotate-180 truncate whitespace-nowrap [writing-mode:vertical-rl]';
+
+const COLUMN_HEAD = 'py-2 pr-4 text-left align-bottom text-xs font-medium text-gray-600 dark:text-gray-400';
+
 const ROLE_LINK = 'text-left text-blue-700 hover:underline dark:text-blue-300';
 
 const TONES = {
@@ -27,43 +36,9 @@ const TONES = {
   removed: 'bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200',
 };
 
-// Told apart by shape as well as colour: a lightning bolt for a rule, a person for a decision.
-const MARKS = {
-  automatic: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200', path: 'M11 2 4 11.5h5L8 18l8-10h-5l1-6Z', fill: true },
-  manual: { cls: 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-500', path: 'M10 9.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM3.5 17c.6-3.4 3.2-5 6.5-5s5.900 1.600 6.500 5' },
-  unknown: { cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200', path: 'M4 10.500l4 4 8-9' },
-};
-
-function OriginIcon({ kind }) {
-  const mark = MARKS[kind];
-  return (
-    <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${mark.cls}`}>
-      <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill={mark.fill ? 'currentColor' : 'none'} stroke={mark.fill ? 'none' : 'currentColor'} strokeWidth="2" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d={mark.path} />
-      </svg>
-    </span>
-  );
-}
-
 function HeldMark({ held, role, person }) {
   if (!held) return <span className="sr-only">{person} does not hold {role}</span>;
-  const label = roleMarkLabel(person, role, held);
-  return <span role="img" aria-label={label} title={label} className="inline-flex"><OriginIcon kind={originKind(held.control)} /></span>;
-}
-
-function OriginLegend({ roles }) {
-  const kinds = originKindsIn(roles);
-  if (kinds.length === 0) return null;
-  return (
-    <ul aria-label="How a role is assigned" className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
-      {kinds.map(k => (
-        <li key={k} className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
-          <OriginIcon kind={k} />
-          <span><span className="font-medium">{ORIGIN_KINDS[k].label}</span>: {ORIGIN_KINDS[k].help}</span>
-        </li>
-      ))}
-    </ul>
-  );
+  return <HeldTick label={roleMarkLabel(person, role, held)} />;
 }
 
 function UngovernedCount({ person, onOpen }) {
@@ -86,10 +61,14 @@ function RoleMatrix({ people, roles, onOpenDetail, onOpenUngoverned }) {
         <caption className="sr-only">Business roles per team member</caption>
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            <th scope="col" className={`${STICKY} min-w-56 py-2 pr-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400`}>Business role</th>
+            <th scope="col" className={`${STICKY} min-w-56 py-2 pr-4 text-left align-bottom text-xs font-medium text-gray-600 dark:text-gray-400`}>Business role</th>
+            <th scope="col" className={COLUMN_HEAD}>Type</th>
+            <th scope="col" className={COLUMN_HEAD}>Review status</th>
             {people.map(p => (
-              <th key={p.id} scope="col" className="min-w-24 px-2 py-2 text-center align-bottom text-xs font-medium leading-tight">
-                <EntityLink kind={p.kind} id={p.id} label={p.displayName} accessible={p.accessible} onOpenDetail={onOpenDetail} className={PERSON_LINK} />
+              <th key={p.id} scope="col" className="w-10 px-1 py-2 text-center align-bottom text-xs font-medium">
+                <span title={p.displayName} className={VERTICAL}>
+                  <EntityLink kind={p.kind} id={p.id} label={p.displayName} accessible={p.accessible} onOpenDetail={onOpenDetail} className={PERSON_LINK} />
+                </span>
               </th>
             ))}
           </tr>
@@ -100,15 +79,17 @@ function RoleMatrix({ people, roles, onOpenDetail, onOpenUngoverned }) {
               <th scope="row" className={`${STICKY} py-2 pr-4 text-left font-normal text-gray-900 dark:text-gray-100`}>
                 <EntityLink kind="access-package" id={role.id} label={role.displayName} accessible={role.accessible} onOpenDetail={onOpenDetail} className={ROLE_LINK} />
               </th>
+              <td className="py-1.5 pr-4"><RoleTypeCell accessModel={role.accessModel} /></td>
+              <td className="py-1.5 pr-4 text-xs"><ComplianceStatusCell ap={role.review || {}} /></td>
               {people.map(p => (
-                <td key={p.id} className="px-2 py-1.5 text-center">
+                <td key={p.id} className="px-1 py-1.5 text-center">
                   <HeldMark held={role.holders.includes(p.id) ? (role.origins?.[p.id] || {}) : null} role={role.displayName} person={p.displayName} />
                 </td>
               ))}
             </tr>
           ))}
           {roles.length === 0 && (
-            <tr><td colSpan={people.length + 1} className={`${NOTE} py-3`}>Nobody in this team holds a business role yet.</td></tr>
+            <tr><td colSpan={people.length + 3} className={`${NOTE} py-3`}>Nobody in this team holds a business role yet.</td></tr>
           )}
         </tbody>
         <tfoot>
@@ -117,7 +98,8 @@ function RoleMatrix({ people, roles, onOpenDetail, onOpenUngoverned }) {
               Ungoverned permissions
               <span className="block text-xs font-normal text-gray-600 dark:text-gray-400">Access no business role explains. Click a number to see it.</span>
             </th>
-            {people.map(p => <td key={p.id} className="px-2 py-2.5 text-center"><UngovernedCount person={p} onOpen={onOpenUngoverned} /></td>)}
+            <td colSpan={2} />
+            {people.map(p => <td key={p.id} className="px-1 py-2.5 text-center"><UngovernedCount person={p} onOpen={onOpenUngoverned} /></td>)}
           </tr>
         </tfoot>
       </table>
@@ -153,8 +135,7 @@ export default function TeamOverview({ contextId, overview, onOpenDetail }) {
     <>
       <section aria-label="Your team" className={CARD}>
         <h2 className={HEADING}>Your team <span className="ml-1 text-sm font-normal text-gray-600 dark:text-gray-400">{totalPeople} {totalPeople === 1 ? 'person' : 'people'}</span></h2>
-        <p className={NOTE}>Which business roles your direct team members hold, and how they got them.</p>
-        <OriginLegend roles={roles} />
+        <p className={NOTE}>Which business roles your direct team members hold, what kind of role each is, and how its last review went.</p>
         {people.length === 0
           ? <p className={`${NOTE} mt-4`}>Nobody is in this team right now.</p>
           : <RoleMatrix people={people} roles={roles} onOpenDetail={onOpenDetail} onOpenUngoverned={setUngovernedOf} />}

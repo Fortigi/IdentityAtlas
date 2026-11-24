@@ -1,50 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
-  deriveAccessModel, deriveControl, deriveHowHeld, isAutomaticHolder, holderControl, roleControls, linkedHolderControlSql,
-  ROLE_CONTROL_SQL, ACCESS_MODEL_AGGREGATES,
+  deriveAccessModel, deriveControl, deriveHowHeld, isAutomaticHolder, roleAccessModels,
+  ROLE_CONTROL_SQL, ACCESS_MODEL_AGGREGATES, holderCountSql, resourceCountSql,
 } from './businessRoleAccessModel.js';
 
-describe('holderControl', () => {
-  it.each([
-    [{ linked: 'Automatic', roleControl: 'Manual' }, 'Automatic'],
-    [{ linked: 'Manual', roleControl: 'Automatic' }, 'Manual'],
-    [{ linked: null, roleControl: 'Automatic', origin: 'Requested' }, 'Automatic'],
-    [{ linked: null, roleControl: 'Manual' }, 'Manual'],
-    [{ linked: null, roleControl: 'Unknown', origin: 'Requested' }, 'Manual'],
-    [{ linked: null, roleControl: 'Unknown', origin: 'Automatic' }, 'Unknown'],
-    [{ linked: 'weird', roleControl: undefined }, 'Unknown'],
-    [undefined, 'Unknown'],
-  ])('%j → %s', (input, out) => expect(holderControl(input)).toBe(out));
-});
-
-describe('roleControls', () => {
-  it('derives the primary type of each role', () => {
-    const map = roleControls([
+describe('roleAccessModels', () => {
+  it('derives the ways in and out and the primary type of each role', () => {
+    const map = roleAccessModels([
       { resourceId: 'auto', policyCount: 1, inRule: true, outRule: true },
       { resourceId: 'manual', policyCount: 2, inRule: true, inRequest: true, outRule: true },
       { resourceId: 'none', policyCount: 0 },
     ]);
-    expect([...map]).toEqual([['auto', 'Automatic'], ['manual', 'Manual'], ['none', 'Unknown']]);
+    expect([...map].map(([id, m]) => [id, m.control])).toEqual([['auto', 'Automatic'], ['manual', 'Manual'], ['none', 'Unknown']]);
+    expect(map.get('manual')).toEqual({ waysIn: ['Rule', 'Request'], waysOut: ['Rule'], control: 'Manual', reviewRequired: true, reviewGap: true });
   });
 
   it('reads the roles it is given, grouped per role', () => {
     expect(ROLE_CONTROL_SQL).toContain('"resourceId" = ANY($1::uuid[])');
     expect(ROLE_CONTROL_SQL).toContain('GROUP BY "resourceId"');
-  });
-});
-
-describe('linkedHolderControlSql', () => {
-  const sql = linkedHolderControlSql('h', 'r.id');
-  it('is Automatic only for a policy that adds and removes by rule', () => {
-    expect(sql).toContain('bool_or(p."hasAutoAddRule" AND p."hasAutoRemoveRule")');
-  });
-  it('looks only at the policies behind this assignment, of this role', () => {
-    expect(sql).toContain('p."resourceId" = r.id');
-    expect(sql).toContain('p.id = h."policyId"');
-    expect(sql).toContain('COALESCE(h."policyIds", \'[]\'::jsonb) ? p.id::text');
-  });
-  it('is NULL, not Manual, when no policy is linked', () => {
-    expect(sql).toContain('HAVING COUNT(*) > 0');
   });
 });
 
@@ -182,5 +155,33 @@ describe('ACCESS_MODEL_AGGREGATES', () => {
   ])('maps %s to %s without turning NULL into false', (column, alias) => {
     expect(ACCESS_MODEL_AGGREGATES).toMatch(new RegExp(`BOOL_OR\\("${column}"\\)\\s+AS "${alias}"`));
     expect(ACCESS_MODEL_AGGREGATES).not.toMatch(/COALESCE/);
+  });
+});
+
+describe('holderCountSql', () => {
+  const sql = holderCountSql('ap.id');
+
+  it('counts each live account once for the given role', () => {
+    expect(sql).toContain('COUNT(DISTINCT a."principalId")');
+    expect(sql).toContain('a."resourceId" = ap.id');
+  });
+
+  it('leaves out history, undelivered assignments and deleted accounts', () => {
+    expect(sql).toContain('a."deletedAt" IS NULL');
+    expect(sql).toContain(`(LOWER(a.state) = 'delivered' OR a.state IS NULL)`);
+    expect(sql).toContain('p.id = a."principalId" AND p."deletedAt" IS NOT NULL');
+  });
+});
+
+describe('resourceCountSql', () => {
+  const sql = resourceCountSql('$1');
+
+  it('counts each contained resource once for the given role', () => {
+    expect(sql).toContain('COUNT(DISTINCT rrs."childResourceId")');
+    expect(sql).toContain(`rrs."parentResourceId" = $1 AND rrs."relationshipType" = 'Contains'`);
+  });
+
+  it('leaves out resources deleted in the source', () => {
+    expect(sql).toContain('r.id = rrs."childResourceId" AND r."deletedAt" IS NOT NULL');
   });
 });

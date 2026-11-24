@@ -64,9 +64,13 @@ describe('GET /api/contexts/:id/team-overview', () => {
     // Bob holds the same group by hand and has no role, so it is ungoverned for him.
     expect(bob).toMatchObject({ permissions: 1, ungoverned: 1 });
     expect(res.body.roles).toEqual([{
-      // No policy says how the role is run; Ann's request makes her hold it by hand.
-      id: id.role, displayName: 'TO Role', control: 'Unknown', holders: [id.ann],
-      origins: { [id.ann]: { origin: 'Requested', originDetail: 'Request and approve', control: 'Manual' } },
+      // No policy says how the role is run, so its type is Unknown, whoever holds
+      // it and however; it has never been reviewed. The type and the review
+      // belong to the role; per holder only what the source says about how.
+      id: id.role, displayName: 'TO Role', holders: [id.ann],
+      accessModel: { waysIn: ['Unknown'], waysOut: ['Unknown'], control: 'Unknown', reviewRequired: false, reviewGap: false },
+      review: { complianceStatus: null, reviewDeadline: null, daysOverdue: 0, hasReviewConfigured: false },
+      origins: { [id.ann]: { origin: 'Requested', originDetail: 'Request and approve' } },
     }]);
     expect(res.body.changes.filter(c => c.type === 'role-added').map(c => [c.personId, c.roleName])).toEqual([[id.ann, 'TO Role']]);
   });
