@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Application contexts now show a matrix of permissions against business roles: one column per role with a tick where the role contains the permission, next to the type, description, owner and user count. Each role heading opens the role's page.
+
+## Changes in this PR
+
 - Added a team overview to every organizational unit, for owners, analysts and admins alike: a simple grid of business roles per direct team member, the number of ungoverned permissions per person, and a list of who recently joined, left, or gained or lost a business role. The previous people list stays available, folded under "People details".
 - The team overview shows whether each business role was assigned automatically by a rule or by hand (requested and approved, or assigned). The Entra ID crawler now records this for access package assignments.
 - People who own a context now navigate by the same tabs and tree as the Contexts page, showing only what they answer for, so they can always get back from a sub-unit. The Sub-units section is gone wherever the tree is shown.

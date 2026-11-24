@@ -1,1 +1,0 @@
-- Application contexts now show a matrix of permissions against business roles: one column per role with a tick where the role contains the permission, next to the type, description, owner and user count. Each role heading opens the role's page.
