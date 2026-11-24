@@ -1,0 +1,2 @@
+- Made the business role page calmer. The header now only shows whether a role is Manual or Rule only, and the Overview shows its size and who answers for it.
+- Added a Lifecycle tab that shows how people get, keep and lose a role, including the request scope, approvers, reviewers and rules. The detail per policy is folded away.

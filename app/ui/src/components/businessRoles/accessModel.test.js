@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  WAYS, ACCESS_FILTERS, REVIEW_FILTER, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
+  WAYS, ACCESS_FILTERS, REVIEW_FILTER, lifecycleFacts, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
 } from './accessModel';
 
 const role = (waysIn, waysOut) => ({ accessModel: { waysIn, waysOut } });
@@ -26,6 +26,36 @@ describe('matchesAccessFilter', () => {
   it('treats a role without a model as Unknown', () => {
     expect(matchesAccessFilter({}, 'in:Unknown')).toBe(true);
     expect(matchesAccessFilter({}, 'out:Rule')).toBe(false);
+  });
+});
+
+describe('lifecycleFacts', () => {
+  const fmt = (d) => d;
+  it('sorts each rule by what it does, once each', () => {
+    const facts = lifecycleFacts([
+      { hasAutoAddRule: true, hasAutoRemoveRule: true, targetRule: 'both' },
+      { hasAutoAddRule: true, hasAutoRemoveRule: true, targetRule: 'both' },
+      { hasAutoAddRule: false, hasAutoRemoveRule: true, targetRule: 'remove-only' },
+      { hasAutoAddRule: false, hasAutoRemoveRule: false, targetRule: 'scope-only' },
+    ], fmt);
+    expect(facts.addRules).toEqual(['both']);
+    expect(facts.removeRules).toEqual(['both', 'remove-only']);
+  });
+  it('collects approval, cadence, expiry and removal once each', () => {
+    const p = {
+      allowsRequest: true, requiresApproval: true, hasAccessReview: true, hasAutoRemoveRule: true,
+      reviewSettings: { isEnabled: false }, expiration: { type: 'afterDuration', duration: 'P30D' },
+    };
+    expect(lifecycleFacts([p, p], fmt)).toMatchObject({
+      approvals: ['Requests need approval'], cadences: ['Access review: disabled'], expiries: ['Ends after 30 days'],
+      removalNotes: ['Removed when someone leaves the people this policy allows'],
+    });
+  });
+  it('ignores review settings on a policy without a review', () => {
+    expect(lifecycleFacts([{ hasAccessReview: false, reviewSettings: { isEnabled: true } }], fmt).cadences).toEqual([]);
+  });
+  it('is empty without policies', () => {
+    expect(lifecycleFacts([], fmt)).toEqual({ addRules: [], removeRules: [], approvals: [], cadences: [], expiries: [], removalNotes: [] });
   });
 });
 
