@@ -38,6 +38,8 @@ Param(
 $ErrorActionPreference = 'Continue'
 $standaloneFailures = 0
 
+. (Join-Path $PSScriptRoot 'RiskScoringFeature.ps1')
+
 function Write-Result {
     param([string]$Name, [bool]$Passed, [string]$Detail = '')
     $color = if ($Passed) { 'Green' } else { 'Red' }
@@ -195,6 +197,20 @@ function Invoke-SecretsVaultTest {
     Invoke-VaultCleanup
 }
 
-Invoke-SecretsVaultTest
+# The vault is exercised through /admin/llm, which answers 404 while risk scoring
+# is off. Switch it on here rather than rely on an earlier step: Configure-LLM only
+# runs with an LLM key, and Dependabot runs have none.
+try {
+    $riskWasOn = Get-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl
+} catch {
+    Write-Result 'Vault/FeatureFlags' $false "could not read /features: $($_.Exception.Message)"
+    if (-not $WriteResult) { exit 1 }
+    return
+}
+if (Initialize-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -ResultName 'Vault/FeatureOn') {
+    Invoke-SecretsVaultTest
+}
+# Put the flag back the way this script found it.
+try { Set-RiskScoringFeature -ApiBaseUrl $ApiBaseUrl -Enabled $riskWasOn } catch { Write-Result 'Vault/RestoreFlag' $false $_.Exception.Message }
 
 if (-not $WriteResult) { exit $standaloneFailures }
