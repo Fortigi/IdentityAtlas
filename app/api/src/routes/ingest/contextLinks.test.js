@@ -285,6 +285,17 @@ describe('POST /ingest/context-relationships', () => {
     expect(res.body).toEqual({ inserted: 0, skipped: 1 });
   });
 
+  it('500 when the database fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    query.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).post('/api/ingest/context-relationships')
+      .send({ systemId: 2, records: [{ contextId: CTX, relatedContextId: CTX2, relationshipType: 'SameUnitAs' }] });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to ingest context-relationships');
+    expect(spy.mock.calls[0][0]).toBe('POST ingest/context-relationships failed:');
+    spy.mockRestore();
+  });
+
   it('400 on a self-link', async () => {
     const res = await request(app).post('/api/ingest/context-relationships')
       .send({ systemId: 2, records: [{ contextId: CTX, relatedContextId: CTX, relationshipType: 'SameUnitAs' }] });
