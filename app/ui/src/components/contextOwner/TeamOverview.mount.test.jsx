@@ -125,6 +125,28 @@ describe('TeamOverview', () => {
     expect(legend.getByText('Unknown')).toBeInTheDocument();
   });
 
+  it('colours rule based green, manual amber and unknown grey, as the Business Roles list', () => {
+    renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
+    const mark = (name) => screen.getByRole('img', { name }).firstElementChild;
+    expect(mark(/^Ann Vos holds Finance Analyst: rule based/)).toHaveClass('bg-green-100');
+    expect(mark(/^Ann Vos holds Payments Approver: manual/)).toHaveClass('bg-amber-100');
+    expect(mark(/^Bob Kok holds Payments Approver: unknown/)).toHaveClass('bg-gray-100');
+  });
+
+  it('puts R, M or U in the circle', () => {
+    renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
+    const letter = (name) => screen.getByRole('img', { name }).textContent;
+    expect(letter(/^Ann Vos holds Finance Analyst: rule based/)).toBe('R');
+    expect(letter(/^Ann Vos holds Payments Approver: manual/)).toBe('M');
+    expect(letter(/^Bob Kok holds Payments Approver: unknown/)).toBe('U');
+  });
+
+  it('heads each person\'s column with their name read bottom to top', () => {
+    renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
+    const heading = screen.getByRole('columnheader', { name: 'Ann Vos' });
+    expect(within(heading).getByTitle('Ann Vos')).toHaveClass('[writing-mode:vertical-rl]', 'rotate-180');
+  });
+
   it('opens one person\'s ungoverned permissions, grouped, searchable and linked', async () => {
     const authFetch = makeAuthFetch({ '/api/contexts/ctx-1/team-overview/a/ungoverned': {
       truncated: false,

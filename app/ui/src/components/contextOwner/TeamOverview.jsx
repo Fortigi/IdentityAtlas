@@ -31,21 +31,19 @@ const TONES = {
   removed: 'bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200',
 };
 
-// Told apart by shape as well as colour: a lightning bolt for a rule, a person
-// for a decision. Green and amber as the Type chips on the Business Roles list.
+// Told apart by letter as well as colour: R for rule based, M for manual, U for
+// unknown. Green and amber as the Type chips on the Business Roles list.
 const MARKS = {
-  automatic: { cls: 'bg-green-100 text-green-800 ring-1 ring-green-300 dark:bg-green-900/40 dark:text-green-200 dark:ring-green-700', path: 'M11 2 4 11.5h5L8 18l8-10h-5l1-6Z', fill: true },
-  manual: { cls: 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-500', path: 'M10 9.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM3.5 17c.6-3.4 3.2-5 6.5-5s5.900 1.600 6.500 5' },
-  unknown: { cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200', path: 'M4 10.500l4 4 8-9' },
+  automatic: { letter: 'R', cls: 'bg-green-100 text-green-800 ring-1 ring-green-300 dark:bg-green-900/40 dark:text-green-200 dark:ring-green-700' },
+  manual: { letter: 'M', cls: 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-500' },
+  unknown: { letter: 'U', cls: 'bg-gray-100 text-gray-700 ring-1 ring-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-500' },
 };
 
 function OriginIcon({ kind }) {
   const mark = MARKS[kind];
   return (
-    <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${mark.cls}`}>
-      <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill={mark.fill ? 'currentColor' : 'none'} stroke={mark.fill ? 'none' : 'currentColor'} strokeWidth="2" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d={mark.path} />
-      </svg>
+    <span aria-hidden="true" className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${mark.cls}`}>
+      {mark.letter}
     </span>
   );
 }
