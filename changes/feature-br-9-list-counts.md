@@ -1,0 +1,6 @@
+- The Business Roles list shows how many people hold each role and how many resources it contains, in place of the review date and reviewer; both columns sort
+- A role's People figure counts each person once, the same way as the list
+- The team overview on an organisational unit shows each business role's type (Rule based, Manual, Unknown) and review status in their own columns, as on the Business Roles list, and marks who holds a role with a blue tick, as on an application's page
+- The team overview shows team members' names vertically, so a whole team fits side by side
+- The Team roles tab of the unit report shows the same: a type and review status column per role, and a tick per person who holds it
+- A business role's Overview warns when its last review was missed, or when people decide who holds it but no review is set up, with a link to the Lifecycle tab for the details

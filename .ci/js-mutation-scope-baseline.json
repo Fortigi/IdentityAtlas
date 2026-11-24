@@ -262,7 +262,6 @@
     "app/ui/src/components/accessPackages/CategoryManagementBar.jsx",
     "app/ui/src/components/accessPackages/ComplianceStatusCell.jsx",
     "app/ui/src/components/accessPackages/CreateCategoryForm.jsx",
-    "app/ui/src/components/accessPackages/ReviewedByCell.jsx",
     "app/ui/src/components/accessPackages/RowCategorySelect.jsx",
     "app/ui/src/components/accessPackages/SelectionActionBar.jsx",
     "app/ui/src/components/admin/DangerZoneSection.jsx",

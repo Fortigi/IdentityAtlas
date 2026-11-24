@@ -20,6 +20,8 @@ const packages = [
     lastReviewDate: '2025-12-01T00:00:00Z',
     lastReviewedBy: 'alice',
     totalAssignments: 5,
+    userCount: 4,
+    resourceCount: 12,
     hasReviewConfigured: true,
     category: { id: 1, name: 'Finance', color: '#ef4444' },
   },
@@ -90,8 +92,14 @@ describe('AccessPackagesPage (mounted)', () => {
     expect(screen.getByText('Compliant')).toBeInTheDocument();
     expect(screen.getByText(/Missed/)).toBeInTheDocument();
     expect(screen.getByText('No assignments')).toBeInTheDocument();
-    // Auto-completed reviewer badge.
-    expect(screen.getByText('Auto')).toBeInTheDocument();
+    // How many people hold each role and how many resources it contains, in
+    // place of the last reviewer; a role the API sends no counts for shows 0.
+    expect(screen.getByRole('columnheader', { name: /Users/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Resources/ })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Reviewed By/ })).toBeNull();
+    expect(screen.getAllByTestId('role-users').map(c => c.textContent)).toEqual(['4', '0', '0']);
+    expect(screen.getAllByTestId('role-resources').map(c => c.textContent)).toEqual(['12', '0', '0']);
+    expect(screen.queryByText('alice')).toBeNull();
   });
 
   it('wraps the table in a horizontally-scrolling container, not overflow-hidden', async () => {
@@ -161,6 +169,18 @@ describe('AccessPackagesPage (mounted)', () => {
       expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('sortCol=displayName'));
     });
     expect(authFetch).toHaveBeenCalledWith(expect.stringContaining('sortDir=asc'));
+  });
+
+  it.each([['Users', 'userCount'], ['Resources', 'resourceCount']])('sorts on %s, right-aligned as a number', async (label, key) => {
+    const authFetch = routes();
+    renderWithProviders(h(AccessPackagesPage), { auth: { authFetch } });
+    const user = userEvent.setup();
+
+    await screen.findByText('Payroll Access');
+    const header = screen.getByRole('columnheader', { name: new RegExp(label) });
+    expect(header).toHaveClass('text-right');
+    await user.click(header);
+    await waitFor(() => expect(authFetch).toHaveBeenCalledWith(expect.stringContaining(`sortCol=${key}`)));
   });
 
   it('filters by category when a category chip is clicked', async () => {

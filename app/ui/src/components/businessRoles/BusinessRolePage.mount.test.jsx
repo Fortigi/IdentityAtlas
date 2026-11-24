@@ -96,6 +96,25 @@ describe('the business role page', () => {
     expect(screen.queryByRole('tab', { name: /Requests/ })).toBeNull();
   });
 
+  it('warns on the Overview when the last review was missed, and links to Lifecycle', async () => {
+    const { user } = mountPage({ body: role({ complianceStatus: 'Missed', daysOverdue: 21 }) });
+    const warning = await screen.findByRole('alert');
+    expect(warning).toHaveTextContent('The last review of this role was missed: it was due 21 days ago.');
+    await user.click(within(warning).getByRole('button', { name: 'See the details on Lifecycle' }));
+    expect(screen.getByRole('tab', { name: 'Lifecycle' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('warns on the Overview when a manual role has no review set up', async () => {
+    mountPage({ body: role({ accessModel: { waysIn: ['Request'], waysOut: [], control: 'Manual', reviewRequired: true, reviewGap: true } }) });
+    expect(await screen.findByRole('alert')).toHaveTextContent('no regular review is set up');
+  });
+
+  it('shows no warning when the reviews are in order', async () => {
+    mountPage({ body: role({ complianceStatus: 'Compliant' }) });
+    await screen.findByRole('button', { name: /13\s*People/ });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('jumps to People from the count on the Overview', async () => {
     const { user } = mountPage();
     await user.click(await screen.findByRole('button', { name: /13\s*People/ }));

@@ -10,7 +10,7 @@ import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { cleanRow, countHistory } from './shared.js';
-import { ACCESS_MODEL_AGGREGATES, deriveAccessModel } from '../../lib/businessRoleAccessModel.js';
+import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, holderCountSql, resourceCountSql } from '../../lib/businessRoleAccessModel.js';
 
 // 1. Current attributes + catalog name. Returns the cleaned attribute row, or
 //    null when the access package doesn't exist (handler → 404).
@@ -32,34 +32,19 @@ export async function fetchApAttributes(pool, res, apId) {
   return cleanRow(apResult.rows[0]);
 }
 
-// 2. Assignment count — current only: a soft-deleted assignment or principal is
-//    history (still listed, flagged), not someone who holds the role now.
+// 2. People holding the role now — counted as on the Business Roles list.
 export async function fetchAssignmentCount(pool, res, apId) {
   try {
-    const r = await timedQuery(pool, 'ap-assignment-count', res, `
-      SELECT COUNT(*)::int AS cnt
-      FROM "ResourceAssignments" a
-      WHERE a."resourceId" = $1
-        AND a."deletedAt" IS NULL
-        AND NOT EXISTS (SELECT 1 FROM "Principals" p
-                         WHERE p.id = a."principalId" AND p."deletedAt" IS NOT NULL)
-    `, [apId]);
+    const r = await timedQuery(pool, 'ap-assignment-count', res, `SELECT ${holderCountSql('$1')} AS cnt`, [apId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }
 }
 
-// 3. Group count (resources linked to this AP) — a contained resource
-//    soft-deleted in the source is history, not counted. A child with no
-//    Resources row at all still counts (the list shows it by its roleName).
+// 3. Resources in the role — counted as on the Business Roles list. A child
+//    with no Resources row at all still counts (the list shows it by its roleName).
 export async function fetchGroupCount(pool, res, apId) {
   try {
-    const r = await timedQuery(pool, 'ap-group-count', res, `
-      SELECT COUNT(DISTINCT rrs."childResourceId")::int AS cnt
-      FROM "ResourceRelationships" rrs
-      WHERE rrs."parentResourceId" = $1 AND rrs."relationshipType" = 'Contains'
-        AND NOT EXISTS (SELECT 1 FROM "Resources" r
-                         WHERE r.id = rrs."childResourceId" AND r."deletedAt" IS NOT NULL)
-    `, [apId]);
+    const r = await timedQuery(pool, 'ap-group-count', res, `SELECT ${resourceCountSql('$1')} AS cnt`, [apId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }
 }

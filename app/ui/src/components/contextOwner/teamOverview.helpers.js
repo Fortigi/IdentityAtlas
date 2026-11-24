@@ -21,30 +21,9 @@ export function ungovernedLabel(person) {
   return `${person.displayName}: ${person.ungoverned} of ${person.permissions} ${noun} not covered by a business role`;
 }
 
-// The primary type of a person's role (ontology: ia:BusinessRoleControl), the
-// same words the business role pages use: a rule adds and removes it, a person
-// decided, or the source does not say.
-export const ORIGIN_KINDS = Object.freeze({
-  automatic: { label: 'Rule based', help: 'a rule adds and removes it, no periodic review needed' },
-  manual: { label: 'Manual', help: 'requested and approved, or assigned; needs a periodic review' },
-  unknown: { label: 'Unknown', help: 'the source does not say how it was assigned' },
-});
-
-export function originKind(control) {
-  if (control === 'Automatic') return 'automatic';
-  return control === 'Manual' ? 'manual' : 'unknown';
-}
-
-/** The kinds present in these roles, in legend order. Pure. */
-export function originKindsIn(roles) {
-  const present = new Set(roles.flatMap(r => Object.values(r.origins || {}).map(o => originKind(o.control))));
-  return Object.keys(ORIGIN_KINDS).filter(k => present.has(k));
-}
-
+/** A tick's label: who holds which role, and how the source says they got it. Pure. */
 export function roleMarkLabel(person, role, held) {
-  const kind = ORIGIN_KINDS[originKind(held?.control)];
-  const via = held?.originDetail ? `, ${held.originDetail}` : '';
-  return `${person} holds ${role}: ${kind.label.toLowerCase()} (${kind.help}${via})`;
+  return held?.originDetail ? `${person} holds ${role} (${held.originDetail})` : `${person} holds ${role}`;
 }
 
 export const HOW_LABEL = Object.freeze({ Indirect: 'Inherited', Eligible: 'Eligible' });

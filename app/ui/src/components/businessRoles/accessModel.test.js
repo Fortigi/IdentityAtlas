@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  WAYS, ACCESS_FILTERS, REVIEW_FILTER, accessDetail, lifecycleFacts, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
+  reviewWarnings, WAYS, ACCESS_FILTERS, REVIEW_FILTER, accessDetail, lifecycleFacts, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
 } from './accessModel';
 
 const role = (waysIn, waysOut) => ({ accessModel: { waysIn, waysOut } });
@@ -219,4 +219,24 @@ describe('showsRequestsAndReviews', () => {
     [{ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'] }, reviewCount: 0, pendingRequestCount: 0 }, false],
     [{}, false],
   ])('%j → %s', (data, expected) => expect(showsRequestsAndReviews(data)).toBe(expected));
+});
+
+describe('reviewWarnings', () => {
+  it('names a missed review and how long ago it was due', () => {
+    expect(reviewWarnings({ complianceStatus: 'Missed', daysOverdue: 21 })).toEqual(['The last review of this role was missed: it was due 21 days ago.']);
+    expect(reviewWarnings({ complianceStatus: 'Missed', daysOverdue: 1 })).toEqual(['The last review of this role was missed: it was due 1 day ago.']);
+    expect(reviewWarnings({ complianceStatus: 'Missed', daysOverdue: 0 })).toEqual(['The last review of this role was missed.']);
+  });
+
+  it('names a manual role without a review set up, and both together', () => {
+    expect(reviewWarnings({ accessModel: { reviewGap: true } })).toEqual(['People decide who holds this role, but no regular review is set up.']);
+    expect(reviewWarnings({ complianceStatus: 'Missed', daysOverdue: 2, accessModel: { reviewGap: true } })).toHaveLength(2);
+  });
+
+  it('is empty when the review is fine or not needed', () => {
+    expect(reviewWarnings({ complianceStatus: 'Compliant', accessModel: { reviewGap: false } })).toEqual([]);
+    expect(reviewWarnings({ complianceStatus: 'In Progress' })).toEqual([]);
+    expect(reviewWarnings({ complianceStatus: 'Reviewed Late' })).toEqual([]);
+    expect(reviewWarnings()).toEqual([]);
+  });
 });

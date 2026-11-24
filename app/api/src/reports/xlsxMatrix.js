@@ -16,9 +16,11 @@ const COLUMN_WIDTH = 16;
 const solid = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 const HEADER_FILL = solid('FFF3F4F6');
 const TONES = {
-  automatic: { fill: solid('FFDBEAFE'), font: { color: { argb: 'FF1E40AF' } } },
+  automatic: { fill: solid('FFDCFCE7'), font: { color: { argb: 'FF166534' } } },
   manual: { fill: solid('FFFEF3C7'), font: { bold: true, color: { argb: 'FF78350F' } } },
   unknown: { fill: solid('FFF3F4F6'), font: { color: { argb: 'FF374151' } } },
+  held: { fill: solid('FFDBEAFE'), font: { bold: true, color: { argb: 'FF1E40AF' } } },
+  missed: { fill: solid('FFFEE2E2'), font: { color: { argb: 'FF991B1B' } } },
 };
 const CENTER = { horizontal: 'center', vertical: 'middle', wrapText: true };
 

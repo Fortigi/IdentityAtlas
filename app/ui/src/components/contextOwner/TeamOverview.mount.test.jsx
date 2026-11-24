@@ -4,7 +4,7 @@ import UnitTeamPeople from './UnitTeamPeople';
 import TeamOverview from './TeamOverview';
 import {
   changeSentence, changeTone, groupChanges, nameSeparator, ungovernedLabel,
-  originKind, originKindsIn, roleMarkLabel, groupUngoverned,
+  roleMarkLabel, groupUngoverned,
 } from './teamOverview.helpers';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, userEvent, within } from '@ui/test-utils/renderWithProviders';
 
@@ -13,8 +13,16 @@ const BOB = { id: 'b', kind: 'user', displayName: 'Bob Kok', permissions: 3, ung
 const OVERVIEW = {
   sinceDays: 30, totalPeople: 2, truncated: false, people: [ANN, BOB],
   roles: [
-    { id: 'r1', displayName: 'Finance Analyst', holders: ['a'], origins: { a: { origin: 'Automatic', originDetail: 'AutoAssign: Finance', control: 'Automatic' } } },
-    { id: 'r2', displayName: 'Payments Approver', holders: ['a', 'b'], origins: { a: { origin: 'Requested', originDetail: 'Request & Approval', control: 'Manual' }, b: { origin: null, originDetail: null, control: 'Unknown' } } },
+    {
+      id: 'r1', displayName: 'Finance Analyst', holders: ['a'], origins: { a: { origin: 'Automatic', originDetail: 'AutoAssign: Finance' } },
+      accessModel: { waysIn: ['Rule'], waysOut: ['Rule'], control: 'Automatic', reviewGap: false },
+      review: { complianceStatus: null, hasReviewConfigured: false },
+    },
+    {
+      id: 'r2', displayName: 'Payments Approver', holders: ['a', 'b'], origins: { a: { origin: 'Requested', originDetail: 'Request & Approval' }, b: { origin: null, originDetail: null } },
+      accessModel: { waysIn: ['Request'], waysOut: [], control: 'Manual', reviewGap: true },
+      review: { complianceStatus: 'Missed', daysOverdue: 12, reviewDeadline: '2026-11-12' },
+    },
   ],
   changes: [
     { at: '2026-11-05T10:00:00Z', type: 'role-added', personKind: 'user', personId: 'a', personName: 'Ann Vos', roleName: 'Finance Analyst', accessible: true },
@@ -41,19 +49,10 @@ describe('team overview words', () => {
     expect(changeSentence({ type: 'other' })).toBe('');
   });
 
-  it.each([['Automatic', 'automatic'], ['Manual', 'manual'], ['Unknown', 'unknown'], ['Requested', 'unknown'], [null, 'unknown'], [undefined, 'unknown']])('type %s reads as %s', (control, kind) => {
-    expect(originKind(control)).toBe(kind);
-  });
-
-  it('the legend lists only the kinds present, in a fixed order', () => {
-    expect(originKindsIn([{ origins: { a: { control: 'Manual' }, b: { control: 'Automatic' } } }])).toEqual(['automatic', 'manual']);
-    expect(originKindsIn([{ origins: { a: { control: null } } }, {}])).toEqual(['unknown']);
-    expect(originKindsIn([])).toEqual([]);
-  });
-
-  it('names the policy in a mark when there is one', () => {
-    expect(roleMarkLabel('A', 'R', { control: 'Automatic', originDetail: 'Rule 1' })).toBe('A holds R: rule based (a rule adds and removes it, no periodic review needed, Rule 1)');
-    expect(roleMarkLabel('A', 'R', { control: 'Manual' })).toBe('A holds R: manual (requested and approved, or assigned; needs a periodic review)');
+  it('names how the source says someone got a role, when it says', () => {
+    expect(roleMarkLabel('A', 'R', { originDetail: 'Rule 1' })).toBe('A holds R (Rule 1)');
+    expect(roleMarkLabel('A', 'R', { originDetail: null })).toBe('A holds R');
+    expect(roleMarkLabel('A', 'R')).toBe('A holds R');
   });
 
   it('groups permissions in a fixed order and keeps the unknown kinds', () => {
@@ -98,7 +97,7 @@ describe('team overview words', () => {
 describe('TeamOverview', () => {
   it('marks exactly who holds a role and shows each person\'s ungoverned count', () => {
     renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
-    expect(screen.getByRole('img', { name: /^Ann Vos holds Finance Analyst: rule based/ })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Ann Vos holds Finance Analyst (AutoAssign: Finance)' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /^Bob Kok holds Finance Analyst/ })).toBeNull();
     expect(screen.getByRole('button', { name: /^Ann Vos: 4 of 9 permissions/ })).toHaveTextContent('4');
     expect(screen.getByLabelText('Bob Kok: 0 of 3 permissions not covered by a business role')).toHaveTextContent('0');
@@ -115,14 +114,35 @@ describe('TeamOverview', () => {
     expect(screen.getByRole('rowheader', { name: /Payments Approver/ })).toBeInTheDocument();
   });
 
-  it('tells a rule from a person\'s decision, per person, and explains the marks', () => {
+  it('gives each role its type and review once, as on the Business Roles list', () => {
     renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
-    expect(screen.getByRole('img', { name: /^Ann Vos holds Payments Approver: manual .*Request & Approval/ })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /^Bob Kok holds Payments Approver: unknown/ })).toBeInTheDocument();
-    const legend = within(screen.getByRole('list', { name: 'How a role is assigned' }));
-    expect(legend.getByText('Rule based')).toBeInTheDocument();
-    expect(legend.getByText('Manual')).toBeInTheDocument();
-    expect(legend.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Type' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Review status' })).toBeInTheDocument();
+    const [finance, payments] = ['Finance Analyst', 'Payments Approver'].map(n => screen.getByRole('rowheader', { name: n }).closest('tr'));
+    expect(within(finance).getByTestId('role-type')).toHaveTextContent('Rule based');
+    expect(within(finance).getByText('Not required')).toBeInTheDocument();
+    expect(within(payments).getByTestId('role-type')).toHaveTextContent('Manual');
+    expect(within(payments).getByText('no review set up')).toBeInTheDocument();
+    expect(within(payments).getByText(/Missed/)).toHaveTextContent('Missed (12d ago)');
+  });
+
+  it('marks a holder with a blue tick, the same for everyone who holds the role', () => {
+    renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
+    const ticks = [
+      screen.getByRole('img', { name: 'Ann Vos holds Payments Approver (Request & Approval)' }),
+      screen.getByRole('img', { name: 'Bob Kok holds Payments Approver' }),
+    ];
+    for (const tick of ticks) {
+      expect(tick).toHaveClass('bg-blue-100');
+      expect(tick.textContent).toBe('');
+    }
+    expect(screen.queryByRole('list', { name: 'How a role is assigned' })).toBeNull();
+  });
+
+  it('heads each person\'s column with their name read bottom to top', () => {
+    renderWithProviders(<TeamOverview overview={OVERVIEW} onOpenDetail={vi.fn()} />);
+    const heading = screen.getByRole('columnheader', { name: 'Ann Vos' });
+    expect(within(heading).getByTitle('Ann Vos')).toHaveClass('[writing-mode:vertical-rl]', 'rotate-180');
   });
 
   it('opens one person\'s ungoverned permissions, grouped, searchable and linked', async () => {
