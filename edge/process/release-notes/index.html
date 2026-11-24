@@ -6363,7 +6363,8 @@ nothing and two of them are deliberately placed where a model cannot touch them.
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>5. Append the download guide  tools/release-notes/portable-downloads.md
 </code></pre></div>
 <p><code>cut-beta.yml</code> runs steps 2, 3 and 5 (its baseline is the latest tag of any
-kind, and it has no dependency section).</p>
+kind, and it has no dependency section). The steps live once, in the shared
+<code>cut-tag.yml</code>; each <code>cut-*.yml</code> passes it the polish prompt.</p>
 <p>Steps 1–3 describe what people changed. Step 4 describes what the <em>image</em>
 changed, which is a different question and has a different source of truth.</p>
 <hr />

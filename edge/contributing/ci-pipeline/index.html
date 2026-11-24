@@ -6818,6 +6818,11 @@
 <td>Tags <code>vX.Y.Z</code> on a commit of the release line (cherry-picks of <code>main</code> commits and Dependabot updates), creates the release. <code>dry_run</code> pushes no tag</td>
 </tr>
 <tr>
+<td><code>cut-tag.yml</code></td>
+<td>Called by the three <code>cut-*.yml</code> above</td>
+<td>Their shared steps: the main-only check, the tag, the ZIPs and Azure package, the release notes and the GitHub release. Each <code>cut-*.yml</code> keeps its own inputs, notes prompt and run summary</td>
+</tr>
+<tr>
 <td><code>docker-publish.yml</code></td>
 <td>Every <code>bump-version.yml</code> run; every <code>v*</code> tag</td>
 <td>Builds, smoke-tests and CVE-scans the images, then pushes <code>:edge</code>, <code>:beta</code> (only for <code>X.Y.0</code> pre-releases) or <code>:latest</code>. Refuses a tag that is not on <code>main</code> or a release branch, unless main's checker accepts it as a hotfix</td>
