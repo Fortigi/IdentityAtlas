@@ -18,7 +18,8 @@ The Entra ID crawler reads your Microsoft Entra ID tenant through Microsoft Grap
 | Group owners | A **Direct** assignment on a `GroupOwnership` resource named after the group |
 | Directory roles | Resources of type `EntraDirectoryRole`, with **Direct** (active) and **Eligible** (PIM) assignments |
 | Access packages | Business roles. The groups a package grants are linked to it, and its assignments are **governed** |
-| Catalogs, assignment policies, requests, access reviews | Governance data shown with the business roles |
+| Catalogs | Contexts on the **Catalogs** tab, each holding its access packages. A catalog's only owner becomes its Owner (Accountable); with several owners each is Responsible, and every access package manager is Responsible. Catalog readers are left out |
+| Assignment policies, requests, access reviews | Governance data shown with the business roles |
 | Enterprise applications | `Application` resources, with their app roles (`AppRole`), consent grants (`DelegatedPermission`), app-only API permissions (`ApplicationPermission`) and owners |
 | App registrations | `AppRegistration` resources with credential dates, redirect URIs and requested permissions |
 
@@ -135,7 +136,7 @@ On a new crawler the wizard ticks every object type the granted permissions allo
 | The personal user accounts that stand for people, as identities | **Identity** | |
 | Users, groups and who is in which group | **Users & Groups & Members** | |
 | Non-human accounts: service principals, managed identities, AI agents | **Service Principals** | |
-| Access packages, their assignments, policies and reviews | **Identity Governance** | |
+| Access packages, their catalogs and catalog roles, assignments, policies and reviews | **Identity Governance** | |
 | Privileged access through Entra directory roles, active and PIM-eligible | **Directory Roles** | |
 | PIM-eligible group memberships | **PIM** | High — one request per group |
 | Who can use which enterprise application (app-role assignments) | **Apps & AppRoles** | |

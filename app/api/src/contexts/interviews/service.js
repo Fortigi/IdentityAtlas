@@ -15,7 +15,7 @@
 // sentence for the analyst. Design: docs/architecture/context-interviews.md.
 
 import * as defaultDb from '../../db/connection.js';
-import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
+import { PROFILED_CATEGORIES } from '../../lib/contextCategories.js';
 import { detectLanguage } from '../../nlreports/language.js';
 import { readSourceText } from './sourceText.js';
 import { checkClaim, foldForQuote, ROLE_SUGGESTIONS, CLAIM_KINDS, RELEVANCE } from './claims.js';
@@ -79,7 +79,7 @@ async function roleBearingContext(db, contextId) {
   if (!UUID_RE.test(String(contextId))) throw new InterviewError(400, 'Invalid ID format');
   const ctx = await db.queryOne(`SELECT id, "contextCategory" FROM "Contexts" WHERE id = $1`, [contextId]);
   if (!ctx) throw new InterviewError(404, 'Context not found');
-  if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
+  if (!PROFILED_CATEGORIES.has(ctx.contextCategory)) {
     throw new InterviewError(400, 'Interviews can be added to an organizational unit or a logical application only.');
   }
   return ctx;

@@ -17,7 +17,7 @@ import { withResourceMemberFacts } from '../../contexts/resourceMemberFacts.js';
 import { UPLOAD_SYSTEM_TYPE, uploadProvenance } from '../../contexts/upload/lists.js';
 import { loadPeople, loadListedPeople } from '../../contexts/interviews/peopleLoad.js';
 import { claimStatusesFor } from './interviews.js';
-import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
+import { PROFILED_CATEGORIES } from '../../lib/contextCategories.js';
 import { overriddenMemberCount } from '../../contexts/interviews/memberOverrides.js';
 import { OVERRIDE_COLUMNS, OVERRIDE_JOIN, withOverride } from '../../contexts/interviews/overrideRows.js';
 import { orgKnowledgeEnabled } from '../../featureFlags.js';
@@ -338,7 +338,7 @@ router.get('/contexts/:id/people', async (req, res) => {
   try {
     const ctx = await db.queryOne(`SELECT id, "targetType", "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
     if (!ctx) return res.status(404).json({ error: 'Context not found' });
-    if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
+    if (!PROFILED_CATEGORIES.has(ctx.contextCategory)) {
       return res.status(400).json({ error: 'The people overview is for an organizational unit or a logical application.' });
     }
     res.json(await orgKnowledgeEnabled()

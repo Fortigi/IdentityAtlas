@@ -29,7 +29,8 @@ describe('migration 097 — synced owners become Accountables', () => {
   it('considers synced contexts on a role-bearing template that have an owner and no Accountable yet', () => {
     expect(statements).toMatch(/WHERE c\.variant = 'synced'/);
     const cats = statements.match(/"contextCategory" IN \(([^)]+)\)/)[1].split(',').map(s => s.trim().replace(/'/g, ''));
-    expect(cats.sort()).toEqual([...ROLE_BEARING_CATEGORIES].sort());
+    // Catalog became role-bearing in migration 117; no catalog context existed before it.
+    expect(cats.sort()).toEqual([...ROLE_BEARING_CATEGORIES].filter(c => c !== 'Catalog').sort());
     expect(statements).toMatch(/NULLIF\(c\."ownerUserId", ''\) IS NOT NULL/);
     expect(statements).toMatch(/NOT EXISTS \(SELECT 1 FROM "ContextRoles" r WHERE r\."contextId" = c\.id AND r\.role = 'Accountable'\)/);
   });

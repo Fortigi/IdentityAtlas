@@ -8,7 +8,7 @@ import { mountRouter } from '../../../test-utils/routeTestKit.js';
 process.env.USE_SQL = 'true';
 
 vi.mock('../../db/connection.js');   // picks up src/db/__mocks__/connection.js
-import { query } from '../../db/connection.js';
+import { query, tx } from '../../db/connection.js';
 vi.mock('../../middleware/auth.js', () => ({
   requirePermission: () => (_req, _res, next) => next(),
 }));
@@ -24,6 +24,7 @@ vi.mock('../../middleware/crawlerAuth.js', () => ({
 const {
   default: router, parseLinkEnvelope, parseRoleRecords, parseRelationshipRecords,
   roleInsertSql, RELATIONSHIP_INSERT_SQL, MAX_LINK_RECORDS,
+  ROLE_RECONCILE_SQL, roleReconcileParams, parseRoleSyncMode,
 } = await import('./contextLinks.js');
 const app = mountRouter(router);
 
@@ -130,10 +131,21 @@ describe('POST /ingest/context-roles', () => {
     expect(query).toHaveBeenCalledTimes(2);
     const [sql1, params1] = query.mock.calls[0];
     expect(sql1).toContain('JOIN "Principals" h');
-    expect(params1).toEqual([CTX, P1, 'Accountable', 3, ['OrganizationalUnit', 'LogicalApplication']]);
+    expect(params1).toEqual([CTX, P1, 'Accountable', 3, ['OrganizationalUnit', 'LogicalApplication', 'Catalog']]);
     const [sql2, params2] = query.mock.calls[1];
     expect(sql2).toContain('JOIN "Identities" h');
-    expect(params2).toEqual([CTX, I1, 'Responsible', 3, ['OrganizationalUnit', 'LogicalApplication']]);
+    expect(params2).toEqual([CTX, I1, 'Responsible', 3, ['OrganizationalUnit', 'LogicalApplication', 'Catalog']]);
+  });
+
+  it('stays additive for a delta, or no syncMode at all: nothing is removed', async () => {
+    query.mockResolvedValue({ rowCount: 1 });
+    for (const syncMode of [undefined, 'delta']) {
+      query.mockClear(); tx.mockClear();
+      const res = await request(app).post('/api/ingest/context-roles').send({ ...body, syncMode, scope: { contextType: 'AccessPackageCatalog' } });
+      expect(res.body).toEqual({ inserted: 2, skipped: 0 });
+      expect(tx).not.toHaveBeenCalled();
+      expect(query.mock.calls.some(([sql]) => /DELETE/.test(sql))).toBe(false);
+    }
   });
 
   it('checks the ingest permission and access to the envelope system', async () => {
@@ -185,6 +197,77 @@ describe('POST /ingest/context-roles', () => {
   });
 });
 
+describe('a full role sync (reconcile)', () => {
+  const rows = [
+    { contextId: CTX, role: 'Accountable', holderCol: 'principalId', holderId: P1 },
+    { contextId: CTX2, role: 'Responsible', holderCol: 'identityId', holderId: I1 },
+  ];
+
+  it('parses the mode: full needs a contextType, anything else stays additive', () => {
+    expect(parseRoleSyncMode({ syncMode: 'full', scope: { contextType: ' AccessPackageCatalog ' } })).toEqual({ full: true, contextType: 'AccessPackageCatalog' });
+    expect(parseRoleSyncMode({ syncMode: 'delta' })).toEqual({ full: false });
+    expect(parseRoleSyncMode({})).toEqual({ full: false });
+    expect(parseRoleSyncMode(undefined)).toEqual({ full: false });
+    for (const scope of [undefined, {}, { contextType: '' }, { contextType: '  ' }, { contextType: 7 }]) {
+      expect(parseRoleSyncMode({ syncMode: 'full', scope })).toMatchObject({ status: 400, message: /scope\.contextType/ });
+    }
+  });
+
+  it('removes only sync rows on the system’s own synced contexts of that type that the batch no longer states', () => {
+    expect(ROLE_RECONCILE_SQL).toContain(`r."addedBy" = 'sync'`);
+    expect(ROLE_RECONCILE_SQL).toContain(`c.variant = 'synced' AND c."scopeSystemId" = $1 AND c."contextType" = $2`);
+    expect(ROLE_RECONCILE_SQL).toContain('k."contextId" = r."contextId" AND k.role = r.role');
+    expect(ROLE_RECONCILE_SQL).toContain(`CASE k.col WHEN 'principalId' THEN r."principalId" ELSE r."identityId" END`);
+  });
+
+  it('passes the batch as parallel arrays, one entry per row', () => {
+    expect(roleReconcileParams(3, 'AccessPackageCatalog', rows)).toEqual([
+      3, 'AccessPackageCatalog', [CTX, CTX2], ['Accountable', 'Responsible'], ['principalId', 'identityId'], [P1, I1],
+    ]);
+    expect(roleReconcileParams(3, 'X', [])).toEqual([3, 'X', [], [], [], []]);
+  });
+
+  it('reconciles first, then adds, in one transaction, and reports what it removed', async () => {
+    query.mockResolvedValueOnce({ rowCount: 4 }).mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rowCount: 0 });
+    const res = await request(app).post('/api/ingest/context-roles').send({
+      systemId: 3, syncMode: 'full', scope: { contextType: 'AccessPackageCatalog' },
+      records: [
+        { contextId: CTX, role: 'Accountable', principalId: P1 },
+        { contextId: CTX2, role: 'Responsible', identityId: I1 },
+      ],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ inserted: 1, skipped: 1, removed: 4 });
+    expect(tx).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls.map(([sql]) => sql.trim().split(/\s+/)[0])).toEqual(['DELETE', 'INSERT', 'INSERT']);
+    expect(query.mock.calls[0][1]).toEqual(roleReconcileParams(3, 'AccessPackageCatalog', rows));
+  });
+
+  it('an empty full batch removes every sync role of that type, and adds nothing', async () => {
+    query.mockResolvedValueOnce({ rowCount: 2 });
+    const res = await request(app).post('/api/ingest/context-roles')
+      .send({ systemId: 3, syncMode: 'full', scope: { contextType: 'AccessPackageCatalog' }, records: [] });
+    expect(res.body).toEqual({ inserted: 0, skipped: 0, removed: 2 });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('400 for a full sync without a contextType, writing nothing', async () => {
+    const res = await request(app).post('/api/ingest/context-roles').send({ systemId: 3, syncMode: 'full', records: [] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('a full role sync needs scope.contextType');
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('500 when the reconcile fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    query.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).post('/api/ingest/context-roles')
+      .send({ systemId: 3, syncMode: 'full', scope: { contextType: 'AccessPackageCatalog' }, records: [] });
+    expect(res.status).toBe(500);
+    spy.mockRestore();
+  });
+});
+
 describe('POST /ingest/context-relationships', () => {
   it('inserts the link with the envelope system as the owner check', async () => {
     query.mockResolvedValueOnce({ rowCount: 1 });
@@ -219,7 +302,7 @@ describe('insertRoleRows / insertRelationshipRows (in-process writers)', () => {
       { contextId: CTX2, role: 'Responsible', holderCol: 'principalId', holderId: P1 },
     ], 9);
     expect(roles).toEqual({ inserted: 1, skipped: 1 });
-    expect(query.mock.calls[0]).toEqual([roleInsertSql('principalId'), [CTX, P1, 'Responsible', 9, ['OrganizationalUnit', 'LogicalApplication']]]);
+    expect(query.mock.calls[0]).toEqual([roleInsertSql('principalId'), [CTX, P1, 'Responsible', 9, ['OrganizationalUnit', 'LogicalApplication', 'Catalog']]]);
 
     query.mockResolvedValueOnce({ rowCount: 1 });
     expect(await insertRelationshipRows([{ contextId: CTX, relatedContextId: CTX2, relationshipType: 'SameUnitAs' }], 9))
@@ -236,7 +319,7 @@ describe('insertRoleRows / insertRelationshipRows (in-process writers)', () => {
     expect(sql).toBe(roleInsertSql('principalId', 'sourceOwner'));
     expect(sql).toMatch(/SELECT c\.id, h\.id, \$3, 'sourceOwner'/);
     expect(sql).not.toMatch(/'sync'/);
-    expect(params).toEqual([CTX, P1, 'Accountable', 9, ['OrganizationalUnit', 'LogicalApplication']]);
+    expect(params).toEqual([CTX, P1, 'Accountable', 9, ['OrganizationalUnit', 'LogicalApplication', 'Catalog']]);
   });
 });
 

@@ -100,15 +100,15 @@ describe('PUT /contexts/:id/roles', () => {
     expect((await put({ role: 'Accountable', principalId: P1 })).status).toBe(404);
   });
 
-  it('only OrganizationalUnit and LogicalApplication carry roles', () => {
-    expect([...ROLE_BEARING_CATEGORIES].sort()).toEqual(['LogicalApplication', 'OrganizationalUnit']);
+  it('only OrganizationalUnit, LogicalApplication and Catalog carry roles', () => {
+    expect([...ROLE_BEARING_CATEGORIES].sort()).toEqual(['Catalog', 'LogicalApplication', 'OrganizationalUnit']);
   });
 
   it.each(['Segment', 'Tag', null])('400 on a context whose template (%s) carries no roles', async (contextCategory) => {
     queryOne.mockResolvedValueOnce({ contextCategory });
     const res = await put({ role: 'Responsible', principalId: P1 });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/organizational unit or a logical application/);
+    expect(res.body.error).toMatch(/organizational unit, a logical application or a catalog/);
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -129,6 +129,16 @@ describe('PUT /contexts/:id/roles', () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Identity not found');
     expect(queryOne.mock.calls[1][0]).toContain('FROM "Identities"');
+  });
+
+  it('accepts a role on a catalog of business roles', async () => {
+    queryOne.mockResolvedValueOnce({ contextCategory: 'Catalog' });
+    queryOne.mockResolvedValueOnce({ displayName: 'Olga' });
+    query.mockResolvedValueOnce({ rowCount: 0 });
+    query.mockResolvedValueOnce({ rows: [{ id: ROLE, role: 'Accountable', principalId: P1, identityId: null, addedBy: 'analyst' }] });
+    const res = await put({ role: 'Accountable', principalId: P1 });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ role: 'Accountable', displayName: 'Olga' });
   });
 
   it('adds a Responsible as the analyst and answers with the holder name', async () => {

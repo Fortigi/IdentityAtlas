@@ -127,7 +127,7 @@ const HOLDER_TABLE = { principalId: 'Principals', identityId: 'Identities' };
 
 async function applyRole(client, claim, holder, replace) {
   if (!ROLE_BEARING_CATEGORIES.has(claim.contextCategory)) {
-    throw new ClaimError(400, 'Roles can only be set on an organizational unit or a logical application');
+    throw new ClaimError(400, 'Roles can only be set on an organizational unit, a logical application or a catalog');
   }
   if (!holder) throw new ClaimError(400, 'Choose who this claim is about before confirming it');
   const found = (await client.query(`SELECT "displayName" FROM "${HOLDER_TABLE[holder.col]}" WHERE id = $1`, [holder.id])).rows[0];

@@ -45,7 +45,11 @@ export function categoryForContextType(contextType) {
 }
 
 // The templates whose contexts have people who answer for them (ContextRoles,
-// migration 095): an organizational unit and a logical application. A Segment
-// or a Tag carries no roles. Shared by the roles API and the ingest, which
+// migration 095): an organizational unit, a logical application and a catalog
+// of business roles (its owners). A Segment or a Tag carries no roles. Shared by the roles API and the ingest, which
 // states a synced owner as the Accountable (ingest/contextOwners.js).
-export const ROLE_BEARING_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);
+export const ROLE_BEARING_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication', 'Catalog']);
+
+// The templates with a full page of their own: the people overview, interviews
+// and an Accountable suggestion. A catalog has roles but none of these.
+export const PROFILED_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);

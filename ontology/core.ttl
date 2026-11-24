@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "3.0.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/3.0.0> ;
+    owl:versionInfo "3.1.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/3.1.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -591,7 +591,7 @@ ia:ContextCategory_Catalog a owl:NamedIndividual, ia:ContextCategory ; ia:typeVa
 
 ia:ContextRoleType a owl:Class ;
     rdfs:label "Context role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "What a person is to a context. Only an OrganizationalUnit or a LogicalApplication carries roles." .
+    rdfs:comment "What a person is to a context. Only an OrganizationalUnit, a LogicalApplication or a Catalog carries roles." .
 ia:ContextRoleType_Accountable a owl:NamedIndividual, ia:ContextRoleType ; ia:typeValue "Accountable" ;
     rdfs:label "Accountable" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Answers for the unit or application: its manager or owner. At most one per context." .
@@ -764,7 +764,7 @@ ia:CatalogContext a owl:Class ; rdfs:subClassOf ia:Context ; ia:typeValue "Catal
     ia:emittedBy "demo" ;
     ia:allowedTargetType ia:EntityKind_Resource ;
     rdfs:label "Catalog" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "A grouping of business roles (resourceType BusinessRole) as the governance source keeps it: an Entra ID access package catalog, another IGA platform's role folder. Its members are the business roles; the source's own catalog properties sit in extendedAttributes. Not an application: an application groups the technical resources that make up one system, a catalog groups the roles that hand them out. Replaces the GovernanceCatalogs table and Resources.catalogId (migration 117)." .
+    rdfs:comment "A grouping of business roles (resourceType BusinessRole) as the governance source keeps it: an Entra ID access package catalog, another IGA platform's role folder. Its members are the business roles; the source's own catalog properties sit in extendedAttributes. Carries an Accountable (its owner) and Responsible (ContextRoles). Not an application: an application groups the technical resources that make up one system, a catalog groups the roles that hand them out. Replaces the GovernanceCatalogs table and Resources.catalogId (migration 117)." .
 
 # A crawler or an analyst may store any contextType (Omada's OrgUnit, a SQL
 # source's LogicalApplication …). Defined here are the values the code gives a
@@ -880,7 +880,7 @@ ia:AccessPackageCatalogContext a owl:Class ; rdfs:subClassOf ia:CatalogContext ;
     ia:emittedBy "entra-id" ;
     ia:allowedTargetType ia:EntityKind_Resource ;
     rdfs:label "Access package catalog" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times." .
+    rdfs:comment "An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times. Its roles come from the catalog's role assignments: a single Catalog owner is the Accountable, several owners are each Responsible, and every Access package manager is Responsible." .
 ia:TeamContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "Team" ;
     ia:emittedBy "demo" ;
     ia:allowedTargetType ia:EntityKind_Principal, ia:EntityKind_Resource ;
