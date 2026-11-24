@@ -55,8 +55,60 @@ function Add-EntraAccessPackageAssignment {
         return
     }
     $kept = $Seen[$key]
+    Add-EntraAssignmentPolicyId -Kept $kept -PolicyId $Record.policyId
     if ([int]$rank["$($Record.origin)"] -gt [int]$rank["$($kept.origin)"]) {
         $kept.origin = $Record.origin
         $kept.originDetail = $Record.originDetail
+        if ($Record.policyId) { $kept.policyId = $Record.policyId }
     }
+}
+
+# Someone can hold one package through several policies, and the assignment row
+# is one per (package, person): every policy behind it is listed on that row.
+function Add-EntraAssignmentPolicyId {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Kept, $PolicyId)
+    if (-not $PolicyId) { return }
+    if (-not $Kept.policyId) { $Kept.policyId = $PolicyId }
+    if (-not $Kept.extendedAttributes) { $Kept.extendedAttributes = @{ assignmentPolicyIds = @() } }
+    if ($Kept.extendedAttributes.assignmentPolicyIds -notcontains $PolicyId) {
+        $Kept.extendedAttributes.assignmentPolicyIds = @($Kept.extendedAttributes.assignmentPolicyIds) + $PolicyId
+    }
+}
+
+# The rule text of a policy's allowed targets. A policy may list several rules;
+# group and single-user targets are not rules and stay in specificAllowedTargets.
+function Get-EntraPolicyTargetRule {
+    [CmdletBinding()]
+    param($Targets)
+    $rules = foreach ($t in @($Targets)) {
+        if ($t -and "$($t.'@odata.type')" -match 'attributeRuleMembers$' -and $t.membershipRule) { [string]$t.membershipRule }
+    }
+    if (-not $rules) { return $null }
+    return (@($rules) -join "`n")
+}
+
+# How one policy lets access be gained and lost. A setting Graph did not return
+# is left out, so the column stays NULL ("the source does not say") instead of
+# reading as "no".
+function Get-EntraPolicyAccessDetails {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Policy)
+    $details = @{}
+    if ($Policy.allowedTargetScope) { $details.allowsDirectAssignment = ($Policy.allowedTargetScope -eq 'notSpecified') }
+    if ($Policy.automaticRequestSettings) { $details.automaticRequestSettings = $Policy.automaticRequestSettings }
+    $requestors = $Policy.requestorSettings
+    if ($requestors) {
+        $details.allowsRequest = [bool]$requestors.enableTargetsToSelfAddAccess -or [bool]$requestors.enableOnBehalfRequestorsToAddAccess
+        $details.allowsRemovalRequest = [bool]$requestors.enableTargetsToSelfRemoveAccess -or [bool]$requestors.enableOnBehalfRequestorsToRemoveAccess
+    }
+    if ($Policy.requestApprovalSettings) { $details.requiresApproval = [bool]$Policy.requestApprovalSettings.isApprovalRequiredForAdd }
+    if ($Policy.expiration) {
+        $details.expiration = $Policy.expiration
+        $details.hasExpiration = "$($Policy.expiration.type)" -in @('afterDateTime', 'afterDuration')
+    }
+    $rule = Get-EntraPolicyTargetRule -Targets $Policy.specificAllowedTargets
+    if ($rule) { $details.targetRule = $rule }
+    if ($Policy.specificAllowedTargets) { $details.extendedAttributes = @{ specificAllowedTargets = @($Policy.specificAllowedTargets) } }
+    return $details
 }

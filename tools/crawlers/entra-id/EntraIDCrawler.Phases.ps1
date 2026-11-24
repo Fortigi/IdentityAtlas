@@ -1324,6 +1324,7 @@ function Sync-EntraGovernance {
         Sync-EntraGovernanceResourceScopes -SystemId $SystemId -AccessPackages $accessPackages
         Sync-EntraGovernanceAssignments -SystemId $SystemId
         Sync-EntraGovernancePolicies -SystemId $SystemId
+        Sync-EntraGovernanceRequests -SystemId $SystemId
         Sync-EntraGovernanceReviews -SystemId $SystemId
     }
     catch {

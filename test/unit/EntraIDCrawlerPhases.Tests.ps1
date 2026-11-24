@@ -38,6 +38,7 @@ BeforeAll {
     # ConvertTo-*/New-* pure record shapers the phases call.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Transform.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceOrigin.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceRequests.ps1')
     # App-role record shapers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # Get-EntraDeltaSelect — builds the $select the full fetches prime their
@@ -1553,6 +1554,45 @@ Describe 'Governance phases' {
         $script:phaseErrors.Count | Should -Be 0
     }
 
+    It 'Sync-EntraGovernanceRequests uploads only the open requests' {
+        Mock Invoke-FGGetRequestStream -ParameterFilter { $URI -match 'assignmentRequests' } -MockWith {
+            [pscustomobject]@{ id = 'r-open'; state = 'pendingApproval'; accessPackage = [pscustomobject]@{ id = 'ap1' } }
+            [pscustomobject]@{ id = 'r-done'; state = 'delivered'; accessPackage = [pscustomobject]@{ id = 'ap1' } }
+        }
+        Mock Invoke-CrawlerIngestBatch -MockWith $script:SendMock
+        Sync-EntraGovernanceRequests -SystemId 1
+
+        $sent = @(Get-Sent { $_.Endpoint -eq 'ingest/governance/requests' })
+        $sent.Count | Should -Be 1
+        @($sent[0].Records).Count | Should -Be 1
+        @($sent[0].Records)[0].id | Should -Be 'r-open'
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernanceRequests sends a full empty load, which clears decided requests' {
+        Mock Invoke-FGGetRequestStream -ParameterFilter { $URI -match 'assignmentRequests' } -MockWith {
+            [pscustomobject]@{ id = 'r-done'; state = 'denied'; accessPackage = [pscustomobject]@{ id = 'ap1' } }
+        }
+        Mock Invoke-CrawlerIngestBatch -MockWith $script:SendMock
+        Sync-EntraGovernanceRequests -SystemId 1
+
+        $sent = @(Get-Sent { $_.Endpoint -eq 'ingest/governance/requests' })
+        $sent.Count | Should -Be 1
+        $sent[0].SyncMode | Should -Be 'full'
+        @($sent[0].Records).Count | Should -Be 0
+        # -SkipWhenEmpty would turn this load into no call at all.
+        Should -Invoke Invoke-CrawlerIngestBatch -Times 1 -Exactly -ParameterFilter { -not $SkipWhenEmpty }
+    }
+
+    It 'Sync-EntraGovernanceRequests sends nothing when Graph fails, so open requests are kept' {
+        Mock Invoke-FGGetRequestStream -ParameterFilter { $URI -match 'assignmentRequests' } -MockWith { throw 'HTTP 403' }
+        Mock Invoke-CrawlerIngestBatch -MockWith $script:SendMock
+        Sync-EntraGovernanceRequests -SystemId 1
+
+        @(Get-Sent { $_.Endpoint -eq 'ingest/governance/requests' }).Count | Should -Be 0
+        @($script:phaseErrors | Where-Object { $_ -like 'Governance/AssignmentRequests:*' }).Count | Should -Be 1
+    }
+
     It 'Get-EntraAccessReviewCertRecords builds decision records and skips failed instances' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'definitions/rd1/instances\?' } -MockWith {
             @([pscustomobject]@{ id = 'inst1'; status = 'Applied' })
@@ -1592,6 +1632,7 @@ Describe 'Governance phases' {
         Mock Invoke-FGGetRequestStream -MockWith { @() }
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'assignmentPolicies' } -MockWith { @() }
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessReviews/definitions\?' } -MockWith { @() }
+        Mock Invoke-CrawlerIngestBatch -MockWith $script:SendMock
 
         $timings = [ordered]@{}
         Sync-EntraGovernance -SystemId 1 -Timings $timings
@@ -1600,6 +1641,7 @@ Describe 'Governance phases' {
         # Sub-phases report individually; no top-level 'Governance' Write-Phase.
         @($script:phases.name) | Should -Not -Contain 'Governance'
         @($script:phases.name) | Should -Contain 'Governance/ResourceScopes'
+        @($script:phases.name) | Should -Contain 'Governance/AssignmentRequests'
         @($script:phases.name) | Should -Contain 'Governance/AccessReviews'
     }
 

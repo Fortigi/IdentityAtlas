@@ -746,6 +746,149 @@ Describe 'ConvertTo-EntraAssignmentPolicyRecord' {
     It 'returns $null when no access-package id can be resolved' {
         ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p3' }) | Should -BeNullOrEmpty
     }
+
+    It 'stores the rule, the approval and the expiry of a rule-based policy' {
+        $pol = [pscustomobject]@{
+            id = 'p4'; accessPackageId = 'ap4'; allowedTargetScope = 'specificDirectoryUsers'
+            specificAllowedTargets = @(
+                [pscustomobject]@{ '@odata.type' = '#microsoft.graph.attributeRuleMembers'; membershipRule = '(user.department -eq "IT")' }
+                [pscustomobject]@{ '@odata.type' = '#microsoft.graph.groupMembers'; groupId = 'g1' }
+            )
+            requestApprovalSettings = [pscustomobject]@{ isApprovalRequiredForAdd = $true }
+            expiration = [pscustomobject]@{ type = 'afterDuration'; duration = 'P365D' }
+        }
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy $pol
+        $rec['targetRule']             | Should -Be '(user.department -eq "IT")'
+        $rec['requiresApproval']       | Should -BeTrue
+        $rec['hasExpiration']          | Should -BeTrue
+        $rec['allowsDirectAssignment'] | Should -BeFalse
+        @($rec['extendedAttributes'].specificAllowedTargets).Count | Should -Be 2
+    }
+
+    It 'leaves a setting Graph did not return out of the record (NULL, not "no")' {
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p5'; accessPackageId = 'ap5' })
+        foreach ($key in 'allowsRequest', 'allowsRemovalRequest', 'allowsDirectAssignment', 'requiresApproval', 'hasExpiration', 'targetRule') {
+            $rec.ContainsKey($key) | Should -BeFalse -Because "$key was not in the Graph response"
+        }
+    }
+
+    It 'reads <name> as allowsRequest=<add> and allowsRemovalRequest=<remove>' -ForEach @(
+        @{ name = 'self add only'; s = @{ enableTargetsToSelfAddAccess = $true }; add = $true; remove = $false }
+        @{ name = 'on-behalf add only'; s = @{ enableOnBehalfRequestorsToAddAccess = $true }; add = $true; remove = $false }
+        @{ name = 'self remove only'; s = @{ enableTargetsToSelfRemoveAccess = $true }; add = $false; remove = $true }
+        @{ name = 'on-behalf remove only'; s = @{ enableOnBehalfRequestorsToRemoveAccess = $true }; add = $false; remove = $true }
+        @{ name = 'nothing enabled'; s = @{ enableTargetsToSelfAddAccess = $false }; add = $false; remove = $false }
+    ) {
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p6'; accessPackageId = 'ap6'; requestorSettings = [pscustomobject]$s })
+        $rec['allowsRequest']        | Should -Be $add
+        $rec['allowsRemovalRequest'] | Should -Be $remove
+    }
+
+    It 'reads expiry type <type> as hasExpiration=<expected>' -ForEach @(
+        @{ type = 'afterDateTime'; expected = $true }
+        @{ type = 'afterDuration'; expected = $true }
+        @{ type = 'noExpiration'; expected = $false }
+        @{ type = 'notSpecified'; expected = $false }
+    ) {
+        $rec = ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p7'; accessPackageId = 'ap7'; expiration = [pscustomobject]@{ type = $type } })
+        $rec['hasExpiration'] | Should -Be $expected
+    }
+
+    It 'marks only the notSpecified scope as handed out by an administrator' {
+        (ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p8'; accessPackageId = 'a'; allowedTargetScope = 'notSpecified' }))['allowsDirectAssignment'] | Should -BeTrue
+        (ConvertTo-EntraAssignmentPolicyRecord -Policy ([pscustomobject]@{ id = 'p9'; accessPackageId = 'a'; allowedTargetScope = 'allMemberUsers' }))['allowsDirectAssignment'] | Should -BeFalse
+    }
+}
+
+Describe 'Get-EntraPolicyTargetRule' {
+
+    It 'joins several attribute rules and ignores group targets' {
+        $targets = @(
+            [pscustomobject]@{ '@odata.type' = '#microsoft.graph.attributeRuleMembers'; membershipRule = 'rule-a' }
+            [pscustomobject]@{ '@odata.type' = '#microsoft.graph.groupMembers'; membershipRule = 'not-a-rule' }
+            [pscustomobject]@{ '@odata.type' = '#microsoft.graph.attributeRuleMembers'; membershipRule = 'rule-b' }
+        )
+        Get-EntraPolicyTargetRule -Targets $targets | Should -Be "rule-a`nrule-b"
+    }
+
+    It 'returns $null when no target is a rule' {
+        Get-EntraPolicyTargetRule -Targets @([pscustomobject]@{ '@odata.type' = '#microsoft.graph.groupMembers' }) | Should -BeNullOrEmpty
+        Get-EntraPolicyTargetRule -Targets $null | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Add-EntraAccessPackageAssignment with several policies' {
+
+    It 'lists every policy behind one person, and keeps the rule policy as the main one' {
+        $records = [System.Collections.Generic.List[hashtable]]::new()
+        $seen = @{}
+        $req  = @{ resourceId = 'ap1'; principalId = 'u1'; origin = 'Requested'; policyId = 'pol-req'; extendedAttributes = @{ assignmentPolicyIds = @('pol-req') } }
+        $auto = @{ resourceId = 'ap1'; principalId = 'u1'; origin = 'Automatic'; policyId = 'pol-auto'; extendedAttributes = @{ assignmentPolicyIds = @('pol-auto') } }
+        Add-EntraAccessPackageAssignment -Records $records -Seen $seen -Record $req
+        Add-EntraAccessPackageAssignment -Records $records -Seen $seen -Record $auto
+
+        $records.Count | Should -Be 1
+        $records[0].policyId | Should -Be 'pol-auto'
+        @($records[0].extendedAttributes.assignmentPolicyIds) | Should -Be @('pol-req', 'pol-auto')
+    }
+
+    It 'does not list the same policy twice and keeps the stronger policy as main' {
+        $records = [System.Collections.Generic.List[hashtable]]::new()
+        $seen = @{}
+        $auto = @{ resourceId = 'ap1'; principalId = 'u1'; origin = 'Automatic'; policyId = 'pol-auto'; extendedAttributes = @{ assignmentPolicyIds = @('pol-auto') } }
+        $again = @{ resourceId = 'ap1'; principalId = 'u1'; origin = 'Automatic'; policyId = 'pol-auto'; extendedAttributes = @{ assignmentPolicyIds = @('pol-auto') } }
+        $req  = @{ resourceId = 'ap1'; principalId = 'u1'; origin = 'Requested'; policyId = 'pol-req'; extendedAttributes = @{ assignmentPolicyIds = @('pol-req') } }
+        Add-EntraAccessPackageAssignment -Records $records -Seen $seen -Record $auto
+        Add-EntraAccessPackageAssignment -Records $records -Seen $seen -Record $again
+        Add-EntraAccessPackageAssignment -Records $records -Seen $seen -Record $req
+
+        $records[0].policyId | Should -Be 'pol-auto'
+        @($records[0].extendedAttributes.assignmentPolicyIds) | Should -Be @('pol-auto', 'pol-req')
+    }
+}
+
+Describe 'ConvertTo-EntraAssignmentRequestRecord' {
+
+    BeforeAll {
+        . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceRequests.ps1')
+    }
+
+    It 'keeps an open request with its requestor' {
+        $r = [pscustomobject]@{
+            id = 'r1'; state = 'pendingApproval'; status = 'PendingApproval'; requestType = 'userAdd'; justification = 'need it'
+            accessPackage = [pscustomobject]@{ id = 'ap1' }
+            requestor = [pscustomobject]@{ objectId = 'u1'; displayName = 'Ann'; email = 'ann@example.test' }
+        }
+        $rec = ConvertTo-EntraAssignmentRequestRecord -Request $r
+        $rec['resourceId']   | Should -Be 'ap1'
+        $rec['requestState'] | Should -Be 'pendingApproval'
+        $rec['requestorId']  | Should -Be 'u1'
+        $rec['requestor'].displayName | Should -Be 'Ann'
+    }
+
+    It 'treats state <state> as open=<open>' -ForEach @(
+        @{ state = 'submitted'; open = $true }
+        @{ state = 'pendingApproval'; open = $true }
+        @{ state = 'delivering'; open = $true }
+        @{ state = 'scheduled'; open = $true }
+        @{ state = 'delivered'; open = $false }
+        @{ state = 'denied'; open = $false }
+        @{ state = 'canceled'; open = $false }
+        @{ state = 'deliveryFailed'; open = $false }
+    ) {
+        $r = [pscustomobject]@{ id = 'r2'; state = $state; accessPackage = [pscustomobject]@{ id = 'ap1' } }
+        [bool](ConvertTo-EntraAssignmentRequestRecord -Request $r) | Should -Be $open
+    }
+
+    It 'skips a request that names no access package' {
+        ConvertTo-EntraAssignmentRequestRecord -Request ([pscustomobject]@{ id = 'r3'; state = 'pendingApproval' }) | Should -BeNullOrEmpty
+    }
+
+    It 'keeps a request without a requestor, leaving the requestor out' {
+        $rec = ConvertTo-EntraAssignmentRequestRecord -Request ([pscustomobject]@{ id = 'r4'; state = 'submitted'; accessPackage = [pscustomobject]@{ id = 'ap1' } })
+        $rec.ContainsKey('requestorId') | Should -BeFalse
+        $rec.ContainsKey('requestor')   | Should -BeFalse
+    }
 }
 
 Describe 'ConvertTo-EntraAccessPackageScopeRelationship' {
