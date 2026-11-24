@@ -101,7 +101,7 @@ The engine scores every account (`Principal`) and every resource (`Resource`, bu
 
 Final score = `min(100, round(0.50·direct + 0.20·membership + 0.10·structural + 0.20·propagated))`. Tier thresholds (`riskscoring/tiers.js`): 90+ Critical, 70+ High, 40+ Medium, 20+ Low, 1+ Minimal, 0 None.
 
-Accounts whose `principalType` is `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity` or `AIAgent` are matched against the `agentClassifiers` set instead of `userClassifiers` when one is present.
+Accounts whose `principalType` is `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent` or `MachineAccount` are matched against the `agentClassifiers` set instead of `userClassifiers` when one is present.
 
 A run deletes every row in `RiskScores` and writes the new scores in one transaction. Analyst overrides are not carried over; see the [Risk Scores API](../api/risk-scores.md).
 

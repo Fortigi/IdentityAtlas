@@ -20,6 +20,7 @@ Not every account belongs to a person. Applications, automation and AI agents ho
 | `ManagedIdentity` | An identity attached to a cloud resource and managed by the platform |
 | `AIAgent` | A service principal recognised as an AI agent |
 | `WorkloadIdentity` | An identity for a workload that signs in with a federated credential |
+| `MachineAccount` | A computer's own directory account (an AD computer account) |
 
 ## How the Entra ID crawler decides the type
 
@@ -30,7 +31,7 @@ For each service principal, the first rule that applies wins:
 3. Its display name contains `copilot`, `openai`, `azure-ai` or `cognitive-service`, or the separate word `gpt` or `bot` → `AIAgent`.
 4. Otherwise → `ServicePrincipal`.
 
-The Entra ID crawler does not assign `WorkloadIdentity`. The CSV and SQL crawlers accept all four types, so a source that knows the difference can supply it.
+The Entra ID crawler does not assign `WorkloadIdentity` or `MachineAccount`. The CSV and SQL crawlers accept all five types, so a source that knows the difference can supply it.
 
 Rule 3 is a name match, so check the outcome: an application called *Robot Arm Bot* becomes an `AIAgent`, and an agent with a neutral name stays a `ServicePrincipal`.
 
@@ -38,7 +39,7 @@ Rule 3 is a name match, so check the outcome: an application called *Robot Arm B
 
 Non-human accounts go through the same four layers as every other account. One thing differs:
 
-- **Layer 1 uses the Agents classifiers.** Accounts of the four types above are matched against the **Agents** tab of the active classifier set. If the set contains no agent classifiers, the **Users** classifiers are used instead.
+- **Layer 1 uses the Agents classifiers.** Accounts of the five types above are matched against the **Agents** tab of the active classifier set. If the set contains no agent classifiers, the **Users** classifiers are used instead.
 
 Layers 2 to 4 are identical for human and non-human accounts: the same membership, hygiene and propagation signals, with the same points. There is no extra score for being non-human.
 

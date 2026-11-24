@@ -298,11 +298,12 @@ Found while adding the context types (version 1.1.0). Again none of the behaviou
 19. **The CSV crawler scopes its principal reconcile to `principalType='User'`** even when its rows carry
     other types.
 14. **Two "non-human account" lists.** `NON_HUMAN_PRINCIPAL_TYPES` (account linking) is ServicePrincipal,
-    ManagedIdentity, AIAgent; `riskscoring/engine.js` keeps its own inline list that also includes
-    WorkloadIdentity.
-15. **`WorkloadIdentity` and `SharedMailbox` are accepted but no built-in crawler emits them.** They
-    arrive only through CSV, SQL, SCIM or midPoint mappings; the Entra crawler deliberately does not
-    classify workload identities.
+    ManagedIdentity, AIAgent, MachineAccount; `riskscoring/engine.js` keeps its own inline list that
+    also includes WorkloadIdentity.
+15. **`WorkloadIdentity`, `SharedMailbox` and `MachineAccount` are accepted but no built-in crawler
+    emits them.** They arrive only through CSV, SQL, SCIM or midPoint mappings; the Entra crawler
+    deliberately does not classify workload identities, and computer accounts come from a directory
+    source rather than from Graph.
 16. **A stale code comment, corrected here:** `buildMemberRows` said reports of a manager missing from
     the dataset go to the root; they stay together under an `Unknown` node.
 

@@ -54,6 +54,7 @@ classDiagram
     class Identity
     class LocationContext
     class LogicalApplicationContext
+    class MachineAccount
     class ManagedIdentity
     class ManagerHierarchyContext
     class OrgUnitContext
@@ -123,6 +124,7 @@ classDiagram
     ControlPermission <|-- GroupOwnership
     Segment <|-- LocationContext
     Context <|-- LogicalApplicationContext
+    Software <|-- MachineAccount
     Software <|-- ManagedIdentity
     OrganizationalUnit <|-- ManagerHierarchyContext
     OrganizationalUnit <|-- OrgUnitContext
@@ -292,6 +294,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 |---|---|---|---|---|
 | `AIAgent` | `ia:AIAgent` | Agent | crawlers `demo`, `entra-id` | An AI agent (Copilot Studio, Azure OpenAI, a custom bot) that holds access as its own account. |
 | `ExternalUser` | `ia:ExternalUser` | Person | crawlers `demo`, `omada` | A guest / B2B account from another organisation. |
+| `MachineAccount` | `ia:MachineAccount` | Software | no built-in source | A computer/server's own directory account (e.g. an Active Directory computer account), a security principal in its own right. Accepted from CSV, SQL, SCIM and midPoint sources; no built-in crawler classifies accounts this way. |
 | `ManagedIdentity` | `ia:ManagedIdentity` | Software | crawlers `demo`, `entra-id` | A system- or user-assigned identity attached to a cloud resource. |
 | `ServicePrincipal` | `ia:ServicePrincipal` | Software | crawlers `demo`, `entra-id`, `omada` | The service principal of an application registration. |
 | `SharedMailbox` | `ia:SharedMailbox` | Person | crawler `demo` | A shared, room or equipment mailbox account. Accepted from CSV, SQL, SCIM and midPoint sources; of the built-in sources only the demo dataset writes it. |
@@ -318,7 +321,7 @@ Mapped onto this list from the source data or configuration by: `csv`, `custom-c
 | `photo` | `ia:photo` | bytea |  | Profile photo (sent base64 to the ingest). |
 | `photoContentType` | `ia:photoContentType` | text |  | MIME type of the photo. |
 | `photoFetchedAt` | `ia:photoFetchedAt` | timestamp with time zone |  | When the photo was last fetched; set with a NULL photo means "has none". |
-| `principalType` | `ia:principalType` | text | `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` | The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type. |
+| `principalType` | `ia:principalType` | text | `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `MachineAccount`, `AIAgent`, `ExternalUser`, `SharedMailbox` | The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type. |
 | `riskScore` | `ia:riskScore` | integer |  | Latest risk score, denormalised from RiskScores. |
 | `riskTier` | `ia:riskTier` | text |  | Latest risk tier, denormalised from RiskScores. |
 | `surname` | `ia:surname` | text |  | Surname. |

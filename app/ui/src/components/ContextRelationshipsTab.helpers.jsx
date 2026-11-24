@@ -25,6 +25,7 @@ const ACCOUNT_TYPE_WORDS = {
   ManagedIdentity: 'Service account',
   ServiceAccount: 'Service account',
   AIAgent: 'AI agent',
+  MachineAccount: 'Machine account',
 };
 
 export function accountTypeWord(principalType) {

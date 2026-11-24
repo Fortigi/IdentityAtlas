@@ -238,6 +238,12 @@ Describe 'Get-SqlPrincipalType' {
         $r = New-Row -Cells @{ id = 'sp1'; principalType = 'ServicePrincipal' } -Target 'principals'
         Get-SqlPrincipalType -Row $r.Row -Map $r.Map -Default 'User' | Should -Be 'ServicePrincipal'
     }
+    It 'accepts MachineAccount from the row and not its other spellings' {
+        $ok = New-Row -Cells @{ id = 'SRV-FILE01$'; principalType = 'MachineAccount' } -Target 'principals'
+        Get-SqlPrincipalType -Row $ok.Row -Map $ok.Map -Default 'User' | Should -Be 'MachineAccount'
+        $bad = New-Row -Cells @{ id = 'SRV-SQL02$'; principalType = 'Computer' } -Target 'principals'
+        Get-SqlPrincipalType -Row $bad.Row -Map $bad.Map -Default 'User' | Should -Be 'User'
+    }
     It 'ignores an illegal or absent value and uses the slot default' {
         $bad = New-Row -Cells @{ id = 'x'; principalType = 'Robot' } -Target 'principals'
         Get-SqlPrincipalType -Row $bad.Row -Map $bad.Map -Default 'ExternalUser' | Should -Be 'ExternalUser'

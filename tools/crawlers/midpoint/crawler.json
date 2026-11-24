@@ -80,7 +80,7 @@
               "type": "object",
               "properties": {
                 "userType":      { "type": "string" },
-                "principalType": { "type": "string", "enum": ["User", "ServicePrincipal", "ManagedIdentity", "WorkloadIdentity", "AIAgent", "ExternalUser", "SharedMailbox"] }
+                "principalType": { "type": "string", "enum": ["User", "ServicePrincipal", "ManagedIdentity", "WorkloadIdentity", "AIAgent", "ExternalUser", "SharedMailbox", "MachineAccount"] }
               }
             }
           }

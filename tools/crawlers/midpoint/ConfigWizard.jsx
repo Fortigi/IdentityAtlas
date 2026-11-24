@@ -36,7 +36,7 @@ const SYNC_OPTIONS = [
 ];
 
 const RESOURCE_TYPE_OPTIONS  = ['BusinessRole', 'Service', 'Resource', 'Application', 'AppRole', 'Entitlement', 'DelegatedPermission'];
-const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount'];
 const FIELD_CLS = 'text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 
 // ─── Wizard ───────────────────────────────────────────────────────────────────

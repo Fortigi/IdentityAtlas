@@ -172,10 +172,23 @@ describe('validateRecords — principals', () => {
   });
 
   it('accepts all valid principalType values', () => {
-    const types = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+    const types = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount'];
     for (const t of types) {
       const result = validateRecords([{ ...validPrincipal, principalType: t }], 'principals');
       expect(result.valid, `Expected valid for principalType=${t}`).toBe(true);
+    }
+  });
+
+  it('accepts MachineAccount and still rejects the other spellings of a computer account', () => {
+    // A computer account has ONE accepted spelling. The near-misses a source
+    // might reach for (`Computer`, `Device`, `machine`) are the drift this type
+    // exists to prevent, so they have to keep failing — the pair is what makes
+    // the accepted value mean something.
+    expect(validateRecords([{ ...validPrincipal, principalType: 'MachineAccount' }], 'principals').valid).toBe(true);
+    for (const wrong of ['Computer', 'Device', 'machine', 'machineaccount']) {
+      const result = validateRecords([{ ...validPrincipal, principalType: wrong }], 'principals');
+      expect(result.valid, `Expected invalid for principalType=${wrong}`).toBe(false);
+      expect(result.errors.some(e => /principalType/.test(e))).toBe(true);
     }
   });
 

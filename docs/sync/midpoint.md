@@ -124,7 +124,7 @@ Click **Advanced type mappings (orgs, users)** to open two more tables. Each row
 | Table | Left: from midPoint | Right: in Identity Atlas | Default |
 |---|---|---|---|
 | **Org → context type** | **Org subtype** — pick from the subtypes on your server, or type one | **Context type** — any name you choose, such as `Department` or `Country` | Every org → `OrgUnit` |
-| **User → principal type** | **User subtype** — the user's subtype or employee type | **Principal type** — `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser` or `SharedMailbox` | Every user → `User` |
+| **User → principal type** | **User subtype** — the user's subtype or employee type | **Principal type** — `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` or `MachineAccount` | Every user → `User` |
 
 ---
 

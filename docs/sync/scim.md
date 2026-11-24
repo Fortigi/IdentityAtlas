@@ -168,7 +168,8 @@ SCIM's `userType` is a free-form string, so the crawler maps it onto the Identit
 Atlas principal-type vocabulary. Matching is case-insensitive and exact; a row with
 a blank `userType` is the catch-all; with no match and no catch-all an account is a
 plain `User`. Valid principal types are `User`, `ServicePrincipal`,
-`ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser` and `SharedMailbox`.
+`ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox` and
+`MachineAccount`.
 
 ---
 

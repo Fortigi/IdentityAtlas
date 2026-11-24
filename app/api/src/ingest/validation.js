@@ -17,7 +17,7 @@ import {
 // (src/ontology/, `npm run ontology:check`) reads the model from the code that
 // enforces it instead of from a second hand-kept copy. Adding a value here
 // without describing it in /ontology/core.ttl fails CI.
-export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount'];
 // Hard rule (assignment-model redesign): an assignment is only ever one of the
 // three universal "how" values. Everything that used to be its own type is now
 // modelled differently — ownership is a Direct membership on a GroupOwnership

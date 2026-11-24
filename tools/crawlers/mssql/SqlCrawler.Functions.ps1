@@ -21,7 +21,7 @@ $script:SqlTargets       = @('systems', 'identities', 'principals', 'identity-me
 $script:SqlContextTargetTypes = @('Resource', 'Identity', 'Principal', 'System')
 $script:SqlAssignTypes   = @('Direct', 'Indirect', 'Eligible')
 $script:SqlRelTypes      = @('Contains', 'GrantsAccessTo')
-$script:SqlPrincipalTypes = @('User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox')
+$script:SqlPrincipalTypes = @('User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount')
 
 # A statement pages when it binds @Offset (the crawler then also binds @PageSize).
 function Test-SqlPagedQuery {

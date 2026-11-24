@@ -87,8 +87,26 @@ describe('fetchOrphanPrincipals', () => {
     expect(query.mock.calls[0][0]).toMatch(/(?:\w+\.)?"deletedAt" IS NULL/);
   });
 
-  it('excludes exactly the three non-human principal classes', () => {
-    expect(NON_HUMAN_PRINCIPAL_TYPES).toEqual(['ServicePrincipal', 'ManagedIdentity', 'AIAgent']);
+  it('excludes exactly the non-human principal classes', () => {
+    expect(NON_HUMAN_PRINCIPAL_TYPES).toEqual(['ServicePrincipal', 'ManagedIdentity', 'AIAgent', 'MachineAccount']);
+    // The other half of the contract: a type a person signs in with stays OFF
+    // the list. A list that grew to cover every type would still be an exact
+    // match of something — and would silently empty the orphan report.
+    expect(NON_HUMAN_PRINCIPAL_TYPES).not.toContain('User');
+    expect(NON_HUMAN_PRINCIPAL_TYPES).not.toContain('ExternalUser');
+  });
+
+  it('asks the database to leave a machine account out of the orphan set', async () => {
+    // A computer account is not a person's account linking failed to attach, so
+    // it is neither a linking candidate nor outstanding analyst work. The
+    // exclusion travels as the bound parameter, so this is what every consumer
+    // of the shared definition — engine, report, context plugin — receives.
+    query.mockResolvedValue({ rows: [] });
+    await fetchOrphanPrincipals();
+
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toMatch(/COALESCE\(p\."principalType", ''\) <> ALL\(\$1::text\[\]\)/);
+    expect(params[0]).toContain('MachineAccount');
   });
 
   it('joins Systems so each orphan carries its system name', async () => {

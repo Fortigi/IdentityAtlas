@@ -538,7 +538,7 @@ export function scorePrincipalEntity(p, ctx) {
     hierarchyAvailable, directReports, principalMemberships, principalActivity,
   } = ctx;
 
-  const isAgent = ['ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent'].includes(p.principalType);
+  const isAgent = ['ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'MachineAccount'].includes(p.principalType);
   const activeCls = isAgent && agentClassifiers.length > 0 ? agentClassifiers : userClassifiers;
   const extFields = flattenExtended(p.extendedAttributes).map((v, i) => [`ext[${i}]`, v]);
 

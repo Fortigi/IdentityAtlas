@@ -159,7 +159,7 @@ erDiagram
         uuid id PK
         string displayName
         uuid managerId FK
-        string principalType "User, ServicePrincipal, ManagedIdentity, WorkloadIdentity, AIAgent, ExternalUser, SharedMailbox"
+        string principalType "User, ServicePrincipal, ManagedIdentity, WorkloadIdentity, MachineAccount, AIAgent, ExternalUser, SharedMailbox"
         int systemId FK
     }
     ResourceAssignments {
@@ -473,9 +473,10 @@ The `principalType` column on the Principals table uses these standard values ac
 | `AIAgent` | AI agents: Copilot Studio, Azure OpenAI, custom bots | Entra ID crawler (tag/name auto-detection), CSV crawler |
 | `ExternalUser` | Guest / B2B accounts from another tenant | Omada crawler, CSV crawler |
 | `SharedMailbox` | Shared mailboxes and room/equipment accounts | CSV, SQL, SCIM and midPoint mappings only — no built-in crawler classifies accounts this way |
+| `MachineAccount` | A computer's own directory account (an AD computer account), a security principal in its own right | CSV, SQL, SCIM and midPoint mappings only — no built-in crawler classifies accounts this way |
 
 !!! note "Risk scoring behavior by principalType"
-    `User` principals receive the full set of stale sign-in, never-signed-in, and guest-account checks. Non-human types (`ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`) receive structural signals only — no stale sign-in checks. All types participate in direct classifier matching, membership analysis, and risk propagation.
+    `User` principals receive the full set of stale sign-in, never-signed-in, and guest-account checks. Non-human types (`ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `MachineAccount`) receive structural signals only — no stale sign-in checks. All types participate in direct classifier matching, membership analysis, and risk propagation.
 
 ---
 

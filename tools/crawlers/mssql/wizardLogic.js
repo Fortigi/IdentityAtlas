@@ -24,7 +24,7 @@ export const TARGET_IDS = TARGETS.map(t => t.id);
 export const ASSIGNMENT_TYPES = ['Direct', 'Indirect', 'Eligible'];
 export const RELATIONSHIP_TYPES = ['Contains', 'GrantsAccessTo'];
 export const CONTEXT_TARGET_TYPES = ['Resource', 'Identity', 'Principal', 'System'];
-export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+export const PRINCIPAL_TYPES = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount'];
 
 // Which slot-level constants each target uses. A field a target does not use is
 // left out of the saved slot entirely, so the crawler never sees a stray

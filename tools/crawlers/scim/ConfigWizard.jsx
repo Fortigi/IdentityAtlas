@@ -25,7 +25,7 @@ const SYNC_OPTIONS = [
   { key: 'groupMembers', label: 'Group members', description: 'Memberships, including nested groups' },
 ];
 
-const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox'];
+const PRINCIPAL_TYPE_OPTIONS = ['User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount'];
 const FIELD_CLS = 'text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200';
 const CRAWLER_TYPE = 'scim';
 const EMPTY_DISCOVERY = { resourceTypes: [], userAttributes: [], groupAttributes: [] };
