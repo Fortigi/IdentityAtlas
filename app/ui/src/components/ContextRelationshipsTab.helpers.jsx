@@ -50,13 +50,18 @@ export const MEMBER_TABLE_COLUMNS = {
   ],
   Resource: [
     { label: 'Type', value: m => m.resourceType, render: m => pill(m.resourceType) },
-    { label: 'Description', value: m => m.description, render: m => muted(m.description) },
+    // Cut to one line, so a long description does not push the role columns away.
+    {
+      label: 'Description', value: m => m.description,
+      render: m => <span title={m.description} className="block max-w-[16rem] truncate text-gray-600 dark:text-gray-400">{m.description}</span>,
+    },
     { label: 'Status', value: m => m.enabled, render: m => status(m.enabled) },
     // Owner before Users: a left-aligned name next to the right-aligned count
     // ran the two together. A resolved owner links to the account.
     { label: 'Owner', value: m => m.ownerDisplayName, render: (m, ctx) => ownerCell(m, ctx) },
     // An empty list still shows the column: "in no role" is the answer, not a gap.
-    { label: 'Business roles', value: m => m.businessRoles, render: (m, ctx) => businessRolesCell(m, ctx) },
+    // With roles on the page, visibleMemberColumns swaps this for one column per role.
+    { label: 'Business roles', value: m => m.businessRoles, render: () => muted('—') },
     {
       label: 'Users', align: 'right', value: m => m.holderCount,
       render: m => <span className="tabular-nums text-gray-700 dark:text-gray-300">{Number(m.holderCount).toLocaleString('en-US')}</span>,
@@ -83,37 +88,68 @@ function ownerCell(m, { onOpenDetail } = {}) {
   );
 }
 
-const ROLES_SHOWN = 3;
-const ROLE_LINK = 'text-left text-xs text-blue-700 hover:underline dark:text-blue-300';
+const ROLE_LINK = 'text-blue-700 hover:underline dark:text-blue-300';
 
-// The business roles that contain this resource, each opening its own page where
-// the reader may. The row itself opens the resource, so a click here stops here.
-function businessRolesCell(m, { onOpenDetail } = {}) {
-  if (m.businessRoles.length === 0) return muted('—');
-  const hidden = m.businessRoles.slice(ROLES_SHOWN);
+// A role's column heading: its name, read bottom to top so many roles fit side
+// by side, opening the role's page where the reader may.
+function roleHeader(role, { onOpenDetail } = {}) {
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5" onClick={e => e.stopPropagation()}>
-      {m.businessRoles.slice(0, ROLES_SHOWN).map(role => (
-        <span key={role.id} className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
-          <EntityLink kind="access-package" id={role.id} label={role.displayName} accessible={role.accessible} onOpenDetail={onOpenDetail} className={ROLE_LINK} />
-        </span>
-      ))}
-      {hidden.length > 0 && (
-        <span className="text-xs text-gray-600 dark:text-gray-400" title={hidden.map(r => r.displayName).join(', ')}>+{hidden.length} more</span>
-      )}
+    <span title={role.displayName} className="inline-block max-h-56 rotate-180 truncate whitespace-nowrap [writing-mode:vertical-rl]">
+      <EntityLink kind="access-package" id={role.id} label={role.displayName} accessible={role.accessible} onOpenDetail={onOpenDetail} className={ROLE_LINK} />
     </span>
   );
+}
+
+// A tick where the role contains this resource. On a narrow screen the table
+// reads as cards, with no heading above the tick, so the role's name sits beside it.
+function roleMark(m, role) {
+  if (!m.businessRoles?.some(r => r.id === role.id)) {
+    return <span className="sr-only">{m.displayName} is not in {role.displayName}</span>;
+  }
+  const label = `${m.displayName} is in ${role.displayName}`;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span role="img" aria-label={label} title={label}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
+        <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 10.500l4 4 8-9" />
+        </svg>
+      </span>
+      <span aria-hidden="true" className="text-xs text-gray-700 dark:text-gray-300 sm:hidden">{role.displayName}</span>
+    </span>
+  );
+}
+
+// One column per business role on this page of members, by name.
+function roleMatrixColumns(members) {
+  const roles = new Map();
+  for (const m of members) {
+    for (const role of m.businessRoles || []) if (!roles.has(role.id)) roles.set(role.id, role);
+  }
+  return [...roles.values()]
+    .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id))
+    .map(role => ({
+      key: `role:${role.id}`,
+      label: role.displayName,
+      matrix: true,
+      header: (ctx) => roleHeader(role, ctx),
+      cellClass: (m) => (m.businessRoles?.some(r => r.id === role.id) ? '' : 'hidden sm:table-cell'),
+      render: (m) => roleMark(m, role),
+    }));
 }
 
 const hasValue = (v) => v !== null && v !== undefined && v !== '';
 
 // The columns of this kind that at least one member on the page fills — a
 // column empty for every row is left out. A cell empty in a shown column
-// renders nothing.
+// renders nothing. Resources in business roles get one column per role after
+// the fixed columns; with no role on the page the single column says so.
 export function visibleMemberColumns(targetType, members) {
-  return (MEMBER_TABLE_COLUMNS[targetType] || [])
+  const fixed = (MEMBER_TABLE_COLUMNS[targetType] || [])
     .filter(c => members.some(m => hasValue(c.value(m))))
     .map(c => ({ label: c.label, align: c.align, render: (m, ctx) => (hasValue(c.value(m)) ? c.render(m, ctx) : null) }));
+  const roles = targetType === 'Resource' ? roleMatrixColumns(members) : [];
+  return roles.length ? [...fixed.filter(c => c.label !== 'Business roles'), ...roles] : fixed;
 }
 
 // The action cell of a member row in edit mode (which only a context created

@@ -38,6 +38,7 @@ export default function ContextRelationshipsTab({ subContexts, sectionIds = {}, 
 }
 
 const CARD = 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 scroll-mt-4';
+const STICKY_NAME = 'sm:sticky sm:left-0 sm:z-10 sm:bg-white dark:sm:bg-gray-800';
 
 // ─── Sub-units ─────────────────────────────────────────────────────────────
 export function SubUnitsList({ id, subContexts, attrs, openContext = () => undefined }) {
@@ -166,20 +167,26 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
     return next;
   });
   const span = 1 + columns.length + (editMode ? 1 : 0);
+  // With role columns the table can scroll sideways: the name stays in view.
+  const stickyName = columns.some(c => c.matrix) ? STICKY_NAME : '';
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="hidden sm:table-header-group">
           <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
-            <th className="pb-2 font-medium">Name</th>
-            {columns.map(c => <th key={c.label} className={`pb-2 font-medium${c.align === 'right' ? ' text-right' : ''}`}>{c.label}</th>)}
+            <th className={`pb-2 pr-3 align-bottom font-medium ${stickyName}`}>Name</th>
+            {columns.map(c => (
+              <th key={c.key || c.label} className={`pb-2 pr-3 align-bottom font-medium${c.align === 'right' ? ' text-right' : ''}${c.matrix ? ' px-1 text-center' : ''}`}>
+                {c.header ? c.header({ onOpenDetail }) : c.label}
+              </th>
+            ))}
             {editMode && <th className="pb-2 font-medium"><span className="sr-only">Actions</span></th>}
           </tr>
         </thead>
         <tbody>
           {members.map(m => (
             <MemberRow
-              key={m.id} member={m} columns={columns} span={span} contextId={contextId} attrs={attrs}
+              key={m.id} member={m} columns={columns} span={span} contextId={contextId} attrs={attrs} stickyName={stickyName}
               editMode={editMode} includeDescendants={includeDescendants} onOpenDetail={onOpenDetail} onRemove={onRemove}
               references={withReferences ? { open: expanded.has(m.id), onToggle: () => toggle(m.id) } : null}
             />
@@ -192,7 +199,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
 
 // One member: its row and, when a context owner opened it, its references
 // under it. `references` is null where references are not offered.
-function MemberRow({ member: m, columns, span, contextId, attrs, editMode, includeDescendants, onOpenDetail, onRemove, references }) {
+function MemberRow({ member: m, columns, span, contextId, attrs, stickyName, editMode, includeDescendants, onOpenDetail, onRemove, references }) {
   const kind = memberDetailKind(attrs.targetType);
   // The whole row opens the member — except where its name toggles the
   // references (a context owner's page: an "Open" button beside it instead), or
@@ -206,10 +213,14 @@ function MemberRow({ member: m, columns, span, contextId, attrs, editMode, inclu
         className={`flex flex-wrap items-baseline gap-x-3 py-1.5 sm:table-row sm:py-0 border-b border-gray-100 dark:border-gray-700${rowLink}`}
         onClick={rowOpens ? () => onOpenDetail(kind, m.id, m.displayName) : undefined}
       >
-        <td className={`w-full sm:w-auto sm:py-1.5 ${nameClass}`}>
+        <td className={`w-full sm:w-auto sm:py-1.5 sm:pr-3 ${nameClass} ${stickyName}`}>
           <MemberName member={m} kind={kind} references={references} onOpenDetail={onOpenDetail} />
         </td>
-        {columns.map(c => <td key={c.label} className={`sm:py-1.5${c.align === 'right' ? ' sm:text-right' : ''}`}>{c.render(m, { onOpenDetail })}</td>)}
+        {columns.map(c => (
+          <td key={c.key || c.label} className={`sm:py-1.5 sm:pr-3${c.align === 'right' ? ' sm:text-right' : ''}${c.matrix ? ' sm:px-1 sm:text-center' : ''} ${c.cellClass?.(m) || ''}`}>
+            {c.render(m, { onOpenDetail })}
+          </td>
+        ))}
         {editMode && (
           <td className="sm:py-1.5 sm:text-right">
             <RowAction action={memberRowAction(includeDescendants)} onRemove={() => onRemove(m.id)} />

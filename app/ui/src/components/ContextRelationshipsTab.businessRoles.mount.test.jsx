@@ -1,55 +1,107 @@
 // @vitest-environment jsdom
 //
-// The "Business roles" column of an application's resources.
+// The business-role matrix on an application's resources: the fixed columns,
+// then one column per role with a tick where the role contains the resource.
 
 import { describe, it, expect, vi } from 'vitest';
-import { MEMBER_TABLE_COLUMNS, visibleMemberColumns } from './ContextRelationshipsTab.helpers';
-import { renderWithProviders, screen, userEvent } from '@ui/test-utils/renderWithProviders';
+import { visibleMemberColumns } from './ContextRelationshipsTab.helpers';
+import { MembersPanel } from './ContextRelationshipsTab';
+import { renderWithProviders, screen, userEvent, within } from '@ui/test-utils/renderWithProviders';
 
-const column = MEMBER_TABLE_COLUMNS.Resource.find(c => c.label === 'Business roles');
 const role = (id, displayName, extra = {}) => ({ id, displayName, ...extra });
+const finance = role('r-f', 'Finance');
+const audit = role('r-a', 'Audit');
 
-function Cell({ member, onOpenDetail, onRow = () => {} }) {
-  return <div onClick={onRow}>{column.render(member, { onOpenDetail })}</div>;
+const resource = (id, displayName, businessRoles, extra = {}) => ({
+  id, displayName, businessRoles, resourceType: 'Group', description: `${displayName} text`,
+  enabled: true, ownerDisplayName: 'Olivia Owner', holderCount: 7, ...extra,
+});
+
+function Panel({ members, onOpenDetail = vi.fn() }) {
+  return (
+    <MembersPanel
+      contextId="c1" attrs={{ targetType: 'Resource', totalMemberCount: members.length, directMemberCount: members.length }}
+      canEditMembers={false} includeDescendants={false} onIncludeDescendantsChange={() => {}}
+      memberSearch="" onMemberSearchChange={() => {}} members={members} memberTotal={members.length}
+      membersLoading={false} membersError={null} memberPage={0} onMemberPageChange={() => {}} pageSize={50}
+      authFetch={vi.fn()} onMembersChanged={() => {}} onOpenDetail={onOpenDetail}
+    />
+  );
 }
 
-describe('Business roles column', () => {
-  it('shows for a page where nothing is in a role, because that is the answer', () => {
-    const [shown] = visibleMemberColumns('Resource', [{ id: 'a', businessRoles: [] }]).filter(c => c.label === 'Business roles');
-    expect(shown).toBeDefined();
+const labels = (members) => visibleMemberColumns('Resource', members).map(c => c.label);
+
+describe('business-role columns', () => {
+  it('keeps type, description, owner and users, then one column per role by name', () => {
+    const members = [resource('a', 'A', [finance]), resource('b', 'B', [audit, finance])];
+    expect(labels(members)).toEqual(['Type', 'Description', 'Status', 'Owner', 'Users', 'Audit', 'Finance']);
+  });
+
+  it('keeps one column saying "none" when nothing on the page is in a role', () => {
+    const [shown] = visibleMemberColumns('Resource', [resource('a', 'A', [])]).filter(c => c.label === 'Business roles');
     renderWithProviders(<div>{shown.render({ businessRoles: [] }, {})}</div>);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('is left out when the rows carry no role data at all', () => {
-    expect(visibleMemberColumns('Resource', [{ id: 'a' }]).map(c => c.label)).not.toContain('Business roles');
+    expect(labels([{ id: 'a', displayName: 'A', resourceType: 'Group' }])).toEqual(['Type']);
   });
 
-  it('opens a role on its own page without also opening the row', async () => {
+  it('gives two roles with the same name their own columns', () => {
+    const twin = role('r-z', 'Finance');
+    const columns = visibleMemberColumns('Resource', [resource('a', 'A', [twin, finance])]).filter(c => c.matrix);
+    expect(columns.map(c => c.key)).toEqual(['role:r-f', 'role:r-z']);
+  });
+
+  it('adds no role columns to members that are not resources', () => {
+    expect(visibleMemberColumns('Principal', [{ id: 'p', email: 'x@y', businessRoles: [finance] }]).map(c => c.label)).toEqual(['Email']);
+  });
+});
+
+describe('business-role matrix', () => {
+  it('ticks exactly the roles that contain each resource', () => {
+    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance]), resource('b', 'Writer', [audit])]} />);
+    expect(screen.getByRole('img', { name: 'Reader is in Finance' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Writer is in Audit' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Reader is in Audit' })).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Writer is in Finance' })).toBeNull();
+    expect(screen.getByText('Reader is not in Audit')).toBeInTheDocument();
+  });
+
+  it('still shows the owner, the user count, the type and the description on a row', () => {
+    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance])]} />);
+    const row = screen.getByRole('img', { name: 'Reader is in Finance' }).closest('tr');
+    expect(within(row).getByText('Olivia Owner')).toBeInTheDocument();
+    expect(within(row).getByText('7')).toBeInTheDocument();
+    expect(within(row).getByText('Group')).toBeInTheDocument();
+    expect(within(row).getByText('Reader text')).toBeInTheDocument();
+  });
+
+  it('opens a role from its heading without opening a row', async () => {
     const open = vi.fn();
-    const row = vi.fn();
-    renderWithProviders(<Cell member={{ businessRoles: [role('r1', 'Finance')] }} onOpenDetail={open} onRow={row} />);
+    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance])]} onOpenDetail={open} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Finance' }));
-    expect(open).toHaveBeenCalledWith('access-package', 'r1', 'Finance');
-    expect(row).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith('access-package', 'r-f', 'Finance');
   });
 
   it('names a role the reader may not open, without a link', () => {
-    renderWithProviders(<Cell member={{ businessRoles: [role('r1', 'Finance', { accessible: false })] }} onOpenDetail={vi.fn()} />);
-    expect(screen.getByText('Finance')).toBeInTheDocument();
+    renderWithProviders(<Panel members={[resource('a', 'Reader', [role('r-f', 'Finance', { accessible: false })])]} />);
+    expect(screen.getByRole('columnheader', { name: /Finance/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Finance/ })).toBeNull();
   });
 
-  it('shows three roles in full, and names the rest in a "more" hint', () => {
-    const roles = ['A', 'B', 'C', 'D', 'E'].map(n => role(n, `Role ${n}`));
-    renderWithProviders(<Cell member={{ businessRoles: roles }} onOpenDetail={vi.fn()} />);
-    expect(screen.getAllByRole('button')).toHaveLength(3);
-    expect(screen.getByText('+2 more')).toHaveAttribute('title', 'Role D, Role E');
+  it('hides an unticked cell on the narrow card layout and keeps a ticked one', () => {
+    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance]), resource('b', 'Writer', [audit])]} />);
+    expect(screen.getByText('Reader is not in Audit').closest('td')).toHaveClass('hidden');
+    expect(screen.getByRole('img', { name: 'Reader is in Finance' }).closest('td')).not.toHaveClass('hidden');
   });
 
-  it('shows exactly three without a hint', () => {
-    const roles = ['A', 'B', 'C'].map(n => role(n, `Role ${n}`));
-    renderWithProviders(<Cell member={{ businessRoles: roles }} onOpenDetail={vi.fn()} />);
-    expect(screen.queryByText(/more/)).toBeNull();
+  it('keeps the name in view only when there are role columns', () => {
+    const { unmount } = renderWithProviders(<Panel members={[resource('a', 'Reader', [finance])]} />);
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass('sm:sticky');
+    unmount();
+    renderWithProviders(<Panel members={[resource('a', 'Reader', [])]} />);
+    expect(screen.getByRole('columnheader', { name: 'Name' })).not.toHaveClass('sm:sticky');
   });
 });
