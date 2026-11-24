@@ -54,8 +54,8 @@ export default defineConfig({
       // Measured Nov 2026: S89.7 B83.0 F88.3 L91.4.
       thresholds: {
         statements: 88,
-        branches: 81,
-        functions: 86,
+        branches: 82,
+        functions: 87,
         lines: 90,
       },
     },
