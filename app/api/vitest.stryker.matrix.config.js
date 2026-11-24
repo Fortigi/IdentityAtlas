@@ -1,60 +1,13 @@
+// GENERATED from stryker.matrix.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/api, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+
 import { defineConfig } from 'vitest/config';
 import base from './vitest.config.js';
-
-// Vitest config for the matrix mutation run (stryker.matrix.config.json).
-//
-// Narrow include, for the same reason as the other vitest.stryker.* configs: Stryker
-// copies app/api into a temp sandbox, so any test that reads the real filesystem or the
-// crawler manifests at ../../tools/crawlers resolves a path that does not exist there,
-// fails the dry run, and aborts the whole run before a single mutant is evaluated.
-//
-// WIDER THAN THE MUTATED DIRECTORY, ON PURPOSE. `src/matrix/**` alone would be the
-// obvious include and would be wrong: six of the eight modules are also reached
-// transitively through the route layer, and a mutant whose only killer sits in a route
-// test would come back a SURVIVOR. That is the failure this narrowing is most likely to
-// cause, and a wrong number is worse than a smaller true one — so every direct importer's
-// tests are included:
-//
-//   src/routes/matrix/data.js      -> attrExpr, inheritedAccess, contextRollup,
-//                                     attributeCut, resourceContexts, rollupBuilders
-//   src/routes/matrix/scope.js     -> scopeHistory, attrExpr
-//   src/routes/matrix/shared.js    -> filterSql   (and via it src/routes/permissions/)
-//   src/routes/matrix/savedFilters.js, src/routes/matrix.js -> filterSql, inheritedAccess
-//   src/routes/resources.js        -> resourceContexts
-//   src/routes/matrix/shared.js, src/routes/resources/list.js, src/matrix/scopeHistory.js
-//                                  -> lib/resourceVisibility
-//
-// Same rule for the attribute-label pair added to this scope:
-//
-//   src/routes/attributeLabels.js  -> lib/attributeLabels.js  (the endpoint)
-//   src/routes/matrix.js, src/routes/resources.js, src/routes/permissions/**,
-//   src/routes/tags/entities.js    -> lib/attributeLabels.js  (withAttributeLabels)
-//
-// src/db/valueCache.js has exactly one killer set, its own co-located test: the
-// module holds no SQL and no callers reach its decisions except through it
-// (routes/matrix/shared.js and db/columnCache.js both just call get()). Its
-// timing branches are driven with fake timers there, which no route test does.
-//
-// attributeLabelChannel.test.js is what drives that last group — it asserts the `label`
-// channel on the column-discovery responses, so a mutant in withAttributeLabels whose only
-// killer lives there would otherwise read as a survivor. tags/entities.test.js is not
-// included: it exercises the same withAttributeLabels call the channel test already pins,
-// so it can kill nothing the others don't and only adds runtime.
-//
-// src/db/matrixHelpers.test.js is deliberately NOT here: matrixHelpers.js imports none of
-// the eight, so its tests can kill nothing and would only add runtime.
-//
-// The background view-refresh coordinator (src/ingest/viewRefresh.js) is reached
-// through src/routes/ingest/matrixViews.js and the classify handler, so both ingest
-// route tests that drive the refresh are included with its own test.
-//
-// The list search (src/lib/entitySearch.js) is reached through the users/groups,
-// resources, identities and contexts list routes, so their tests are included with its
-// own two (entitySearch.migration.test.js reads migration 091, which is inside app/api
-// and therefore inside the sandbox).
-//
-// If you add a module to this scope's `mutate` list, trace its importers and widen this
-// include to match, rather than assuming the co-located test is the only killer.
 
 export default defineConfig({
   ...base,
@@ -62,9 +15,6 @@ export default defineConfig({
     ...base.test,
     include: [
       'src/lib/resourceVisibility.test.js',
-      // lib/extKeys.js — which extendedAttributes keys may be named in SQL. Its
-      // matrix callers' tests are already above; the list filter and the report
-      // builder's are added so a mutant only they kill does not read as a survivor.
       'src/lib/extKeys.test.js',
       'src/routes/buildFilterWhere.test.js',
       'src/nlreports/extFields.test.js',

@@ -23,6 +23,29 @@
     "src/nlreports/warmup.js",
     "src/routes/contextAssistant.js"
   ],
+  "tests_comment": [
+    "Explicit file list rather than a directory glob, same reason as the sibling stryker vitest",
+    "configs: Stryker copies app/api into a temp sandbox, so a test that reads the real",
+    "filesystem outside it resolves a path that does not exist there, fails the dry run, and",
+    "aborts the whole run before a single mutant is evaluated.",
+    "",
+    "Listed instead of excluded: an excluded test that happened to be some mutant's only killer",
+    "would surface as a false survivor, which is worse than measuring less. Every test here is a",
+    "real killer for the mutated files — the recipe language and its plugin, the model-facing",
+    "service, and the routes. nlreports/service.test.js is here for warmup.js, and",
+    "routes/nlReports.test.js for assistantHttp.js: both are shared with custom reports, and",
+    "these are the tests that exercise them."
+  ],
+  "tests": [
+    "src/contextAssistant/service.test.js",
+    "src/contexts/plugins/context-recipe.test.js",
+    "src/contexts/recipe/matches.test.js",
+    "src/contexts/recipe/recipe.test.js",
+    "src/contexts/recipe/relatedWords.test.js",
+    "src/nlreports/service.test.js",
+    "src/routes/contextAssistant.test.js",
+    "src/routes/nlReports.test.js"
+  ],
   "mutationExclusions": {
     "src/contextAssistant/prompt.js": "Declaration, not logic: the system prompt's text, the few-shot examples, and the JSON schema handed to the model server as its decoding grammar. With StringLiteral and ObjectLiteral off there is nothing behavioural left to mutate — the numbers that matter (every maxItems / maxLength bound, which is what stops a small model looping until the token cap) are asserted directly in service.test.js, and whether the prompt produces good terms is not a unit-test question at all: it is measured against a model, on real data."
   },

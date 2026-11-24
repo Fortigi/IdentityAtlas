@@ -30,6 +30,16 @@
     "src/routes/contexts/uploads.js",
     "src/lib/nameMatch.js"
   ],
+  "tests_comment": [
+    "Explicit file list rather than a directory glob, same reason as the sibling stryker vitest",
+    "configs: Stryker copies app/api into a temp sandbox, so a test that reads the real",
+    "filesystem outside it fails the dry run. These tests only use os.tmpdir() folders."
+  ],
+  "tests": [
+    "src/contexts/upload/*.test.js",
+    "src/routes/contexts/uploads.test.js",
+    "src/lib/nameMatch.test.js"
+  ],
   "thresholds": {
     "high": 90,
     "low": 70

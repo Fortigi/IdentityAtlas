@@ -18,6 +18,13 @@
     "src/components/contexts/upload/useContextUpload.js",
     "src/components/contexts/upload/UploadListFlow.jsx"
   ],
+  "tests_comment": [
+    "Standalone for the same sandbox reason as vitest.stryker.roles.config.js. The include traces the importers of the three mutated modules: their own unit test, and the wizard mount test that drives the flow end to end."
+  ],
+  "tests": [
+    "src/components/contexts/upload/uploadMapping.helpers.test.js",
+    "src/components/contexts/upload/UploadListFlow.mount.test.jsx"
+  ],
   "mutationExclusions": {
     "src/components/contexts/upload/AiMark.jsx": "Presentational: renders a fixed badge when its one boolean prop is true. The decision of which fields carry it is aiSuggested() in uploadMapping.helpers.js, which IS mutated here; the badge itself is asserted by UploadListFlow.mount.test.jsx (exactly one mark for one AI field).",
     "src/components/contexts/upload/UploadFileStep.jsx": "Presentational form: a file input and the list picker, forwarding both to useContextUpload (mutated here). It computes nothing; the picker options and its locked state on a re-import are asserted by UploadListFlow.mount.test.jsx and ContextsPage.mount.test.jsx.",

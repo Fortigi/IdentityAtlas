@@ -24,6 +24,12 @@
     "src/components/businessRoles/WayChips.jsx",
     "src/components/businessRoles/accessModel.js"
   ],
+  "tests_comment": [
+    "Standalone for the same reason as vitest.stryker.roles.config.js: Stryker sandboxes app/ui alone, so the normal include reaching ../../tools/crawlers/** would abort the run."
+  ],
+  "tests": [
+    "src/components/businessRoles/*.test.{js,jsx}"
+  ],
   "thresholds": {
     "high": 90,
     "low": 70

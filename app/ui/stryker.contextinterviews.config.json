@@ -43,6 +43,36 @@
     "src/components/contexts/interviews/PeopleKnowledge.jsx",
     "src/components/EntityTimeline.helpers.js"
   ],
+  "tests_comment": [
+    "Standalone for the same sandbox reason as vitest.stryker.roles.config.js. The include is the helpers tests and the mount tests that drive the People overview, What we know, Sources, the review drawer and the unit page body.",
+    "",
+    "src/components/matrix/MatrixCell.mount.test.jsx: The shared matrix badges (MatrixBadges.jsx), as the matrix renders them."
+  ],
+  "tests": [
+    "src/components/contexts/interviews/claims.helpers.test.js",
+    "src/components/contexts/interviews/interviews.mount.test.jsx",
+    "src/components/contexts/interviews/interviewForms.mount.test.jsx",
+    "src/components/contexts/interviews/interviewKnowledge.mount.test.jsx",
+    "src/components/contexts/interviews/transcript.helpers.test.js",
+    "src/components/contexts/interviews/memberInterview.helpers.test.js",
+    "src/components/contexts/interviews/whatWeKnowFacts.mount.test.jsx",
+    "src/components/contexts/interviews/contradictions.mount.test.jsx",
+    "src/components/contexts/changeRequests/changeRequests.mount.test.jsx",
+    "src/components/contexts/people/people.helpers.test.js",
+    "src/components/contexts/people/PeopleSection.mount.test.jsx",
+    "src/components/contexts/people/PersonClaims.mount.test.jsx",
+    "src/components/contexts/page/ProfileBody.mount.test.jsx",
+    "src/components/contexts/page/unitProposals.test.js",
+    "src/components/contexts/page/ProposedRolesSection.mount.test.jsx",
+    "src/components/matrix/MatrixCell.mount.test.jsx",
+    "src/components/matrix/MatrixLegend.test.js",
+    "src/components/matrix/proposedLens.test.js",
+    "src/components/matrix/ProposedMatrix.mount.test.jsx",
+    "src/components/contexts/interviews/orgKnowledgeOff.mount.test.jsx",
+    "src/components/EntityTimeline.helpers.test.js",
+    "src/components/EntityTimeline.test.jsx",
+    "src/components/EntityTimeline.filter.mount.test.jsx"
+  ],
   "mutationExclusions": {
     "src/components/contexts/interviews/claimsContext.js": "A React context and its one-line accessor; no decision to mutate. Every consumer reading null outside a provider is asserted by the AddInformation (interviewForms.mount.test.jsx) and ContextPeople mount tests, which mount without one.",
     "src/components/contexts/interviews/ChoosePersonModal.jsx": "Presentational modal around the shared PersonSearch; it closes when onPick resolves true. Both callers (suggestions, review list) are mutated here and the pick-and-confirm path is asserted by interviews.mount.test.jsx.",

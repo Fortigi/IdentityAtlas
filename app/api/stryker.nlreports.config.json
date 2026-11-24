@@ -31,6 +31,38 @@
     "src/routes/nlReports.js",
     "src/nlreports/catalogPayload.js"
   ],
+  "tests_comment": [
+    "Split out of the reports run (#1548). The nlreports tests moved here with the files they test; the conversation side's tests are in vitest.stryker.nlconversation.config.js.",
+    "",
+    "Explicit file list rather than a directory glob, same reason as the sibling stryker vitest",
+    "configs: Stryker copies app/api into a temp sandbox, so a test that reads the real",
+    "filesystem outside it resolves a path that does not exist there, fails the dry run, and",
+    "aborts the whole run before a single mutant is evaluated. Two tests of the reports code",
+    "do exactly that and are therefore left out — reportNames.guard.test.js (it scans app/ui",
+    "as well as app/api) and the contract tests (they need a PostgreSQL container).",
+    "",
+    "Listed instead of excluded: an excluded test that happened to be some mutant's only",
+    "killer would surface as a false survivor, which is worse than measuring less. Every test",
+    "here is a real killer for the mutated files."
+  ],
+  "tests": [
+    "src/nlreports/compare.test.js",
+    "src/nlreports/compile.test.js",
+    "src/nlreports/compile.scope.test.js",
+    "src/nlreports/scope.test.js",
+    "src/nlreports/references.scope.test.js",
+    "src/nlreports/extFields.test.js",
+    "src/nlreports/llamacpp.test.js",
+    "src/nlreports/ollama.test.js",
+    "src/nlreports/references.test.js",
+    "src/nlreports/savedReports.test.js",
+    "src/nlreports/service.test.js",
+    "src/nlreports/spec.test.js",
+    "src/nlreports/terms.test.js",
+    "src/nlreports/service.terms.test.js",
+    "src/nlreports/sentinels.test.js",
+    "src/routes/nlReports.test.js"
+  ],
   "mutationExclusions": {
     "src/nlreports/catalog.js": "Declaration, not logic: the entities/fields/relations an analyst may report on, each with a constant SQL template. With StringLiteral and ObjectLiteral off there is almost nothing behavioural left to mutate, and the part that can go wrong — a template that does not match the schema — is not observable in a unit test at all: it is caught by the contract test that compiles a definition for every field and relation and executes it against a real PostgreSQL. Mutating the surviving structure would measure the shape of a data table.",
     "src/nlreports/llm.js": "Three lines of module selection: it re-exports chat/listModels/warm from either the llama.cpp client (what a deployment runs) or the Ollama client (kept for comparing models), chosen by one env var. Both clients ARE mutated. Every test of the layers above mocks this module, so a mutant that flips the selection is invisible by construction — the decision here is to test the clients, not the switch.",

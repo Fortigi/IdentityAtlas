@@ -1,48 +1,28 @@
+// GENERATED from stryker.auth.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/api, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+
 import { defineConfig } from 'vitest/config';
 import base from './vitest.config.js';
-
-// Vitest config for the auth mutation run (stryker.auth.config.json).
-//
-// Stryker copies app/api into a temp sandbox and runs from there. Any test that
-// reads the real filesystem — an upload landing under {UPLOAD_ROOT}, or the
-// crawler manifests at ../../tools/crawlers — resolves a path that does not
-// exist in the sandbox, fails the dry run, and aborts the whole mutation run
-// before a single mutant is evaluated. Those tests are fine; the sandbox is the
-// problem.
-//
-// The fix is a narrow include rather than a growing exclude list. An excluded
-// test that happened to be some mutant's only killer would show up as a false
-// survivor, which is worse than measuring less.
 
 export default defineConfig({
   ...base,
   test: {
     ...base.test,
-    // Only the auth unit tests, plus the one route-level file whose rule is the
-    // same kind of thing (#1166: who may open a shared matrix). Stryker
-    // sandboxes app/api alone, so anything reading the real filesystem or the
-    // tools/crawlers manifests outside it fails the dry run and aborts the run
-    // before a mutant is evaluated. These are fully mocked and self-contained —
-    // shareRecipients.test.js touches no database and no request object, which
-    // is why it can be named here while the rest of src/routes/** cannot.
-    // Narrow scope beats a growing exclude list: an excluded test that happened
-    // to be a mutant's only killer would show up as a false survivor.
     include: [
       'src/auth/**/*.test.js',
       'src/routes/matrix/shareRecipients.test.js',
-      // SEC-2026-09 M-06: crawler permission whitelist + built-in worker guards.
       'src/routes/crawlers/crawlerGuards.test.js',
-      // One job per crawler configuration (lib/crawlerJobQueue.js). Mocked query
-      // function only; the claim statement itself is proven by a contract test.
       'src/lib/crawlerJobQueue.test.js',
-      // SEC-2026-09: vault master-key location and *_FILE secrets. Mocked database
-      // and vault; files only under os.tmpdir(), which exists inside the sandbox.
       'src/secrets/masterKeyStore.test.js',
       'src/config/fileSecrets.test.js',
       'src/middleware/requestOriginGuard.test.js',
       'src/middleware/rateLimitKeys.test.js',
       'src/middleware/crawlerAuthFailureLimiter.test.js',
-      // CWE-117: keeps caller-supplied text in ingest logs on one line. Pure.
       'src/lib/oneLineForLog.test.js',
     ],
     exclude: ['**/node_modules/**'],

@@ -23,6 +23,19 @@
     "src/routes/details/businessRoleOwnerImport.js",
     "src/routes/ingest/businessRoleOwners.js"
   ],
+  "tests_comment": [
+    "An explicit list, as in the sibling configs: Stryker runs in a sandbox copy of app/api, so a test that reads a file outside it would fail the dry run."
+  ],
+  "tests": [
+    "src/lib/businessRoleAccessModel.test.js",
+    "src/lib/businessRoleOwners.test.js",
+    "src/lib/businessRoleOwnerSuggestion.test.js",
+    "src/lib/businessRolePeople.test.js",
+    "src/routes/details/businessRoleOwners.test.js",
+    "src/lib/businessRoleOwnerImport.test.js",
+    "src/routes/details/businessRoleOwnerImport.test.js",
+    "src/routes/ingest/businessRoleOwners.test.js"
+  ],
   "testExclusions": {
     "src/lib/businessRoleAccessModel.guard.test.js": "Compares the vocabulary with ontology/core.ttl, a file outside the Stryker sandbox."
   },

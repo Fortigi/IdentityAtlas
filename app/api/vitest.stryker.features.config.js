@@ -1,19 +1,21 @@
+// GENERATED from stryker.features.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/api, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+
 import { defineConfig } from 'vitest/config';
 import base from './vitest.config.js';
-
-// Vitest config used only by stryker.features.config.json.
-//
-// Same sandbox constraint as vitest.stryker.auth.config.js: Stryker copies app/api
-// into a temp directory, so any test that reads the real filesystem (uploads,
-// the crawler manifests at ../../tools/crawlers) fails the dry run and aborts
-// the whole run. featureFlags.test.js reads neither — its only dependency is
-// the shared db manual mock — so a narrow include keeps the scope clean.
 
 export default defineConfig({
   ...base,
   test: {
     ...base.test,
-    include: ['src/featureFlags.test.js'],
+    include: [
+      'src/featureFlags.test.js',
+    ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },
   },

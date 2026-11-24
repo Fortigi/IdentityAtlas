@@ -197,14 +197,22 @@ was that their reasons asserted *provable* for something only argued.
 
 ### JavaScript — Stryker
 
-Four scopes today, each its own config plus a narrow `vitest.stryker.*.config.js`:
+Each scope is declared **once**, in `app/{api,ui}/stryker.<scope>.config.json`:
 
-| Config | Covers | Score |
-|---|---|---|
-| `app/api/stryker.auth.config.json` | credential + permission path | 100% |
-| `app/api/stryker.effectiveaccess.config.json` | the effective-access engine, its policies and LRU | 94.7% |
-| `app/api/stryker.accountlinking.config.json` | account correlation and its rules | 81.9% |
-| `app/ui/stryker.pilot.config.json` | `usePermissions`, `matrixFilter` | 93.8% |
+- `mutate` — the source files whose mutants are scored;
+- `tests` — the tests that run against them, as paths or globs under `src/`;
+- `tests_comment` — why those tests, and which were left out on purpose.
+
+The Vitest config Stryker runs with, `vitest.stryker.<scope>.config.js`, is
+**generated** from that file. Do not edit it; change the declaration and run
+`cd app/api && npm run mutation-scopes:generate`. PR Checks runs
+`npm run mutation-scopes:check`, which fails on a stale, missing or orphaned
+generated file. `app/api/src/mutationScopes/mutationScopes.guard.test.js` fails
+when a `tests` entry matches no file, or when a mutated file is reached by no
+listed test (imports are followed, so a component that a page's mount test
+renders counts as reached). Such a file's mutants would have no killer in the
+run. A new scope is a new `stryker.<scope>.config.json` plus a generate; the
+weekly matrix picks it up by itself. Scores per scope are on the coverage page.
 
 Run one, or all of a package's:
 
@@ -231,7 +239,7 @@ Two constraints worth knowing before you widen the scope:
 - **Stryker sandboxes `app/api` alone.** Any test reading the real filesystem —
   an upload path, or the crawler manifests at `../../tools/crawlers` — resolves
   nothing in the sandbox, fails the dry run, and aborts the whole run before a
-  single mutant is evaluated. `vitest.stryker.auth.config.js` narrows the include for
+  single mutant is evaluated. Each scope's `tests` list is narrow for
   this reason. Prefer a narrow include over a growing exclude list: an excluded
   test that happened to be a mutant's only killer becomes a **false survivor**,
   and a wrong number is worse than a smaller true one.
@@ -338,6 +346,7 @@ pattern is the same each time: an assertion built on a guess about *shape* or
 | `test/lib/HttpErrorFixtures.psm1` | One owner for HTTP-error shapes |
 | `tools/generate-coverage-doc.py` | Generates the scope and shape caveats on the coverage page |
 | `app/api/src/mutationScope.guard.test.js` | Every eligible JS file mutated, backlogged, or excluded with a reason; the backlog free of stale and already-covered entries |
+| `app/api/src/mutationScopes/mutationScopes.guard.test.js` | Every generated `vitest.stryker.<scope>.config.js` matches its declaration; every mutated JS file is reached by a test in its scope's `tests` list |
 | `.ci/psmutant.config.json` / `app/*/stryker.*.config.json` | The mutation scope declarations, and the enforced score floors |
 | `.github/workflows/ps-mutation.yml` / `js-mutation.yml` | Run both tools weekly against those floors, and publish the scores to the coverage page |
 

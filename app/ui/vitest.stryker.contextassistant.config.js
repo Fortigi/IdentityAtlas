@@ -1,19 +1,18 @@
+// GENERATED from stryker.contextassistant.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/ui, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+//
+// Standalone rather than spreading vite.config.js: its include reaches
+// ../../tools/crawlers/**, outside the sandbox, and its tailwind plugin and
+// '@crawlers' alias are build concerns the mutation run does not need.
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-
-// Vitest config used only by the context-assistant mutation run
-// (stryker.contextassistant.config.json).
-//
-// Standalone rather than spreading vite.config.js, for the same reasons as the sibling
-// stryker vitest configs: Stryker sandboxes app/ui alone, so the normal test `include`
-// reaching ../../tools/crawlers/** resolves nothing there and aborts the run before a mutant
-// is evaluated, and the tailwind plugin plus the '@crawlers' alias are build concerns that
-// buy the mutation run nothing.
-//
-// The mutated files are covered by exactly these tests: the draft helpers' own unit test,
-// one per hook, the permission gate's, and the two mount tests that exercise the helpers
-// through the screens (the builder page end to end, and the terms panel's numbers).
 
 export default defineConfig({
   plugins: [react()],

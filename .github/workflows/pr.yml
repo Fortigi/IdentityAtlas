@@ -236,6 +236,11 @@ jobs:
               - 'tools/scale-dataset/**'
               # The core ontology is checked by the API suite (unit check + contract test).
               - 'ontology/**'
+              # The JS mutation-scope declarations and their generated Vitest configs are
+              # checked by the API suite (src/mutationScopes/, src/mutationScope.guard.test.js).
+              - 'app/*/stryker.*.config.json'
+              - 'app/*/vitest.stryker.*.config.js'
+              - '.ci/js-mutation-scope-baseline.json'
             ui:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -524,6 +529,13 @@ jobs:
       - name: Core ontology check
         working-directory: app/api
         run: npm run ontology:check
+
+      # Each app/{api,ui}/vitest.stryker.<scope>.config.js is generated from its
+      # stryker.<scope>.config.json (#1696). Also asserted inside the suite
+      # (src/mutationScopes/mutationScopes.guard.test.js); this step names the failure.
+      - name: Mutation scope check
+        working-directory: app/api
+        run: npm run mutation-scopes:check
 
       - name: Run Vitest (with coverage)
         id: tests
