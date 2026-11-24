@@ -207,6 +207,40 @@ any of the above, and no status header. See the contradictions section of
 [`architecture-guidance-review-2026-09.md`](architecture-guidance-review-2026-09.md). Do not treat
 that document as guidance until an architect resolves the conflict.
 
+### C2. One declaration; copies are derived or guarded 🟢
+**Q:** Does the change add or extend a list or definition that **more than one file** needs: a
+closed vocabulary value, a per-type presentation entry (label, colour, wording, "non-human"), a test
+or mutation scope, a shared workflow body? → it must have **one** declaration, and every other place
+**derives** it (imports, generation with a staleness check in CI, `$ref`, a reusable workflow or
+composite action, a runtime read). Where a copy genuinely cannot derive (a JSON Schema enum, a
+PowerShell list in a crawler that cannot import JS), a **guard test** compares the copy to the
+declaration and fails CI naming the file. A spec whose implementation would make **the same edit in
+two or more files** fails this check unless it says which declaration the copies derive from or
+which guard covers them.
+
+**Why:** hand-kept copies drift, and the drift is silent. An analysis of the 234 PRs merged between
+24 September and 24 November 2026 found three copy families behind most of the "many files per PR"
+effect: closed vocabularies copied into crawlers, schemas and UI (one principal type took 36 files,
+and two copies had already drifted: the CSV crawler mapped unknown types to `User`, and
+`WorkloadIdentity` was missing from the non-human list); mutation scopes declared twice per scope
+(29% of PRs edited one); and near-copy workflows that changed in lockstep in every PR that touched
+them. Where the repo already applies this rule it works: `ontology/core.ttl` → `npm run
+ontology:generate` / `ontology:check`, and `assignmentTypes.guard.test.js` for the closed assignment
+types.
+
+**Applies to:** #1695 (closed vocabularies → one generated source plus a UI type registry), #1696
+(mutation scopes declared once, vitest side generated), #1697 (shared workflow bodies). Any new
+principal / assignment / relationship type value, any new per-type UI map, any new workflow that
+starts as a copy of an existing one.
+
+**Evidence:** #1683 / PR #1692 (36 files for `MachineAccount`), the DoR probes of #1686 and #1683
+(quirks 14 and 19 in `docs/architecture/core-ontology.md`), `app/api/src/ingest/assignmentTypes.guard.test.js`,
+the `ontology:check` wiring in `.github/workflows/pr.yml`.
+
+**Ratified:** asked for by an architect (Taeke) on 2026-11-24, after the analysis above. It
+complements C1: C1 says *where* new behaviour plugs in; C2 says shared definitions behind it are
+never duplicated by hand.
+
 ---
 
 ## D. UI / design-system boundary — a routing rule, not an architecture rule
