@@ -7,14 +7,23 @@ import { SharedViewContext } from '@ui/contexts/SharedViewContext';
 import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, within, userEvent } from '@ui/test-utils/renderWithProviders';
 
 const URL = '/api/access-package/br-1/composition-reviews';
+const res = (id, displayName) => ({ id, displayName, resourceType: 'Group', systemName: 'Entra ID' });
+const picture = (resources, control = 'Manual') => ({
+  version: 1, takenAt: '2026-11-20T10:00:00Z',
+  role: { displayName: 'Finance', holderCount: 12 },
+  type: { control, waysIn: ['Request'], waysOut: ['Review'], reviewGap: false },
+  resources, policies: [{ id: 'p1', displayName: 'Request it', waysIn: ['Request'], waysOut: ['Review'], targetRule: null }],
+  owners: [{ role: 'Accountable', displayName: 'Mara Lindqvist' }],
+});
 const SIGNED = {
   id: 'r1', signedOff: true, notes: 'All three groups belong here.', reviewedBy: 'ann@example.test', reviewedByName: 'Ann Analyst',
-  reviewedAt: '2026-11-20T10:00:00Z', composition: [{ id: 'g1' }, { id: 'g2' }, { id: 'g3' }],
-  changesSince: { added: ['SG-HR'], removed: [] },
+  reviewedAt: '2026-11-20T10:00:00Z', snapshot: picture([res('g1', 'SG-Finance'), res('g2', 'SG-Payroll'), res('g3', 'SG-Audit')]),
+  changesSince: { added: ['SG-HR'], removed: [], type: null, policiesChanged: true },
 };
-const NOTE = { id: 'r2', signedOff: false, notes: 'Why is SG-HR in here?', reviewedBy: 'bob@example.test', reviewedAt: '2026-11-22T09:00:00Z', composition: [] };
+const NOTE = { id: 'r2', signedOff: false, notes: 'Why is SG-HR in here?', reviewedBy: 'bob@example.test', reviewedAt: '2026-11-22T09:00:00Z', snapshot: picture([]) };
+const NOW = picture([res('g1', 'SG-Finance'), res('g2', 'SG-Payroll'), res('g3', 'SG-Audit'), res('g4', 'SG-HR')]);
 
-function api({ summary = { reviews: [NOTE, SIGNED], current: 4, latestSignOff: SIGNED }, failPost = false, failGet = false } = {}) {
+function api({ summary = { reviews: [NOTE, SIGNED], current: NOW, latestSignOff: SIGNED }, failPost = false, failGet = false } = {}) {
   const state = { posts: [], summary };
   const authFetch = makeAuthFetch((url, opts = {}) => {
     if (String(url) !== URL) return undefined;
@@ -22,7 +31,7 @@ function api({ summary = { reviews: [NOTE, SIGNED], current: 4, latestSignOff: S
       if (failPost) return jsonResponse({ error: 'Write a note or sign off' }, { ok: false, status: 400 });
       const body = JSON.parse(opts.body);
       state.posts.push(body);
-      const saved = { id: `r${state.posts.length + 2}`, ...body, reviewedBy: 'me@example.test', reviewedAt: '2026-11-24T12:00:00Z', composition: [] };
+      const saved = { id: `r${state.posts.length + 2}`, ...body, reviewedBy: 'me@example.test', reviewedAt: '2026-11-24T12:00:00Z', snapshot: NOW };
       state.summary = { ...state.summary, reviews: [saved, ...state.summary.reviews] };
       return jsonResponse(saved, { status: 201 });
     }
@@ -44,10 +53,15 @@ function mount({ auth = SIGNER, shared = false, ...opts } = {}) {
 }
 
 describe('changeText', () => {
-  it('names what was added and removed since the sign-off', () => {
+  it('names resources added and removed, a type change and a policy change', () => {
     expect(changeText({ added: ['A', 'B'], removed: ['C'] })).toBe('Since then: added A, B; removed C.');
-    expect(changeText({ added: [], removed: ['C'] })).toBe('Since then: removed C.');
-    expect(changeText({ added: [], removed: [] })).toBeNull();
+    expect(changeText({ type: { from: 'Manual', to: 'Automatic' } })).toBe('Since then: the type changed from Manual to Rule based.');
+    expect(changeText({ type: { from: 'Unknown', to: 'Weird' } })).toBe('Since then: the type changed from Unknown to Unknown.');
+    expect(changeText({ removed: ['C'], policiesChanged: true })).toBe('Since then: removed C; a policy or its rule changed.');
+  });
+
+  it('is null when nothing changed', () => {
+    expect(changeText({ added: [], removed: [], type: null, policiesChanged: false })).toBeNull();
     expect(changeText()).toBeNull();
   });
 });
@@ -59,13 +73,13 @@ describe('BusinessRoleCompositionReview', () => {
     expect(status).toHaveTextContent('Signed off by Ann Analyst');
     expect(status).toHaveTextContent('when it contained 3 resources');
     expect(status).toHaveTextContent('It contains 4 resources now.');
-    expect(within(status).getByRole('alert')).toHaveTextContent('Since then: added SG-HR.');
+    expect(within(status).getByRole('alert')).toHaveTextContent('Since then: added SG-HR; a policy or its rule changed.');
     await user.click(within(status).getByRole('button', { name: 'See the resources' }));
     expect(onOpenTab).toHaveBeenCalledWith('resources');
   });
 
   it('says so while nobody has signed it off', async () => {
-    mount({ summary: { reviews: [], current: 1, latestSignOff: null } });
+    mount({ summary: { reviews: [], current: picture([res('g1', 'SG-Finance')]), latestSignOff: null } });
     const status = await screen.findByTestId('sign-off-status');
     expect(status).toHaveTextContent('Nobody has signed off what this role contains yet.');
     expect(status).toHaveTextContent('It contains 1 resource now.');
@@ -76,12 +90,23 @@ describe('BusinessRoleCompositionReview', () => {
   it('lists every review, newest first, with its notes and who wrote them', async () => {
     mount();
     const history = await screen.findByRole('region', { name: 'Earlier reviews' });
-    const items = within(history).getAllByRole('listitem');
+    const items = within(history).getAllByRole('listitem').filter(li => li.parentElement.closest('section') === history && li.querySelector('details'));
     expect(items[0]).toHaveTextContent('bob@example.test');
     expect(items[0]).toHaveTextContent('Why is SG-HR in here?');
     expect(items[0]).not.toHaveTextContent('Signed off');
     expect(items[1]).toHaveTextContent('Ann Analyst');
     expect(items[1]).toHaveTextContent('Signed off');
+  });
+
+  it('shows what each review looked at, as it was then', async () => {
+    const { user } = mount();
+    const history = await screen.findByRole('region', { name: 'Earlier reviews' });
+    const summaries = within(history).getAllByText('What was reviewed');
+    await user.click(summaries[1]);
+    const snapshot = within(summaries[1].closest('details')).getByTestId('role-snapshot');
+    expect(within(snapshot).getByText('SG-Audit')).toBeInTheDocument();
+    expect(within(snapshot).queryByText('SG-HR')).toBeNull();
+    expect(snapshot).toHaveTextContent('Resources (3)');
   });
 
   it('saves notes and a sign-off, then shows the new review and clears the form', async () => {
@@ -115,7 +140,7 @@ describe('BusinessRoleCompositionReview', () => {
     expect(within(form).getByLabelText('Notes')).toHaveValue('x');
   });
 
-  it('gives someone without the permission, or a shared view, the reviews without the form', async () => {
+  it('gives someone without the permission the reviews without the form', async () => {
     mount({ auth: READER });
     await screen.findByTestId('sign-off-status');
     expect(screen.queryByRole('form', { name: 'Your review' })).toBeNull();

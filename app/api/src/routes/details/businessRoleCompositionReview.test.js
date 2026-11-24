@@ -13,14 +13,17 @@ vi.mock('../../middleware/auth.js', () => ({
     return (_req, res, next) => (gate.allow ? next() : res.status(403).json({ error: 'Forbidden' }));
   },
 }));
+const pictures = vi.hoisted(() => ({ now: null }));
+vi.mock('../../lib/businessRoleSnapshot.js', async (orig) => ({ ...(await orig()), takeSnapshot: vi.fn(async () => pictures.now) }));
 
 const { default: router } = await import('./businessRoleCompositionReview.js');
-const caller = vi.hoisted(() => ({ user: { email: 'ann@example.test', name: 'Ann Analyst' } }));
+const caller = vi.hoisted(() => ({ user: null }));
 const app = mountRouterAs(router, () => caller.user);
 
 const ROLE = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const url = `/api/access-package/${ROLE}/composition-reviews`;
 const FIN = { id: 'g1', displayName: 'SG-Finance' };
+const picture = (resources) => ({ version: 1, type: { control: 'Manual' }, resources, policies: [] });
 
 function roleExists() {
   queryOne.mockImplementation(async (sql) => (/"resourceType" = 'BusinessRole'/.test(sql) ? { id: ROLE } : null));
@@ -31,6 +34,7 @@ beforeEach(() => {
   queryOne.mockReset();
   gate.allow = true;
   caller.user = { email: 'ann@example.test', name: 'Ann Analyst' };
+  pictures.now = picture([FIN]);
 });
 
 it('gates writing on the certification-decision permission', () => {
@@ -44,15 +48,12 @@ describe('reading', () => {
     expect((await request(app).get(url)).status).toBe(404);
   });
 
-  it('gives the reviews and the latest sign-off with what changed since', async () => {
+  it('gives the reviews, the role now, and what changed since the latest sign-off', async () => {
     roleExists();
-    query.mockImplementation(async (sql) => ({
-      rows: /FROM "BusinessRoleCompositionReviews"/.test(sql)
-        ? [{ id: 'r1', signedOff: true, notes: '', reviewedBy: 'bob@example.test', composition: [] }]
-        : [FIN],
-    }));
+    query.mockResolvedValue({ rows: [{ id: 'r1', signedOff: true, notes: '', reviewedBy: 'bob@example.test', snapshot: picture([]) }] });
     const res = await request(app).get(url);
     expect(res.status).toBe(200);
+    expect(res.body.current).toEqual(picture([FIN]));
     expect(res.body.latestSignOff).toMatchObject({ id: 'r1', reviewedBy: 'bob@example.test', changesSince: { added: ['SG-Finance'], removed: [] } });
   });
 
@@ -65,14 +66,23 @@ describe('reading', () => {
 });
 
 describe('saving', () => {
-  it('stores the notes and sign-off under the signed-in user, not one from the body', async () => {
+  it('stores the notes, sign-off and snapshot under the signed-in user, not one from the body', async () => {
     roleExists();
-    query.mockImplementation(async (sql) => (/INSERT INTO/.test(sql) ? { rows: [{ id: 'new', signedOff: true }] } : { rows: [FIN] }));
+    query.mockResolvedValue({ rows: [{ id: 'new', signedOff: true }] });
     const res = await request(app).post(url).send({ notes: 'All four groups belong here.', signedOff: true, reviewedBy: 'mallory' });
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ id: 'new', signedOff: true });
     const insert = query.mock.calls.find(([sql]) => /INSERT INTO/.test(sql))[1];
-    expect(insert).toEqual([ROLE, 'All four groups belong here.', true, 'ann@example.test', 'Ann Analyst', JSON.stringify([FIN])]);
+    expect(insert).toEqual([ROLE, 'All four groups belong here.', true, 'ann@example.test', 'Ann Analyst', JSON.stringify(picture([FIN]))]);
+  });
+
+  it('stores "unknown" when the request carries no user (auth off)', async () => {
+    roleExists();
+    caller.user = undefined;
+    query.mockResolvedValue({ rows: [{ id: 'new' }] });
+    await request(app).post(url).send({ signedOff: true });
+    const insert = query.mock.calls.find(([sql]) => /INSERT INTO/.test(sql))[1];
+    expect(insert.slice(3, 5)).toEqual(['unknown', null]);
   });
 
   it('400 for a review that says nothing, before touching the database', async () => {

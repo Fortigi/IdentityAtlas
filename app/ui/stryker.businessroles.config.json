@@ -25,6 +25,7 @@
     "src/components/businessRoles/RoleTypeCell.jsx",
     "src/components/HeldTick.jsx",
     "src/components/businessRoles/BusinessRoleCompositionReview.jsx",
+    "src/components/businessRoles/RoleSnapshot.jsx",
     "src/components/businessRoles/accessModel.js"
   ],
   "thresholds": {

@@ -5,11 +5,13 @@ import { useCanWriteCertifications } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { formatDate } from '@ui/utils/formatters';
 import { changeText } from './accessModel';
+import RoleSnapshot from './RoleSnapshot';
 
 // ─── Composition review of a business role ───────────────────────────────
 // Somebody reads what the role contains, writes notes and, when they agree,
-// signs it off. Every save is kept with who saved it and what the role
-// contained then, so the page says what changed since the last sign-off.
+// signs it off. Every review is an object of its own, kept with who saved it,
+// when, and a snapshot of the role at that moment (RoleSnapshot), so the page
+// shows what was reviewed and what changed since the last sign-off.
 // Data: /api/access-package/:id/composition-reviews (lib/businessRoleCompositionReview.js).
 
 const CARD = 'rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800';
@@ -17,6 +19,7 @@ const MUTED = 'text-xs text-gray-600 dark:text-gray-400';
 
 const whoOf = (review) => review.reviewedByName || review.reviewedBy;
 const resourcesWord = (n) => `${n} resource${n === 1 ? '' : 's'}`;
+const resourceCount = (snapshot) => snapshot?.resources?.length ?? 0;
 
 function SignOffStatus({ summary, onOpenResources }) {
   const latest = summary.latestSignOff;
@@ -26,14 +29,14 @@ function SignOffStatus({ summary, onOpenResources }) {
       {latest ? (
         <p className="text-sm text-gray-900 dark:text-gray-100">
           <span className="mr-2 inline-block rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">Signed off</span>{' '}
-          by <span className="font-medium">{whoOf(latest)}</span> on {formatDate(latest.reviewedAt)}, when it contained {resourcesWord(latest.composition?.length ?? 0)}.
+          by <span className="font-medium">{whoOf(latest)}</span> on {formatDate(latest.reviewedAt)}, when it contained {resourcesWord(resourceCount(latest.snapshot))}.
         </p>
       ) : (
         <p className="text-sm text-gray-800 dark:text-gray-200">Nobody has signed off what this role contains yet.</p>
       )}
       {changed && <p role="alert" className="mt-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-100">{changed}</p>}
       <p className={`${MUTED} mt-2`}>
-        It contains {resourcesWord(summary.current)} now.{' '}
+        It contains {resourcesWord(resourceCount(summary.current))} now.{' '}
         <button type="button" onClick={onOpenResources} className="text-blue-700 underline underline-offset-2 hover:text-blue-600 dark:text-blue-300">See the resources</button>
       </p>
     </section>
@@ -92,6 +95,10 @@ function History({ reviews }) {
               {r.signedOff && <span className="ml-2 rounded-full border border-green-200 bg-green-100 px-1.5 text-[11px] font-medium text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">Signed off</span>}
             </p>
             {r.notes && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">{r.notes}</p>}
+            <details className="mt-1">
+              <summary className="cursor-pointer text-xs font-medium text-blue-700 hover:underline dark:text-blue-300">What was reviewed</summary>
+              <div className="mt-2 rounded border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40"><RoleSnapshot snapshot={r.snapshot} /></div>
+            </details>
           </li>
         ))}
       </ul>
@@ -119,7 +126,7 @@ export default function BusinessRoleCompositionReview({ roleId, onOpenTab }) {
 
   if (loading && !data) return <p className={MUTED}>Loading the reviews…</p>;
   if (error) return <p role="alert" className="text-sm text-red-700 dark:text-red-400">The reviews could not be loaded: {error.message}</p>;
-  const summary = data || { reviews: [], current: 0, latestSignOff: null };
+  const summary = data || { reviews: [], current: null, latestSignOff: null };
   return (
     <div className="space-y-4" data-testid="composition-review">
       <SignOffStatus summary={summary} onOpenResources={() => onOpenTab('resources')} />

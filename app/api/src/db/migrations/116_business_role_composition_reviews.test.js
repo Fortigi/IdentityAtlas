@@ -12,11 +12,15 @@ describe('migration 116 — business role composition reviews', () => {
     expect(sql).toMatch(/CREATE INDEX "ix_BusinessRoleCompositionReviews_role" ON "BusinessRoleCompositionReviews" \("resourceId", "reviewedAt" DESC\)/);
   });
 
-  it('records who reviewed, when, and what the role contained', () => {
+  it('records who reviewed and when', () => {
     expect(sql).toMatch(/"reviewedBy"\s+TEXT NOT NULL,/);
     expect(sql).toMatch(/"reviewedByName" TEXT,/);
     expect(sql).toMatch(/"reviewedAt"\s+TIMESTAMPTZ NOT NULL DEFAULT now\(\)/);
-    expect(sql).toMatch(/"composition"\s+JSONB NOT NULL DEFAULT '\[\]'::jsonb/);
+  });
+
+  it('always stores a snapshot of what was reviewed, as an object', () => {
+    expect(sql).toMatch(/"snapshot"\s+JSONB NOT NULL,/);
+    expect(sql).toMatch(/CHECK \(jsonb_typeof\("snapshot"\) = 'object'\)/);
   });
 
   it('refuses a review that neither signs off nor says anything', () => {

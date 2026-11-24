@@ -218,8 +218,15 @@ export function reviewWarnings(data = {}) {
 }
 
 // What changed in a role since its last composition sign-off, as one sentence:
-// "Since then: added A, B; removed C." Null when nothing changed. Pure.
-export function changeText({ added = [], removed = [] } = {}) {
-  const parts = [added.length && `added ${added.join(', ')}`, removed.length && `removed ${removed.join(', ')}`].filter(Boolean);
+// "Since then: added A, B; removed C; the type changed from Manual to Rule
+// based; a policy or its rule changed." Null when nothing changed. Pure.
+export function changeText({ added = [], removed = [], type = null, policiesChanged = false } = {}) {
+  const label = (control) => (WAYS.control[control] ?? WAYS.control.Unknown).label;
+  const parts = [
+    added.length && `added ${added.join(', ')}`,
+    removed.length && `removed ${removed.join(', ')}`,
+    type && `the type changed from ${label(type.from)} to ${label(type.to)}`,
+    policiesChanged && 'a policy or its rule changed',
+  ].filter(Boolean);
   return parts.length ? `Since then: ${parts.join('; ')}.` : null;
 }

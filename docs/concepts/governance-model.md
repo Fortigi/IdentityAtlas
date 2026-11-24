@@ -230,7 +230,8 @@ So a review is done **in the source system**, not here:
 
 The one review Identity Atlas does hold itself is a **composition review**: on a business role's **Composition review** tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks **Signed off**. This reviews the role's *contents*, not who holds it, so it does not replace the access reviews above.
 
-- Every save is kept: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name) and when, plus what the role contained at that moment. The tab shows the latest sign-off and what was added or removed since.
+- A review is an object of its own, linked to the role it reviews, and never changed after it is saved: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name), when, and a **snapshot** of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, its assignment policies with their rules, and the resources it contained (name, type, system).
+- The tab shows every review with **What was reviewed** (the snapshot, as it was), and for the latest sign-off what changed since: resources added or removed, a different type, or a changed policy or rule.
 - It lives in its own table, `BusinessRoleCompositionReviews` (migration 116), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
 - Saving needs the **Certification decisions** permission (`data.write.certifications`); anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`).
 

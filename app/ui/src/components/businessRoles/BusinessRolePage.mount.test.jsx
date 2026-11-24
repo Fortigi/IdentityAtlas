@@ -53,7 +53,7 @@ function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members 
     if (u === `${BASE}/assignments`) return members;
     if (u === `${BASE}/resource-roles`) return resources;
     if (u === `${BASE}/reviews` || u === `${BASE}/requests`) return [];
-    if (u === `${BASE}/composition-reviews`) return { reviews: [], current: 2, latestSignOff: null };
+    if (u === `${BASE}/composition-reviews`) return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }, { id: 'g2' }] }, latestSignOff: null };
     if (u === BASE) return body;
     return undefined;
   });

@@ -1,3 +1,4 @@
 - Business roles have a Composition review tab: write notes about what the role contains and tick Signed off when you agree with it
-- Every review is kept with who saved it, when, and what the role contained at that moment; the tab shows the latest sign-off and what was added or removed since
+- Each review is kept as its own record with who saved it, when, and a snapshot of the role at that moment: its type, holders, Accountable and Responsible people, policies with their rules, and resources
+- Every review shows what was reviewed, exactly as it was; for the latest sign-off the tab says what changed since (resources added or removed, a different type, or a changed policy or rule)
 - Signing off needs the Certification decisions permission; everyone who can read data sees the reviews
