@@ -6916,7 +6916,7 @@
 <tr>
 <td>Azure</td>
 <td><code>main.json</code> (sign-in off) and <code>main.json</code> + <code>main-auth.json</code> (sign-in on), each with <code>deployReportGenerator</code> false and true: a fresh deploy, version and health check, the read endpoints or the sign-in checks. For both defaults also an upgrade: the previous stable release's template first, demo data, then the candidate's template over it, same totals afterwards.</td>
-<td>IIDemos subscription, one new <code>ia-reltest-*</code> resource group per variant per run, always deleted</td>
+<td>IIDemos subscription, one new <code>ia-reltest-*</code> resource group per variant per run, always deleted. Starts in <code>westeurope</code>; when Azure answers <code>SkuNotAvailable</code> (no Burstable PostgreSQL capacity in that region right now) the group is deleted and the whole variant starts over in <code>swedencentral</code>, then <code>northeurope</code>, each in a group of its own (<code>&lt;group&gt;-&lt;region&gt;</code>). Any other failure fails the variant at once</td>
 </tr>
 </tbody>
 </table>
