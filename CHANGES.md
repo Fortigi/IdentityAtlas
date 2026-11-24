@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Business roles can now have one Accountable and any number of Responsible people, as contexts do.
+- Identity Atlas suggests who could be Accountable or Responsible for a business role, from the managers of its holders and the owners of its resources. A suggestion you turn down is not offered again.
+
+## Changes in this PR
+
 - The Entra ID crawler now reads each access package policy's rule text, approval setting, expiry and who may request or remove access.
 - Open access package requests now appear on the business role page. They were always empty because no crawler collected them.
 - Each business role assignment now records every policy that gave the person the role.
