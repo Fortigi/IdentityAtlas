@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   teamGrid, membershipChanges, roleChanges, latestChanges, loadTeamOverview,
-  TEAM_ACCOUNTS_SQL, TEAM_HOLDINGS_SQL, ROLE_HISTORY_CAP, MAX_CHANGES, roleHistorySql,
+  TEAM_ACCOUNTS_SQL, TEAM_HOLDINGS_SQL, ROLE_HISTORY_CAP, MAX_CHANGES, roleHistorySql, loadTeamGrid,
 } from './teamOverview.js';
+import { ROLE_CONTROL_SQL } from '../lib/businessRoleAccessModel.js';
 import { UNIT_MEMBERSHIP_SQL, UNIT_HISTORY_SQL, NAMES_SQL, UNIT_TIMELINE_ROW_CAP } from './timeline/unitTimeline.js';
 
 const GONE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -19,7 +20,7 @@ describe('teamGrid', () => {
       { id: 'a', displayName: 'Ann', kind: 'user', permissions: 7, ungoverned: 2 },
       { id: 'b', displayName: 'Bob', kind: 'identity', permissions: 0, ungoverned: 0 },
     ]);
-    expect(roles).toEqual([{ id: 'r1', displayName: 'Finance', holders: ['a'], origins: { a: { origin: 'Automatic', originDetail: 'AutoAssign' } } }]);
+    expect(roles).toEqual([{ id: 'r1', displayName: 'Finance', control: 'Unknown', holders: ['a'], origins: { a: { origin: 'Automatic', originDetail: 'AutoAssign', control: 'Unknown' } } }]);
   });
 
   it('keeps how each person got the same role, and says null when the source does not', () => {
@@ -28,9 +29,19 @@ describe('teamGrid', () => {
       { memberId: 'b', permissions: 1, ungoverned: 0, roles: [{ id: 'r1', displayName: 'Finance' }] },
     ]);
     expect(roles[0].origins).toEqual({
-      a: { origin: 'Automatic', originDetail: 'AutoAssign' },
-      b: { origin: null, originDetail: null },
+      a: { origin: 'Automatic', originDetail: 'AutoAssign', control: 'Unknown' },
+      b: { origin: null, originDetail: null, control: 'Unknown' },
     });
+  });
+
+  it('gives each role its primary type and each holder theirs', () => {
+    const { roles } = teamGrid([ANN, BOB], [
+      { memberId: 'a', permissions: 1, ungoverned: 0, roles: [{ ...FINANCE, linked: 'Automatic' }] },
+      { memberId: 'b', permissions: 1, ungoverned: 0, roles: [{ id: 'r1', displayName: 'Finance', linked: null, origin: 'Requested' }] },
+    ], new Map([['r1', 'Manual']]));
+    expect(roles[0].control).toBe('Manual');
+    expect(roles[0].origins.a.control).toBe('Automatic');
+    expect(roles[0].origins.b.control).toBe('Manual');
   });
 
   it('orders roles by how many hold them, then by name', () => {
@@ -41,6 +52,26 @@ describe('teamGrid', () => {
     expect(roles.map(r => [r.displayName, r.holders])).toEqual([
       ['Finance', ['a', 'b']], ['Audit', ['a']], ['Zed', ['a']],
     ]);
+  });
+});
+
+describe('loadTeamGrid', () => {
+  it('reads the primary type of exactly the roles the team holds', async () => {
+    const db = { query: vi.fn(async (sql) => {
+      if (sql === TEAM_ACCOUNTS_SQL) return { rows: [{ memberId: 'a', accountId: 'a', identityId: null }] };
+      if (sql === TEAM_HOLDINGS_SQL) return { rows: [{ memberId: 'a', permissions: 1, ungoverned: 0, roles: [FINANCE, AUDIT] }] };
+      if (sql === ROLE_CONTROL_SQL) return { rows: [{ resourceId: 'r1', policyCount: 1, inRule: true, outRule: true }] };
+      return { rows: [] };
+    }) };
+    const { roles } = await loadTeamGrid(db, [ANN]);
+    expect(db.query.mock.calls.find(([s]) => s === ROLE_CONTROL_SQL)[1]).toEqual([['r1', 'r2']]);
+    expect(Object.fromEntries(roles.map(r => [r.id, r.control]))).toEqual({ r1: 'Automatic', r2: 'Unknown' });
+  });
+
+  it('asks nothing more for a team without roles', async () => {
+    const db = { query: vi.fn(async (sql) => (sql === TEAM_ACCOUNTS_SQL ? { rows: [{ memberId: 'a', accountId: 'a' }] } : { rows: [] })) };
+    await loadTeamGrid(db, [ANN]);
+    expect(db.query.mock.calls.some(([s]) => s === ROLE_CONTROL_SQL)).toBe(false);
   });
 });
 

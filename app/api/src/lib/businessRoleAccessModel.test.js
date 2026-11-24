@@ -1,5 +1,52 @@
 import { describe, it, expect } from 'vitest';
-import { deriveAccessModel, deriveControl, deriveHowHeld, isAutomaticHolder, ACCESS_MODEL_AGGREGATES } from './businessRoleAccessModel.js';
+import {
+  deriveAccessModel, deriveControl, deriveHowHeld, isAutomaticHolder, holderControl, roleControls, linkedHolderControlSql,
+  ROLE_CONTROL_SQL, ACCESS_MODEL_AGGREGATES,
+} from './businessRoleAccessModel.js';
+
+describe('holderControl', () => {
+  it.each([
+    [{ linked: 'Automatic', roleControl: 'Manual' }, 'Automatic'],
+    [{ linked: 'Manual', roleControl: 'Automatic' }, 'Manual'],
+    [{ linked: null, roleControl: 'Automatic', origin: 'Requested' }, 'Automatic'],
+    [{ linked: null, roleControl: 'Manual' }, 'Manual'],
+    [{ linked: null, roleControl: 'Unknown', origin: 'Requested' }, 'Manual'],
+    [{ linked: null, roleControl: 'Unknown', origin: 'Automatic' }, 'Unknown'],
+    [{ linked: 'weird', roleControl: undefined }, 'Unknown'],
+    [undefined, 'Unknown'],
+  ])('%j → %s', (input, out) => expect(holderControl(input)).toBe(out));
+});
+
+describe('roleControls', () => {
+  it('derives the primary type of each role', () => {
+    const map = roleControls([
+      { resourceId: 'auto', policyCount: 1, inRule: true, outRule: true },
+      { resourceId: 'manual', policyCount: 2, inRule: true, inRequest: true, outRule: true },
+      { resourceId: 'none', policyCount: 0 },
+    ]);
+    expect([...map]).toEqual([['auto', 'Automatic'], ['manual', 'Manual'], ['none', 'Unknown']]);
+  });
+
+  it('reads the roles it is given, grouped per role', () => {
+    expect(ROLE_CONTROL_SQL).toContain('"resourceId" = ANY($1::uuid[])');
+    expect(ROLE_CONTROL_SQL).toContain('GROUP BY "resourceId"');
+  });
+});
+
+describe('linkedHolderControlSql', () => {
+  const sql = linkedHolderControlSql('h', 'r.id');
+  it('is Automatic only for a policy that adds and removes by rule', () => {
+    expect(sql).toContain('bool_or(p."hasAutoAddRule" AND p."hasAutoRemoveRule")');
+  });
+  it('looks only at the policies behind this assignment, of this role', () => {
+    expect(sql).toContain('p."resourceId" = r.id');
+    expect(sql).toContain('p.id = h."policyId"');
+    expect(sql).toContain('COALESCE(h."policyIds", \'[]\'::jsonb) ? p.id::text');
+  });
+  it('is NULL, not Manual, when no policy is linked', () => {
+    expect(sql).toContain('HAVING COUNT(*) > 0');
+  });
+});
 
 describe('deriveControl', () => {
   it('is Automatic only when a rule alone adds and a rule removes', () => {

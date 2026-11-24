@@ -12,9 +12,9 @@ const GRAY = 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:te
 
 export const WAYS = {
   control: {
-    Automatic: { label: 'Rule only', hint: 'Only a rule adds and removes people', style: GREEN },
-    Manual: { label: 'Manual', hint: 'People decide who holds this role, so it needs a regular review', style: AMBER },
-    Unknown: { label: 'Type unknown', hint: 'The source does not say enough to tell', style: GRAY },
+    Automatic: { label: 'Rule based', hint: 'A rule adds and removes people: no periodic review of who holds it, only of what it contains', style: GREEN },
+    Manual: { label: 'Manual', hint: 'Requested and approved, or assigned: needs a periodic review of who holds it', style: AMBER },
+    Unknown: { label: 'Unknown', hint: 'The data the source provides does not say how this role is assigned', style: GRAY },
   },
   in: {
     Rule: { label: 'Rule', hint: 'A rule hands this role to everyone who matches it', style: GREEN },
@@ -107,11 +107,19 @@ export function filterMembers(rows, search, way) {
   });
 }
 
+const listWays = (direction, ways) => (ways ?? []).map(w => WAYS[direction][w]?.label ?? w).join(', ');
+
+// The detail behind the type in one line, for the list's tooltip.
+export function accessDetail(accessModel) {
+  const out = listWays('out', accessModel?.waysOut);
+  return [`Gained by ${listWays('in', accessModel?.waysIn) || 'Unknown'}`, `lost by ${out || 'nothing automatic'}`].join('; ');
+}
+
 // The sentence under a role's type. `manual` is how many holders no rule both
 // adds and removes: the part a regular review has to cover.
 export function controlSummary(accessModel, holders = 0, automatic = 0) {
   const control = accessModel?.control ?? 'Unknown';
-  if (control === 'Automatic') return 'Only rules add and remove people, so nobody has to review who holds it.';
+  if (control === 'Automatic') return 'A rule adds and removes people, so nobody has to review who holds it. What it contains still needs a review.';
   if (control === 'Unknown') return 'The source does not say enough to tell whether people decide who holds this role.';
   const manual = Math.max(0, holders - automatic);
   const who = manual === 1 ? '1 person holds' : `${manual} people hold`;

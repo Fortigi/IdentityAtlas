@@ -520,16 +520,16 @@ ia:Accountability_Autonomous a owl:NamedIndividual, ia:Accountability ; ia:typeV
 
 ia:BusinessRoleControl a owl:Class ;
     rdfs:label "Business role control" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The primary distinction between business roles: whether anyone decides who holds it. Derived from its ways in and out (ia:AccessWayIn, ia:AccessWayOut), not stored." .
+    rdfs:comment "The primary type of a business role, and of one person's holding of it: whether anyone decides who holds it, and so whether its holders need a periodic review. Derived from the role's ways in and out (ia:AccessWayIn, ia:AccessWayOut) and from the policies behind an assignment, not stored. The ways in and out stay as the detail underneath." .
 ia:BusinessRoleControl_Automatic a owl:NamedIndividual, ia:BusinessRoleControl ; ia:typeValue "Automatic" ;
-    rdfs:label "Automatic" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Only a rule hands the role out and a rule takes it away. No person decides, so no regular review of who holds it is needed." .
+    rdfs:label "Rule based" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Rule based only: a rule hands the role out and a rule takes it away. No person decides who holds it, so it needs no periodic review of its holders, only a review of what it contains. Applies to a role and to one person's holding of it." .
 ia:BusinessRoleControl_Manual a owl:NamedIndividual, ia:BusinessRoleControl ; ia:typeValue "Manual" ;
     rdfs:label "Manual" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Anything else: someone requests, assigns or has to remove it. Needs a regular review of at least the part that is not automatically assigned and removed." .
+    rdfs:comment "Request and approval, or assigned by hand, including a hybrid with a removal rule: a person decides who holds it, so it needs a periodic review of at least the holders a rule does not both add and remove. Applies to a role and to one person's holding of it." .
 ia:BusinessRoleControl_Unknown a owl:NamedIndividual, ia:BusinessRoleControl ; ia:typeValue "Unknown" ;
     rdfs:label "Unknown" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The source does not say enough to tell." .
+    rdfs:comment "The data the source provides does not say how the role is assigned." .
 
 ia:AccessWayIn a owl:Class ;
     rdfs:label "Way into a business role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
