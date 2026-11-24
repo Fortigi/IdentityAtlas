@@ -110,6 +110,7 @@ $DefaultTypeMappings = @{
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'OmadaCrawler.Phases.ps1')
+. (Join-Path $PSScriptRoot 'OmadaCrawler.BusinessRoleOwners.ps1')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 
 # Resolve all config (toggles, URLs, context types, mappings) into script vars.
@@ -243,6 +244,7 @@ if ($SyncContextMembers) {
 if ($SyncResources) {
     $AllResources = Sync-OmadaResources -SystemId $SystemId -OmadaSystemMap $OmadaSystemMap `
         -AllOmadaSystems $AllOmadaSystems -PageSize $PageSize -MaxRetries $MaxODataRetries
+    Sync-OmadaBusinessRoleOwners -SystemId $SystemId -AllResources $AllResources
 }
 
 # ─── Phase: Entitlements (Resource Relationships) ─────────────────

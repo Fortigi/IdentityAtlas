@@ -119,6 +119,8 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'PUT /access-package/:id/owners': ['data.write.contexts', 'admin.context-plugins'],
   'DELETE /access-package/:id/owners/:ownerId': ['data.write.contexts', 'admin.context-plugins'],
   'POST /access-package/:id/owners/suggestions/reject': ['data.write.contexts', 'admin.context-plugins'],
+  'POST /business-roles/owners/import/preview': ['data.write.contexts', 'admin.context-plugins'],
+  'POST /business-roles/owners/import/apply': ['data.write.contexts', 'admin.context-plugins'],
   'GET /user/:id/recent-changes': ANY,
   'GET /resources/:id/recent-changes': ANY,
   'GET /access-package/:id/recent-changes': ANY,
@@ -421,5 +423,6 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'POST /ingest/stages/:id/finalize': CRAWLER_KEY,
   'DELETE /ingest/stages/:id': CRAWLER_KEY,
   'POST /ingest/context-roles': CRAWLER_KEY,
+  'POST /ingest/business-role-owners': CRAWLER_KEY,
   'POST /ingest/context-relationships': CRAWLER_KEY,
 });

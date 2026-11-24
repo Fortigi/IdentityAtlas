@@ -49,7 +49,7 @@ export function sendFailure(res, err, label) {
   return res.status(500).json({ error: `${label} failed` });
 }
 
-function receiveFile(req, res, next) {
+export function receiveFile(req, res, next) {
   upload.single('file')(req, res, (err) => {
     if (err?.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ error: `The file is larger than ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB; a list for upload is at most 50,000 rows.` });
