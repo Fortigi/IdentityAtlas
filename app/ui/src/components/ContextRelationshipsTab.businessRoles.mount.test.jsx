@@ -58,9 +58,14 @@ describe('business-role columns', () => {
   });
 });
 
+// One row in the given roles, or two rows in different roles.
+const reader = (roles) => resource('a', 'Reader', roles);
+const twoRows = () => [reader([finance]), resource('b', 'Writer', [audit])];
+const show = (members, props = {}) => renderWithProviders(<Panel members={members} {...props} />);
+
 describe('business-role matrix', () => {
   it('ticks exactly the roles that contain each resource', () => {
-    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance]), resource('b', 'Writer', [audit])]} />);
+    show(twoRows());
     expect(screen.getByRole('img', { name: 'Reader is in Finance' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Writer is in Audit' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Reader is in Audit' })).toBeNull();
@@ -69,7 +74,7 @@ describe('business-role matrix', () => {
   });
 
   it('still shows the owner, the user count, the type and the description on a row', () => {
-    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance])]} />);
+    show([reader([finance])]);
     const row = screen.getByRole('img', { name: 'Reader is in Finance' }).closest('tr');
     expect(within(row).getByText('Olivia Owner')).toBeInTheDocument();
     expect(within(row).getByText('7')).toBeInTheDocument();
@@ -79,29 +84,29 @@ describe('business-role matrix', () => {
 
   it('opens a role from its heading without opening a row', async () => {
     const open = vi.fn();
-    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance])]} onOpenDetail={open} />);
+    show([reader([finance])], { onOpenDetail: open });
     await userEvent.setup().click(screen.getByRole('button', { name: 'Finance' }));
     expect(open).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledWith('access-package', 'r-f', 'Finance');
   });
 
   it('names a role the reader may not open, without a link', () => {
-    renderWithProviders(<Panel members={[resource('a', 'Reader', [role('r-f', 'Finance', { accessible: false })])]} />);
+    show([reader([role('r-f', 'Finance', { accessible: false })])]);
     expect(screen.getByRole('columnheader', { name: /Finance/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Finance/ })).toBeNull();
   });
 
   it('hides an unticked cell on the narrow card layout and keeps a ticked one', () => {
-    renderWithProviders(<Panel members={[resource('a', 'Reader', [finance]), resource('b', 'Writer', [audit])]} />);
+    show(twoRows());
     expect(screen.getByText('Reader is not in Audit').closest('td')).toHaveClass('hidden');
     expect(screen.getByRole('img', { name: 'Reader is in Finance' }).closest('td')).not.toHaveClass('hidden');
   });
 
   it('keeps the name in view only when there are role columns', () => {
-    const { unmount } = renderWithProviders(<Panel members={[resource('a', 'Reader', [finance])]} />);
+    const { unmount } = show([reader([finance])]);
     expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass('sm:sticky');
     unmount();
-    renderWithProviders(<Panel members={[resource('a', 'Reader', [])]} />);
+    show([reader([])]);
     expect(screen.getByRole('columnheader', { name: 'Name' })).not.toHaveClass('sm:sticky');
   });
 });
