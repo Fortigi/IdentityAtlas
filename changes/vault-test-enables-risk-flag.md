@@ -1,1 +1,0 @@
-- Fixed the automated secrets-vault check failing on dependency-update pull requests, so these updates get their full integration test again

@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Made the business role page calmer. The header now only shows whether a role is Manual or Rule only, and the Overview shows its size and who answers for it.
+- Added a Lifecycle tab that shows how people get, keep and lose a role, including the request scope, approvers, reviewers and rules. The detail per policy is folded away.
+- Every business role now has one primary type: Rule based (a rule adds and removes people, so only what it contains needs a review), Manual (requested, approved or assigned, which needs a periodic review), or Unknown. The Business Roles list shows only this type, with the detail on hover, and the role page and the org unit team overview use the same words.
+- The org unit team overview now marks each person's role as Rule based, Manual or Unknown, based on the policy that gave them the role. A rule that adds someone but never removes them now counts as Manual.
+- Added a guided setup for organisation trees built from the manager chain: first choose who belongs, then where managers sit, then how teams are named.
+- Added a people filter for organisation trees, starting from "people managed by HR" (accounts with an employee ID), with a count of how many accounts it keeps.
+- Admin and other second accounts no longer turn their owner into a manager: they can be left out even when they carry a copy of the owner's employee ID.
+- Added the choice to make a manager a member of the team they manage, or of the team above.
+- Added "Change settings" to Adjust tree: reopen the wizard on the settings a generated tree was built with, change them and apply them to the same tree, keeping your adjustments.
+- Fixed the automated secrets-vault check failing on dependency-update pull requests, so these updates get their full integration test again
+
+## Changes in this PR
+
 - Set the Accountable and Responsible people of many business roles at once by uploading a CSV or Excel list. A preview shows what will change first, and a person chosen by hand is never replaced.
 - The Omada crawler now sets the owners Omada names on a business role as its Accountable or Responsible people.
 - Redesigned the business role page. It now opens on an Overview with who answers for the role, how it is gained and lost, each policy's rule, approval, expiry and review, and how many people hold the role through it.

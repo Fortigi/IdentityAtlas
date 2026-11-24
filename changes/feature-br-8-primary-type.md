@@ -1,2 +1,0 @@
-- Every business role now has one primary type: Rule based (a rule adds and removes people, so only what it contains needs a review), Manual (requested, approved or assigned, which needs a periodic review), or Unknown. The Business Roles list shows only this type, with the detail on hover, and the role page and the org unit team overview use the same words.
-- The org unit team overview now marks each person's role as Rule based, Manual or Unknown, based on the policy that gave them the role. A rule that adds someone but never removes them now counts as Manual.
