@@ -6,17 +6,23 @@ process.env.USE_SQL = 'true';
 
 vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
-const gate = vi.hoisted(() => ({ allow: true, asked: [] }));
-vi.mock('../../middleware/auth.js', () => ({
-  requirePermission: (...perms) => {
-    gate.asked.push(perms);
-    return (_req, res, next) => (gate.allow ? next() : res.status(403).json({ error: 'Forbidden' }));
-  },
+
+// Everything that decides who may write, as switches the tests flip.
+const world = vi.hoisted(() => ({ auth: true, feature: true, ownerReview: false, owns: false, me: null, asked: [] }));
+vi.mock('../../config/authConfig.js', () => ({ isAuthEnabled: () => world.auth }));
+vi.mock('../../featureFlags.js', () => ({
+  requireFeature: (name) => (_req, res, next) => (name === 'compositionReview' && world.feature ? next() : res.status(404).json({ error: 'This feature is not enabled' })),
+}));
+vi.mock('../../auth/contextOwnerSetting.js', () => ({ isBusinessRoleOwnerReviewEnabled: async () => world.ownerReview }));
+vi.mock('../../auth/resolveMe.js', () => ({ resolveMe: async (user) => { world.me = user; return { principal: { id: 'p-1' }, identity: null }; } }));
+vi.mock('../../lib/businessRoleOwners.js', async (orig) => ({
+  ...(await orig()),
+  answersForBusinessRole: vi.fn(async (me, roleId) => { world.asked.push([me, roleId]); return world.owns; }),
 }));
 const pictures = vi.hoisted(() => ({ now: null }));
 vi.mock('../../lib/businessRoleSnapshot.js', async (orig) => ({ ...(await orig()), takeSnapshot: vi.fn(async () => pictures.now) }));
 
-const { default: router } = await import('./businessRoleCompositionReview.js');
+const { default: router, mayReview } = await import('./businessRoleCompositionReview.js');
 const caller = vi.hoisted(() => ({ user: null }));
 const app = mountRouterAs(router, () => caller.user);
 
@@ -24,6 +30,8 @@ const ROLE = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const url = `/api/access-package/${ROLE}/composition-reviews`;
 const FIN = { id: 'g1', displayName: 'SG-Finance' };
 const picture = (resources) => ({ version: 1, type: { control: 'Manual' }, resources, policies: [] });
+const SIGNER = { email: 'ann@example.test', name: 'Ann Analyst', permissions: new Set(['data.write.certifications']) };
+const READER = { email: 'carla@example.test', name: 'Carla Cash', permissions: new Set(['data.read']) };
 
 function roleExists() {
   queryOne.mockImplementation(async (sql) => (/"resourceType" = 'BusinessRole'/.test(sql) ? { id: ROLE } : null));
@@ -32,13 +40,48 @@ function roleExists() {
 beforeEach(() => {
   query.mockReset();
   queryOne.mockReset();
-  gate.allow = true;
-  caller.user = { email: 'ann@example.test', name: 'Ann Analyst' };
+  Object.assign(world, { auth: true, feature: true, ownerReview: false, owns: false, me: null, asked: [] });
+  caller.user = SIGNER;
   pictures.now = picture([FIN]);
 });
 
-it('gates writing on the certification-decision permission', () => {
-  expect(gate.asked).toContainEqual(['data.write.certifications']);
+describe('mayReview', () => {
+  const as = (user, readToken = false) => ({ user, readToken, params: { id: ROLE } });
+
+  it('lets everybody in while sign-in is off', async () => {
+    world.auth = false;
+    expect(await mayReview(as(undefined))).toBe(true);
+  });
+
+  it('never lets a read API key write', async () => {
+    expect(await mayReview(as({ permissions: new Set(['*']) }, true))).toBe(false);
+  });
+
+  it('lets in the certification permission and the wildcard, without looking the caller up', async () => {
+    expect(await mayReview(as(SIGNER))).toBe(true);
+    expect(await mayReview(as({ permissions: new Set(['*']) }))).toBe(true);
+    expect(world.asked).toEqual([]);
+  });
+
+  it('asks nothing about ownership while the relative permission is off', async () => {
+    world.owns = true;
+    expect(await mayReview(as(READER))).toBe(false);
+    expect(world.asked).toEqual([]);
+  });
+
+  it('with the relative permission on, lets in the role\'s own Accountable or Responsible — and nobody else', async () => {
+    world.ownerReview = true;
+    expect(await mayReview(as(READER))).toBe(false);
+    expect(world.asked).toEqual([[{ principal: { id: 'p-1' }, identity: null }, ROLE]]);
+    expect(world.me).toBe(READER);
+    world.owns = true;
+    expect(await mayReview(as(READER))).toBe(true);
+  });
+
+  it('looks an owner up also when the caller carries no permissions at all', async () => {
+    Object.assign(world, { ownerReview: true, owns: true });
+    expect(await mayReview(as({ email: 'x@example.test' }))).toBe(true);
+  });
 });
 
 describe('reading', () => {
@@ -48,13 +91,27 @@ describe('reading', () => {
     expect((await request(app).get(url)).status).toBe(404);
   });
 
-  it('gives the reviews, the role now, and what changed since the latest sign-off', async () => {
+  it('404 while the feature is off, before the role is looked up', async () => {
+    world.feature = false;
+    expect((await request(app).get(url)).status).toBe(404);
+    expect(queryOne).not.toHaveBeenCalled();
+  });
+
+  it('gives the reviews, the role now, what changed since the latest sign-off, and that the caller may review', async () => {
     roleExists();
     query.mockResolvedValue({ rows: [{ id: 'r1', signedOff: true, notes: '', reviewedBy: 'bob@example.test', snapshot: picture([]) }] });
     const res = await request(app).get(url);
     expect(res.status).toBe(200);
     expect(res.body.current).toEqual(picture([FIN]));
     expect(res.body.latestSignOff).toMatchObject({ id: 'r1', reviewedBy: 'bob@example.test', changesSince: { added: ['SG-Finance'], removed: [] } });
+    expect(res.body.canReview).toBe(true);
+  });
+
+  it('says a reader who does not answer for the role may not review', async () => {
+    roleExists();
+    caller.user = READER;
+    query.mockResolvedValue({ rows: [] });
+    expect((await request(app).get(url)).body.canReview).toBe(false);
   });
 
   it('500 when the reviews cannot be read', async () => {
@@ -76,8 +133,19 @@ describe('saving', () => {
     expect(insert).toEqual([ROLE, 'All four groups belong here.', true, 'ann@example.test', 'Ann Analyst', JSON.stringify(picture([FIN]))]);
   });
 
+  it('lets the role\'s own Accountable save, under their own name', async () => {
+    roleExists();
+    Object.assign(world, { ownerReview: true, owns: true });
+    caller.user = READER;
+    query.mockResolvedValue({ rows: [{ id: 'new' }] });
+    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(201);
+    const insert = query.mock.calls.find(([sql]) => /INSERT INTO/.test(sql))[1];
+    expect(insert.slice(3, 5)).toEqual(['carla@example.test', 'Carla Cash']);
+  });
+
   it('stores "unknown" when the request carries no user (auth off)', async () => {
     roleExists();
+    world.auth = false;
     caller.user = undefined;
     query.mockResolvedValue({ rows: [{ id: 'new' }] });
     await request(app).post(url).send({ signedOff: true });
@@ -93,10 +161,27 @@ describe('saving', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('403 without the permission, before the role is looked up', async () => {
-    gate.allow = false;
-    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(403);
+  it('403 naming the permission for someone who may not review, before the flag or the role are looked at', async () => {
+    caller.user = READER;
+    world.feature = false;
+    const res = await request(app).post(url).send({ signedOff: true });
+    expect(res.status).toBe(403);
+    expect(res.body.required).toEqual(['data.write.certifications']);
     expect(queryOne).not.toHaveBeenCalled();
+  });
+
+  it('404 for someone who may review while the feature is off', async () => {
+    world.feature = false;
+    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(404);
+  });
+
+  it('500 when deciding who may review fails', async () => {
+    Object.assign(world, { ownerReview: true });
+    caller.user = READER;
+    const owners = await import('../../lib/businessRoleOwners.js');
+    owners.answersForBusinessRole.mockRejectedValueOnce(new Error('down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await request(app).post(url).send({ signedOff: true })).status).toBe(500);
   });
 
   it('500 when the review cannot be saved', async () => {

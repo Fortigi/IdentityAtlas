@@ -8,6 +8,7 @@ const { query, queryOne } = await import('../db/connection.js');
 const {
   CONTEXT_OWNER_ACCESS_KEY, CONTEXT_OWNER_MCP_KEY, isContextOwnerAccessEnabled, setContextOwnerAccess,
   isContextOwnerMcpEnabled, getContextOwnerMcpSwitch, setContextOwnerMcp, resetContextOwnerSettingForTests,
+  BUSINESS_ROLE_OWNER_REVIEW_KEY, isBusinessRoleOwnerReviewEnabled, setBusinessRoleOwnerReview,
 } = await import('./contextOwnerSetting.js');
 
 const savedUseSql = process.env.USE_SQL;
@@ -128,5 +129,24 @@ describe('the MCP switch for context owners', () => {
   it('refuses a value that is not a boolean, without writing', async () => {
     await expect(setContextOwnerMcp(1)).rejects.toThrow(TypeError);
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('the business-role owner review switch', () => {
+  const stored = (values) => queryOne.mockImplementation(async (_sql, [key]) => (key in values ? { configValue: values[key] } : null));
+
+  it('is off when nothing is stored, and on for a stored "true" — whatever the context-owner switch says', async () => {
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'false' });
+    expect(await isBusinessRoleOwnerReviewEnabled()).toBe(false);
+    resetContextOwnerSettingForTests();
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'false', [BUSINESS_ROLE_OWNER_REVIEW_KEY]: 'true' });
+    expect(await isBusinessRoleOwnerReviewEnabled()).toBe(true);
+  });
+
+  it('is saved under its own key', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await setBusinessRoleOwnerReview(true);
+    expect(query.mock.calls[0][1]).toEqual(['BUSINESS_ROLE_OWNER_REVIEW', 'true']);
+    expect(await isBusinessRoleOwnerReviewEnabled()).toBe(true);
   });
 });

@@ -4,13 +4,16 @@ import { useFetch } from '@ui/hooks/useFetch';
 
 // Admin → Roles & Permissions → Relative permissions: the context-owner
 // switches (RelativePermissionsSection holds them).
-// GET/PUT /api/admin/context-owner-access ({ enabled, mcp }).
+// GET/PUT /api/admin/context-owner-access ({ enabled, mcp, ownerReview }).
 //   enabled — people who are Accountable or Responsible for a context can sign in
 //     without an Identity Atlas role and land on that context, its sub-units and
 //     what its members hold — nothing else (the API enforces it).
 //   mcp — such people may also use the MCP server from an AI assistant, under
 //     exactly the same scope. Only has effect while `enabled` is on, so its box is
 //     disabled until then (docs/architecture/mcp-authorization.md).
+//   ownerReview — a business role's Accountable or Responsible may sign off its
+//     composition review without the certification permission. Independent of
+//     the other two.
 export default function ContextOwnerAccessSection() {
   const { authFetch } = useAuth();
   const { data, loading, error, reload } = useFetch('/api/admin/context-owner-access', { authFetch });
@@ -18,6 +21,7 @@ export default function ContextOwnerAccessSection() {
   const [saveError, setSaveError] = useState(null);
   const enabled = data?.enabled === true;
   const mcp = data?.mcp === true;
+  const ownerReview = data?.ownerReview === true;
 
   async function save(field, next) {
     setSaving(true);
@@ -79,6 +83,22 @@ export default function ContextOwnerAccessSection() {
         {enabled
           ? 'Every answer is limited to their contexts, and says so: counts cover their part only. The MCP server itself must be switched on under Admin → Experimental.'
           : 'Turn on context-owner access first.'}
+      </p>
+      <label className="mt-4 flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4"
+          checked={ownerReview}
+          disabled={loading || saving}
+          onChange={e => save('ownerReview', e.target.checked)}
+        />
+        <span className="text-sm text-gray-800 dark:text-gray-200">
+          Business-role owners may sign off a composition review — the Accountable or Responsible of a business role can
+          save a review of what it contains, even without the permission to record certification decisions.
+        </span>
+      </label>
+      <p className="mt-2 ml-7 text-xs text-gray-600 dark:text-gray-400">
+        Only for the roles they answer for, and only while Composition review is switched on under Admin → Experimental.
       </p>
       {message && <p role="alert" className="mt-2 ml-7 text-xs text-red-700 dark:text-red-400">{message}</p>}
     </div>

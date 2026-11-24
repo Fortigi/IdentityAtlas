@@ -68,6 +68,10 @@ The diagram below is **generated from the [core ontology](../reference/core-mode
 <!-- BEGIN GENERATED: ontology core-erd -->
 ```mermaid
 erDiagram
+    BusinessRoleCompositionReviews {
+        uuid id PK
+        uuid resourceId FK
+    }
     ChangeRequests {
         uuid id PK
         uuid basisClaimId FK
@@ -190,6 +194,7 @@ erDiagram
         string displayName
     }
 
+    Resources |o--o{ BusinessRoleCompositionReviews : "resourceId"
     ContextClaims |o--o{ ChangeRequests : "basisClaimId"
     Contexts |o--o{ ChangeRequests : "contextId"
     Identities |o--o{ ChangeRequests : "memberId"

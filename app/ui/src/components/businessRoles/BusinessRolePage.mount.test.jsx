@@ -67,9 +67,9 @@ const PARTICIPANTS = [
   { participation: 'Requestor', subjectType: 'Rule', rule: '(user.jobTitle -eq "x")' },
 ];
 
-function mountPage(opts, wrap = (el) => el) {
+function mountPage(opts, wrap = (el) => el, features = { compositionReview: true }) {
   const onOpenDetail = vi.fn();
-  renderWithProviders(wrap(h(AccessPackageDetailPage, { accessPackageId: ID, onClose: () => {}, onOpenDetail })), { auth: { authFetch: api(opts) } });
+  renderWithProviders(wrap(h(AccessPackageDetailPage, { accessPackageId: ID, onClose: () => {}, onOpenDetail })), { auth: { authFetch: api(opts) }, features });
   return { onOpenDetail, user: userEvent.setup() };
 }
 
@@ -151,6 +151,12 @@ describe('the business role page', () => {
     expect(tabs.indexOf('Composition review')).toBe(tabs.indexOf('Lifecycle') + 1);
     await user.click(screen.getByRole('tab', { name: 'Composition review' }));
     expect(await screen.findByText('Nobody has signed off what this role contains yet.')).toBeInTheDocument();
+  });
+
+  it('has no composition review while the experimental feature is off', async () => {
+    mountPage(undefined, undefined, {});
+    await screen.findByRole('tab', { name: 'Lifecycle' });
+    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
   });
 });
 

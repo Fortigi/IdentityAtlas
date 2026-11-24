@@ -233,7 +233,9 @@ The one review Identity Atlas does hold itself is a **composition review**: on a
 - A review is an object of its own, linked to the role it reviews, and never changed after it is saved: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name), when, and a **snapshot** of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, its assignment policies with their rules, and the resources it contained (name, type, system).
 - The tab shows every review with **What was reviewed** (the snapshot, as it was), and for the latest sign-off what changed since: resources added or removed, a different type, or a changed policy or rule.
 - It lives in its own table, `BusinessRoleCompositionReviews` (migration 116), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
-- Saving needs the **Certification decisions** permission (`data.write.certifications`); anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`).
+- It is **experimental** and off by default: switch it on under **Admin → Experimental → Composition review**. While it is off the tab is hidden and both endpoints answer 404; reviews already saved are kept.
+- Saving needs the **Certification decisions** permission (`data.write.certifications`) — or answering for the role (its **Accountable** or **Responsible**, through any of your accounts) while the relative permission **Business-role owners may sign off a composition review** is on (**Admin → Roles & Permissions → Relative permissions**). Anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`).
+- In the ontology it is `ia:CompositionReview` ([core model](../reference/core-model.md)).
 
 ---
 

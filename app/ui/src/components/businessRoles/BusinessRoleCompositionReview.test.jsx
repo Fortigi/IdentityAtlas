@@ -23,7 +23,7 @@ const SIGNED = {
 const NOTE = { id: 'r2', signedOff: false, notes: 'Why is SG-HR in here?', reviewedBy: 'bob@example.test', reviewedAt: '2026-11-22T09:00:00Z', snapshot: picture([]) };
 const NOW = picture([res('g1', 'SG-Finance'), res('g2', 'SG-Payroll'), res('g3', 'SG-Audit'), res('g4', 'SG-HR')]);
 
-function api({ summary = { reviews: [NOTE, SIGNED], current: NOW, latestSignOff: SIGNED }, failPost = false, failGet = false } = {}) {
+function api({ summary = { reviews: [NOTE, SIGNED], current: NOW, latestSignOff: SIGNED, canReview: true }, failPost = false, failGet = false } = {}) {
   const state = { posts: [], summary };
   const authFetch = makeAuthFetch((url, opts = {}) => {
     if (String(url) !== URL) return undefined;
@@ -41,14 +41,14 @@ function api({ summary = { reviews: [NOTE, SIGNED], current: NOW, latestSignOff:
   return { authFetch, state };
 }
 
-const SIGNER = { hasWildcard: false, permissions: new Set(['data.write.certifications']) };
-const READER = { hasWildcard: false, permissions: new Set(['data.read']) };
+// Who may review is the API's answer (canReview), not a permission the page checks.
+const AUTH = { hasWildcard: false, permissions: new Set(['data.read']) };
 
-function mount({ auth = SIGNER, shared = false, ...opts } = {}) {
+function mount({ shared = false, ...opts } = {}) {
   const { authFetch, state } = api(opts);
   const onOpenTab = vi.fn();
   const el = h(BusinessRoleCompositionReview, { roleId: 'br-1', onOpenTab });
-  renderWithProviders(shared ? h(SharedViewContext.Provider, { value: true }, el) : el, { auth: { authFetch, ...auth } });
+  renderWithProviders(shared ? h(SharedViewContext.Provider, { value: true }, el) : el, { auth: { authFetch, ...AUTH } });
   return { state, onOpenTab, user: userEvent.setup() };
 }
 
@@ -140,13 +140,13 @@ describe('BusinessRoleCompositionReview', () => {
     expect(within(form).getByLabelText('Notes')).toHaveValue('x');
   });
 
-  it('gives someone without the permission the reviews without the form', async () => {
-    mount({ auth: READER });
+  it('gives someone the API says may not review the reviews without the form', async () => {
+    mount({ summary: { reviews: [SIGNED], current: NOW, latestSignOff: SIGNED, canReview: false } });
     await screen.findByTestId('sign-off-status');
     expect(screen.queryByRole('form', { name: 'Your review' })).toBeNull();
   });
 
-  it('has no form in a shared view, whatever the permissions', async () => {
+  it('has no form in a shared view, whatever the API says', async () => {
     mount({ shared: true });
     await screen.findByTestId('sign-off-status');
     expect(screen.queryByRole('form', { name: 'Your review' })).toBeNull();

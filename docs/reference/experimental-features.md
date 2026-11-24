@@ -279,6 +279,32 @@ context assistant and organisation knowledge use the model that runs inside the 
 
 ---
 
+## Composition review
+
+Somebody signs off what a business role contains, with notes; each review is kept with who
+saved it, when, and a snapshot of the role at that moment, so a later reader sees what was
+reviewed and what changed since. See
+[Reviewing what a business role contains](../concepts/governance-model.md#reviewing-what-a-business-role-contains).
+It is experimental because it is new.
+
+Environment variable: `FEATURE_COMPOSITION_REVIEW=true`.
+
+### What the switch does, precisely
+
+**On** — a business role's page has a **Composition review** tab. Saving a review takes the
+Certification decisions permission, or answering for the role while the relative permission
+**Business-role owners may sign off a composition review** is on.
+
+**Off** — the tab is hidden and `GET` / `POST /api/access-package/{id}/composition-reviews`
+answer `404`.
+
+### What the switch does *not* do
+
+Turning it off **deletes nothing**: every review and its snapshot is kept, and turning it back
+on shows them again.
+
+---
+
 ## Accountables from source owners (a setting, not experimental)
 
 Shown on the same tab, under **Contexts — what a sync sets on its own**, because it is

@@ -10,6 +10,7 @@
 //     and describe them in plain language to the local model (a separate container).
 //   • Context assistant — the "Describe it" context builder.
 //   • Organisation knowledge — interviews and other sources, their claims and decisions.
+//   • Composition review — signing off what a business role contains, with a snapshot.
 //   • Risk scoring — frozen until it joins the Org Info building blocks; not
 //     certified per release. Off hides its tabs, pages and badges and the API
 //     refuses every risk endpoint.
@@ -162,6 +163,21 @@ function OrgKnowledgeCard({ features }) {
   );
 }
 
+// Composition review: someone signs off what a business role contains; each
+// review keeps a snapshot of the role as it was. Off hides the tab and the API
+// refuses both endpoints; reviews already saved are kept.
+function CompositionReviewCard({ features }) {
+  return (
+    <FlagCard features={features} name="compositionReview" title="Composition review" what="composition review">
+      Adds <B>Composition review</B> to a business role: notes and a sign-off on what the role contains, each kept
+      with who wrote it, when, and a snapshot of the role at that moment — its type, policies, owners and resources —
+      so a later reader sees what was reviewed and what changed since. Signing off takes the permission to record
+      certification decisions, or answering for the role while that relative permission is on (Admin → Roles &amp;
+      Permissions). Turning this off hides the tab; reviews already saved are kept.
+    </FlagCard>
+  );
+}
+
 // What a sync writes on its own: the owner a source names for a synced context
 // becomes its Accountable. On by default; off leaves every Accountable alone.
 function SourceOwnerSettings({ features }) {
@@ -219,6 +235,7 @@ export default function ExperimentalFeaturesSection({ features, version }) {
       <ContextAssistantCard features={features} />
       <McpServerCard features={features} />
       <OrgKnowledgeCard features={features} />
+      <CompositionReviewCard features={features} />
       <RiskScoringCard features={features} />
       <SourceOwnerSettings features={features} />
     </div>

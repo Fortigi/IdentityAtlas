@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useFetch } from '@ui/hooks/useFetch';
-import { useCanWriteCertifications } from '@ui/auth/usePermissions';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import { formatDate } from '@ui/utils/formatters';
 import { changeText } from './accessModel';
@@ -109,7 +108,6 @@ function History({ reviews }) {
 export default function BusinessRoleCompositionReview({ roleId, onOpenTab }) {
   const { authFetch } = useAuth();
   const readOnly = useIsSharedView();
-  const canWrite = useCanWriteCertifications() && !readOnly;
   const url = `/api/access-package/${encodeURIComponent(roleId)}/composition-reviews`;
   const { data, loading, error, reload } = useFetch(url, { authFetch });
 
@@ -127,6 +125,9 @@ export default function BusinessRoleCompositionReview({ roleId, onOpenTab }) {
   if (loading && !data) return <p className={MUTED}>Loading the reviews…</p>;
   if (error) return <p role="alert" className="text-sm text-red-700 dark:text-red-400">The reviews could not be loaded: {error.message}</p>;
   const summary = data || { reviews: [], current: null, latestSignOff: null };
+  // The API says who may review: the certification permission, or answering for
+  // the role while that relative permission is on. Never in a shared view.
+  const canWrite = summary.canReview === true && !readOnly;
   return (
     <div className="space-y-4" data-testid="composition-review">
       <SignOffStatus summary={summary} onOpenResources={() => onOpenTab('resources')} />

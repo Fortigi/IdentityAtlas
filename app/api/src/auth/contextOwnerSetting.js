@@ -2,6 +2,8 @@
 // Permissions → Relative permissions):
 //
 //   CONTEXT_OWNER_ACCESS  context owners may sign in and see their own contexts
+//   BUSINESS_ROLE_OWNER_REVIEW  a business role's Accountable or Responsible may
+//                         sign off its composition review (see below)
 //   CONTEXT_OWNER_MCP     ... and may also use the MCP server, under exactly the
 //                         same scope (docs/architecture/mcp-authorization.md).
 //                         Only has effect while CONTEXT_OWNER_ACCESS is on.
@@ -65,6 +67,15 @@ export async function isContextOwnerMcpEnabled() {
 /** The stored MCP switch on its own, as the admin page shows it. */
 export const getContextOwnerMcpSwitch = () => readSwitch(CONTEXT_OWNER_MCP_KEY);
 export const setContextOwnerMcp = (enabled) => writeSwitch(CONTEXT_OWNER_MCP_KEY, enabled);
+
+// Business-role owners may sign off a composition review: whoever is Accountable
+// or Responsible for a business role may save a review of it without holding
+// data.write.certifications (routes/details/businessRoleCompositionReview.js).
+// Independent of the context-owner switch: it widens what a signed-in person may
+// write on a role they answer for.
+export const BUSINESS_ROLE_OWNER_REVIEW_KEY = 'BUSINESS_ROLE_OWNER_REVIEW';
+export const isBusinessRoleOwnerReviewEnabled = () => readSwitch(BUSINESS_ROLE_OWNER_REVIEW_KEY);
+export const setBusinessRoleOwnerReview = (enabled) => writeSwitch(BUSINESS_ROLE_OWNER_REVIEW_KEY, enabled);
 
 // Tests only: forget the held values so the next read goes to the database.
 export function resetContextOwnerSettingForTests() {

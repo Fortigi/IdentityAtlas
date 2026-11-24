@@ -4,6 +4,7 @@ vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
 import {
   setBusinessRoleOwner, removeBusinessRoleOwner, isBusinessRole, loadBusinessRoleOwners,
+  findOwnedBusinessRoles, answersForBusinessRole, OWNED_ROLES_SQL,
 } from './businessRoleOwners.js';
 
 const ROLE = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -119,5 +120,45 @@ describe('the other helpers', () => {
     queryOne.mockResolvedValue(row);
     expect(await isBusinessRole(ROLE)).toBe(expected);
     expect(queryOne.mock.calls[0][0]).toMatch(/"resourceType" = 'BusinessRole'/);
+  });
+});
+
+describe('the roles a person answers for', () => {
+  const ME = { principal: { id: P1 }, identity: { id: I1 } };
+
+  it('asks by the account and the person, sorted by name', async () => {
+    query.mockResolvedValue({ rows: [{ id: 'r2', displayName: 'Payroll', role: 'Responsible' }, { id: 'r1', displayName: 'Finance', role: 'Accountable' }] });
+    expect((await findOwnedBusinessRoles(ME)).map(r => r.displayName)).toEqual(['Finance', 'Payroll']);
+    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, I1]);
+  });
+
+  it('asks by the account alone when the account is linked to no person', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await findOwnedBusinessRoles({ principal: { id: P1 }, identity: null });
+    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, null]);
+  });
+
+  it('sorts two roles of one name by id, and a role without a name first', async () => {
+    query.mockResolvedValue({ rows: [{ id: 'b', displayName: 'X' }, { id: 'a', displayName: 'X' }, { id: 'c', displayName: null }] });
+    expect((await findOwnedBusinessRoles(ME)).map(r => r.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('is empty, without asking, for somebody not matched to an account', async () => {
+    expect(await findOwnedBusinessRoles(null)).toEqual([]);
+    expect(await findOwnedBusinessRoles({ principal: null })).toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('answersForBusinessRole matches the role id whatever its case', async () => {
+    query.mockResolvedValue({ rows: [{ id: ROLE, displayName: 'Finance', role: 'Responsible' }] });
+    expect(await answersForBusinessRole(ME, ROLE.toUpperCase())).toBe(true);
+    expect(await answersForBusinessRole(ME, P2)).toBe(false);
+  });
+
+  it('counts a role through the person and their other accounts, and only live business roles', () => {
+    expect(OWNED_ROLES_SQL).toMatch(/o\."identityId" = \$2::uuid/);
+    expect(OWNED_ROLES_SQL).toMatch(/"IdentityMembers" m WHERE m\."identityId" = \$2::uuid/);
+    expect(OWNED_ROLES_SQL).toMatch(/"resourceType" = 'BusinessRole' AND r\."deletedAt" IS NULL/);
+    expect(OWNED_ROLES_SQL).toMatch(/ORDER BY r\.id, \(o\.role = 'Accountable'\) DESC/);
   });
 });

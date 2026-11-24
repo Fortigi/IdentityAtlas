@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
 import AccessPackageGovernance from './AccessPackageGovernance';
@@ -78,6 +79,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   const { authFetch } = useAuth();
   const features = useFeatures();
   const sharedView = useIsSharedView();
+  const compositionReview = useFeatureFlags().compositionReview === true;
   const [riskData, setRiskData] = useState(null);
 
   useEffect(() => {
@@ -94,8 +96,9 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return [
       { key: 'overview', label: 'Overview' },
       { key: 'lifecycle', label: 'Lifecycle' },
-      // Reviews are not part of a shared or owner view (the owner scope does not read them).
-      !sharedView && { key: 'composition', label: 'Composition review' },
+      // Experimental (flag compositionReview). Not part of a shared or owner view
+      // (the owner scope does not read them).
+      compositionReview && !sharedView && { key: 'composition', label: 'Composition review' },
       { key: 'resources', label: 'Resources', count: data.groupCount ?? 0 },
       { key: 'members', label: 'People', count: data.assignmentCount ?? 0 },
       showsRequestsAndReviews(data) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
@@ -105,7 +108,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
-  }, [features, riskData, sharedView]);
+  }, [features, riskData, sharedView, compositionReview]);
 
   const renderCustomTab = useCallback((key, data, openTab) => {
     if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;

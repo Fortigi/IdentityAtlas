@@ -109,6 +109,8 @@ permission, so you can't accidentally revoke your own ability to manage roles.
 
 ### Relative permissions: letting context owners in
 
+> **Business-role owners may sign off a composition review** is a separate checkbox in the same section. With it on, whoever is Accountable or Responsible for a business role may save a [composition review](../concepts/governance-model.md#reviewing-what-a-business-role-contains) of that role without the Certification decisions permission. It needs the experimental Composition review feature and does not let anyone sign in who could not already.
+
 The same **Admin → Roles & Permissions** tab has a second section below the
 role table, **Relative permissions**. It groups the access people get because of
 how they relate to the data, rather than a role in that table. It is always read-only and limited to the data they relate
