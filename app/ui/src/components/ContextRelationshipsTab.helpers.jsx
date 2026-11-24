@@ -15,6 +15,7 @@ const status = (enabled) => (
 );
 
 import EntityLink from '@ui/components/EntityLink';
+import HeldTick from './HeldTick';
 
 // The kind of account in plain words; an unknown type is shown as stored.
 const ACCOUNT_TYPE_WORDS = {
@@ -109,12 +110,7 @@ function roleMark(m, role) {
   const label = `${m.displayName} is in ${role.displayName}`;
   return (
     <span className="inline-flex items-center gap-1">
-      <span role="img" aria-label={label} title={label}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-        <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 10.500l4 4 8-9" />
-        </svg>
-      </span>
+      <HeldTick label={label} />
       <span aria-hidden="true" className="text-xs text-gray-700 dark:text-gray-300 sm:hidden">{role.displayName}</span>
     </span>
   );

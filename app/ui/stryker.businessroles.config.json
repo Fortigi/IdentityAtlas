@@ -22,6 +22,8 @@
     "src/components/businessRoles/BusinessRoleMembers.jsx",
     "src/components/businessRoles/BusinessRoleOwnerImport.jsx",
     "src/components/businessRoles/WayChips.jsx",
+    "src/components/businessRoles/RoleTypeCell.jsx",
+    "src/components/HeldTick.jsx",
     "src/components/businessRoles/accessModel.js"
   ],
   "thresholds": {

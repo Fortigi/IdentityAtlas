@@ -129,7 +129,7 @@ describe('unit report — a unit of accounts', () => {
     stage({ members: [account('m1'), account('m2')] });
     const one = await run();
     expect(one.matrices.map(m => m.name)).toEqual(['Team roles']);
-    expect(one.matrices[0].columns).toEqual(['Account m1', 'Account m2']);
+    expect(one.matrices[0].columns).toEqual(['Type', 'Review status', 'Account m1', 'Account m2']);
     expect((await run({ includeSubUnits: true })).matrices).toBeUndefined();
   });
 

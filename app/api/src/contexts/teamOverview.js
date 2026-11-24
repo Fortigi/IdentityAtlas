@@ -19,7 +19,9 @@
 
 import { loadUnitMembershipEvents } from './timeline/unitTimeline.js';
 import { changeAction } from '../routes/recentChanges/shared.js';
-import { ROLE_CONTROL_SQL, roleControls, holderControl, linkedHolderControlSql } from '../lib/businessRoleAccessModel.js';
+import { ROLE_CONTROL_SQL, roleAccessModels } from '../lib/businessRoleAccessModel.js';
+import { ROLE_REVIEW_SQL, roleReviews } from '../lib/businessRoleReview.js';
+import { isMissingSchema } from '../db/schemaErrors.js';
 
 export const MAX_TEAM = 200;
 export const MAX_CHANGES = 100;
@@ -57,15 +59,15 @@ export const TEAM_SCOPE_CTES = `${TEAM_ACCOUNTS_CTE}, governed("memberId", "reso
        WHERE ${LIVE_ASSIGNMENT}
     ), held AS (
       SELECT DISTINCT ON (u."memberId", u."resourceId")
-             u."memberId", u."resourceId", u.origin, u."originDetail", u."policyId", u."policyIds",
+             u."memberId", u."resourceId", u.origin, u."originDetail",
              bool_or(u."assignmentType" = 'Direct') OVER same AS direct,
              bool_or(u."assignmentType" = 'Indirect') OVER same AS indirect
         FROM (
-          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail", ra."policyId", ra."extendedAttributes"->'assignmentPolicyIds' AS "policyIds"
+          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail"
             FROM acct a JOIN "ResourceAssignments" ra ON ra."principalId" = a."accountId"
            WHERE ${LIVE_ASSIGNMENT}
           UNION ALL
-          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail", ra."policyId", ra."extendedAttributes"->'assignmentPolicyIds' AS "policyIds"
+          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail"
             FROM acct a JOIN "ResourceAssignments" ra ON ra."identityId" = a."identityId"
            WHERE ${LIVE_ASSIGNMENT}
         ) u
@@ -88,8 +90,7 @@ export const TEAM_HOLDINGS_SQL = `
     SELECT h."memberId",
            COUNT(*) FILTER (WHERE NOT r."governanceResource")::int AS permissions,
            COUNT(*) FILTER (WHERE NOT r."governanceResource" AND ${IS_UNGOVERNED})::int AS ungoverned,
-           COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'displayName', r."displayName", 'origin', h.origin, 'originDetail', h."originDetail",
-                                              'linked', ${linkedHolderControlSql('h', 'r.id')}))
+           COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'displayName', r."displayName", 'origin', h.origin, 'originDetail', h."originDetail"))
                     FILTER (WHERE r."governanceResource"), '[]'::jsonb) AS roles
       FROM held h
       JOIN "Resources" r ON r.id = h."resourceId" AND r."deletedAt" IS NULL
@@ -111,24 +112,29 @@ const byName = (a, b) => a.displayName.localeCompare(b.displayName);
 
 /**
  * The people (in member order) and the roles (most held first, then by name),
- * each role with its primary type and each holder with theirs. Pure.
+ * each role with its type and its last review, as the Business Roles list shows
+ * them: properties of the role, not of a holder. Pure.
  */
-export function teamGrid(members, holdings, controls = new Map()) {
+const UNKNOWN_MODEL = Object.freeze({ waysIn: ['Unknown'], waysOut: ['Unknown'], control: 'Unknown', reviewRequired: false, reviewGap: false });
+const NO_REVIEW = Object.freeze({ complianceStatus: null, reviewDeadline: null, daysOverdue: 0 });
+
+export function teamGrid(members, holdings, models = new Map(), reviews = new Map()) {
   const held = new Map(holdings.map(h => [h.memberId, h]));
   const roles = new Map();
   const people = members.map((m) => {
     const h = held.get(m.id);
     for (const role of h?.roles || []) {
       if (!roles.has(role.id)) {
-        roles.set(role.id, { id: role.id, displayName: role.displayName, control: controls.get(role.id) ?? 'Unknown', holders: [], origins: {} });
+        const accessModel = models.get(role.id) ?? UNKNOWN_MODEL;
+        roles.set(role.id, {
+          id: role.id, displayName: role.displayName, accessModel,
+          review: { ...(reviews.get(role.id) ?? NO_REVIEW), hasReviewConfigured: accessModel.waysOut.includes('Review') },
+          holders: [], origins: {},
+        });
       }
       const entry = roles.get(role.id);
       entry.holders.push(m.id);
-      entry.origins[m.id] = {
-        origin: role.origin ?? null,
-        originDetail: role.originDetail ?? null,
-        control: holderControl({ linked: role.linked, roleControl: entry.control, origin: role.origin }),
-      };
+      entry.origins[m.id] = { origin: role.origin ?? null, originDetail: role.originDetail ?? null };
     }
     return {
       id: m.id,
@@ -144,6 +150,16 @@ export function teamGrid(members, holdings, controls = new Map()) {
   };
 }
 
+// No review data at all (no CertificationDecisions table) is no review, not an error.
+async function loadRoleReviews(db, roleIds) {
+  try {
+    return roleReviews((await db.query(ROLE_REVIEW_SQL, [roleIds])).rows);
+  } catch (err) {
+    if (!isMissingSchema(err)) throw err;
+    return new Map();
+  }
+}
+
 /**
  * The grid for these members ({ id, displayName, memberType }): shared by the
  * screen and the unit report's Team roles tab.
@@ -155,8 +171,9 @@ export async function loadTeamGrid(db, members) {
     ? (await db.query(TEAM_HOLDINGS_SQL, [accounts.map(a => a.memberId), accounts.map(a => a.accountId), accounts.map(a => a.identityId)])).rows
     : [];
   const roleIds = [...new Set(holdings.flatMap(h => (h.roles || []).map(r => r.id)))];
-  const controls = roleIds.length ? roleControls((await db.query(ROLE_CONTROL_SQL, [roleIds])).rows) : new Map();
-  return { ...teamGrid(members, holdings, controls), accounts };
+  const models = roleIds.length ? roleAccessModels((await db.query(ROLE_CONTROL_SQL, [roleIds])).rows) : new Map();
+  const reviews = roleIds.length ? await loadRoleReviews(db, roleIds) : new Map();
+  return { ...teamGrid(members, holdings, models, reviews), accounts };
 }
 
 /** Who joined and left, from the unit's timeline events. Pure. */

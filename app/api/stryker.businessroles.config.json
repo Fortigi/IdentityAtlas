@@ -15,6 +15,7 @@
   },
   "mutate": [
     "src/lib/businessRoleAccessModel.js",
+    "src/lib/businessRoleReview.js",
     "src/lib/businessRoleOwners.js",
     "src/lib/businessRoleOwnerSuggestion.js",
     "src/lib/businessRolePeople.js",

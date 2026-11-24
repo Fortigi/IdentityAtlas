@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { createParams, likeContains } from '../db/sqlParams.js';
+import { lastReviewCtes } from '../lib/businessRoleReview.js';
 import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, deriveControl, holderCountSql, resourceCountSql } from '../lib/businessRoleAccessModel.js';
 
 const router = Router();
@@ -240,49 +241,13 @@ router.get('/access-packages', async (req, res) => {
     params.push(offset);
     const offsetIdx = params.length;
 
-    // Review compliance is computed only when CertificationDecisions exists.
-    // The CTE follows the same logic as governance.js LAST_REVIEW_CTE: pick the
-    // newest review instance per AP, then derive a status from the decisions in
-    // that instance (Compliant / In Progress / Missed / Reviewed Late).
+    // Review compliance is computed only when CertificationDecisions exists
+    // (lib/businessRoleReview.js, shared with the team overview).
     const hasReviewTable = await db.queryOne(
       `SELECT to_regclass('"CertificationDecisions"') AS t`
     ).then(r => !!r?.t).catch(() => false);
 
-    const reviewCte = hasReviewTable ? `, "LatestInstance" AS (
-        SELECT DISTINCT ON ("resourceId")
-               "resourceId",
-               "reviewInstanceId",
-               "reviewInstanceEndDateTime"
-          FROM "CertificationDecisions"
-         ORDER BY "resourceId", "reviewInstanceEndDateTime" DESC NULLS LAST
-      ), "LastReviewPerAP" AS (
-        SELECT li."resourceId",
-               li."reviewInstanceEndDateTime" AS deadline,
-               MAX(CASE WHEN d.decision <> 'NotReviewed' THEN d."reviewedDateTime" END)      AS "lastReviewDate",
-               MAX(CASE WHEN d.decision <> 'NotReviewed' THEN d."reviewedByDisplayName" END) AS "lastReviewedBy",
-               CASE
-                 WHEN SUM(CASE WHEN d.decision = 'NotReviewed' THEN 1 ELSE 0 END) = 0
-                  AND SUM(CASE WHEN d.decision <> 'NotReviewed' AND d."reviewedDateTime"::date > li."reviewInstanceEndDateTime"::date THEN 1 ELSE 0 END) = 0
-                   THEN 'Compliant'
-                 WHEN SUM(CASE WHEN d.decision = 'NotReviewed' THEN 1 ELSE 0 END) > 0
-                  AND li."reviewInstanceEndDateTime"::date >= current_date
-                   THEN 'In Progress'
-                 WHEN SUM(CASE WHEN d.decision = 'NotReviewed' THEN 1 ELSE 0 END) > 0
-                  AND li."reviewInstanceEndDateTime"::date < current_date
-                   THEN 'Missed'
-                 ELSE 'Reviewed Late'
-               END AS "complianceStatus",
-               CASE
-                 WHEN li."reviewInstanceEndDateTime"::date < current_date
-                   THEN (current_date - li."reviewInstanceEndDateTime"::date)
-                 ELSE 0
-               END AS "daysOverdue"
-          FROM "LatestInstance" li
-          INNER JOIN "CertificationDecisions" d
-            ON d."resourceId" = li."resourceId"
-           AND d."reviewInstanceId" = li."reviewInstanceId"
-         GROUP BY li."resourceId", li."reviewInstanceEndDateTime"
-      )` : '';
+    const reviewCte = hasReviewTable ? `, ${lastReviewCtes()}` : '';
 
     const reviewCols = hasReviewTable
       ? `, lr."lastReviewDate", lr."lastReviewedBy", lr."complianceStatus", lr.deadline AS "reviewDeadline", COALESCE(lr."daysOverdue", 0) AS "daysOverdue"`
