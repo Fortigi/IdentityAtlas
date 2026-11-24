@@ -1,1 +1,0 @@
-- Fixed portable beta builds failing to run any crawler or demo-data job: the module could not be loaded because of the pre-release version number. The portable app still reports the exact beta version (e.g. 6.2.0-beta.1).

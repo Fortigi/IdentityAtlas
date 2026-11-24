@@ -1,1 +1,0 @@
-- Fixed the release test's "Docker: sign-in on" job, which always failed at its variable check even when every azure-release-test variable was set; it now passes when they are set and names exactly the missing ones when they are not.

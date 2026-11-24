@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed portable beta builds failing to run any crawler or demo-data job: the module could not be loaded because of the pre-release version number. The portable app still reports the exact beta version (e.g. 6.2.0-beta.1).
+- Fixed the release test's "Docker: sign-in on" job, which always failed at its variable check even when every azure-release-test variable was set; it now passes when they are set and names exactly the missing ones when they are not.
+
+## Changes in this PR
+
 - Release and DoR automation now follow whichever GitHub organization owns the repository, instead of assuming Fortigi, so the project can move to its own organization without breaking releases.
 - After such a move, images can optionally keep being published to the old `ghcr.io/fortigi/*` location for a transition period, so existing installs keep receiving updates.
 - The license, the About page, the website footer and the PowerShell module now name IdentityAtlas as the copyright holder.
