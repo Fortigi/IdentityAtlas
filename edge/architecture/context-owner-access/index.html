@@ -6673,13 +6673,31 @@ context) is a possible later step.</p>
 <p>The endpoint is open to every ordinary reader as well; only the owner's page
 shows it, as an expandable member row.</p>
 <h2 id="the-owners-page">The owner's page<a class="headerlink" href="#the-owners-page" title="Permanent link">&para;</a></h2>
-<p>In the UI an owner gets a bare page (no main navigation): their context
-directly, or a list on the left when they hold several. The page is the
+<p>In the UI an owner gets a bare page (no main navigation), with the same sub-tabs
+(Organisation, Applications, ...) and tree as the Contexts page, holding only what
+they are Accountable or Responsible for and the sub-units below it
+(<code>GET /api/context-owner/tree</code>). The tree replaces the Sub-units section. The page is the
 ordinary context page in its business (reading) view, read-only: no Edit, no
 role pencils, no suggestion, no member editing, no Copy link or Open as page.
 People, members and role holders link to their page when the API marks them
 accessible (<code>components/EntityLink.jsx</code>); an opened page or the team matrix
 shows on top of the unit, with <strong>Back</strong> (<code>components/contextOwner/</code>).</p>
+<p>On an organizational unit of people the page, for every reader and not only an owner, opens with the <strong>team overview</strong>
+(<code>GET /api/contexts/:id/team-overview</code>): business roles down, direct members
+across, each person's count of ungoverned permissions (live access that no
+business role of theirs covers), and who joined, left or gained or lost a
+business role in the last 30 days. Each role mark shows how the person got it:
+automatically (a rule) or by hand (requested and approved, or assigned), from the
+assignment's <code>origin</code>, which the Entra crawler derives from the access package
+policy. The grid names roles and counts; a role's name opens its own page, which
+shows what is inside it.
+Access someone holds only by inheritance, through a group in one of their
+business roles, counts as governed; a direct grant does not. <strong>Download report</strong>
+carries the same grid on a <strong>Team roles</strong> tab.
+Clicking a count lists that person's ungoverned permissions
+(<code>GET /api/contexts/:id/team-overview/:memberId/ungoverned</code>, only for a direct
+member of that context). The People list is folded under it as <strong>People
+details</strong>, and is shown directly if the overview cannot be loaded.</p>
 <ul>
 <li><strong>Sub-units</strong> open in place — all of them, whoever else owns them. The <strong>breadcrumb</strong> names the direct parent without reading it, and
   opens it in place when it is in scope (a sub-unit's way back up).</li>
