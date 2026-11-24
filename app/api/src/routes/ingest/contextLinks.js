@@ -189,7 +189,7 @@ export const insertRelationshipRows = (rows, systemId) => insertEach(rows, relat
 
 // Reconcile, then add — one transaction, so a reader never sees a catalog that
 // lost its owners between the two statements.
-async function syncRolesFull(systemId, contextType, rows) {
+export async function syncRolesFull(systemId, contextType, rows) {
   return db.tx(async (client) => {
     const removed = await client.query(ROLE_RECONCILE_SQL, roleReconcileParams(systemId, contextType, rows));
     const counts = await insertEach(rows, roleSql, (row) => roleParams(row, systemId), client);
