@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Each JavaScript mutation-test scope now lists its source files and its tests in one place; the matching Vitest config is generated from it and CI fails when the two drift apart or a mutated file has no test in its scope.
+
+## Changes in this PR
+
 - The Business Roles list shows how many people hold each role and how many resources it contains, in place of the review date and reviewer; both columns sort
 - A role's People figure counts each person once, the same way as the list
 - The team overview on an organisational unit shows each business role's type (Rule based, Manual, Unknown) and review status in their own columns, as on the Business Roles list, and marks who holds a role with a blue tick, as on an application's page
