@@ -203,3 +203,16 @@ export function showsRequestsAndReviews(data) {
   const { waysIn = [], waysOut = [] } = data.accessModel ?? {};
   return waysIn.includes('Request') || waysOut.includes('Review') || data.reviewCount > 0 || data.pendingRequestCount > 0;
 }
+
+// What is wrong with a role's reviews, for the warning on its Overview: the
+// last review was missed, or people decide who holds it and no review is set
+// up. Empty when nothing is. Pure.
+export function reviewWarnings(data = {}) {
+  const out = [];
+  if (data.complianceStatus === 'Missed') {
+    const days = data.daysOverdue > 0 ? `: it was due ${data.daysOverdue} day${data.daysOverdue === 1 ? '' : 's'} ago` : '';
+    out.push(`The last review of this role was missed${days}.`);
+  }
+  if (data.accessModel?.reviewGap) out.push('People decide who holds this role, but no regular review is set up.');
+  return out;
+}
