@@ -10,6 +10,7 @@ import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { cleanRow, countHistory } from './shared.js';
+import { ACCESS_MODEL_AGGREGATES, deriveAccessModel } from '../../lib/businessRoleAccessModel.js';
 
 // 1. Current attributes + catalog name. Returns the cleaned attribute row, or
 //    null when the access package doesn't exist (handler → 404).
@@ -154,6 +155,18 @@ export async function fetchPolicySummary(pool, res, apId) {
       autoRemovePolicyCount: r.rows[0].autoRemoveOnly,
     };
   } catch (e) { if (!isMissingSchema(e)) throw e; return { policyCount: 0, autoAddPolicyCount: 0, autoRemovePolicyCount: 0 }; }
+}
+
+// 6a. How the role is gained and lost (lib/businessRoleAccessModel.js).
+export async function fetchAccessModel(pool, res, apId) {
+  try {
+    const r = await timedQuery(pool, 'ap-access-model', res, `
+      SELECT COUNT(*)::int AS "policyCount", ${ACCESS_MODEL_AGGREGATES}
+      FROM "AssignmentPolicies"
+      WHERE "resourceId" = $1
+    `, [apId]);
+    return deriveAccessModel(r.rows[0]);
+  } catch (e) { if (!isMissingSchema(e)) throw e; return deriveAccessModel(null); }
 }
 
 // Pure: derive the assignment-type label from the policy summary counts.

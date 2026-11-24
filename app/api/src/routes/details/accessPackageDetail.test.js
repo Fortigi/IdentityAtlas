@@ -4,7 +4,26 @@
 // accessPackageDetail.contract.test.js.
 
 import { describe, it, expect } from 'vitest';
-import { deriveAssignmentType, deriveCompliance } from './accessPackageDetail.js';
+import { deriveAssignmentType, deriveCompliance, fetchAccessModel } from './accessPackageDetail.js';
+
+describe('fetchAccessModel', () => {
+  const res = {};
+
+  it('reads several ways in and out from one role', async () => {
+    const pool = { query: async () => ({ rows: [{ policyCount: 2, inRequest: true, inAssigned: true, outRule: true, outReview: true }] }) };
+    expect(await fetchAccessModel(pool, res, 'ap')).toEqual({ waysIn: ['Request', 'Assigned'], waysOut: ['Rule', 'Review'] });
+  });
+
+  it('is Unknown when the policies table is missing', async () => {
+    const pool = { query: async () => { throw Object.assign(new Error('relation does not exist'), { code: '42P01' }); } };
+    expect(await fetchAccessModel(pool, res, 'ap')).toEqual({ waysIn: ['Unknown'], waysOut: ['Unknown'] });
+  });
+
+  it('rethrows any other database error', async () => {
+    const pool = { query: async () => { throw Object.assign(new Error('boom'), { code: '57014' }); } };
+    await expect(fetchAccessModel(pool, res, 'ap')).rejects.toThrow('boom');
+  });
+});
 
 describe('deriveAssignmentType', () => {
   it('returns null when there are no policies', () => {

@@ -14,7 +14,7 @@ import { useSql, UUID_RE, cleanRow, fetchHistory } from './shared.js';
 import {
   fetchApAttributes, fetchAssignmentCount, fetchGroupCount, fetchReviewCount,
   fetchPendingRequestCount, fetchLastReview, fetchComplianceStatus,
-  fetchPolicySummary, deriveAssignmentType, fetchCategory, fetchHistoryCount,
+  fetchPolicySummary, deriveAssignmentType, fetchAccessModel, fetchCategory, fetchHistoryCount,
 } from './accessPackageDetail.js';
 
 const router = Router();
@@ -45,10 +45,11 @@ router.get('/access-package/:id', async (req, res) => {
     const { complianceStatus, daysOverdue } = await fetchComplianceStatus(apId);
     const { policyCount, autoAddPolicyCount, autoRemovePolicyCount } = await fetchPolicySummary(pool, res, apId);
     const assignmentType = deriveAssignmentType({ policyCount, autoAddPolicyCount, autoRemovePolicyCount });
+    const accessModel = await fetchAccessModel(pool, res, apId);
     const category = await fetchCategory(pool, res, apId);
     const historyCount = await fetchHistoryCount(apId);
 
-    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, category });
+    res.json({ attributes, assignmentCount, groupCount, reviewCount, pendingRequestCount, lastReviewDate, lastReviewedBy, complianceStatus, daysOverdue, historyCount, hasHistory: historyCount > 0, policyCount, autoAddPolicyCount, assignmentType, accessModel, category });
   } catch (err) {
     console.error('Error fetching access package detail:', err.message);
     res.status(500).json({ error: 'Failed to fetch access package details' });
