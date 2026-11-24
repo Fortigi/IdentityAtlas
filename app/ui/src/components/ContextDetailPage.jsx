@@ -45,12 +45,13 @@ import { workbenchRouteId } from './workbench/workbench.link';
 // Standalone, document.title is the unit name. A unit or an application sits in
 // one ClaimsProvider, shared by its header, People, What we know and Sources.
 //
+// `treeBeside`: a tree next to the page shows the sub-units, so it does not list them.
 // `embedded`: rendered inside the Contexts page's right pane — no close
 // button (onClose then only runs after a delete), an "Open as page" item
 // (onOpenAsPage(attrs)) instead. `refreshKey` re-reads the context when the
 // tree beside it changed it; `onEdited` tells the page an edit here did.
 
-export default function ContextDetailPage({ contextId, onCacheData, onClose, onOpenDetail, embedded = false, onOpenAsPage, refreshKey, onEdited }) {
+export default function ContextDetailPage({ contextId, onCacheData, onClose, onOpenDetail, embedded = false, onOpenAsPage, refreshKey, onEdited, treeBeside = false }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
   const dialog = useDialog();
@@ -82,7 +83,7 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
   }
 
   const attrs = detail.attributes;
-  const subContexts = detail.subContexts || [];
+  const subContexts = shownSubUnits(detail, treeBeside);
   const profile = profileFor(attrs.contextCategory);
   const { editable, membersEditable } = contextPageView({ analyst, attrs });
   const refreshAll = () => { m.fetchMembers(); fetchDetail(); bumpPeople(); onEdited?.(); };
@@ -130,6 +131,11 @@ export default function ContextDetailPage({ contextId, onCacheData, onClose, onO
       </div>
     </WithClaims>
   );
+}
+
+// The sub-units the page lists: none when a tree beside it already shows them.
+function shownSubUnits(detail, treeBeside) {
+  return treeBeside ? [] : (detail.subContexts || []);
 }
 
 // Who answers for a unit or an application, under the name (ContextPeople, in

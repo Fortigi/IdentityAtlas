@@ -496,6 +496,24 @@ paths:
                 $ref: '#/components/schemas/RotateResult'
 
   # ─── Admin Authentication ──────────────────────────────────────
+  /context-owner/tree:
+    get:
+      tags: [Contexts]
+      summary: The signed-in context owner's own contexts as a tree
+      operationId: getContextOwnerTree
+      description: >
+        The contexts the caller is Accountable or Responsible for and the sub-units below them,
+        nested. Empty for anyone who is not signed in as a context owner.
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The roots of the tree, each with its children
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: object, additionalProperties: true }
   /admin/context-owner-access:
     get:
       tags: [Authentication]
@@ -3420,6 +3438,121 @@ paths:
           description: The caller may not write contexts
         '404':
           description: No such context
+  /contexts/{id}/team-overview:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: A unit's direct members, their business roles and recent changes
+      operationId: getContextTeamOverview
+      description: >
+        For an organizational unit of people: which business roles each direct member holds, how
+        many of their permissions no business role of theirs covers, and who joined, left or
+        gained or lost a business role in the window. Never lists the permissions themselves.
+      security:
+        - EntraIdBearer: []
+      parameters:
+        - name: sinceDays
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+      responses:
+        '200':
+          description: The team overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sinceDays: { type: integer }
+                  people:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        displayName: { type: string }
+                        kind: { type: string, enum: [user, identity] }
+                        permissions: { type: integer }
+                        ungoverned: { type: integer }
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        displayName: { type: string }
+                        holders: { type: array, items: { type: string, format: uuid } }
+                        origins:
+                          type: object
+                          description: Per holder, how they got the role (Automatic, Requested, or null when the source does not say) and the source's own word
+                          additionalProperties:
+                            type: object
+                            properties:
+                              origin: { type: string, nullable: true, enum: [Automatic, Requested, Discovered, null] }
+                              originDetail: { type: string, nullable: true }
+                  changes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        at: { type: string, format: date-time }
+                        type: { type: string, enum: [joined, left, role-added, role-removed] }
+                        personKind: { type: string }
+                        personId: { type: string, format: uuid }
+                        personName: { type: string }
+                        roleName: { type: string }
+                  totalPeople: { type: integer }
+                  truncated: { type: boolean }
+        '400':
+          description: Not a unit of people, or an invalid id
+        '404':
+          description: No such context
+  /contexts/{id}/team-overview/{memberId}/ungoverned:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: memberId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Contexts]
+      summary: One team member's permissions that no business role of theirs covers
+      description: >-
+        Lists the permissions a member of this context holds outside their
+        business roles, by name and capped at 500. Access held only by
+        inheritance through a group in one of their roles counts as covered;
+        a direct grant on the same resource stays ungoverned.
+      operationId: getContextMemberUngoverned
+      security:
+        - EntraIdBearer: []
+      responses:
+        '200':
+          description: The ungoverned permissions, by name (at most 500)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        displayName: { type: string }
+                        resourceType: { type: string }
+                        how: { type: string, enum: [Direct, Indirect, Eligible] }
+                  truncated: { type: boolean }
+        '400':
+          description: An invalid id
+        '404':
+          description: Not a member of this context
   /contexts/{id}/people:
     parameters:
       - name: id

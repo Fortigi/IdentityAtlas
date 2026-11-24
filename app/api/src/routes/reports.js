@@ -99,7 +99,7 @@ router.get('/reports/:name/export', async (req, res) => {
     // `carriesContext` and gets it, and every other format is served exactly the
     // payload it was served before. The engine still never asks which report
     // this is — only what the chosen format can hold.
-    const full = await runReport(report, params, { ...(await runContext(req)), allRows: true });
+    const full = await runReport(report, params, { ...(await runContext(req)), allRows: true, workbook: exportFormat.carriesContext });
     const { notices: _screenOnly, constantColumns: _headerOnly, details: _aboutOnly, ...rowsOnly } = full;
     const payload = exportFormat.carriesContext ? full : rowsOnly;
 

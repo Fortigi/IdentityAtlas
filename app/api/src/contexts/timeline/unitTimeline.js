@@ -190,6 +190,34 @@ export async function nameRows(db, ids) {
   return [...rows, ...(await db.query(GONE_NAMES_SQL, [missing])).rows.filter(r => r.displayName)];
 }
 
+// $1 days, $2 context id (text), $3 cap. Memberships alone, so a unit whose own
+// row changes on every refresh cannot crowd them out of the cap.
+export const UNIT_MEMBERSHIP_SQL = `
+    SELECT "tableName", operation, "changedAt", "rowData", "prevData"
+      FROM "_history"
+     WHERE "changedAt" > ${WINDOW} AND "tableName" = 'ContextMembers' AND "rowId" = $2
+     ORDER BY "changedAt" DESC
+     LIMIT $3`;
+
+const earlierJoinEvents = (earlier, memberRows, deps) => untoldJoins(earlier, memberRows)
+  .map(m => membershipEvent({ at: m.addedAt, memberType: m.memberType, memberId: m.memberId, addedBy: m.addedBy, joined: true }, deps));
+
+/** Only who joined and left the unit in the window: { events, truncated }. */
+export async function loadUnitMembershipEvents(db, contextId, { sinceDays }) {
+  const [history, earlier, provenanceRow] = await Promise.all([
+    db.query(UNIT_MEMBERSHIP_SQL, [sinceDays, contextId, UNIT_TIMELINE_ROW_CAP]),
+    db.query(EARLIER_MEMBERS_SQL, [sinceDays, contextId, UNIT_TIMELINE_ROW_CAP]),
+    db.query(PROVENANCE_SQL, [contextId]),
+  ]);
+  const rows = [...history.rows].reverse();
+  const names = nameBook(await nameRows(db, idsNamed({ ContextMembers: rows }, [], earlier.rows)));
+  const deps = { names, provenance: provenanceRow.rows[0] || {} };
+  return {
+    events: sortEvents([...membershipEvents(rows, deps), ...earlierJoinEvents(earlier.rows, rows, deps)]),
+    truncated: [history, earlier].some(r => r.rows.length >= UNIT_TIMELINE_ROW_CAP),
+  };
+}
+
 export async function loadUnitTimeline(db, contextId, { sinceDays, interviewEvents = async () => [] }) {
   const [history, earlier, provenanceRow, interviews] = await Promise.all([
     db.query(UNIT_HISTORY_SQL, [sinceDays, contextId, UNIT_TIMELINE_ROW_CAP]),
@@ -209,7 +237,7 @@ export async function loadUnitTimeline(db, contextId, { sinceDays, interviewEven
 
   const events = sortEvents([
     ...membershipEvents(byTable.ContextMembers, deps),
-    ...untoldJoins(earlier.rows, byTable.ContextMembers).map(m => membershipEvent({ at: m.addedAt, memberType: m.memberType, memberId: m.memberId, addedBy: m.addedBy, joined: true }, deps)),
+    ...earlierJoinEvents(earlier.rows, byTable.ContextMembers, deps),
     ...roleEvents(byTable.ContextRoles, deps),
     ...contextRowEvents(byTable.Contexts, deps),
     ...changeRequestEvents(byTable.ChangeRequests),

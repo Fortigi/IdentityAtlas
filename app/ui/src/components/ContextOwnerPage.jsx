@@ -9,7 +9,8 @@
 // The API only answers this user for their own contexts, the sub-units below
 // them (all of them, whoever else owns one), and those contexts' variants
 // (`contextOwner.contextIds` from /api/auth-me), so the page shows exactly
-// that: one context directly, or with several a slim list of them on the left.
+// that: the same sub-tabs and tree as the Contexts page, holding only what they
+// answer for (contextOwner/OwnerTree.jsx), or a slim list if the tree cannot load.
 // The context itself is the ordinary context page, wrapped in SharedViewContext
 // so it renders read-only — no edits, no links into pages the owner may not
 // open, and the workflows (the report download) kept — and in
@@ -29,6 +30,9 @@ import ContextDetailPage from './ContextDetailPage';
 import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { categoryMeta } from '@ui/utils/contextStyles';
 import OwnerExplorePane from './contextOwner/OwnerExplorePane';
+import OwnerTreePane from './contextOwner/OwnerTree';
+import { useOwnerTree } from './contextOwner/useOwnerTree';
+import TemplateTabs from './contexts/TemplateTabs';
 import { OWNER_OPENABLE } from './contextOwner/ownerOpenable';
 
 const ROLE_BADGE = {
@@ -107,6 +111,10 @@ function ContextList({ contexts, selectedId, onSelect }) {
   );
 }
 
+function firstContext(contexts) {
+  return contexts.find(c => c.contextCategory === 'OrganizationalUnit') || contexts[0];
+}
+
 export default function ContextOwnerPage() {
   const { contextOwner, account, me, logout } = useAuth();
   const { isDark, mode } = useTheme();
@@ -116,11 +124,13 @@ export default function ContextOwnerPage() {
     () => new Set([...(contextOwner?.contextIds || []), ...contexts.map(c => c.id)].map(id => String(id).toLowerCase())),
     [contextOwner, contexts],
   );
-  const [selectedId, setSelectedIdState] = useState(contexts[0]?.id ?? null);
+  // Opens on their organisation when they have one, the first tab of the tree.
+  const [selectedId, setSelectedIdState] = useState(firstContext(contexts)?.id ?? null);
   // What the owner opened from the unit, newest last: the team matrix, a team
   // member's page, a page of something the team holds. Back pops one.
   const [opened, setOpened] = useState([]);
   const selectContext = useCallback((id) => { setSelectedIdState(id); setOpened([]); }, []);
+  const tree = useOwnerTree(selectedId, selectContext);
 
   // The pages ask to open things. Another context in scope (a variant of this
   // unit, a sub-unit, a parent) opens in place; the team matrix and an object's
@@ -144,12 +154,15 @@ export default function ContextOwnerPage() {
           <ErrorBoundary>
             <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
               <OwnerHeader isDark={isDark} userName={account?.name || account?.username} photo={me?.photo} onSignOut={logout} />
+              {tree.ready && <div className="bg-white dark:bg-gray-800"><TemplateTabs tabs={tree.tabs} active={tree.active} onChange={tree.openTab} /></div>}
               <div className="flex-1 min-h-0 flex">
-                {contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={selectContext} />}
+                {tree.ready
+                  ? <OwnerTreePane nodes={tree.nodes} selectedId={selectedId} onSelect={selectContext} />
+                  : contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={selectContext} />}
                 <main className="flex-1 min-w-0 overflow-y-auto p-6">
                   {current && <OwnerExplorePane item={current} backLabel={backLabel} onBack={back} onOpenDetail={openDetail} />}
                   {selectedId && !current && (
-                    <ContextDetailPage key={selectedId} contextId={selectedId} embedded onOpenDetail={openDetail} />
+                    <ContextDetailPage key={selectedId} contextId={selectedId} embedded treeBeside={tree.ready || tree.pending} onOpenDetail={openDetail} />
                   )}
                 </main>
               </div>

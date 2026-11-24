@@ -25,7 +25,7 @@ describe('contextOwnerVerdict — the shell', () => {
 
   it('lists exactly the five shell reads', () => {
     expect([...SHELL_PATHS].sort()).toEqual([
-      '/api/attribute-labels', '/api/auth-me', '/api/features', '/api/preferences', '/api/version',
+      '/api/attribute-labels', '/api/auth-me', '/api/context-owner/tree', '/api/features', '/api/preferences', '/api/version',
     ]);
   });
 
@@ -42,6 +42,7 @@ describe('contextOwnerVerdict — one context', () => {
     (id) => `/api/contexts/${id}/relationships`,
     (id) => `/api/contexts/${id}/claims`,
     (id) => `/api/contexts/${id}/people`,
+    (id) => `/api/contexts/${id}/team-overview`,
     (id) => `/api/contexts/${id}/timeline`,
     (id) => `/api/risk-scores/contexts/${id}`,
   ];
@@ -182,6 +183,10 @@ describe('the references of a member', () => {
 
   it('is null (not its business) for any other path', () => {
     expect(memberReferencesVerdict(`/api/contexts/${MINE}/members`, scope)).toBeNull();
+    const member = 'bbbbbbbb-0000-4000-8000-000000000001';
+    expect(memberReferencesVerdict(`/api/contexts/${MINE}/team-overview/${member}/ungoverned`, scope)).toEqual({ allow: false, member: { contextId: MINE, memberId: member } });
+    expect(memberReferencesVerdict(`/api/contexts/${OTHER}/team-overview/${member}/ungoverned`, scope)).toBe(DENY);
+    expect(memberReferencesVerdict(`/api/contexts/${MINE}/team-overview/${member}/ungoverned/`, scope)).toBeNull();
   });
 });
 

@@ -135,13 +135,32 @@ shows it, as an expandable member row.
 
 ## The owner's page
 
-In the UI an owner gets a bare page (no main navigation): their context
-directly, or a list on the left when they hold several. The page is the
+In the UI an owner gets a bare page (no main navigation), with the same sub-tabs
+(Organisation, Applications, ...) and tree as the Contexts page, holding only what
+they are Accountable or Responsible for and the sub-units below it
+(`GET /api/context-owner/tree`). The tree replaces the Sub-units section. The page is the
 ordinary context page in its business (reading) view, read-only: no Edit, no
 role pencils, no suggestion, no member editing, no Copy link or Open as page.
 People, members and role holders link to their page when the API marks them
 accessible (`components/EntityLink.jsx`); an opened page or the team matrix
 shows on top of the unit, with **Back** (`components/contextOwner/`).
+
+On an organizational unit of people the page, for every reader and not only an owner, opens with the **team overview**
+(`GET /api/contexts/:id/team-overview`): business roles down, direct members
+across, each person's count of ungoverned permissions (live access that no
+business role of theirs covers), and who joined, left or gained or lost a
+business role in the last 30 days. Each role mark shows how the person got it:
+automatically (a rule) or by hand (requested and approved, or assigned), from the
+assignment's `origin`, which the Entra crawler derives from the access package
+policy. The grid names roles and counts; a role's name opens its own page, which
+shows what is inside it.
+Access someone holds only by inheritance, through a group in one of their
+business roles, counts as governed; a direct grant does not. **Download report**
+carries the same grid on a **Team roles** tab.
+Clicking a count lists that person's ungoverned permissions
+(`GET /api/contexts/:id/team-overview/:memberId/ungoverned`, only for a direct
+member of that context). The People list is folded under it as **People
+details**, and is shown directly if the overview cannot be loaded.
 
 - **Sub-units** open in place — all of them, whoever else owns them. The **breadcrumb** names the direct parent without reading it, and
   opens it in place when it is in scope (a sub-unit's way back up).

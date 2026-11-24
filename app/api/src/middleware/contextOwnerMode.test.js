@@ -88,7 +88,7 @@ const noRole = (res) => res.status === 403 && res.body?.code === NO_ROLE_CODE;
 // What an owner may load whatever their scope (auth/contextOwnerScope.js): the
 // app shell, and the business-role catalogue — cut to the roles they may open
 // (see "reaches the business-role catalogue" below).
-const OWNER_SHELL = new Set(['GET /preferences', 'GET /attribute-labels', 'GET /access-package-groups']);
+const OWNER_SHELL = new Set(['GET /context-owner/tree', 'GET /preferences', 'GET /attribute-labels', 'GET /access-package-groups']);
 
 beforeEach(async () => {
   cfg.enabled = true;

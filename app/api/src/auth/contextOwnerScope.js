@@ -25,6 +25,7 @@ export const CONTEXT_OWNER_DENIED = 'Context owners can only open their own cont
 // preferences and the attribute labels the detail page uses for headings.
 export const SHELL_PATHS = new Set([
   '/api/auth-me',
+  '/api/context-owner/tree',
   '/api/features',
   '/api/version',
   '/api/preferences',
@@ -45,6 +46,9 @@ export const CONTEXT_PATHS = [
   // The People overview: who is in it, who left and what they still hold — from
   // confirmed claims only for a context owner (routes/contexts/read.js).
   new RegExp(`^/api/contexts/${UUID}/people$`),
+  // The team at a glance: business roles per direct member, a count of what no
+  // role covers (never the permissions themselves) and recent changes.
+  new RegExp(`^/api/contexts/${UUID}/team-overview$`),
   new RegExp(`^/api/contexts/${UUID}/timeline$`),
   new RegExp(`^/api/risk-scores/contexts/${UUID}$`),
 ];
@@ -56,6 +60,8 @@ export const CONTEXT_PATHS = [
 // (middleware/contextOwnerMode.js). A member id taken from another context, or
 // from one of this context's sub-units, is refused there.
 export const MEMBER_REFERENCES_PATH = new RegExp(`^/api/contexts/${UUID}/members/${UUID}/references$`);
+// One team member's ungoverned permissions, under the same two conditions.
+export const MEMBER_UNGOVERNED_PATH = new RegExp(`^/api/contexts/${UUID}/team-overview/${UUID}/ungoverned$`);
 
 // The Actions cards' downloads: the Entitlement Pivot (an application) and the
 // unit report (a unit of accounts or people). Allowed only when every context
@@ -111,7 +117,7 @@ export function reportExportVerdict(query, contextIds, refused = REPORT_EXPORTS.
 // A member's references: the context must be in scope; whether the member is
 // one of its members is for the caller to check. null when not this path.
 export function memberReferencesVerdict(path, contextIds) {
-  const m = MEMBER_REFERENCES_PATH.exec(path);
+  const m = MEMBER_REFERENCES_PATH.exec(path) || MEMBER_UNGOVERNED_PATH.exec(path);
   if (!m) return null;
   if (!contextIds.has(m[1])) return DENY;
   return { allow: false, member: { contextId: m[1], memberId: m[2] } };
