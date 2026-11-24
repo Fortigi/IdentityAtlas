@@ -40,6 +40,7 @@ const PRINCIPAL_TYPE_TABS = [
   { key: 'ServicePrincipal', label: 'Service Principals' },
   { key: 'ManagedIdentity',  label: 'Managed Identities' },
   { key: 'AIAgent',          label: 'AI Agents' },
+  { key: 'MachineAccount',   label: 'Machine Accounts' },
 ];
 
 // Read/write the active sub-tab from the URL hash (?type=User on the users

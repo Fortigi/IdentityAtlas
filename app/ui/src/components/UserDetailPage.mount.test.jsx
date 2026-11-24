@@ -79,6 +79,36 @@ describe('UserDetailPage header', () => {
     expect(screen.getByText(/System: csv-1/)).toBeInTheDocument();
   });
 
+  it('gives a machine account its own pill colour, in light and dark', async () => {
+    // A computer account must not read as a person: it carries the cyan pill of
+    // its own type rather than the grey "type we do not know" fallback.
+    renderPage({ body: user({ displayName: 'SRV-FILE01$', principalType: 'MachineAccount' }) });
+
+    const heading = await screen.findByRole('heading', { name: 'SRV-FILE01$' });
+    const pill = [...heading.parentElement.querySelectorAll('span')]
+      .find(el => el.textContent === 'MachineAccount');
+    expect(pill).toBeDefined();
+    expect(pill.className).toContain('bg-cyan-100');
+    expect(pill.className).toContain('text-cyan-800');
+    // Dark mode ships with it, not as a later pass.
+    expect(pill.className).toContain('dark:bg-cyan-900/30');
+    expect(pill.className).toContain('dark:text-cyan-300');
+    // And it is not the unknown-type fallback.
+    expect(pill.className).not.toContain('bg-gray-100');
+  });
+
+  it('falls back to the grey pill for a principal type the UI does not know', async () => {
+    // The control for the test above: the cyan classes have to come from the
+    // MachineAccount entry, not from every type getting them.
+    renderPage({ body: user({ displayName: 'SRV-FILE01$', principalType: 'Computer' }) });
+
+    const heading = await screen.findByRole('heading', { name: 'SRV-FILE01$' });
+    const pill = [...heading.parentElement.querySelectorAll('span')]
+      .find(el => el.textContent === 'Computer');
+    expect(pill.className).toContain('bg-gray-100');
+    expect(pill.className).not.toContain('bg-cyan-100');
+  });
+
   it('renders an avatar initial even when the display name is missing', async () => {
     renderPage({ body: user({ displayName: undefined }) });
 

@@ -259,6 +259,21 @@ Describe 'ConvertTo-CsvUserRecord' {
         (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).principalType | Should -Be 'User'
     }
 
+    It 'imports a computer account as MachineAccount, and still falls back on the other spellings' {
+        # An AD computer account is a security principal of its own, so a CSV
+        # that says so must not have it silently relabelled as a person. The
+        # near-misses a source might reach for stay unaccepted — that is what
+        # keeps one spelling of the type.
+        $cols = New-ColSet @('ExternalId', 'DisplayName', 'PrincipalType')
+        $srv = [PSCustomObject]@{ ExternalId = 'SRV-FILE01$'; DisplayName = 'SRV-FILE01$'; PrincipalType = 'MachineAccount' }
+        (ConvertTo-CsvUserRecord -Row $srv -SystemId 2 -Cols $cols).principalType | Should -Be 'MachineAccount'
+
+        foreach ($wrong in @('Computer', 'Device', 'machine')) {
+            $row = [PSCustomObject]@{ ExternalId = 'SRV-SQL02$'; DisplayName = 'SRV-SQL02$'; PrincipalType = $wrong }
+            (ConvertTo-CsvUserRecord -Row $row -SystemId 2 -Cols $cols).principalType | Should -Be 'User' -Because "'$wrong' is not the accepted spelling"
+        }
+    }
+
     It 'treats Enabled in {false,False,0} as disabled' {
         $cols = New-ColSet @('ExternalId', 'DisplayName', 'Enabled')
         $row = [PSCustomObject]@{ ExternalId = 'u1'; DisplayName = 'A'; Enabled = 'False' }

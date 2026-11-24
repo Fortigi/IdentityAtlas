@@ -1,8 +1,9 @@
 // The orphan-account definition — one place, every consumer.
 //
 // "Orphan" means: a *live* Principal with no IdentityMembers row, excluding the
-// non-human principal classes (a service principal is not a person's account
-// that linking failed to attach, so it is never an orphan). Live matters
+// non-human principal classes (a service principal, or a server's own machine
+// account, is not a person's account that linking failed to attach, so it is
+// never an orphan — and must never be correlated to a person). Live matters
 // because a full sync tombstones principals that vanished from the source
 // (`deletedAt`, see ingest/reconcileStale.js) instead of deleting the row — a
 // removed account is not work left undone for the analyst, and must never be
@@ -20,7 +21,7 @@ import { DEFAULT_RULES } from './defaultRules.js';
 import { effectiveLinkingRules } from './rulesMerge.js';
 
 /** Principal classes that are never treated as orphaned accounts. */
-export const NON_HUMAN_PRINCIPAL_TYPES = ['ServicePrincipal', 'ManagedIdentity', 'AIAgent'];
+export const NON_HUMAN_PRINCIPAL_TYPES = ['ServicePrincipal', 'ManagedIdentity', 'AIAgent', 'MachineAccount'];
 
 /**
  * The parameters every orphan query takes — bound to `$1` of the SQL built by

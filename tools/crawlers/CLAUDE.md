@@ -387,6 +387,7 @@ Unlike `discover.test.js`, this one is **not** harmless under the UI's vitest to
 | `AIAgent` | AI agent (Copilot Studio, Azure OpenAI, custom) |
 | `ExternalUser` | Guest / B2B account from another tenant |
 | `SharedMailbox` | Shared mailbox or room/equipment account |
+| `MachineAccount` | A computer's own directory account (an AD computer account) |
 
 **`Identities.identityType`** — since `ResourceAssignments` now supports `identityId` alongside `principalId` (migration 036), identities can represent both humans and technical accounts modelled as identities in IGA systems. The `Identities` table does not yet have an `identityType` column — this is a planned addition. Until it lands, crawlers that write technical-account identities should store the type in `extendedAttributes`. When the column is added, use:
 

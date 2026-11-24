@@ -120,10 +120,11 @@ flowchart LR
     end
     subgraph g_Software["Software"]
       direction LR
+      t_MachineAccount["MachineAccount"]:::Principal
       t_ManagedIdentity["ManagedIdentity<br/><small>demo, entra-id</small>"]:::Principal
       t_ServicePrincipal["ServicePrincipal<br/><small>demo, entra-id, omada</small>"]:::Principal
       t_WorkloadIdentity["WorkloadIdentity"]:::Principal
-      t_ManagedIdentity ~~~ t_ServicePrincipal ~~~ t_WorkloadIdentity
+      t_MachineAccount ~~~ t_ManagedIdentity ~~~ t_ServicePrincipal ~~~ t_WorkloadIdentity
     end
     root --> g_Agent
     root --> g_Person

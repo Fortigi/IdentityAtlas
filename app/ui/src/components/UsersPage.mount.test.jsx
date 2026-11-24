@@ -34,6 +34,10 @@ function renderPage(rows, onOpenDetail = () => {}, columns = []) {
 
 const ada = { id: 'u1', displayName: 'Ada Lovelace', userPrincipalName: 'ada@example.com', department: 'Engineering', jobTitle: 'Analyst' };
 
+// The sub-tab reaches the API as the `filters` JSON of a list URL, so decode it
+// rather than substring-matching the encoded query.
+const listFilters = (url) => JSON.parse(new URL(url, 'http://e2e.invalid').searchParams.get('filters') || 'null');
+
 describe('UsersPage — compare selected', () => {
   const bob = { ...ada, id: 'u2', displayName: 'Bob Byron' };
   const cy = { ...ada, id: 'u3', displayName: 'Cy Coder' };
@@ -120,6 +124,29 @@ describe('UsersPage principalType sub-tabs', () => {
     // 'all' means no principalType filter at all, and the bad value is dropped from the hash.
     expect(listUrls.every(u => !u.includes('NotAType'))).toBe(true);
     expect(window.location.hash).not.toContain('type=');
+  });
+
+  it('filters to machine accounts from the Machine Accounts tab, and shows the normal empty list when there are none', async () => {
+    // Computer accounts get a sub-tab of their own, so they are never read as
+    // people in the Users list. Seeded with no rows: a tenant with no machine
+    // accounts must see the ordinary empty table, not a broken view.
+    const { listUrls } = renderPage([]);
+    await screen.findByRole('button', { name: 'Machine Accounts' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Machine Accounts' }));
+
+    await waitFor(() => expect(listUrls.some(u => listFilters(u)?.principalType === 'MachineAccount')).toBe(true));
+    expect(window.location.hash).toContain('type=MachineAccount');
+    // The zero case renders the list's own empty state rather than any row.
+    expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
+  });
+
+  it('restores the Machine Accounts tab from the URL hash and lists a machine account', async () => {
+    window.location.hash = '#users?type=MachineAccount';
+    const { listUrls } = renderPage([{ ...ada, id: 'm1', displayName: 'SRV-FILE01$', userPrincipalName: 'SRV-FILE01$@example.com' }]);
+
+    expect(await screen.findByText('SRV-FILE01$')).toBeInTheDocument();
+    await waitFor(() => expect(listUrls.some(u => listFilters(u)?.principalType === 'MachineAccount')).toBe(true));
   });
 
   it('drops the type from the hash again when switching back to All', async () => {

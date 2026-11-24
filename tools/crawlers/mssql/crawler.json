@@ -221,7 +221,8 @@
                 "WorkloadIdentity",
                 "AIAgent",
                 "ExternalUser",
-                "SharedMailbox"
+                "SharedMailbox",
+                "MachineAccount"
               ],
               "default": "User",
               "description": "identities / principals: default principalType when the row has no principalType column."

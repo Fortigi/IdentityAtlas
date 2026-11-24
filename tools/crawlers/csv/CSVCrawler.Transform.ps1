@@ -293,7 +293,7 @@ function ConvertTo-CsvUserRecord {
     [CmdletBinding()]
     param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols, [string[]]$Extra = @())
     if (-not $Row.ExternalId -or -not $Row.DisplayName) { return $null }
-    $validTypes = @('User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox')
+    $validTypes = @('User', 'ServicePrincipal', 'ManagedIdentity', 'WorkloadIdentity', 'AIAgent', 'ExternalUser', 'SharedMailbox', 'MachineAccount')
     $pType = if ($Cols.Contains('PrincipalType') -and $Row.PrincipalType -in $validTypes) { $Row.PrincipalType } else { 'User' }
     $on = $true
     if ($Cols.Contains('Enabled') -and $Row.Enabled -in @('false', 'False', '0')) { $on = $false }

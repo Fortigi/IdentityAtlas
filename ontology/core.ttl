@@ -291,6 +291,10 @@ ia:WorkloadIdentity a owl:Class ; rdfs:subClassOf ia:Software ; ia:typeValue "Wo
     ia:accountabilityDefault ia:Accountability_Autonomous ;
     rdfs:label "Workload identity" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A federated-credential identity used by a workload (a pipeline, a Kubernetes service account). Accepted from CSV, SQL, SCIM and midPoint sources; the Entra crawler deliberately does not classify accounts this way." .
+ia:MachineAccount a owl:Class ; rdfs:subClassOf ia:Software ; ia:typeValue "MachineAccount" ;
+    ia:accountabilityDefault ia:Accountability_Autonomous ;
+    rdfs:label "Machine account" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A computer/server's own directory account (e.g. an Active Directory computer account), a security principal in its own right. Accepted from CSV, SQL, SCIM and midPoint sources; no built-in crawler classifies accounts this way." .
 # --8<-- [start:ai-agent]
 ia:AIAgent a owl:Class ; rdfs:subClassOf ia:Agent ; ia:typeValue "AIAgent" ;
     ia:emittedBy "demo", "entra-id" ;

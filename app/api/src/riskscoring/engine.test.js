@@ -306,6 +306,24 @@ describe('scorePrincipalEntity', () => {
     expect(s.membershipScore).toBe(8);         // owner-of-4 (+5) + 5 reports (+3)
   });
 
+  it('scores a machine account against the agent classifiers, not the user ones', () => {
+    // A computer account is a non-human principal, so it belongs with the
+    // service principals: the Agents tab of the classifier set decides its
+    // layer-1 score. Both sets are non-empty and match this name at different
+    // weights, so which one ran is readable off the score — an assertion a
+    // single classifier set could not discriminate.
+    const agentCls = compileClassifier({ name: 'srv', patterns: ['^SRV-'], score: 70 });
+    const userCls = compileClassifier({ name: 'srv-as-user', patterns: ['^SRV-'], score: 20 });
+    const ctx = baseCtx({ agentClassifiers: [agentCls], userClassifiers: [userCls] });
+
+    const machine = { id: 'm1', displayName: 'SRV-FILE01$', accountEnabled: true, principalType: 'MachineAccount', extendedAttributes: {} };
+    expect(scorePrincipalEntity(machine, ctx).directScore).toBe(70);
+
+    // The control: a human account with the same name still gets the user set.
+    const person = { ...machine, id: 'm2', principalType: 'User' };
+    expect(scorePrincipalEntity(person, ctx).directScore).toBe(20);
+  });
+
   it('flags a stale account (last sign-in > 90 days ago)', () => {
     const old = new Date(Date.now() - 200 * 86400000).toISOString();
     const p = { id: 'p3', displayName: 'Ghost', accountEnabled: true, extendedAttributes: {} };

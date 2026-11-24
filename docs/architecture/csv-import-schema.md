@@ -52,7 +52,7 @@ People, service accounts, bots — anything that can hold permissions.
 | `EmployeeId` | string | no | HR employee number. The same number as `Identities.csv → EmployeeId`: it is Account Linking's strongest signal, so supplying it here is what lets an account be correlated to its person automatically |
 | `GivenName` | string | no | First name. Used by Account Linking's name signals |
 | `Surname` | string | no | Last name. Used by Account Linking's name signals |
-| `PrincipalType` | string | no | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`. Any other value falls back to `User`. Default: `User` |
+| `PrincipalType` | string | no | One of: `User`, `ServicePrincipal`, `ManagedIdentity`, `WorkloadIdentity`, `AIAgent`, `ExternalUser`, `SharedMailbox`, `MachineAccount`. Any other value falls back to `User`. Default: `User` |
 | `JobTitle` | string | no | |
 | `Department` | string | no | Stored on the account; the `department-from-principal` context plugin can turn it into `Department` contexts |
 | `ManagerExternalId` | string | no | The `ExternalId` of another row in this file — the person's manager. Feeds the org chart, the manager-hierarchy contexts and the "reports to" filters. Order does not matter: the manager may appear anywhere in the file, or have been imported earlier. A row naming itself is ignored, and a manager that is not in the file (and not already imported) leaves the field empty and is counted in the job's warnings rather than stored as a link to nobody |
