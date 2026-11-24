@@ -11,6 +11,9 @@ export default defineConfig({
     ...base.test,
     include: [
       'src/lib/businessRoleAccessModel.test.js',
+      'src/lib/businessRoleOwners.test.js',
+      'src/lib/businessRoleOwnerSuggestion.test.js',
+      'src/routes/details/businessRoleOwners.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },
