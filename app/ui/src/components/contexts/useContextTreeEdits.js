@@ -57,18 +57,26 @@ export function useContextTreeEdits({ authFetch, nodes, refresh, onTreeDeleted }
   // Sync = re-run the generating plugin onto this tree so out-of-date
   // references update (e.g. a user who changed manager moves to the new node),
   // keeping all analyst edits. We poll the queued run, then refresh the view.
-  async function syncTree(rootId) {
+  async function followRun(startRun) {
     setSyncing(true); setSyncMsg(null);
     await edit('Refresh failed', async () => {
-      const r = await authFetch(`/api/contexts/${rootId}/sync`, { method: 'POST' });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
-      if (await waitForRun(authFetch, body.runId) === 'failed') throw new Error('Refresh failed — see the run log.');
+      const runId = await startRun();
+      if (await waitForRun(authFetch, runId) === 'failed') throw new Error('Refresh failed — see the run log.');
       setSyncMsg('Synced');
       setTimeout(() => setSyncMsg(null), 2500);
     });
     setSyncing(false);
   }
+
+  const syncTree = (rootId) => followRun(async () => {
+    const r = await authFetch(`/api/contexts/${rootId}/sync`, { method: 'POST' });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    return body.runId;
+  });
+
+  // A run already started elsewhere (the tree's settings were changed).
+  const watchRun = (runId) => followRun(async () => runId);
 
   // Drag-drop re-parent: make `childId` a child of `newParentId`. The API
   // validates targetType + cycles and recomputes counts on both branches.
@@ -121,5 +129,5 @@ export function useContextTreeEdits({ authFetch, nodes, refresh, onTreeDeleted }
     }
   }
 
-  return { editError, deleteError, syncing, syncMsg, syncTree, reparent, moveMember, rename, addChild, loadMembers, deleteTree };
+  return { editError, deleteError, syncing, syncMsg, syncTree, watchRun, reparent, moveMember, rename, addChild, loadMembers, deleteTree };
 }

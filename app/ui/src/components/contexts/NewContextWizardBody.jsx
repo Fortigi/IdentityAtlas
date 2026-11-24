@@ -2,6 +2,8 @@ import { Field } from './ModalPrimitives';
 import { memberKindLabel } from '@ui/utils/contextStyles';
 import JsonSchemaForm from './NewContextSchemaForm';
 import ContextCategorySelect from './ContextCategorySelect';
+import OrgSetupStep from './OrgSetupSteps';
+import { orgStepFor } from './NewContextWizard.helpers';
 
 // ─── Step dispatcher ──────────────────────────────────────────────────────────
 // Picks the step body for the current (source, step). Kept flat with early
@@ -29,12 +31,22 @@ export default function WizardBody(props) {
 function PluginBody({
   step, loading, grouped, selected, setSelected, params, setParams, systems,
   principalAttrs, mode, setMode, refreshKey, setRefreshKey, refreshTargets,
-  dryRunning, dryResult, onDryRun,
+  dryRunning, dryResult, onDryRun, previewStep, editing,
 }) {
   if (step === 2) {
     return loading
       ? <p className="text-xs text-gray-500 dark:text-gray-400">Loading rules…</p>
       : <PluginPicker grouped={grouped} selected={selected} onPick={setSelected} />;
+  }
+  const orgStep = orgStepFor(step, selected);
+  if (orgStep) {
+    return (
+      <OrgSetupStep
+        orgStep={orgStep} selected={selected} params={params} setParams={setParams}
+        systems={systems} principalAttrs={principalAttrs}
+        dryRunning={dryRunning} dryResult={dryResult} onDryRun={onDryRun}
+      />
+    );
   }
   if (step === 3) {
     return (
@@ -49,14 +61,20 @@ function PluginBody({
       </div>
     );
   }
-  if (step === 4) {
+  if (step === previewStep) {
     return (
       <div className="space-y-3">
-        <TargetChooser
-          mode={mode} setMode={setMode}
-          refreshKey={refreshKey} setRefreshKey={setRefreshKey}
-          targets={refreshTargets}
-        />
+        {editing ? (
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            These settings replace the current ones of this tree. Your adjustments are applied again on top.
+          </p>
+        ) : (
+          <TargetChooser
+            mode={mode} setMode={setMode}
+            refreshKey={refreshKey} setRefreshKey={setRefreshKey}
+            targets={refreshTargets}
+          />
+        )}
         <PreviewStep dryRunning={dryRunning} dryResult={dryResult} onRedo={onDryRun} />
       </div>
     );
@@ -202,6 +220,11 @@ function PreviewStep({ dryRunning, dryResult, onRedo }) {
           <div className="text-xs font-semibold text-gray-800 dark:text-gray-200">
             {dryResult.contextCount} contexts · {dryResult.memberCount} members
           </div>
+          {dryResult.stats && (
+            <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
+              {dryResult.stats.peopleIncluded} of {dryResult.stats.accountsTotal} accounts are in. Left out: {dryResult.stats.filteredOut} by the rule, {dryResult.stats.secondAccounts} second accounts.
+            </p>
+          )}
           <DryRunSamples samples={dryResult.samples} />
           <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">This is a preview — nothing is written until you press Run.</p>
         </div>

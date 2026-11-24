@@ -4,9 +4,9 @@ import { runLabel, runDisabled, nextLabel } from './NewContextWizard.helpers';
 // Wizard footer: the "Missing: …" hint on the left, Back + the context-aware
 // primary button on the right.
 export default function WizardFooter({
-  source, step, pluginMissing, showBack, onBack,
+  source, step, previewStep, pluginMissing, showBack, onBack,
   running, dryRunning, mode, refreshKey, manualValid, creating, canNext,
-  onRun, onCreate, onNext,
+  onRun, onCreate, onNext, editing = false, previewCount = 0,
 }) {
   return (
     <div className="mt-5 flex items-center justify-between gap-2">
@@ -14,7 +14,7 @@ export default function WizardFooter({
       <div className="flex items-center gap-2">
         {showBack && <SecondaryButton onClick={onBack}>Back</SecondaryButton>}
         <WizardPrimaryButton
-          source={source} step={step}
+          source={source} step={step} previewStep={previewStep} editing={editing} previewCount={previewCount}
           running={running} dryRunning={dryRunning} mode={mode} refreshKey={refreshKey}
           manualValid={manualValid} creating={creating} canNext={canNext}
           onRun={onRun} onCreate={onCreate} onNext={onNext}
@@ -34,13 +34,13 @@ function FooterHint({ source, step, pluginMissing }) {
 }
 
 function WizardPrimaryButton({
-  source, step, running, dryRunning, mode, refreshKey,
-  manualValid, creating, canNext, onRun, onCreate, onNext,
+  source, step, previewStep, running, dryRunning, mode, refreshKey,
+  manualValid, creating, canNext, onRun, onCreate, onNext, editing, previewCount,
 }) {
-  if (source === 'plugin' && step === 4) {
+  if (source === 'plugin' && step === previewStep) {
     return (
-      <PrimaryButton onClick={onRun} disabled={runDisabled(running, dryRunning, mode, refreshKey)}>
-        {runLabel(running, mode)}
+      <PrimaryButton onClick={onRun} disabled={runDisabled(running, dryRunning, mode, refreshKey, editing, previewCount)}>
+        {runLabel(running, mode, editing)}
       </PrimaryButton>
     );
   }

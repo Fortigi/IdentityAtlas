@@ -52,6 +52,30 @@ beforeEach(() => {
   getPrincipalColumns.mockReset();
 });
 
+// ─── GET /context-plugins/tree-settings/:key ─────────────────────────
+describe('GET /context-plugins/tree-settings/:key', () => {
+  const URL = `/api/context-plugins/tree-settings/gen~${ID}~inst-1`;
+
+  it('returns the settings of the tree', async () => {
+    queryOne.mockResolvedValueOnce({ pluginName: 'manager-hierarchy', parameters: { scopeSystemId: 2 } });
+    const res = await request(app).get(URL);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ pluginName: 'manager-hierarchy', instanceKey: 'inst-1', params: { scopeSystemId: 2 } });
+  });
+
+  it('404 for a tree without stored settings', async () => {
+    queryOne.mockResolvedValueOnce(null);
+    expect((await request(app).get(URL)).status).toBe(404);
+  });
+
+  it('500 when the query rejects', async () => {
+    queryOne.mockRejectedValueOnce(new Error('boom'));
+    const res = await request(app).get(URL);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to load the tree settings');
+  });
+});
+
 // ─── GET /context-plugins ────────────────────────────────────────────
 describe('GET /context-plugins', () => {
   it('merges DB rows with in-process plugin metadata', async () => {

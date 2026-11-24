@@ -204,6 +204,59 @@ describe('manager-hierarchy — who answers for a team', () => {
   });
 });
 
+describe('manager-hierarchy — HR people filter and manager placement', () => {
+  const ROWS = [
+    { id: 'boss', displayName: 'Boss', managerId: null, department: 'Board', employeeId: 'E1' },
+    { id: 'jan', displayName: 'Jan', managerId: 'boss', department: 'IT', employeeId: 'E2' },
+    { id: 'adm-jan', displayName: 'ADM Jan', managerId: 'jan', department: 'IT', employeeId: 'E2' },
+    { id: 'svc', displayName: 'Mailbox', managerId: 'jan', department: 'IT', employeeId: null },
+    { id: 'mia', displayName: 'Mia', managerId: 'boss', department: 'Sales', employeeId: 'E3' },
+    { id: 'tom', displayName: 'Tom', managerId: 'mia', department: 'Sales', employeeId: 'E4' },
+  ];
+  const COLUMNS = ['id', 'displayName', 'managerId', 'department', 'employeeId'];
+  const HR = { peopleFilters: [{ attribute: 'employeeId', condition: 'isNotNull' }], excludeSecondAccounts: true };
+  const unit = (out, id) => out.members.filter(m => m.memberId === id).map(m => m.contextExternalId);
+
+  it('a person whose only reports are their own admin accounts is not a manager', async () => {
+    const plugin = await loadPluginWithRows(ROWS, { columns: COLUMNS });
+    const before = await plugin.run({ scopeSystemId: 1 }, {});
+    expect(before.contexts.map(c => c.externalId)).toContain('jan');
+    const out = await plugin.run({ scopeSystemId: 1, ...HR }, {});
+    expect(out.contexts.map(c => c.externalId).sort()).toEqual(['boss', 'mia', 'root']);
+    expect(unit(out, 'jan')).toEqual(['boss']);
+    expect(unit(out, 'adm-jan')).toEqual([]);
+    expect(out.stats).toEqual({ accountsTotal: 6, peopleIncluded: 4, filteredOut: 1, secondAccounts: 1 });
+  });
+
+  it('reports the stats when the filter leaves nobody', async () => {
+    const plugin = await loadPluginWithRows(ROWS, { columns: COLUMNS });
+    const out = await plugin.run({ scopeSystemId: 1, peopleFilters: [{ attribute: 'department', condition: 'equals', value: 'None' }] }, {});
+    expect(out).toEqual({ contexts: [], members: [], stats: { accountsTotal: 6, peopleIncluded: 0, filteredOut: 6, secondAccounts: 0 } });
+  });
+
+  it('puts a manager in the team above by default, and in their own team when asked', async () => {
+    const plugin = await loadPluginWithRows(ROWS, { columns: COLUMNS });
+    expect(unit(await plugin.run({ scopeSystemId: 1, ...HR }, {}), 'mia')).toEqual(['boss']);
+    const own = await plugin.run({ scopeSystemId: 1, ...HR, managerPlacement: 'ownTeam' }, {});
+    expect(unit(own, 'mia')).toEqual(['mia']);
+    expect(unit(own, 'boss')).toEqual(['boss']);
+    expect(unit(own, 'tom')).toEqual(['mia']);
+  });
+
+  it('names a team after its people without the manager tipping the majority', async () => {
+    const rows = [
+      { id: 'cfo', displayName: 'Cas', managerId: null, department: 'Board', employeeId: 'E1' },
+      { id: 'a', displayName: 'A', managerId: 'cfo', department: 'Finance', employeeId: 'E2' },
+      { id: 'b', displayName: 'B', managerId: 'cfo', department: 'Audit', employeeId: 'E3' },
+    ];
+    const plugin = await loadPluginWithRows(rows, { columns: COLUMNS });
+    const out = await plugin.run({ scopeSystemId: 1, nameFrom: 'members', includeManagerName: false, managerPlacement: 'ownTeam' }, {});
+    // Finance and Audit tie, so no shared name: the manager's own department stays.
+    expect(out.contexts.find(c => c.externalId === 'cfo').displayName).toBe('Board');
+    expect(unit(out, 'cfo')).toEqual(['cfo']);
+  });
+});
+
 describe('manager-hierarchy — soft-deleted principals', () => {
   it('builds the tree from live principals only', async () => {
     vi.resetModules();

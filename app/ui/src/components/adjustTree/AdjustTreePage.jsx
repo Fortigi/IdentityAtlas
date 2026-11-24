@@ -9,6 +9,7 @@ import AdjustTreeHeader from './AdjustTreeHeader';
 import AdjustTreeView from './AdjustTreeView';
 import AdjustTreeSidePanel from './AdjustTreeSidePanel';
 import GroupBar from './GroupBar';
+import NewContextWizard from '@ui/components/contexts/NewContextWizard';
 
 // ─── Adjust tree ────────────────────────────────────────────────────────
 // A full-width screen to correct one tree (docs/architecture/adjust-tree.md
@@ -40,6 +41,9 @@ function useChecked() {
 export default function AdjustTreePage({ treeKey, onClose, onCacheData, embedded = false }) {
   const { authFetch } = useAuth();
   const canWrite = useHasPermission('data.write.contexts');
+  // The rule's settings sit behind the same permission as running a rule.
+  const canChangeSettings = useHasPermission('admin.context-plugins');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const data = useAdjustTree(treeKey);
   const units = data.tree?.units || [];
   const selection = useSelection(units);
@@ -72,8 +76,12 @@ export default function AdjustTreePage({ treeKey, onClose, onCacheData, embedded
       <AdjustTreeHeader
         tree={data.tree} adjustmentCount={liveAdjustments(data.adjustments).length} editable={editable}
         onRefresh={units[0] ? () => sync.syncTree(units[0].id) : undefined} refreshing={sync.syncing}
+        onChangeSettings={canChangeSettings ? () => setSettingsOpen(true) : undefined}
         onClose={embedded ? undefined : onClose}
       />
+      {settingsOpen && (
+        <NewContextWizard open editTreeKey={treeKey} onClose={() => setSettingsOpen(false)} onRunStarted={sync.watchRun} />
+      )}
       {(data.error || sync.editError) && (
         <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300">
           {sync.editError || data.error}

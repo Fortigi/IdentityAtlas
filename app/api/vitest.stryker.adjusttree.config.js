@@ -16,6 +16,8 @@ export default defineConfig({
       'src/contexts/adjustments/*.test.js',
       'src/contexts/plugins/manager-hierarchy.layout.test.js',
       'src/contexts/plugins/manager-hierarchy.test.js',
+      'src/contexts/plugins/manager-hierarchy.population.test.js',
+      'src/contexts/plugins/treeSettings.test.js',
       'src/routes/contexts/trees.test.js',
       'src/db/migrations/104_context_tree_adjustments.test.js',
     ],

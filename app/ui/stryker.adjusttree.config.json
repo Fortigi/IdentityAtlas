@@ -18,7 +18,9 @@
     "src/components/adjustTree/useAdjustTree.js",
     "src/components/adjustTree/useAdjustTreeActions.js",
     "src/components/adjustTree/useTreeResolve.js",
-    "src/components/adjustTree/AdjustTreeView.jsx"
+    "src/components/adjustTree/AdjustTreeView.jsx",
+    "src/components/contexts/OrgSetupSteps.jsx",
+    "src/components/contexts/useWizardData.js"
   ],
   "mutationExclusions": {
     "src/components/adjustTree/AdjustTreePage.jsx": "Composition shell: wires useAdjustTree, useAdjustTreeActions and the panes together. Its two decisions (selection falls back to the first top unit; read only without data.write.contexts or when the tree says canAdjust false) are asserted both ways by AdjustTreePage.mount.test.jsx.",

@@ -241,3 +241,34 @@ describe('AdjustTreePage — read only', () => {
     expect(screen.queryByRole('button', { name: 'Split…' })).not.toBeInTheDocument();
   });
 });
+
+describe('AdjustTreePage — the rule\'s settings', () => {
+  // The tree API plus what the wizard reads when it opens on this tree.
+  function withSettings(settings) {
+    const tree = adjustTreeApi();
+    return makeAuthFetch((url, opts) => {
+      if (url.startsWith('/api/context-plugins/tree-settings/')) return settings;
+      if (url.startsWith('/api/context-plugins')) return { data: [], columns: [], extended: [] };
+      if (url.startsWith('/api/systems') || url.startsWith('/api/contexts?variant=generated')) return { data: [] };
+      return tree(url, opts);
+    });
+  }
+
+  it('opens the wizard on this tree and closes it again', async () => {
+    const api = withSettings({ pluginName: 'gone-rule', instanceKey: 'inst', params: {} });
+    const { user } = mount({ api, props: { embedded: true } });
+    await user.click(await screen.findByRole('button', { name: 'Change settings' }));
+    expect(await screen.findByText('Tree settings')).toBeInTheDocument();
+    // This rule is not offered by the wizard, so it says so instead of opening its steps.
+    expect(await screen.findByText('The settings of this tree cannot be changed here.')).toBeInTheDocument();
+    expect(api.mock.calls.map(([u]) => u)).toContain(`/api/context-plugins/tree-settings/${encodeURIComponent(TREE_KEY)}`);
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('Tree settings')).not.toBeInTheDocument();
+  });
+
+  it('is not offered to someone who may adjust the tree but not run rules', async () => {
+    mount({ auth: { hasWildcard: false, permissions: new Set(['data.write.contexts']) } });
+    expect(await screen.findByRole('button', { name: 'Refresh from source' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change settings' })).not.toBeInTheDocument();
+  });
+});

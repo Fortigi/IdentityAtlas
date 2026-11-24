@@ -1,0 +1,5 @@
+- Added a guided setup for organisation trees built from the manager chain: first choose who belongs, then where managers sit, then how teams are named.
+- Added a people filter for organisation trees, starting from "people managed by HR" (accounts with an employee ID), with a count of how many accounts it keeps.
+- Admin and other second accounts no longer turn their owner into a manager: they can be left out even when they carry a copy of the owner's employee ID.
+- Added the choice to make a manager a member of the team they manage, or of the team above.
+- Added "Change settings" to Adjust tree: reopen the wizard on the settings a generated tree was built with, change them and apply them to the same tree, keeping your adjustments.

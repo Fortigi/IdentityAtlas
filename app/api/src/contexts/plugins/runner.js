@@ -167,6 +167,7 @@ export async function dryRun(pluginName, params) {
   return {
     contextCount: result.contexts.length,
     memberCount:  result.members.length,
+    ...(result.stats ? { stats: result.stats } : {}),
     samples: {
       contexts: result.contexts.slice(0, 10),
       members:  result.members.slice(0, 10),

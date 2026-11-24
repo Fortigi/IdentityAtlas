@@ -6,9 +6,10 @@ import Stepper from '@ui/components/Stepper';
 import WizardBody from './NewContextWizardBody';
 import WizardFooter from './NewContextWizardFooter';
 import UploadListFlow from './upload/UploadListFlow';
+import { useWizardData } from './useWizardData';
 import {
-  stepsFor, groupByTargetType, wizardSubtitle, seedParamsFromSchema,
-  pluginMissingParams, computeRefreshTargets,
+  stepsFor, groupByTargetType, seedParamsFromSchema, settingsPending,
+  pluginMissingParams, computeRefreshTargets, configStepReady, wizardTitles, firstStepOf,
 } from './NewContextWizard.helpers';
 
 // ─── Unified "New context tree" wizard ────────────────────────────────────────
@@ -17,27 +18,24 @@ import {
 //
 //   Step 1  Source        — Import from a system (→ Crawlers) · Derive from data · Create by hand · Upload a list
 //   Plugin: Step 2 Pick plugin → Step 3 Configure → Step 4 Preview & run
+//   Org tree (manager chain): Step 2 Pick → 3 People → 4 Managers → 5 Names → 6 Preview & run
 //   Manual: Step 2 Details (then Create)
 //   Upload: Step 2 File → Step 3 Mapping → Step 4 Preview & import (upload/UploadListFlow,
 //           which renders its own footer; `reimportListId` opens it on step 2 for that list)
+//   Existing tree: `editTreeKey` opens the rule's settings on that tree's stored values
 //
 // The step bodies live in NewContextWizardBody, the footer in
 // NewContextWizardFooter, and pure data shaping in NewContextWizard.helpers.
 
-export default function NewContextWizard({ open, onClose, onCreated, onRunStarted, onOpenCrawlers, onOpenBuilder, reimportListId = null }) {
+export default function NewContextWizard({ open, onClose, onCreated, onRunStarted, onOpenCrawlers, onOpenBuilder, reimportListId = null, editTreeKey = null }) {
   const { authFetch } = useAuth();
+  const editing = !!editTreeKey;
+  const firstStep = firstStepOf(editing);
   const canDescribe = useCanBuildContexts() && !!onOpenBuilder;
 
   const reimporting = open && !!reimportListId;
   const [step, setStep] = useState(reimporting ? 2 : 1);
   const [source, setSource] = useState(reimporting ? 'upload' : null); // 'import' | 'plugin' | 'manual' | 'upload' | 'describe'
-
-  // Shared / plugin data
-  const [systems, setSystems] = useState([]);
-  const [plugins, setPlugins] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState(null);
-  const [principalAttrs, setPrincipalAttrs] = useState({ columns: [], extended: [] });
 
   // Plugin path state
   const [selected, setSelected] = useState(null);
@@ -47,7 +45,6 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
   // Target: a brand-new tree, or refresh an existing one (keeps analyst edits).
-  const [genRoots, setGenRoots] = useState([]);   // existing generated root contexts
   const [mode, setMode] = useState('new');         // 'new' | 'refresh'
   const [refreshKey, setRefreshKey] = useState(''); // sourceInstanceKey to refresh
 
@@ -62,29 +59,6 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
   const [mScopeSystemId, setMScopeSystemId] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Load plugins + systems + principal attributes when the wizard opens.
-  useEffect(() => {
-    if (!open) return;
-    (async () => {
-      setLoading(true); setLoadError(null);
-      try {
-        const [pr, sr, cr, gr] = await Promise.all([
-          authFetch('/api/context-plugins'),
-          authFetch('/api/systems'),
-          authFetch('/api/context-plugins/principal-attributes'),
-          authFetch('/api/contexts?variant=generated'),
-        ]);
-        if (pr.ok) setPlugins((await pr.json()).data || []);
-        if (sr.ok) { const b = await sr.json(); setSystems(b.data || b || []); }
-        if (cr.ok) { const ab = await cr.json(); setPrincipalAttrs({ columns: ab.columns || [], extended: ab.extended || [] }); }
-        if (gr.ok) { const g = await gr.json(); setGenRoots(g.data || []); }
-      } catch (e) {
-        setLoadError(e.message || 'Failed to load');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [open, authFetch]);
 
   // Reset everything when the wizard closes — during render on the open→closed
   // transition, so no synchronous setState lives in an effect.
@@ -114,6 +88,17 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     setDryResult(null);
   }
 
+  // Load the rules, systems and attributes when the wizard opens; on an
+  // existing tree also its settings, marked as seen so they are not reseeded.
+  const { systems, plugins, principalAttrs, genRoots, loading, loadError } = useWizardData({
+    open, authFetch, editTreeKey,
+    onTreeSettings: (tree) => {
+      setSeenSelected(tree.plugin); setSelected(tree.plugin);
+      setParams(tree.params); setMode('refresh'); setRefreshKey(tree.instanceKey);
+      setSource('plugin'); setStep(3);
+    },
+  });
+
   const grouped = useMemo(() => groupByTargetType(plugins), [plugins]);
   const pluginMissing = useMemo(() => pluginMissingParams(selected, params), [selected, params]);
   const refreshTargets = useMemo(
@@ -121,14 +106,19 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     [genRoots, selected, params.scopeSystemId],
   );
   const manualValid = !!mDisplayName.trim() && !!mContextType.trim();
+  const steps = stepsFor(source, selected);
+  const previewStep = steps.length;
+
+  // A changed setting makes the preview and the people count out of date.
+  function updateParams(next) { setParams(next); setDryResult(null); }
 
   // Auto-preview when arriving at the plugin's final step.
   useEffect(() => {
-    if (source === 'plugin' && step === 4 && selected && !dryResult && !dryRunning) {
+    if (source === 'plugin' && step === previewStep && selected && !dryResult && !dryRunning) {
       dryRun();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, source, selected]);
+  }, [step, source, selected, previewStep]);
 
   if (!open) return null;
 
@@ -136,7 +126,7 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     if (step === 1) return !!source;
     if (source === 'plugin') {
       if (step === 2) return !!selected;
-      if (step === 3) return pluginMissing.length === 0;
+      if (step < previewStep) return configStepReady(pluginMissing, params);
     }
     return true;
   }
@@ -217,12 +207,12 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
     }
   }
 
-  const steps = stepsFor(source);
-
   return (
-    <Modal title="New context tree" subtitle={wizardSubtitle(source, selected)} onClose={onClose} width={640} dismissOnBackdrop={false}>
+    // On an existing tree, nothing to show until its settings are in.
+    <SettingsGate pending={settingsPending(editTreeKey, selected)} loading={loading} loadError={loadError} onClose={onClose}>
+    <Modal {...wizardTitles(editing, source, selected)} onClose={onClose} width={640} dismissOnBackdrop={false}>
       <div className="mb-4 border-b border-gray-100 dark:border-gray-700 pb-3">
-        <Stepper steps={steps} current={step} onStepClick={(n) => n < step && setStep(n)} />
+        <Stepper steps={steps} current={step} onStepClick={(n) => n < step && n >= firstStep && setStep(n)} />
       </div>
 
       <ErrorBox message={loadError} />
@@ -239,7 +229,8 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
             source={source} step={step} loading={loading}
             setSource={setSource} canDescribe={canDescribe}
             grouped={grouped} selected={selected} setSelected={setSelected}
-            params={params} setParams={setParams} systems={systems} principalAttrs={principalAttrs}
+            params={params} setParams={updateParams} systems={systems} principalAttrs={principalAttrs}
+            previewStep={previewStep} editing={editing}
             mode={mode} setMode={setMode} refreshKey={refreshKey} setRefreshKey={setRefreshKey}
             refreshTargets={refreshTargets}
             dryRunning={dryRunning} dryResult={dryResult} onDryRun={dryRun}
@@ -255,14 +246,27 @@ export default function NewContextWizard({ open, onClose, onCreated, onRunStarte
 
           {/* ─── Footer ─── */}
           <WizardFooter
-            source={source} step={step} pluginMissing={pluginMissing}
-            showBack={step > 1} onBack={back}
+            source={source} step={step} previewStep={previewStep} pluginMissing={pluginMissing}
+            showBack={step > firstStep} onBack={back}
+            editing={editing} previewCount={dryResult?.contextCount}
             running={running} dryRunning={dryRunning} mode={mode} refreshKey={refreshKey}
             manualValid={manualValid} creating={creating} canNext={canNext()}
             onRun={run} onCreate={createManual} onNext={next}
           />
         </>
       )}
+    </Modal>
+    </SettingsGate>
+  );
+}
+
+// The wizard opened on an existing tree, while that tree's settings load (or failed to).
+function SettingsGate({ pending, loading, loadError, onClose, children }) {
+  if (!pending) return children;
+  return (
+    <Modal {...wizardTitles(true)} onClose={onClose} width={640} dismissOnBackdrop={false}>
+      <ErrorBox message={loadError} />
+      {loading && <p className="text-xs text-gray-500 dark:text-gray-400">Loading the settings of this tree…</p>}
     </Modal>
   );
 }
