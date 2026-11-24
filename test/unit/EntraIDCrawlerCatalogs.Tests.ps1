@@ -158,6 +158,7 @@ Describe 'Sync-EntraGovernanceCatalogs' {
         Sync-EntraGovernanceCatalogs -SystemId 3 | Out-Null
         $script:posted.Count | Should -Be 1
         $script:posted[0].Endpoint | Should -Be 'ingest/context-roles'
+        # One role query per synced catalog (c1, c2).
         Should -Invoke Invoke-FGGetRequest -ParameterFilter { $URI -match 'roleManagement' } -Times 2 -Exactly
     }
 }
@@ -230,11 +231,13 @@ Describe 'Sync-EntraCatalogRoles' {
         Mock Invoke-IngestAPI -MockWith $script:PostMock
     }
 
-    It 'reads both role definitions and states the roles as a full sync of the catalog contexts' {
-        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match [regex]::Escape($script:OwnerRole) } -MockWith { @(New-RoleAssignment $script:OwnerRole $script:C1 'u1') }
-        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match [regex]::Escape($script:ManagerRole) } -MockWith { @(New-RoleAssignment $script:ManagerRole $script:C1 'u2') }
+    It 'reads every role on each catalog and states the mapped ones as a full sync of the catalog contexts' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match [regex]::Escape($script:C1) } -MockWith {
+            @((New-RoleAssignment $script:OwnerRole $script:C1 'u1'), (New-RoleAssignment $script:ManagerRole $script:C1 'u2'), (New-RoleAssignment $script:ReaderRole $script:C1 'u9'))
+        }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match [regex]::Escape($script:C3) } -MockWith { @() }
 
-        Sync-EntraCatalogRoles -SystemId 4 -CatalogIds @($script:C1)
+        Sync-EntraCatalogRoles -SystemId 4 -CatalogIds @($script:C1, $script:C3, '')
 
         $script:posted.Count | Should -Be 1
         $body = $script:posted[0].Body
@@ -242,7 +245,9 @@ Describe 'Sync-EntraCatalogRoles' {
         $body.syncMode          | Should -Be 'full'
         $body.scope.contextType | Should -Be 'AccessPackageCatalog'
         @($body.records | ForEach-Object { "$($_.role)|$($_.principalId)" }) | Should -Be @('Accountable|u1', 'Responsible|u2')
-        Should -Invoke Invoke-FGGetRequest -Times 1 -Exactly -ParameterFilter { $URI -like '*v1.0/roleManagement/entitlementManagement/roleAssignments?$filter=roleDefinitionId eq*' -and $URI -match [regex]::Escape($script:OwnerRole) }
+        Should -Invoke Invoke-FGGetRequest -Times 1 -Exactly -ParameterFilter { $URI -ceq "https://graph.microsoft.com/v1.0/roleManagement/entitlementManagement/roleAssignments?`$filter=appScopeId eq '/AccessPackageCatalog/$($script:C1)'" }
+        # One query per catalog; an empty id asks nothing.
+        Should -Invoke Invoke-FGGetRequest -Times 2 -Exactly
         $script:phases[0].name   | Should -Be 'Governance/CatalogRoles'
         $script:phases[0].status | Should -Be 'ok'
         $script:phases[0].records.catalogRoles | Should -Be 2

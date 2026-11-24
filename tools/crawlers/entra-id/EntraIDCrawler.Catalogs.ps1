@@ -177,11 +177,15 @@ function Sync-EntraCatalogRoles {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalog owners and managers)..." -ForegroundColor Cyan
     try {
+        # Per catalog, every role on it; the owner / manager split happens here,
+        # so the log shows which roles a catalog has even when none is mapped.
         $assignments = [System.Collections.Generic.List[object]]::new()
-        foreach ($roleId in $script:EntraCatalogRoleDefinitions.Keys) {
-            $page = Invoke-FGGetRequest -URI "https://graph.microsoft.com/v1.0/roleManagement/entitlementManagement/roleAssignments?`$filter=roleDefinitionId eq '$roleId'"
+        foreach ($catalogId in @($CatalogIds | Where-Object { $_ })) {
+            $page = Invoke-FGGetRequest -URI "https://graph.microsoft.com/v1.0/roleManagement/entitlementManagement/roleAssignments?`$filter=appScopeId eq '/AccessPackageCatalog/$catalogId'"
             foreach ($a in @($page)) { if ($a) { $assignments.Add($a) } }
         }
+        $byRole = @($assignments | Group-Object roleDefinitionId | ForEach-Object { "$($_.Name) x$($_.Count)" }) -join ', '
+        if ($byRole) { Write-Host "  Role definitions on the catalogs: $byRole" -ForegroundColor Gray }
         $records = @(ConvertTo-EntraCatalogRoleRecords -Assignments $assignments -CatalogIds $CatalogIds)
         $result = Invoke-IngestAPI -Endpoint 'ingest/context-roles' -Body @{
             systemId = $SystemId; syncMode = 'full'; scope = @{ contextType = $script:EntraCatalogContextType }
