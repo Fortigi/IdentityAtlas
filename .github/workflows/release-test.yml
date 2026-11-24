@@ -144,8 +144,14 @@ jobs:
           NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
         run: |
           missing=""
-          for v in TENANT:AZURE_TENANT_ID ROLE:AZURE_CLIENT_ID SSO:RELEASE_TEST_SSO_CLIENT_ID NOROLE:RELEASE_TEST_NOROLE_CLIENT_ID; do
-            [ -n "${!v%%:*}" ] || missing="$missing ${v#*:}"
+          # One ENV_NAME:VARIABLE_NAME pair per line; add a variable here and in env above.
+          for pair in \
+            TENANT:AZURE_TENANT_ID \
+            ROLE:AZURE_CLIENT_ID \
+            SSO:RELEASE_TEST_SSO_CLIENT_ID \
+            NOROLE:RELEASE_TEST_NOROLE_CLIENT_ID; do
+            name="${pair%%:*}"
+            [ -n "${!name:-}" ] || missing="$missing ${pair#*:}"
           done
           if [ -n "$missing" ]; then
             echo "::error::Set these variables on the azure-release-test environment:$missing (docs/contributing/release-process.md → One-time setup)."; exit 1
