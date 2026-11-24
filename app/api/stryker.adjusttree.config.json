@@ -28,7 +28,9 @@
     "src/contexts/adjustments/view.js",
     "src/contexts/plugins/manager-hierarchy.layout.js",
     "src/contexts/plugins/manager-hierarchy.options.js",
-    "src/routes/contexts/trees.js"
+    "src/routes/contexts/trees.js",
+    "src/contexts/plugins/manager-hierarchy.population.js",
+    "src/contexts/plugins/treeSettings.js"
   ],
   "thresholds": {
     "high": 90,

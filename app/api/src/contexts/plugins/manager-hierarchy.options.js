@@ -4,7 +4,7 @@
 
 import RE2 from 're2';
 import { buildNodeName } from './manager-hierarchy.helpers.js';
-import { splitUnits, nameUnitsFromMembers, findTops, placeUnderTops } from './manager-hierarchy.layout.js';
+import { splitUnits, nameUnitsFromMembers, findTops, placeUnderTops, placeManagersInOwnTeam } from './manager-hierarchy.layout.js';
 
 export const LAYOUT_PARAMETERS = Object.freeze({
   topMode: {
@@ -28,7 +28,31 @@ export const LAYOUT_PARAMETERS = Object.freeze({
     description: 'Split a manager\'s people into one unit per value of this attribute (e.g. department) — for managers who run several teams, or an interim one.',
   },
   splitMinMembers: { type: 'integer', default: 2, minimum: 1, description: 'With splitBy: the smallest group that gets a unit of its own.' },
-  excludeInactive: { type: 'boolean', default: false, description: 'Leave out disabled accounts (leavers).' },
+  excludeInactive: { type: 'boolean', default: false, 'x-wizardDefault': true, description: 'Leave out disabled accounts (leavers).' },
+  peopleFilters: {
+    type: 'array',
+    'x-wizardDefault': [{ attribute: 'employeeId', condition: 'isNotNull' }],
+    items: {
+      type: 'object',
+      required: ['attribute', 'condition'],
+      properties: {
+        attribute: { type: 'string' },
+        condition: { type: 'string', enum: ['isNotNull', 'equals', 'notEquals', 'inValues', 'notMatches'] },
+        value: { type: 'string' },
+        values: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    description: 'Who is in the tree: an account must pass every rule. Empty: every account of the system.',
+  },
+  excludeSecondAccounts: {
+    type: 'boolean', default: false, 'x-wizardDefault': true,
+    description: 'Leave out an account whose manager has the same employee id: that person\'s own admin or second account.',
+  },
+  managerPlacement: {
+    type: 'string', enum: ['reportsUp', 'ownTeam'], default: 'reportsUp',
+    'x-enumLabels': { reportsUp: 'In the team above', ownTeam: 'In the team they manage' },
+    description: 'Where a manager is a member: of the team of their own manager, or of the team they lead.',
+  },
 });
 
 function resolveField(name, validCols, validExtKeys) {
@@ -62,6 +86,7 @@ export function resolveLayout(params, validCols, validExtKeys) {
     splitMinMembers: Number.isFinite(min) && min > 0 ? min : 2,
     excludeInactive: params.excludeInactive === true && validCols.has('accountEnabled'),
     jobTitleColumn: validCols.has('jobTitle'),
+    managersInOwnTeam: params.managerPlacement === 'ownTeam',
   };
 }
 
@@ -98,5 +123,6 @@ export function applyLayout(result, { rows, byId, managerIds, rootExt, naming, l
     });
   }
   const tops = findTops(rows, { topPrincipalIds: layout.topPrincipalIds, topJobTitleRegex: layout.topJobTitleRegex });
-  return placeUnderTops(result, { tops, rootExt, notPlacedUnit: layout.notPlacedUnit });
+  const placed = placeUnderTops(result, { tops, rootExt, notPlacedUnit: layout.notPlacedUnit });
+  return layout.managersInOwnTeam ? placeManagersInOwnTeam(placed, byId, managerIds) : placed;
 }

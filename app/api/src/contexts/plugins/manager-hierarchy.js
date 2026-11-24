@@ -28,6 +28,7 @@ import {
   MANAGER_HIERARCHY_CONTEXT_TYPE,
 } from './manager-hierarchy.helpers.js';
 import { LAYOUT_PARAMETERS, resolveLayout, withLayoutFields, excludeInactive, applyLayout } from './manager-hierarchy.options.js';
+import { resolvePopulation, withPopulationFields, applyPopulation } from './manager-hierarchy.population.js';
 
 /** @type {import('./types.js').ContextPlugin} */
 export default {
@@ -42,6 +43,8 @@ export default {
   contextTypes: [MANAGER_HIERARCHY_CONTEXT_TYPE],
   parametersSchema: {
     type: 'object',
+    // The wizard walks this plugin as guided steps (people, managers, names).
+    'x-wizard': 'org',
     required: ['scopeSystemId'],
     properties: {
       scopeSystemId: {
@@ -114,17 +117,23 @@ export default {
     const naming = { resolved, separator, includeManagerName };
     const layout = resolveLayout(params, validCols, validExtKeys);
 
-    const { selectParts, queryParams } = buildSelectParts(withLayoutFields(resolved, layout, validCols), scopeSystemId);
-    const rows = excludeInactive((await db.query(`
+    const population = resolvePopulation(params, validCols, validExtKeys);
+
+    const fields = withLayoutFields(withPopulationFields(resolved, population), layout, validCols);
+    const { selectParts, queryParams } = buildSelectParts(fields, scopeSystemId);
+    const allRows = (await db.query(`
       SELECT ${selectParts.join(', ')}
         FROM "Principals"
        WHERE "systemId" = $1
          AND "deletedAt" IS NULL  -- a soft-deleted principal is history, not in the org tree
-    `, queryParams)).rows, layout);
+    `, queryParams)).rows;
+    const { rows: inScope, stats } = applyPopulation(allRows, population);
+    const rows = excludeInactive(inScope, layout);
+    const withStats = (out) => (stats ? { ...out, stats } : out);
 
     if (rows.length === 0) {
-      ctx.log?.(`No principals in system ${scopeSystemId} — nothing to do.`);
-      return { contexts: [], members: [] };
+      ctx.log?.(`No principals in scope for system ${scopeSystemId} — nothing to do.`);
+      return withStats({ contexts: [], members: [] });
     }
 
     const byId = new Map(rows.map(r => [r.id, r]));
@@ -164,6 +173,6 @@ export default {
     const roles = buildManagerRoles(managerIds, byId, result.contexts);
 
     ctx.log?.(`Built ${result.contexts.length} contexts, ${result.members.length} member rows. Named by [${nameFieldLabels.join(', ') || 'manager name'}].`);
-    return { contexts: result.contexts, members: result.members, roles };
+    return withStats({ contexts: result.contexts, members: result.members, roles });
   },
 };

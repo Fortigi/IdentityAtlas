@@ -13,6 +13,7 @@ import * as db from '../db/connection.js';
 import { REGISTERED_PLUGINS, getPlugin } from '../contexts/plugins/registry.js';
 import { enqueueRun, dryRun, getRun, listRuns } from '../contexts/plugins/runner.js';
 import { getPrincipalColumns } from '../db/columnCache.js';
+import { loadTreeSettings } from '../contexts/plugins/treeSettings.js';
 
 const router = Router();
 const gate = requirePermission('admin.context-plugins');
@@ -82,6 +83,20 @@ router.get('/context-plugins/principal-attributes', gate, async (req, res) => {
   } catch (err) {
     console.error('GET /context-plugins/principal-attributes failed:', err.message);
     res.json({ columns: [], extended: [] });
+  }
+});
+
+// GET /api/context-plugins/tree-settings/:key
+// The settings a generated tree was last built with, to reopen the wizard on.
+router.get('/context-plugins/tree-settings/:key', gate, async (req, res) => {
+  if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
+  try {
+    const settings = await loadTreeSettings(db, req.params.key);
+    if (!settings) return res.status(404).json({ error: 'The settings of this tree are not available' });
+    res.json(settings);
+  } catch (err) {
+    console.error('GET /context-plugins/tree-settings failed:', err.message);
+    res.status(500).json({ error: 'Failed to load the tree settings' });
   }
 });
 

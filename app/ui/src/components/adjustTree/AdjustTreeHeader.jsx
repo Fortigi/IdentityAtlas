@@ -7,7 +7,7 @@ import { sourceText } from './adjustTree.helpers';
 
 const OUTLINE_BTN = 'rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-900/30';
 
-export default function AdjustTreeHeader({ tree, adjustmentCount, editable, onRefresh, refreshing, onClose }) {
+export default function AdjustTreeHeader({ tree, adjustmentCount, editable, onRefresh, refreshing, onChangeSettings, onClose }) {
   const lastRun = tree.source?.lastRunAt;
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
@@ -19,6 +19,12 @@ export default function AdjustTreeHeader({ tree, adjustmentCount, editable, onRe
         {!editable && <span>Read only</span>}
       </div>
       <div className="flex-1" />
+      {editable && tree.kind === 'generated' && onChangeSettings && (
+        <button type="button" onClick={onChangeSettings} disabled={refreshing} className={OUTLINE_BTN}
+          title="Open the wizard on the settings this tree was built with">
+          Change settings
+        </button>
+      )}
       {editable && tree.kind === 'generated' && onRefresh && (
         <button type="button" onClick={onRefresh} disabled={refreshing} className={OUTLINE_BTN}
           title="Read the source again; your adjustments are applied again on top">

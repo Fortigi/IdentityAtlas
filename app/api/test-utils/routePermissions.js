@@ -266,6 +266,7 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'POST /context-assistant/save': ['data.write.contexts'],
   'GET /context-plugins': ['admin.context-plugins'],
   'GET /context-plugins/principal-attributes': ['admin.context-plugins'],
+  'GET /context-plugins/tree-settings/:key': ['admin.context-plugins'],
   'POST /context-plugins/:name/dry-run': ['admin.context-plugins'],
   'POST /context-plugins/:name/run': ['admin.context-plugins'],
   'GET /context-plugins/runs': ANY,

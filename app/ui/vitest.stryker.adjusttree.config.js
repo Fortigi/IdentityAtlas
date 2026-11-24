@@ -15,6 +15,8 @@ export default defineConfig({
     include: [
       'src/components/adjustTree/*.test.js',
       'src/components/adjustTree/*.test.jsx',
+      'src/components/contexts/OrgSetupSteps.mount.test.jsx',
+      'src/components/contexts/NewContextWizard.editTree.mount.test.jsx',
     ],
     exclude: ['**/node_modules/**'],
   },

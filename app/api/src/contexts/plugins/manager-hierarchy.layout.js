@@ -96,6 +96,22 @@ export function nameUnitsFromMembers(result, byId, { fields, buildName, rootExt 
   return result;
 }
 
+// Make every manager a member of the team they lead instead of the team above.
+// Runs last, so a manager never counts towards what their own team is named after.
+export function placeManagersInOwnTeam(result, byId, managerIds) {
+  const placed = new Set();
+  for (const m of result.members) {
+    if (!managerIds.has(m.memberId)) continue;
+    m.contextExternalId = m.memberId;
+    placed.add(m.memberId);
+  }
+  for (const id of managerIds) {
+    // A top-level manager has no member row yet; a ghost manager has no account.
+    if (!placed.has(id) && byId.has(id)) result.members.push({ contextExternalId: id, memberId: id });
+  }
+  return result;
+}
+
 // The chosen top people: by id, or by a job-title pattern (an RE2 regex).
 export function findTops(rows, { topPrincipalIds, topJobTitleRegex }) {
   if (Array.isArray(topPrincipalIds) && topPrincipalIds.length) {

@@ -3,7 +3,12 @@
 // stays thin and these branches are unit-testable in isolation.
 
 // Steps shown in the indicator, by chosen source.
-export function stepsFor(source) {
+export function stepsFor(source, selected = null) {
+  if (source === 'plugin' && isGuidedOrgPlugin(selected)) return [
+    { n: 1, label: 'Source' }, { n: 2, label: 'Pick a rule' },
+    { n: 3, label: 'People' }, { n: 4, label: 'Managers' }, { n: 5, label: 'Names' },
+    { n: 6, label: 'Preview & run' },
+  ];
   if (source === 'plugin') return [
     { n: 1, label: 'Source' }, { n: 2, label: 'Pick a rule' },
     { n: 3, label: 'Configure' }, { n: 4, label: 'Preview & run' },
@@ -16,6 +21,61 @@ export function stepsFor(source) {
     { n: 3, label: 'Mapping' }, { n: 4, label: 'Preview & import' },
   ];
   return [{ n: 1, label: 'Source' }];
+}
+
+// A plugin whose schema asks for the guided organisation steps.
+export function isGuidedOrgPlugin(plugin) {
+  return plugin?.parametersSchema?.['x-wizard'] === 'org';
+}
+
+// Which guided step a wizard step number is, or null.
+export function orgStepFor(step, selected) {
+  if (!isGuidedOrgPlugin(selected)) return null;
+  return { 3: 'people', 4: 'managers', 5: 'names' }[step] || null;
+}
+
+const HR_FILTER = Object.freeze({ attribute: 'employeeId', condition: 'isNotNull' });
+
+// Which choice of the "who belongs" question a list of rules is.
+export function peoplePreset(filters) {
+  if (!Array.isArray(filters) || filters.length === 0) return 'all';
+  const [f] = filters;
+  return filters.length === 1 && f.attribute === HR_FILTER.attribute && f.condition === HR_FILTER.condition ? 'hr' : 'custom';
+}
+
+// The rules a choice starts from. A custom rule starts on another attribute than
+// the HR one, so it reads as custom until the analyst has filled it in.
+export function presetFilters(preset) {
+  if (preset === 'hr') return [{ ...HR_FILTER }];
+  if (preset === 'custom') return [{ attribute: '', condition: 'equals', value: '' }];
+  return [];
+}
+
+// A rule the analyst started but did not finish, which the API would refuse.
+export function incompletePeopleRule(filters) {
+  return (Array.isArray(filters) ? filters : []).some((f) => {
+    if (!f.attribute) return true;
+    if (f.condition === 'isNotNull') return false;
+    if (f.condition === 'inValues') return !(f.values || []).some(v => v.trim());
+    return !String(f.value || '').trim();
+  });
+}
+
+// The same schema with only the named properties, in that order.
+export function pickSchema(schema, names) {
+  const props = schema?.properties || {};
+  const properties = Object.fromEntries(names.filter(n => props[n]).map(n => [n, props[n]]));
+  return { ...schema, properties, required: (schema?.required || []).filter(n => properties[n]) };
+}
+
+const ORG_GUIDED_FIELDS = new Set([
+  'scopeSystemId', 'peopleFilters', 'excludeSecondAccounts', 'excludeInactive',
+  'managerPlacement', 'nameFrom', 'nameFields', 'includeManagerName',
+]);
+
+// Everything the guided steps do not ask about.
+export function orgMoreOptionsSchema(schema) {
+  return pickSchema(schema, Object.keys(schema?.properties || {}).filter(n => !ORG_GUIDED_FIELDS.has(n)));
 }
 
 // Group plugins by their targetType, sorted alphabetically for a stable picker.
@@ -61,6 +121,25 @@ export function enumOptions(spec = {}) {
   });
 }
 
+// The first step the wizard may go back to: on an existing tree the source and
+// the rule are fixed, so it starts at the rule's settings.
+export const firstStepOf = (editing) => (editing ? 3 : 1);
+
+// A settings step may go on once nothing required is missing and the people
+// rule, if any, is complete.
+export function configStepReady(pluginMissing, params) {
+  return pluginMissing.length === 0 && !incompletePeopleRule(params?.peopleFilters);
+}
+
+// Opened on an existing tree whose settings have not come in yet.
+export const settingsPending = (editTreeKey, selected) => !!editTreeKey && !selected;
+
+// The modal's title and subtitle.
+export function wizardTitles(editing, source = null, selected = null) {
+  if (editing) return { title: 'Tree settings', subtitle: 'Change how this tree is built' };
+  return { title: 'New context tree', subtitle: wizardSubtitle(source, selected) };
+}
+
 // Modal subtitle text for the current source / selection.
 export function wizardSubtitle(source, selected) {
   if (!source) return 'Where should this come from?';
@@ -76,7 +155,10 @@ export function seedParamsFromSchema(selected) {
   const defaults = {};
   const props = selected?.parametersSchema?.properties || {};
   for (const [name, spec] of Object.entries(props)) {
-    if (spec?.default !== undefined) defaults[name] = spec.default;
+    // x-wizardDefault: what a new tree starts with here, where the API default
+    // stays as it was so existing trees and API callers do not change.
+    const seed = spec?.['x-wizardDefault'] !== undefined ? spec['x-wizardDefault'] : spec?.default;
+    if (seed !== undefined) defaults[name] = seed;
   }
   return defaults;
 }
@@ -104,14 +186,27 @@ export function computeRefreshTargets(genRoots, selected, scopeSystemIdParam) {
   );
 }
 
+// The settings an existing tree was built with, and the plugin that built it.
+export async function fetchTreeSettings(authFetch, treeKey, plugins) {
+  const r = await authFetch(`/api/context-plugins/tree-settings/${encodeURIComponent(treeKey)}`);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+  const plugin = plugins.find(p => p.name === body.pluginName);
+  if (!plugin) throw new Error('The settings of this tree cannot be changed here.');
+  return { plugin, instanceKey: body.instanceKey, params: body.params || {} };
+}
+
 // ─── Footer button labels / gates ─────────────────────────────────────────────
-export function runLabel(running, mode) {
+export function runLabel(running, mode, editing = false) {
   if (running) return 'Starting…';
+  if (editing) return 'Apply to tree';
   return mode === 'refresh' ? 'Refresh tree' : 'Create tree';
 }
 
-export function runDisabled(running, dryRunning, mode, refreshKey) {
-  return running || dryRunning || (mode === 'refresh' && !refreshKey);
+// Applying to an existing tree needs a preview that kept something: a run that
+// produces no units removes the tree's units.
+export function runDisabled(running, dryRunning, mode, refreshKey, editing = false, previewCount = 0) {
+  return running || dryRunning || (mode === 'refresh' && !refreshKey) || (editing && !previewCount);
 }
 
 export function nextLabel(step, source) {
