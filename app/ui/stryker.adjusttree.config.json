@@ -22,6 +22,15 @@
     "src/components/contexts/OrgSetupSteps.jsx",
     "src/components/contexts/useWizardData.js"
   ],
+  "tests_comment": [
+    "Standalone for the same sandbox reason as vitest.stryker.roles.config.js. The include traces the importers of the mutated modules: the helper and hook tests, and the mounted screen tests."
+  ],
+  "tests": [
+    "src/components/adjustTree/*.test.js",
+    "src/components/adjustTree/*.test.jsx",
+    "src/components/contexts/OrgSetupSteps.mount.test.jsx",
+    "src/components/contexts/NewContextWizard.editTree.mount.test.jsx"
+  ],
   "mutationExclusions": {
     "src/components/adjustTree/AdjustTreePage.jsx": "Composition shell: wires useAdjustTree, useAdjustTreeActions and the panes together. Its two decisions (selection falls back to the first top unit; read only without data.write.contexts or when the tree says canAdjust false) are asserted both ways by AdjustTreePage.mount.test.jsx.",
     "src/components/adjustTree/AdjustTreeHeader.jsx": "Presentational bar: the source line comes from sourceText() in adjustTree.helpers.js (mutated here); Refresh only on a generated tree for an editor is asserted both ways by AdjustTreePanels.mount.test.jsx.",

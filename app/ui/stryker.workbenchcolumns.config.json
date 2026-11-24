@@ -20,6 +20,14 @@
     "src/components/workbench/PageStickyTable.jsx",
     "src/components/workbench/usePageVirtualRows.js"
   ],
+  "tests_comment": [
+    "That view's mount and hook tests. Standalone for the same sandbox reason as vitest.stryker.roles.config.js."
+  ],
+  "tests": [
+    "src/components/workbench/WorkbenchColumnsGrid.mount.test.jsx",
+    "src/components/workbench/PageStickyTable.mount.test.jsx",
+    "src/components/workbench/usePageVirtualRows.test.jsx"
+  ],
   "mutator": {
     "excludedMutations": [
       "StringLiteral",

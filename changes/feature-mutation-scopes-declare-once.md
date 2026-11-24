@@ -1,0 +1,1 @@
+- Each JavaScript mutation-test scope now lists its source files and its tests in one place; the matching Vitest config is generated from it and CI fails when the two drift apart or a mutated file has no test in its scope.

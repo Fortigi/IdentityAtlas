@@ -1,29 +1,19 @@
+// GENERATED from stryker.roles.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/ui, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+//
+// Standalone rather than spreading vite.config.js: its include reaches
+// ../../tools/crawlers/**, outside the sandbox, and its tailwind plugin and
+// '@crawlers' alias are build concerns the mutation run does not need.
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// Vitest config used only by the business-role mutation run
-// (stryker.roles.config.json).
-//
-// Standalone rather than spreading vite.config.js, for the same reason as
-// vitest.stryker.hooks.config.js: Stryker sandboxes app/ui alone, so the normal
-// test `include` reaching ../../tools/crawlers/** resolves nothing there and
-// aborts the run before a mutant is evaluated.
-//
-// WIDER THAN THE TWO MODULES' OWN TESTS, BY TRACING THE IMPORTERS. Both modules
-// are consumed by components as well as covered directly, and a mutant whose
-// only killer sits in a component test would otherwise come back a SURVIVOR —
-// a wrong number, which is worse than a smaller true one:
-//
-//   coverageDeviation.js   -> MatrixGroupRow (per-cell markers),
-//                             MatrixView (the Gaps row filter + folded tallies)
-//   useBusinessRoleFold.js -> useMatrixBusinessRoleLayer, and through it MatrixView
-//                             (row layout, export rows, toolbar)
-//                             SortableMatrixBody (which rows stay draggable)
-//   useMatrixBusinessRoleLayer.js -> MatrixView only: it IS the switch
-//
-// Nothing else imports either module, so the list below is the complete set of
-// places a mutant can be killed. Re-trace it when adding a module here.
 export default defineConfig({
   plugins: [react()],
   resolve: {

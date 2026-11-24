@@ -16,6 +16,22 @@
   "mutate": [
     "src/utils/accountLinkingRuns.js"
   ],
+  "tests_comment": [
+    "Standalone rather than spreading vite.config.js, for the same reasons as the sibling",
+    "stryker vitest configs: Stryker sandboxes app/ui alone, so the normal test `include`",
+    "reaching ../../tools/crawlers/** resolves nothing there and aborts the run before a",
+    "mutant is evaluated, and the tailwind plugin plus the '@crawlers' alias are build",
+    "concerns that buy the mutation run nothing.",
+    "",
+    "The mutated file is covered by exactly these tests: its own unit test, plus the two",
+    "mount tests that exercise it through the screens — the admin panel's run notice and the",
+    "held-for-review card's \"newest measured run\" selection."
+  ],
+  "tests": [
+    "src/utils/accountLinkingRuns.test.js",
+    "src/components/AccountLinkingSettings.mount.test.jsx",
+    "src/components/NameOnlyMatchesCard.mount.test.jsx"
+  ],
   "mutationExclusions": {
     "src/components/NameOnlyMatchesCard.jsx": "Presentational: a read-only table of the matches the engine held back, rendered from the run row. Its two decisions live elsewhere and are mutated — which run to read (latestNameOnlyRun in utils/accountLinkingRuns.js) and which matches exist at all (the API's buildLinks). What is left here is markup plus the why-held line (which reason, which rivals, how many unnamed) and the truncation line, all pinned by NameOnlyMatchesCard.mount.test.jsx — the same decision as the presentational panels in the context-assistant config."
   },

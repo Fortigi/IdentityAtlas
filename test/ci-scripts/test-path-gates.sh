@@ -61,6 +61,10 @@ simulate_filter() {
     { [[ "$f" = "app/api/package-lock.json" ]]          && api="true"; } || true
     { [[ "$f" =~ ^app/desktop/[^/]*\.cjs$ ]]           && api="true"; } || true
     { [[ "$f" =~ ^app/desktop/[^/]*\.test\.js$ ]]      && api="true"; } || true
+    # mutation-scope declarations + their generated Vitest configs (#1696)
+    { [[ "$f" =~ ^app/[^/]+/stryker\.[^/]*\.config\.json$ ]]       && api="true"; } || true
+    { [[ "$f" =~ ^app/[^/]+/vitest\.stryker\.[^/]*\.config\.js$ ]] && api="true"; } || true
+    { [[ "$f" = ".ci/js-mutation-scope-baseline.json" ]] && api="true"; } || true
 
     # ui scope
     { [[ "$f" =~ ^app/ui/src/ ]]                        && ui="true"; } || true
@@ -281,6 +285,19 @@ simulate_filter "app/ui/package-lock.json"
 assert "unit-ui: runs"              "true"  "$ui"
 assert "unit-js (API): skips"       "false" "$api"
 assert "integration: skips"         "false" "$integration"
+
+# ── Scenario: a mutation scope edited on its own (#1696)
+# The scope guard and the generated-config check live in the API suite, so a PR touching only
+# a UI scope's declaration must still run it — and nothing that runs the app.
+echo ""
+echo "── Scenario: mutation scope declaration only"
+simulate_filter "app/ui/stryker.pilot.config.json
+app/ui/vitest.stryker.pilot.config.js"
+assert "unit-js (API): runs"        "true"  "$api"
+assert "unit-ui: skips"             "false" "$ui"
+assert "e2e: skips"                 "false" "$e2e"
+simulate_filter "app/ui/stryker.conf.js"
+assert "unit-js (API): skips for a non-scope file" "false" "$api"
 
 # ── Scenario: the load-soak job's own scripts
 # The soak skipped unnoticed for months (#721); a change to it is verified only by running it.

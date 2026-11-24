@@ -28,6 +28,16 @@
     "src/components/workbench/useOpenLinked.js",
     "src/components/workbench/GridAndPanel.jsx"
   ],
+  "tests_comment": [
+    "The page's mount and hook tests. Standalone for the same sandbox reason as vitest.stryker.roles.config.js."
+  ],
+  "tests": [
+    "src/components/workbench/WorkbenchPage.mount.test.jsx",
+    "src/components/workbench/WorkbenchPage.save.mount.test.jsx",
+    "src/components/workbench/useWorkbench.loadSaved.test.js",
+    "src/components/workbench/CandidatePanel.mount.test.jsx",
+    "src/components/workbench/GridAndPanel.mount.test.jsx"
+  ],
   "mutator": {
     "excludedMutations": [
       "StringLiteral",

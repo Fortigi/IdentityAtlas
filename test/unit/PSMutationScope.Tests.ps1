@@ -130,6 +130,16 @@ BeforeAll {
         $script:grandfathered = @((Get-Content $baselinePath -Raw | ConvertFrom-Json).grandfathered)
     }
     $script:decided = @($script:mutate) + @($script:exclusions)
+
+    # PSMutant needs both `mutate` and a `tests` map keyed by the same files (#1696):
+    # it rejects an empty `mutate`, so the list cannot be derived from the keys.
+    # This names the files that sit in only one of the two.
+    function Get-MutateTestsMismatch {
+        param([string[]]$Mutate, $TestMap)
+        $keys = @($TestMap.PSObject.Properties.Name)
+        @($Mutate | Where-Object { $_ -notin $keys } | ForEach-Object { "in mutate, no tests entry: $_" }) +
+        @($keys | Where-Object { $_ -notin $Mutate } | ForEach-Object { "tests entry, not in mutate: $_" })
+    }
 }
 
 Describe 'PSMutant scope completeness (#684)' {
@@ -205,6 +215,20 @@ Describe 'PSMutant scope completeness (#684)' {
         # crawler file slip into the backlog would route around it.
         $strays = $script:grandfathered | Where-Object { $_ -notin $script:otherCandidates }
         $strays | Should -BeNullOrEmpty -Because "only tools/powershell-sdk/ and tools/riskscoring/ may be grandfathered: $($strays -join ', ')"
+    }
+
+    It 'declares the same files in `mutate` and as `tests` keys' {
+        # PSMutant itself rejects a `tests` key missing from `mutate`, but only when
+        # the weekly run starts; this fails the PR instead.
+        $mismatch = Get-MutateTestsMismatch -Mutate $script:mutate -TestMap $script:testMap
+        $mismatch | Should -BeNullOrEmpty -Because ($mismatch -join '; ')
+    }
+
+    It 'the mutate/tests comparison catches a file declared on one side only' {
+        $map = [pscustomobject]@{ 'a.ps1' = @('a.Tests.ps1'); 'orphan.ps1' = @('o.Tests.ps1') }
+        Get-MutateTestsMismatch -Mutate @('a.ps1', 'untested.ps1') -TestMap $map |
+            Should -Be @('in mutate, no tests entry: untested.ps1', 'tests entry, not in mutate: orphan.ps1')
+        Get-MutateTestsMismatch -Mutate @('a.ps1', 'orphan.ps1') -TestMap $map | Should -BeNullOrEmpty
     }
 
     It 'every mutated file names at least one test suite that exercises it' {
