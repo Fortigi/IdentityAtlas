@@ -6,12 +6,13 @@
 import { loadTeamGrid, MAX_TEAM } from '../contexts/teamOverview.js';
 
 const MARKS = {
-  Automatic: { value: 'Automatic', tone: 'automatic' },
-  Requested: { value: 'By hand', tone: 'manual' },
+  Automatic: { value: 'Rule based', tone: 'automatic' },
+  Manual: { value: 'Manual', tone: 'manual' },
 };
-const NOT_RECORDED = { value: 'Not recorded', tone: 'unknown' };
+const NOT_RECORDED = { value: 'Unknown', tone: 'unknown' };
 
-export const MATRIX_NOTE = 'Automatic: assigned by a rule. By hand: requested and approved, or assigned. '
+export const MATRIX_NOTE = 'Rule based: a rule adds and removes it, so no periodic review of who holds it. '
+  + 'Manual: requested and approved, or assigned; needs a periodic review. Unknown: the source does not say. '
   + 'Ungoverned: access that no business role of this person explains, directly or through a group in one of their roles.';
 
 /** The matrix `reports/xlsxMatrix.js` writes. Pure. */
@@ -24,7 +25,7 @@ export function teamRoleMatrix(unitName, { people, roles }) {
     columns: people.map(p => p.displayName),
     rows: roles.map(role => ({
       label: role.displayName,
-      cells: people.map(p => (role.holders.includes(p.id) ? (MARKS[role.origins?.[p.id]?.origin] || NOT_RECORDED) : null)),
+      cells: people.map(p => (role.holders.includes(p.id) ? (MARKS[role.origins?.[p.id]?.control] || NOT_RECORDED) : null)),
     })),
     footer: [{ label: 'Ungoverned permissions', cells: people.map(p => p.ungoverned) }],
   };

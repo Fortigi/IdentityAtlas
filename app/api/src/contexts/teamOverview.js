@@ -19,6 +19,7 @@
 
 import { loadUnitMembershipEvents } from './timeline/unitTimeline.js';
 import { changeAction } from '../routes/recentChanges/shared.js';
+import { ROLE_CONTROL_SQL, roleControls, holderControl, linkedHolderControlSql } from '../lib/businessRoleAccessModel.js';
 
 export const MAX_TEAM = 200;
 export const MAX_CHANGES = 100;
@@ -56,15 +57,15 @@ export const TEAM_SCOPE_CTES = `${TEAM_ACCOUNTS_CTE}, governed("memberId", "reso
        WHERE ${LIVE_ASSIGNMENT}
     ), held AS (
       SELECT DISTINCT ON (u."memberId", u."resourceId")
-             u."memberId", u."resourceId", u.origin, u."originDetail",
+             u."memberId", u."resourceId", u.origin, u."originDetail", u."policyId", u."policyIds",
              bool_or(u."assignmentType" = 'Direct') OVER same AS direct,
              bool_or(u."assignmentType" = 'Indirect') OVER same AS indirect
         FROM (
-          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail"
+          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail", ra."policyId", ra."extendedAttributes"->'assignmentPolicyIds' AS "policyIds"
             FROM acct a JOIN "ResourceAssignments" ra ON ra."principalId" = a."accountId"
            WHERE ${LIVE_ASSIGNMENT}
           UNION ALL
-          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail"
+          SELECT a."memberId", ra."resourceId", ra."assignmentType", ra.origin, ra."originDetail", ra."policyId", ra."extendedAttributes"->'assignmentPolicyIds' AS "policyIds"
             FROM acct a JOIN "ResourceAssignments" ra ON ra."identityId" = a."identityId"
            WHERE ${LIVE_ASSIGNMENT}
         ) u
@@ -87,7 +88,8 @@ export const TEAM_HOLDINGS_SQL = `
     SELECT h."memberId",
            COUNT(*) FILTER (WHERE NOT r."governanceResource")::int AS permissions,
            COUNT(*) FILTER (WHERE NOT r."governanceResource" AND ${IS_UNGOVERNED})::int AS ungoverned,
-           COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'displayName', r."displayName", 'origin', h.origin, 'originDetail', h."originDetail"))
+           COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'displayName', r."displayName", 'origin', h.origin, 'originDetail', h."originDetail",
+                                              'linked', ${linkedHolderControlSql('h', 'r.id')}))
                     FILTER (WHERE r."governanceResource"), '[]'::jsonb) AS roles
       FROM held h
       JOIN "Resources" r ON r.id = h."resourceId" AND r."deletedAt" IS NULL
@@ -107,17 +109,26 @@ export const roleHistorySql = (column) => `
 
 const byName = (a, b) => a.displayName.localeCompare(b.displayName);
 
-/** The people (in member order) and the roles (most held first, then by name). Pure. */
-export function teamGrid(members, holdings) {
+/**
+ * The people (in member order) and the roles (most held first, then by name),
+ * each role with its primary type and each holder with theirs. Pure.
+ */
+export function teamGrid(members, holdings, controls = new Map()) {
   const held = new Map(holdings.map(h => [h.memberId, h]));
   const roles = new Map();
   const people = members.map((m) => {
     const h = held.get(m.id);
     for (const role of h?.roles || []) {
-      if (!roles.has(role.id)) roles.set(role.id, { id: role.id, displayName: role.displayName, holders: [], origins: {} });
+      if (!roles.has(role.id)) {
+        roles.set(role.id, { id: role.id, displayName: role.displayName, control: controls.get(role.id) ?? 'Unknown', holders: [], origins: {} });
+      }
       const entry = roles.get(role.id);
       entry.holders.push(m.id);
-      entry.origins[m.id] = { origin: role.origin ?? null, originDetail: role.originDetail ?? null };
+      entry.origins[m.id] = {
+        origin: role.origin ?? null,
+        originDetail: role.originDetail ?? null,
+        control: holderControl({ linked: role.linked, roleControl: entry.control, origin: role.origin }),
+      };
     }
     return {
       id: m.id,
@@ -143,7 +154,9 @@ export async function loadTeamGrid(db, members) {
   const holdings = accounts.length
     ? (await db.query(TEAM_HOLDINGS_SQL, [accounts.map(a => a.memberId), accounts.map(a => a.accountId), accounts.map(a => a.identityId)])).rows
     : [];
-  return { ...teamGrid(members, holdings), accounts };
+  const roleIds = [...new Set(holdings.flatMap(h => (h.roles || []).map(r => r.id)))];
+  const controls = roleIds.length ? roleControls((await db.query(ROLE_CONTROL_SQL, [roleIds])).rows) : new Map();
+  return { ...teamGrid(members, holdings, controls), accounts };
 }
 
 /** Who joined and left, from the unit's timeline events. Pure. */

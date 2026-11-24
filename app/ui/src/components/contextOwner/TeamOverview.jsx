@@ -1,6 +1,6 @@
 // The team at a glance, for the person who answers for a unit: business roles
-// down, direct team members across, whether each role came from a rule or from a
-// person's decision, what no role covers per person (click for the list), and who
+// down, direct team members across, whether each role is rule based or manual
+// for that person, what no role covers per person (click for the list), and who
 // joined, left or changed role lately. The grid leaves out what is inside a role;
 // a role's name opens its own page, which shows that.
 // Data: GET /api/contexts/:id/team-overview (app/api/src/contexts/teamOverview.js).
@@ -48,14 +48,14 @@ function OriginIcon({ kind }) {
 function HeldMark({ held, role, person }) {
   if (!held) return <span className="sr-only">{person} does not hold {role}</span>;
   const label = roleMarkLabel(person, role, held);
-  return <span role="img" aria-label={label} title={label} className="inline-flex"><OriginIcon kind={originKind(held.origin)} /></span>;
+  return <span role="img" aria-label={label} title={label} className="inline-flex"><OriginIcon kind={originKind(held.control)} /></span>;
 }
 
 function OriginLegend({ roles }) {
   const kinds = originKindsIn(roles);
   if (kinds.length === 0) return null;
   return (
-    <ul aria-label="How a role was assigned" className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+    <ul aria-label="How a role is assigned" className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
       {kinds.map(k => (
         <li key={k} className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
           <OriginIcon kind={k} />

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  WAYS, ACCESS_FILTERS, REVIEW_FILTER, lifecycleFacts, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
+  WAYS, ACCESS_FILTERS, REVIEW_FILTER, accessDetail, lifecycleFacts, controlSummary, filterMembers, groupParticipants, participantLabel, participantNotes, matchesAccessFilter, formatDuration, describeExpiry, ruleLabel, approvalText, removalText, showsRequestsAndReviews,
 } from './accessModel';
 
 const role = (waysIn, waysOut) => ({ accessModel: { waysIn, waysOut } });
@@ -26,6 +26,19 @@ describe('matchesAccessFilter', () => {
   it('treats a role without a model as Unknown', () => {
     expect(matchesAccessFilter({}, 'in:Unknown')).toBe(true);
     expect(matchesAccessFilter({}, 'out:Rule')).toBe(false);
+  });
+});
+
+describe('accessDetail', () => {
+  it('lists the ways in and out in words', () => {
+    expect(accessDetail({ waysIn: ['Request', 'Assigned'], waysOut: ['Rule', 'Review'] })).toBe('Gained by Request, Assigned; lost by Removal rule, Review');
+  });
+  it('says when nothing removes it, and when nothing is known', () => {
+    expect(accessDetail({ waysIn: ['Rule'], waysOut: [] })).toBe('Gained by Rule; lost by nothing automatic');
+    expect(accessDetail(undefined)).toBe('Gained by Unknown; lost by nothing automatic');
+  });
+  it('keeps a value it has no word for', () => {
+    expect(accessDetail({ waysIn: ['Later'], waysOut: ['Soon'] })).toBe('Gained by Later; lost by Soon');
   });
 });
 
@@ -72,7 +85,7 @@ describe('the type filter', () => {
 
 describe('controlSummary', () => {
   it('says nobody has to review a rule-only role', () => {
-    expect(controlSummary({ control: 'Automatic' }, 10, 10)).toMatch(/nobody has to review/);
+    expect(controlSummary({ control: 'Automatic' }, 10, 10)).toMatch(/nobody has to review who holds it. What it contains still needs a review/);
   });
   it('counts only the people no rule covers', () => {
     expect(controlSummary({ control: 'Manual' }, 13, 10)).toContain('3 people hold it');

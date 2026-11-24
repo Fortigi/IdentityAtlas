@@ -11,8 +11,8 @@ const PEOPLE = [
 ];
 const ROLES = [{
   id: 'r1', displayName: 'Finance', holders: ['a', 'b', 'c'],
-  origins: { a: { origin: 'Automatic' }, b: { origin: 'Requested' }, c: { origin: null } },
-}, { id: 'r2', displayName: 'Audit', holders: ['b'], origins: { b: { origin: 'Discovered' } } }];
+  origins: { a: { control: 'Automatic' }, b: { control: 'Manual' }, c: { control: 'Unknown' } },
+}, { id: 'r2', displayName: 'Audit', holders: ['b'], origins: { b: {} } }];
 
 describe('teamRoleMatrix', () => {
   it('says per person how each role was assigned, and leaves the rest empty', () => {
@@ -20,9 +20,9 @@ describe('teamRoleMatrix', () => {
     expect(m.title).toBe('Business roles: CTO');
     expect(m.columns).toEqual(['Ann Vos', 'Bob Kok', 'Cas Dam']);
     expect(m.rows[0]).toEqual({ label: 'Finance', cells: [
-      { value: 'Automatic', tone: 'automatic' }, { value: 'By hand', tone: 'manual' }, { value: 'Not recorded', tone: 'unknown' },
+      { value: 'Rule based', tone: 'automatic' }, { value: 'Manual', tone: 'manual' }, { value: 'Unknown', tone: 'unknown' },
     ] });
-    expect(m.rows[1].cells).toEqual([null, { value: 'Not recorded', tone: 'unknown' }, null]);
+    expect(m.rows[1].cells).toEqual([null, { value: 'Unknown', tone: 'unknown' }, null]);
     expect(m.footer).toEqual([{ label: 'Ungoverned permissions', cells: [4, 0, 2] }]);
   });
 });
@@ -40,12 +40,12 @@ describe('unitRoleMatrices', () => {
   it('leaves out someone marked former and reads the rest', async () => {
     const db = { query: vi.fn(async (sql) => {
       if (sql === TEAM_ACCOUNTS_SQL) return { rows: [{ memberId: 'a', accountId: 'a', identityId: null }] };
-      if (sql === TEAM_HOLDINGS_SQL) return { rows: [{ memberId: 'a', permissions: 3, ungoverned: 1, roles: [{ id: 'r', displayName: 'Finance', origin: 'Automatic' }] }] };
+      if (sql === TEAM_HOLDINGS_SQL) return { rows: [{ memberId: 'a', permissions: 3, ungoverned: 1, roles: [{ id: 'r', displayName: 'Finance', origin: 'Automatic', linked: 'Automatic' }] }] };
       return { rows: [] };
     }) };
     const { matrices } = await unitRoleMatrices(db, unit, 'Principal', [{ id: 'a', displayName: 'Ann' }, { id: 'z', displayName: 'Zed', markedFormer: true }]);
     expect(matrices[0].columns).toEqual(['Ann']);
-    expect(matrices[0].rows[0].cells).toEqual([{ value: 'Automatic', tone: 'automatic' }]);
+    expect(matrices[0].rows[0].cells).toEqual([{ value: 'Rule based', tone: 'automatic' }]);
     expect(matrices[0].footer[0].cells).toEqual([1]);
     expect(db.query.mock.calls[0][1]).toEqual([['a', 'z'].slice(0, 1)]);
   });
@@ -80,9 +80,9 @@ describe('the Team roles tab in the workbook', () => {
     expect(s.getCell('A1').value).toBe('Business roles: CTO');
     expect(s.getCell('A2').value).toBe(MATRIX_NOTE);
     expect(s.getRow(4).values.slice(1)).toEqual(['Business role', 'Ann Vos', 'Bob Kok', 'Cas Dam']);
-    expect(s.getRow(5).values.slice(1)).toEqual(['Finance', 'Automatic', 'By hand', 'Not recorded']);
+    expect(s.getRow(5).values.slice(1)).toEqual(['Finance', 'Rule based', 'Manual', 'Unknown']);
     expect(s.getCell('B6').value).toBeNull();
-    expect(s.getCell('C6').value).toBe('Not recorded');
+    expect(s.getCell('C6').value).toBe('Unknown');
     expect(s.getRow(7).values.slice(1)).toEqual(['Ungoverned permissions', 4, 0, 2]);
     expect(s.getCell('C5').fill.fgColor.argb).toBe('FFFEF3C7');
   });
