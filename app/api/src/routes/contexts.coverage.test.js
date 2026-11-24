@@ -407,11 +407,11 @@ describe('GET /contexts/:id/members', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([{
       id: ID2, displayName: 'ENT_A', resourceType: 'Entitlement',
-      holderCount: 7, ownerDisplayName: 'Gone Person', ownerEmployeeId: null, ownerEmail: null,
+      holderCount: 7, businessRoles: [], ownerDisplayName: 'Gone Person', ownerEmployeeId: null, ownerEmail: null,
       ownerPrincipalId: null, overridden: null,
     }]);
-    // Page, holders, owner links — no read per row, and no reference read without an ownerId.
-    expect(query).toHaveBeenCalledTimes(3);
+    // Page, holders, owner links, business roles — no read per row, and no reference read without an ownerId.
+    expect(query).toHaveBeenCalledTimes(4);
   });
 
   it('adds nothing to members that are not resources', async () => {

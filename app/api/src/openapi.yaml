@@ -4761,6 +4761,14 @@ components:
       properties:
         id: { type: string }
         displayName: { type: string, nullable: true }
+        businessRoles:
+          type: array
+          description: For a resource member, the live business roles that contain it, by name.
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              displayName: { type: string }
         addedBy: { type: string, enum: [sync, algorithm, analyst] }
         addedAt: { type: string, format: date-time }
         overridden: { $ref: '#/components/schemas/ContextMemberOverrideDecision' }

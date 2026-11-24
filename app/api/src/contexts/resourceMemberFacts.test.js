@@ -12,11 +12,13 @@ import { withResourceMemberFacts } from './resourceMemberFacts.js';
 const HOLDERS_SQL = 'AS "holderCount"';
 const LINKED_SQL = '"parentResourceId" = ANY';
 const REFERENCE_SQL = 'unnest($1::text[])';
+const ROLES_SQL = 'br."governanceResource"';
 const P1 = '11111111-1111-4111-8111-111111111111';
 const P9 = '99999999-9999-4999-8999-999999999999';
 
-function stage({ holders = [], linked = [], references = [] } = {}) {
+function stage({ holders = [], linked = [], references = [], roles = [] } = {}) {
   query.mockImplementation(async (sql) => {
+    if (sql.includes(ROLES_SQL)) return { rows: roles };
     if (sql.includes(HOLDERS_SQL)) return { rows: holders };
     if (sql.includes(LINKED_SQL)) return { rows: linked };
     if (sql.includes(REFERENCE_SQL)) return { rows: references };
@@ -43,15 +45,15 @@ describe('withResourceMemberFacts', () => {
     ]);
     expect(rows).toEqual([
       { id: 'a', displayName: 'ENT_a', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 45000, ownerDisplayName: 'Link Owner', ownerEmployeeId: 'E-1', ownerEmail: 'l@x', ownerPrincipalId: P1 },
+        holderCount: 45000, businessRoles: [], ownerDisplayName: 'Link Owner', ownerEmployeeId: 'E-1', ownerEmail: 'l@x', ownerPrincipalId: P1 },
       { id: 'b', displayName: 'ENT_b', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 3, ownerDisplayName: 'Grace Hopper', ownerEmployeeId: 'E-9', ownerEmail: 'g@x', ownerPrincipalId: P9 },
+        holderCount: 3, businessRoles: [], ownerDisplayName: 'Grace Hopper', ownerEmployeeId: 'E-9', ownerEmail: 'g@x', ownerPrincipalId: P9 },
       // Nobody holds it: 0, not blank — and nobody owns it.
       { id: 'c', displayName: 'ENT_c', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 0, ownerDisplayName: null, ownerEmployeeId: null, ownerEmail: null, ownerPrincipalId: null },
+        holderCount: 0, businessRoles: [], ownerDisplayName: null, ownerEmployeeId: null, ownerEmail: null, ownerPrincipalId: null },
       // Only the source names the owner: a name to show, no account to link to.
       { id: 'd', displayName: 'ENT_d', resourceType: 'Entitlement', description: null, enabled: true,
-        holderCount: 0, ownerDisplayName: 'Source Name', ownerEmployeeId: null, ownerEmail: null, ownerPrincipalId: null },
+        holderCount: 0, businessRoles: [], ownerDisplayName: 'Source Name', ownerEmployeeId: null, ownerEmail: null, ownerPrincipalId: null },
     ]);
   });
 
@@ -59,14 +61,38 @@ describe('withResourceMemberFacts', () => {
     stage();
     const page = Array.from({ length: 200 }, (_, i) => member(`r${i}`, { ownerId: `o${i % 4}` }));
     await withResourceMemberFacts(page);
-    // holders + owner links + owner references: three reads for 200 rows.
-    expect(query).toHaveBeenCalledTimes(3);
+    // holders + owner links + owner references + business roles: four reads for 200 rows.
+    expect(query).toHaveBeenCalledTimes(4);
     const [sql, params] = query.mock.calls.find(([s]) => s.includes(HOLDERS_SQL));
     expect(params).toEqual([page.map(r => r.id)]);
     expect(sql).toContain('ra."resourceId" = ANY($1::uuid[])');
     expect(sql).toContain('ra."deletedAt" IS NULL');
     expect(sql).toMatch(/SELECT DISTINCT ra\."resourceId" AS id, COALESCE\(ra\."principalId", ra\."identityId"\) AS h/);
     expect(sql).toContain('GROUP BY d.id');
+  });
+
+  it('files each business role under the resource it contains, in the order read', async () => {
+    stage({ roles: [
+      { resourceId: 'b', id: 'r1', displayName: 'Audit' },
+      { resourceId: 'a', id: 'r2', displayName: 'Finance' },
+      { resourceId: 'b', id: 'r2', displayName: 'Finance' },
+    ] });
+    const rows = await withResourceMemberFacts([member('a'), member('b'), member('c')]);
+    expect(rows.map(r => r.businessRoles)).toEqual([
+      [{ id: 'r2', displayName: 'Finance' }],
+      [{ id: 'r1', displayName: 'Audit' }, { id: 'r2', displayName: 'Finance' }],
+      [],
+    ]);
+    const [sql, params] = query.mock.calls.find(([s]) => s.includes(ROLES_SQL));
+    expect(params).toEqual([['a', 'b', 'c']]);
+    expect(sql).toContain(`rr."relationshipType" = 'Contains'`);
+    expect(sql).toContain('br."deletedAt" IS NULL');
+  });
+
+  it('gives a resource listed twice its own role objects, so marking one leaves the other', async () => {
+    stage({ roles: [{ resourceId: 'a', id: 'r1', displayName: 'Audit' }] });
+    const [first, second] = await withResourceMemberFacts([member('a'), member('a')]);
+    expect(first.businessRoles[0]).not.toBe(second.businessRoles[0]);
   });
 
   it('reads nothing for an empty page', async () => {
