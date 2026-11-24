@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Added a team overview to every organizational unit, for owners, analysts and admins alike: a simple grid of business roles per direct team member, the number of ungoverned permissions per person, and a list of who recently joined, left, or gained or lost a business role. The previous people list stays available, folded under "People details".
+- The team overview shows whether each business role was assigned automatically by a rule or by hand (requested and approved, or assigned). The Entra ID crawler now records this for access package assignments.
+- People who own a context now navigate by the same tabs and tree as the Contexts page, showing only what they answer for, so they can always get back from a sub-unit. The Sub-units section is gone wherever the tree is shown.
+- Business roles in the team overview are clickable and open the role's page, showing what the role contains.
+- Access inherited through a group that is part of someone's business role now counts as governed in the team overview.
+- The unit report download has a new "Team roles" tab with the same matrix: business roles per team member, how each was assigned, and the ungoverned count per person.
+- Clicking a person's ungoverned number lists exactly which permissions no business role covers, grouped by groups, application roles and ownerships, and marked when inherited.
+
+## Changes in this PR
+
 - The Azure part of the release test no longer fails when Azure has no capacity for the PostgreSQL server in West Europe: on `SkuNotAvailable` it throws that resource group away and runs the whole variant again in Sweden Central, then North Europe, logging which region it used. Any other deployment failure still fails the variant at once, and every fallback group is deleted at the end like the others.
 
 ## Changes in this PR
