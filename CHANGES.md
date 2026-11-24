@@ -1,5 +1,12 @@
 ## Changes in this PR
 
+- The Entra ID crawler now reads each access package policy's rule text, approval setting, expiry and who may request or remove access.
+- Open access package requests now appear on the business role page. They were always empty because no crawler collected them.
+- Each business role assignment now records every policy that gave the person the role.
+- Business roles now state how they are gained (rule, request, assigned) and how they are lost (rule, review, expiry, manual). A role can have several of each, and shows Unknown when the source does not say.
+
+## Changes in this PR
+
 - Application contexts now show a matrix of permissions against business roles: one column per role with a tick where the role contains the permission, next to the type, description, owner and user count. Each role heading opens the role's page.
 
 ## Changes in this PR

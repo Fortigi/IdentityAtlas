@@ -1,1 +1,0 @@
-- Business roles now state how they are gained (rule, request, assigned) and how they are lost (rule, review, expiry, manual). A role can have several of each, and shows Unknown when the source does not say.
