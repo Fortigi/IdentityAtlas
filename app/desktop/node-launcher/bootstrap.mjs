@@ -27,14 +27,9 @@ installCrashLog(process, DATA_DIR, { database: DATABASE.label });
 
 Object.assign(process.env, apiEnv({ dataDir: DATA_DIR, appDir: __dirname, port: PORT, external: DATABASE.external }));
 
-// Resolve module version from the bundled .psd1 manifest so the UI footer shows the correct version.
-if (!process.env.MODULE_VERSION) {
-  try {
-    const psd1 = readFileSync(join(__dirname, 'bundled-scripts', 'setup', 'IdentityAtlas.psd1'), 'utf-8');
-    const m = psd1.match(/ModuleVersion\s*=\s*'([^']+)'/);
-    if (m) process.env.MODULE_VERSION = m[1];
-  } catch { /* psd1 not present — version will show as blank */ }
-}
+// The running version is read from bundled-scripts/setup/IdentityAtlas.psd1 by
+// the API itself (app/api/src/version.js), which also joins a pre-release label
+// back on — so there is one reader of the manifest, not two.
 
 console.log('Data directory: ' + DATA_DIR);
 

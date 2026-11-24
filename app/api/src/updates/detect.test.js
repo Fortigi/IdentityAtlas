@@ -19,6 +19,13 @@ describe('detect.getLatestForChannel', () => {
     expect(await getLatestForChannel('edge', f)).toBe('5.311.20260630.0900');
   });
 
+  it('edge → throws when the .psd1 on main has no ModuleVersion', async () => {
+    const f = mockFetch({
+      'IdentityAtlas.psd1': { ok: true, async text() { return "@{\n Author = 'x'\n}"; } },
+    });
+    await expect(getLatestForChannel('edge', f)).rejects.toThrow('ModuleVersion not found in manifest');
+  });
+
   it('latest → newest GitHub release, normalized to image version', async () => {
     const f = mockFetch({ 'releases/latest': { ok: true, async json() { return { tag_name: 'v5.3.0' }; } } });
     expect(await getLatestForChannel('latest', f)).toBe('5.3.0.0');
