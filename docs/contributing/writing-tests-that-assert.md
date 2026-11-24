@@ -142,7 +142,9 @@ coverage cannot.
 
 Config: `.ci/psmutant.config.json`. Every eligible crawler file must be in
 `mutate` or in `exclusions` with a written reason, enforced by
-`test/unit/PSMutationScope.Tests.ps1`.
+`test/unit/PSMutationScope.Tests.ps1`. A mutated file appears twice, in `mutate`
+and as a key of `tests` (its test files): PSMutant requires both lists, so one
+cannot be derived from the other, and the same guard fails when they disagree.
 
 ```bash
 pwsh tools/psmodules/Install-PinnedModule.ps1 PSMutant   # the version CI pins
@@ -342,7 +344,7 @@ pattern is the same each time: an assertion built on a guess about *shape* or
 | Guard | Protects |
 |---|---|
 | `test/unit/PesterAssertionQuality.Tests.ps1` | Bare `-Times` ratchet (at 0); the HTTP-fixture contract |
-| `test/unit/PSMutationScope.Tests.ps1` | Every eligible crawler file mutated or excluded with a reason; every mutated file names a suite that exercises it |
+| `test/unit/PSMutationScope.Tests.ps1` | Every eligible crawler file mutated or excluded with a reason; every mutated file names a suite that exercises it; `mutate` and the `tests` keys name the same files |
 | `test/lib/HttpErrorFixtures.psm1` | One owner for HTTP-error shapes |
 | `tools/generate-coverage-doc.py` | Generates the scope and shape caveats on the coverage page |
 | `app/api/src/mutationScope.guard.test.js` | Every eligible JS file mutated, backlogged, or excluded with a reason; the backlog free of stale and already-covered entries |
