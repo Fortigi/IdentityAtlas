@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Added a `MachineAccount` principal type, so a computer account (an Active Directory computer account, a server's own account) can be imported as the security principal it is instead of being dropped or mislabelled as a person. It is accepted by the ingest API and selectable in the CSV, SQL, SCIM and midPoint principal-type mappings.
+- Machine accounts are shown as machines, not people: the Principals page has a "Machine Accounts" tab (deep-linkable), the account detail header shows a machine-account pill of its own colour in light and dark mode, and context member tables call them "Machine account".
+- Machine accounts are left out of identity correlation, the same way service principals and AI agents already are: Account Linking never attaches one to a person, and they do not appear in the Orphaned Accounts report or the orphaned-accounts context.
+- Risk scoring scores a machine account against the Agents classifiers rather than the Users ones.
+- Memberships held by a machine account appear in the matrix like any other principal's.
+
+## Changes in this PR
+
 - Made the business role page calmer. The header now only shows whether a role is Manual or Rule only, and the Overview shows its size and who answers for it.
 - Added a Lifecycle tab that shows how people get, keep and lose a role, including the request scope, approvers, reviewers and rules. The detail per policy is folded away.
 - Every business role now has one primary type: Rule based (a rule adds and removes people, so only what it contains needs a review), Manual (requested, approved or assigned, which needs a periodic review), or Unknown. The Business Roles list shows only this type, with the detail on hover, and the role page and the org unit team overview use the same words.
