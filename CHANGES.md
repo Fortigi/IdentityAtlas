@@ -1,5 +1,18 @@
 ## Changes in this PR
 
+- Set the Accountable and Responsible people of many business roles at once by uploading a CSV or Excel list. A preview shows what will change first, and a person chosen by hand is never replaced.
+- The Omada crawler now sets the owners Omada names on a business role as its Accountable or Responsible people.
+- Redesigned the business role page. It now opens on an Overview with who answers for the role, how it is gained and lost, each policy's rule, approval, expiry and review, and how many people hold the role through it.
+- Added a Resources tab with what the role contains, and a People tab that shows how each person got the role, with search and a filter.
+- Requests and access reviews now have their own tab, shown for roles that can be requested or reviewed.
+- The Business Roles list now shows how each role is gained and lost, can filter on it, and has an Import owners button.
+- Business roles are now either Automatic (only a rule adds and removes people) or Manual (anything else). A Manual role shows how many people a regular review has to cover, and warns when no review is set up.
+- The Entra ID crawler now collects each policy's approvers, reviewers and who may request the role, and other crawlers can send the same data.
+- The business role page shows the approvers, reviewers and request scope. Named approvers and reviewers count as Responsible.
+- A request scope links to a context when it matches exactly, and suggestions for the Accountable person now use that context and the managers of the approvers and reviewers.
+
+## Changes in this PR
+
 - Business roles can now have one Accountable and any number of Responsible people, as contexts do.
 - Identity Atlas suggests who could be Accountable or Responsible for a business role, from the managers of its holders and the owners of its resources. A suggestion you turn down is not offered again.
 

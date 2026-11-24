@@ -1,2 +1,0 @@
-- Set the Accountable and Responsible people of many business roles at once by uploading a CSV or Excel list. A preview shows what will change first, and a person chosen by hand is never replaced.
-- The Omada crawler now sets the owners Omada names on a business role as its Accountable or Responsible people.
