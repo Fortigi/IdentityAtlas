@@ -4,13 +4,15 @@ import { useFetch } from '@ui/hooks/useFetch';
 
 // Admin → Roles & Permissions → Relative permissions: the context-owner
 // switches (RelativePermissionsSection holds them).
-// GET/PUT /api/admin/context-owner-access ({ enabled, mcp, ownerReview }).
+// GET/PUT /api/admin/context-owner-access ({ enabled, mcp, businessRoles, ownerReview }).
 //   enabled — people who are Accountable or Responsible for a context can sign in
 //     without an Identity Atlas role and land on that context, its sub-units and
 //     what its members hold — nothing else (the API enforces it).
 //   mcp — such people may also use the MCP server from an AI assistant, under
 //     exactly the same scope. Only has effect while `enabled` is on, so its box is
 //     disabled until then (docs/architecture/mcp-authorization.md).
+//   businessRoles — such people also see the business roles they answer for,
+//     each with its Composition review. Like mcp, only while `enabled` is on.
 //   ownerReview — a business role's Accountable or Responsible may sign off its
 //     composition review without the certification permission. Independent of
 //     the other two.
@@ -22,6 +24,7 @@ export default function ContextOwnerAccessSection() {
   const enabled = data?.enabled === true;
   const mcp = data?.mcp === true;
   const ownerReview = data?.ownerReview === true;
+  const businessRoles = data?.businessRoles === true;
 
   async function save(field, next) {
     setSaving(true);
@@ -82,6 +85,24 @@ export default function ContextOwnerAccessSection() {
       <p className="mt-1 ml-14 text-xs text-gray-600 dark:text-gray-400">
         {enabled
           ? 'Every answer is limited to their contexts, and says so: counts cover their part only. The MCP server itself must be switched on under Admin → Experimental.'
+          : 'Turn on context-owner access first.'}
+      </p>
+      <label className={`mt-3 ml-7 flex items-start gap-3 ${enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4"
+          checked={businessRoles}
+          disabled={!enabled || loading || saving}
+          onChange={e => save('businessRoles', e.target.checked)}
+        />
+        <span className={`text-sm ${enabled ? 'text-gray-800 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>
+          Context owners also see the business roles they answer for — a Your business roles view with each role they are
+          Accountable or Responsible for, read-only, with its Composition review.
+        </span>
+      </label>
+      <p className="mt-1 ml-14 text-xs text-gray-600 dark:text-gray-400">
+        {enabled
+          ? 'Only the roles that name them (or another of their accounts). Signing off also needs the switch below.'
           : 'Turn on context-owner access first.'}
       </p>
       <label className="mt-4 flex items-start gap-3 cursor-pointer">

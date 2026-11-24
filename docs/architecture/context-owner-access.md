@@ -27,6 +27,26 @@ MCP server reuses both — [The MCP server](#the-mcp-server)), a share recipient
 by the share itself. Running matrix shares under the same data-level scope is a
 later, separate track ([#1105](https://github.com/Fortigi/IdentityAtlas/issues/1105)).
 
+### Business roles they answer for
+
+A context owner can also be **Accountable** or **Responsible** for business
+roles (`BusinessRoleOwners`, through their account, their person or another
+account of that person). With **Context owners also see the business roles they
+answer for** on (`CONTEXT_OWNER_BUSINESS_ROLES`, only while context-owner
+access is on), their page gets a **Your business roles** view: exactly those
+roles, each opening read-only. Those roles open in full for them as the tier
+`owned` (`auth/ownerAccess/ownerAccess.js`), decided from the list itself and
+never cached across owners. A role their team merely holds stays as it was.
+
+The one write an owner may send is a role's composition review
+(`GET` / `POST /api/access-package/{id}/composition-reviews`,
+`OWNED_ROLE_PATHS` in `auth/contextOwnerScope.js`), and only for a role they
+answer for; saving then also needs **Business-role owners may sign off a
+composition review** and the experimental Composition review feature. The
+switch lets nobody sign in who could not already: someone who answers for a
+business role but for no context still needs a role. The MCP server does not
+take these roles into its scope.
+
 ## Turning it on
 
 **Admin → Roles & Permissions → Relative permissions → Context

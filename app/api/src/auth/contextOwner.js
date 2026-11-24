@@ -135,7 +135,7 @@ export async function resolveContextOwner(user) {
     const heldIds = contexts.map(c => c.id);
     const subUnits = await findOwnedSubUnits(pool, heldIds);
     const variants = await findSameUnitVariants(pool, heldIds);
-    return { contexts, contextIds: new Set([...heldIds, ...subUnits, ...variants]) };
+    return { contexts, contextIds: new Set([...heldIds, ...subUnits, ...variants]), me };
   } catch (err) {
     // Before migration 095 there are no roles, so nobody is an owner yet.
     if (isMissingSchema(err)) return null;

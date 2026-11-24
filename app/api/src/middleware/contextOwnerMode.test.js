@@ -110,24 +110,24 @@ beforeEach(async () => {
 
 describe('the admin switch', () => {
   it('is off by default, and an admin can turn it on and read it back', async () => {
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false, ownerReview: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false, businessRoles: false, ownerReview: false });
     const put = await setSwitch(true);
     expect(put.status).toBe(200);
-    expect(put.body).toEqual({ enabled: true, mcp: false, ownerReview: false });
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: true, mcp: false, ownerReview: false });
+    expect(put.body).toEqual({ enabled: true, mcp: false, businessRoles: false, ownerReview: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: true, mcp: false, businessRoles: false, ownerReview: false });
   });
 
   it('needs admin.auth — a data.read user cannot read or change it', async () => {
     const reader = as(['Reader'], '44444444-4444-4444-8444-444444444444');
     expect((await request(app).get('/api/admin/context-owner-access').set(reader)).status).toBe(403);
     expect((await request(app).put('/api/admin/context-owner-access').set(reader).send({ enabled: true })).status).toBe(403);
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false, ownerReview: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false, businessRoles: false, ownerReview: false });
   });
 
   it('refuses a value that is not a boolean', async () => {
     const res = await request(app).put('/api/admin/context-owner-access').set(admin).send({ enabled: 'true' });
     expect(res.status).toBe(400);
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false, ownerReview: false });
+    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false, businessRoles: false, ownerReview: false });
   });
 
   it('a context owner cannot reach it either (it is not on their list)', async () => {
@@ -198,7 +198,7 @@ describe('switch on — a context owner', () => {
   it('auth-me lists their contexts, the scope including variants, and no permissions', async () => {
     const res = await ownerGet('/api/auth-me');
     expect(res.status).toBe(200);
-    expect(res.body.contextOwner).toEqual({ contexts: OWNER.contexts, contextIds: [MINE, VARIANT] });
+    expect(res.body.contextOwner).toEqual({ contexts: OWNER.contexts, contextIds: [MINE, VARIANT], businessRoles: [] });
     expect(res.body.permissions).toEqual([]);
     expect(res.body.hasWildcard).toBe(false);
   });
@@ -549,5 +549,59 @@ describe('whole-app sweep — who reaches what without a role', () => {
       refused: refusedAs((res) => res.status === 403 || res.status === 404),
     });
     expect(leaked).toEqual([]);
+  });
+});
+
+describe('the business roles a context owner answers for', () => {
+  const ROLE = 'bbbbbbbb-0000-4000-8000-000000000001';
+  const NOT_MINE = 'bbbbbbbb-0000-4000-8000-000000000002';
+  const OWNED_ROLE = { id: ROLE, displayName: 'Finance controller', role: 'Accountable' };
+  const reviews = (id) => `/api/access-package/${id}/composition-reviews`;
+  const ownerPost = (path) => request(app).post(path).set(as([])).send({ signedOff: true });
+  const switches = (body) => request(app).put('/api/admin/context-owner-access').set(admin).send(body);
+
+  beforeEach(async () => {
+    owners.resolveContextOwner = vi.fn(async (user) => (user.oid === OWNER_OID ? { ...OWNER, me: { principal: { id: OWNER_OID }, identity: null } } : null));
+    query.mockImplementation(async (sql) => (/FROM "BusinessRoleOwners" o/.test(sql) ? { rows: [OWNED_ROLE] } : { rows: [], rowCount: 0 }));
+    await switches({ enabled: true });
+  });
+
+  it('are not loaded, and their reviews stay closed, while the switch is off', async () => {
+    expect((await ownerGet('/api/auth-me')).body.contextOwner.businessRoles).toEqual([]);
+    expect(denied(await ownerGet(reviews(ROLE)))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => /FROM "BusinessRoleOwners" o/.test(sql))).toBe(false);
+  });
+
+  it('are listed in auth-me once the switch is on, and only then', async () => {
+    await switches({ businessRoles: true });
+    expect((await ownerGet('/api/auth-me')).body.contextOwner.businessRoles).toEqual([OWNED_ROLE]);
+  });
+
+  it('do nothing while context-owner access itself is off', async () => {
+    await switches({ businessRoles: true, enabled: false });
+    expect(noRole(await ownerGet(reviews(ROLE)))).toBe(true);
+  });
+
+  describe('with the switch on', () => {
+    beforeEach(async () => { await switches({ businessRoles: true }); });
+
+    it('open the role\'s page and its composition review — read and save — for a role they answer for', async () => {
+      expect(denied(await ownerGet(`/api/access-package/${ROLE}`))).toBe(false);
+      expect(denied(await ownerGet(`/api/access-package/${ROLE}/resource-roles`))).toBe(false);
+      expect(denied(await ownerGet(reviews(ROLE)))).toBe(false);
+      expect(denied(await ownerPost(reviews(ROLE)))).toBe(false);
+    });
+
+    it('keep every other role closed: its page, its reviews, and saving one', async () => {
+      expect(denied(await ownerGet(`/api/access-package/${NOT_MINE}`))).toBe(true);
+      expect(denied(await ownerGet(reviews(NOT_MINE)))).toBe(true);
+      expect(denied(await ownerPost(reviews(NOT_MINE)))).toBe(true);
+    });
+
+    it('allow no other write on a role they answer for', async () => {
+      const put = await request(app).put(`/api/access-package/${ROLE}/owners`).set(as([])).send({ role: 'Responsible', principalId: OWNER_OID });
+      expect(denied(put)).toBe(true);
+      expect(denied(await request(app).delete(reviews(ROLE)).set(as([])))).toBe(true);
+    });
   });
 });

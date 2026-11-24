@@ -3,7 +3,7 @@
 // case can tell "classified as X" from "not classified at all".
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createOwnerAccess, normaliseKind, clearOwnerAccessCache, CACHE_TTL_MS } from './ownerAccess.js';
+import { createOwnerAccess, normaliseKind, clearOwnerAccessCache, CACHE_TTL_MS, OWNED } from './ownerAccess.js';
 import { createLru } from '../../effectiveAccess/lru.js';
 import { TIER_SQL } from './tiers.js';
 
@@ -143,5 +143,34 @@ describe('caching', () => {
     await createOwnerAccess([CTX], { getPool: async () => pool }).canOpen('user', TEAM_USER);
     expect(pool.query).toHaveBeenCalledTimes(2);
     clearOwnerAccessCache();
+  });
+});
+
+describe('the business roles the owner answers for', () => {
+  const ROLE = 'dddddddd-0000-4000-8000-000000000001';
+
+  it('open in full as "owned", whatever its case, without asking the database', async () => {
+    const access = make([CTX], { ownedRoleIds: [ROLE.toUpperCase()] });
+    expect(await access.tierOf('access-package', ROLE)).toBe(OWNED);
+    expect(await access.canOpen('business-role', ROLE)).toBe(true);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(access.ownedRoleIds.has(ROLE)).toBe(true);
+  });
+
+  it('sit beside the tiers: a batch mixes owned, held and name-only resources', async () => {
+    const access = make([CTX], { ownedRoleIds: [ROLE] });
+    expect(await access.accessibleIds('resource', [ROLE, HELD_GROUP, OUTSIDER_GROUP])).toEqual(new Set([ROLE, HELD_GROUP]));
+    expect(pool.query.mock.calls[0][1][1]).toEqual([HELD_GROUP, OUTSIDER_GROUP]);
+  });
+
+  it('are only resources: an account with that id is still judged by the tiers', async () => {
+    const access = make([CTX], { ownedRoleIds: [OUTSIDER] });
+    expect(await access.canOpen('user', OUTSIDER)).toBe(false);
+  });
+
+  it('are never shared through the cache with another owner of the same contexts', async () => {
+    await make([CTX], { ownedRoleIds: [ROLE] }).canOpen('resource', ROLE);
+    expect(await make([CTX]).canOpen('resource', ROLE)).toBe(false);
+    expect(make([CTX]).ownedRoleIds.size).toBe(0);
   });
 });

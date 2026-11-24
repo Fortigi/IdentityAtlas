@@ -11,18 +11,19 @@ import { renderWithProviders, makeAuthFetch, jsonResponse, screen, waitFor, user
 const LABEL = /Context owners — people who are Accountable or Responsible/;
 const MCP_LABEL = /Context owners may also use the MCP server/;
 const REVIEW_LABEL = /Business-role owners may sign off a composition review/;
+const ROLES_LABEL = /Context owners also see the business roles they answer for/;
 
 // A stand-in for the API that remembers what was saved, so the checkbox has to
 // re-read the server's answer rather than trust its own click.
-function server({ enabled = false, mcp = false, ownerReview = false, failPut = false } = {}) {
-  const state = { enabled, mcp, ownerReview };
+function server({ enabled = false, mcp = false, businessRoles = false, ownerReview = false, failPut = false } = {}) {
+  const state = { enabled, mcp, businessRoles, ownerReview };
   const authFetch = makeAuthFetch((url, opts = {}) => {
     if (!String(url).includes('/api/admin/context-owner-access')) return undefined;
     if (opts.method === 'PUT') {
       if (failPut) return jsonResponse({ error: 'Insufficient permissions' }, { ok: false, status: 403 });
       Object.assign(state, JSON.parse(opts.body));
     }
-    return { enabled: state.enabled, mcp: state.mcp, ownerReview: state.ownerReview };
+    return { enabled: state.enabled, mcp: state.mcp, businessRoles: state.businessRoles, ownerReview: state.ownerReview };
   });
   return { authFetch, state };
 }
@@ -30,6 +31,28 @@ function server({ enabled = false, mcp = false, ownerReview = false, failPut = f
 const puts = (authFetch) => authFetch.mock.calls.filter(([, o]) => o?.method === 'PUT');
 
 describe('ContextOwnerAccessSection', () => {
+  describe('the business-roles switch for context owners', () => {
+    it('is disabled, and says why, while context-owner access is off', async () => {
+      renderWithProviders(<ContextOwnerAccessSection />, { auth: { authFetch: server({ businessRoles: true }).authFetch } });
+      const box = await screen.findByRole('checkbox', { name: ROLES_LABEL });
+      await waitFor(() => expect(box).toBeChecked());
+      expect(box).toBeDisabled();
+      expect(screen.getAllByText('Turn on context-owner access first.')).toHaveLength(2);
+    });
+
+    it('turns on with a PUT { businessRoles: true } alone once owner access is on', async () => {
+      const { authFetch, state } = server({ enabled: true });
+      renderWithProviders(<ContextOwnerAccessSection />, { auth: { authFetch } });
+      const box = await screen.findByRole('checkbox', { name: ROLES_LABEL });
+      await waitFor(() => expect(box).not.toBeDisabled());
+      await userEvent.click(box);
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: ROLES_LABEL })).toBeChecked());
+      expect(JSON.parse(puts(authFetch)[0][1].body)).toEqual({ businessRoles: true });
+      expect(state).toMatchObject({ enabled: true, businessRoles: true });
+      expect(screen.getByText(/Signing off also needs the switch below/)).toBeInTheDocument();
+    });
+  });
+
   describe('the business-role owner review switch', () => {
     it('works on its own, also while context-owner access is off, and sends only its own field', async () => {
       const { authFetch, state } = server();
@@ -100,7 +123,7 @@ describe('ContextOwnerAccessSection', () => {
       const box = await screen.findByRole('checkbox', { name: MCP_LABEL });
       await waitFor(() => expect(box).toBeChecked());
       expect(box).toBeDisabled();
-      expect(screen.getByText('Turn on context-owner access first.')).toBeInTheDocument();
+      expect(screen.getAllByText('Turn on context-owner access first.')).toHaveLength(2);
     });
 
     it('turns on with a PUT { mcp: true } alone, leaving owner access as it is', async () => {
@@ -111,7 +134,7 @@ describe('ContextOwnerAccessSection', () => {
       await userEvent.click(box);
       await waitFor(() => expect(screen.getByRole('checkbox', { name: MCP_LABEL })).toBeChecked());
       expect(JSON.parse(puts(authFetch)[0][1].body)).toEqual({ mcp: true });
-      expect(state).toEqual({ enabled: true, mcp: true, ownerReview: false });
+      expect(state).toEqual({ enabled: true, mcp: true, businessRoles: false, ownerReview: false });
       expect(screen.getByText(/counts cover their part only/)).toBeInTheDocument();
     });
 

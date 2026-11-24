@@ -3,7 +3,7 @@
 // behalf (the REST middleware today, the MCP server next) imports from here.
 // See docs/architecture/context-owner-access.md → "Reusing this scope (MCP)".
 
-export { createOwnerAccess, normaliseKind, clearOwnerAccessCache, CACHE_TTL_MS } from './ownerAccess.js';
+export { createOwnerAccess, normaliseKind, clearOwnerAccessCache, CACHE_TTL_MS, OWNED } from './ownerAccess.js';
 export { TEAM, HELD, HOLDER, KINDS, classifyTiers, OPENABLE_SQL } from './tiers.js';
 export { entityEndpointFor, refsFor } from './endpoints.js';
 export { annotateReferences } from './annotate.js';

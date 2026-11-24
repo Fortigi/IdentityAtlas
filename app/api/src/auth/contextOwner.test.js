@@ -125,6 +125,8 @@ describe('resolveContextOwner', () => {
     const owner = await resolveContextOwner({ oid: 'p-1' });
     expect(owner.contexts.map(c => c.id)).toEqual([B]);
     expect([...owner.contextIds].sort()).toEqual([B, V, S].sort());
+    // Who they are, for what else they answer for (their business roles).
+    expect(owner.me).toEqual({ principal: { id: 'p-1' }, identity: { id: 'i-1' } });
     expect(query.mock.calls[0][1]).toEqual(['p-1', 'i-1']);
     // Sub-units and variants are both sought from the HELD contexts only.
     expect(query.mock.calls[1][0]).toContain('WITH RECURSIVE');
