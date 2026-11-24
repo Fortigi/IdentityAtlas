@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { createParams, likeContains } from '../db/sqlParams.js';
 import { lastReviewCtes } from '../lib/businessRoleReview.js';
+import { catalogJoinSql } from '../lib/businessRoleCatalog.js';
 import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, deriveControl, holderCountSql, resourceCountSql } from '../lib/businessRoleAccessModel.js';
 
 const router = Router();
@@ -301,7 +302,7 @@ router.get('/access-packages', async (req, res) => {
              pc."outRule", pc."outReview", pc."outExpiry", pc."outManual"
              ${reviewCols}
         FROM "Resources" ap
-        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+        ${catalogJoinSql('ap.id')}
         LEFT JOIN ac ON ap.id::text = ac."resourceId"::text
         LEFT JOIN "GovernanceCategoryAssignments" ca ON LOWER(ap.id::text) = LOWER(ca."resourceId")
         LEFT JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
@@ -315,7 +316,7 @@ router.get('/access-packages', async (req, res) => {
     const countSql = `
       SELECT COUNT(*)::int AS total
         FROM "Resources" ap
-        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+        ${catalogJoinSql('ap.id')}
         LEFT JOIN "GovernanceCategoryAssignments" ca ON LOWER(ap.id::text) = LOWER(ca."resourceId")
         LEFT JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
        WHERE ${whereSql}

@@ -270,7 +270,8 @@ Describe 'Demo applications — determinism and counts' {
     }
 
     It 'reports the new sections in the metadata counts' {
-        $script:data.metadata.entityCounts.contexts             | Should -Be 17
+        # 17 + the IGA system's two business-role catalogs.
+        $script:data.metadata.entityCounts.contexts             | Should -Be 19
         $script:data.metadata.entityCounts.contextRoles         | Should -Be 7
         $script:data.metadata.entityCounts.contextRelationships | Should -Be 1
     }

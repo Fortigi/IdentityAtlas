@@ -34,6 +34,8 @@ export const CONTEXT_TYPE_CATEGORY = Object.freeze({
   RiskyAppConsent: 'Segment',
   ResourceCluster: 'Segment',
   Location: 'Segment',
+  Catalog: 'Catalog',
+  AccessPackageCatalog: 'Catalog',
 });
 
 /** The template for a contextType, or null when the value is not a known one. */

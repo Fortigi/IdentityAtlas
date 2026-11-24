@@ -55,10 +55,7 @@ function Add-DemoGovernance {
         @{ Id = $catEmployee;   Name = 'Employee Access' }
         @{ Id = $catPrivileged; Name = 'Privileged Access' }
     )) {
-        $State.Catalogs.Add(@{
-            id = $cat.Id; displayName = $cat.Name; catalogType = 'userManaged'
-            enabled = $true; systemId = $sysIga
-        })
+        Add-DemoCatalog $State -Id $cat.Id -DisplayName $cat.Name -ScopeSystemId $sysIga
     }
 
     $roles = @(

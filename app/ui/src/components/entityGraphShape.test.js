@@ -429,11 +429,11 @@ describe('fetchCategoryItems — access-package categories', () => {
     expect(req[0].label).toBe('Req');
   });
 
-  it('catalog uses extras, [] without catalogId', async () => {
+  it('catalog uses extras and opens as a context, [] without catalogId', async () => {
     const out = await fetchCategoryItems('access-package', 'ap1', 'catalog', stub(), {
       catalogId: 'cat1', catalogName: 'Catalog One',
     });
-    expect(out[0]).toMatchObject({ key: 'leaf:cat1', label: 'Catalog One', entityKind: 'leaf' });
+    expect(out[0]).toMatchObject({ key: 'context:cat1', label: 'Catalog One', entityKind: 'context' });
     expect(await fetchCategoryItems('access-package', 'ap1', 'catalog', stub(), {})).toEqual([]);
   });
 });

@@ -183,31 +183,6 @@ router.get('/context-members', async (req, res) => {
   }
 });
 
-// ─── GET /api/governance-catalogs ────────────────────────────────
-// Flat listing of governance catalogs (Entra ID catalogs, SailPoint sources,
-// …) — the containers that group business roles / access packages.
-router.get('/governance-catalogs', async (req, res) => {
-  const { limit, offset, systemId } = parsePaging(req);
-  try {
-    const where = systemId !== null ? `WHERE gc."systemId" = $1` : '';
-    const result = await runListAndCount({
-      table: 'GovernanceCatalogs',
-      alias: 'gc',
-      columns: `gc.id, gc."systemId", gc."displayName", gc.description,
-                gc."catalogType", gc.enabled, gc."isExternallyVisible",
-                gc."externalId", gc."createdDateTime", gc."modifiedDateTime",
-                gc."extendedAttributes"`,
-      orderBy: `gc."displayName"`,
-      dataWhere: where, countWhere: where,
-      systemId, limit, offset,
-    });
-    res.json(result);
-  } catch (err) {
-    console.error('GET /governance-catalogs failed:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // ─── GET /api/assignment-policies ────────────────────────────────
 // Flat listing of assignment policies — the rules (auto-add/remove, access
 // review settings) that govern how a business role / access package is granted.

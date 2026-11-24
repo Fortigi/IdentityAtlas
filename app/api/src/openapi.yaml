@@ -208,22 +208,6 @@ paths:
         '201':
           $ref: '#/components/responses/IngestSuccess'
 
-  /ingest/governance/catalogs:
-    post:
-      tags: [Ingest]
-      summary: Ingest governance catalogs
-      operationId: ingestGovernanceCatalogs
-      description: Upsert governance catalogs (access-package catalogs / IGA sources).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/IngestEnvelope'
-      responses:
-        '201':
-          $ref: '#/components/responses/IngestSuccess'
-
   /ingest/governance/policies:
     post:
       tags: [Ingest]

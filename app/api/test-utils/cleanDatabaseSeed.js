@@ -56,7 +56,7 @@ export async function seedEverything(q) {
   exp('Identities', 'id = $1', [X.I1], 'removed');
   await q(`INSERT INTO "IdentityMembers" ("identityId","principalId","analystOverride") VALUES ($1,$2,'confirmed')`, [X.I1, X.P1]);
   exp('IdentityMembers', '"identityId" = $1', [X.I1], 'removed');
-  for (const t of ['GovernanceCatalogs', 'AssignmentPolicies', 'AssignmentRequests', 'CertificationDecisions']) {
+  for (const t of ['AssignmentPolicies', 'AssignmentRequests', 'CertificationDecisions']) {
     await q(`INSERT INTO "${t}" (id,"systemId") VALUES (gen_random_uuid(),$1)`, [sCrawl]);
     exp(t, '"systemId" = $1', [sCrawl], 'removed');
   }

@@ -53,8 +53,10 @@ export const CONTEXT_TARGET_TYPES = ['Identity', 'Resource', 'Principal', 'Syste
 export const CONTEXT_MEMBER_ADDED_BY = ['sync', 'algorithm', 'analyst', 'sourceOwner'];
 // The template a context falls under (ontology/core.ttl, the ia:template classes
 // below ia:Context; docs/architecture/context-templates-phase-b.md). Nullable in
-// the database: a synced value nobody has placed yet shows as "Other".
-export const CONTEXT_CATEGORIES = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment'];
+// the database: a synced value nobody has placed yet shows as "Other". Catalog
+// (migration 117): a grouping of business roles, such as an Entra ID access
+// package catalog.
+export const CONTEXT_CATEGORIES = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Catalog'];
 // Who answers for a context: at most one Accountable, any number Responsible.
 // A context→person link, never access (migration 095 CHECK).
 export const CONTEXT_ROLE_TYPES = ['Accountable', 'Responsible'];
@@ -134,7 +136,6 @@ export const SCHEMAS = {
       enabled: { type: 'boolean' },
       externalId: { type: 'string', maxLength: 500 },
       contextId: { type: 'uuid' },
-      catalogId: { type: 'uuid' },
       isHidden: { type: 'boolean' },
       governanceResource: { type: 'boolean' },
       extendedAttributes: { type: 'json' },
@@ -316,22 +317,6 @@ export const SCHEMAS = {
       addedBy: { type: 'string', enum: CONTEXT_MEMBER_ADDED_BY },
     },
   },
-  'governance/catalogs': {
-    required: ['displayName'],
-    idField: 'id',
-    fields: {
-      id: { type: 'uuid' },
-      displayName: { type: 'string', maxLength: 500 },
-      description: { type: 'string' },
-      catalogType: { type: 'string', maxLength: 50 },
-      externalId: { type: 'string', maxLength: 500 },
-      isExternallyVisible: { type: 'boolean' },
-      enabled: { type: 'boolean' },
-      createdDateTime: { type: 'string' },
-      modifiedDateTime: { type: 'string' },
-      extendedAttributes: { type: 'json' },
-    },
-  },
   'governance/policies': {
     required: ['displayName'],
     idField: 'id',
@@ -434,7 +419,6 @@ export const ENTITY_TABLE_MAP = {
   'identity-members': 'IdentityMembers',
   'contexts': 'Contexts',
   'context-members': 'ContextMembers',
-  'governance/catalogs': 'GovernanceCatalogs',
   'governance/policies': 'AssignmentPolicies',
   'governance/requests': 'AssignmentRequests',
   'governance/certifications': 'CertificationDecisions',
@@ -454,7 +438,6 @@ export const ENTITY_KEY_MAP = {
   'identity-members': ['identityId', 'principalId'],
   'contexts': ['id'],
   'context-members': ['contextId', 'memberId'],
-  'governance/catalogs': ['id'],
   'governance/policies': ['id'],
   'governance/requests': ['id'],
   'governance/certifications': ['id'],

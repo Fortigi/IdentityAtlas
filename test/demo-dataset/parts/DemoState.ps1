@@ -111,7 +111,6 @@ function New-DemoState {
         Relationships          = [System.Collections.Generic.List[object]]::new()
         Identities             = [System.Collections.Generic.List[object]]::new()
         IdentityMembers        = [System.Collections.Generic.List[object]]::new()
-        Catalogs               = [System.Collections.Generic.List[object]]::new()
         Policies               = [System.Collections.Generic.List[object]]::new()
         Certifications         = [System.Collections.Generic.List[object]]::new()
         PrincipalActivity      = [System.Collections.Generic.List[object]]::new()
@@ -174,6 +173,20 @@ function Add-DemoContext {
     if ($ExternalId)      { $rec['externalId']      = $ExternalId }
     if ($Description)     { $rec['description']     = $Description }
     $State.Contexts.Add($rec)
+}
+
+# A catalog of business roles: a synced Catalog context of the IGA system whose
+# members are its roles (Add-DemoResource -CatalogId adds them).
+function Add-DemoCatalog {
+    param(
+        [Parameter(Mandatory)]$State,
+        [Parameter(Mandatory)][string]$Id,
+        [Parameter(Mandatory)][string]$DisplayName,
+        [Parameter(Mandatory)][int]$ScopeSystemId
+    )
+    Add-DemoContext $State -Id $Id -DisplayName $DisplayName -ContextType 'Catalog' `
+        -TargetType 'Resource' -ScopeSystemId $ScopeSystemId -ExternalId $Id
+    $State.Contexts[$State.Contexts.Count - 1]['extendedAttributes'] = @{ catalogType = 'UserManaged'; state = 'published' }
 }
 
 # Who answers for an organizational unit or a logical application (ContextRoles,
@@ -258,9 +271,10 @@ function Add-DemoResource {
     }
     if ($Description) { $rec['description']        = $Description }
     if ($ExternalId)  { $rec['externalId']         = $ExternalId }
-    if ($CatalogId)   { $rec['catalogId']          = $CatalogId }
     if ($Extended)    { $rec['extendedAttributes'] = $Extended }
     $State.Resources.Add($rec)
+    # A catalog is a Catalog context (migration 117): the role is one of its members.
+    if ($CatalogId)   { Add-DemoContextMember $State -ContextId $CatalogId -MemberId $Id -MemberType 'Resource' }
     return $Id
 }
 

@@ -48,7 +48,7 @@ describe('recoverSystemPrefix', () => {
       .toEqual({ idPrefix: 'my-sys-context-members', systemPrefix: 'my-sys' });
   });
   it('handles governance sub-paths (slash) and an empty prefix', () => {
-    expect(recoverSystemPrefix('governance/catalogs', 'acme-catalogs').systemPrefix).toBe('acme');
+    expect(recoverSystemPrefix('governance/policies', 'acme-policies').systemPrefix).toBe('acme');
     expect(recoverSystemPrefix('principals', '')).toEqual({ idPrefix: '', systemPrefix: '' });
   });
 });

@@ -312,7 +312,8 @@ async function fetchAccessPackageItems(apId, categoryKey, authFetch, extras = {}
   }
   if (categoryKey === 'catalog') {
     if (!catalogId) return [];
-    return [toItem({ id: catalogId, displayName: catalogName || catalogId }, 'leaf')];
+    // A catalog is a context (migration 117): open it like any other.
+    return [toItem({ id: catalogId, displayName: catalogName || catalogId }, 'context')];
   }
   return [];
 }

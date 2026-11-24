@@ -14,7 +14,7 @@
       DemoState.ps1          — New-DemoGuid, the state accumulator, record builders
       DemoOrg.ps1            — systems, context tree, people, identities
       DemoEntraBase.ps1      — Entra groups / directory roles / app roles / ownership
-      DemoGovernance.ps1     — IGA catalogs, business roles, policies, certifications
+      DemoGovernance.ps1     — IGA catalogs (Catalog contexts), business roles, policies, certifications
       DemoSalesScenario.ps1  — the Sales role-mining scenario (flags 1-7)
       DemoRoleDrift.ps1      — holders with fewer / more access than their role assigns
       DemoSharedGrants.ps1   — one group / app role granted by two business roles
@@ -165,7 +165,6 @@ $dataset = [ordered]@{
             identityMembers        = $state.IdentityMembers.Count
             contexts               = $state.Contexts.Count
             contextMembers         = $state.ContextMembers.Count
-            governanceCatalogs     = $state.Catalogs.Count
             assignmentPolicies     = $state.Policies.Count
             certificationDecisions = $state.Certifications.Count
             principalActivity      = $state.PrincipalActivity.Count
@@ -182,7 +181,6 @@ $dataset = [ordered]@{
     resourceRelationships  = @($state.Relationships)
     identities             = @($state.Identities)
     identityMembers        = @($state.IdentityMembers)
-    governanceCatalogs     = @($state.Catalogs)
     assignmentPolicies     = @($state.Policies)
     certificationDecisions = @($state.Certifications)
     principalActivity      = @($state.PrincipalActivity)

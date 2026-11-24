@@ -631,22 +631,6 @@ Describe 'ConvertTo-EntraPimRecord' {
     }
 }
 
-Describe 'ConvertTo-EntraGovernanceCatalogRecord' {
-
-    It 'maps a catalog and derives enabled from isPublished' {
-        $cat = [pscustomobject]@{ id = 'c1'; displayName = 'General'; description = 'd'; catalogType = 'UserManaged'; isPublished = $true; createdDateTime = '2020-01-01T00:00:00Z'; modifiedDateTime = '2021-01-01T00:00:00Z' }
-        $rec = ConvertTo-EntraGovernanceCatalogRecord -Catalog $cat
-        $rec['id']      | Should -Be 'c1'
-        $rec['enabled'] | Should -BeTrue
-        $rec['catalogType'] | Should -Be 'UserManaged'
-    }
-
-    It 'maps enabled = $false for an unpublished catalog' {
-        $cat = [pscustomobject]@{ id = 'c2'; displayName = 'Draft'; isPublished = $false }
-        (ConvertTo-EntraGovernanceCatalogRecord -Catalog $cat)['enabled'] | Should -BeFalse
-    }
-}
-
 Describe 'ConvertTo-EntraAccessPackageRecord' {
 
     It 'maps an access package to a governance BusinessRole resource' {
@@ -655,7 +639,8 @@ Describe 'ConvertTo-EntraAccessPackageRecord' {
         $rec['resourceType']       | Should -Be 'BusinessRole'
         $rec['governanceResource'] | Should -BeTrue
         $rec['enabled']            | Should -BeTrue
-        $rec['catalogId']          | Should -Be 'c1'
+        # The catalog is a context membership now, not a field on the role.
+        $rec.ContainsKey('catalogId') | Should -BeFalse
         $rec['isHidden']           | Should -BeFalse
     }
 }

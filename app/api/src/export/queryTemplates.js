@@ -201,10 +201,9 @@ export const QUERIES = [
   { sheet: 'ResourceRelationships',  endpoint: 'resource-relationships', m: paginatedQuery('resource-relationships') },
   { sheet: 'Contexts',               endpoint: 'context-list',           m: paginatedQuery('context-list') },
   { sheet: 'ContextMembers',         endpoint: 'context-members',        m: paginatedQuery('context-members') },
-  // Governance (SOLL) layer — catalogs that group business roles / access
-  // packages, the policies that govern how they're granted, the request/
-  // approval workflow, and access-review (certification) outcomes.
-  { sheet: 'GovernanceCatalogs',     endpoint: 'governance-catalogs',    m: paginatedQuery('governance-catalogs') },
+  // Governance (SOLL) layer — the policies that govern how business roles are
+  // granted, the request/approval workflow, and access-review (certification)
+  // outcomes. Catalogs are contexts (contextCategory Catalog): on the Contexts sheet.
   { sheet: 'AssignmentPolicies',     endpoint: 'assignment-policies',    m: paginatedQuery('assignment-policies') },
   { sheet: 'AssignmentRequests',     endpoint: 'assignment-requests',    m: paginatedQuery('assignment-requests') },
   { sheet: 'CertificationDecisions', endpoint: 'certification-decisions', m: paginatedQuery('certification-decisions') },

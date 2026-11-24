@@ -16,6 +16,7 @@ const ROOTS = [
   root('ou-acc', 'Finance accounts', 'OrganizationalUnit', 'Principal'),
   root('ou-res', 'Finance shares', 'OrganizationalUnit', 'Resource'),
   root('app', 'SAP', 'LogicalApplication', 'Resource'),
+  root('cat', 'Finance roles', 'Catalog', 'Resource'),
   root('tag', 'PCI', 'Tag', 'Resource'),
   root('seg', 'Amsterdam', 'Segment', 'Identity'),
   root('odd', 'Legacy cluster', null, 'Identity'),
@@ -52,11 +53,11 @@ const selector = () => screen.getByTestId('context-tree-pane');
 const shown = () => within(screen.getByTestId('context-detail-pane')).getByRole('heading', { level: 2 }).textContent;
 
 describe('ContextsPage — a sub-tab per template', () => {
-  it('shows the four templates and Other without counts, opening on Organisation · People', async () => {
+  it('shows the five templates and Other without counts, opening on Organisation · People', async () => {
     mount();
     expect(await screen.findByText('Finance people / child')).toBeInTheDocument();
     // The first tab list is the template tabs (the shown context has its own below).
-    expect(within(screen.getAllByRole('tablist')[0]).getAllByRole('tab').map(t => t.textContent)).toEqual(['Organisation', 'Applications', 'Tags', 'Segments', 'Other']);
+    expect(within(screen.getAllByRole('tablist')[0]).getAllByRole('tab').map(t => t.textContent)).toEqual(['Organisation', 'Applications', 'Catalogs', 'Tags', 'Segments', 'Other']);
     expect(tab('Organisation')).toHaveAttribute('aria-selected', 'true');
     // Only the people trees are listed; accounts and resources trees wait behind the switch.
     // The people tree's root is a node of the tree (and names the tree-actions bar).
@@ -145,7 +146,7 @@ describe('ContextsPage — a sub-tab per template', () => {
   it('every tab has the same two panes: its tree on the left, its first root shown on the right', async () => {
     const { user } = mount();
     await waitFor(() => expect(shown()).toBe('Finance people'));
-    for (const [name, root] of [['Applications', 'SAP'], ['Tags', 'PCI'], ['Segments', 'Amsterdam'], ['Other', 'Legacy cluster']]) {
+    for (const [name, root] of [['Applications', 'SAP'], ['Catalogs', 'Finance roles'], ['Tags', 'PCI'], ['Segments', 'Amsterdam'], ['Other', 'Legacy cluster']]) {
       await user.click(tab(name));
       await waitFor(() => expect(shown()).toBe(root));
       expect(await within(selector()).findByText(`${root} / child`)).toBeInTheDocument();

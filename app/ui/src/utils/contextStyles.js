@@ -20,7 +20,8 @@ export const TARGET_TYPE_META = {
   System:    { label: 'System',    badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700' },
 };
 
-// The four context templates (phase B of the ontology) plus "Other" for a
+// The five context templates (phase B of the ontology, Catalog since
+// migration 117) plus "Other" for a
 // context whose contextCategory is null (a contextType the backfill did not
 // know). Hues stay clear of the variant (blue/emerald/amber) and target-type
 // (purple/orange/sky/yellow) metas so the three dimensions never look alike.
@@ -46,10 +47,16 @@ export const CATEGORY_META = {
     description: 'A slice of the data: a location, a type, a system membership.',
     badgeClass: 'bg-lime-100 text-lime-800 border-lime-200 dark:bg-lime-900/30 dark:text-lime-300 dark:border-lime-700',
   },
+  Catalog: {
+    label: 'Catalog', groupLabel: 'Catalogs',
+    description: 'A catalog of business roles, as the governance source keeps it (an Entra ID access package catalog).',
+    badgeClass: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700',
+  },
 };
 
-// Grouping order in the tree selector: the four templates, then Other.
-export const CATEGORY_ORDER = ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Other'];
+// Grouping order in the tree selector: the templates, then Other. Catalogs sit
+// next to Applications: one groups business roles, the other technical resources.
+export const CATEGORY_ORDER = ['OrganizationalUnit', 'LogicalApplication', 'Catalog', 'Tag', 'Segment', 'Other'];
 
 // The kind of member a context holds, in the words the template screens use:
 // people (identities), accounts (principals), resources. A unit exists as one

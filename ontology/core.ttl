@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.7.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.7.0> ;
+    owl:versionInfo "3.0.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/3.0.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -585,6 +585,9 @@ ia:ContextCategory_Tag a owl:NamedIndividual, ia:ContextCategory ; ia:typeValue 
 ia:ContextCategory_Segment a owl:NamedIndividual, ia:ContextCategory ; ia:typeValue "Segment" ; ia:denotesTemplate ia:Segment ;
     rdfs:label "Segment" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A grouping by an attribute or an analysis." .
+ia:ContextCategory_Catalog a owl:NamedIndividual, ia:ContextCategory ; ia:typeValue "Catalog" ; ia:denotesTemplate ia:CatalogContext ;
+    rdfs:label "Catalog" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A grouping of business roles, as the governance source keeps it." .
 
 ia:ContextRoleType a owl:Class ;
     rdfs:label "Context role" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
@@ -744,8 +747,8 @@ ia:MembershipSource_sourceOwner a owl:NamedIndividual, ia:MembershipSource ; ia:
     rdfs:comment "The owner a synced context's source names (ownerUserId), stated as its Accountable by the contexts ingest and kept in step on every sync. Only the ingest writes it, and it replaces or removes only these rows." .
 
 # ─── Context types (open vocabulary; the ones the application itself knows) ───
-# Templates: OrganizationalUnit, LogicalApplication, Tag, Segment, stored per row
-# in contextCategory. The two with one built-in type are that type's own class
+# Templates: OrganizationalUnit, LogicalApplication, Tag, Segment, Catalog, stored
+# per row in contextCategory. The two with one built-in type are that type's own class
 # (ia:LogicalApplicationContext, ia:TagContext). A tree's root is a context
 # without a parent, not a type of its own; the tags root is a Tag with
 # extendedAttributes.tagRoot.
@@ -756,6 +759,12 @@ ia:OrganizationalUnit a owl:Class ; rdfs:subClassOf ia:Context ; ia:template tru
 ia:Segment a owl:Class ; rdfs:subClassOf ia:Context ; ia:template true ;
     rdfs:label "Segment" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "A grouping by a shared attribute or an analysis (by type, by system, risky consent, a cluster, a recipe). Membership is computed and read-only; no manager, no moving." .
+ia:CatalogContext a owl:Class ; rdfs:subClassOf ia:Context ; ia:typeValue "Catalog" ;
+    ia:template true ;
+    ia:emittedBy "demo" ;
+    ia:allowedTargetType ia:EntityKind_Resource ;
+    rdfs:label "Catalog" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "A grouping of business roles (resourceType BusinessRole) as the governance source keeps it: an Entra ID access package catalog, another IGA platform's role folder. Its members are the business roles; the source's own catalog properties sit in extendedAttributes. Not an application: an application groups the technical resources that make up one system, a catalog groups the roles that hand them out. Replaces the GovernanceCatalogs table and Resources.catalogId (migration 117)." .
 
 # A crawler or an analyst may store any contextType (Omada's OrgUnit, a SQL
 # source's LogicalApplication …). Defined here are the values the code gives a
@@ -867,6 +876,11 @@ ia:LogicalApplicationContext a owl:Class ; rdfs:subClassOf ia:Context ; ia:typeV
     ia:allowedTargetType ia:EntityKind_Resource ;
     rdfs:label "Logical application" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "An application as the business knows it, grouping the technical resources (entitlements, roles, groups) that belong to it. The SQL connector's IdentityIQ preset loads these from the application list." .
+ia:AccessPackageCatalogContext a owl:Class ; rdfs:subClassOf ia:CatalogContext ; ia:typeValue "AccessPackageCatalog" ;
+    ia:emittedBy "entra-id" ;
+    ia:allowedTargetType ia:EntityKind_Resource ;
+    rdfs:label "Access package catalog" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times." .
 ia:TeamContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "Team" ;
     ia:emittedBy "demo" ;
     ia:allowedTargetType ia:EntityKind_Principal, ia:EntityKind_Resource ;
@@ -1006,11 +1020,6 @@ ia:capabilityId a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:range xsd:string ;
     rdfs:label "capabilityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Generated from extendedAttributes.capabilityId for the effective-access engine." .
-ia:catalogId a owl:DatatypeProperty ; ia:sqlType "uuid" ;
-    rdfs:domain ia:Resource ;
-    rdfs:range xsd:string ;
-    rdfs:label "catalogId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The governance catalog (GovernanceCatalogs.id) a business role belongs to. GovernanceCatalogs is outside the core model." .
 ia:childResourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain ia:ResourceRelationship ;
     rdfs:range ia:Resource ;

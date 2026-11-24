@@ -24,7 +24,9 @@ The unification uses discriminator columns:
 - `ResourceAssignments.governed = true` — flags governed assignments among all assignments (the `assignmentType` stays one of the three universal values `Direct` / `Indirect` / `Eligible`)
 - `ResourceRelationships.relationshipType = 'Contains'` — identifies resource grants among all relationships
 
-The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`, `AssignmentRequests`, `CertificationDecisions`) contain only data that has no place in the shared model.
+The three governance-specific tables (`AssignmentPolicies`, `AssignmentRequests`, `CertificationDecisions`) contain only data that has no place in the shared model.
+
+A **catalog** — the container a governance source groups its business roles in — is a synced context of the `Catalog` template (`contextCategory = 'Catalog'`), not a table of its own. Its members are the business roles it holds, the source's catalog properties sit in its `extendedAttributes`, and the people who answer for it are its Accountable and Responsible. Catalogs have their own **Catalogs** tab on the Contexts page. Until migration 117 they lived in a `GovernanceCatalogs` table with a `Resources.catalogId` pointer; that table is gone and the next crawl writes the catalogs again as contexts.
 
 !!! info "Breaking change from v3.0"
     In v3.0, governance used seven separate tables: GovernanceCatalogs, BusinessRoles, BusinessRoleResources, BusinessRoleAssignments, BusinessRolePolicies, BusinessRoleRequests, and CertificationDecisions. In v3.1, three of those were absorbed into the shared resource model. Existing v3.0 deployments must re-sync to populate the unified tables.
@@ -36,16 +38,20 @@ The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`,
 <!-- ontology: validated -->
 ```mermaid
 erDiagram
-    GovernanceCatalogs {
+    Contexts {
         guid id PK
         string displayName
-        string description
+        string contextCategory
+    }
+    ContextMembers {
+        guid contextId FK
+        string memberType
+        guid memberId FK
     }
     Resources {
         guid id PK
         string displayName
         string resourceType
-        guid catalogId FK
         bool isHidden
     }
     ResourceAssignments {
@@ -99,7 +105,8 @@ erDiagram
         string reviewInstanceStatus
     }
 
-    GovernanceCatalogs |o--o{ Resources : "contains (BusinessRole)"
+    Contexts ||--o{ ContextMembers : "contextCategory=Catalog"
+    ContextMembers }o--|| Resources : "BusinessRole"
     Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
     Resources |o--o{ AssignmentPolicies : "governed by"
@@ -115,7 +122,7 @@ The same governance tables absorb data from any IGA platform. The source platfor
 
 | Concept | Entra ID | Omada | SailPoint | Table |
 |---|---|---|---|---|
-| Catalog / Container | Catalog | — | Source | `GovernanceCatalogs` |
+| Catalog / Container | Catalog | — | Source | `Contexts` (`contextCategory = 'Catalog'`), members in `ContextMembers` |
 | Business Role | Access Package | Business Role | Access Profile | `Resources` (`resourceType = 'BusinessRole'`) |
 | Resource Grant | Resource Role Scope | Role Entitlement | Entitlement | `ResourceRelationships` (`relationshipType = 'Contains'`) |
 | Assignment | AP Assignment | Role Assignment | Access Request Result | `ResourceAssignments` (`governed = true`) |
@@ -135,7 +142,6 @@ These columns are created by the PostgreSQL migrations (`001_core_schema.sql`, `
 
 | Column | Type | Purpose |
 |---|---|---|
-| `catalogId` | UUID | Links the business role to its `GovernanceCatalogs` parent |
 | `isHidden` | BOOLEAN | Hides the business role from self-service request portals |
 
 ### ResourceAssignments (governed assignments)
@@ -249,7 +255,7 @@ The built-in Entra ID crawler (**Admin → Crawlers → Add Crawler → Entra ID
 
 | Graph resource | Target table (`filter`) |
 |---|---|
-| Access package catalogs | `GovernanceCatalogs` |
+| Access package catalogs | `Contexts` (`contextCategory = Catalog`, `contextType = AccessPackageCatalog`), the access packages as `ContextMembers` |
 | Access packages | `Resources` (`resourceType = BusinessRole`) |
 | Access package assignments | `ResourceAssignments` (`governed = true`) |
 | Access package resource scopes | `ResourceRelationships` (`relationshipType = Contains`) |
