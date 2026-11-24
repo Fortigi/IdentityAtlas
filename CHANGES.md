@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- The Azure part of the release test no longer fails when Azure has no capacity for the PostgreSQL server in West Europe: on `SkuNotAvailable` it throws that resource group away and runs the whole variant again in Sweden Central, then North Europe, logging which region it used. Any other deployment failure still fails the variant at once, and every fallback group is deleted at the end like the others.
+
+## Changes in this PR
+
 - Fixed portable beta builds failing to run any crawler or demo-data job: the module could not be loaded because of the pre-release version number. The portable app still reports the exact beta version (e.g. 6.2.0-beta.1).
 - Fixed the release test's "Docker: sign-in on" job, which always failed at its variable check even when every azure-release-test variable was set; it now passes when they are set and names exactly the missing ones when they are not.
 
