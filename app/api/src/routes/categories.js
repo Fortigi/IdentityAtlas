@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import { createParams, likeContains } from '../db/sqlParams.js';
-import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, deriveControl } from '../lib/businessRoleAccessModel.js';
+import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, deriveControl, holderCountSql, resourceCountSql } from '../lib/businessRoleAccessModel.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -220,7 +220,9 @@ router.get('/access-packages', async (req, res) => {
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const SORT_COL_MAP = {
       displayName:      'ap."displayName"',
-      totalAssignments: 'totalAssignments',
+      totalAssignments: '"totalAssignments"',
+      userCount:        '"userCount"',
+      resourceCount:    '"resourceCount"',
       category:         'categoryName',
       catalog:          'catalogName',
     };
@@ -313,6 +315,8 @@ router.get('/access-packages', async (req, res) => {
       SELECT ap.id, ap."displayName", ap.description, ap."deletedAt",
              c."displayName" AS "catalogName", c.id AS "catalogId",
              COALESCE(ac.cnt, 0) AS "totalAssignments",
+             ${holderCountSql('ap.id')} AS "userCount",
+             ${resourceCountSql('ap.id')} AS "resourceCount",
              cat.id AS "categoryId", cat.name AS "categoryName", cat.color AS "categoryColor",
              COALESCE(pc."policyCount", 0) AS "policyCount",
              COALESCE(pc."autoAddCount", 0) AS "autoAddCount",
@@ -369,6 +373,8 @@ router.get('/access-packages', async (req, res) => {
         catalogName: r.catalogName,
         catalogId: r.catalogId,
         totalAssignments: r.totalAssignments,
+        userCount: r.userCount ?? 0,
+        resourceCount: r.resourceCount ?? 0,
         category: r.categoryId ? { id: r.categoryId, name: r.categoryName, color: r.categoryColor } : null,
         assignmentType,
         accessModel: { ...accessModel, ...deriveControl(accessModel) },

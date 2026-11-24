@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   deriveAccessModel, deriveControl, deriveHowHeld, isAutomaticHolder, holderControl, roleControls, linkedHolderControlSql,
-  ROLE_CONTROL_SQL, ACCESS_MODEL_AGGREGATES,
+  ROLE_CONTROL_SQL, ACCESS_MODEL_AGGREGATES, holderCountSql, resourceCountSql,
 } from './businessRoleAccessModel.js';
 
 describe('holderControl', () => {
@@ -182,5 +182,33 @@ describe('ACCESS_MODEL_AGGREGATES', () => {
   ])('maps %s to %s without turning NULL into false', (column, alias) => {
     expect(ACCESS_MODEL_AGGREGATES).toMatch(new RegExp(`BOOL_OR\\("${column}"\\)\\s+AS "${alias}"`));
     expect(ACCESS_MODEL_AGGREGATES).not.toMatch(/COALESCE/);
+  });
+});
+
+describe('holderCountSql', () => {
+  const sql = holderCountSql('ap.id');
+
+  it('counts each live account once for the given role', () => {
+    expect(sql).toContain('COUNT(DISTINCT a."principalId")');
+    expect(sql).toContain('a."resourceId" = ap.id');
+  });
+
+  it('leaves out history, undelivered assignments and deleted accounts', () => {
+    expect(sql).toContain('a."deletedAt" IS NULL');
+    expect(sql).toContain(`(LOWER(a.state) = 'delivered' OR a.state IS NULL)`);
+    expect(sql).toContain('p.id = a."principalId" AND p."deletedAt" IS NOT NULL');
+  });
+});
+
+describe('resourceCountSql', () => {
+  const sql = resourceCountSql('$1');
+
+  it('counts each contained resource once for the given role', () => {
+    expect(sql).toContain('COUNT(DISTINCT rrs."childResourceId")');
+    expect(sql).toContain(`rrs."parentResourceId" = $1 AND rrs."relationshipType" = 'Contains'`);
+  });
+
+  it('leaves out resources deleted in the source', () => {
+    expect(sql).toContain('r.id = rrs."childResourceId" AND r."deletedAt" IS NOT NULL');
   });
 });

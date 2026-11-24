@@ -201,6 +201,37 @@ describe('GET /access-packages', () => {
     expect(res.body.data[0]).toMatchObject({ id: RES, assignmentType: 'Auto-assigned', category: { id: 2, name: 'Finance' } });
   });
 
+  it('sends how many people hold each role and how many resources it contains', async () => {
+    queryOne.mockResolvedValueOnce({ t: null });
+    query
+      .mockResolvedValueOnce({ rows: [{ id: RES, displayName: 'AP1', totalAssignments: 3, userCount: 2, resourceCount: 7 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/access-packages');
+    expect(res.body.data[0]).toMatchObject({ userCount: 2, resourceCount: 7 });
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('COUNT(DISTINCT a."principalId")');
+    expect(sql).toContain('a."resourceId" = ap.id');
+    expect(sql).toContain('rrs."parentResourceId" = ap.id');
+  });
+
+  it('counts are 0 when the row carries none', async () => {
+    queryOne.mockResolvedValueOnce({ t: null });
+    query.mockResolvedValueOnce({ rows: [{ id: RES, displayName: 'AP1' }] }).mockResolvedValueOnce({ rows: [{ total: 1 }] });
+    const res = await request(app).get('/api/access-packages');
+    expect(res.body.data[0]).toMatchObject({ userCount: 0, resourceCount: 0 });
+  });
+
+  it.each([
+    ['userCount', 'ORDER BY "userCount" DESC'],
+    ['resourceCount', 'ORDER BY "resourceCount" DESC'],
+    ['totalAssignments', 'ORDER BY "totalAssignments" DESC'],
+  ])('sorts on %s by its quoted column', async (sortCol, order) => {
+    queryOne.mockResolvedValueOnce({ t: null });
+    query.mockResolvedValue({ rows: [] });
+    await request(app).get(`/api/access-packages?sortCol=${sortCol}&sortDir=desc`);
+    expect(String(query.mock.calls[0][0])).toContain(order);
+  });
+
   it('an inherited property name as sortCol falls back to displayName (SEC-2026-09 L-15)', async () => {
     for (const sortCol of ['constructor', 'toString', '__proto__']) {
       queryOne.mockReset();

@@ -4,17 +4,17 @@ const SORT_COLUMNS = [
   { key: 'displayName',      label: 'Name' },
   { key: 'assignmentType',   label: 'Type' },
   { key: 'complianceStatus', label: 'Review Status' },
-  { key: 'lastReviewDate',   label: 'Review Date' },
-  { key: 'lastReviewedBy',   label: 'Reviewed By' },
+  { key: 'userCount',        label: 'Users', numeric: true },
+  { key: 'resourceCount',    label: 'Resources', numeric: true },
 ];
 
 // A clickable, sort-indicating column header.
-function SortableHeader({ label, colKey, sortCol, sortDir, onToggleSort }) {
+function SortableHeader({ label, colKey, numeric, sortCol, sortDir, onToggleSort }) {
   const active = sortCol === colKey;
   return (
     <th
       onClick={() => onToggleSort(colKey)}
-      className="text-left px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
+      className={`${numeric ? 'text-right' : 'text-left'} px-3 py-2 font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700`}
     >
       <span className="inline-flex items-center gap-1">
         {label}
@@ -52,6 +52,7 @@ export default function AccessPackagesTable({
                 key={col.key}
                 label={col.label}
                 colKey={col.key}
+                numeric={col.numeric}
                 sortCol={sortCol}
                 sortDir={sortDir}
                 onToggleSort={onToggleSort}

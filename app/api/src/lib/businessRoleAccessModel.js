@@ -65,6 +65,27 @@ export const ROLE_CONTROL_SQL = `
      WHERE "resourceId" = ANY($1::uuid[])
      GROUP BY "resourceId"`;
 
+// How many people hold a role and how many resources it contains, counted the
+// same way on the list and on the role's page. A holder is a live, delivered
+// assignment of a live account, counted once however it is held (Direct and
+// Eligible are one person); a resource deleted in the source is history.
+// `roleId` is the SQL for the role's id.
+export const holderCountSql = (roleId) => `(
+    SELECT COUNT(DISTINCT a."principalId")::int
+      FROM "ResourceAssignments" a
+     WHERE a."resourceId" = ${roleId}
+       AND a."deletedAt" IS NULL
+       AND (LOWER(a.state) = 'delivered' OR a.state IS NULL)
+       AND NOT EXISTS (SELECT 1 FROM "Principals" p
+                        WHERE p.id = a."principalId" AND p."deletedAt" IS NOT NULL))`;
+
+export const resourceCountSql = (roleId) => `(
+    SELECT COUNT(DISTINCT rrs."childResourceId")::int
+      FROM "ResourceRelationships" rrs
+     WHERE rrs."parentResourceId" = ${roleId} AND rrs."relationshipType" = 'Contains'
+       AND NOT EXISTS (SELECT 1 FROM "Resources" r
+                        WHERE r.id = rrs."childResourceId" AND r."deletedAt" IS NOT NULL))`;
+
 export function roleControls(rows) {
   return new Map(rows.map(r => [r.resourceId, deriveControl(deriveAccessModel(r)).control]));
 }

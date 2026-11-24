@@ -1,6 +1,4 @@
-import { formatDateOnly as formatDate } from '@ui/utils/formatters';
 import ComplianceStatusCell from './ComplianceStatusCell';
-import ReviewedByCell from './ReviewedByCell';
 import RowCategorySelect from './RowCategorySelect';
 import DeletedBadge from '@ui/components/DeletedBadge';
 import WayChips from '@ui/components/businessRoles/WayChips';
@@ -45,12 +43,8 @@ export default function AccessPackageRow({
       <td className="px-3 py-2 text-xs">
         <ComplianceStatusCell ap={ap} />
       </td>
-      <td className="px-3 py-2 text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
-        {ap.lastReviewDate ? formatDate(ap.lastReviewDate) : <span className="text-gray-500 dark:text-gray-500">-</span>}
-      </td>
-      <td className="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs">
-        <ReviewedByCell value={ap.lastReviewedBy} />
-      </td>
+      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300" data-testid="role-users">{ap.userCount ?? 0}</td>
+      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300" data-testid="role-resources">{ap.resourceCount ?? 0}</td>
       <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
         <RowCategorySelect
           ap={ap}

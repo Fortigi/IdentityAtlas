@@ -20,6 +20,10 @@ const NOTE = 'text-sm text-gray-600 dark:text-gray-400';
 const STICKY = 'sticky left-0 z-10 bg-white dark:bg-gray-800';
 const PERSON_LINK = 'font-medium text-gray-900 hover:text-blue-700 hover:underline dark:text-gray-100 dark:hover:text-blue-300';
 
+// A person's name read bottom to top, as the roles on an application's page, so
+// a whole team fits side by side.
+const VERTICAL = 'inline-block max-h-40 rotate-180 truncate whitespace-nowrap [writing-mode:vertical-rl]';
+
 const ROLE_LINK = 'text-left text-blue-700 hover:underline dark:text-blue-300';
 
 const TONES = {
@@ -27,9 +31,10 @@ const TONES = {
   removed: 'bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200',
 };
 
-// Told apart by shape as well as colour: a lightning bolt for a rule, a person for a decision.
+// Told apart by shape as well as colour: a lightning bolt for a rule, a person
+// for a decision. Green and amber as the Type chips on the Business Roles list.
 const MARKS = {
-  automatic: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200', path: 'M11 2 4 11.5h5L8 18l8-10h-5l1-6Z', fill: true },
+  automatic: { cls: 'bg-green-100 text-green-800 ring-1 ring-green-300 dark:bg-green-900/40 dark:text-green-200 dark:ring-green-700', path: 'M11 2 4 11.5h5L8 18l8-10h-5l1-6Z', fill: true },
   manual: { cls: 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-500', path: 'M10 9.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM3.5 17c.6-3.4 3.2-5 6.5-5s5.900 1.600 6.500 5' },
   unknown: { cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200', path: 'M4 10.500l4 4 8-9' },
 };
@@ -86,10 +91,12 @@ function RoleMatrix({ people, roles, onOpenDetail, onOpenUngoverned }) {
         <caption className="sr-only">Business roles per team member</caption>
         <thead>
           <tr className="border-b border-gray-200 dark:border-gray-700">
-            <th scope="col" className={`${STICKY} min-w-56 py-2 pr-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400`}>Business role</th>
+            <th scope="col" className={`${STICKY} min-w-56 py-2 pr-4 text-left align-bottom text-xs font-medium text-gray-600 dark:text-gray-400`}>Business role</th>
             {people.map(p => (
-              <th key={p.id} scope="col" className="min-w-24 px-2 py-2 text-center align-bottom text-xs font-medium leading-tight">
-                <EntityLink kind={p.kind} id={p.id} label={p.displayName} accessible={p.accessible} onOpenDetail={onOpenDetail} className={PERSON_LINK} />
+              <th key={p.id} scope="col" className="w-10 px-1 py-2 text-center align-bottom text-xs font-medium">
+                <span title={p.displayName} className={VERTICAL}>
+                  <EntityLink kind={p.kind} id={p.id} label={p.displayName} accessible={p.accessible} onOpenDetail={onOpenDetail} className={PERSON_LINK} />
+                </span>
               </th>
             ))}
           </tr>
@@ -101,7 +108,7 @@ function RoleMatrix({ people, roles, onOpenDetail, onOpenUngoverned }) {
                 <EntityLink kind="access-package" id={role.id} label={role.displayName} accessible={role.accessible} onOpenDetail={onOpenDetail} className={ROLE_LINK} />
               </th>
               {people.map(p => (
-                <td key={p.id} className="px-2 py-1.5 text-center">
+                <td key={p.id} className="px-1 py-1.5 text-center">
                   <HeldMark held={role.holders.includes(p.id) ? (role.origins?.[p.id] || {}) : null} role={role.displayName} person={p.displayName} />
                 </td>
               ))}
@@ -117,7 +124,7 @@ function RoleMatrix({ people, roles, onOpenDetail, onOpenUngoverned }) {
               Ungoverned permissions
               <span className="block text-xs font-normal text-gray-600 dark:text-gray-400">Access no business role explains. Click a number to see it.</span>
             </th>
-            {people.map(p => <td key={p.id} className="px-2 py-2.5 text-center"><UngovernedCount person={p} onOpen={onOpenUngoverned} /></td>)}
+            {people.map(p => <td key={p.id} className="px-1 py-2.5 text-center"><UngovernedCount person={p} onOpen={onOpenUngoverned} /></td>)}
           </tr>
         </tfoot>
       </table>

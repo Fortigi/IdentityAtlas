@@ -1,0 +1,4 @@
+- The Business Roles list shows how many people hold each role and how many resources it contains, in place of the review date and reviewer; both columns sort
+- A role's People figure counts each person once, the same way as the list
+- The team overview on an organisational unit marks rule based roles in green and manual ones in amber, the same colours as the Business Roles list
+- The team overview shows team members' names vertically, so a whole team fits side by side
