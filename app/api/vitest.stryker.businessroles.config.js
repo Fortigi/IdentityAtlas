@@ -12,6 +12,8 @@ export default defineConfig({
     include: [
       'src/lib/businessRoleAccessModel.test.js',
       'src/lib/businessRoleReview.test.js',
+      'src/lib/businessRoleCompositionReview.test.js',
+      'src/routes/details/businessRoleCompositionReview.test.js',
       'src/lib/businessRoleOwners.test.js',
       'src/lib/businessRoleOwnerSuggestion.test.js',
       'src/lib/businessRolePeople.test.js',

@@ -226,6 +226,14 @@ So a review is done **in the source system**, not here:
 - **Re-sync** the Entra ID (or CSV) crawler to pull the updated decisions back into `CertificationDecisions`.
 - **Track compliance in Identity Atlas** using the read-only review-compliance view — per-access-package last-review status (Compliant / In Progress / Reviewed Late / Missed), backed by the `GET /api/governance/review-compliance` and `GET /api/governance/summary` endpoints (see the [Governance API](../api/governance.md)). Use it to find which business roles are overdue or were reviewed late, then drive the next campaign in the source system.
 
+### Reviewing what a business role contains
+
+The one review Identity Atlas does hold itself is a **composition review**: on a business role's **Composition review** tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks **Signed off**. This reviews the role's *contents*, not who holds it, so it does not replace the access reviews above.
+
+- Every save is kept: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name) and when, plus what the role contained at that moment. The tab shows the latest sign-off and what was added or removed since.
+- It lives in its own table, `BusinessRoleCompositionReviews` (migration 116), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
+- Saving needs the **Certification decisions** permission (`data.write.certifications`); anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`).
+
 ---
 
 ## How governance data is ingested

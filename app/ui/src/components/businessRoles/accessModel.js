@@ -216,3 +216,10 @@ export function reviewWarnings(data = {}) {
   if (data.accessModel?.reviewGap) out.push('People decide who holds this role, but no regular review is set up.');
   return out;
 }
+
+// What changed in a role since its last composition sign-off, as one sentence:
+// "Since then: added A, B; removed C." Null when nothing changed. Pure.
+export function changeText({ added = [], removed = [] } = {}) {
+  const parts = [added.length && `added ${added.join(', ')}`, removed.length && `removed ${removed.join(', ')}`].filter(Boolean);
+  return parts.length ? `Since then: ${parts.join('; ')}.` : null;
+}
