@@ -126,6 +126,33 @@ function ConvertTo-CsvRelationshipRecord {
     return $rec
 }
 
+# Group shaped relationship records by their relationshipType, so the phase can
+# send one full sync per type. A full sync's stale-row delete is scoped to the
+# relationshipType it names, so one sync for the whole file can only ever
+# reconcile the one type it claims to be — which is how a GrantsAccessTo row
+# dropped from ResourceRelationships.csv used to stay behind forever.
+#
+# Returns one { Type; Records } per type, in first-seen order so a run's log
+# (and a test) reads in file order — emitted into the pipeline, so the caller's
+# foreach walks the groups and an empty file produces no group at all. An
+# [ordered]@{} compares its keys case-insensitively, like every other schema
+# value this crawler reads.
+function Split-CsvRecordsByRelationshipType {
+    [CmdletBinding()]
+    param($Records)
+    $byType = [ordered]@{}
+    foreach ($r in $Records) {
+        $t = [string]$r['relationshipType']
+        $list = $byType[$t]
+        if (-not $list) {
+            $list = [System.Collections.Generic.List[object]]::new()
+            $byType[$t] = $list
+        }
+        [void]$list.Add($r)
+    }
+    foreach ($t in $byType.Keys) { [pscustomobject]@{ Type = $t; Records = $byType[$t] } }
+}
+
 # ─── Extra columns → extendedAttributes ──────────────────────────
 # Every file whose target table carries extendedAttributes keeps the columns
 # outside its schema: the ingest API files any field it does not recognise as a

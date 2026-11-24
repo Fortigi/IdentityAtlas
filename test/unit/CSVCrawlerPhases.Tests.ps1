@@ -24,6 +24,7 @@ BeforeAll {
     . (Join-Path $script:csvDir 'CSVCrawler.Functions.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Transform.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Phases.ps1')
+    . (Join-Path $script:csvDir 'CSVCrawler.Nesting.ps1')
 
     # Scope state the phases + helpers resolve at call time.
     $script:CsvFolder        = $TestDrive
@@ -66,6 +67,9 @@ BeforeAll {
     function Reset-CsvTestState {
         $script:sent        = [System.Collections.Generic.List[object]]::new()
         $script:systemLookup = @{}
+        # No nesting run in progress unless a test starts one — the phases that
+        # feed the graph must do nothing at all without it.
+        $script:CsvNesting  = $null
     }
     function Set-Csv {
         param([string]$Name, [string[]]$Lines)
@@ -227,6 +231,41 @@ Describe 'Sync-CsvRelationships' {
         $sent[0].Records.Count | Should -Be 1
         $sent[0].Records[0].relationshipType | Should -Be 'Contains'
     }
+
+    # One full sync per relationshipType, because a full sync's stale-row delete
+    # is scoped to the type it names: the single Contains-scoped sync this phase
+    # used to send loaded GrantsAccessTo rows and then never removed one that
+    # left the file. Asserted on the SCOPE each batch carried, not just on the
+    # record counts — a run that sent both types under one Contains scope would
+    # pass a count-only assertion.
+    It 'sends one full sync per relationshipType, each scoped to its own type' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'BR1;G1;Contains'
+            'A;B;GrantsAccessTo'
+            'BR1;G2;Contains'
+        )
+        Sync-CsvRelationships
+        $sent = Get-Sent 'ingest/resource-relationships'
+        $sent.Count | Should -Be 2
+        @($sent | ForEach-Object { $_.Scope.relationshipType }) | Should -Be @('Contains', 'GrantsAccessTo')
+        $byType = @{}
+        foreach ($s in $sent) { $byType[$s.Scope.relationshipType] = $s }
+        @($byType['Contains'].Records | ForEach-Object { $_.childExternalId } | Sort-Object) | Should -Be @('G1', 'G2')
+        @($byType['GrantsAccessTo'].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('B')
+    }
+
+    It 'feeds the nesting graph its GrantsAccessTo edges, and only those' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'BR1;G1;Contains'
+            'A;B;GrantsAccessTo'
+        )
+        $script:CsvNesting = New-CsvNestingGraph
+        Sync-CsvRelationships
+        @($script:CsvNesting.Parents.Keys) | Should -Be @('B')
+        @($script:CsvNesting.Parents['B'])  | Should -Be @('A')
+    }
 }
 
 Describe 'Sync-CsvUsers' {
@@ -303,6 +342,33 @@ Describe 'Sync-CsvAssignments' {
         $recs.Count | Should -Be 2                   # the row with no resource id is skipped
         ($recs | Where-Object { $_.resourceExternalId -eq 'r1' }).assignmentType | Should -Be 'Eligible'
         ($recs | Where-Object { $_.resourceExternalId -eq 'r2' }).assignmentType | Should -Be 'Direct'
+    }
+
+    # The nesting expansion reads its holders off THIS stream — there is no
+    # second pass over a file that routinely runs to tens of millions of rows.
+    It 'collects the Direct holders of the nesting graph''s resources off the stream' {
+        Set-Csv 'Assignments.csv' @(
+            'ResourceExternalId;UserExternalId;AssignmentType'
+            'A;u1;Direct'
+            'A;u2;Eligible'
+            'unrelated;u3;Direct'
+        )
+        $script:CsvNesting = New-CsvNestingGraph
+        Add-CsvNestingEdges -Graph $script:CsvNesting -Records @(
+            @{ _systemId = 2; parentExternalId = 'A'; childExternalId = 'B'; relationshipType = 'GrantsAccessTo' }
+        )
+        Sync-CsvAssignments
+        @($script:CsvNesting.Holders.Keys) | Should -Be @('A')
+        @($script:CsvNesting.Holders['A'])  | Should -Be @('u1')
+        @($script:CsvNesting.Systems)       | Should -Be @(2)
+    }
+
+    It 'records the systems it fed even with no nesting, and holds nothing else' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId', 'r1;u1')
+        $script:CsvNesting = New-CsvNestingGraph
+        Sync-CsvAssignments
+        $script:CsvNesting.Holders.Count | Should -Be 0
+        @($script:CsvNesting.Systems)    | Should -Be @(2)
     }
 
     It 'reconciles each system it fed, against the clock read before the first row' {

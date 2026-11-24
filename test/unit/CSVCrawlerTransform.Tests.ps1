@@ -195,6 +195,36 @@ Describe 'ConvertTo-CsvRelationshipRecord' {
     }
 }
 
+Describe 'Split-CsvRecordsByRelationshipType' {
+    BeforeAll {
+        function New-RelRec {
+            param([string]$Child, [string]$Type)
+            @{ _systemId = 2; parentExternalId = 'p'; childExternalId = $Child; relationshipType = $Type }
+        }
+    }
+
+    It 'groups a mixed file by type, keeping first-seen order and every record' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Records @(
+            (New-RelRec 'c1' 'Contains'),
+            (New-RelRec 'c2' 'GrantsAccessTo'),
+            (New-RelRec 'c3' 'Contains')
+        ))
+        @($groups.Type) | Should -Be @('Contains', 'GrantsAccessTo')
+        @($groups[0].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c1', 'c3')
+        @($groups[1].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c2')
+    }
+
+    It 'yields one group for a single-type file' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Records @((New-RelRec 'c1' 'Contains')))
+        $groups.Count | Should -Be 1
+        $groups[0].Type | Should -Be 'Contains'
+    }
+
+    It 'yields nothing at all for an empty record set, so nothing is sent' {
+        @(Split-CsvRecordsByRelationshipType -Records @()).Count | Should -Be 0
+    }
+}
+
 Describe 'ConvertTo-CsvUserRecord' {
     It 'returns $null when ExternalId or DisplayName is blank' {
         $cols = New-ColSet @('ExternalId', 'DisplayName')

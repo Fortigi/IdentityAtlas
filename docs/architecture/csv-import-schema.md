@@ -82,8 +82,35 @@ Parent–child links between resources (role nesting, group membership, business
 |--------|------|----------|-------------|
 | `ParentExternalId` | string | yes | ExternalId of the parent resource |
 | `ChildExternalId` | string | yes | ExternalId of the child resource |
-| `RelationshipType` | string | no | `Contains` (default), `GrantsAccessTo` |
+| `RelationshipType` | string | no | `Contains` (default) or `GrantsAccessTo` — see below. Any other value is rejected by the ingest |
 | `SystemName` | string | no | |
+
+**`GrantsAccessTo` means inherited access, and the import expands it.** Holding the
+**parent** grants the **child**, so everyone who holds the parent — directly, or by
+inheritance further up — is loaded as an `Indirect` member of the child, at any
+depth. Use it for nested groups (and anything shaped like them: LDAP groups, SAP
+composite roles).
+
+For an Active Directory export, that means **parent = the member group, child = the
+containing group**: `DEPT-IT` being a member of `APP-FINANCE` is the row
+`ParentExternalId=DEPT-IT; ChildExternalId=APP-FINANCE; RelationshipType=GrantsAccessTo`,
+and everyone in `DEPT-IT` then shows on `APP-FINANCE` with the `I` badge, exactly as
+with an Entra ID import.
+
+Details worth knowing:
+
+- Only `Direct` holders propagate. An `Eligible` (PIM-style) assignment is not active
+  access and is not inherited, and an `Indirect` row you supplied yourself never seeds
+  another hop.
+- Someone who holds the child both directly and through the parent keeps **one** row,
+  the `Direct` one — it is the stronger statement.
+- Cycles (A grants B grants A) and diamonds terminate and are never double-counted.
+- The inherited rows are re-computed on every import and reconciled like any other
+  assignment: drop the nesting row from the file and the inherited rows go with it.
+  `Indirect` rows listed in your own `Assignments.csv` survive untouched.
+- **`Contains` is never expanded.** It also means a business role's resource grants
+  (see the governance model), and `ResourceType` is free text, so the two uses cannot
+  be told apart — use `GrantsAccessTo` for nesting.
 
 #### 6. `Contexts.csv` (optional)
 
@@ -186,6 +213,12 @@ Files are parsed as RFC 4180: a quoted value may contain the delimiter, a double
 
 A `SystemName` that `Systems.csv` does not declare still loads — into the crawler's own system — but the job log warns with the row count and the unknown names, per file. `ContextMembers.csv` ignores `SystemName`: a membership belongs to its context's system, and the file is synced as one set.
 
+**8. Nesting is expanded at import time, and each relationship type is synced on its own**
+
+Inherited access is materialised by the crawler (step 6b of the job log), not computed when the matrix is read — the same choice the Entra ID and SCIM crawlers make, and the reason an inherited member looks and filters exactly like any other `Indirect` one. The expansion is built from `ResourceRelationships.csv`'s `GrantsAccessTo` rows plus the `Direct` rows of `Assignments.csv`, without reading either file twice, so an export with no `GrantsAccessTo` row costs nothing.
+
+`ResourceRelationships.csv` is synced as one full sync **per `RelationshipType`**, which is what lets a row dropped from the file be removed: a full sync only reconciles the type it declares. One nuance applies to this file as to every other: a **missing** file means "not supplied" and never deletes anything, and the same holds per type — removing the last `GrantsAccessTo` row of an import leaves the import with nothing to reconcile that type against. To clear every row of a type, keep the file and the column, and re-import without those rows while at least one other row of that type remains.
+
 ### Minimum viable imports
 
 | Scenario | Files needed |
@@ -196,6 +229,7 @@ A `SystemName` that `Systems.csv` does not declare still loads — into the craw
 | **With identity correlation** | + `Identities.csv` + `IdentityMembers.csv` |
 | **With access reviews** | + `Certifications.csv` |
 | **With role hierarchy** | + `ResourceRelationships.csv` |
+| **With nested groups (AD, LDAP)** | + `ResourceRelationships.csv` with `RelationshipType = GrantsAccessTo` rows |
 | **Full model** | All 10 files |
 
 ### Pre-import transformation

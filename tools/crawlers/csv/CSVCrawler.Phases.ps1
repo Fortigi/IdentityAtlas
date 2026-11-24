@@ -190,6 +190,15 @@ function Get-CsvResourceIndex {
 }
 
 # ─── Step 4: ResourceRelationships.csv (optional) ────────────────
+# ONE FULL SYNC PER relationshipType, not one for the whole file. A full sync's
+# stale-row delete is scoped (ingest/sessions.js → scopedDelete), so the single
+# `relationshipType = 'Contains'` sync this phase used to send loaded a
+# GrantsAccessTo row happily and then never removed one that left the file. The
+# per-type split is the pattern every Entra relationship phase already uses.
+#
+# The GrantsAccessTo rows also feed the nesting graph step 6b expands — built
+# here, before the records are sent, because Send-GroupedBySystem strips the
+# _systemId each one carries.
 function Sync-CsvRelationships {
     [CmdletBinding()]
     param()
@@ -210,7 +219,10 @@ function Sync-CsvRelationships {
     }
     Write-Host "  Built $($records.Count) relationship records" -ForegroundColor Gray
     Write-CsvUnknownSystems -FileName 'ResourceRelationships.csv' -Unknown $unknown
-    Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = 'Contains' } -Records $records
+    Add-CsvNestingEdges -Graph $script:CsvNesting -Records $records
+    foreach ($group in Split-CsvRecordsByRelationshipType -Records $records) {
+        Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = $group.Type } -Records $group.Records
+    }
     [System.GC]::Collect()
 }
 
@@ -265,10 +277,18 @@ function Sync-CsvUsers {
 # (Add-CrawlerIngestStreamRecords) one 10,000-row batch per call.
 $script:CsvStreamBatchSize = 10000
 
+# The assignment key every assignment stream dedups a chunk on — step 6's own,
+# and step 6b's inherited rows (CSVCrawler.Nesting.ps1), which must key
+# identically so a pair that is both supplied and computed collapses into one row.
+$script:CsvAssignmentKeyFields = @('resourceExternalId', 'principalExternalId', 'assignmentType')
+
 # Stream one fast-path file into $Spec.Endpoint and reconcile every system it fed.
 # $Spec: FileName, Endpoint, Scope, KeyFields, SkipReason, and two scriptblocks —
 # Prepare (ColIdx, Columns → the column-position table, throwing when a required
 # column is missing) and ShapeSet (rows of one system, Idx → @{ Records; Skipped }).
+# An optional third, Collect (systemId, records), is handed every shaped batch on
+# its way to the stream: that is how the nesting expansion reads the file's
+# Direct holders without a second pass over it.
 # Returns $false when the file does not exist.
 function Sync-CsvStreamedFile {
     [CmdletBinding()]
@@ -316,7 +336,9 @@ function Add-CsvStreamRows {
     $spec = $Run.Spec
     $shaped = ConvertTo-CsvStreamBatch -Rows $Rows -Idx $Run.Idx -SystemLookup $systemLookup -FallbackSystemId $fallbackSystemId `
         -ShapeSet $spec.ShapeSet -Unknown $Run.Unknown
+    $collect = $spec.Collect
     foreach ($sid in $shaped.BySystem.Keys) {
+        if ($collect) { & $collect $sid $shaped.BySystem[$sid] }
         $stream = $Run.Streams[$sid]
         if (-not $stream) {
             $stream = New-CrawlerIngestStream -Endpoint $spec.Endpoint -SystemId $sid -IdPrefix $SystemType `
@@ -383,9 +405,12 @@ function Sync-CsvAssignments {
         FileName   = 'Assignments.csv'
         Endpoint   = 'ingest/resource-assignments'
         Scope      = @{ assignmentType = 'Direct' }
-        KeyFields  = @('resourceExternalId', 'principalExternalId', 'assignmentType')
+        KeyFields  = $script:CsvAssignmentKeyFields
         Prepare    = ${function:Get-CsvAssignmentIndex}
         ShapeSet   = ${function:ConvertTo-CsvAssignmentRecordSet}
+        # Feeds the nesting expansion (step 6b) off this very stream — see
+        # CSVCrawler.Nesting.ps1 for why there is no second pass over the file.
+        Collect    = ${function:Add-CsvNestingStreamBatch}
         SkipReason = 'missing resource or user id'
     }
     if (-not $found) { Write-Host "  WARNING: Assignments.csv not found (required)" -ForegroundColor Red }

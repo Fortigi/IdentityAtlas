@@ -12,7 +12,9 @@
         - 80,000 resources
         - 15,000 contexts (departments)
         - 1,500,000 user/resource assignments
-        - 100,000 resource relationships (parent/child role nesting)
+        - 100,000 resource relationships (parent/child role nesting), of which
+          2,000 chains of 5 GrantsAccessTo edges, so the import's nested-access
+          expansion is walked at depth and not only across flat pairs
         - 25,000 identities
         - ~76,000 identity members (95% of users linked to an identity)
         - 300,000 certification decisions
@@ -47,6 +49,14 @@
 .PARAMETER RelationshipCount
     Number of parent/child resource relationships. Default: 100000.
 
+.PARAMETER NestedChainCount
+    Number of deliberate GrantsAccessTo nesting chains, counted within
+    RelationshipCount. Default: 2000.
+
+.PARAMETER NestedChainDepth
+    Edges per nesting chain, i.e. how deep inherited access has to be walked.
+    Default: 5.
+
 .PARAMETER CertificationCount
     Number of certification decisions. Default: 300000.
 
@@ -75,6 +85,8 @@ Param(
     [int]$IdentityCount = 25000,
     [int]$AssignmentCount = 1500000,
     [int]$RelationshipCount = 100000,
+    [int]$NestedChainCount = 2000,
+    [int]$NestedChainDepth = 5,
     [int]$CertificationCount = 300000,
     [double]$IdentityMemberRatio = 0.95,
     [int]$Seed = 20260411
@@ -137,12 +149,31 @@ function New-ResourcesFile {
 }
 
 # ─── 4. ResourceRelationships.csv ────────────────────────────────
+# The random pairs below are a flat graph: with 100,000 edges over 80,000
+# resources almost nothing nests more than one level deep, so they do not
+# exercise the import's nested-access expansion (the transitive closure of the
+# GrantsAccessTo edges) at any depth. NestedChainCount deliberate chains of
+# NestedChainDepth are written first for that — a chain's holders have to be
+# carried the whole way down, which is where a closure walk gets expensive.
 function New-ResourceRelationshipsFile {
-    Write-Host "[4/9] Generating ResourceRelationships.csv ($RelationshipCount rows)..." -ForegroundColor Cyan
+    Write-Host "[4/9] Generating ResourceRelationships.csv ($RelationshipCount rows, incl. $NestedChainCount nested chains of depth $NestedChainDepth)..." -ForegroundColor Cyan
     $sw = New-Writer 'ResourceRelationships.csv'
     try {
         $sw.WriteLine('ParentExternalId;ChildExternalId;RelationshipType;SystemName')
-        for ($i = 1; $i -le $RelationshipCount; $i++) {
+        $chainRows = 0
+        for ($c = 0; $c -lt $NestedChainCount; $c++) {
+            # Each chain walks a contiguous block of resources: RES n grants
+            # RES n+1 grants RES n+2 … so every holder of the first is an
+            # inherited holder of all the rest.
+            $base = 1 + ($c * $NestedChainDepth)
+            if (($base + $NestedChainDepth) -gt $ResourceCount) { break }
+            $sysIdx = $rng.Next(1, $SystemCount + 1)
+            for ($d = 0; $d -lt $NestedChainDepth; $d++) {
+                $sw.WriteLine(("RES{0};RES{1};GrantsAccessTo;System {2}" -f ($base + $d), ($base + $d + 1), $sysIdx))
+                $chainRows++
+            }
+        }
+        for ($i = 1; $i -le ($RelationshipCount - $chainRows); $i++) {
             # Pick two distinct resources — parent != child, no self-loops
             $parentIdx = $rng.Next(1, $ResourceCount + 1)
             $childIdx = $rng.Next(1, $ResourceCount + 1)
@@ -152,7 +183,7 @@ function New-ResourceRelationshipsFile {
             $rtype = $relationshipTypes[$rng.Next(0, $relationshipTypes.Count)]
             $sysIdx = $rng.Next(1, $SystemCount + 1)
             $sw.WriteLine(("RES{0};RES{1};{2};System {3}" -f $parentIdx, $childIdx, $rtype, $sysIdx))
-            if ($i % 20000 -eq 0) { Write-Host "      $i / $RelationshipCount" -ForegroundColor DarkGray }
+            if ($i % 20000 -eq 0) { Write-Host "      $($i + $chainRows) / $RelationshipCount" -ForegroundColor DarkGray }
         }
     } finally { $sw.Close() }
 }

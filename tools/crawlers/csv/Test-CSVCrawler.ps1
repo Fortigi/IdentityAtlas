@@ -294,8 +294,134 @@ try {
     Write-Result 'CSV/ContextMemberExternalId' $false "context-member by externalId failed (status $statusCode) — externalId resolution regression: $($_.Exception.Message)"
 }
 
+# ─── Nested access: GrantsAccessTo becomes Indirect membership ───
+# The one test here that runs the real crawler end to end, because the feature
+# it covers IS the whole pipeline: ResourceRelationships.csv + Assignments.csv
+# in, inherited (Indirect) rows out, and — on the second import — the inherited
+# rows AND the nesting row itself gone again. Everything up to the expansion
+# itself is unit-tested (test/unit/CSVCrawlerNesting.Tests.ps1); what cannot be
+# unit-tested is that the rows survive the ingest, the reconcile removes exactly
+# the stale ones, and a user-supplied Indirect row is not caught in the crossfire.
+#
+# Every id carries a per-run stamp, so a re-run never collides with its own
+# leftovers and the fixture can be found by search.
+$nestStamp = "nest-$([Guid]::NewGuid().ToString('N').Substring(0, 8))"
+$nestSystem = "CSV Nesting Test $nestStamp"
+$nestDir = Join-Path $edgeCaseDir 'nesting'
+$nestSystemId = $null
+
+# Write the fixture for one import. $Relationships are the data rows of
+# ResourceRelationships.csv; everything else is identical between imports.
+function Write-NestingFixture {
+    param([string[]]$Relationships)
+    [System.IO.Directory]::CreateDirectory($nestDir) | Out-Null
+    $set = @{
+        'Resources.csv' = @('ExternalId;DisplayName;ResourceType') + @('A', 'B', 'C', 'D' | ForEach-Object { "$nestStamp-$_;$nestStamp $_;Group" })
+        'Users.csv'     = @('ExternalId;DisplayName') + @('u1', 'u2' | ForEach-Object { "$nestStamp-$_;$nestStamp $_" })
+        # u1 holds A directly; u2's Indirect row on B is supplied by the file and
+        # must still be there after the second import (it is not computed).
+        'Assignments.csv' = @(
+            'ResourceExternalId;UserExternalId;AssignmentType'
+            "$nestStamp-A;$nestStamp-u1;Direct"
+            "$nestStamp-B;$nestStamp-u2;Indirect"
+        )
+        'ResourceRelationships.csv' = @('ParentExternalId;ChildExternalId;RelationshipType') + $Relationships
+    }
+    foreach ($file in $set.Keys) {
+        Set-Content -Path (Join-Path $nestDir $file) -Value $set[$file] -Encoding utf8
+    }
+}
+
+# Run the crawler over the fixture folder, exactly as the worker does.
+function Invoke-NestingCrawl {
+    $cfgPath = Join-Path $nestDir 'config.json'
+    @{ csvFolder = $nestDir; systemName = $nestSystem; systemType = 'CSV'; delimiter = ';' } |
+        ConvertTo-Json | Set-Content -Path $cfgPath -Encoding utf8
+    & (Join-Path $PSScriptRoot 'Start-CSVCrawler.ps1') -ApiBaseUrl $ApiBaseUrl -ApiKey $ApiKey -JobId 0 -ConfigPath $cfgPath | Out-Null
+}
+
+# The deterministic id of one fixture resource, resolved the way a user would:
+# by searching for it.
+function Get-NestingResourceId {
+    param([string]$Suffix)
+    $found = Invoke-LocalApi -Path "/resources?search=$nestStamp&includeBusinessRoles=true&limit=50"
+    $row = @($found.data) | Where-Object { $_.externalId -eq "$nestStamp-$Suffix" } | Select-Object -First 1
+    return $row.id
+}
+
+# The current (not soft-deleted) holders of a resource as "<user>/<type>" strings.
+function Get-NestingHolders {
+    param([string]$ResourceId)
+    , @(@(Invoke-LocalApi -Path "/resources/$ResourceId/assignments") |
+        Where-Object { -not $_.deleted } |
+        ForEach-Object { "$($_.principalDisplayName)/$($_.assignmentType)" } | Sort-Object)
+}
+
+if (-not $ApiKey) {
+    Write-Host "    SKIP  CSV/NestedAccess — needs a crawler API key to run the crawler" -ForegroundColor Yellow
+} else {
+    try {
+        Write-NestingFixture -Relationships @(
+            "$nestStamp-A;$nestStamp-B;GrantsAccessTo"
+            "$nestStamp-C;$nestStamp-D;GrantsAccessTo"
+        )
+        Invoke-NestingCrawl
+        $idB = Get-NestingResourceId -Suffix 'B'
+        if (-not $idB) { throw "the fixture resource $nestStamp-B was not imported" }
+        $nestSystemId = (Invoke-LocalApi -Path "/resources?search=$nestStamp&limit=1").data[0].systemId
+
+        # AC 1: u1 holds A directly and B through it.
+        $holders = Get-NestingHolders -ResourceId $idB
+        if ($holders -contains "$nestStamp u1/Indirect") {
+            Write-Result 'CSV/NestedAccess/Inherited' $true "u1 inherited $nestStamp-B through $nestStamp-A"
+        } else {
+            Write-Result 'CSV/NestedAccess/Inherited' $false "expected an Indirect row for u1 on B, got: $($holders -join ', ')"
+        }
+        # The nesting row itself loaded, under its own relationship type.
+        $parents = @(Invoke-LocalApi -Path "/resources/$idB/parent-resources")
+        if (@($parents | Where-Object { $_.relationshipType -eq 'GrantsAccessTo' }).Count -eq 1) {
+            Write-Result 'CSV/NestedAccess/Relationship' $true 'the GrantsAccessTo row loaded'
+        } else {
+            Write-Result 'CSV/NestedAccess/Relationship' $false "expected one GrantsAccessTo parent, got: $(($parents | ForEach-Object { "$($_.parentDisplayName) ($($_.relationshipType))" }) -join ', ')"
+        }
+
+        # AC 7: re-import with the nesting row dropped (another GrantsAccessTo row
+        # stays, so that type still gets its full sync — see the per-type sync note
+        # in docs/architecture/csv-import-schema.md).
+        Write-NestingFixture -Relationships @("$nestStamp-C;$nestStamp-D;GrantsAccessTo")
+        Invoke-NestingCrawl
+        $holdersAfter = Get-NestingHolders -ResourceId $idB
+        if ($holdersAfter -notcontains "$nestStamp u1/Indirect") {
+            Write-Result 'CSV/NestedAccess/Reconciled' $true 'the inherited row went with the nesting'
+        } else {
+            Write-Result 'CSV/NestedAccess/Reconciled' $false "the inherited row for u1 survived the nesting being removed: $($holdersAfter -join ', ')"
+        }
+        # AC 8: the Indirect row the FILE declared is not reconciled away with it.
+        if ($holdersAfter -contains "$nestStamp u2/Indirect") {
+            Write-Result 'CSV/NestedAccess/SuppliedIndirect' $true 'the file''s own Indirect row survived'
+        } else {
+            Write-Result 'CSV/NestedAccess/SuppliedIndirect' $false "the supplied Indirect row for u2 was removed: $($holdersAfter -join ', ')"
+        }
+        $parentsAfter = @(Invoke-LocalApi -Path "/resources/$idB/parent-resources")
+        if (@($parentsAfter | Where-Object { $_.relationshipType -eq 'GrantsAccessTo' }).Count -eq 0) {
+            Write-Result 'CSV/NestedAccess/RelationshipReconciled' $true 'the GrantsAccessTo row was removed with the file row'
+        } else {
+            Write-Result 'CSV/NestedAccess/RelationshipReconciled' $false 'the GrantsAccessTo row stayed behind after it left the file'
+        }
+    } catch {
+        Write-Result 'CSV/NestedAccess' $false "nested-access import failed: $($_.Exception.Message)"
+    }
+}
+
 # ─── Cleanup ─────────────────────────────────────────────────────
-# Best-effort removal of temp CSV files
+# Best-effort removal of temp CSV files, and of the throwaway system the
+# nested-access import registered (the API has no delete for Systems, so it can
+# only be disabled).
+if ($nestSystemId) {
+    try {
+        Invoke-LocalApi -Path "/systems/$nestSystemId" -Method Put -Body @{ enabled = $false; description = 'Disabled by Test-CSVCrawler.ps1' } | Out-Null
+    } catch { }
+}
 try {
     Remove-Item -Path $edgeCaseDir -Recurse -Force -ErrorAction SilentlyContinue
 } catch { }
