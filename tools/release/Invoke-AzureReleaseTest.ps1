@@ -15,7 +15,10 @@
     from its release too, or from azure/ in this checkout for edge, which has
     none and follows imageChannel=edge.
 
-    The group must exist (the workflow creates it, and always deletes it).
+    -Group is the name for the first region's group. This script creates it
+    (Invoke-InRegionWithFallback); on SkuNotAvailable it deletes it and runs
+    the whole variant again in the next of -Regions, in <group>-<region>. The
+    workflow always deletes all of them (Remove-ReleaseTestRegionGroup).
 
 .EXAMPLE
     pwsh tools/release/Invoke-AzureReleaseTest.ps1 -Variant auth-upgrade -Candidate v6.1.2-beta.1 -PreviousStable v6.1.1 -Group ia-reltest-123-1-auth-upgrade ...
@@ -30,6 +33,9 @@ param(
     [string] $SsoClientId = '',
     [string] $RoleCallerId = '',
     [string] $NoRoleCallerId = '',
+    [string] $RunUrl = '',
+    # Empty = $script:AzureRegions (ReleaseTest.Azure.ps1), which the workflow's cleanup also uses.
+    [string[]] $Regions = @(),
     [string] $WorkDir = (Join-Path ([IO.Path]::GetTempPath()) "ia-azure-$PID")
 )
 
@@ -148,9 +154,16 @@ if ($v.SignIn -and -not ($TenantId -and $SsoClientId -and $RoleCallerId -and $No
     throw "Variant $Variant needs -TenantId, -SsoClientId, -RoleCallerId and -NoRoleCallerId."
 }
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
+if (-not $Regions) { $Regions = $script:AzureRegions }
 try {
-    if ($v.Upgrade) { Invoke-Upgrade } else { Invoke-Fresh }
-    Write-Step "Azure $Variant passed for $Candidate"
+    # The whole variant per region: an upgrade restarts from the previous release.
+    $region = Invoke-InRegionWithFallback -BaseName $Group -Regions $Regions -RunUrl $RunUrl -Body {
+        param([string] $InGroup)
+        $script:Group = $InGroup
+        $script:Token = ''
+        if ($v.Upgrade) { Invoke-Upgrade } else { Invoke-Fresh }
+    }
+    Write-Step "Azure $Variant passed for $Candidate in $region"
 } catch {
     Write-Host "::error::Azure $Variant failed for ${Candidate}: $_"
     exit 1
