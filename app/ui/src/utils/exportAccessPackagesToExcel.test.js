@@ -154,11 +154,11 @@ describe('exportAccessPackagesToExcel', () => {
 
   it('applies the client-side type filter', async () => {
     const packages = [
-      { id: 'ap1', displayName: 'Keep', assignmentType: 'Direct' },
-      { id: 'ap2', displayName: 'Drop', assignmentType: 'Eligible' },
+      { id: 'ap1', displayName: 'Keep', accessModel: { waysIn: ['Request', 'Rule'], waysOut: [] } },
+      { id: 'ap2', displayName: 'Drop', accessModel: { waysIn: ['Assigned'], waysOut: ['Rule'] } },
     ];
     const authFetch = makeAuthFetch(packages, { ap1: [], ap2: [] });
-    await exportAccessPackagesToExcel({ authFetch, categoryFilter: null, typeFilter: 'Direct' });
+    await exportAccessPackagesToExcel({ authFetch, categoryFilter: null, typeFilter: 'in:Rule' });
 
     const wb = await loadCapturedWorkbook();
     const ws = wb.getWorksheet('Business Roles');

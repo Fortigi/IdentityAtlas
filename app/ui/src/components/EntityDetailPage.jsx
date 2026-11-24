@@ -111,6 +111,16 @@ function RelationshipsTab({ data, graph, graphCenterLabel, getDisplayName, rende
   );
 }
 
+// The body of whichever tab is open.
+function ActiveTabPanel({ tab, data, attributes, relationships, timeline, diff, renderRisk, renderCustomTab, openTab }) {
+  if (tab === 'attributes') return <AttributesTab data={data} {...attributes} />;
+  if (tab === 'relationships') return <RelationshipsTab data={data} {...relationships} />;
+  if (tab === 'timeline') return <EntityTimeline {...timeline} />;
+  if (tab === 'diff') return <EntityDiff {...diff} />;
+  if (tab === 'risk') return renderRisk?.(data) ?? null;
+  return renderCustomTab?.(tab, data, openTab) ?? null;
+}
+
 /**
  * Shared scaffold for entity detail pages (Resource, User, AccessPackage, Identity).
  *
@@ -135,6 +145,9 @@ function RelationshipsTab({ data, graph, graphCenterLabel, getDisplayName, rende
  *   renderAttributesExtra optional: (data) => JSX — rendered below AttributesTable
  *   renderRelationshipsExtra optional: (data, graph) => JSX — rendered below ExpandedItemsList
  *   renderRisk            optional: (data) => JSX — risk tab content
+ *   initialTab            optional: the tab to open on (default 'attributes'); a tab the
+ *                         reader does not get falls back to Attributes
+ *   renderCustomTab       optional: (key, data, openTab) => JSX — a tab of the caller's own
  *   onRetry               optional: () => void — shows Retry button in error state
  *   entityLabel           lowercase string for loading/error text
  *   onClose               () => void
@@ -159,6 +172,8 @@ export default function EntityDetailPage({
   renderAttributesExtra,
   renderRelationshipsExtra,
   renderRisk,
+  initialTab = 'attributes',
+  renderCustomTab,
   onRetry,
   entityLabel,
   onClose,
@@ -169,7 +184,7 @@ export default function EntityDetailPage({
   // dispatches (not useState setters) keep that clear of set-state-in-effect.
   const [loading, setLoading] = useReducer((_, v) => v, !cachedData?.core);
   const [error, setError] = useReducer((_, v) => v, null);
-  const [activeTab, setActiveTab] = useState('attributes');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [timelineDays, setTimelineDays] = useState(90);
   // The share recipient's narrowed tabs; not on a context owner's page.
   const sharedView = useIsSharedView();
@@ -231,49 +246,27 @@ export default function EntityDetailPage({
   const tabs = narrowTabs
     ? allTabs.filter(t => t && SHARED_VIEW_TABS.has(t.key))
     : allTabs;
+  // The share view narrows the tabs, so the one asked for may not be there.
+  const shownTab = tabs.some(t => t && t.key === activeTab) ? activeTab : 'attributes';
 
   return (
     <div className="max-w-7xl mx-auto">
       <DetailHeader headerCard={headerCard} renderHeader={renderHeader} data={data} onClose={onClose} />
 
-      <TabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+      <TabBar tabs={tabs} active={shownTab} onChange={setActiveTab} />
 
       <div className="mt-4">
-        {activeTab === 'attributes' && (
-          <AttributesTab
-            data={data}
-            attributeEntries={attributeEntries}
-            renderAttributesBefore={renderAttributesBefore}
-            renderAttributesExtra={renderAttributesExtra}
-          />
-        )}
-
-        {activeTab === 'relationships' && (
-          <RelationshipsTab
-            data={data}
-            graph={graph}
-            graphCenterLabel={graphCenterLabel}
-            getDisplayName={getDisplayName}
-            renderRelationshipsExtra={renderRelationshipsExtra}
-            onOpenDetail={onOpenDetail}
-          />
-        )}
-
-        {activeTab === 'timeline' && (
-          <EntityTimeline
-            events={timeline.events}
-            loading={timeline.loading}
-            sinceDays={timelineDays}
-            onSinceDaysChange={setTimelineDays}
-            onOpenDetail={onOpenDetail}
-          />
-        )}
-
-        {activeTab === 'diff' && (
-          <EntityDiff entityKind={entityKind} entityId={entityId} authFetch={authFetch} onOpenDetail={onOpenDetail} />
-        )}
-
-        {activeTab === 'risk' && renderRisk?.(data)}
+        <ActiveTabPanel
+          tab={shownTab}
+          data={data}
+          attributes={{ attributeEntries, renderAttributesBefore, renderAttributesExtra }}
+          relationships={{ graph, graphCenterLabel, getDisplayName, renderRelationshipsExtra, onOpenDetail }}
+          timeline={{ events: timeline.events, loading: timeline.loading, sinceDays: timelineDays, onSinceDaysChange: setTimelineDays, onOpenDetail }}
+          diff={{ entityKind, entityId, authFetch, onOpenDetail }}
+          renderRisk={renderRisk}
+          renderCustomTab={renderCustomTab}
+          openTab={setActiveTab}
+        />
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import {
   fetchPendingRequestCount, fetchLastReview, fetchComplianceStatus,
   fetchPolicySummary, deriveAssignmentType, fetchAccessModel, fetchCategory, fetchHistoryCount,
 } from './accessPackageDetail.js';
+import { deriveHowHeld } from '../../lib/businessRoleAccessModel.js';
 
 const router = Router();
 
@@ -81,19 +82,31 @@ router.get('/access-package/:id/assignments', async (req, res) => {
           u."displayName" AS "targetDisplayName",
           u.email AS "targetUPN",
           NULL::timestamptz AS "assignedDate",
+          a.origin, a."originDetail", a."expirationDateTime",
+          COALESCE(pol.via, '[]'::jsonb) AS via,
           (a."deletedAt" IS NOT NULL OR u."deletedAt" IS NOT NULL) AS "deleted",
           LEAST(a."deletedAt", u."deletedAt") AS "deletedAt"
         FROM "ResourceAssignments" a
         LEFT JOIN "Principals" u ON a."principalId" = u.id
+        LEFT JOIN LATERAL (
+          SELECT jsonb_agg(jsonb_build_object(
+                   'policyId', p.id, 'displayName', p."displayName",
+                   'inRule', p."hasAutoAddRule", 'inRequest', p."allowsRequest", 'inAssigned', p."allowsDirectAssignment"
+                 ) ORDER BY p."displayName") AS via
+            FROM "AssignmentPolicies" p
+           WHERE p."resourceId" = a."resourceId"
+             AND (p.id = a."policyId"
+                  OR COALESCE(a."extendedAttributes"->'assignmentPolicyIds', '[]'::jsonb) ? p.id::text)
+        ) pol ON TRUE
         WHERE a."resourceId" = $1
-          AND (a.state = 'Delivered' OR a.state IS NULL)
+          AND (LOWER(a.state) = 'delivered' OR a.state IS NULL)
         ORDER BY "deleted", u."displayName"
       `, [req.params.id]);
     } catch (e) {
       console.error('ap-assignments failed:', e.message);
       r = { rows: [] };
     }
-    res.json(r.rows);
+    res.json(r.rows.map(row => ({ ...row, howHeld: deriveHowHeld(row) })));
   } catch {
     res.json([]);
   }

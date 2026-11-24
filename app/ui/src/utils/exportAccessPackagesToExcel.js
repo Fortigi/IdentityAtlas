@@ -6,6 +6,7 @@ import {
   writeGroupRoleCells,
   writeEmptyResourceCells,
 } from './exportAccessPackagesToExcel.helpers';
+import { matchesAccessFilter } from '@ui/components/businessRoles/accessModel';
 
 // Fetch all APs matching current filters (up to 2000)
 async function fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir, includeDeleted }) {
@@ -56,7 +57,7 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
   const allPackages = await fetchAllPackages(authFetch, { search, categoryFilter, sortCol, sortDir, includeDeleted });
 
   // Apply client-side type filter (same as the page does)
-  const packages = typeFilter ? allPackages.filter(p => p.assignmentType === typeFilter) : allPackages;
+  const packages = allPackages.filter(p => matchesAccessFilter(p, typeFilter));
 
   // 2. Fetch resource roles for all APs in parallel (batches of 10)
   onProgress?.('Fetching resource assignments...');

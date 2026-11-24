@@ -14,7 +14,13 @@
     "fileName": "reports/stryker-ui-businessroles.json"
   },
   "mutate": [
-    "src/components/businessRoles/BusinessRoleOwners.jsx"
+    "src/components/businessRoles/BusinessRoleOwners.jsx",
+    "src/components/businessRoles/BusinessRoleOverview.jsx",
+    "src/components/businessRoles/BusinessRoleResources.jsx",
+    "src/components/businessRoles/BusinessRoleMembers.jsx",
+    "src/components/businessRoles/BusinessRoleOwnerImport.jsx",
+    "src/components/businessRoles/WayChips.jsx",
+    "src/components/businessRoles/accessModel.js"
   ],
   "thresholds": {
     "high": 90,

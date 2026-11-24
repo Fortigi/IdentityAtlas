@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatDate, formatDateOnly } from '@ui/utils/formatters';
+import { describeCadence } from './businessRoles/accessModel';
 
 // ─── AccessPackageGovernance ──────────────────────────────────────────
 // Surfaces the records behind a Business Role's governance overview, in the
@@ -38,20 +39,6 @@ function policyType(p) {
   if (p.hasAutoAddRule) return 'Auto-assigned';
   if (p.hasAutoRemoveRule) return 'Auto-remove';
   return 'Request-based';
-}
-
-// Human-readable review cadence from the policy's reviewSettings (the object
-// that states how often an access review should happen).
-function describeCadence(rs) {
-  if (!rs) return null;
-  if (rs.isEnabled === false) return 'Access review: disabled';
-  const pat = rs.schedule?.recurrence?.pattern;
-  const unit = { absoluteMonthly: 'month', relativeMonthly: 'month', weekly: 'week', daily: 'day', absoluteYearly: 'year' }[pat?.type];
-  let cad = 'one-time';
-  if (pat?.interval && unit) cad = pat.interval === 1 ? `every ${unit}` : `every ${pat.interval} ${unit}s`;
-  const durMatch = /P(\d+)D/.exec(rs.schedule?.expiration?.duration || '');
-  const window = durMatch ? `, ${durMatch[1]}-day window` : '';
-  return `Access review: recurs ${cad}${window}`;
 }
 
 const DECISION_STYLE = {
@@ -99,7 +86,7 @@ function ReviewInstance({ instance }) {
   );
 }
 
-export default function AccessPackageGovernance({ accessPackageId, authFetch }) {
+export default function AccessPackageGovernance({ accessPackageId, authFetch, showPolicies = true }) {
   const [data, setData] = useState({ policies: null, reviews: null, requests: null });
 
   useEffect(() => {
@@ -131,7 +118,7 @@ export default function AccessPackageGovernance({ accessPackageId, authFetch }) 
   return (
     <div className="space-y-4">
       {/* Policies — incl. the review cadence that drives the schedule */}
-      <Section title="Assignment Policies" count={policies?.length ?? '…'}>
+      {showPolicies && <Section title="Assignment Policies" count={policies?.length ?? '…'}>
         {!policies ? <Empty text="Loading…" />
           : policies.length === 0 ? <Empty text="No assignment policies." />
           : (
@@ -152,7 +139,7 @@ export default function AccessPackageGovernance({ accessPackageId, authFetch }) 
               ))}
             </ul>
           )}
-      </Section>
+      </Section>}
 
       {/* Access Reviews — grouped by review instance (campaign run) */}
       <Section title="Access Reviews" count={reviews ? `${instances.length} instance${instances.length === 1 ? '' : 's'}` : '…'}>

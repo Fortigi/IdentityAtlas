@@ -7,9 +7,13 @@ import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
 import AccessPackageGovernance from './AccessPackageGovernance';
 import DeletedBadge from './DeletedBadge';
+import BusinessRoleOverview from './businessRoles/BusinessRoleOverview';
+import BusinessRoleResources from './businessRoles/BusinessRoleResources';
+import BusinessRoleMembers from './businessRoles/BusinessRoleMembers';
+import WayChips from './businessRoles/WayChips';
+import { showsRequestsAndReviews } from './businessRoles/accessModel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
 import { formatDate } from '@ui/utils/formatters';
-import { ASSIGNMENT_TYPE_STYLES, COMPLIANCE_STYLES } from '@ui/utils/accessPackageStyles';
 
 const HEADER_FIELDS = ['catalogName', 'catalogId', 'description'];
 const HIDDEN_FIELDS = new Set([
@@ -39,7 +43,7 @@ function getAccessPackageRootExtras(data) {
 
 function AccessPackageHeader({ data }) {
   const isDark = useIsDark();
-  const { attributes, assignmentType, category, lastReviewDate, lastReviewedBy } = data;
+  const { attributes, accessModel, category, lastReviewDate, lastReviewedBy } = data;
   return (
     <>
       <div className="flex items-center gap-3">
@@ -47,11 +51,6 @@ function AccessPackageHeader({ data }) {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{attributes.displayName}</h2>
-            {assignmentType && (
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${ASSIGNMENT_TYPE_STYLES[assignmentType] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                {assignmentType}
-              </span>
-            )}
             {category && (
               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium border"
                 style={tagPillStyle(category.color, isDark)}>
@@ -68,6 +67,10 @@ function AccessPackageHeader({ data }) {
       {attributes.description && (
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 max-w-2xl">{attributes.description}</p>
       )}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400" data-testid="role-access-model">
+        <span className="inline-flex items-center gap-1">Gained by <WayChips ways={accessModel?.waysIn} direction="in" /></span>
+        <span className="inline-flex items-center gap-1">Lost by <WayChips ways={accessModel?.waysOut} direction="out" none="no automatic removal" /></span>
+      </div>
       {lastReviewDate && (
         <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           <span className="text-gray-500 dark:text-gray-400">Last Certification:</span>{' '}
@@ -76,52 +79,6 @@ function AccessPackageHeader({ data }) {
         </div>
       )}
     </>
-  );
-}
-
-// ─── Overview — the list's calculated fields, with the same badges/colours ──
-function OverviewRow({ label, children }) {
-  return (
-    <div className="flex items-baseline gap-3 py-1.5 border-b border-gray-50 dark:border-gray-700/50 last:border-b-0">
-      <span className="text-xs text-gray-500 dark:text-gray-400 w-32 shrink-0">{label}</span>
-      <span className="text-sm text-gray-900 dark:text-gray-100">{children}</span>
-    </div>
-  );
-}
-
-const BADGE = 'inline-block px-2 py-0.5 rounded-full text-xs font-medium border';
-const NEUTRAL = 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600';
-
-function OverviewPanel({ assignmentType, complianceStatus, daysOverdue, lastReviewDate, lastReviewedBy, category }) {
-  const isDark = useIsDark();
-  if (!(assignmentType || complianceStatus || lastReviewDate || lastReviewedBy || category)) return null;
-  return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-      <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overview</h3>
-      </div>
-      <div className="px-4 py-2">
-        {assignmentType && (
-          <OverviewRow label="Type">
-            <span className={`${BADGE} ${ASSIGNMENT_TYPE_STYLES[assignmentType] || NEUTRAL}`}>{assignmentType}</span>
-          </OverviewRow>
-        )}
-        {complianceStatus && (
-          <OverviewRow label="Review status">
-            <span className={`${BADGE} ${COMPLIANCE_STYLES[complianceStatus] || NEUTRAL}`}>
-              {complianceStatus}{daysOverdue ? ` (${daysOverdue}d ago)` : ''}
-            </span>
-          </OverviewRow>
-        )}
-        {lastReviewDate && <OverviewRow label="Review date">{formatDate(lastReviewDate)}</OverviewRow>}
-        {lastReviewedBy && <OverviewRow label="Reviewed by">{lastReviewedBy}</OverviewRow>}
-        {category && (
-          <OverviewRow label="Category">
-            <span className={BADGE} style={tagPillStyle(category.color, isDark)}>{category.name}</span>
-          </OverviewRow>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -142,6 +99,10 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   const getTabs = useCallback((data, entries) => {
     const hasRisk = features.riskScoring && riskData && riskData.riskScore != null;
     return [
+      { key: 'overview', label: 'Overview' },
+      { key: 'resources', label: 'Resources', count: data.groupCount ?? 0 },
+      { key: 'members', label: 'People', count: data.assignmentCount ?? 0 },
+      showsRequestsAndReviews(data) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
       { key: 'attributes', label: 'Attributes', count: entries.length },
       { key: 'relationships', label: 'Relationships' },
       { key: 'timeline', label: 'Timeline' },
@@ -149,6 +110,14 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
   }, [features, riskData]);
+
+  const renderCustomTab = useCallback((key, data, openTab) => {
+    if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
+    if (key === 'resources') return <BusinessRoleResources roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
+    if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
+    if (key === 'requests') return <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} showPolicies={false} />;
+    return null;
+  }, [accessPackageId, authFetch, onOpenDetail]);
 
   return (
     <EntityDetailPage
@@ -161,21 +130,10 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       getGraphRootExtras={getAccessPackageRootExtras}
       graphCenterLabel="Business Role"
       getTabs={getTabs}
+      initialTab="overview"
+      renderCustomTab={renderCustomTab}
       getAttributeEntries={getAccessPackageAttributeEntries}
       renderHeader={(data) => <AccessPackageHeader data={data} />}
-      renderAttributesBefore={(data) => (
-        <OverviewPanel
-          assignmentType={data.assignmentType}
-          complianceStatus={data.complianceStatus}
-          daysOverdue={data.daysOverdue}
-          lastReviewDate={data.lastReviewDate}
-          lastReviewedBy={data.lastReviewedBy}
-          category={data.category}
-        />
-      )}
-      renderAttributesExtra={() => (
-        <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} />
-      )}
       renderRisk={riskData ? () => (
         <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />
       ) : undefined}

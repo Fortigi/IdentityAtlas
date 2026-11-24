@@ -1,10 +1,10 @@
 import IncludeDeletedToggle from '@ui/components/IncludeDeletedToggle';
+import { ACCESS_FILTERS, WAYS } from '@ui/components/businessRoles/accessModel';
 
-const ASSIGNMENT_TYPES = ['Auto-assigned', 'Request-based', 'Request-based with auto-removal', 'Both'];
 
-// Search box + assignment-type filter + "Include deleted" + "Clear all" (shown only when filtering).
+// Search box + how-gained-or-lost filter + "Include deleted" + "Clear all" (shown only when filtering).
 export default function AccessPackagesFilterBar({
-  search, setSearch, typeFilter, setTypeFilter, includeDeleted, setIncludeDeleted, hasAnyFilter, onClearAll,
+  search, setSearch, typeFilter, setTypeFilter, includeDeleted, setIncludeDeleted, hasAnyFilter, onClearAll, onImportOwners,
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mb-3 text-sm">
@@ -17,14 +17,16 @@ export default function AccessPackagesFilterBar({
         className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs w-56 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
       />
       <select
-        aria-label="Filter by assignment type"
+        aria-label="Filter by how the role is gained or lost"
         value={typeFilter || ''}
         onChange={e => setTypeFilter(e.target.value || null)}
         className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs dark:bg-gray-700 dark:text-gray-200"
       >
-        <option value="">All types</option>
-        {ASSIGNMENT_TYPES.map(t => (
-          <option key={t} value={t}>{t}</option>
+        <option value="">Any way in or out</option>
+        {ACCESS_FILTERS.map(({ label, direction, ways }) => (
+          <optgroup key={direction} label={label}>
+            {ways.map(way => <option key={way} value={`${direction}:${way}`}>{WAYS[direction][way].label}</option>)}
+          </optgroup>
         ))}
       </select>
       <IncludeDeletedToggle checked={includeDeleted} onChange={setIncludeDeleted} noun="business roles" />
@@ -38,6 +40,12 @@ export default function AccessPackagesFilterBar({
             Clear all
           </button>
         </>
+      )}
+      {onImportOwners && (
+        <button type="button" onClick={onImportOwners}
+          className="ml-auto px-2 py-1 rounded text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600">
+          Import owners
+        </button>
       )}
     </div>
   );

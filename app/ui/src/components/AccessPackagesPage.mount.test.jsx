@@ -14,6 +14,7 @@ const packages = [
     id: 'ap1',
     displayName: 'Payroll Access',
     assignmentType: 'Auto-assigned',
+    accessModel: { waysIn: ['Rule'], waysOut: ['Rule'] },
     complianceStatus: 'Compliant',
     reviewDeadline: '2026-01-01T00:00:00Z',
     lastReviewDate: '2025-12-01T00:00:00Z',
@@ -26,6 +27,7 @@ const packages = [
     id: 'ap2',
     displayName: 'Recruiting Access',
     assignmentType: 'Request-based',
+    accessModel: { waysIn: ['Request'], waysOut: ['Review'] },
     complianceStatus: 'Missed',
     reviewDeadline: '2026-02-01T00:00:00Z',
     daysOverdue: 12,
@@ -41,6 +43,7 @@ const packages = [
     id: 'ap3',
     displayName: 'Onboarding Access',
     assignmentType: 'Both',
+    accessModel: { waysIn: ['Request', 'Assigned'], waysOut: ['Rule'] },
     complianceStatus: null,
     totalAssignments: 0,
     hasReviewConfigured: false,
@@ -138,7 +141,7 @@ describe('AccessPackagesPage (mounted)', () => {
     // Pick a type only ap1 matches -> the other rows drop out.
     // The type filter is the first combobox on the page (no rows selected yet).
     const typeSelect = screen.getAllByRole('combobox')[0];
-    fireEvent.change(typeSelect, { target: { value: 'Auto-assigned' } });
+    fireEvent.change(typeSelect, { target: { value: 'in:Rule' } });
 
     await waitFor(() => {
       expect(screen.queryByText('Recruiting Access')).not.toBeInTheDocument();
