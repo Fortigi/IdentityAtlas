@@ -11,6 +11,10 @@
       role caller     the release-test app, assigned the Servicedesk app role
                       (data.read) on the SSO app registration
       no-role caller  a second app with no role on it
+      admin caller    a third app, assigned the Admin app role: the Azure
+                      test loads demo data and reads the totals with it,
+                      because an Azure install is never open (sign-in is on
+                      from the first deploy). Optional: Docker does not use it.
 
     Both tokens have aud = api://<SSO client id> and are signed by the tenant,
     so they go through exactly the validation a user's token goes through:
@@ -58,11 +62,13 @@ function Get-FederatedAccessToken {
 function Get-SignInToken {
     <#
     .SYNOPSIS
-        The four tokens the checks use, keyed by name.
+        The tokens the checks use, keyed by name.
     .DESCRIPTION
         'other-audience' is an Azure Resource Manager token from the role caller: valid,
         signed by the right tenant, but for a different API. The app must
         refuse it, or any token from the tenant would do.
+        'admin' is there only when -AdminCallerId is given; the checks that
+        need it are skipped without it.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -70,17 +76,20 @@ function Get-SignInToken {
         [Parameter(Mandatory)][string] $TenantId,
         [Parameter(Mandatory)][string] $SsoClientId,
         [Parameter(Mandatory)][string] $RoleCallerId,
-        [Parameter(Mandatory)][string] $NoRoleCallerId
+        [Parameter(Mandatory)][string] $NoRoleCallerId,
+        [string] $AdminCallerId = ''
     )
     $api = "api://$SsoClientId/.default"
     $get = { param($client, $scope) Get-FederatedAccessToken -TenantId $TenantId -ClientId $client -Scope $scope -Assertion (Get-GitHubOidcToken) }
-    @{
+    $tokens = @{
         'role'           = & $get $RoleCallerId $api
         'no-role'        = & $get $NoRoleCallerId $api
         'other-audience' = & $get $RoleCallerId 'https://management.azure.com/.default'
         'none'           = ''
         'garbage'        = 'not-a-jwt'
     }
+    if ($AdminCallerId) { $tokens['admin'] = & $get $AdminCallerId $api }
+    $tokens
 }
 
 function Get-SignInExpectation {
@@ -106,6 +115,7 @@ function Get-SignInExpectation {
         @{ Name = 'a caller without a role reads nothing';  Token = 'no-role';        Path = '/users?limit=1';         Status = 403; Code = 'NO_ROLE' }
         @{ Name = 'a caller without a role sees no matrix'; Token = 'no-role';        Path = '/permissions?userLimit=1'; Status = 403; Code = 'NO_ROLE' }
         @{ Name = 'a caller without a role may ask who it is'; Token = 'no-role';     Path = '/auth-me';               Status = 200 }
+        @{ Name = 'an Admin caller gets into admin';        Token = 'admin';          Path = '/admin/crawler-configs'; Status = 200 }
     )
 }
 
@@ -122,11 +132,12 @@ function Get-SignInProblem {
 }
 
 function Invoke-SignInCheck {
-    <# Runs every expectation; returns the problems (empty = all passed). #>
+    <# Runs every expectation whose token is in $Tokens; returns the problems (empty = all passed). #>
     [CmdletBinding()]
     [OutputType([string[]])]
     param([Parameter(Mandatory)][string] $BaseUrl, [Parameter(Mandatory)][hashtable] $Tokens)
     $problems = foreach ($e in Get-SignInExpectation) {
+        if (-not $Tokens.ContainsKey($e.Token)) { continue }   # 'admin' only when an admin caller was given
         $headers = @{}
         if ($Tokens[$e.Token]) { $headers.Authorization = "Bearer $($Tokens[$e.Token])" }
         $r = Invoke-WebRequest -Uri "$BaseUrl$($e.Path)" -Headers $headers -TimeoutSec 60 -SkipHttpErrorCheck
