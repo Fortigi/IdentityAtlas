@@ -26,6 +26,7 @@ export default defineConfig({
       'src/lib/businessRoleOwnerImport.test.js',
       'src/routes/details/businessRoleOwnerImport.test.js',
       'src/routes/ingest/businessRoleOwners.test.js',
+      'src/lib/businessRoleCatalog.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },
