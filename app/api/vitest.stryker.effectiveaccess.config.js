@@ -3,7 +3,7 @@ import base from './vitest.config.js';
 
 // Vitest config for the effective-access mutation run (stryker.effectiveaccess.config.json).
 //
-// Narrow include, for the same reason as vitest.stryker.config.js: Stryker copies app/api
+// Narrow include, for the same reason as vitest.stryker.auth.config.js: Stryker copies app/api
 // into a temp sandbox, so any test that reads the real filesystem or the crawler manifests
 // at ../../tools/crawlers resolves a path that does not exist there, fails the dry run, and
 // aborts the whole run before a single mutant is evaluated.

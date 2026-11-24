@@ -231,7 +231,7 @@ Two constraints worth knowing before you widen the scope:
 - **Stryker sandboxes `app/api` alone.** Any test reading the real filesystem —
   an upload path, or the crawler manifests at `../../tools/crawlers` — resolves
   nothing in the sandbox, fails the dry run, and aborts the whole run before a
-  single mutant is evaluated. `vitest.stryker.config.js` narrows the include for
+  single mutant is evaluated. `vitest.stryker.auth.config.js` narrows the include for
   this reason. Prefer a narrow include over a growing exclude list: an excluded
   test that happened to be a mutant's only killer becomes a **false survivor**,
   and a wrong number is worse than a smaller true one.

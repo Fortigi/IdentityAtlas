@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import base from './vitest.config.js';
 
-// Vitest config used only by the mutation runs (stryker.*.config.json).
+// Vitest config for the auth mutation run (stryker.auth.config.json).
 //
 // Stryker copies app/api into a temp sandbox and runs from there. Any test that
 // reads the real filesystem — an upload landing under {UPLOAD_ROOT}, or the

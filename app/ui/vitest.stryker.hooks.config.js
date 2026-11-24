@@ -5,7 +5,7 @@ import path from 'path';
 // Vitest config used only by the hooks mutation run (stryker.hooks.config.json).
 //
 // Standalone rather than spreading vite.config.js, for the same reasons as
-// vitest.stryker.config.js: Stryker sandboxes app/ui alone, so the normal test
+// vitest.stryker.pilot.config.js: Stryker sandboxes app/ui alone, so the normal test
 // `include` reaching ../../tools/crawlers/** resolves nothing there and aborts the
 // run before a mutant is evaluated, and the tailwind plugin plus the '@crawlers'
 // alias are build concerns that buy the mutation run nothing.

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// Vitest config used only by the mutation runs (stryker.*.config.json).
+// Vitest config for the pilot mutation run (stryker.pilot.config.json).
 //
 // Deliberately standalone rather than spreading vite.config.js, for two reasons
 // that both come down to what Stryker copies: it sandboxes app/ui alone.
