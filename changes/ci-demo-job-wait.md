@@ -1,0 +1,1 @@
+- Fixed the PR integration and Playwright checks reporting "demo data loaded" when the demo-data job had failed or never finished. The step now fails with the job's status, so a broken demo load no longer shows up as unrelated test failures.
