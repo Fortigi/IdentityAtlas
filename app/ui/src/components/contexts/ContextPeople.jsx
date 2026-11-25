@@ -40,7 +40,7 @@ import { useContextClaims } from './interviews/claimsContext';
 // says which system it came from; an analyst's choice replaces it and then
 // survives the next sync.
 
-const ROLED_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication']);
+const ROLED_CATEGORIES = new Set(['OrganizationalUnit', 'LogicalApplication', 'Catalog']);
 
 const ROLE_HELPERS = {
   Accountable: (noun) => `Answers for who may access ${noun}`,

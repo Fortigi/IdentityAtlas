@@ -11,11 +11,18 @@
 // links on the contexts its system owns (Contexts.scopeSystemId = systemId),
 // the same boundary a contexts full sync is held to.
 //
-// ADDITIVE. Each record is inserted when it is new and skipped otherwise — an
-// existing Accountable, a duplicate, a context the system does not own, a
-// holder or related context that does not exist. Nothing is updated or removed,
-// so an analyst's own roles and links survive every crawl. A reconciling
-// (full-sync) mode is the follow-on once a real source sends roles.
+// ADDITIVE by default. Each record is inserted when it is new and skipped
+// otherwise — an existing Accountable, a duplicate, a context the system does
+// not own, a holder or related context that does not exist. Nothing is updated
+// or removed, so an analyst's own roles and links survive every crawl.
+//
+// Context roles also take a RECONCILING mode: { syncMode: 'full', scope:
+// { contextType } }. The source then states every role it knows for its synced
+// contexts of that type (the Entra crawler: its catalogs' owners), so a role it
+// wrote before ('sync') and no longer states is removed first, in the same
+// transaction. Only the system's own synced contexts of that one type are
+// touched, and only 'sync' rows: an analyst's role, or the Accountable the owner
+// reconcile wrote ('sourceOwner'), always stays.
 
 import { Router } from 'express';
 import * as db from '../../db/connection.js';
@@ -108,10 +115,11 @@ function admit(req, parseRows) {
 }
 
 // Run `paramsFor(row)` through `sqlFor(row)` per row; count what landed.
-async function insertEach(rows, sqlFor, paramsFor) {
+// `runner` is the db module or an in-transaction client.
+async function insertEach(rows, sqlFor, paramsFor, runner = db) {
   let inserted = 0;
   for (const row of rows) {
-    const r = await db.query(sqlFor(row), paramsFor(row));
+    const r = await runner.query(sqlFor(row), paramsFor(row));
     inserted += r.rowCount || 0;
   }
   return { inserted, skipped: rows.length - inserted };
@@ -128,6 +136,36 @@ function linkEndpoint(label, parseRows, sqlFor, paramsFor) {
       res.status(500).json({ error: `Failed to ingest ${label}` });
     }
   };
+}
+
+// The 'sync' roles on the system's synced contexts of one type ($1 system, $2
+// contextType) that the batch ($3..$6: contextId, role, holder column, holder
+// id, one entry per row) no longer states.
+export const ROLE_RECONCILE_SQL = `
+    DELETE FROM "ContextRoles" r
+     USING "Contexts" c
+     WHERE r."contextId" = c.id
+       AND c.variant = 'synced' AND c."scopeSystemId" = $1 AND c."contextType" = $2
+       AND r."addedBy" = 'sync'
+       AND NOT EXISTS (
+         SELECT 1 FROM unnest($3::uuid[], $4::text[], $5::text[], $6::uuid[]) AS k("contextId", role, col, holder)
+          WHERE k."contextId" = r."contextId" AND k.role = r.role
+            AND k.holder = CASE k.col WHEN 'principalId' THEN r."principalId" ELSE r."identityId" END)`;
+
+export function roleReconcileParams(systemId, contextType, rows) {
+  return [
+    systemId, contextType,
+    rows.map(r => r.contextId), rows.map(r => r.role), rows.map(r => r.holderCol), rows.map(r => r.holderId),
+  ];
+}
+
+// The role sync mode: additive unless the body asks for 'full', which needs the
+// contextType it reconciles. Returns { full, contextType } or { status, message }.
+export function parseRoleSyncMode(body) {
+  if (body?.syncMode !== 'full') return { full: false };
+  const contextType = body.scope?.contextType;
+  if (typeof contextType !== 'string' || !contextType.trim()) return fail(400, 'a full role sync needs scope.contextType');
+  return { full: true, contextType: contextType.trim() };
 }
 
 const ROLE_CATEGORIES = [...ROLE_BEARING_CATEGORIES];
@@ -149,7 +187,29 @@ export const insertOwnerRows = (rows, systemId) =>
   insertEach(rows, (row) => roleInsertSql(row.holderCol, OWNER_ADDED_BY), (row) => roleParams(row, systemId));
 export const insertRelationshipRows = (rows, systemId) => insertEach(rows, relationshipSql, (row) => relationshipParams(row, systemId));
 
-router.post('/ingest/context-roles', linkEndpoint('context-roles', parseRoleRecords, roleSql, roleParams));
+// Reconcile, then add — one transaction, so a reader never sees a catalog that
+// lost its owners between the two statements.
+export async function syncRolesFull(systemId, contextType, rows) {
+  return db.tx(async (client) => {
+    const removed = await client.query(ROLE_RECONCILE_SQL, roleReconcileParams(systemId, contextType, rows));
+    const counts = await insertEach(rows, roleSql, (row) => roleParams(row, systemId), client);
+    return { ...counts, removed: removed.rowCount || 0 };
+  });
+}
+
+router.post('/ingest/context-roles', async (req, res) => {
+  const admitted = admit(req, parseRoleRecords);
+  if (admitted.status) return res.status(admitted.status).json({ error: admitted.message });
+  const mode = parseRoleSyncMode(req.body);
+  if (mode.status) return res.status(mode.status).json({ error: mode.message });
+  try {
+    if (mode.full) return res.json(await syncRolesFull(admitted.systemId, mode.contextType, admitted.rows));
+    res.json(await insertEach(admitted.rows, roleSql, (row) => roleParams(row, admitted.systemId)));
+  } catch (err) {
+    console.error('POST ingest/context-roles failed:', err.message);
+    res.status(500).json({ error: 'Failed to ingest context-roles' });
+  }
+});
 
 router.post('/ingest/context-relationships', linkEndpoint('context-relationships', parseRelationshipRecords, relationshipSql, relationshipParams));
 

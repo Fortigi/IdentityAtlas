@@ -69,6 +69,9 @@ describe('GET /contexts/:id/people', () => {
     queryOne.mockResolvedValueOnce({ ...unit, contextCategory: 'Tag' });
     const tag = await request(app).get(`/api/contexts/${CTX}/people`);
     expect([tag.status, tag.body.error]).toEqual([400, 'The people overview is for an organizational unit or a logical application.']);
+    // A catalog carries roles, but has no people overview.
+    queryOne.mockResolvedValueOnce({ ...unit, contextCategory: 'Catalog' });
+    expect((await request(app).get(`/api/contexts/${CTX}/people`)).status).toBe(400);
     expect(loadPeople).not.toHaveBeenCalled();
   });
 

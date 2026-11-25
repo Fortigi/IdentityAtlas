@@ -99,7 +99,7 @@ describe('the statement', () => {
 
   it('considers synced contexts only, and an owner only on a role-bearing template', () => {
     expect(ctes).toMatch(/WHERE c\.variant = 'synced' AND \(TRUE\)/);
-    expect(ctes).toMatch(/CASE WHEN c\."contextCategory" IN \('OrganizationalUnit', 'LogicalApplication'\) THEN NULLIF\(c\."ownerUserId", ''\) END AS owner/);
+    expect(ctes).toMatch(/CASE WHEN c\."contextCategory" IN \('OrganizationalUnit', 'LogicalApplication', 'Catalog'\) THEN NULLIF\(c\."ownerUserId", ''\) END AS owner/);
   });
 
   it('resolves by externalId with the read endpoints\' tie-break, then by a unique live employeeId', () => {
