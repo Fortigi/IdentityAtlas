@@ -14,6 +14,7 @@
     "tools/crawlers/entra-id/EntraIDCrawler.AppPermissions.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AppSecurity.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.ContainsEdges.ps1",
     "tools/crawlers/shared/Get-NestedGroupUserSet.ps1",
     "tools/crawlers/shared/Get-CapabilityId.ps1",
     "tools/crawlers/shared/Invoke-CrawlerIngest.ps1",
@@ -230,6 +231,10 @@
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.PrincipalRelationships.ps1": [
       "test/unit/EntraIDCrawlerPrincipalRelationships.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.ContainsEdges.ps1": [
+      "test/unit/EntraIDCrawlerContainsEdges.Tests.ps1",
+      "test/unit/EntraIDCrawlerPhases.Tests.ps1"
     ],
     "tools/crawlers/shared/Get-CapabilityId.ps1": [
       "test/unit/CapabilityId.Tests.ps1"

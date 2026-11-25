@@ -28,10 +28,10 @@
       * OWNERS — about a quarter of the groups have one. "Groups without an
         owner that have more than five members" is a question with a long answer
         here, which is the point.
-      * NESTING, the AD kind: a group inside a group. The data model has no
-        group-to-group edge — a member is a Principal — so nesting is recorded
-        the way the Entra crawler records it: every member of the child group
-        also holds the parent, as an INDIRECT assignment (see
+      * NESTING, the AD kind: a group inside a group. Recorded the way the Entra
+        crawler records it: the edge as a Contains relationship (parent group
+        Contains child group), and every member of the child group also holding
+        the parent, as an INDIRECT assignment (see
         reference_matrix_inheritance_materialized). DemoRealismAccess.ps1 writes
         those; this file records which group nests in which so the pattern is one
         decision in one place.

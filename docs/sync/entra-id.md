@@ -14,6 +14,7 @@ The Entra ID crawler reads your Microsoft Entra ID tenant through Microsoft Grap
 | Service principals, managed identities, AI agents | Accounts of type `ServicePrincipal`, `ManagedIdentity` or `AIAgent` |
 | Groups | Resources of type `Group` |
 | Group members | **Direct** assignments; members through a nested group are **Indirect** assignments |
+| A group inside a group | A `Contains` resource relationship from the parent group to the nested group (read on full runs) |
 | PIM-eligible group members | **Eligible** assignments |
 | Group owners | A **Direct** assignment on a `GroupOwnership` resource named after the group |
 | Directory roles | Resources of type `EntraDirectoryRole`, with **Direct** (active) and **Eligible** (PIM) assignments |
