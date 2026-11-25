@@ -29,7 +29,8 @@
     "src/components/businessRoles/OwnerRolePage.jsx",
     "src/components/businessRoles/accessModel.js",
     "src/components/contextOwner/ownerPortfolios.js",
-    "src/components/contextOwner/RoleBadge.jsx"
+    "src/components/contextOwner/RoleBadge.jsx",
+    "src/components/businessRoles/BusinessRoleRequestsAndReviews.jsx"
   ],
   "tests_comment": [
     "Standalone for the same reason as vitest.stryker.roles.config.js: Stryker sandboxes app/ui alone, so the normal include reaching ../../tools/crawlers/** would abort the run."
