@@ -122,7 +122,7 @@ jobs:
   # federated credential that only this environment's runs match. The
   # environment admits main and v* tags only, which is why this job is skipped
   # on pull requests. See docs/contributing/release-process.md for the app
-  # registrations and the four variables.
+  # registrations and the variables.
   docker-signin:
     name: 'Docker: sign-in on'
     needs: plan
@@ -291,6 +291,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Before anything is created: every variant signs in to Azure, and the
+      # auth* variants also need the sign-in apps, the Admin caller among them
+      # (an Azure install has sign-in on from the first deploy, so only a
+      # signed-in Admin can load data). Invoke-AzureReleaseTest.ps1 checks the
+      # same again.
+      - name: Check the Azure variables are set
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          RELEASE_TEST_SSO_CLIENT_ID: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
+          RELEASE_TEST_NOROLE_CLIENT_ID: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+          RELEASE_TEST_ADMIN_CLIENT_ID: ${{ vars.RELEASE_TEST_ADMIN_CLIENT_ID }}
+        run: |
+          $names = @('AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID')
+          if ($env:VARIANT -like 'auth*') { $names += 'RELEASE_TEST_SSO_CLIENT_ID', 'RELEASE_TEST_NOROLE_CLIENT_ID', 'RELEASE_TEST_ADMIN_CLIENT_ID' }
+          $missing = @($names | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
+          if ($missing) {
+            "::error::Set these variables on the azure-release-test environment: $($missing -join ', ') (docs/contributing/release-process.md → One-time setup, sections 3 and 4)."
+            exit 1
+          }
+
       # ia-reltest-<run>-<attempt>-<candidate>-<variant>. The candidate is in it
       # because one weekly run can test two candidates (a beta of main and the
       # stable route's patch beta), each with the same variants.
@@ -326,9 +349,11 @@ jobs:
           ROLE: ${{ vars.AZURE_CLIENT_ID }}
           SSO: ${{ vars.RELEASE_TEST_SSO_CLIENT_ID }}
           NOROLE: ${{ vars.RELEASE_TEST_NOROLE_CLIENT_ID }}
+          ADMIN: ${{ vars.RELEASE_TEST_ADMIN_CLIENT_ID }}
         run: |
           ./tools/release/Invoke-AzureReleaseTest.ps1 -Variant $env:VARIANT -Candidate $env:CANDIDATE -PreviousStable $env:PREVIOUS `
-            -Group $env:GROUP -RunUrl $env:RUN_URL -TenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE
+            -Group $env:GROUP -RunUrl $env:RUN_URL -TenantId $env:TENANT -SsoClientId $env:SSO -RoleCallerId $env:ROLE -NoRoleCallerId $env:NOROLE `
+            -AdminCallerId $env:ADMIN
 
       # Always, also after a failure or a cancel. The deletion is started, not
       # awaited; a group that survives anyway is removed by azure-sweep a day later.
