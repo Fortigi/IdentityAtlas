@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Business roles have a Composition review tab: write notes about what the role contains and tick Signed off when you agree with it
+- Each review is kept as its own record with who saved it, when, and a snapshot of the role at that moment: its type, holders, Accountable and Responsible people, policies with their rules, and resources
+- Every review shows what was reviewed, exactly as it was; for the latest sign-off the tab says what changed since (resources added or removed, a different type, or a changed policy or rule)
+- Composition review is an experimental feature, off by default: switch it on under Admin → Experimental
+- Signing off needs the Certification decisions permission; with the new relative permission "Business-role owners may sign off a composition review" (Admin → Roles & Permissions) the role's own Accountable or Responsible can sign off too
+- Everyone who can read data sees the reviews
+- The core ontology describes the composition review (ia:CompositionReview, version 2.7.0)
+
+## Changes in this PR
+
 - Fixed the Azure part of the release test, which failed on every variant: an Azure install has sign-in on from the first deploy, so the variants without Entra now check that a fresh deploy and an upgrade come up locked (sign-in reported as on but not configured, every data endpoint refusing a request without a token) instead of expecting open data.
 - Fixed the Azure sign-in variants checking the app before it had restarted with its sign-in settings: after the sign-in step the test now waits until the app reports the configured Entra app.
 - The Azure sign-in variants now load the demo data and read it back as a signed-in Admin caller, and the Azure upgrade with sign-in also checks that person-made data (tags, contexts, settings, read API keys and more) survives the upgrade. This needs a new app registration and the `RELEASE_TEST_ADMIN_CLIENT_ID` environment variable (see the release process guide, One-time setup); without it those variants fail at once with a message that says what to set.
