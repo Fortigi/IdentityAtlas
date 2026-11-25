@@ -513,6 +513,28 @@ $script:SqlStreamFlushOrder = @(
     'relationship', 'assignment'
 )
 
+# A statement that read its complete set and returned no rows at all still owns
+# its partition. Get-SqlSlotStream registers a reconcile scope on the first row, so
+# without this a slot whose last row vanished registered none and its rows
+# stayed live forever (#1691). Opened for the crawler's own system only — the
+# routed systems a slot feeds are named by its rows, and there were none.
+# Called only once the read has returned: a read that throws registers nothing.
+# And only for a statement with no rows: one that read rows but produced none for
+# a role (no owner resolved, say) keeps that role unreconciled, so an owner
+# column that resolves for nothing cannot delete every owner stored before.
+# A staged scope is left alone: an empty stage removes nothing on finalize.
+function Open-SqlEmptyReconcileStream {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Ctx)
+    if (-not $Ctx.Complete) { return }
+    foreach ($role in @($Ctx.Streams.Keys)) {
+        $spec = $Ctx.Streams[$role]
+        if ($spec.Reconcile -and -not $spec.Staged -and $spec.Streams.Count -eq 0) {
+            [void](Get-SqlSlotStream -Ctx $Ctx -Role $role -SystemId $Ctx.State.SystemId)
+        }
+    }
+}
+
 # Flush every stream a slot opened — one per (role, system) — and return the
 # total records sent.
 function Complete-SqlSlotStreams {
@@ -610,6 +632,7 @@ function Invoke-SqlSlot {
     $callback = Get-SqlSlotCallback -Ctx $ctx
     $rows = Invoke-SqlQueryStream -Connection $Connection -Sql $Slot.sql @callback `
         -CommandTimeout $State.CommandTimeout -Paged $Slot.paged -PageSize $State.PageSize -Since $(if ($delta) { $delta.Since } else { $null }) -Timing $ctx.Timing
+    if ($rows -eq 0) { Open-SqlEmptyReconcileStream -Ctx $ctx }
     $sent = Complete-SqlSlotStreams -Ctx $ctx
     if ($Slot.target -in $script:SqlBufferedTargets) { $sent += Send-SqlSlotBuffer -Slot $Slot -State $State }
     $t = [System.Diagnostics.Stopwatch]::GetTimestamp()

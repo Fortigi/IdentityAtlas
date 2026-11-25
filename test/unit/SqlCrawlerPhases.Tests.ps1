@@ -422,6 +422,65 @@ Describe 'Invoke-SqlSlot — dangling references' {
     }
 }
 
+# #1691: Get-SqlSlotStream registers a reconcile scope on a slot's first row, so
+# a statement that read its complete set and returned nothing registered none —
+# and every row that scope held stayed live forever.
+Describe 'Invoke-SqlSlot — a complete statement that returns no rows' {
+    BeforeEach {
+        Reset-SqlTestState
+        Mock Invoke-IngestAPI $script:IngestMock
+        Mock Invoke-SqlQueryStream $script:StreamMock
+        Mock Update-CrawlerProgress { }
+    }
+
+    It 'still registers its scope for the crawler''s own system, so the reconcile empties it' {
+        $script:rowsToReplay = @()
+        $state = New-TestState -Slots @()
+        $r = Invoke-SqlSlot -Slot (New-Slot 'Service accounts' 'principals' @{ principalType = 'ServicePrincipal' }) -Connection 'conn' -State $state
+        $r.rows | Should -Be 0
+        @($state.Scopes) | Should -HaveCount 1
+        $state.Scopes[0].Endpoint | Should -Be 'ingest/principals'
+        $state.Scopes[0].Scope.principalType | Should -Be 'ServicePrincipal'
+        $state.Scopes[0].SystemId | Should -Be 7
+        $state.Scopes[0].Complete | Should -BeTrue
+        (Get-SentRecords 'ingest/principals').Count | Should -Be 0
+
+        Invoke-SqlReconcile -State $state | Out-Null
+        $calls = Get-Sent 'ingest/reconcile'
+        $calls | Should -HaveCount 1
+        $calls[0].Body.entity | Should -Be 'principals'
+        $calls[0].Body.scope.principalType | Should -Be 'ServicePrincipal'
+    }
+
+    It 'registers every reconciled role of the slot, and none of the unreconciled ones' {
+        $script:rowsToReplay = @()
+        $state = New-TestState -Slots @()
+        Invoke-SqlSlot -Slot (New-Slot 'Entitlements' 'assignments') -Connection 'conn' -State $state | Out-Null
+        @($state.Scopes.Endpoint) | Should -Be @('ingest/resource-assignments')
+
+        $state = New-TestState -Slots @()
+        Invoke-SqlSlot -Slot (New-Slot 'Links' 'identity-members') -Connection 'conn' -State $state | Out-Null
+        @($state.Scopes) | Should -HaveCount 0
+    }
+
+    It 'registers nothing when the read throws — a failed read says nothing about the source' {
+        Mock Invoke-SqlQueryStream { throw 'Login failed' }
+        $state = New-TestState -Slots @()
+        { Invoke-SqlSlot -Slot (New-Slot 'Accounts' 'principals') -Connection 'conn' -State $state } | Should -Throw '*Login failed*'
+        @($state.Scopes) | Should -HaveCount 0
+    }
+
+    It 'leaves a staged scope alone: an empty stage removes nothing, so no stage is opened for it' {
+        $script:rowsToReplay = @()
+        $state = New-TestState -Slots @()
+        $state.StageLoads = $true
+        Invoke-SqlSlot -Slot (New-Slot 'Entitlements' 'assignments') -Connection 'conn' -State $state | Out-Null
+        @($state.Scopes) | Should -HaveCount 0
+        @($state.Stages.Keys) | Should -HaveCount 0
+        Get-Sent 'ingest/stages' | Should -HaveCount 0
+    }
+}
+
 Describe 'Invoke-SqlReconcile' {
     BeforeEach { Reset-SqlTestState; Mock Invoke-IngestAPI $script:IngestMock; Mock Update-CrawlerProgress { } }
 
