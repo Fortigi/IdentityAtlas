@@ -61,10 +61,11 @@ on:
         type: boolean
         default: false
     # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
-    # BOT_PRIVATE_KEY is not passed at all: cut-tag.yml reads it from its own
-    # release-automation environment, which a caller cannot hand in.
     secrets:
       BOT_APP_ID:
+        required: true
+      # Passed by name; it resolves only in the job that names release-automation.
+      BOT_PRIVATE_KEY:
         required: true
       CLAUDE_CODE_OAUTH_TOKEN:
         required: false
@@ -108,6 +109,7 @@ jobs:
         Overwrite `release-notes.md` with the result.
     secrets:
       BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      BOT_PRIVATE_KEY: ${{ secrets.BOT_PRIVATE_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
   summary:

@@ -37,12 +37,19 @@ function environmentName(job) {
   return typeof env === 'string' ? env : env?.name ?? null;
 }
 
+// A job that calls a reusable workflow (`uses:`) runs no steps, so naming the key
+// under its `secrets:` only hands the reference on; it resolves in the called job
+// that names the environment (#1720). Those jobs are checked separately below.
+function withoutPassedSecrets(job) {
+  return job?.uses ? { ...job, secrets: undefined } : job;
+}
+
 /** Every job in the given workflow sources that reads the release App key. */
 function jobsReadingReleaseKey(sources) {
   return sources.flatMap(({ file, text }) => {
     const jobs = parse(text)?.jobs ?? {};
     return Object.entries(jobs)
-      .filter(([, job]) => READS_RELEASE_KEY.test(JSON.stringify(job)))
+      .filter(([, job]) => READS_RELEASE_KEY.test(JSON.stringify(withoutPassedSecrets(job))))
       .map(([id, job]) => ({
         id: `${file} → ${id}`,
         file,
@@ -50,6 +57,42 @@ function jobsReadingReleaseKey(sources) {
         runsOn: JSON.stringify(job['runs-on'] ?? null),
       }));
   });
+}
+
+/** Calls that hand the key to a reusable workflow: `{ id, uses, value }`. */
+function jobsPassingReleaseKey(sources) {
+  return sources.flatMap(({ file, text }) =>
+    Object.entries(parse(text)?.jobs ?? {})
+      .filter(([, job]) => job?.uses && READS_RELEASE_KEY.test(JSON.stringify(job.secrets ?? {})))
+      .map(([id, job]) => ({ id: `${file} → ${id}`, uses: job.uses, value: job.secrets?.BOT_PRIVATE_KEY ?? null })));
+}
+
+/**
+ * Where the key goes missing. A workflow whose job reads the key, or that passes it
+ * on, must declare it as a required `workflow_call` secret when it can be called;
+ * and every call to a workflow that declares it must pass it. Without both, the
+ * key is an empty string at runtime and nothing fails until the release (#1720).
+ */
+function releaseKeyChainGaps(sources) {
+  const byFile = new Map(sources.map(({ file, text }) => [file, parse(text) ?? {}]));
+  const declares = new Set();
+  const gaps = [];
+  for (const [file, wf] of byFile) {
+    const call = wf.on?.workflow_call;
+    if (!call) continue;
+    const needsKey = Object.values(wf.jobs ?? {}).some((job) => READS_RELEASE_KEY.test(JSON.stringify(job)));
+    const declared = call.secrets?.BOT_PRIVATE_KEY;
+    if (declared) declares.add(file);
+    if (needsKey && declared?.required !== true) gaps.push(`${file} uses the key but does not declare it as a required workflow_call secret`);
+  }
+  for (const [file, wf] of byFile) {
+    for (const [id, job] of Object.entries(wf.jobs ?? {})) {
+      const target = typeof job?.uses === 'string' && job.uses.startsWith('./.github/workflows/')
+        ? job.uses.slice('./.github/workflows/'.length) : null;
+      if (target && declares.has(target) && !job.secrets?.BOT_PRIVATE_KEY) gaps.push(`${file} → ${id} calls ${target} without passing BOT_PRIVATE_KEY`);
+    }
+  }
+  return gaps;
 }
 
 const workflowSources = readdirSync(WORKFLOW_DIR)
@@ -99,6 +142,22 @@ describe('the release App key is only read from its environment', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('passes the key only to this repo\'s own workflows, by its own name', () => {
+    const passing = jobsPassingReleaseKey(workflowSources);
+    // Anchor: the release chain passes it, so the check below is not vacuous.
+    expect(passing.map((j) => j.id)).toEqual(expect.arrayContaining([
+      'cut-beta.yml → cut-beta', 'release-route.yml → cut-beta', 'release-weekly.yml → beta',
+    ]));
+    for (const j of passing) {
+      expect(j.uses, `${j.id} hands the key to a workflow outside this repo`).toMatch(/^\.\/\.github\/workflows\//);
+      expect(j.value, `${j.id} must pass the key as BOT_PRIVATE_KEY, unrenamed`).toBe('${{ secrets.BOT_PRIVATE_KEY }}');
+    }
+  });
+
+  it('the key reaches every job that reads it through the whole call chain', () => {
+    expect(releaseKeyChainGaps(workflowSources)).toEqual([]);
+  });
+
   it('no caller hands all its secrets to a reusable workflow', () => {
     // `secrets: inherit` would pass the key along without the text ever naming it.
     const inheriting = workflowSources.flatMap(({ file, text }) =>
@@ -143,5 +202,52 @@ describe('jobsReadingReleaseKey', () => {
 
   it('a workflow without jobs yields nothing', () => {
     expect(jobsReadingReleaseKey([{ file: 'empty.yml', text: 'name: x\n' }])).toEqual([]);
+  });
+
+  it('does not count a reusable-workflow call that only passes the key on', () => {
+    const found = jobsReadingReleaseKey(workflow({
+      call: { uses: './.github/workflows/c.yml', secrets: { BOT_PRIVATE_KEY: '${{ secrets.BOT_PRIVATE_KEY }}' } },
+      // `uses:` plus a read outside `secrets:` is still a read.
+      sneaky: { uses: './.github/workflows/c.yml', with: { k: '${{ secrets.BOT_PRIVATE_KEY }}' } },
+    }));
+    expect(found.map((j) => j.id)).toEqual(['w.yml → sneaky']);
+  });
+});
+
+describe('releaseKeyChainGaps', () => {
+  const src = (file, doc) => ({ file, text: JSON.stringify(doc) });
+  const reader = { 'runs-on': 'ubuntu-latest', environment: ENVIRONMENT, steps: [{ with: { 'private-key': '${{ secrets.BOT_PRIVATE_KEY }}' } }] };
+  const pass = { BOT_PRIVATE_KEY: '${{ secrets.BOT_PRIVATE_KEY }}' };
+  const called = (secrets) => src('called.yml', { on: { workflow_call: { secrets } }, jobs: { cut: reader } });
+
+  it('accepts a chain that declares the key as required and passes it at every call', () => {
+    expect(releaseKeyChainGaps([
+      called({ BOT_PRIVATE_KEY: { required: true } }),
+      src('mid.yml', { on: { workflow_call: { secrets: { BOT_PRIVATE_KEY: { required: true } } } }, jobs: { go: { uses: './.github/workflows/called.yml', secrets: pass } } }),
+      src('top.yml', { on: { workflow_dispatch: {} }, jobs: { go: { uses: './.github/workflows/mid.yml', secrets: pass } } }),
+    ])).toEqual([]);
+  });
+
+  it('flags a called workflow that reads the key without declaring it (the #1698 shape)', () => {
+    expect(releaseKeyChainGaps([called({ BOT_APP_ID: { required: true } })]))
+      .toEqual(['called.yml uses the key but does not declare it as a required workflow_call secret']);
+  });
+
+  it('flags a declaration that is optional, since optional resolves to empty without an error', () => {
+    expect(releaseKeyChainGaps([called({ BOT_PRIVATE_KEY: { required: false } })])).toHaveLength(1);
+  });
+
+  it('flags a call that forgets to pass the key, and only that call', () => {
+    expect(releaseKeyChainGaps([
+      called({ BOT_PRIVATE_KEY: { required: true } }),
+      src('top.yml', { jobs: {
+        good: { uses: './.github/workflows/called.yml', secrets: pass },
+        bad: { uses: './.github/workflows/called.yml', secrets: { BOT_APP_ID: '${{ secrets.BOT_APP_ID }}' } },
+      } }),
+    ])).toEqual(['top.yml → bad calls called.yml without passing BOT_PRIVATE_KEY']);
+  });
+
+  it('ignores a dispatch-only workflow that reads the key in its own job', () => {
+    expect(releaseKeyChainGaps([src('solo.yml', { on: { workflow_dispatch: {} }, jobs: { cut: reader } })])).toEqual([]);
   });
 });

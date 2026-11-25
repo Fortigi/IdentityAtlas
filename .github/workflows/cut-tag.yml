@@ -12,8 +12,9 @@
 # checked-out ref, and a hotfix checks out an older release line that may not
 # have it. A called workflow is read from the caller's own commit.
 #
-# BOT_PRIVATE_KEY is not passed in: the job reads it from its own
-# release-automation environment, which a caller cannot hand in.
+# BOT_PRIVATE_KEY must be passed in by name at every level of the call chain.
+# Declaring the environment on the job is not enough: an environment secret the
+# caller does not pass resolves to an empty string, silently (#1720).
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut a tag
@@ -46,6 +47,9 @@ on:
     # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
     secrets:
       BOT_APP_ID:
+        required: true
+      # Passed by name; it resolves only in the job that names release-automation.
+      BOT_PRIVATE_KEY:
         required: true
       CLAUDE_CODE_OAUTH_TOKEN:
         required: false
