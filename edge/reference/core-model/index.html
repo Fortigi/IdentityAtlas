@@ -3935,6 +3935,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#manager-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#membership-source" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6959,6 +6970,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#manager-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manager source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#membership-source" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7839,6 +7861,13 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>uuid</td>
 <td>→ Identities</td>
 <td>The manager as a PERSON. Ingest alias: <code>managerIdentityExternalId</code>.</td>
+</tr>
+<tr>
+<td><code>managerIdentitySource</code></td>
+<td><code>ia:managerIdentitySource</code></td>
+<td>text</td>
+<td><code>Source</code>, <code>Derived</code></td>
+<td>How managerIdentityId was set: sent by the source, or derived from the person's linked accounts. Set by the ingest, never sent.</td>
 </tr>
 <tr>
 <td><code>officeLocation</code></td>
@@ -10272,6 +10301,29 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>notConfigured</code></td>
 <td><code>ia:ExtractionStatus_notConfigured</code></td>
 <td>No local model is configured; claims are added by hand.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="manager-source">Manager source<a class="headerlink" href="#manager-source" title="Permanent link">&para;</a></h3>
+<p><code>ia:ManagerIdentitySource</code> — How a person's manager was set. A manager the source sent always wins over a derived one. Used by <code>Identities.managerIdentitySource</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Individual</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Source</code></td>
+<td><code>ia:ManagerIdentitySource_Source</code></td>
+<td>The source sent the person-level manager itself.</td>
+</tr>
+<tr>
+<td><code>Derived</code></td>
+<td><code>ia:ManagerIdentitySource_Derived</code></td>
+<td>Derived from the managers of the person's linked accounts.</td>
 </tr>
 </tbody>
 </table>

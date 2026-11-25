@@ -6714,6 +6714,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         uuid id PK
         string displayName
         uuid managerIdentityId FK
+        string managerIdentitySource "Source, Derived"
         uuid primaryPrincipalId FK
     }
     IdentityMembers {
