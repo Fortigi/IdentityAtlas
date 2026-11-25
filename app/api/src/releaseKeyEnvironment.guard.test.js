@@ -75,24 +75,30 @@ function jobsPassingReleaseKey(sources) {
  */
 function releaseKeyChainGaps(sources) {
   const byFile = new Map(sources.map(({ file, text }) => [file, parse(text) ?? {}]));
-  const declares = new Set();
-  const gaps = [];
-  for (const [file, wf] of byFile) {
-    const call = wf.on?.workflow_call;
-    if (!call) continue;
-    const needsKey = Object.values(wf.jobs ?? {}).some((job) => READS_RELEASE_KEY.test(JSON.stringify(job)));
-    const declared = call.secrets?.BOT_PRIVATE_KEY;
-    if (declared) declares.add(file);
-    if (needsKey && declared?.required !== true) gaps.push(`${file} uses the key but does not declare it as a required workflow_call secret`);
-  }
-  for (const [file, wf] of byFile) {
-    for (const [id, job] of Object.entries(wf.jobs ?? {})) {
-      const target = typeof job?.uses === 'string' && job.uses.startsWith('./.github/workflows/')
-        ? job.uses.slice('./.github/workflows/'.length) : null;
-      if (target && declares.has(target) && !job.secrets?.BOT_PRIVATE_KEY) gaps.push(`${file} → ${id} calls ${target} without passing BOT_PRIVATE_KEY`);
-    }
-  }
-  return gaps;
+  const declares = new Set([...byFile].filter(([, wf]) => wf.on?.workflow_call?.secrets?.BOT_PRIVATE_KEY).map(([file]) => file));
+  return [...declarationGaps(byFile), ...callGaps(byFile, declares)];
+}
+
+/** Callable workflows that use or pass the key without requiring it. */
+function declarationGaps(byFile) {
+  return [...byFile]
+    .filter(([, wf]) => wf.on?.workflow_call)
+    .filter(([, wf]) => Object.values(wf.jobs ?? {}).some((job) => READS_RELEASE_KEY.test(JSON.stringify(job))))
+    .filter(([, wf]) => wf.on.workflow_call.secrets?.BOT_PRIVATE_KEY?.required !== true)
+    .map(([file]) => `${file} uses the key but does not declare it as a required workflow_call secret`);
+}
+
+/** The workflow file a job calls in this repo, or null. */
+function localTarget(job) {
+  const prefix = './.github/workflows/';
+  return typeof job?.uses === 'string' && job.uses.startsWith(prefix) ? job.uses.slice(prefix.length) : null;
+}
+
+/** Calls to a workflow that declares the key, which do not pass it. */
+function callGaps(byFile, declares) {
+  return [...byFile].flatMap(([file, wf]) => Object.entries(wf.jobs ?? {})
+    .filter(([, job]) => declares.has(localTarget(job)) && !job.secrets?.BOT_PRIVATE_KEY)
+    .map(([id, job]) => `${file} → ${id} calls ${localTarget(job)} without passing BOT_PRIVATE_KEY`));
 }
 
 const workflowSources = readdirSync(WORKFLOW_DIR)

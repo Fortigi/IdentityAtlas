@@ -72,8 +72,10 @@ describe('release-weekly.yml: the two routes', () => {
   it.each(['stable', 'beta'])('the %s route gets Azure only when the plan says so, and the dry-run flag as planned', (id) => {
     expect(jobs[id].with.azure).toBe(`\${{ needs.plan.outputs.${id}_azure == 'true' }}`);
     expect(jobs[id].with.dry_run).toBe("${{ needs.plan.outputs.dry_run == 'true' }}");
-    // Named secrets only; BOT_PRIVATE_KEY stays in the called job's environment.
-    expect(Object.keys(jobs[id].secrets).sort()).toEqual(['BOT_APP_ID', 'CLAUDE_CODE_OAUTH_TOKEN']);
+    // Named secrets only. BOT_PRIVATE_KEY must be passed too: an environment secret
+    // the caller does not pass is an empty string in the called job (#1720).
+    expect(Object.keys(jobs[id].secrets).sort()).toEqual(['BOT_APP_ID', 'BOT_PRIVATE_KEY', 'CLAUDE_CODE_OAUTH_TOKEN']);
+    expect(jobs[id].secrets.BOT_PRIVATE_KEY).toBe('${{ secrets.BOT_PRIVATE_KEY }}');
   });
 
   it('cuts from commit SHAs the plan resolved, never from a branch name that can move', () => {
