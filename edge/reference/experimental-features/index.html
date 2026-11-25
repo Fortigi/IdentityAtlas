@@ -3625,6 +3625,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composition-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composition review
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Composition review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6659,6 +6698,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#composition-review" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composition review
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Composition review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-precisely_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does, precisely
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-switch-does-not-do_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the switch does not do
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#accountables-from-source-owners-a-setting-not-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6959,6 +7037,23 @@ and the AI provider settings stay in the database, and turning it back on restor
 context assistant and organisation knowledge use the model that runs inside the deployment
 (see <a href="../report-generator/">Report Generator</a>); its status is shown on this tab under
 <strong>Custom reports</strong> while that switch is on.</p>
+<hr />
+<h2 id="composition-review">Composition review<a class="headerlink" href="#composition-review" title="Permanent link">&para;</a></h2>
+<p>Somebody signs off what a business role contains, with notes; each review is kept with who
+saved it, when, and a snapshot of the role at that moment, so a later reader sees what was
+reviewed and what changed since. See
+<a href="../../concepts/governance-model/#reviewing-what-a-business-role-contains">Reviewing what a business role contains</a>.
+It is experimental because it is new.</p>
+<p>Environment variable: <code>FEATURE_COMPOSITION_REVIEW=true</code>.</p>
+<h3 id="what-the-switch-does-precisely_7">What the switch does, precisely<a class="headerlink" href="#what-the-switch-does-precisely_7" title="Permanent link">&para;</a></h3>
+<p><strong>On</strong> — a business role's page has a <strong>Composition review</strong> tab. Saving a review takes the
+Certification decisions permission, or answering for the role while the relative permission
+<strong>Business-role owners may sign off a composition review</strong> is on.</p>
+<p><strong>Off</strong> — the tab is hidden and <code>GET</code> / <code>POST /api/access-package/{id}/composition-reviews</code>
+answer <code>404</code>.</p>
+<h3 id="what-the-switch-does-not-do_7">What the switch does <em>not</em> do<a class="headerlink" href="#what-the-switch-does-not-do_7" title="Permanent link">&para;</a></h3>
+<p>Turning it off <strong>deletes nothing</strong>: every review and its snapshot is kept, and turning it back
+on shows them again.</p>
 <hr />
 <h2 id="accountables-from-source-owners-a-setting-not-experimental">Accountables from source owners (a setting, not experimental)<a class="headerlink" href="#accountables-from-source-owners-a-setting-not-experimental" title="Permanent link">&para;</a></h2>
 <p>Shown on the same tab, under <strong>Contexts — what a sync sets on its own</strong>, because it is

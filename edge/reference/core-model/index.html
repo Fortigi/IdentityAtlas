@@ -3698,6 +3698,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#businessrolecompositionreviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BusinessRoleCompositionReviews
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#changerequests" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6711,6 +6722,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#businessrolecompositionreviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BusinessRoleCompositionReviews
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#changerequests" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -7057,7 +7079,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.6.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.7.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -9032,7 +9054,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:resourceId</code></td>
 <td>uuid</td>
 <td>→ Resources</td>
-<td>The resource that is held. Ingest alias: <code>resourceExternalId</code>.</td>
+<td>The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: <code>resourceExternalId</code>.</td>
 </tr>
 <tr>
 <td><code>resourceType</code></td>
@@ -9194,6 +9216,71 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </table>
 <h2 id="knowledge-tables">Knowledge tables<a class="headerlink" href="#knowledge-tables" title="Permanent link">&para;</a></h2>
 <p>What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.</p>
+<h3 id="businessrolecompositionreviews">BusinessRoleCompositionReviews<a class="headerlink" href="#businessrolecompositionreviews" title="Permanent link">&para;</a></h3>
+<p><code>ia:CompositionReview</code> · Knowledge table · One review of what a business role (resourceId, an ia:Resource of resourceType BusinessRole) contains: notes, a sign-off, or both — never neither — by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt), with a snapshot of the role as it was then: its type and ways in and out, its holder count, who answered for it, its policies with their rules and the resources it contained. Reviews are only added, never changed: the newest sign-off is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing.</p>
+<p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Property</th>
+<th>SQL type</th>
+<th>Values / references</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>notes</code></td>
+<td><code>ia:notes</code></td>
+<td>text</td>
+<td></td>
+<td>What the reviewer wrote. Empty only when the review is a sign-off.</td>
+</tr>
+<tr>
+<td><code>resourceId</code></td>
+<td><code>ia:resourceId</code></td>
+<td>uuid</td>
+<td>→ Resources</td>
+<td>The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: <code>resourceExternalId</code>.</td>
+</tr>
+<tr>
+<td><code>reviewedAt</code></td>
+<td><code>ia:reviewedAt</code></td>
+<td>timestamp with time zone</td>
+<td></td>
+<td>When it was saved: the moment the snapshot shows.</td>
+</tr>
+<tr>
+<td><code>reviewedBy</code></td>
+<td><code>ia:reviewedBy</code></td>
+<td>text</td>
+<td></td>
+<td>The signed-in user who saved it (their sign-in name), never a value the request supplied; unknown while sign-in is off.</td>
+</tr>
+<tr>
+<td><code>reviewedByName</code></td>
+<td><code>ia:reviewedByName</code></td>
+<td>text</td>
+<td></td>
+<td>That user's display name when they saved it.</td>
+</tr>
+<tr>
+<td><code>signedOff</code></td>
+<td><code>ia:signedOff</code></td>
+<td>boolean</td>
+<td></td>
+<td>Whether the reviewer signed off what the role contained, as its snapshot shows.</td>
+</tr>
+<tr>
+<td><code>snapshot</code></td>
+<td><code>ia:snapshot</code></td>
+<td>jsonb</td>
+<td></td>
+<td>The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom}].</td>
+</tr>
+</tbody>
+</table>
 <h3 id="changerequests">ChangeRequests<a class="headerlink" href="#changerequests" title="Permanent link">&para;</a></h3>
 <p><code>ia:ChangeRequest</code> · Knowledge table · What should change in a source that an analyst's decision overrides: which source (targetSystemId, its name when raised), which kind of change (changeKind), about what (a context, a member, an attribute, with their names when raised), resting on which claim and override. The override acts in Identity Atlas at once; the request records the correction still owed to the source, because the source's next sync or re-import would bring the old fact back. Raised only where a source can be corrected (a context synced from a system or an uploaded list), never for a context Identity Atlas owns. Nobody closes it by hand: it is resolved when the data shows the change, and withdrawn when the decision is undone. At most one open request per change.</p>
 <p>Identifier: <code>id</code> (uuid) — the instance IRI, not a property.</p>

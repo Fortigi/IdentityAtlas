@@ -6548,7 +6548,7 @@
 <tr>
 <td><code>data.write.certifications</code></td>
 <td>Certification decisions</td>
-<td><strong>Reserved</strong> — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (<code>POST /api/ingest/governance/certifications</code>). When an approve/revoke endpoint is added it will be gated by this permission.</td>
+<td>Review and sign off what a business role contains, with notes (<code>POST /api/access-package/:id/composition-reviews</code>, the <strong>Composition review</strong> tab, experimental). A role's own Accountable or Responsible may do this without the permission while the relative permission <strong>Business-role owners may sign off a composition review</strong> is on. Certification decisions from the source are still ingested by the crawlers (<code>POST /api/ingest/governance/certifications</code>).</td>
 </tr>
 </tbody>
 </table>

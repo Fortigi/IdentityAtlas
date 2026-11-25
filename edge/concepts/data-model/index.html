@@ -6636,6 +6636,10 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 <p>The diagram below is <strong>generated from the <a href="../../reference/core-model/">core ontology</a></strong> — the formal, version-controlled description of these tables. It shows each core table's identifier, foreign keys and type columns; every column is listed in the <a href="../../reference/core-model/">Core Model Reference</a>.</p>
 <!-- BEGIN GENERATED: ontology core-erd -->
 <pre class="mermaid"><code>erDiagram
+    BusinessRoleCompositionReviews {
+        uuid id PK
+        uuid resourceId FK
+    }
     ChangeRequests {
         uuid id PK
         uuid basisClaimId FK
@@ -6758,6 +6762,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
         string displayName
     }
 
+    Resources |o--o{ BusinessRoleCompositionReviews : "resourceId"
     ContextClaims |o--o{ ChangeRequests : "basisClaimId"
     Contexts |o--o{ ChangeRequests : "contextId"
     Identities |o--o{ ChangeRequests : "memberId"

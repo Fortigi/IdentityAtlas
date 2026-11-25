@@ -1083,6 +1083,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Doing a review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reviewing-what-a-business-role-contains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing what a business role contains
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6339,6 +6356,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Doing a review">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reviewing-what-a-business-role-contains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing what a business role contains
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6784,6 +6818,16 @@ Users who have direct membership to a group that is also granted by a business r
 <li><strong>Make the actual decisions</strong> in the IGA platform that owns the campaign — for Entra ID, that's <strong>Access Reviews</strong> in the Microsoft Entra admin center; for Omada or SailPoint, their own certification / recertification screens. Approvals, denials, and completions all happen there.</li>
 <li><strong>Re-sync</strong> the Entra ID (or CSV) crawler to pull the updated decisions back into <code>CertificationDecisions</code>.</li>
 <li><strong>Track compliance in Identity Atlas</strong> using the read-only review-compliance view — per-access-package last-review status (Compliant / In Progress / Reviewed Late / Missed), backed by the <code>GET /api/governance/review-compliance</code> and <code>GET /api/governance/summary</code> endpoints (see the <a href="../../api/governance/">Governance API</a>). Use it to find which business roles are overdue or were reviewed late, then drive the next campaign in the source system.</li>
+</ul>
+<h3 id="reviewing-what-a-business-role-contains">Reviewing what a business role contains<a class="headerlink" href="#reviewing-what-a-business-role-contains" title="Permanent link">&para;</a></h3>
+<p>The one review Identity Atlas does hold itself is a <strong>composition review</strong>: on a business role's <strong>Composition review</strong> tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks <strong>Signed off</strong>. This reviews the role's <em>contents</em>, not who holds it, so it does not replace the access reviews above.</p>
+<ul>
+<li>A review is an object of its own, linked to the role it reviews, and never changed after it is saved: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name), when, and a <strong>snapshot</strong> of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, its assignment policies with their rules, and the resources it contained (name, type, system).</li>
+<li>The tab shows every review with <strong>What was reviewed</strong> (the snapshot, as it was), and for the latest sign-off what changed since: resources added or removed, a different type, or a changed policy or rule.</li>
+<li>It lives in its own table, <code>BusinessRoleCompositionReviews</code> (migration 116), never in <code>CertificationDecisions</code>, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.</li>
+<li>It is <strong>experimental</strong> and off by default: switch it on under <strong>Admin → Experimental → Composition review</strong>. While it is off the tab is hidden and both endpoints answer 404; reviews already saved are kept.</li>
+<li>Saving needs the <strong>Certification decisions</strong> permission (<code>data.write.certifications</code>) — or answering for the role (its <strong>Accountable</strong> or <strong>Responsible</strong>, through any of your accounts) while the relative permission <strong>Business-role owners may sign off a composition review</strong> is on (<strong>Admin → Roles &amp; Permissions → Relative permissions</strong>). Anyone who can read data sees the reviews (<code>GET</code> / <code>POST /api/access-package/:id/composition-reviews</code>).</li>
+<li>In the ontology it is <code>ia:CompositionReview</code> (<a href="../../reference/core-model/">core model</a>).</li>
 </ul>
 <hr />
 <h2 id="how-governance-data-is-ingested">How governance data is ingested<a class="headerlink" href="#how-governance-data-is-ingested" title="Permanent link">&para;</a></h2>
