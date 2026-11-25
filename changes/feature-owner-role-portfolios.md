@@ -1,0 +1,4 @@
+- The business roles a context owner answers for no longer have a separate "Business roles" tab: they now appear on the **Role portfolios** tab of the owner's page, so everything an owner answers for is organised by context.
+- A role in a portfolio the owner does not answer for is shown under that portfolio's name, in a light colour and not as a link, the same way the units above an owner's organisation tree are shown. A role in no portfolio is shown under "Default portfolio".
+- A role in a portfolio the owner does answer for is listed once, among that portfolio's business roles.
+- Fixed the Composition review snapshot, which still read a business role's catalog from the removed catalog table.

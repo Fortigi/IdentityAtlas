@@ -44,7 +44,10 @@
     "src/lib/businessRoleOwnerImport.test.js",
     "src/routes/details/businessRoleOwnerImport.test.js",
     "src/routes/ingest/businessRoleOwners.test.js",
-    "src/lib/businessRoleCatalog.test.js"
+    "src/lib/businessRoleCatalog.test.js",
+    "src/lib/businessRoleCompositionReview.test.js",
+    "src/lib/businessRoleSnapshot.test.js",
+    "src/routes/details/businessRoleCompositionReview.test.js"
   ],
   "testExclusions": {
     "src/lib/businessRoleAccessModel.guard.test.js": "Compares the vocabulary with ontology/core.ttl, a file outside the Stryker sandbox."

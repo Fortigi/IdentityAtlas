@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../db/connection.js');
 import { query, queryOne } from '../db/connection.js';
+import { catalogJoinSql } from './businessRoleCatalog.js';
 import {
   setBusinessRoleOwner, removeBusinessRoleOwner, isBusinessRole, loadBusinessRoleOwners,
   findOwnedBusinessRoles, answersForBusinessRole, OWNED_ROLES_SQL,
@@ -130,6 +131,11 @@ describe('the roles a person answers for', () => {
     query.mockResolvedValue({ rows: [{ id: 'r2', displayName: 'Payroll', role: 'Responsible' }, { id: 'r1', displayName: 'Finance', role: 'Accountable' }] });
     expect((await findOwnedBusinessRoles(ME)).map(r => r.displayName)).toEqual(['Finance', 'Payroll']);
     expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, I1]);
+  });
+
+  it('names the role portfolio each role sits in, through the shared catalog join', () => {
+    expect(OWNED_ROLES_SQL).toContain(catalogJoinSql('r.id', 'pf'));
+    expect(OWNED_ROLES_SQL).toMatch(/pf\.id AS "portfolioId", pf\."displayName" AS "portfolioName"/);
   });
 
   it('asks by the account alone when the account is linked to no person', async () => {

@@ -7,7 +7,8 @@
 //   - a role held by the account, by the person (Identity), or by ANOTHER
 //     account of the same person counts;
 //   - a role held by somebody else does not, nor a deleted role;
-//   - Accountable and Responsible on one role give one row, as Accountable.
+//   - Accountable and Responsible on one role give one row, as Accountable;
+//   - each row names the role portfolio the role sits in, or none.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
@@ -59,9 +60,17 @@ beforeAll(async () => {
   await owner(id.both, { principalId: id.myAdmin }, 'Accountable');
   await owner(id.strangers, { principalId: id.stranger }, 'Accountable');
   await owner(id.deleted, { principalId: id.me }, 'Accountable');
+
+  // "A by account" sits in a role portfolio; the other roles in none.
+  id.portfolio = (await pool.query(
+    `INSERT INTO "Contexts" (id, variant, "targetType", "contextType", "displayName", "contextCategory")
+     VALUES (gen_random_uuid(), 'synced', 'Resource', 'AccessPackageCatalog', 'contract-br-portfolio', 'Catalog') RETURNING id`,
+  )).rows[0].id;
+  await pool.query(`INSERT INTO "ContextMembers" ("contextId","memberId","memberType","addedBy") VALUES ($1,$2,'Resource','sync')`, [id.portfolio, id.byAccount]);
 });
 
 afterAll(async () => {
+  if (id.portfolio) await pool?.query(`DELETE FROM "Contexts" WHERE id = $1`, [id.portfolio]);
   await pool?.query(`DELETE FROM "Resources" WHERE "systemId" = $1`, [systemId]);
   await pool?.query(`DELETE FROM "IdentityMembers" WHERE "identityId" = $1`, [id.person]);
   await pool?.query(`DELETE FROM "Identities" WHERE "id" = $1`, [id.person]);
@@ -84,6 +93,12 @@ describe('OWNED_ROLES_SQL', () => {
 
   it('an account linked to no person finds only what names that account', async () => {
     expect(await owned(id.me, null)).toEqual([['A by account', 'Responsible'], ['D both', 'Responsible']]);
+  });
+
+  it('names the role portfolio a role sits in, and none for a role in no portfolio', async () => {
+    const { rows } = await pool.query(OWNED_ROLES_SQL, [id.me, null]);
+    const byName = Object.fromEntries(rows.map(r => [r.displayName, [r.portfolioId, r.portfolioName]]));
+    expect(byName).toEqual({ 'A by account': [id.portfolio, 'contract-br-portfolio'], 'D both': [null, null] });
   });
 
   it('somebody else finds only their own role', async () => {
