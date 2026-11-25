@@ -17,9 +17,16 @@
                         from the daily full sync (the expected operating model
                         is one full sync per day, delta in between).
 
-    `$expand=manager` is likewise unsupported on /users/delta, but it is a
-    separate query option rather than part of the select, so it is simply not
-    added to the priming URI — manager keeps coming from the full sync.
+    Plus the properties a delta query must track although the full fetch
+    does not select them:
+
+      manager         — the full fetch reads it with `$expand=manager`, which
+                        /users/delta rejects. Named in the delta `$select`
+                        instead, Graph tracks the relationship and reports it
+                        as a `manager@delta` annotation (an `@removed` entry
+                        when it is cleared). Without it a token never reports a
+                        manager-only change, and every manager stayed stale
+                        until the next full sync (#1627).
 
     Pure string work, no I/O, so it unit-tests directly.
 #>
@@ -30,6 +37,10 @@ param()
 # Properties Graph will not track (or return) on a delta query, so they must be
 # dropped from a select before it is used to prime a delta token.
 $script:FGDeltaUnsupportedUserSelect = @('signInActivity')
+
+# Properties a user delta token must track that the full-fetch select never
+# names, appended to the priming select (see the header).
+$script:FGDeltaRequiredUserSelect = @('manager')
 
 function Get-EntraDeltaSelect {
     <#
@@ -44,18 +55,21 @@ function Get-EntraDeltaSelect {
         empty array for a collection (service principals) where every selected
         property is supported.
 
+    .PARAMETER Required
+        Property names to append when the select does not already name them.
+        Defaults to the user-delta set above; pass an empty array for any other
+        collection.
+
     .OUTPUTS
-        The comma-separated select, with order and duplicates preserved as-is.
+        The comma-separated select, with order and duplicates preserved as-is
+        and the required properties last.
     #>
     [CmdletBinding()]
     param(
         [string]$Select,
-        [string[]]$Unsupported = $script:FGDeltaUnsupportedUserSelect
+        [string[]]$Unsupported = $script:FGDeltaUnsupportedUserSelect,
+        [string[]]$Required = $script:FGDeltaRequiredUserSelect
     )
-
-    if ([string]::IsNullOrWhiteSpace($Select)) {
-        return 'id'
-    }
 
     $kept = @(
         $Select -split ',' |
@@ -66,7 +80,11 @@ function Get-EntraDeltaSelect {
     # A select that filtered down to nothing would make Graph return the default
     # property set; `id` is the minimum that still identifies a changed object.
     if ($kept.Count -eq 0) {
-        return 'id'
+        $kept = @('id')
+    }
+
+    foreach ($property in $Required) {
+        if ($kept -notcontains $property) { $kept += $property }
     }
 
     return ($kept -join ',')

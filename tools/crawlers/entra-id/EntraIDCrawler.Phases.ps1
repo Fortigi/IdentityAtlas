@@ -806,7 +806,7 @@ function Get-EntraServicePrincipalData {
         $sps = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/servicePrincipals?`$select=$spSelect&`$top=999"
         try {
             Write-Host "  Priming SP delta token (walks full /servicePrincipals/delta once)..." -ForegroundColor DarkGray
-            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=$(Get-EntraDeltaSelect -Select $spSelect -Unsupported @())"
+            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/servicePrincipals/delta?`$select=$(Get-EntraDeltaSelect -Select $spSelect -Unsupported @() -Required @())"
             $newSpsToken = $primeResp.deltaToken
             if ($newSpsToken) { Write-Host "  Primed SP delta token for next run" -ForegroundColor DarkGray }
         } catch {
@@ -1352,80 +1352,7 @@ function Get-EntraUserSelect {
 }
 
 # ─── Principals: fetch (delta vs full) ───────────────────────────
-# Delta/full fetch of users. `/users/delta` can't $expand=manager, so full runs
-# fetch with manager expand AND prime a delta token for the next run; delta runs
-# use the stored token and fall back to full on 400/410. Returns
-# @{ users; removedUserIds; newUsersToken; deltaHit }. Verbatim from the inline
-# fetch block.
-function Get-EntraUserData {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] [int]$SystemId,
-        [string]$SyncMode = 'delta',
-        [string]$UserSelect
-    )
-    $usersEndpoint  = 'users/delta'
-    $usersToken     = $null
-    $newUsersToken  = $null
-    $deltaHit       = $false
-    $removedUserIds = @()
-    $users          = $null
-
-    if ($SyncMode -eq 'full') {
-        # Explicit full: wipe any stored token so stale context can't survive.
-        Remove-FGDeltaToken -SystemId $SystemId -Endpoint $usersEndpoint
-    } elseif ($SyncMode -eq 'delta') {
-        $usersToken = Get-FGDeltaToken -SystemId $SystemId -Endpoint $usersEndpoint
-    }
-
-    if ($usersToken) {
-        Write-Host "  Delta mode: fetching only changes since last run..." -ForegroundColor Gray
-        try {
-            $deltaUri = "https://graph.microsoft.com/beta/users/delta?`$deltatoken=$([uri]::EscapeDataString($usersToken))"
-            $resp = Invoke-FGGetDeltaRequest -URI $deltaUri
-            $split = Split-FGDeltaResponse -Response $resp
-            $users = $split.items
-            $removedUserIds = $split.removedIds
-            $newUsersToken = $resp.deltaToken
-            $deltaHit = $true
-            Write-Host "  Delta: $($users.Count) changed + $($removedUserIds.Count) removed" -ForegroundColor Gray
-        } catch [System.InvalidOperationException] {
-            Write-Host "  Delta token rejected by Graph — clearing and falling back to full fetch" -ForegroundColor Yellow
-            Remove-FGDeltaToken -SystemId $SystemId -Endpoint $usersEndpoint
-            $usersToken = $null
-            $users = $null
-        } catch {
-            Write-Host "  Delta fetch failed: $($_.Exception.Message) — falling back to full" -ForegroundColor Yellow
-            $usersToken = $null
-            $users = $null
-        }
-    }
-
-    if (-not $deltaHit) {
-        # Full path: authoritative fetch with manager expand, then prime a delta
-        # token (Graph only hands it out after walking the whole collection).
-        $users = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/users?`$select=$UserSelect&`$expand=manager(`$select=id)&`$top=999"
-        try {
-            Write-Host "  Priming delta token (walks full /users/delta once)..." -ForegroundColor DarkGray
-            $primeResp = Invoke-FGGetDeltaRequest -URI "https://graph.microsoft.com/beta/users/delta?`$select=$(Get-EntraDeltaSelect -Select $UserSelect)"
-            $newUsersToken = $primeResp.deltaToken
-            if ($newUsersToken) {
-                Write-Host "  Primed delta token for next run" -ForegroundColor DarkGray
-            } else {
-                Write-Host "  (priming call succeeded but no deltaLink returned — Graph may have paginated further)" -ForegroundColor DarkGray
-            }
-        } catch {
-            Write-Host "  (delta token priming skipped: $($_.Exception.Message))" -ForegroundColor DarkGray
-        }
-    }
-
-    return @{
-        users          = $users
-        removedUserIds = $removedUserIds
-        newUsersToken  = $newUsersToken
-        deltaHit       = $deltaHit
-    }
-}
+# Get-EntraUserData lives in EntraIDCrawler.UserDelta.ps1.
 
 # Filter the fetched users down to the identity subset per the configured
 # IdentityFilter (attribute/condition/value(s)), coercing the configured value to
@@ -1518,11 +1445,10 @@ function Sync-EntraPrincipals {
         # Delta-hit runs forward @removed tombstones and use syncMode='delta' so
         # the ingest engine doesn't scoped-delete users we didn't see this run.
         $ingestMode = if ($data.deltaHit) { 'delta' } else { 'full' }
-        Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode $ingestMode `
-            -Scope @{ principalType = 'User' } -Records $records -DeletedIds $data.removedUserIds
+        Send-EntraUserRecords -SystemId $SystemId -Records $records -DeltaHit $data.deltaHit -DeletedIds $data.removedUserIds
 
         if ($data.newUsersToken) {
-            Set-FGDeltaToken -SystemId $SystemId -Endpoint 'users/delta' -Token $data.newUsersToken -RecordsLastSeen $records.Count
+            Set-FGDeltaToken -SystemId $SystemId -Endpoint $script:EntraUsersDeltaEndpoint -Token $data.newUsersToken -RecordsLastSeen $records.Count
         }
 
         # Per-user aggregate sign-in activity (the four signInActivity timestamps

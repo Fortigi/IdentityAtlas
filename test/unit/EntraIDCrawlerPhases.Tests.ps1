@@ -47,6 +47,7 @@ BeforeAll {
     # delta tokens with. Without it the priming call throws inside the phase's
     # try/catch and the token silently never gets primed.
     . (Join-Path $script:entraDir 'EntraIDCrawler.DeltaSelect.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.UserDelta.ps1')
     # Get-FGServicePrincipalType (pure SDK classifier) — used by
     # ConvertTo-EntraServicePrincipalRecord inside the ServicePrincipals phase.
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
@@ -1891,7 +1892,7 @@ Describe 'Get-EntraUserData' {
         Get-EntraUserData -SystemId 1 -SyncMode 'full' -UserSelect 'id,displayName,department,signInActivity,userType' | Out-Null
 
         Should -Invoke Invoke-FGGetDeltaRequest -Exactly 1 -ParameterFilter {
-            $URI -eq 'https://graph.microsoft.com/beta/users/delta?$select=id,displayName,department,userType'
+            $URI -eq 'https://graph.microsoft.com/beta/users/delta?$select=id,displayName,department,userType,manager'
         }
     }
 
@@ -1919,7 +1920,7 @@ Describe 'Get-EntraUserData' {
         $data = Get-EntraUserData -SystemId 1 -SyncMode 'delta' -UserSelect 'id'
         $data.deltaHit | Should -BeFalse
         @($data.users).Count | Should -Be 1
-        Should -Invoke Remove-FGDeltaToken -Exactly 1
+        Should -Invoke Remove-FGDeltaToken -Exactly 1 -ParameterFilter { $Endpoint -eq 'users/delta/manager' }
     }
 }
 
@@ -1996,8 +1997,40 @@ Describe 'Sync-EntraPrincipals' {
         $p = Get-Sent { $_.Scope.principalType -eq 'User' }
         $p[0].Records.Count | Should -Be 2
         $p[0].SyncMode | Should -Be 'full'
-        Should -Invoke Set-FGDeltaToken -Exactly 1 -ParameterFilter { $Token -eq 'primed' }
+        # Stored under the manager-tracking key (#1627), never the legacy one.
+        Should -Invoke Set-FGDeltaToken -Exactly 1 -ParameterFilter { $Token -eq 'primed' -and $Endpoint -eq 'users/delta/manager' }
         $timings.Contains('Principals') | Should -BeTrue
+        $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'a delta run sends manager changes as their own batch, and the users without managerId (#1627)' {
+        # Three users that discriminate: a new manager, a cleared one, and one
+        # whose manager did not change. Only the first two may reach the manager
+        # batch, and the user batch must carry no managerId at all — so an
+        # unchanged manager is never overwritten.
+        Mock Get-FGDeltaToken -MockWith { if ($Endpoint -eq 'users/delta/manager') { 'stored-token' } }
+        Mock Invoke-FGGetDeltaRequest -MockWith {
+            @{ value = @(
+                [pscustomobject]@{ id = 'u-set'; displayName = 'Set'; 'manager@delta' = @([pscustomobject]@{ id = 'mgr-new' }) }
+                [pscustomobject]@{ id = 'u-clr'; displayName = 'Clr'; 'manager@delta' = @([pscustomobject]@{ id = 'mgr-old'; '@removed' = [pscustomobject]@{ reason = 'changed' } }) }
+                [pscustomobject]@{ id = 'u-same'; displayName = 'Same' }
+                [pscustomobject]@{ id = 'u-gone'; '@removed' = [pscustomobject]@{ reason = 'deleted' } }
+              ); deltaToken = 'next-token' }
+        }
+
+        Sync-EntraPrincipals -SystemId 5 -SyncMode 'delta' -Timings ([ordered]@{})
+
+        $p = @(Get-Sent { $_.Endpoint -eq 'ingest/principals' })
+        $p.Count | Should -Be 2
+        $p[0].SyncMode | Should -Be 'delta'
+        @($p[0].Records).id | Should -Be @('u-set', 'u-clr', 'u-same')
+        @($p[0].Records | Where-Object { $_.ContainsKey('managerId') }).Count | Should -Be 0
+        $p[1].SyncMode | Should -Be 'delta'
+        @($p[1].Records).id | Should -Be @('u-set', 'u-clr')
+        $p[1].Records[0]['managerId'] | Should -Be 'mgr-new'
+        $p[1].Records[1].ContainsKey('managerId') | Should -BeTrue
+        $p[1].Records[1]['managerId'] | Should -Be $null
+        Should -Invoke Set-FGDeltaToken -Exactly 1 -ParameterFilter { $Token -eq 'next-token' -and $Endpoint -eq 'users/delta/manager' }
         $script:phaseErrors.Count | Should -Be 0
     }
 

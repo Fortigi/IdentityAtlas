@@ -10,7 +10,9 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
-import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
+import {
+  repairManagerLinks, managerLinkWarning, batchHasManagerLink, clearExplicitManagerLinks,
+} from '../../ingest/managerLinks.js';
 import { reconcileBatchAccountables } from '../../ingest/contextOwners.js';
 import { reapplyAfterSync } from '../../contexts/adjustments/afterSync.js';
 import {
@@ -178,6 +180,9 @@ async function writeBatch(entityType, body, { allowed, req, startTime }) {
   const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
   if (delErr) return delErr;
 
+  // A delta can still clear a manager by naming it null (#1627); the delta
+  // upsert above kept the stored one, so clear it here, before the sweep.
+  await clearExplicitManagerLinks(db, tableName, body.systemId, body.syncMode || 'delta', normalized);
   // A single batch IS the whole principals load (a crawler that needs more
   // than one opens a session instead), so this is the point at which a
   // manager link can be told apart from one whose manager had not arrived.

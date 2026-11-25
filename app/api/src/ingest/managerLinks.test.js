@@ -8,6 +8,7 @@ import {
   repairManagerLinks, managerLinkWarning, REPAIR_MANAGER_LINKS_SQL,
   REPAIR_IDENTITY_MANAGER_LINKS_SQL, managerLinkColumn,
   batchHasManagerLink, columnsHaveManagerLink,
+  CLEAR_MANAGER_LINKS_SQL, explicitManagerClearIds, clearExplicitManagerLinks,
 } from './managerLinks.js';
 
 const runner = (row) => ({ query: vi.fn().mockResolvedValue({ rows: row ? [row] : [] }) });
@@ -187,5 +188,59 @@ describe('REPAIR_IDENTITY_MANAGER_LINKS_SQL', () => {
     expect(REPAIR_IDENTITY_MANAGER_LINKS_SQL).toContain('i."managerIdentityId" = i.id');
     expect(REPAIR_IDENTITY_MANAGER_LINKS_SQL)
       .toContain('NOT EXISTS (SELECT 1 FROM "Identities" m WHERE m.id = i."managerIdentityId")');
+  });
+});
+
+describe('explicit-null manager clears in a delta (#1627)', () => {
+  const recs = [
+    { id: 'a', managerId: null },      // cleared
+    { id: 'b', managerId: 'm-1' },     // set
+    { id: 'c' },                       // unchanged — key absent
+    { id: 'd', managerId: undefined }, // not a null: JSON never carries undefined
+    null,
+  ];
+
+  it('explicitManagerClearIds picks only the records that sent null', () => {
+    expect(explicitManagerClearIds(recs, 'Principals')).toEqual(['a']);
+  });
+
+  it('explicitManagerClearIds is Principals-only, needs an id, and tolerates a non-array', () => {
+    expect(explicitManagerClearIds(recs, 'Identities')).toEqual([]);
+    expect(explicitManagerClearIds(undefined, 'Principals')).toEqual([]);
+    expect(explicitManagerClearIds([{ managerId: null }], 'Principals')).toEqual([]);
+  });
+
+  it("clears the loading system's rows with one scoped statement and returns the count", async () => {
+    const r = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) };
+    await expect(clearExplicitManagerLinks(r, 'Principals', 42, 'delta', recs)).resolves.toBe(1);
+    expect(r.query).toHaveBeenCalledTimes(1);
+    expect(r.query).toHaveBeenCalledWith(CLEAR_MANAGER_LINKS_SQL, [42, ['a']]);
+  });
+
+  it('still clears for system 0 (a falsy id is an id)', async () => {
+    const r = { query: vi.fn().mockResolvedValue({ rowCount: 2 }) };
+    await expect(clearExplicitManagerLinks(r, 'Principals', 0, 'delta', recs)).resolves.toBe(2);
+  });
+
+  it('reads a missing rowCount as 0', async () => {
+    const r = { query: vi.fn().mockResolvedValue({}) };
+    await expect(clearExplicitManagerLinks(r, 'Principals', 42, 'delta', recs)).resolves.toBe(0);
+  });
+
+  it('sends nothing for a full batch, a missing system, another table or no explicit null', async () => {
+    const r = { query: vi.fn() };
+    await expect(clearExplicitManagerLinks(r, 'Principals', 42, 'full', recs)).resolves.toBe(0);
+    await expect(clearExplicitManagerLinks(r, 'Principals', null, 'delta', recs)).resolves.toBe(0);
+    await expect(clearExplicitManagerLinks(r, 'Principals', undefined, 'delta', recs)).resolves.toBe(0);
+    await expect(clearExplicitManagerLinks(r, 'Identities', 42, 'delta', recs)).resolves.toBe(0);
+    await expect(clearExplicitManagerLinks(r, 'Principals', 42, 'delta', [{ id: 'c' }])).resolves.toBe(0);
+    expect(r.query).not.toHaveBeenCalled();
+  });
+
+  it('the statement clears the column, scoped to one system and to the named ids', () => {
+    expect(CLEAR_MANAGER_LINKS_SQL).toMatch(/UPDATE "Principals" SET "managerId" = NULL/);
+    expect(CLEAR_MANAGER_LINKS_SQL).toMatch(/"systemId" = \$1/);
+    expect(CLEAR_MANAGER_LINKS_SQL).toMatch(/id = ANY\(\$2::uuid\[\]\)/);
+    expect(CLEAR_MANAGER_LINKS_SQL).not.toMatch(/DELETE/);
   });
 });

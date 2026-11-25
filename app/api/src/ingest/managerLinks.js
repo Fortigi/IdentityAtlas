@@ -155,6 +155,51 @@ export async function repairManagerLinks(runner, tableName, systemId, touchedMan
   return { unresolved, selfReferences };
 }
 
+// ── A cleared manager, said in a delta ──────────────────────────────────────
+// A delta upsert is COALESCE(incoming, stored) (engine.js buildUpdateSet): a
+// NULL means "not sent", so a delta batch cannot clear a column by sending null.
+// For the manager link that left no way to say "this account no longer has a
+// manager" short of a full sync — and the Entra crawler hears exactly that from
+// /users/delta, as an @removed manager@delta entry (#1627).
+//
+// The record still says it: normalization keeps a key that was sent as null, so
+// per record "managerId: null" (clear) and no managerId key (unchanged) are
+// still apart here, before the batch is flattened into a temp table where they
+// are not. Only Principals, only the loading system's own rows, only delta —
+// a full upsert already writes the NULL itself.
+export const CLEAR_MANAGER_LINKS_SQL = `
+UPDATE "Principals" SET "managerId" = NULL
+ WHERE "systemId" = $1
+   AND id = ANY($2::uuid[])
+   AND "managerId" IS NOT NULL`;
+
+/**
+ * Ids of the normalized records that carry an explicit null manager link.
+ * Pure. Principals only: an identities batch says nothing about this column.
+ */
+export function explicitManagerClearIds(records, tableName) {
+  if (tableName !== 'Principals' || !Array.isArray(records)) return [];
+  return records
+    .filter(r => r && r.id && Object.prototype.hasOwnProperty.call(r, 'managerId') && r.managerId === null)
+    .map(r => r.id);
+}
+
+/**
+ * Clear the manager links a delta principals batch explicitly sent as null.
+ * Run before repairManagerLinks, so a cleared link is never counted as dangling.
+ *
+ * @returns {Promise<number>} how many stored links were cleared (0 when there was
+ *   nothing to do: not a delta, not Principals, no system, no explicit null)
+ */
+export async function clearExplicitManagerLinks(runner, tableName, systemId, syncMode, records) {
+  if (syncMode !== 'delta') return 0;
+  if (systemId === undefined || systemId === null) return 0;
+  const ids = explicitManagerClearIds(records, tableName);
+  if (ids.length === 0) return 0;
+  const res = await runner.query(CLEAR_MANAGER_LINKS_SQL, [systemId, ids]);
+  return res?.rowCount || 0;
+}
+
 /**
  * The one-line warning for a repair result, or null when there is nothing to say.
  * Pure, so the wording is asserted without a database.
