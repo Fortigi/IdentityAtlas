@@ -295,8 +295,9 @@ Found while adding the context types (version 1.1.0). Again none of the behaviou
 18. **Omada defines a resource-type map that is never applied.** `resourceTypeToIdentityAtlas` in
     `Start-OmadaCrawler.ps1` is declared, but `ConvertTo-AtlasResourceType` is never called; resource
     categories come from `resourceCategoryMapping` instead.
-19. **The CSV crawler scopes its principal reconcile to `principalType='User'`** even when its rows carry
-    other types.
+19. **Fixed (#1686):** the CSV crawler scoped its principal reconcile to `principalType='User'` even when
+    its rows carried other types, so a vanished account of any other type was never removed. The full
+    sync is now unscoped, bounded only by each system Users.csv feeds.
 14. **Two "non-human account" lists.** `NON_HUMAN_PRINCIPAL_TYPES` (account linking) is ServicePrincipal,
     ManagedIdentity, AIAgent, MachineAccount; `riskscoring/engine.js` keeps its own inline list that
     also includes WorkloadIdentity.

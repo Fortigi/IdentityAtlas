@@ -242,7 +242,7 @@ Describe 'Sync-CsvUsers' {
         @($script:sent).Count | Should -Be 0
     }
 
-    It 'sends User-scoped principals, resolving SystemName' {
+    It 'sends principals, resolving SystemName' {
         $script:systemLookup = @{ 'Omada' = 9 }
         Set-Csv 'Users.csv' @(
             'ExternalId;DisplayName;SystemName'
@@ -253,9 +253,26 @@ Describe 'Sync-CsvUsers' {
         Sync-CsvUsers
         $sent = Get-Sent 'ingest/principals'
         $sent.Count | Should -Be 1
-        $sent[0].Scope.principalType | Should -Be 'User'
         $sent[0].Records.Count | Should -Be 2
         ($sent[0].Records | Where-Object { $_.externalId -eq 'u1' })._systemId | Should -Be 9
+    }
+
+    # #1686: the full sync used to be scoped to principalType='User', so the
+    # reconcile only ever tombstoned vanished Users — a ServicePrincipal, an
+    # ExternalUser or a SharedMailbox removed from Users.csv stayed live forever.
+    # Users.csv is the only file that writes principals, so the whole file is the
+    # system's account set: the reconcile must cover every type in it.
+    It 'reconciles every account type in Users.csv, not just User' {
+        Set-Csv 'Users.csv' @(
+            'ExternalId;DisplayName;PrincipalType'
+            'u1;Alice;User'
+            'svc1;Batch runner;ServicePrincipal'
+        )
+        Sync-CsvUsers
+        $sent = Get-Sent 'ingest/principals'
+        $sent.Count | Should -Be 1
+        @($sent[0].Scope.Keys) | Should -Not -Contain 'principalType'
+        @($sent[0].Records.principalType) | Should -Be @('User', 'ServicePrincipal')
     }
 }
 

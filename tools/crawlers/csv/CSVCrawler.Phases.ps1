@@ -235,7 +235,11 @@ function Sync-CsvUsers {
     }
     Write-Host "  Built $($records.Count) principal records" -ForegroundColor Gray
     Write-CsvUnknownSystems -FileName 'Users.csv' -Unknown $unknown
-    Send-GroupedBySystem -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' } -Records $records
+    # No principalType scope: Users.csv is the only file that writes principals, so
+    # it is each system's whole account set and the full sync reconciles every type
+    # in it. Scoped to 'User', a vanished ServicePrincipal or ExternalUser was never
+    # removed (#1686). The reconcile stays bounded to each system the file feeds.
+    Send-GroupedBySystem -Endpoint 'ingest/principals' -Records $records
     [System.GC]::Collect()
 }
 
