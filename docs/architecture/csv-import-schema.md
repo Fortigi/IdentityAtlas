@@ -2,13 +2,18 @@
 
 ## Design principle
 
-Identity Atlas defines **one canonical CSV schema** per entity type. Column names, types, and relationships are fixed and documented. The crawler reads exactly this format — no column-name guessing, no aliases, no auto-detection.
+Identity Atlas defines **one canonical CSV schema** per entity type. Column names, types, and relationships are fixed and documented. Identity Atlas owns the target schema; the user owns how their source reaches it.
 
-Source-specific transformation — mapping a source's own column names onto this schema — happens **before import** via a lightweight pre-import script. Identity Atlas owns the target schema, the user owns the source mapping. This separation keeps the crawler simple and testable.
+A source whose columns are named differently reaches it one of two ways:
+
+1. **An explicit, admin-configured mapping in the crawler config — no guessing.** Upload the export as it is, pick each file's object type in the wizard, and map its columns onto the schema per schema field. The mapping (and each file's delimiter) is stored in `CrawlerConfigs.config` and applied by the crawler at read time on **every** run; the uploaded files are never rewritten. Nothing is inferred that the admin cannot see: the wizard detects each file's delimiter and shows what it chose, and the crawler itself detects nothing at all — it applies only stored values, and fails the job by name when a stored mapping no longer fits its file. There are no built-in aliases and no fuzzy column matching.
+2. **A pre-import transform script**, as before — the right tool when the source needs more than a column rename (splitting rows, resolving references, deriving values). See "Using the Omada transform" below; `tools/csv-templates/transforms/omada-to-identityatlas.ps1` remains fully supported.
+
+Files already in the canonical schema bypass mapping entirely and load exactly as they always have.
 
 ### CSV files and their schemas
 
-Every file is **semicolon-delimited, UTF-8 with BOM** (matching the de facto standard for European CSV exports). The delimiter is configurable per crawler config.
+Every file is **semicolon-delimited, UTF-8 with BOM** (matching the de facto standard for European CSV exports). The delimiter is configurable per crawler config, and **per file**: the wizard detects each uploaded file's delimiter (candidates `,` `;` tab — most columns wins; a tie, including a single-column file, keeps the config-level value), shows what it detected, and lets you override it. Pipe stays manually selectable and is never auto-detected. A file the config says nothing about is read with the config-level delimiter, so existing configs need no migration.
 
 All files are **optional** — import only what your source system has. The minimum viable import is: `Resources.csv` + `Users.csv` + `Assignments.csv`. Everything else adds depth.
 
@@ -265,11 +270,51 @@ Import-Csv "$SourceFolder/Account-Permission.csv" -Delimiter ";" |
 
 A transform like this is short, easily auditable, and keeps Identity Atlas clean.
 
+### Custom column mapping (stored in the crawler config)
+
+Choosing **Custom mapping** as the source format in step 1 of the wizard adds a per-file section to `CrawlerConfigs.config`, keyed by uploaded file name:
+
+```jsonc
+{
+  "systemName": "Active Directory",
+  "systemType": "AD",
+  "delimiter": ";",                 // the fallback for any file without an entry
+  "sourceFormat": "custom",         // absent or "identityatlas" = today's behaviour
+  "files": {
+    "ad_users.csv": {
+      "slot": "users",              // which schema slot this file feeds (csv-slots.json key)
+      "delimiter": ",",             // this file's own delimiter
+      "columns": {                  // schema field -> this file's column
+        "ExternalId": "sAMAccountName",
+        "DisplayName": "cn",
+        "Email": "mail"
+      }
+    },
+    "ad_memberships.tsv.csv": {
+      "slot": "assignments",
+      "delimiter": "\t",
+      "columns": { "ResourceExternalId": "group", "UserExternalId": "members" },
+      "split": { "field": "UserExternalId", "delimiter": ";" }
+    }
+  }
+}
+```
+
+Rules, all enforced by the crawler:
+
+- **`slot` is what makes a non-canonical filename readable.** Every phase asks for its schema slot; without an entry it falls back to the canonical file name (`Users.csv`, …), which is why a config saved before this feature existed behaves identically. Two files claiming one slot fails the job naming both.
+- **Unmapped source columns** are kept as `extendedAttributes` under their **source** names, exactly as extra columns always were. For Assignments / IdentityMembers / ContextMembers — the three files that deliberately don't keep extras — they are named in the job log instead.
+- **`split`** turns a multi-value cell into one row per value (`user1;user2;user3` → three assignments). Offered on the **Assignments** slot only, on exactly one of `ResourceExternalId` / `UserExternalId`; empty segments are skipped and every value is trimmed. More than one split per file fails the job naming the file — a cartesian product is never produced silently.
+- **A mapping that no longer fits its file fails the job**, naming the file and the missing column, rather than quietly importing without that field. A configured file that is absent from the folder is named in a warning and the run continues under the usual optional/required rules.
+- Re-mapping an existing crawler reads each uploaded file's header from `GET /api/admin/crawler-configs/:configId/files/:filename/header` (first line, bounded read) — including files copied straight into the server folder.
+
 ### Implementation details
 
 | Component | What it does |
 |-----------|-------------|
-| **CSV crawler** (`tools/crawlers/csv/Start-CSVCrawler.ps1`) | Reads exactly the schema column names. `Assert-Columns` validates required columns upfront with clear error messages. No `Get-Col` fallback logic. |
+| **CSV crawler** (`tools/crawlers/csv/Start-CSVCrawler.ps1`) | Reads the schema column names. `Assert-Columns` validates required columns upfront with clear error messages — on the **post-mapping** header, so a mapped file is checked for what it actually supplies. No `Get-Col` fallback logic. |
+| **Column mapping** (`tools/crawlers/csv/CSVCrawler.Mapping.ps1`) | Applies the config's per-file section at read time: which uploaded file feeds which slot, its delimiter, its schema-field → source-column map, and an optional multi-value split. Pure functions, applied at the header/row boundary — the record shapers, streaming, dedup and reconcile scopes downstream are untouched. |
+| **Mapping rules, wizard side** (`tools/crawlers/csv/csvMapping.js`, `MappingEditor.jsx`) | Delimiter detection, the exact-name mapping pre-fill, and post-mapping validation. Detection happens here and only here — the crawler never sniffs. |
 | **Validation** (`app/api/src/ingest/validation.js`) | `requiredOneOf` supports both UUID and ExternalId forms (e.g. `resourceId` or `resourceExternalId`). |
 | **Normalization** (`app/api/src/ingest/normalization.js`) | Converts `*ExternalId` fields to deterministic UUIDs using `${sysPrefix}-resources` / `${sysPrefix}-principals` / `${sysPrefix}-identities` prefixes. |
 | **File slots** (`tools/crawlers/csv/csv-slots.json`) | 10 slots matching the schema files (label, required, hint). Shared by the wizard and the generic upload-schema endpoint — single source of truth, not hand-duplicated. |
@@ -281,9 +326,11 @@ A transform like this is short, easily auditable, and keeps Identity Atlas clean
 
 ### Design rules
 
-- No column-name guessing or auto-detection in the crawler
+- No column-name guessing in the crawler: it applies an explicit, admin-configured mapping, or nothing
+- No auto-detection at crawl time — the wizard detects a delimiter once, visibly, and the chosen value is what the crawler applies
+- A stored mapping that no longer fits its file fails the job naming file and column; it is never worked around
 - No source-specific logic in the crawler
-- One schema, clearly documented — user transforms their data to match
+- One schema, clearly documented — users map their columns onto it (in the wizard or with a transform script)
 - Extra columns preserved in `extendedAttributes` for every file except Assignments / IdentityMembers / ContextMembers
 - Subset imports supported (only provide what your source has)
 - Multi-system supported via optional `SystemName` column
