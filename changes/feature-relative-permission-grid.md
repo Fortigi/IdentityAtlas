@@ -1,0 +1,3 @@
+- Relative permissions under Admin → Roles & Permissions are now one grid instead of separate switches: for each kind of thing people answer for (organisation units, applications, role portfolios, business roles), choose separately for the Accountable and the Responsible whether they may sign in and see it, also see its sub-units, use the MCP server, or sign off a business role's composition review
+- People who answer only for business roles (and for no unit or application) can now sign in to see those roles, when the grid allows it
+- Upgrading keeps the access people had: until the grid is first saved it shows what the earlier switches gave

@@ -8,16 +8,21 @@ vi.mock('../../db/connection.js');
 import { query, queryOne } from '../../db/connection.js';
 
 // Everything that decides who may write, as switches the tests flip.
-const world = vi.hoisted(() => ({ auth: true, feature: true, ownerReview: false, owns: false, me: null, asked: [] }));
+// ownerReview: the grid gives both owner roles review (as the old switch did);
+// policy: a grid of its own instead. roles: the owner roles the lookup was asked for.
+const world = vi.hoisted(() => ({ auth: true, feature: true, ownerReview: false, policy: null, owns: false, me: null, asked: [], roles: null }));
 vi.mock('../../config/authConfig.js', () => ({ isAuthEnabled: () => world.auth }));
 vi.mock('../../featureFlags.js', () => ({
   requireFeature: (name) => (_req, res, next) => (name === 'compositionReview' && world.feature ? next() : res.status(404).json({ error: 'This feature is not enabled' })),
 }));
-vi.mock('../../auth/contextOwnerSetting.js', () => ({ isBusinessRoleOwnerReviewEnabled: async () => world.ownerReview }));
+vi.mock('../../auth/contextOwnerSetting.js', async () => {
+  const { legacyPolicy } = await import('../../auth/relativePermissions.js');
+  return { getRelativePolicy: async () => world.policy ?? legacyPolicy({ ownerReview: world.ownerReview }) };
+});
 vi.mock('../../auth/resolveMe.js', () => ({ resolveMe: async (user) => { world.me = user; return { principal: { id: 'p-1' }, identity: null }; } }));
 vi.mock('../../lib/businessRoleOwners.js', async (orig) => ({
   ...(await orig()),
-  answersForBusinessRole: vi.fn(async (me, roleId) => { world.asked.push([me, roleId]); return world.owns; }),
+  answersForBusinessRole: vi.fn(async (me, roleId, roles) => { world.asked.push([me, roleId]); world.roles = roles; return world.owns; }),
 }));
 const pictures = vi.hoisted(() => ({ now: null }));
 vi.mock('../../lib/businessRoleSnapshot.js', async (orig) => ({ ...(await orig()), takeSnapshot: vi.fn(async () => pictures.now) }));
@@ -40,7 +45,7 @@ function roleExists() {
 beforeEach(() => {
   query.mockReset();
   queryOne.mockReset();
-  Object.assign(world, { auth: true, feature: true, ownerReview: false, owns: false, me: null, asked: [] });
+  Object.assign(world, { auth: true, feature: true, ownerReview: false, policy: null, owns: false, me: null, asked: [], roles: null });
   caller.user = SIGNER;
   pictures.now = picture([FIN]);
 });
@@ -76,6 +81,23 @@ describe('mayReview', () => {
     expect(world.me).toBe(READER);
     world.owns = true;
     expect(await mayReview(as(READER))).toBe(true);
+    expect(world.roles).toEqual(['Accountable', 'Responsible']);
+  });
+
+  it('asks only for the owner roles the grid gives review — Accountable alone here', async () => {
+    const { normalizePolicy } = await import('../../auth/relativePermissions.js');
+    world.policy = normalizePolicy({ BusinessRole: { Accountable: { review: true } } });
+    world.owns = true;
+    expect(await mayReview(as(READER))).toBe(true);
+    expect(world.roles).toEqual(['Accountable']);
+  });
+
+  it('uses the person owner mode already matched, instead of looking them up again', async () => {
+    world.ownerReview = true;
+    const known = { principal: { id: 'p-owner' }, identity: null };
+    await mayReview(as({ ...READER, contextOwner: { me: known } }));
+    expect(world.asked).toEqual([[known, ROLE]]);
+    expect(world.me).toBeNull();
   });
 
   it('looks an owner up also when the caller carries no permissions at all', async () => {

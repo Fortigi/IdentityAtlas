@@ -45,7 +45,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `data.write.contexts` | Build contexts | The context assistant (`/api/context-assistant/*`), and creating manual contexts and editing context members (`/api/contexts…` writes — also allowed with `admin.context-plugins`). Viewing contexts needs only Read data. |
 | `data.write.risk` | Risk score overrides | `PUT/DELETE /api/risk-scores/:type/:id/override` |
 | `data.write.identity` | Identity link decisions | `PUT/DELETE /api/identities/:id/members/:userId/override` (confirm / reject / clear an account-linking decision) |
-| `data.write.certifications` | Certification decisions | Review and sign off what a business role contains, with notes (`POST /api/access-package/:id/composition-reviews`, the **Composition review** section on Requests & reviews, experimental). A role's own Accountable or Responsible may do this without the permission while the relative permission **Business-role owners may sign off a composition review** is on. Certification decisions from the source are still ingested by the crawlers (`POST /api/ingest/governance/certifications`). |
+| `data.write.certifications` | Certification decisions | Review and sign off what a business role contains, with notes (`POST /api/access-package/:id/composition-reviews`, the **Composition review** section on Requests & reviews, experimental). A role's own Accountable or Responsible may do this without the permission where the relative-permission grid ticks **Composition review** for their role (Accountable or Responsible). Certification decisions from the source are still ingested by the crawlers (`POST /api/ingest/governance/certifications`). |
 
 ### Admin
 
@@ -72,7 +72,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 
 ### No-role users fail closed
 
-A signed-in user whose roles resolve to **no** permissions is **denied everything**: every endpoint except `/api/auth-me` answers 403 with `code: "NO_ROLE"`, and the app shows a "no role" page. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw), and since November 2026 no "no roles → read everything" fallback either. The one way in without a role is [context-owner access](../admin/authentication.md#relative-permissions-letting-context-owners-in). `data.read` stays implicit: any caller who holds at least one permission reads.
+A signed-in user whose roles resolve to **no** permissions is **denied everything**: every endpoint except `/api/auth-me` answers 403 with `code: "NO_ROLE"`, and the app shows a "no role" page. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw), and since November 2026 no "no roles → read everything" fallback either. The one way in without a role is [context-owner access](../admin/authentication.md#relative-permissions-letting-owners-in). `data.read` stays implicit: any caller who holds at least one permission reads.
 
 ### Getting the first admin in (bootstrap)
 

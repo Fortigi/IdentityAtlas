@@ -7,10 +7,10 @@
 //
 // Experimental (feature flag `compositionReview`): while it is off both answer
 // 404. A sign-off is a certification decision, so writing takes the permission
-// the catalog keeps for those (data.write.certifications) — or, while the
-// relative permission is on (Admin → Roles & Permissions, BUSINESS_ROLE_OWNER_REVIEW),
-// being the role's own Accountable or Responsible (lib/businessRoleOwners.js),
-// through any of the caller's accounts. Who saved it comes from the signed-in user
+// the catalog keeps for those (data.write.certifications) — or being the role's
+// own Accountable or Responsible (lib/businessRoleOwners.js), through any of the
+// caller's accounts, where the relative-permission grid gives that role
+// `review` (Admin → Roles & Permissions, auth/relativePermissions.js). Who saved it comes from the signed-in user
 // (lib/userOf.js), never from the body.
 //
 // The gate runs before the flag, so a caller without the right is refused 403
@@ -22,7 +22,8 @@ import { requireFeature } from '../../featureFlags.js';
 import { userOf } from '../../lib/userOf.js';
 import { resolveMe } from '../../auth/resolveMe.js';
 import { answersForBusinessRole } from '../../lib/businessRoleOwners.js';
-import { isBusinessRoleOwnerReviewEnabled } from '../../auth/contextOwnerSetting.js';
+import { getRelativePolicy } from '../../auth/contextOwnerSetting.js';
+import { BUSINESS_ROLE_SUBJECT, rolesAllowing } from '../../auth/relativePermissions.js';
 import { loadCompositionReviews, saveCompositionReview, parseReviewBody } from '../../lib/businessRoleCompositionReview.js';
 import { requireRole, failed } from './businessRoleOwners.js';
 
@@ -41,8 +42,11 @@ export async function mayReview(req) {
   if (!isAuthEnabled()) return true;
   if (req.readToken) return false;
   if (holdsPermission(req)) return true;
-  if (!(await isBusinessRoleOwnerReviewEnabled())) return false;
-  return answersForBusinessRole(await resolveMe(req.user), req.params.id);
+  const roles = rolesAllowing(await getRelativePolicy(), BUSINESS_ROLE_SUBJECT, 'review');
+  if (roles.length === 0) return false;
+  // A caller let in as an owner was matched to our data already (contextOwnerMode).
+  const me = req.user?.contextOwner?.me ?? await resolveMe(req.user);
+  return answersForBusinessRole(me, req.params.id, roles);
 }
 
 async function reviewGate(req, res, next) {

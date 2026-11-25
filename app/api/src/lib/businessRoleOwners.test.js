@@ -130,7 +130,26 @@ describe('the roles a person answers for', () => {
   it('asks by the account and the person, sorted by name', async () => {
     query.mockResolvedValue({ rows: [{ id: 'r2', displayName: 'Payroll', role: 'Responsible' }, { id: 'r1', displayName: 'Finance', role: 'Accountable' }] });
     expect((await findOwnedBusinessRoles(ME)).map(r => r.displayName)).toEqual(['Finance', 'Payroll']);
-    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, I1]);
+    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, I1, ['Accountable', 'Responsible']]);
+  });
+
+  it('asks only for the owner roles it is given, and asks nothing for none', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await findOwnedBusinessRoles(ME, ['Responsible']);
+    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, I1, ['Responsible']]);
+    query.mockClear();
+    expect(await findOwnedBusinessRoles(ME, [])).toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('answersForBusinessRole passes the owner roles on', async () => {
+    query.mockResolvedValue({ rows: [{ id: ROLE, displayName: 'Finance', role: 'Accountable' }] });
+    expect(await answersForBusinessRole(ME, ROLE, ['Accountable'])).toBe(true);
+    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, I1, ['Accountable']]);
+  });
+
+  it('filters on the owner role inside the statement, before one row per role is picked', () => {
+    expect(OWNED_ROLES_SQL).toMatch(/WHERE o\.role = ANY\(\$3::text\[\]\)/);
   });
 
   it('names the role portfolio each role sits in, through the shared catalog join', () => {
@@ -141,7 +160,7 @@ describe('the roles a person answers for', () => {
   it('asks by the account alone when the account is linked to no person', async () => {
     query.mockResolvedValue({ rows: [] });
     await findOwnedBusinessRoles({ principal: { id: P1 }, identity: null });
-    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, null]);
+    expect(query).toHaveBeenCalledWith(OWNED_ROLES_SQL, [P1, null, ['Accountable', 'Responsible']]);
   });
 
   it('sorts two roles of one name by id, and a role without a name first', async () => {

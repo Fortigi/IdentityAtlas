@@ -55,7 +55,7 @@ do hold devices or nested groups, the assistant says how many and offers to list
 ## Who may use it
 
 Three things must all be true (or, instead of the third, the person is a
-[context owner](#context-owners) and the switch for them is on):
+[context owner](#context-owners) whose relative permission gives them MCP):
 
 1. **Sign-in is on.** With authentication off there is no user to act for: the endpoint
    answers `404` and the switch refuses to turn on.
@@ -72,9 +72,11 @@ API keys (`fgr_` / `fgc_`) are refused — they act for no one.
 A person who is **Accountable or Responsible for a context** but holds no Identity Atlas
 role (a department manager, an application owner —
 [context-owner access](../architecture/context-owner-access.md)) may also use the MCP
-server, when the admin turns on **Admin → Roles & Permissions → Relative permissions →
-Context owners may also use the MCP server** (next to the context-owner switch, which must
-be on too). They then see exactly what they see in the app, enforced by the same code:
+server, when the admin ticks **MCP** for their row (the kind of context and their role,
+Accountable or Responsible) under **Admin → Roles & Permissions → Relative permissions**.
+That needs **Sign in & view** on the same row. Only the contexts such a row covers count;
+business roles are not part of the MCP scope. They then see exactly what they see in the
+app, enforced by the same code:
 
 - every `run_query` lists only the records they may open — their contexts' members,
   what those members hold (or, for an application, who holds it), their sub-units. For
