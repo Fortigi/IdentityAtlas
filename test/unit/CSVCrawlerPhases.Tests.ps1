@@ -304,7 +304,7 @@ Describe 'Sync-CsvAssignments' {
         Should -Invoke Get-CrawlerServerTime -Exactly 0
     }
 
-    It 'streams Direct-scoped assignments, honouring an explicit AssignmentType' {
+    It 'streams assignments unscoped by type, honouring an explicit AssignmentType' {
         Set-Csv 'Assignments.csv' @(
             'ResourceExternalId;UserExternalId;AssignmentType'
             'r1;u1;Eligible'
@@ -315,7 +315,7 @@ Describe 'Sync-CsvAssignments' {
         $script:posted.Count | Should -Be 1
         $body = $script:posted[0].Body
         $script:posted[0].Endpoint | Should -Be 'ingest/resource-assignments'
-        $body.scope.assignmentType | Should -Be 'Direct'
+        $body.scope.assignmentType | Should -BeNullOrEmpty
         $body.syncMode | Should -Be 'delta'          # chunks upsert; the reconcile does the deleting
         $recs = @($body.records)
         $recs.Count | Should -Be 2                   # the row with no resource id is skipped
@@ -329,7 +329,25 @@ Describe 'Sync-CsvAssignments' {
         $script:reconciled.Count | Should -Be 1
         $script:reconciled[0].Endpoint | Should -Be 'ingest/resource-assignments'
         $script:reconciled[0].Before | Should -Be '2026-09-25T10:00:00.000Z'
-        $script:reconciled[0].Scope.assignmentType | Should -Be 'Direct'
+        $script:reconciled[0].Scope.Count | Should -Be 0
+    }
+
+    # #1687: the reconcile used to be scoped to assignmentType='Direct'. The ingest
+    # turns every scope key into an equality delete bound, so a vanished Eligible
+    # (or user-supplied Indirect) row was never a stale candidate and stayed live
+    # forever. Assignments.csv carries every type, so the reconcile must cover all
+    # of them; it stays bounded to each system the file feeds.
+    It 'reconciles every assignment type the file can carry — a vanished Eligible row must be swept (#1687)' {
+        Set-Csv 'Assignments.csv' @(
+            'ResourceExternalId;UserExternalId;AssignmentType'
+            'r1;u1;Direct'
+            'r1;u2;Eligible'
+        )
+        Sync-CsvAssignments
+        $script:reconciled.Count | Should -Be 1
+        $script:reconciled[0].Scope.Count | Should -Be 0
+        @($script:reconciled[0].Scope.Keys) | Should -Not -Contain 'assignmentType'
+        @($script:posted[0].Body.records.assignmentType) | Should -Be @('Direct', 'Eligible')
     }
 
     It 'never reconciles when the file yielded no rows — an empty file must not wipe a system' {
