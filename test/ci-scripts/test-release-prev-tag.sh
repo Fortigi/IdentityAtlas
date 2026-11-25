@@ -124,19 +124,11 @@ assert "…and says how to call it" "true" \
 echo
 echo "── Wiring ──"
 
-# cut-tag.yml is the shared body of cut-release / cut-hotfix / cut-beta. Only a
-# beta follows the latest tag of any kind; release and hotfix use the script.
-SHARED="$REPO_ROOT/.github/workflows/cut-tag.yml"
-INLINE="git tag --list 'v\*' --sort=-version:refname"
-assert "cut-tag.yml calls the shared script" "true" \
-  "$(grep -q 'PREV_TAG=$(bash .github/scripts/release_prev_tag.sh "$TAG")' "$SHARED" && echo true || echo false)"
-assert "cut-tag.yml computes the baseline inline once" "1" \
-  "$(grep -c "$INLINE" "$SHARED")"
-assert "…and only for a beta" "true" \
-  "$(grep -B1 "$INLINE" "$SHARED" | head -1 | grep -q 'if \[ "$KIND" = "beta" \]; then' && echo true || echo false)"
-for wf in cut-release.yml cut-hotfix.yml cut-beta.yml; do
-  assert "$wf computes no baseline of its own" "false" \
-    "$(grep -qE "release_prev_tag|$INLINE" "$REPO_ROOT/.github/workflows/$wf" && echo true || echo false)"
+for wf in cut-release.yml cut-hotfix.yml; do
+  assert "$wf calls the shared script" "true" \
+    "$(grep -q 'release_prev_tag.sh' "$REPO_ROOT/.github/workflows/$wf" && echo true || echo false)"
+  assert "$wf no longer computes the baseline inline" "false" \
+    "$(grep -q "git tag --list 'v\*' --sort=-version:refname" "$REPO_ROOT/.github/workflows/$wf" && echo true || echo false)"
 done
 
 echo

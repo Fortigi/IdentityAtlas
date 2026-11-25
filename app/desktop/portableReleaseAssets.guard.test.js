@@ -24,9 +24,7 @@ import { fileURLToPath } from 'url';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(join(repoRoot, p), 'utf8').replace(/\r\n/g, '\n');
 
-// The shared body of cut-release / cut-beta / cut-hotfix; that all three call it
-// is checked in releaseWorkflows.guard.test.js.
-const WORKFLOWS = ['cut-tag.yml'];
+const WORKFLOWS = ['cut-release.yml', 'cut-beta.yml', 'cut-hotfix.yml'];
 const SCRIPT = '.github/scripts/build_portable_zips.sh';
 const DOWNLOADS = 'tools/release-notes/portable-downloads.md';
 const DEFAULT_ASSET = 'IdentityAtlas-portable.zip';

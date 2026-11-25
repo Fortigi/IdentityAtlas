@@ -40,8 +40,9 @@ describe('the update workflow', () => {
 
   it('downloads the package under the name every cut-* workflow attaches it with', () => {
     expect(runOf(job, 'Replace the template with the release\'s package')).toContain('ASSET="IdentityAtlas-azure-${VERSION}.zip"');
-    // cut-tag.yml is the shared body of cut-release / cut-hotfix / cut-beta.
-    expect(read('.github/workflows/cut-tag.yml')).toContain('-OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"');
+    for (const file of ['cut-release.yml', 'cut-hotfix.yml', 'cut-beta.yml']) {
+      expect(read(`.github/workflows/${file}`), file).toContain('-OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"');
+    }
   });
 
   it('compares against the image version a release package records in RELEASE', () => {
@@ -49,7 +50,7 @@ describe('the update workflow', () => {
     // Stable releases only (gh release view = the latest non-pre-release), and
     // their packages are stamped X.Y.Z.0 by cut-release / cut-hotfix.
     expect(check).toContain('LATEST="${VERSION}.0"');
-    expect(read('.github/workflows/cut-tag.yml')).toContain('IMAGE_VERSION="${VERSION}.0"');
+    expect(read('.github/workflows/cut-release.yml')).toContain('-Version "${VERSION}.0"');
     expect(read(PACKAGER)).toContain("Join-Path $target 'RELEASE'");
   });
 

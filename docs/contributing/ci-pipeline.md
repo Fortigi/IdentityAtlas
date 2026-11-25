@@ -151,7 +151,6 @@ None of these gate a PR. How they fit together, what the release test covers and
 | `cut-beta.yml` | By hand; called by the routes | Tags `vX.Y.Z-beta.N` (on `main`, or on the release line with `hotfix`), builds the ZIPs, creates the pre-release. `dry_run` pushes no tag |
 | `cut-release.yml` | By hand | Tags `vX.Y.Z` on a commit on `main`, builds the ZIPs and the Azure package, creates the release. For `X.Y.0` also creates `release/X.Y` and opens the PR that moves Dependabot there |
 | `cut-hotfix.yml` | Called by the stable route; by hand | Tags `vX.Y.Z` on a commit of the release line (cherry-picks of `main` commits and Dependabot updates), creates the release. `dry_run` pushes no tag |
-| `cut-tag.yml` | Called by the three `cut-*.yml` above | Their shared steps: the main-only check, the tag, the ZIPs and Azure package, the release notes and the GitHub release. Each `cut-*.yml` keeps its own inputs, notes prompt and run summary |
 | `docker-publish.yml` | Every `bump-version.yml` run; every `v*` tag | Builds, smoke-tests and CVE-scans the images, then pushes `:edge`, `:beta` (only for `X.Y.0` pre-releases) or `:latest`. Refuses a tag that is not on `main` or a release branch, unless main's checker accepts it as a hotfix |
 
 ---
