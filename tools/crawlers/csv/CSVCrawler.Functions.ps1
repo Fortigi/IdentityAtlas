@@ -23,11 +23,18 @@
 # "<SystemType>-<entity>", matching normalization.js's idGeneration contract), a
 # 10000 batch size, and skips empty batches. The original returned nothing, so
 # the shared result is swallowed here.
+#
+# -SendWhenEmpty is the deliberate opposite of that skip: it posts the empty full
+# sync, which is how the server reconciles a SCOPE down to zero rows (see the
+# empty-full-batch note in app/api/src/ingest/engine.js). Skipping is the right
+# default — a crawler that read nothing must never wipe — so the caller has to
+# have established that the scope really was read this run.
 function Send-IngestBatch {
     [CmdletBinding()]
-    param([string]$Endpoint, [int]$SystemId, [string]$SyncMode = 'full', [hashtable]$Scope = @{}, $Records, [int]$BatchSize = 10000)
+    param([string]$Endpoint, [int]$SystemId, [string]$SyncMode = 'full', [hashtable]$Scope = @{}, $Records, [int]$BatchSize = 10000, [switch]$SendWhenEmpty)
     Invoke-CrawlerIngestBatch -Endpoint $Endpoint -SystemId $SystemId -SyncMode $SyncMode -Scope $Scope `
-        -Records $Records -BatchSize $BatchSize -IdGeneration 'deterministic' -IdPrefix $SystemType -SkipWhenEmpty | Out-Null
+        -Records $Records -BatchSize $BatchSize -IdGeneration 'deterministic' -IdPrefix $SystemType `
+        -SkipWhenEmpty:(-not $SendWhenEmpty) | Out-Null
 }
 
 function Read-CsvFile {
@@ -221,6 +228,14 @@ function Get-CsvDedupedBatch {
 #  - `@() += $x` is O(N²). Always use List[object].Add().
 #  - Dedup is entirely optional when the caller trusts the input. Callers can
 #    pass -SkipDedup to bypass the hash-pass for very large inputs.
+#
+# -EmptyForSystems names systems that must get a sync for $Scope EVEN WITH NO
+# RECORDS. Grouping by the records alone means a scope the run produced no row
+# for is never sent, so the server never reconciles it and its stale rows live
+# forever — the per-type half of that is #1684 AC 7 (a ResourceRelationships.csv
+# with no GrantsAccessTo row left every stored GrantsAccessTo row in place). The
+# caller passes the systems its file spoke for this run; a system with records
+# still just gets them.
 function Send-GroupedBySystem {
     [CmdletBinding()]
     param(
@@ -229,10 +244,14 @@ function Send-GroupedBySystem {
         [hashtable]$Scope = @{},
         $Records,
         [int]$BatchSize = 10000,
-        [switch]$SkipDedup
+        [switch]$SkipDedup,
+        [int[]]$EmptyForSystems = @()
     )
     # Group into per-system List[object] in one O(N) pass
     $grouped = [System.Collections.Generic.Dictionary[int, object]]::new()
+    foreach ($sid in $EmptyForSystems) {
+        if (-not $grouped.ContainsKey([int]$sid)) { $grouped[[int]$sid] = [System.Collections.Generic.List[object]]::new() }
+    }
     foreach ($rec in $Records) {
         $sid = [int]($rec['_systemId']); if (-not $sid) { $sid = $fallbackSystemId }
         $rec.Remove('_systemId')
@@ -250,7 +269,11 @@ function Send-GroupedBySystem {
         $batch = $grouped[$sid]
         $toSend = if ($SkipDedup) { $batch } else { Get-CsvDedupedBatch -Batch $batch }
         if ($sysCount -gt 1) { Write-Host "    System $sid`: $($toSend.Count) records" -ForegroundColor DarkGray }
-        Send-IngestBatch -Endpoint $Endpoint -SystemId $sid -SyncMode $SyncMode -Scope $Scope -Records $toSend -BatchSize $BatchSize
+        # Only a system seeded by -EmptyForSystems can be empty here (a group
+        # built from records holds at least the record that created it), so this
+        # posts the empty full sync exactly for those, and never otherwise.
+        Send-IngestBatch -Endpoint $Endpoint -SystemId $sid -SyncMode $SyncMode -Scope $Scope -Records $toSend -BatchSize $BatchSize `
+            -SendWhenEmpty:($toSend.Count -eq 0)
         $grouped[$sid] = $null  # release early — we already snapshotted the keys
         $toSend = $null
         $batch = $null

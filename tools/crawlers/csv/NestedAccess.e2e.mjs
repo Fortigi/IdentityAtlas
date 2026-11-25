@@ -57,9 +57,9 @@ function fixtureFiles(relationshipRows) {
 export function register(test, expect) {
   test.describe('CSV import — inherited access through nested groups', () => {
     test('a member of a nested group shows on the containing group as Indirect (#1684)', async ({ page, request }) => {
-      // Two full crawler runs over an uploaded fixture; the worker claims jobs
+      // Three full crawler runs over an uploaded fixture; the worker claims jobs
       // on its own cadence.
-      test.setTimeout(5 * 60 * 1000);
+      test.setTimeout(8 * 60 * 1000);
 
       const created = await request.post(`${API}/admin/crawler-configs`, {
         data: {
@@ -133,10 +133,10 @@ export function register(test, expect) {
       let systemId = null;
       try {
         // ── First import: u1 is in A, and A is a member of B. ──────────────
-        // C → D is a second nesting row that stays in the file for both
-        // imports, so the GrantsAccessTo full sync still runs for the second
-        // one and can reconcile A → B away (see the per-type sync note in
-        // docs/architecture/csv-import-schema.md).
+        // C → D is a second nesting row that stays in the file for the second
+        // import, so that one reconciles A → B away with the type still
+        // carrying rows; the third import drops C → D too and covers the type
+        // with no rows at all.
         await upload([`${res('A')};${res('B')};GrantsAccessTo`, `${res('C')};${res('D')};GrantsAccessTo`]);
         const first = await runImport();
         test.skip(first === null, 'no crawler worker claimed the job in this deployment');
@@ -179,8 +179,28 @@ export function register(test, expect) {
         expect(second.status, `re-import failed: ${second.errorMessage || ''}`).toBe('completed');
         expect(await holders(idB)).toEqual([`${res('u2')} Direct`]);
 
-        const parents = await (await request.get(`${API}/resources/${idB}/parent-resources`)).json();
-        expect(parents.filter(p => p.relationshipType === 'GrantsAccessTo')).toEqual([]);
+        /** The relationship types the resource is reached by, deduped and sorted. */
+        async function parentTypes(id) {
+          const rows = await (await request.get(`${API}/resources/${id}/parent-resources`)).json();
+          return [...new Set(rows.map(p => p.relationshipType))].sort();
+        }
+        expect(await parentTypes(idB)).toEqual([]);
+
+        // ── Third import: the file has no GrantsAccessTo row at all. ────────
+        // The last row of a type leaving the file used to leave every stored row
+        // of that type behind: with no rows, nothing was sent for the type, so
+        // its scope was never reconciled. The Contains row this import does
+        // supply has to load and stay — a run that reconciled every type empty
+        // would clear that one too.
+        const idC = await resourceId('C');
+        const idD = await resourceId('D');
+        expect(await parentTypes(idD), 'C → D should still grant D going into the third import').toEqual(['GrantsAccessTo']);
+
+        await upload([`${res('A')};${res('C')};Contains`]);
+        const third = await runImport();
+        expect(third.status, `third import failed: ${third.errorMessage || ''}`).toBe('completed');
+        expect(await parentTypes(idD)).toEqual([]);
+        expect(await parentTypes(idC)).toEqual(['Contains']);
       } finally {
         await request.delete(`${API}/admin/crawler-configs/${configId}`).catch(() => {});
         // The API has no delete for Systems; disabling is as clean as it gets.

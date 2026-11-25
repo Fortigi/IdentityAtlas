@@ -44,14 +44,17 @@
       $SystemType              → the deterministic idPrefix
       $fallbackSystemId        → the system a row without one belongs to
       $script:CsvStreamBatchSize → the streamed batch size (CSVCrawler.Phases.ps1)
+      $script:CsvNestingRelationshipType → the expanded type (CSVCrawler.Transform.ps1)
 #>
 
 # The nested-group closure walk is shared with every other crawler that
 # materialises Indirect assignments — see tools/crawlers/shared/.
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-NestedGroupUserSet.ps1')
 
-# The one relationshipType that means "holding the parent grants the child".
-$script:CsvNestingRelationshipType = 'GrantsAccessTo'
+# The one relationshipType that means "holding the parent grants the child" is
+# $script:CsvNestingRelationshipType, declared with the rest of the relationship
+# vocabulary in CSVCrawler.Transform.ps1 (dot-sourced before this file) so the
+# type this file expands and the types the phase reconciles cannot drift apart.
 
 # The reconcile + full-sync scope of every row this file computes. Named once so
 # the emit and the reconcile below cannot drift apart.

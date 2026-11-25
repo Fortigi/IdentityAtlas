@@ -396,9 +396,10 @@ if (-not $ApiKey) {
             Write-Result 'CSV/NestedAccess/Relationship' $false "expected one GrantsAccessTo parent, got: $(($parents | ForEach-Object { "$($_.parentDisplayName) ($($_.relationshipType))" }) -join ', ')"
         }
 
-        # AC 7: re-import with the nesting row dropped (another GrantsAccessTo row
-        # stays, so that type still gets its full sync — see the per-type sync note
-        # in docs/architecture/csv-import-schema.md).
+        # AC 7, first half: re-import with the A → B nesting row dropped while
+        # another GrantsAccessTo row (C → D) remains, so the GrantsAccessTo full
+        # sync carries records. The second half — the file keeping no row of that
+        # type at all — is the third import below.
         Write-NestingFixture -Relationships @("$nestStamp-C;$nestStamp-D;GrantsAccessTo")
         Invoke-NestingCrawl
         $holdersAfter = Get-NestingHolders -ResourceId $idB
@@ -418,6 +419,36 @@ if (-not $ApiKey) {
             Write-Result 'CSV/NestedAccess/RelationshipReconciled' $true 'the GrantsAccessTo row was removed with the file row'
         } else {
             Write-Result 'CSV/NestedAccess/RelationshipReconciled' $false 'the GrantsAccessTo row stayed behind after it left the file'
+        }
+
+        # AC 7, second half: the file is still there, still has a relationship row
+        # (Contains), and has no GrantsAccessTo row AT ALL. The last row of a type
+        # leaving the file used to leave every stored row of it behind — the type
+        # had no rows, so nothing was sent for it and its scope was never
+        # reconciled. ResourceRelationships is hard-deleted, so "gone" here means
+        # the row is really gone, not soft-deleted.
+        $idD = Get-NestingResourceId -Suffix 'D'
+        if (-not $idD) { throw "the fixture resource $nestStamp-D was not imported" }
+        $parentsD = @(Get-LocalApiArray -Path "/resources/$idD/parent-resources")
+        if (@($parentsD | Where-Object { $_.relationshipType -eq 'GrantsAccessTo' }).Count -ne 1) {
+            throw "the fixture is not what the last-row-of-a-type case needs: expected C → D to still grant $nestStamp-D"
+        }
+        Write-NestingFixture -Relationships @("$nestStamp-A;$nestStamp-C;Contains")
+        Invoke-NestingCrawl
+        $parentsDAfter = @(Get-LocalApiArray -Path "/resources/$idD/parent-resources")
+        if (@($parentsDAfter | Where-Object { $_.relationshipType -eq 'GrantsAccessTo' }).Count -eq 0) {
+            Write-Result 'CSV/NestedAccess/LastRowOfTypeReconciled' $true 'the last GrantsAccessTo row went when the file kept none'
+        } else {
+            Write-Result 'CSV/NestedAccess/LastRowOfTypeReconciled' $false "a GrantsAccessTo row survived a file with no row of that type: $(($parentsDAfter | ForEach-Object { "$($_.parentDisplayName) ($($_.relationshipType))" }) -join ', ')"
+        }
+        # The Contains row that import DID supply must be there — an empty sync
+        # per type that also wiped the type with rows would pass the check above.
+        $idC = Get-NestingResourceId -Suffix 'C'
+        $parentsC = @(Get-LocalApiArray -Path "/resources/$idC/parent-resources")
+        if (@($parentsC | Where-Object { $_.relationshipType -eq 'Contains' }).Count -eq 1) {
+            Write-Result 'CSV/NestedAccess/SuppliedTypeKept' $true 'the Contains row of the same import loaded and stayed'
+        } else {
+            Write-Result 'CSV/NestedAccess/SuppliedTypeKept' $false "the Contains row of that import is missing: $(($parentsC | ForEach-Object { "$($_.parentDisplayName) ($($_.relationshipType))" }) -join ', ')"
         }
     } catch {
         Write-Result 'CSV/NestedAccess' $false "nested-access import failed: $($_.Exception.Message)"

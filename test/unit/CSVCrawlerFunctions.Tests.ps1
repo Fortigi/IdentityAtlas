@@ -278,6 +278,22 @@ Describe 'Send-IngestBatch' {
         Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 
+    # The opposite of the skip above, and the only way a scope is reconciled down
+    # to zero rows: an empty FULL body carrying the scope. Asserted on the body
+    # (empty records + the scope + syncMode), because a call that sent the empty
+    # batch UNSCOPED would pass a call-count assertion and then reconcile nothing
+    # — an absent scope means "nothing to say" to the ingest, by design.
+    It 'posts the empty full sync when -SendWhenEmpty is set, with its scope intact' {
+        Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId 7 `
+            -Scope @{ relationshipType = 'GrantsAccessTo' } -Records @() -SendWhenEmpty
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter {
+            $Body.systemId -eq 7 -and
+            $Body.syncMode -eq 'full' -and
+            @($Body.records).Count -eq 0 -and
+            $Body.scope.relationshipType -eq 'GrantsAccessTo'
+        }
+    }
+
     It 'sends a single batch when count <= BatchSize' {
         $records = 1..5 | ForEach-Object { @{ externalId = "r$_" } }
         Send-IngestBatch -Endpoint 'ingest/resources' -SystemId 2 -Records $records -BatchSize 10
@@ -369,6 +385,36 @@ Describe 'Send-GroupedBySystem' {
         )
         Send-GroupedBySystem -Endpoint 'ingest/resources' -Records $records -SkipDedup
         Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.records.Count -eq 2 }
+    }
+
+    # -EmptyForSystems: a scope with no rows is still reconciled, per system.
+    It 'sends an empty full sync for a system named by -EmptyForSystems with no records' {
+        Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' `
+            -Scope @{ relationshipType = 'GrantsAccessTo' } -Records @() -EmptyForSystems @(4, 9)
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 4 -and @($Body.records).Count -eq 0 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 9 -and @($Body.records).Count -eq 0 }
+    }
+
+    # The records are what matters where there are some: a seeded system must not
+    # turn a real batch into an empty one, and a system with rows must not be sent
+    # twice (once empty, once full) — either way round the file's own rows would be
+    # reconciled away by the run that just loaded them.
+    It 'sends each seeded system its own records when it has them, exactly once' {
+        $records = @(
+            @{ _systemId = 4; parentExternalId = 'p1'; childExternalId = 'c1' }
+            @{ _systemId = 4; parentExternalId = 'p2'; childExternalId = 'c2' }
+        )
+        Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' `
+            -Scope @{ relationshipType = 'Contains' } -Records $records -EmptyForSystems @(4, 9)
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 4 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 4 -and @($Body.records).Count -eq 2 }
+        Should -Invoke Invoke-IngestAPI -Exactly 1 -ParameterFilter { $Body.systemId -eq 9 -and @($Body.records).Count -eq 0 }
+    }
+
+    It 'sends nothing at all when -EmptyForSystems is empty and there are no records' {
+        Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' `
+            -Scope @{ relationshipType = 'GrantsAccessTo' } -Records @()
+        Should -Invoke Invoke-IngestAPI -Exactly 0
     }
 }
 

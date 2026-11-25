@@ -225,7 +225,7 @@ Describe 'Sync-CsvRelationships' {
             'p2;'
         )
         Sync-CsvRelationships
-        $sent = Get-Sent 'ingest/resource-relationships'
+        $sent = @(Get-Sent 'ingest/resource-relationships' | Where-Object { $_.Records.Count -gt 0 })
         $sent.Count | Should -Be 1
         $sent[0].Scope.relationshipType | Should -Be 'Contains'
         $sent[0].Records.Count | Should -Be 1
@@ -265,6 +265,110 @@ Describe 'Sync-CsvRelationships' {
         Sync-CsvRelationships
         @($script:CsvNesting.Parents.Keys) | Should -Be @('B')
         @($script:CsvNesting.Parents['B'])  | Should -Be @('A')
+    }
+}
+
+# The per-type syncs asserted at the REAL ingest boundary (Invoke-IngestAPI), not
+# at Send-GroupedBySystem: what AC 7 turns on is whether a scope with no rows is
+# POSTED at all, and -SkipWhenEmpty drops exactly such a batch one layer below
+# the mock the tests above use. A Send-GroupedBySystem mock would have recorded
+# the call and shown nothing about whether the request happened.
+Describe 'Sync-CsvRelationships — what reaches the ingest API' {
+    BeforeAll {
+        # Every relationships post as @{ SystemId; Type; Count; SyncMode }, in the
+        # order sent. Declared in BeforeAll, not the Describe body: a function
+        # defined there is not in scope inside an It.
+        function Get-RelationshipSyncs {
+            @($script:posted | Where-Object { $_.Endpoint -eq 'ingest/resource-relationships' } | ForEach-Object {
+                @{ SystemId = [int]$_.Body.systemId; Type = [string]$_.Body.scope.relationshipType; Count = @($_.Body.records).Count; SyncMode = [string]$_.Body.syncMode }
+            })
+        }
+    }
+
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI { $script:posted.Add(@{ Endpoint = $Endpoint; Body = $Body }); @{ inserted = @($Body.records).Count; updated = 0; deleted = 0 } }
+        $script:posted = [System.Collections.Generic.List[object]]::new()
+    }
+
+    # AC 7. The file is there and still has a Contains row; its GrantsAccessTo
+    # rows are gone. The run must POST an empty full sync scoped to
+    # GrantsAccessTo — that is the only thing that clears the stored rows of a
+    # hard-deleted table.
+    It 'posts an empty full sync for a supported type the file has no row of' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'BR1;G1;Contains'
+        )
+        Sync-CsvRelationships
+        $syncs = Get-RelationshipSyncs
+        $syncs.Count | Should -Be 2
+        $grants = @($syncs | Where-Object { $_.Type -eq 'GrantsAccessTo' })
+        $grants.Count | Should -Be 1
+        $grants[0].Count | Should -Be 0
+        $grants[0].SyncMode | Should -Be 'full'
+        $grants[0].SystemId | Should -Be 2
+        # ...and the type that DOES have a row still carries it.
+        @($syncs | Where-Object { $_.Type -eq 'Contains' }).Count | Should -Be 1
+        @($syncs | Where-Object { $_.Type -eq 'Contains' })[0].Count | Should -Be 1
+    }
+
+    # The mirror case, so the test above cannot pass by sending an empty sync for
+    # everything: a file of only GrantsAccessTo rows reconciles Contains empty
+    # and sends its own rows for real.
+    It 'posts the rows it has and an empty sync for the other type' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'A;B;GrantsAccessTo'
+        )
+        Sync-CsvRelationships
+        $syncs = Get-RelationshipSyncs
+        @($syncs | Where-Object { $_.Type -eq 'GrantsAccessTo' })[0].Count | Should -Be 1
+        @($syncs | Where-Object { $_.Type -eq 'Contains' })[0].Count | Should -Be 0
+    }
+
+    # Both types reconciled for EVERY system the file spoke for — a named system
+    # whose rows are all of one type still has the other type cleared.
+    It 'reconciles every type for every system the file routed rows to' {
+        $script:systemLookup = @{ 'Omada' = 9 }
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType;SystemName'
+            'BR1;G1;Contains;'
+            'A;B;GrantsAccessTo;Omada'
+        )
+        Sync-CsvRelationships
+        $syncs = Get-RelationshipSyncs
+        $syncs.Count | Should -Be 4
+        @($syncs | Where-Object { $_.SystemId -eq 9 -and $_.Type -eq 'Contains' })[0].Count | Should -Be 0
+        @($syncs | Where-Object { $_.SystemId -eq 9 -and $_.Type -eq 'GrantsAccessTo' })[0].Count | Should -Be 1
+        @($syncs | Where-Object { $_.SystemId -eq 2 -and $_.Type -eq 'Contains' })[0].Count | Should -Be 1
+        @($syncs | Where-Object { $_.SystemId -eq 2 -and $_.Type -eq 'GrantsAccessTo' })[0].Count | Should -Be 0
+    }
+
+    # The fail-safe, unchanged: a run that read nothing deletes nothing. Both of
+    # these would wipe every stored relationship if the empty syncs were sent on
+    # the strength of the file merely existing.
+    It 'posts nothing for a header-only file' {
+        Set-Csv 'ResourceRelationships.csv' @('ParentExternalId;ChildExternalId;RelationshipType')
+        Sync-CsvRelationships
+        (Get-RelationshipSyncs).Count | Should -Be 0
+    }
+
+    It 'posts nothing when every row of the file was skipped' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'p1;;Contains'
+            ';c2;GrantsAccessTo'
+        )
+        Sync-CsvRelationships
+        (Get-RelationshipSyncs).Count | Should -Be 0
+    }
+
+    It 'posts nothing when the file is absent' {
+        Remove-Csv 'ResourceRelationships.csv'
+        Sync-CsvRelationships
+        (Get-RelationshipSyncs).Count | Should -Be 0
     }
 }
 

@@ -196,6 +196,15 @@ function Get-CsvResourceIndex {
 # GrantsAccessTo row happily and then never removed one that left the file. The
 # per-type split is the pattern every Entra relationship phase already uses.
 #
+# EVERY SUPPORTED TYPE GETS ITS SYNC, including one this run's file has no row
+# of — an empty full sync, which is how the server reconciles a scope down to
+# zero. Splitting only what the file held reproduced the same bug one level down:
+# re-importing without any GrantsAccessTo row sent no GrantsAccessTo sync, so
+# every stored row of that type stayed (#1684 AC 7). The fail-safe is unchanged
+# and now comes from the data: the systems to reconcile are the ones THIS file's
+# rows routed to, so an absent, header-only or all-skipped file yields no system
+# and deletes nothing.
+#
 # The GrantsAccessTo rows also feed the nesting graph step 6b expands — built
 # here, before the records are sent, because Send-GroupedBySystem strips the
 # _systemId each one carries.
@@ -220,8 +229,13 @@ function Sync-CsvRelationships {
     Write-Host "  Built $($records.Count) relationship records" -ForegroundColor Gray
     Write-CsvUnknownSystems -FileName 'ResourceRelationships.csv' -Unknown $unknown
     Add-CsvNestingEdges -Graph $script:CsvNesting -Records $records
-    foreach ($group in Split-CsvRecordsByRelationshipType -Records $records) {
-        Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = $group.Type } -Records $group.Records
+    $systems = Get-CsvRecordSystemIds -Records $records -FallbackSystemId $fallbackSystemId
+    foreach ($group in Split-CsvRecordsByRelationshipType -Records $records -Types $script:CsvRelationshipTypes) {
+        # Logged per type including the empty ones, so a job log says why rows of
+        # a type the file stopped carrying disappeared.
+        Write-Host "  $($group.Type): $($group.Records.Count) row(s)" -ForegroundColor Gray
+        Send-GroupedBySystem -Endpoint 'ingest/resource-relationships' -Scope @{ relationshipType = $group.Type } `
+            -Records $group.Records -EmptyForSystems $systems
     }
     [System.GC]::Collect()
 }

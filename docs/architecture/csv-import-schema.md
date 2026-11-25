@@ -218,7 +218,9 @@ A `SystemName` that `Systems.csv` does not declare still loads — into the craw
 
 Inherited access is materialised by the crawler (step 6b of the job log), not computed when the matrix is read — the same choice the Entra ID and SCIM crawlers make, and the reason an inherited member looks and filters exactly like any other `Indirect` one. The expansion is built from `ResourceRelationships.csv`'s `GrantsAccessTo` rows plus the `Direct` rows of `Assignments.csv`, without reading either file twice, so an export with no `GrantsAccessTo` row costs nothing.
 
-`ResourceRelationships.csv` is synced as one full sync **per `RelationshipType`**, which is what lets a row dropped from the file be removed: a full sync only reconciles the type it declares. One nuance applies to this file as to every other: a **missing** file means "not supplied" and never deletes anything, and the same holds per type — removing the last `GrantsAccessTo` row of an import leaves the import with nothing to reconcile that type against. To clear every row of a type, keep the file and the column, and re-import without those rows while at least one other row of that type remains.
+`ResourceRelationships.csv` is synced as one full sync **per `RelationshipType`**, which is what lets a row dropped from the file be removed: a full sync only reconciles the type it declares. Every supported type (`Contains`, `GrantsAccessTo`) gets its sync on every import of the file, including one the import has no row of — so dropping the **last** `GrantsAccessTo` row removes it, exactly like dropping one of several. The same applies per system: each type is reconciled for every system the file's rows name.
+
+The usual fail-safe still holds, and it is about the file rather than the type: a **missing** file means "not supplied" and never deletes anything, and so does one with no usable row (header-only, or every row missing an endpoint). To clear every relationship of a type, keep the file with at least one row in it — of any type — and re-import without the rows you want gone.
 
 ### Minimum viable imports
 
