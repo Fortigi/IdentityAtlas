@@ -79,8 +79,8 @@ afterAll(async () => {
   await pool?.end();
 });
 
-const owned = async (principalId, identityId) => {
-  const { rows } = await pool.query(OWNED_ROLES_SQL, [principalId, identityId]);
+const owned = async (principalId, identityId, roles = ['Accountable', 'Responsible']) => {
+  const { rows } = await pool.query(OWNED_ROLES_SQL, [principalId, identityId, roles]);
   return rows.map(r => [r.displayName, r.role]).sort();
 };
 
@@ -96,9 +96,19 @@ describe('OWNED_ROLES_SQL', () => {
   });
 
   it('names the role portfolio a role sits in, and none for a role in no portfolio', async () => {
-    const { rows } = await pool.query(OWNED_ROLES_SQL, [id.me, null]);
+    const { rows } = await pool.query(OWNED_ROLES_SQL, [id.me, null, ['Accountable', 'Responsible']]);
     const byName = Object.fromEntries(rows.map(r => [r.displayName, [r.portfolioId, r.portfolioName]]));
     expect(byName).toEqual({ 'A by account': [id.portfolio, 'contract-br-portfolio'], 'D both': [null, null] });
+  });
+
+  it('counts only the roles asked for — and picks among those, not before', async () => {
+    // "D both" is held as Accountable and as Responsible: asked for Responsible only,
+    // it is still found, as Responsible.
+    expect(await owned(id.me, id.person, ['Responsible'])).toEqual([
+      ['A by account', 'Responsible'], ['C by admin account', 'Responsible'], ['D both', 'Responsible'],
+    ]);
+    expect(await owned(id.me, id.person, ['Accountable'])).toEqual([['B by person', 'Accountable'], ['D both', 'Accountable']]);
+    expect(await owned(id.me, id.person, [])).toEqual([]);
   });
 
   it('somebody else finds only their own role', async () => {

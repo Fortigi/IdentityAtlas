@@ -292,8 +292,8 @@ Environment variable: `FEATURE_COMPOSITION_REVIEW=true`.
 ### What the switch does, precisely
 
 **On** — a business role's **Requests & reviews** tab starts with a **Composition review** section. Saving a review takes the
-Certification decisions permission, or answering for the role while the relative permission
-**Business-role owners may sign off a composition review** is on.
+Certification decisions permission, or answering for the role where the relative-permission
+grid ticks **Composition review** for that role (Accountable or Responsible).
 
 **Off** — the tab is hidden and `GET` / `POST /api/access-package/{id}/composition-reviews`
 answer `404`.

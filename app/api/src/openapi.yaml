@@ -501,18 +501,19 @@ paths:
   /admin/context-owner-access:
     get:
       tags: [Authentication]
-      summary: Read the context-owner switches
+      summary: Read the relative-permission grid
       operationId: getContextOwnerAccess
       description: >
-        Whether people who are Accountable or Responsible for a context may sign in without an
-        Identity Atlas role and see that context, its report and its workflows (`enabled`), and
-        whether they may also use the MCP server under the same scope (`mcp`, effective only while
-        `enabled` is on). Both off by default. Requires `admin.auth`.
+        What a person gets because they are Accountable or Responsible for something, without an
+        Identity Atlas role: one row per role-bearing context template and one for business roles,
+        each split by Accountable and Responsible. `subjects` lists the rows and the capabilities
+        each has; `policy` is the grid in force. Everything is off by default; before the grid is
+        first saved it stands for the switches it replaced. Requires `admin.auth`.
       security:
         - EntraIdBearer: []
       responses:
         '200':
-          description: The current setting
+          description: The grid's rows and the policy in force
           content:
             application/json:
               schema:
@@ -521,16 +522,16 @@ paths:
           $ref: '#/components/responses/Forbidden'
     put:
       tags: [Authentication]
-      summary: Turn context-owner access, or context owners' MCP use, on or off
+      summary: Save the relative-permission grid
       operationId: setContextOwnerAccess
       description: >
-        Send `enabled`, `mcp`, or both; a field left out keeps its value. Takes effect on the
-        next request; no restart. A context owner can only read their own contexts, all
-        sub-units below them, and the contexts linked to them as variants of the same unit: each
-        context's members, the people and resources those members relate to, timeline, risk
-        score and report downloads. Every other endpoint answers 403 for them. With `mcp` on,
-        the MCP server answers them under exactly that scope (every query, search and report),
-        and every result says it is restricted. Requires `admin.auth`.
+        Saves the whole grid; a subject, role or capability left out is off. `subUnits` and
+        `mcp` are saved off where `view` is off in that row; `review` stands on its own. Takes
+        effect on the next request; no restart. `view` lets an owner sign in and read only what
+        they answer for (a context's members, what they hold, its report; a business role's page
+        and its composition reviews); `subUnits` adds every sub-unit below a context; `mcp` lets
+        the MCP server answer them under the same scope, every result saying it is restricted;
+        `review` lets them sign off a business role's composition review. Requires `admin.auth`.
       security:
         - EntraIdBearer: []
       requestBody:
@@ -539,21 +540,19 @@ paths:
           application/json:
             schema:
               type: object
-              minProperties: 1
+              required: [policy]
               properties:
-                enabled:
-                  type: boolean
-                mcp:
-                  type: boolean
+                policy:
+                  $ref: '#/components/schemas/RelativePermissionPolicy'
       responses:
         '200':
-          description: The saved setting
+          description: The saved grid
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContextOwnerAccess'
         '400':
-          description: "Neither `enabled` nor `mcp` is given, or one is not a boolean"
+          description: "`policy` is missing or not an object, names an unknown subject, role or capability, or holds a value that is not a boolean"
         '403':
           $ref: '#/components/responses/Forbidden'
         '500':
@@ -4637,16 +4636,42 @@ components:
                     targetType: { type: string }
     ContextOwnerAccess:
       type: object
-      required: [enabled, mcp]
+      required: [subjects, policy]
       properties:
-        enabled:
-          type: boolean
-          description: True when context owners may sign in and see their own contexts
-        mcp:
-          type: boolean
-          description: >
-            The stored "context owners may also use the MCP server" switch. It only has effect while
-            `enabled` is on (and the MCP server itself is switched on).
+        subjects:
+          type: array
+          description: The grid's rows, in order
+          items:
+            type: object
+            required: [subject, kind, capabilities]
+            properties:
+              subject:
+                type: string
+                description: A role-bearing context template (e.g. OrganizationalUnit, LogicalApplication) or BusinessRole
+              kind:
+                type: string
+                enum: [context, businessRole]
+              capabilities:
+                type: array
+                items:
+                  type: string
+                  enum: [view, subUnits, mcp, review]
+        policy:
+          $ref: '#/components/schemas/RelativePermissionPolicy'
+    RelativePermissionPolicy:
+      type: object
+      description: >
+        Subject → role (Accountable / Responsible) → capability → boolean. Context templates have
+        view, subUnits and mcp; BusinessRole has view and review.
+      additionalProperties:
+        type: object
+        properties:
+          Accountable:
+            type: object
+            additionalProperties: { type: boolean }
+          Responsible:
+            type: object
+            additionalProperties: { type: boolean }
     ContextCategory:
       type: string
       description: The template a context follows. Null means "Other" (a type the templates do not cover).

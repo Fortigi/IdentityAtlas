@@ -1,10 +1,10 @@
-import ContextOwnerAccessSection from './ContextOwnerAccessSection';
+import RelativePermissionsGrid from './RelativePermissionsGrid';
 
 // Admin → Roles & Permissions → Relative permissions (below the role table):
-// access people get because of how they relate to the data (they answer for a
-// context, a matrix was shared with them), not because they hold a role in the
-// table above. Two kinds today: context owners (the switch below) and
-// matrix-share recipients, who have no setting of their own here.
+// access people get because of how they relate to the data (they are
+// Accountable or Responsible for a context or a business role), not because
+// they hold a role in the table above — set per template and role in the grid
+// below. Matrix-share recipients have no setting of their own here.
 // See docs/architecture/context-owner-access.md.
 export default function RelativePermissionsSection() {
   return (
@@ -14,14 +14,13 @@ export default function RelativePermissionsSection() {
         Relative permissions
       </h3>
       <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 mb-4">
-        Access people get because of how they relate to the data, without holding one of the roles above.
-        It is always read-only and limited to the data they relate to.
+        Access people get because they are Accountable or Responsible for something, without holding one of the
+        roles above. Choose per kind of thing and per role what that gives them; everything starts off.
       </p>
-      <ContextOwnerAccessSection />
+      <RelativePermissionsGrid />
       <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
         Matrix-share recipients are not one of them: someone a matrix is shared with needs a role above,
-        such as Servicedesk, to open it. Signing in without a role opens nothing except a context
-        owner&apos;s own contexts.
+        such as Servicedesk, to open it. Signing in without a role opens nothing except what the grid gives.
       </p>
     </section>
   );
