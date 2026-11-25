@@ -2,6 +2,7 @@
 // Permissions → Relative permissions):
 //
 //   CONTEXT_OWNER_ACCESS  context owners may sign in and see their own contexts
+//   CONTEXT_OWNER_BUSINESS_ROLES ... and also see the business roles they answer for
 //   BUSINESS_ROLE_OWNER_REVIEW  a business role's Accountable or Responsible may
 //                         sign off its composition review (see below)
 //   CONTEXT_OWNER_MCP     ... and may also use the MCP server, under exactly the
@@ -76,6 +77,20 @@ export const setContextOwnerMcp = (enabled) => writeSwitch(CONTEXT_OWNER_MCP_KEY
 export const BUSINESS_ROLE_OWNER_REVIEW_KEY = 'BUSINESS_ROLE_OWNER_REVIEW';
 export const isBusinessRoleOwnerReviewEnabled = () => readSwitch(BUSINESS_ROLE_OWNER_REVIEW_KEY);
 export const setBusinessRoleOwnerReview = (enabled) => writeSwitch(BUSINESS_ROLE_OWNER_REVIEW_KEY, enabled);
+
+// Context owners also see the business roles they answer for: a context owner
+// who is Accountable or Responsible for a business role gets a Business roles
+// tab with those roles, may open each (read-only) and its composition review.
+// Only has effect while CONTEXT_OWNER_ACCESS is on; nobody signs in because of
+// it who could not already.
+export const CONTEXT_OWNER_BUSINESS_ROLES_KEY = 'CONTEXT_OWNER_BUSINESS_ROLES';
+/** Context owners see their business roles: both switches must be on. */
+export async function isContextOwnerBusinessRolesEnabled() {
+  return (await isContextOwnerAccessEnabled()) && readSwitch(CONTEXT_OWNER_BUSINESS_ROLES_KEY);
+}
+/** The stored switch on its own, as the admin page shows it. */
+export const getContextOwnerBusinessRolesSwitch = () => readSwitch(CONTEXT_OWNER_BUSINESS_ROLES_KEY);
+export const setContextOwnerBusinessRoles = (enabled) => writeSwitch(CONTEXT_OWNER_BUSINESS_ROLES_KEY, enabled);
 
 // Tests only: forget the held values so the next read goes to the database.
 export function resetContextOwnerSettingForTests() {

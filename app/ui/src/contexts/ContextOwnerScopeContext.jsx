@@ -18,3 +18,14 @@ export const ContextOwnerScopeContext = createContext(null);
 export function useContextOwnerScope() {
   return useContext(ContextOwnerScopeContext);
 }
+
+// The business roles the owner answers for themselves (lower-cased ids, from
+// /api/auth-me contextOwner.businessRoles), while that relative permission is on.
+// On their own page a role in this set opens with its Composition review, where
+// they may sign off; the API allows nothing else on it. Empty everywhere else.
+export const OwnedBusinessRolesContext = createContext(new Set());
+
+/** Does the signed-in owner answer for this business role? */
+export function useAnswersForRole(roleId) {
+  return useContext(OwnedBusinessRolesContext).has(String(roleId ?? '').toLowerCase());
+}

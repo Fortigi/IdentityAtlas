@@ -105,9 +105,10 @@ function History({ reviews }) {
   );
 }
 
-export default function BusinessRoleCompositionReview({ roleId, onOpenTab }) {
+export default function BusinessRoleCompositionReview({ roleId, onOpenTab, answersForRole = false }) {
   const { authFetch } = useAuth();
-  const readOnly = useIsSharedView();
+  // Read-only in a shared view, unless it is the owner's own page for a role they answer for.
+  const readOnly = useIsSharedView() && !answersForRole;
   const url = `/api/access-package/${encodeURIComponent(roleId)}/composition-reviews`;
   const { data, loading, error, reload } = useFetch(url, { authFetch });
 

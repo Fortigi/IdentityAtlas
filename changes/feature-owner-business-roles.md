@@ -1,0 +1,4 @@
+- Context owners who are Accountable or Responsible for business roles can get a "Business roles" tab on their own page, listing exactly those roles
+- That tab sits on the same row as Organisation and Applications, so an owner sees one set of tabs; their side list is now headed "What you answer for" instead of "Your contexts"
+- From there they open each role read-only and, when allowed, sign off its composition review
+- A new relative permission under Admin → Roles & Permissions, "Context owners also see the business roles they answer for", switches this on; it is off by default and only works while context-owner access is on

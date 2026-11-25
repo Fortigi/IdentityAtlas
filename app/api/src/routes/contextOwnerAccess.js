@@ -1,7 +1,7 @@
 // Admin → Roles & Permissions → Relative permissions: the context-owner switches.
 //
-// GET /api/admin/context-owner-access  → { enabled, mcp, ownerReview }
-// PUT /api/admin/context-owner-access  body { enabled?, mcp?, ownerReview? } (booleans) → the same
+// GET /api/admin/context-owner-access  → { enabled, mcp, businessRoles, ownerReview }
+// PUT /api/admin/context-owner-access  body { enabled?, mcp?, businessRoles?, ownerReview? } (booleans) → the same
 //
 // `enabled`: a person who is Accountable or Responsible for a context can sign in
 // without an Identity Atlas role and see that context, its report and its
@@ -9,6 +9,8 @@
 // `mcp`: such a person may also use the MCP server from an AI assistant, under
 // exactly the same scope (docs/architecture/mcp-authorization.md). It only has
 // effect while `enabled` is on; the stored value is shown as it is.
+// `businessRoles`: such a person also sees the business roles they answer for
+// (Accountable or Responsible). Like `mcp`, only has effect while `enabled` is on.
 // `ownerReview`: a business role's Accountable or Responsible may sign off its
 // composition review without the certification permission.
 //
@@ -22,6 +24,7 @@ import { requirePermission } from '../middleware/auth.js';
 import {
   isContextOwnerAccessEnabled, setContextOwnerAccess, getContextOwnerMcpSwitch, setContextOwnerMcp,
   isBusinessRoleOwnerReviewEnabled, setBusinessRoleOwnerReview,
+  getContextOwnerBusinessRolesSwitch, setContextOwnerBusinessRoles,
 } from '../auth/contextOwnerSetting.js';
 
 const router = Router();
@@ -31,6 +34,7 @@ async function current() {
   return {
     enabled: await isContextOwnerAccessEnabled(),
     mcp: await getContextOwnerMcpSwitch(),
+    businessRoles: await getContextOwnerBusinessRolesSwitch(),
     ownerReview: await isBusinessRoleOwnerReviewEnabled(),
   };
 }
@@ -40,14 +44,15 @@ router.get('/admin/context-owner-access', adminAuth, async (req, res) => {
 });
 
 router.put('/admin/context-owner-access', adminAuth, async (req, res) => {
-  const { enabled, mcp, ownerReview } = req.body || {};
-  const given = [enabled, mcp, ownerReview].filter(v => v !== undefined);
+  const { enabled, mcp, businessRoles, ownerReview } = req.body || {};
+  const given = [enabled, mcp, businessRoles, ownerReview].filter(v => v !== undefined);
   if (given.length === 0 || given.some(v => typeof v !== 'boolean')) {
-    return res.status(400).json({ error: 'enabled, mcp and ownerReview must be booleans, and at least one is required' });
+    return res.status(400).json({ error: 'enabled, mcp, businessRoles and ownerReview must be booleans, and at least one is required' });
   }
   try {
     if (enabled !== undefined) await setContextOwnerAccess(enabled);
     if (mcp !== undefined) await setContextOwnerMcp(mcp);
+    if (businessRoles !== undefined) await setContextOwnerBusinessRoles(businessRoles);
     if (ownerReview !== undefined) await setBusinessRoleOwnerReview(ownerReview);
     res.json(await current());
   } catch (err) {

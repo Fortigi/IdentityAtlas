@@ -41,7 +41,7 @@ function OwnerRootTree({ root, selectedId, onSelect }) {
 
 export default function OwnerTreePane({ nodes, selectedId, onSelect }) {
   return (
-    <nav aria-label="Your contexts" className="w-96 shrink-0 overflow-y-auto border-r border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+    <nav aria-label="What you answer for" className="w-96 shrink-0 overflow-y-auto border-r border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
       {nodes.map(root => <OwnerRootTree key={root.id} root={root} selectedId={selectedId} onSelect={onSelect} />)}
     </nav>
   );

@@ -9,6 +9,7 @@ const {
   CONTEXT_OWNER_ACCESS_KEY, CONTEXT_OWNER_MCP_KEY, isContextOwnerAccessEnabled, setContextOwnerAccess,
   isContextOwnerMcpEnabled, getContextOwnerMcpSwitch, setContextOwnerMcp, resetContextOwnerSettingForTests,
   BUSINESS_ROLE_OWNER_REVIEW_KEY, isBusinessRoleOwnerReviewEnabled, setBusinessRoleOwnerReview,
+  CONTEXT_OWNER_BUSINESS_ROLES_KEY, isContextOwnerBusinessRolesEnabled, getContextOwnerBusinessRolesSwitch, setContextOwnerBusinessRoles,
 } = await import('./contextOwnerSetting.js');
 
 const savedUseSql = process.env.USE_SQL;
@@ -148,5 +149,26 @@ describe('the business-role owner review switch', () => {
     await setBusinessRoleOwnerReview(true);
     expect(query.mock.calls[0][1]).toEqual(['BUSINESS_ROLE_OWNER_REVIEW', 'true']);
     expect(await isBusinessRoleOwnerReviewEnabled()).toBe(true);
+  });
+});
+
+describe('the business-roles switch for context owners', () => {
+  const stored = (values) => queryOne.mockImplementation(async (_sql, [key]) => (key in values ? { configValue: values[key] } : null));
+
+  it('is on only when BOTH the owner switch and its own switch are stored "true"', async () => {
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'true', [CONTEXT_OWNER_BUSINESS_ROLES_KEY]: 'true' });
+    expect(await isContextOwnerBusinessRolesEnabled()).toBe(true);
+  });
+
+  it('stays off while context-owner access is off, and shows its own stored value', async () => {
+    stored({ [CONTEXT_OWNER_ACCESS_KEY]: 'false', [CONTEXT_OWNER_BUSINESS_ROLES_KEY]: 'true' });
+    expect(await isContextOwnerBusinessRolesEnabled()).toBe(false);
+    expect(await getContextOwnerBusinessRolesSwitch()).toBe(true);
+  });
+
+  it('is saved under its own key', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await setContextOwnerBusinessRoles(true);
+    expect(query.mock.calls[0][1]).toEqual(['CONTEXT_OWNER_BUSINESS_ROLES', 'true']);
   });
 });
