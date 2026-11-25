@@ -1,1 +1,0 @@
-- Fixed CSV full syncs keeping accounts of any type other than User (service accounts, external users, shared mailboxes) live forever after they were removed from Users.csv. They are now removed like vanished user accounts.

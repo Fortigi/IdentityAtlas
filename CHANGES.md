@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed CSV full syncs keeping accounts of any type other than User (service accounts, external users, shared mailboxes) live forever after they were removed from Users.csv. They are now removed like vanished user accounts.
+
+## Changes in this PR
+
 - CSV Import: a source export no longer has to be converted to the Identity Atlas schema first. Pick **Custom mapping** as the source format in the wizard, upload the files as they are, and map each file's columns onto the schema per field. The mapping is stored with the crawler and applied on every run — the uploaded files are never rewritten.
 - The column dropdowns are pre-filled by exact column-name match and are fully overridable; required schema fields are marked, and a file that still doesn't supply one is flagged in the wizard rather than failing later in the job.
 - Each uploaded file's delimiter is now detected (comma, semicolon or tab) and shown per file, with a per-file override. The crawler-level delimiter remains the fallback, so existing crawlers are unaffected.
