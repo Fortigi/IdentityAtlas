@@ -102,6 +102,26 @@ function sanitizeFilename(name) {
   return base;
 }
 
+// Resolve one named file inside a config's upload folder, for the routes that
+// address a single file (`:configId/files/:filename...`). The whole admission
+// sequence lives here once — valid configId, a config whose crawler type
+// supports uploads, and a filename that cannot escape the folder — so the
+// header and DELETE routes can never drift apart on it. Returns the sanitized
+// name and absolute path, or null after sending the error response.
+async function resolveConfigFile(req, res) {
+  const configId = parseConfigId(req, res);
+  if (configId === null) return null;
+  const crawlerType = await assertUploadableConfig(configId, res);
+  if (!crawlerType) return null;
+
+  const safe = sanitizeFilename(req.params.filename);
+  if (!safe) {
+    res.status(400).json({ error: 'Invalid filename' });
+    return null;
+  }
+  return { safe, path: join(configFolder(crawlerType, configId), safe) };
+}
+
 // Multer storage: write files into the per-config folder. The folder is created
 // lazily inside the destination callback so we don't need to pre-create it before
 // the request arrives. req._crawlerType is stashed by the route-level guard below
@@ -250,15 +270,9 @@ router.post(
 const HEADER_READ_BYTES = 65536;
 
 router.get('/admin/crawler-configs/:configId/files/:filename/header', gate, async (req, res) => {
-  const configId = parseConfigId(req, res);
-  if (configId === null) return;
-  const crawlerType = await assertUploadableConfig(configId, res);
-  if (!crawlerType) return;
-
-  const safe = sanitizeFilename(req.params.filename);
-  if (!safe) return res.status(400).json({ error: 'Invalid filename' });
-
-  const path = join(configFolder(crawlerType, configId), safe);
+  const resolved = await resolveConfigFile(req, res);
+  if (!resolved) return;
+  const { safe, path } = resolved;
   if (!existsSync(path)) return res.status(404).json({ error: 'File not found' });
 
   let handle;
@@ -279,15 +293,9 @@ router.get('/admin/crawler-configs/:configId/files/:filename/header', gate, asyn
 
 // ─── Delete a single uploaded file ───────────────────────────────────────────
 router.delete('/admin/crawler-configs/:configId/files/:filename', gate, async (req, res) => {
-  const configId = parseConfigId(req, res);
-  if (configId === null) return;
-  const crawlerType = await assertUploadableConfig(configId, res);
-  if (!crawlerType) return;
-
-  const safe = sanitizeFilename(req.params.filename);
-  if (!safe) return res.status(400).json({ error: 'Invalid filename' });
-
-  const path = join(configFolder(crawlerType, configId), safe);
+  const resolved = await resolveConfigFile(req, res);
+  if (!resolved) return;
+  const { safe, path } = resolved;
   try {
     if (existsSync(path)) await unlink(path);
     res.json({ deleted: safe });

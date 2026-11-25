@@ -48,6 +48,17 @@ function mappedFile(name) {
 }
 
 export function register(test, expect) {
+  // The wizard card itself, by its heading. Assertions about what the wizard
+  // says must be scoped to it: the configured-crawlers list behind it renders
+  // every CSV crawler's own Summary panel, which repeats the same filenames and
+  // "N mapped columns" wording. An unscoped getByText is a strict-mode
+  // violation as soon as one mapped CSV crawler already exists — which is the
+  // normal state of any deployment that has been used, as opposed to the
+  // freshly-migrated database CI runs against.
+  function wizardCard(page, title) {
+    return page.locator('h3', { hasText: title }).locator('xpath=ancestor::div[contains(@class,"p-5")][1]');
+  }
+
   async function openAddCrawler(page) {
     await page.goto(`${BASE}/#admin`);
     await page.waitForLoadState('networkidle');
@@ -152,6 +163,7 @@ export function register(test, expect) {
       if (!await openAddCrawler(page)) return;
 
       const name = `E2E CSV Mapping Test ${Date.now()}`;
+      const wizard = wizardCard(page, 'Add CSV Crawler');
       await page.fill('input[placeholder="e.g. Omada Production"]', name);
       await page.getByRole('radio', { name: /Custom mapping/ }).check();
       await page.click('button:has-text("Next: Upload files")');
@@ -194,10 +206,10 @@ export function register(test, expect) {
       await nextReview.click();
 
       // The review step states what will be applied, per file.
-      await expect(page.getByText('Custom mapping')).toBeVisible();
-      await expect(page.getByText(/ad_people\.csv/)).toBeVisible();
-      await expect(page.getByText(/3 mapped columns/)).toBeVisible();
-      await expect(page.getByText(/splits UserExternalId/)).toBeVisible();
+      await expect(wizard.getByText('Custom mapping')).toBeVisible();
+      await expect(wizard.getByText('ad_people.csv', { exact: true })).toBeVisible();
+      await expect(wizard.getByText(/3 mapped columns/)).toBeVisible();
+      await expect(wizard.getByText(/splits UserExternalId/)).toBeVisible();
       await page.click('button:has-text("Create crawler")');
 
       await expect(page.locator('h4', { hasText: name })).toBeVisible({ timeout: 10000 });

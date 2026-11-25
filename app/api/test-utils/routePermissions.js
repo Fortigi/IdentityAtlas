@@ -339,6 +339,7 @@ export const ROUTE_PERMISSIONS = Object.freeze({
   'GET /admin/crawler-uploads/limits': ['admin.csv-import'],
   'GET /admin/crawler-configs/:configId/files': ['admin.csv-import'],
   'POST /admin/crawler-configs/:configId/files': ['admin.csv-import'],
+  'GET /admin/crawler-configs/:configId/files/:filename/header': ['admin.csv-import'],
   'DELETE /admin/crawler-configs/:configId/files/:filename': ['admin.csv-import'],
   'GET /admin/crawlers/:type/upload-schema': ['admin.csv-import'],
   'GET /admin/crawlers/:type/upload-schema/:filename': ['admin.csv-import'],
