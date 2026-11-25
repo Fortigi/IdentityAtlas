@@ -78,7 +78,8 @@ WITH broken AS (
      AND (i."managerIdentityId" = i.id
           OR NOT EXISTS (SELECT 1 FROM "Identities" m WHERE m.id = i."managerIdentityId"))
 ), cleared AS (
-  UPDATE "Identities" SET "managerIdentityId" = NULL WHERE id IN (SELECT id FROM broken)
+  UPDATE "Identities" SET "managerIdentityId" = NULL, "managerIdentitySource" = NULL
+   WHERE id IN (SELECT id FROM broken)
 )
 SELECT (count(*) FILTER (WHERE self))::int     AS "selfReferences",
        (count(*) FILTER (WHERE NOT self))::int AS "unresolved"

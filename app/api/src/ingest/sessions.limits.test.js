@@ -11,6 +11,7 @@ import { query, getPool } from '../db/connection.js';
 import {
   sessionLimits, sessionLimitDenial, startSession, hasSession, endSession, SessionLimitError,
 } from './sessions.js';
+import { DERIVE_IDENTITY_MANAGERS_SQL } from './identityManagers.js';
 
 const RECORDS = [{ identityId: 'i1', principalId: 'p1' }];
 const KEYS = ['identityId', 'principalId'];
@@ -155,5 +156,26 @@ describe('endSession — synced owners become Accountables', () => {
     const res = await endSession(syncId, null, [], KEYS, { syncMode: 'delta' });
     expect(res).not.toHaveProperty('accountable');
     expect(sqlOf().some((s) => s.includes('"ContextRoles"'))).toBe(false);
+  });
+});
+
+describe('endSession — person-level managers (#1640)', () => {
+  const isDerivation = (s) => s === DERIVE_IDENTITY_MANAGERS_SQL;
+  const sqls = () => query.mock.calls.map((c) => String(c[0]));
+
+  it('derives them inside the transaction once an identity-members session ends', async () => {
+    const { syncId } = await startSession(null, 'IdentityMembers', KEYS, RECORDS, { crawlerId: 50 });
+    await endSession(syncId, null, [], KEYS, { syncMode: 'delta' });
+    const all = sqls();
+    const at = all.findIndex(isDerivation);
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(all.lastIndexOf('COMMIT'));
+    expect(all.filter(isDerivation)).toHaveLength(1);
+  });
+
+  it('skips them for a session that cannot change a manager', async () => {
+    const { syncId } = await startSession(null, 'Resources', ['id'], [{ id: 'r1' }], { crawlerId: 51 });
+    await endSession(syncId, null, [], ['id'], { syncMode: 'delta' });
+    expect(sqls().some(isDerivation)).toBe(false);
   });
 });

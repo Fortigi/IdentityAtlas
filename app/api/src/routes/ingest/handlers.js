@@ -13,6 +13,7 @@ import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/no
 import {
   repairManagerLinks, managerLinkWarning, batchHasManagerLink, clearExplicitManagerLinks,
 } from '../../ingest/managerLinks.js';
+import { deriveIdentityManagersAfterLoad } from '../../ingest/identityManagers.js';
 import { reconcileBatchAccountables } from '../../ingest/contextOwners.js';
 import { reapplyAfterSync } from '../../contexts/adjustments/afterSync.js';
 import {
@@ -186,7 +187,10 @@ async function writeBatch(entityType, body, { allowed, req, startTime }) {
   // A single batch IS the whole principals load (a crawler that needs more
   // than one opens a session instead), so this is the point at which a
   // manager link can be told apart from one whose manager had not arrived.
-  const managerLinks = await repairManagerLinks(db, tableName, body.systemId, batchHasManagerLink(normalized, tableName));
+  const touchedManager = batchHasManagerLink(normalized, tableName);
+  const managerLinks = await repairManagerLinks(db, tableName, body.systemId, touchedManager);
+  // Then the person-level manager, derived from the accounts (#1640).
+  await deriveIdentityManagersAfterLoad(db, tableName, touchedManager);
   // Contexts only: the owner a source names becomes the synced context's
   // Accountable (ingest/contextOwners.js). Null for every other table.
   const accountable = await reconcileBatchAccountables(db, tableName, normalized);

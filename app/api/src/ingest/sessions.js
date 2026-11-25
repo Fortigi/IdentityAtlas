@@ -16,6 +16,7 @@ import { resolveActiveColumns, discoverColumns, writeSyncLog, scopedDelete, buil
 import * as db from '../db/connection.js';
 import { createTempTable, bulkInsertIntoTemp } from './tempTableHelpers.js';
 import { repairManagerLinks, columnsHaveManagerLink } from './managerLinks.js';
+import { deriveIdentityManagersAfterLoad } from './identityManagers.js';
 import { reconcileSessionAccountables } from './contextOwners.js';
 import { reapplyAfterSync } from '../contexts/adjustments/afterSync.js';
 
@@ -222,8 +223,10 @@ export async function endSession(syncId, _pool, records, _keyColumns, options = 
     // Last thing before the commit: the whole set is in the table now, which is
     // the only point at which a manager link can be told apart from one whose
     // manager simply had not arrived yet.
-    const managerLinks = await repairManagerLinks(session.client, session.tableName, session.systemId,
-                                                  columnsHaveManagerLink(session.activeColumns, session.tableName));
+    const touchedManager = columnsHaveManagerLink(session.activeColumns, session.tableName);
+    const managerLinks = await repairManagerLinks(session.client, session.tableName, session.systemId, touchedManager);
+    // Then the person-level manager, derived from the accounts (#1640).
+    await deriveIdentityManagersAfterLoad(session.client, session.tableName, touchedManager);
     // Same point, same reason: a contexts session's owners become Accountables
     // once the whole set is in (null for every other table).
     const accountable = await reconcileSessionAccountables(session.client, session.tableName, session.tempTable);

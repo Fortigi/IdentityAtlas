@@ -281,6 +281,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `linkSignals` | `ia:linkSignals` | jsonb |  | The signals Account Linking matched on. |
 | `linkedAt` | `ia:linkedAt` | timestamp with time zone |  | When Account Linking last linked the person. |
 | `managerIdentityId` | `ia:managerIdentityId` | uuid | → Identities | The manager as a PERSON. Ingest alias: `managerIdentityExternalId`. |
+| `managerIdentitySource` | `ia:managerIdentitySource` | text | `Source`, `Derived` | How managerIdentityId was set: sent by the source, or derived from the person's linked accounts. Set by the ingest, never sent. |
 | `officeLocation` | `ia:officeLocation` | text |  | The person's office. |
 | `orphanStatus` | `ia:orphanStatus` | text |  | **Retired.** Orphan-ness is the generated Orphaned Accounts context now; the column is kept in the schema for compatibility. |
 | `primaryPrincipalId` | `ia:primaryPrincipalId` | uuid | → Principals | The person's primary account. |
@@ -869,6 +870,15 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `done` | `ia:ExtractionStatus_done` | Read; its claims wait for review. |
 | `failed` | `ia:ExtractionStatus_failed` | Reading failed; the message says why. It can be retried. |
 | `notConfigured` | `ia:ExtractionStatus_notConfigured` | No local model is configured; claims are added by hand. |
+
+### Manager source
+
+`ia:ManagerIdentitySource` — How a person's manager was set. A manager the source sent always wins over a derived one. Used by `Identities.managerIdentitySource`.
+
+| Value | Individual | Meaning |
+|---|---|---|
+| `Source` | `ia:ManagerIdentitySource_Source` | The source sent the person-level manager itself. |
+| `Derived` | `ia:ManagerIdentitySource_Derived` | Derived from the managers of the person's linked accounts. |
 
 ### Membership source
 

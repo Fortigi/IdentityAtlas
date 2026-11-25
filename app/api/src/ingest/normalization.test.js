@@ -635,3 +635,49 @@ describe('normalizeRecords — a synced context gets its template from its type'
     expect(one({ externalId: 'x' }).contextCategory).toBeUndefined();
   });
 });
+
+// A person's manager is marked as sent by the source, so the derivation from
+// linked accounts (identityManagers.js) never overwrites it (#1640).
+describe('normalizeRecords — person-level manager source marker', () => {
+  const cols = ['id', 'externalId', 'displayName', 'managerIdentityId', 'managerIdentitySource', 'extendedAttributes'];
+  const opts = { idGeneration: 'deterministic', idPrefix: 'sys-identities', systemPrefix: 'sys' };
+  const one = (rec, c = cols, o = opts) => normalizeRecords([rec], c, o)[0];
+
+  it('marks a manager resolved from managerIdentityExternalId as Source', () => {
+    const r = one({ externalId: 'alice', displayName: 'Alice', managerIdentityExternalId: 'boss' });
+    expect(r.managerIdentityId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(r.managerIdentitySource).toBe('Source');
+  });
+
+  it('marks a raw managerIdentityId as Source too', () => {
+    const r = one({ id: '11111111-1111-1111-1111-111111111111', displayName: 'Alice',
+      managerIdentityId: '22222222-2222-2222-2222-222222222222' }, cols, {});
+    expect(r.managerIdentitySource).toBe('Source');
+  });
+
+  it('clears the marker when the source clears the manager, handing the person back to the derivation', () => {
+    const r = one({ externalId: 'alice', displayName: 'Alice', managerIdentityId: null });
+    expect(r).toHaveProperty('managerIdentityId', null);
+    expect(r).toHaveProperty('managerIdentitySource', null);
+  });
+
+  it('leaves both columns out of a record that says nothing about the manager', () => {
+    const r = one({ externalId: 'alice', displayName: 'Alice' });
+    expect(r).not.toHaveProperty('managerIdentityId');
+    expect(r).not.toHaveProperty('managerIdentitySource');
+  });
+
+  it('never takes the marker from the sender', () => {
+    expect(one({ externalId: 'alice', displayName: 'Alice', managerIdentitySource: 'Derived',
+      managerIdentityExternalId: 'boss' }).managerIdentitySource).toBe('Source');
+    expect(one({ externalId: 'alice', displayName: 'Alice', managerIdentitySource: 'Source' }))
+      .not.toHaveProperty('managerIdentitySource');
+  });
+
+  it('does nothing on a table without the marker (Contexts has its own managerIdentityId)', () => {
+    const ctxCols = ['id', 'externalId', 'displayName', 'managerIdentityId', 'extendedAttributes'];
+    const r = one({ externalId: 'ou-1', displayName: 'Ops', managerIdentityExternalId: 'boss' }, ctxCols);
+    expect(r.managerIdentityId).toBeDefined();
+    expect(r).not.toHaveProperty('managerIdentitySource');
+  });
+});
