@@ -1,19 +1,17 @@
+import { useEffect, useState } from 'react';
 import BusinessRoleOwners from './BusinessRoleOwners';
+import BusinessRoleResources from './BusinessRoleResources';
+import BusinessRoleMembers from './BusinessRoleMembers';
+import FoldSection from '@ui/components/contexts/FoldSection';
 import { reviewWarnings } from './accessModel';
 
 // ─── Overview of a business role ─────────────────────────────────────────
-// The essentials: how big it is and who answers for it, and a warning when its
+// The essentials: who answers for it, what it contains and who holds it — the
+// last two folded to one line each, with their count — and a warning when its
 // review was missed or none is set up. How people get, keep and lose the role
-// is on the Lifecycle tab, which the warning links to.
-
-function Stat({ label, value, onClick }) {
-  return (
-    <button type="button" onClick={onClick} className="rounded border border-gray-200 bg-white px-3 py-2 text-left hover:border-blue-400 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-500 dark:hover:bg-blue-900/20">
-      <span className="block text-lg font-semibold text-gray-900 dark:text-gray-100">{value}</span>
-      <span className="block text-xs text-gray-600 dark:text-gray-400">{label}</span>
-    </button>
-  );
-}
+// is on the Lifecycle tab, which the warning links to. `openSection`
+// ('resources' | 'people') opens that section and scrolls to it, for a page
+// that points here (the composition review's "see what it contains").
 
 function ReviewWarning({ warnings, onOpenLifecycle }) {
   if (warnings.length === 0) return null;
@@ -32,18 +30,36 @@ function ReviewWarning({ warnings, onOpenLifecycle }) {
   );
 }
 
-export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpenTab }) {
+const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const SECTION_ID = { resources: 'role-resources', people: 'role-people' };
+
+export default function BusinessRoleOverview({ roleId, data, onOpenDetail, onOpenTab, openSection = null }) {
+  const [open, setOpen] = useState(() => new Set(openSection ? [openSection] : []));
+  const toggle = (key) => (next) => setOpen(prev => {
+    const s = new Set(prev);
+    if (next) s.add(key); else s.delete(key);
+    return s;
+  });
+  useEffect(() => {
+    if (openSection) document.getElementById(SECTION_ID[openSection])?.scrollIntoView?.({ block: 'start' });
+  }, [openSection]);
+  const resources = data.groupCount ?? 0;
+  const people = data.assignmentCount ?? 0;
   return (
     <div className="space-y-4">
       <ReviewWarning warnings={reviewWarnings(data)} onOpenLifecycle={() => onOpenTab('lifecycle')} />
-      <div className="grid grid-cols-2 gap-3">
-        <Stat label="People" value={data.assignmentCount ?? 0} onClick={() => onOpenTab('members')} />
-        <Stat label="Resources" value={data.groupCount ?? 0} onClick={() => onOpenTab('resources')} />
-      </div>
       <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
         <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Who answers for this role</h3>
         <BusinessRoleOwners roleId={roleId} onOpenDetail={onOpenDetail} />
       </section>
+      <FoldSection id={SECTION_ID.resources} title="Resources" summary={count(resources, 'resource', 'resources')}
+        open={open.has('resources')} onOpenChange={toggle('resources')}>
+        <BusinessRoleResources roleId={roleId} onOpenDetail={onOpenDetail} />
+      </FoldSection>
+      <FoldSection id={SECTION_ID.people} title="People" summary={count(people, 'person', 'people')}
+        open={open.has('people')} onOpenChange={toggle('people')}>
+        <BusinessRoleMembers roleId={roleId} control={data.accessModel?.control} onOpenDetail={onOpenDetail} />
+      </FoldSection>
     </div>
   );
 }

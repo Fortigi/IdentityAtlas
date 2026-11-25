@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import ContextOwnerPage from './ContextOwnerPage';
-import { ownerTreeView, ownerPageTabs, ownerActiveTab, ROLES_TAB, UNITS_TAB } from './contextOwner/useOwnerTree';
+import { ownerTreeView, ownerPageTabs, ownerActiveTab, UNITS_TAB } from './contextOwner/useOwnerTree';
 import { renderWithProviders, makeAuthFetch, screen, userEvent, within } from '@ui/test-utils/renderWithProviders';
 
 const CTO = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -144,19 +144,25 @@ describe('ownerPageTabs / ownerActiveTab: one row of tabs', () => {
   const ready = { ready: true, tabs: TABS, active: 'LogicalApplication' };
   const none = { ready: false, tabs: [], active: 'OrganizationalUnit' };
 
-  it('is just the tree tabs for an owner with no business roles, and nothing without a tree', () => {
+  it('is the tree tabs whenever there is a tree, and nothing without a tree or roles', () => {
     expect(ownerPageTabs(ready, false)).toBe(TABS);
+    expect(ownerPageTabs(ready, true)).toBe(TABS);
     expect(ownerPageTabs(none, false)).toEqual([]);
   });
 
-  it('puts Business roles last, after the tree tabs or the plain units tab', () => {
-    expect(ownerPageTabs(ready, true).map(t => t.label)).toEqual(['Organisation', 'Applications', 'Business roles']);
-    expect(ownerPageTabs(none, true)).toEqual([{ key: UNITS_TAB, label: 'Your units' }, { key: ROLES_TAB, label: 'Business roles' }]);
+  it('is the plain units tab and Role portfolios while the tree cannot load', () => {
+    expect(ownerPageTabs(none, true)).toEqual([{ key: UNITS_TAB, label: 'Your units' }, { key: 'Catalog', label: 'Role portfolios' }]);
+    expect(ownerPageTabs(none, true, true)).toEqual(ownerPageTabs(none, true));
   });
 
-  it('lights Business roles while they are open, else the tree tab, else the units tab', () => {
-    expect(ownerActiveTab(ready, true)).toBe(ROLES_TAB);
+  it('is Role portfolios alone for someone who answers only for business roles', () => {
+    expect(ownerPageTabs(none, true, false)).toEqual([{ key: 'Catalog', label: 'Role portfolios' }]);
+  });
+
+  it('lights the tree tab when there is a tree, else Role portfolios while a role is open, else the units tab', () => {
+    expect(ownerActiveTab(ready, true)).toBe('LogicalApplication');
     expect(ownerActiveTab(ready, false)).toBe('LogicalApplication');
+    expect(ownerActiveTab(none, true)).toBe('Catalog');
     expect(ownerActiveTab(none, false)).toBe(UNITS_TAB);
   });
 });
@@ -166,6 +172,14 @@ describe('ownerTreeView', () => {
     const view = ownerTreeView(FOREST, DEV, 'LogicalApplication');
     expect(view.active).toBe('OrganizationalUnit');
     expect(view.nodes.map(n => n.id)).toEqual([CTO]);
+  });
+
+  it('shows Role portfolios for roles alone, without a portfolio of their own, in template order', () => {
+    expect(ownerTreeView(FOREST, CTO, null).tabs.map(t => t.key)).toEqual(['OrganizationalUnit', 'LogicalApplication']);
+    const view = ownerTreeView(FOREST, null, 'Catalog', 2);
+    expect(view.tabs.map(t => [t.key, t.count])).toEqual([['OrganizationalUnit', 1], ['LogicalApplication', 1], ['Catalog', 2]]);
+    expect(view.active).toBe('Catalog');
+    expect(view.nodes).toEqual([]);
   });
 
   it('follows the chosen tab when nothing in the tree is selected', () => {

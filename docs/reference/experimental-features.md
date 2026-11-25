@@ -291,7 +291,7 @@ Environment variable: `FEATURE_COMPOSITION_REVIEW=true`.
 
 ### What the switch does, precisely
 
-**On** — a business role's page has a **Composition review** tab. Saving a review takes the
+**On** — a business role's **Requests & reviews** tab starts with a **Composition review** section. Saving a review takes the
 Certification decisions permission, or answering for the role while the relative permission
 **Business-role owners may sign off a composition review** is on.
 

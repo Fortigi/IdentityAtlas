@@ -7,13 +7,10 @@ import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
 import { useAnswersForRole } from '@ui/contexts/ContextOwnerScopeContext';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
-import AccessPackageGovernance from './AccessPackageGovernance';
 import DeletedBadge from './DeletedBadge';
 import BusinessRoleOverview from './businessRoles/BusinessRoleOverview';
 import BusinessRoleLifecycle from './businessRoles/BusinessRoleLifecycle';
-import BusinessRoleResources from './businessRoles/BusinessRoleResources';
-import BusinessRoleMembers from './businessRoles/BusinessRoleMembers';
-import BusinessRoleCompositionReview from './businessRoles/BusinessRoleCompositionReview';
+import BusinessRoleRequestsAndReviews from './businessRoles/BusinessRoleRequestsAndReviews';
 import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import WayChips from './businessRoles/WayChips';
 import { showsRequestsAndReviews } from './businessRoles/accessModel';
@@ -90,6 +87,12 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   // A context owner who answers for this role reviews it from their own page.
   const answersForRole = useAnswersForRole(accessPackageId);
   const [riskData, setRiskData] = useState(null);
+  // The Overview section a link elsewhere on the page asks to open (the
+  // composition review's "see what it contains" opens Resources).
+  const [overviewSection, setOverviewSection] = useState(null);
+  // Experimental (flag compositionReview). Not part of a shared view, except for
+  // a context owner who answers for the role.
+  const showComposition = compositionReview && (!sharedView || answersForRole);
 
   useEffect(() => {
     (async () => {
@@ -105,29 +108,30 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return [
       { key: 'overview', label: 'Overview' },
       { key: 'lifecycle', label: 'Lifecycle' },
-      // Experimental (flag compositionReview). Not part of a shared view, except
-      // for a context owner who answers for the role.
-      compositionReview && (!sharedView || answersForRole) && { key: 'composition', label: 'Composition review' },
-      { key: 'resources', label: 'Resources', count: data.groupCount ?? 0 },
-      { key: 'members', label: 'People', count: data.assignmentCount ?? 0 },
-      showsRequestsAndReviews(data) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
+      // Resources and People are folded sections of the Overview.
+      (showComposition || showsRequestsAndReviews(data)) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
       { key: 'attributes', label: 'Attributes', count: entries.length },
       { key: 'relationships', label: 'Relationships' },
       { key: 'timeline', label: 'Timeline' },
       { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
-  }, [features, riskData, sharedView, compositionReview, answersForRole]);
+  }, [features, riskData, showComposition]);
 
   const renderCustomTab = useCallback((key, data, openTab) => {
-    if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
+    if (key === 'overview') {
+      return <BusinessRoleOverview key={overviewSection || 'none'} roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail}
+        onOpenTab={openTab} openSection={overviewSection} />;
+    }
     if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
-    if (key === 'composition') return <BusinessRoleCompositionReview roleId={accessPackageId} onOpenTab={openTab} answersForRole={answersForRole} />;
-    if (key === 'resources') return <BusinessRoleResources roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
-    if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} control={data.accessModel?.control} onOpenDetail={onOpenDetail} />;
-    if (key === 'requests') return <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} showPolicies={false} />;
-    return null;
-  }, [accessPackageId, authFetch, onOpenDetail, answersForRole]);
+    // Attributes, Relationships, Timeline, Diff and Risk are EntityDetailPage's own.
+    if (key !== 'requests') return null;
+    // Resources and People are sections of the Overview, not tabs: the
+    // composition review's link to them opens that section there.
+    const openOverviewSection = (section) => { setOverviewSection(section); openTab('overview'); };
+    return <BusinessRoleRequestsAndReviews roleId={accessPackageId} authFetch={authFetch} showComposition={showComposition}
+      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenTab={openOverviewSection} />;
+  }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition, overviewSection]);
 
   return (
     <EntityDetailPage
@@ -140,8 +144,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       getGraphRootExtras={getAccessPackageRootExtras}
       graphCenterLabel="Business Role"
       getTabs={getTabs}
-      // An owner reviewing a role they answer for starts where they act.
-      initialTab={answersForRole ? 'composition' : 'overview'}
+      initialTab="overview"
       renderCustomTab={renderCustomTab}
       getAttributeEntries={getAccessPackageAttributeEntries}
       renderHeader={(data) => <AccessPackageHeader data={data} onOpenDetail={onOpenDetail} />}

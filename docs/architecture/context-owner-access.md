@@ -33,9 +33,16 @@ A context owner can also be **Accountable** or **Responsible** for business
 roles (`BusinessRoleOwners`, through their account, their person or another
 account of that person). With **Context owners also see the business roles they
 answer for** on (`CONTEXT_OWNER_BUSINESS_ROLES`, only while context-owner
-access is on), their page gets a **Business roles** tab, on the same row as Organisation
-and Applications (an owner does not see the word "context"): exactly those
-roles, each opening read-only. Those roles open in full for them as the tier
+access is on), those roles appear on the **Role portfolios** tab of their page, so
+everything they answer for is organised by context (an owner does not see the
+word "context"). A role in a portfolio they hold is one of its members and opens
+from there. A role in a portfolio they do not hold is listed under that
+portfolio's name, shown light and not as a link, the way the units above a tree are.
+A role in no portfolio is listed under **Default portfolio**, last. Each portfolio is
+named by `/api/auth-me` `contextOwner.businessRoles` (`portfolioId`,
+`portfolioName`, from the shared catalog join), and the grouping is
+`components/contextOwner/ownerPortfolios.js`. Each role opens read-only.
+Those roles open in full for them as the tier
 `owned` (`auth/ownerAccess/ownerAccess.js`), decided from the list itself and
 never cached across owners. A role their team merely holds stays as it was.
 

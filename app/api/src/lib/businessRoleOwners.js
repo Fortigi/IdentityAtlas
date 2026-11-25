@@ -7,6 +7,7 @@
 //   sync     replaces an earlier sync Accountable, so a changed source owner follows
 
 import * as db from '../db/connection.js';
+import { catalogJoinSql } from './businessRoleCatalog.js';
 
 export const OWNER_ROLES = Object.freeze(['Accountable', 'Responsible']);
 export const OWNER_SOURCES = Object.freeze(['sync', 'import', 'analyst']);
@@ -84,11 +85,16 @@ export async function isBusinessRole(resourceId) {
 // counts when it names their account, their person (Identity), or another account
 // linked to that person — the same reach as a context's roles
 // (auth/contextOwner.js findHeldContexts). Somebody both Accountable and
-// Responsible for one role is listed once, as Accountable.
+// Responsible for one role is listed once, as Accountable. Each row names the
+// role portfolio (Catalog context) the role sits in — portfolioId and
+// portfolioName, both null when it sits in none — so the owner's page can file
+// the role under it.
 export const OWNED_ROLES_SQL = `
-    SELECT DISTINCT ON (r.id) r.id, r."displayName", o.role
+    SELECT DISTINCT ON (r.id) r.id, r."displayName", o.role,
+           pf.id AS "portfolioId", pf."displayName" AS "portfolioName"
       FROM "BusinessRoleOwners" o
       JOIN "Resources" r ON r.id = o."resourceId" AND r."resourceType" = 'BusinessRole' AND r."deletedAt" IS NULL
+      ${catalogJoinSql('r.id', 'pf')}
      WHERE o."principalId" = $1::uuid
         OR ($2::uuid IS NOT NULL AND (
               o."identityId" = $2::uuid
