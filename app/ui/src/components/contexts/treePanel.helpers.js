@@ -112,7 +112,7 @@ const ORIGIN_OF = {
 };
 const TAB_EMPTY = {
   LogicalApplication: 'No applications yet. Applications come from an import of an application catalogue, or you create one by hand.',
-  Catalog: 'No catalogs yet. Catalogs come from a governance source, such as the access package catalogs of Entra ID, or you create one by hand.',
+  Catalog: 'No role portfolios yet. Role portfolios come from a governance source, such as the access package catalogs of Entra ID, or you create one by hand.',
   Tag: 'No tags yet. Create one by hand to label people, accounts or resources.',
   Segment: 'No segments yet. Segments come from a rule over the data, such as location or account type, or you create one by hand.',
 };

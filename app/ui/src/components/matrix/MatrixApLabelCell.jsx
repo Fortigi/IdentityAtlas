@@ -12,7 +12,7 @@ export default function MatrixApLabelCell({ accessPackages, idx, isDark, rowSpan
       rowSpan={rowSpan}
       className={`sticky top-0 z-20 border-b border-r border-gray-200 dark:border-gray-600 px-0 py-0 text-center ${apLeftBorderClass(idx, isCategoryBoundary, proposedStart)}`}
       style={{ backgroundColor: getAccessPackageColor(idx, isDark), width: '24px', minWidth: '24px', height: '100px', verticalAlign: 'bottom', ...(proposedStart ? PROPOSED_GAP_STYLE : {}) }}
-      title={`${ap.displayName}\nCatalog: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
+      title={`${ap.displayName}\nRole portfolio: ${ap.catalogName || ''}${ap.categoryName ? '\nCategory: ' + ap.categoryName : ''}`}
     >
       <div
         className="text-[10px] text-gray-700 dark:text-gray-200 font-medium select-none cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"

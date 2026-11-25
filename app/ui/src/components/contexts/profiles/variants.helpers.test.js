@@ -74,7 +74,7 @@ describe('roleWordsFor', () => {
   it('words the roles of every template that carries them, a catalog included, without giving it a profile', () => {
     expect(roleWordsFor('OrganizationalUnit')).toEqual({ accountableLabel: 'Accountable', noun: 'this unit' });
     expect(roleWordsFor('LogicalApplication')).toEqual({ accountableLabel: 'Owner', noun: 'this application' });
-    expect(roleWordsFor('Catalog')).toEqual({ accountableLabel: 'Owner', noun: 'this catalog' });
+    expect(roleWordsFor('Catalog')).toEqual({ accountableLabel: 'Owner', noun: 'this role portfolio' });
     expect(profileFor('Catalog')).toBeNull();
     for (const c of ['Tag', 'Segment', null, 'Gadget']) expect(roleWordsFor(c)).toBeNull();
   });

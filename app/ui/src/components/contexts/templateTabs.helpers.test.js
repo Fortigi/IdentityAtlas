@@ -26,7 +26,7 @@ describe('templateTabs', () => {
     expect(templateTabs(ROOTS)).toEqual([
       { key: 'OrganizationalUnit', label: 'Organisation', count: 3 },
       { key: 'LogicalApplication', label: 'Applications', count: 1 },
-      { key: 'Catalog', label: 'Catalogs', count: 2 },
+      { key: 'Catalog', label: 'Role portfolios', count: 2 },
       { key: 'Tag', label: 'Tags', count: 1 },
       { key: 'Segment', label: 'Segments', count: 0 },
     ]);
@@ -42,7 +42,7 @@ describe('templateTabs', () => {
     expect(templateTabs(undefined).map(t => t.count)).toEqual([0, 0, 0, 0, 0]);
   });
 
-  it('puts a catalog on Catalogs, not on Applications, though both hold resources', () => {
+  it('puts a catalog on Role portfolios, not on Applications, though both hold resources', () => {
     expect(tabOf(r('c', 'Catalog', 'Resource'))).toBe('Catalog');
     expect(rootsForTab(ROOTS, 'Catalog').map(x => x.id)).toEqual(['cat-1', 'cat-2']);
     expect(rootsForTab(ROOTS, 'LogicalApplication').map(x => x.id)).toEqual(['app-1']);

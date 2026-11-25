@@ -67,7 +67,7 @@ function makeAuthFetch(packages, rolesById = {}) {
 }
 
 const HEADERS = [
-  'Name', 'Catalog', 'Category', 'Type', 'Assignments',
+  'Name', 'Role portfolio', 'Category', 'Type', 'Assignments',
   'Review Status', 'Review Date', 'Reviewed By', 'Description', 'Group', 'Role',
 ];
 

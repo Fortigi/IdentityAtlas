@@ -166,6 +166,13 @@ People, members and role holders link to their page when the API marks them
 accessible (`components/EntityLink.jsx`); an opened page or the team matrix
 shows on top of the unit, with **Back** (`components/contextOwner/`).
 
+A **role portfolio** (the `Catalog` template: a set of business roles, such as an
+Entra ID access package catalog) has Accountable and Responsible people like a
+unit or an application, so it qualifies its holders the same way and sits on a
+**Role portfolios** sub-tab of their page. Its members are business roles, and
+each opens its business role page: a member of an in-scope context is in the
+**team** tier, so the role opens in full, and its holders open as **holders**.
+
 On an organizational unit of people the page, for every reader and not only an owner, opens with the **team overview**
 (`GET /api/contexts/:id/team-overview`): business roles down, direct members
 across, each person's count of ungoverned permissions (live access that no

@@ -66,7 +66,7 @@ function AccessPackageHeader({ data, onOpenDetail }) {
           </div>
           {attributes.catalogName && (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Catalog:{' '}
+              Role portfolio:{' '}
               {attributes.catalogId && onOpenDetail ? (
                 <button type="button" onClick={() => onOpenDetail('context', attributes.catalogId, attributes.catalogName)}
                   className="text-blue-700 hover:underline dark:text-blue-300">{attributes.catalogName}</button>

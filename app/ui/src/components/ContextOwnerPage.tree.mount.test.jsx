@@ -11,6 +11,8 @@ import { renderWithProviders, makeAuthFetch, screen, userEvent, within } from '@
 const CTO = 'aaaaaaaa-0000-4000-8000-000000000001';
 const DEV = 'aaaaaaaa-0000-4000-8000-000000000002';
 const AZURE = 'aaaaaaaa-0000-4000-8000-000000000003';
+const PORTFOLIO = 'aaaaaaaa-0000-4000-8000-000000000004';
+const ROLE = 'bbbbbbbb-0000-4000-8000-000000000001';
 const node = (id, displayName, contextCategory, targetType, children = []) => ({
   id, displayName, contextCategory, targetType, variant: 'generated', contextType: 'Department', totalMemberCount: 3, directMemberCount: 3, children,
 });
@@ -23,28 +25,32 @@ const detail = (id, displayName, contextCategory, targetType, subContexts = []) 
   subContexts,
 });
 
-function mount(tree = FOREST) {
+const HELD = [
+  { id: AZURE, displayName: 'Azure', role: 'Accountable', contextCategory: 'LogicalApplication', targetType: 'Resource' },
+  { id: CTO, displayName: 'CTO unit', role: 'Accountable', contextCategory: 'OrganizationalUnit', targetType: 'Principal' },
+];
+
+function mount(tree = FOREST, held = HELD) {
   const authFetch = makeAuthFetch((url) => {
     const u = String(url);
     if (u.endsWith('/api/context-owner/tree')) return tree;
     if (u.includes('/team-overview')) return { sinceDays: 30, totalPeople: 0, truncated: false, people: [], roles: [], changes: [] };
     if (u.includes('/people')) return { data: [], total: 0, counts: { current: 0, former: 0, all: 0, decide: 0 } };
     if (u.includes('/roles') || u.includes('/relationships') || u.includes('/claims')) return [];
+    if (u.includes(`/api/contexts/${PORTFOLIO}/members`)) return { data: [{ id: ROLE, displayName: 'Finance clerk', resourceType: 'BusinessRole' }], total: 1 };
     if (u.includes('/members')) return { data: [], total: 0 };
     if (u.endsWith(`/api/contexts/${CTO}`)) return detail(CTO, 'CTO unit', 'OrganizationalUnit', 'Principal', [{ id: DEV, displayName: 'Development', memberCount: 1 }]);
     if (u.endsWith(`/api/contexts/${DEV}`)) return detail(DEV, 'Development', 'OrganizationalUnit', 'Principal');
     if (u.endsWith(`/api/contexts/${AZURE}`)) return detail(AZURE, 'Azure', 'LogicalApplication', 'Resource');
+    if (u.endsWith(`/api/contexts/${PORTFOLIO}`)) return detail(PORTFOLIO, 'Finance roles', 'Catalog', 'Resource');
     return undefined;
   });
   renderWithProviders(<ContextOwnerPage />, {
     auth: {
       authFetch, logout: vi.fn(), authEnabled: true, hasWildcard: false, permissions: new Set(), account: { name: 'Carla' },
       contextOwner: {
-        contexts: [
-          { id: AZURE, displayName: 'Azure', role: 'Accountable', contextCategory: 'LogicalApplication', targetType: 'Resource' },
-          { id: CTO, displayName: 'CTO unit', role: 'Accountable', contextCategory: 'OrganizationalUnit', targetType: 'Principal' },
-        ],
-        contextIds: [CTO, DEV, AZURE],
+        contexts: held,
+        contextIds: [CTO, DEV, ...held.map(c => c.id)],
       },
     },
   });
@@ -106,6 +112,22 @@ describe('ContextOwnerPage: the tree', () => {
     expect(tree().getByText('CTO unit')).toBeInTheDocument();
     await user.click(tree().getByText('CTO unit'));
     expect(await screen.findByRole('heading', { name: 'CTO unit', level: 2 })).toBeInTheDocument();
+  });
+
+  it('gives the Accountable or Responsible of a role portfolio a tab of its own, listing its business roles', async () => {
+    const user = userEvent.setup();
+    const portfolio = { id: PORTFOLIO, displayName: 'Finance roles', role: 'Responsible', contextCategory: 'Catalog', targetType: 'Resource' };
+    mount([...FOREST, node(PORTFOLIO, 'Finance roles', 'Catalog', 'Resource')], [...HELD, portfolio]);
+    await user.click(await screen.findByRole('tab', { name: /Role portfolios/ }));
+    expect(await screen.findByRole('heading', { name: 'Finance roles', level: 2 })).toBeInTheDocument();
+    expect(tree().queryByText('CTO unit')).toBeNull();
+    expect(await screen.findByText('Finance clerk')).toBeInTheDocument();
+  });
+
+  it('shows no Role portfolios tab to someone who answers for none', async () => {
+    mount();
+    await screen.findByRole('tab', { name: /Applications/ });
+    expect(screen.queryByRole('tab', { name: /Role portfolios/ })).toBeNull();
   });
 
   it('a tab opens its first tree', async () => {

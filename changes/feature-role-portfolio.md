@@ -1,0 +1,3 @@
+- Catalogs are now called **role portfolios** throughout the app: the Contexts page tab, a business role's page, the matrix tooltip, the risk-scoring list and the business roles Excel export.
+- Someone who is Accountable or Responsible for a role portfolio can sign in without an Identity Atlas role, like the owner of a unit or an application. Their page shows the portfolio on a **Role portfolios** tab (this needs context-owner access switched on).
+- A business role in a role portfolio's member list now opens the business role page, not the plain resource page.
