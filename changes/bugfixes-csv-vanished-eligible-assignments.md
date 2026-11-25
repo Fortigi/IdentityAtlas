@@ -1,1 +1,0 @@
-- Fixed CSV full syncs keeping Eligible and Indirect assignments live forever after they were removed from Assignments.csv. They are now removed like vanished Direct assignments. The first full sync after upgrading removes any such assignments left behind by earlier runs, so a one-time drop in assignment counts is expected.

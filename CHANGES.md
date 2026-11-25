@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed CSV full syncs keeping Eligible and Indirect assignments live forever after they were removed from Assignments.csv. They are now removed like vanished Direct assignments. The first full sync after upgrading removes any such assignments left behind by earlier runs, so a one-time drop in assignment counts is expected.
+
+## Changes in this PR
+
 - Fixed: Entra ID delta runs now pick up a changed, added or removed manager. Before, a user's manager (and the Manager Hierarchy built from it) only updated on the next full sync, and users created between full runs had no manager at all.
 - The first Entra ID run after upgrading re-reads all users once (as a full fetch) to start tracking manager changes; later delta runs are incremental again.
 
