@@ -2,9 +2,10 @@
 // answer says what it covers.
 //
 // A context owner (Accountable or Responsible for a context, no Identity Atlas
-// role — docs/architecture/context-owner-access.md) may use MCP when BOTH
-// relative-permission switches are on: context-owner access and "context
-// owners may use MCP" (auth/contextOwnerSetting.js). They then get exactly the
+// role — docs/architecture/context-owner-access.md) may use MCP for the
+// contexts whose relative-permission row (template × role,
+// auth/relativePermissions.js) gives `mcp` — which needs `view` on that row.
+// Business roles are not part of the MCP scope. Within it they get exactly the
 // scope the REST API gives them, enforced by the same code:
 //   - which objects open: auth/ownerAccess (tiers), applied INSIDE every query
 //     the assistant runs (nlreports/scope.js), and to every name lookup;
@@ -23,12 +24,12 @@ import { createRowScope } from '../nlreports/scope.js';
 
 /**
  * The context owner behind a verified MCP token — { contexts, contextIds,
- * access, rowScope } — or null when the switches are off or the caller answers
- * for no context. Errors propagate: the caller fails closed.
+ * access, rowScope } — or null when no row gives `mcp` or the caller answers
+ * for no context such a row covers. Errors propagate: the caller fails closed.
  */
 export async function resolveMcpContextOwner(user, { enabled = isContextOwnerMcpEnabled, resolve = resolveContextOwner } = {}) {
   if (!(await enabled())) return null;
-  const owner = await resolve(user);
+  const owner = await resolve(user, { capability: 'mcp', businessRoles: false });
   if (!owner) return null;
   return { ...owner, access: createOwnerAccess(owner.contextIds), rowScope: createRowScope(owner.contextIds) };
 }

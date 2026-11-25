@@ -35,7 +35,30 @@ function csvFile(name) {
   return { name, mimeType: 'text/csv', buffer: Buffer.from(`${header}\n`) };
 }
 
+// A non-schema export, as it comes out of the source: foreign column names,
+// filenames that match no slot, mixed delimiters, and one multi-value cell.
+// Nothing here loads without a mapping, which is the point.
+const MAPPED_FIXTURES = {
+  'ad_people.csv': 'samaccountname,cn,mail,physicalDeliveryOfficeName\nu1,Alice,alice@x.test,Utrecht\n',
+  'ad_groups.csv': 'group_dn;group_name\nCN=Sales;Sales\n',
+  'ad_memberships.csv': 'group_dn\tmembers\nCN=Sales\tu1;u2\n',
+};
+function mappedFile(name) {
+  return { name, mimeType: 'text/csv', buffer: Buffer.from(MAPPED_FIXTURES[name]) };
+}
+
 export function register(test, expect) {
+  // The wizard card itself, by its heading. Assertions about what the wizard
+  // says must be scoped to it: the configured-crawlers list behind it renders
+  // every CSV crawler's own Summary panel, which repeats the same filenames and
+  // "N mapped columns" wording. An unscoped getByText is a strict-mode
+  // violation as soon as one mapped CSV crawler already exists — which is the
+  // normal state of any deployment that has been used, as opposed to the
+  // freshly-migrated database CI runs against.
+  function wizardCard(page, title) {
+    return page.locator('h3', { hasText: title }).locator('xpath=ancestor::div[contains(@class,"p-5")][1]');
+  }
+
   async function openAddCrawler(page) {
     await page.goto(`${BASE}/#admin`);
     await page.waitForLoadState('networkidle');
@@ -126,6 +149,85 @@ export function register(test, expect) {
 
       await expect(page.getByText('Already uploaded (3)')).toBeVisible({ timeout: 10000 });
       await expect(page.getByText('Systems.csv')).not.toBeVisible();
+
+      await page.click('button:has-text("Cancel")');
+    });
+  });
+
+  // The feature's own acceptance path: a non-schema export loads after mapping
+  // its columns in the wizard, the mapping is visible in the stored config, and
+  // reopening the crawler shows it again — read back from the server, not from
+  // browser state.
+  test.describe('CSV crawler wizard — custom column mapping', () => {
+    test('maps a non-schema export, saves it, and shows it again on reopen', async ({ page }) => {
+      if (!await openAddCrawler(page)) return;
+
+      const name = `E2E CSV Mapping Test ${Date.now()}`;
+      const wizard = wizardCard(page, 'Add CSV Crawler');
+      await page.fill('input[placeholder="e.g. Omada Production"]', name);
+      await page.getByRole('radio', { name: /Custom mapping/ }).check();
+      await page.click('button:has-text("Next: Upload files")');
+
+      await page.locator('input[type="file"][accept=".csv"]').setInputFiles([
+        mappedFile('ad_people.csv'), mappedFile('ad_groups.csv'), mappedFile('ad_memberships.csv'),
+      ]);
+      await expect(page.getByText('Staged files (3)')).toBeVisible();
+
+      // Mixed delimiters just work: each file's own is detected and shown.
+      await expect(page.getByLabel('CSV delimiter for ad_people.csv')).toHaveValue(',');
+      await expect(page.getByLabel('CSV delimiter for ad_groups.csv')).toHaveValue(';');
+      await expect(page.getByLabel('CSV delimiter for ad_memberships.csv')).toHaveValue('\t');
+
+      // None of these filenames matches a slot, so the required-object panel is
+      // still short of everything until each one is assigned.
+      await expect(page.getByText('Missing required:')).toBeVisible();
+      await page.getByLabel('Object type for ad_people.csv').selectOption('users');
+      await page.getByLabel('Object type for ad_groups.csv').selectOption('resources');
+      await page.getByLabel('Object type for ad_memberships.csv').selectOption('assignments');
+      await expect(page.getByText('Missing required:')).not.toBeVisible();
+
+      // Required-but-unmapped is flagged per schema field — and Next stays
+      // disabled until it is fixed, so a file that cannot load is never saved.
+      await expect(page.getByText(/Unmapped required fields: ExternalId, DisplayName/).first()).toBeVisible();
+      const nextReview = page.locator('button:has-text("Next: Review")');
+
+      await page.getByLabel('Source column for ExternalId in ad_people.csv').selectOption('samaccountname');
+      await page.getByLabel('Source column for DisplayName in ad_people.csv').selectOption('cn');
+      await page.getByLabel('Source column for Email in ad_people.csv').selectOption('mail');
+      await page.getByLabel('Source column for ExternalId in ad_groups.csv').selectOption('group_dn');
+      await page.getByLabel('Source column for DisplayName in ad_groups.csv').selectOption('group_name');
+      await page.getByLabel('Source column for ResourceExternalId in ad_memberships.csv').selectOption('group_dn');
+      await page.getByLabel('Source column for UserExternalId in ad_memberships.csv').selectOption('members');
+      // One row per value out of "u1;u2".
+      await page.getByLabel('Multi-value split delimiter for UserExternalId in ad_memberships.csv').fill(';');
+
+      await expect(page.getByText(/Unmapped required field/)).not.toBeVisible();
+      await expect(nextReview).toBeEnabled();
+      await nextReview.click();
+
+      // The review step states what will be applied, per file.
+      await expect(wizard.getByText('Custom mapping')).toBeVisible();
+      await expect(wizard.getByText('ad_people.csv', { exact: true })).toBeVisible();
+      await expect(wizard.getByText(/3 mapped columns/)).toBeVisible();
+      await expect(wizard.getByText(/splits UserExternalId/)).toBeVisible();
+      await page.click('button:has-text("Create crawler")');
+
+      await expect(page.locator('h4', { hasText: name })).toBeVisible({ timeout: 10000 });
+      const card = page.locator('h4', { hasText: name }).locator('xpath=ancestor::div[contains(@class,"p-4")][1]');
+      // The mapping is visible on the card without reopening anything.
+      await expect(card.getByText(/7 mapped columns/)).toBeVisible();
+      await expect(card.getByText(/ad_people\.csv \(Comma/)).toBeVisible();
+
+      // Reopen: the stored mapping comes back, and the column dropdowns are
+      // filled from each file's real header read off the server — the wizard has
+      // no File object for an already-uploaded file.
+      await card.locator('button:has-text("Configure")').click();
+      await expect(page.locator('h3:has-text("Edit CSV Crawler")')).toBeVisible({ timeout: 10000 });
+      await page.click('button[aria-label="Go to step 2: Upload files"]');
+      await expect(page.getByText('Already uploaded (3)')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByLabel('Source column for ExternalId in ad_people.csv')).toHaveValue('samaccountname');
+      await expect(page.getByLabel('Source column for UserExternalId in ad_memberships.csv')).toHaveValue('members');
+      await expect(page.getByLabel('CSV delimiter for ad_memberships.csv')).toHaveValue('\t');
 
       await page.click('button:has-text("Cancel")');
     });

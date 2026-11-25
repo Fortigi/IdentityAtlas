@@ -72,6 +72,12 @@ describe('GET /contexts/:id/roles/suggestion', () => {
     expect(suggestAccountable).not.toHaveBeenCalled();
   });
 
+  it('204 without asking on a catalog: it has roles, but no page that suggests one', async () => {
+    queryOne.mockResolvedValueOnce({ id: CTX, contextCategory: 'Catalog', targetType: 'Resource', hasAccountable: false });
+    expect((await get()).status).toBe(204);
+    expect(suggestAccountable).not.toHaveBeenCalled();
+  });
+
   it.each(['Segment', 'Tag', null])('204 without asking on a %s context, which carries no roles', async (contextCategory) => {
     queryOne.mockResolvedValueOnce({ id: CTX, contextCategory, targetType: 'Principal', hasAccountable: false });
     expect((await get()).status).toBe(204);

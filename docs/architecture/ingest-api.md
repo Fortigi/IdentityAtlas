@@ -147,7 +147,6 @@ Response — `201 Created`:
 | `POST /api/ingest/contexts` | Contexts | `id` (GUID) | `variant`, `contextType`, `scopeSystemId`, `sourceAlgorithmId` |
 | `POST /api/ingest/context-members` | ContextMembers | `(contextId, memberId)` | `contextId` |
 | `POST /api/ingest/principal-activity` | PrincipalActivity | `(principalId, resourceId, activityType)` | — |
-| `POST /api/ingest/governance/catalogs` | GovernanceCatalogs | `id` (GUID) | — |
 | `POST /api/ingest/governance/policies` | AssignmentPolicies | `id` (GUID) | — |
 | `POST /api/ingest/governance/requests` | AssignmentRequests | `id` (GUID) | — |
 | `POST /api/ingest/governance/certifications` | CertificationDecisions | `id` (GUID) | — |

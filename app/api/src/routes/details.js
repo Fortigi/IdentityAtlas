@@ -19,6 +19,7 @@ import groupRouter from './details/group.js';
 import accessPackageRouter from './details/accessPackage.js';
 import businessRoleOwnersRouter from './details/businessRoleOwners.js';
 import businessRoleOwnerImportRouter from './details/businessRoleOwnerImport.js';
+import businessRoleCompositionReviewRouter from './details/businessRoleCompositionReview.js';
 
 const router = Router();
 router.use(userRouter);
@@ -26,5 +27,6 @@ router.use(groupRouter);
 router.use(accessPackageRouter);
 router.use(businessRoleOwnersRouter);
 router.use(businessRoleOwnerImportRouter);
+router.use(businessRoleCompositionReviewRouter);
 
 export default router;

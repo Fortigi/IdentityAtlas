@@ -525,7 +525,7 @@ function Invoke-Phase4cSchema {
     # base tables, so it reported GraphTags missing every night — since the v6
     # context redesign that's a backward-compat VIEW over Contexts, not a table.
     $expectedTables = @('Systems', 'Resources', 'Principals', 'ResourceAssignments', 'ResourceRelationships',
-                        'Identities', 'IdentityMembers', 'Contexts', 'GovernanceCatalogs', 'AssignmentPolicies',
+                        'Identities', 'IdentityMembers', 'Contexts', 'ContextMembers', 'AssignmentPolicies',
                         'AssignmentRequests', 'CertificationDecisions', 'Crawlers', 'CrawlerAuditLog',
                         'CrawlerConfigs', 'CrawlerJobs', 'WorkerConfig', 'GraphSyncLog',
                         'GraphTags', 'GovernanceCategories', 'GraphRiskProfiles', 'GraphRiskClassifiers',

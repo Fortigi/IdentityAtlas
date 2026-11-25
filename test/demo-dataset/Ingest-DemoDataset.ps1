@@ -157,7 +157,7 @@ Write-Host "  System ids: $(($byKey.GetEnumerator() | Sort-Object Key | ForEach-
 foreach ($section in @(
     $dataset.contexts, $dataset.principals, $dataset.resources,
     $dataset.resourceAssignments, $dataset.resourceRelationships,
-    $dataset.governanceCatalogs, $dataset.assignmentPolicies, $dataset.certificationDecisions
+    $dataset.assignmentPolicies, $dataset.certificationDecisions
 )) {
     Convert-SystemIds -Records $section -Map $systemMap
 }
@@ -201,9 +201,9 @@ Invoke-IngestPost -Endpoint 'ingest/identities' -Records $dataset.identities -Sy
 Write-Host "[9/15] Identity Members ($($dataset.identityMembers.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/identity-members' -Records $dataset.identityMembers -SystemId $sysHR -SyncMode 'full' | Out-Null
 
-# 10-12. Governance — sourced from the IGA system.
-Write-Host "[10/15] Governance Catalogs ($($dataset.governanceCatalogs.Count))..." -ForegroundColor Cyan
-Invoke-IngestPost -Endpoint 'ingest/governance/catalogs' -Records $dataset.governanceCatalogs -SystemId $sysIga -SyncMode 'full' | Out-Null
+# 10-12. Governance — sourced from the IGA system. Its catalogs are Catalog
+# contexts, loaded with the other contexts in step 2.
+Write-Host "[10/15] Governance Catalogs — loaded as contexts in step 2" -ForegroundColor Cyan
 
 Write-Host "[11/15] Assignment Policies ($($dataset.assignmentPolicies.Count))..." -ForegroundColor Cyan
 Invoke-IngestPost -Endpoint 'ingest/governance/policies' -Records $dataset.assignmentPolicies -SystemId $sysIga -SyncMode 'full' | Out-Null

@@ -273,7 +273,7 @@ function accessPackageRootNodes(core) {
   return [
     { key: 'assignments', label: 'Assignments',      count: +core.assignmentCount || 0,    kind: 'category' },
     { key: 'resources',   label: 'Resources',        count: +core.groupCount || 0,         kind: 'category' },
-    { key: 'catalog',     label: 'Catalog',          count: a.catalogId ? 1 : 0,           kind: 'category' },
+    { key: 'catalog',     label: 'Role portfolio',   count: a.catalogId ? 1 : 0,           kind: 'category' },
   ];
 }
 
@@ -312,7 +312,8 @@ async function fetchAccessPackageItems(apId, categoryKey, authFetch, extras = {}
   }
   if (categoryKey === 'catalog') {
     if (!catalogId) return [];
-    return [toItem({ id: catalogId, displayName: catalogName || catalogId }, 'leaf')];
+    // A catalog is a context (migration 117): open it like any other.
+    return [toItem({ id: catalogId, displayName: catalogName || catalogId }, 'context')];
   }
   return [];
 }

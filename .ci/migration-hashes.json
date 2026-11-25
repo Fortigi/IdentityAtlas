@@ -112,6 +112,8 @@
     "113_assignment_policy_access_details.sql": "a98ca86b756da2b4c281da120c2b1fbdb2ee4f099caf7ba981269a7945d496f6",
     "114_business_role_owners.sql": "3380c33af06d8ef30e8d8514d2aa9a1b132485266b745af8c396163d0b1c74fb",
     "115_assignment_policy_participants.sql": "c3ae47a6afe1e10f1c3c917e34fd3fa128762949e284dded3109cbd2216523be",
+    "116_business_role_composition_reviews.sql": "65987b1d11abbab16bf31bcbc4d4885008ae7dd4cb883c88d6a92d98256ae070",
+    "117_catalogs_as_contexts.sql": "861a0ebffeda0e8c5ed07606b5dfd7136b2d8abf521e991cc3afa2228ce3097e",
     "118_identity_manager_source.sql": "60709c9f7fc0e995e448b515802c33232f09f46570eb8405e19ab96ad7a5f883"
   }
 }

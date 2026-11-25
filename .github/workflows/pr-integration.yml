@@ -164,6 +164,8 @@ jobs:
               - 'app/api/Dockerfile'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+              # The demo-data loader these jobs call: only running them verifies it (#1642).
+              - '.github/scripts/wait_for_demo_job.sh'
             e2e:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -177,6 +179,7 @@ jobs:
               - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
+              - '.github/scripts/wait_for_demo_job.sh'
             load_soak:
               - 'app/api/src/**'
               # A dependency bump can move runtime behaviour as readily as our own code, and
@@ -403,36 +406,8 @@ jobs:
 
       # ── Demo data ────────────────────────────────────────────────
       - name: 'Test: Load demo data'
-        run: |
-          # Queue demo job
-          JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
-            -H "Content-Type: application/json" \
-            -d '{"jobType": "demo"}')
-          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
-          echo "Demo job queued: $JOB_ID"
-          if [ -z "$JOB_ID" ]; then
-            echo "::error::Failed to queue demo job"
-            echo "$JOB"
-            exit 1
-          fi
-          # Poll until complete
-          for i in $(seq 1 40); do
-            STATUS=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
-              python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
-            if [ "$STATUS" = "completed" ]; then
-              echo "Demo job completed after $((i*3))s"
-              break
-            elif [ "$STATUS" = "failed" ]; then
-              echo "::error::Demo job failed"
-              curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID"
-              exit 1
-            fi
-            sleep 3
-          done
-          if [ "$STATUS" != "completed" ]; then
-            echo "::error::Demo job timed out (status: $STATUS)"
-            exit 1
-          fi
+        # Fails on a failed, cancelled or unfinished job (#1642).
+        run: bash .github/scripts/wait_for_demo_job.sh http://localhost:3001/api
 
       - name: 'Test: Verify demo data loaded'
         run: |
@@ -506,15 +481,7 @@ jobs:
           fi
           echo "Database clean verified"
           # Reload demo data for remaining tests
-          JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
-            -H "Content-Type: application/json" -d '{"jobType": "demo"}')
-          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
-          for i in $(seq 1 40); do
-            S=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
-              python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
-            [ "$S" = "completed" ] && break
-            sleep 3
-          done
+          bash .github/scripts/wait_for_demo_job.sh http://localhost:3001/api
 
       # ── Smoke test all read endpoints ────────────────────────────
       - name: 'Test: Smoke test read endpoints'
@@ -904,17 +871,9 @@ jobs:
           done
 
       - name: Load demo data
-        run: |
-          JOB=$(curl -sf -X POST http://localhost:3001/api/admin/crawler-jobs \
-            -H "Content-Type: application/json" -d '{"jobType": "demo"}')
-          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
-          for i in $(seq 1 40); do
-            S=$(curl -sf "http://localhost:3001/api/admin/crawler-jobs/$JOB_ID" | \
-              python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
-            [ "$S" = "completed" ] && break
-            sleep 3
-          done
-          echo "Demo data loaded"
+        # Fails on a failed, cancelled or unfinished job instead of letting
+        # Playwright run against a half-loaded database (#1642).
+        run: bash .github/scripts/wait_for_demo_job.sh http://localhost:3001/api
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6

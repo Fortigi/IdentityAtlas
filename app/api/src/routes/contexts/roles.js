@@ -18,7 +18,7 @@ import { CONTEXT_ROLE_TYPES } from '../../ingest/validation.js';
 import { useSql, UUID_RE, writeContexts } from './shared.js';
 import { suggestAccountable } from '../../contexts/roleSuggestion.js';
 import { userOf } from '../../lib/userOf.js';
-import { ROLE_BEARING_CATEGORIES } from '../../lib/contextCategories.js';
+import { ROLE_BEARING_CATEGORIES, PROFILED_CATEGORIES } from '../../lib/contextCategories.js';
 
 const router = Router();
 
@@ -112,7 +112,7 @@ router.put('/contexts/:id/roles', writeContexts, async (req, res) => {
     const ctx = await db.queryOne(`SELECT "contextCategory" FROM "Contexts" WHERE id = $1`, [req.params.id]);
     if (!ctx) return res.status(404).json({ error: 'Context not found' });
     if (!ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) {
-      return res.status(400).json({ error: 'Roles can only be set on an organizational unit or a logical application' });
+      return res.status(400).json({ error: 'Roles can only be set on an organizational unit, a logical application or a catalog' });
     }
     const holder = await db.queryOne(
       `SELECT "displayName" FROM "${HOLDER_TABLE[parsed.holderCol]}" WHERE id = $1`, [parsed.holderId],
@@ -157,7 +157,7 @@ router.get('/contexts/:id/roles/suggestion', async (req, res) => {
         FROM "Contexts" c WHERE c.id = $1
     `, [req.params.id]);
     if (!ctx) return res.status(404).json({ error: 'Context not found' });
-    if (ctx.hasAccountable || !ROLE_BEARING_CATEGORIES.has(ctx.contextCategory)) return res.status(204).end();
+    if (ctx.hasAccountable || !PROFILED_CATEGORIES.has(ctx.contextCategory)) return res.status(204).end();
     const suggestion = await suggestAccountable(ctx);
     if (!suggestion) return res.status(204).end();
     res.json(suggestion);

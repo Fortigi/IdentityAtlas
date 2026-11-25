@@ -41,7 +41,7 @@ function Get-EntraDeltaEndpoints {
     [OutputType([string[]])]
     param([Parameter(Mandatory)] [hashtable]$Cfg)
     $endpoints = @()
-    if ($Cfg.SyncPrincipals)        { $endpoints += 'users/delta' }
+    if ($Cfg.SyncPrincipals)        { $endpoints += 'users/delta/manager' }  # = $script:EntraUsersDeltaEndpoint (UserDelta.ps1)
     if ($Cfg.SyncServicePrincipals) { $endpoints += 'servicePrincipals/delta' }
     if ($Cfg.SyncResources)         { $endpoints += Get-EntraGroupDeltaEndpoint -IncludeMembers ([bool]$Cfg.SyncAssignments) }
     return $endpoints

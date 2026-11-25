@@ -3,14 +3,15 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
+import { useAnswersForRole } from '@ui/contexts/ContextOwnerScopeContext';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
-import AccessPackageGovernance from './AccessPackageGovernance';
 import DeletedBadge from './DeletedBadge';
 import BusinessRoleOverview from './businessRoles/BusinessRoleOverview';
 import BusinessRoleLifecycle from './businessRoles/BusinessRoleLifecycle';
-import BusinessRoleResources from './businessRoles/BusinessRoleResources';
-import BusinessRoleMembers from './businessRoles/BusinessRoleMembers';
+import BusinessRoleRequestsAndReviews from './businessRoles/BusinessRoleRequestsAndReviews';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import WayChips from './businessRoles/WayChips';
 import { showsRequestsAndReviews } from './businessRoles/accessModel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
@@ -41,7 +42,7 @@ function getAccessPackageRootExtras(data) {
   };
 }
 
-function AccessPackageHeader({ data }) {
+function AccessPackageHeader({ data, onOpenDetail }) {
   const isDark = useIsDark();
   const { attributes, accessModel, category } = data;
   return (
@@ -61,7 +62,13 @@ function AccessPackageHeader({ data }) {
             {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
           </div>
           {attributes.catalogName && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Catalog: {attributes.catalogName}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Role portfolio:{' '}
+              {attributes.catalogId && onOpenDetail ? (
+                <button type="button" onClick={() => onOpenDetail('context', attributes.catalogId, attributes.catalogName)}
+                  className="text-blue-700 hover:underline dark:text-blue-300">{attributes.catalogName}</button>
+              ) : attributes.catalogName}
+            </p>
           )}
         </div>
       </div>
@@ -75,7 +82,17 @@ function AccessPackageHeader({ data }) {
 export default function AccessPackageDetailPage({ accessPackageId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
+  const sharedView = useIsSharedView();
+  const compositionReview = useFeatureFlags().compositionReview === true;
+  // A context owner who answers for this role reviews it from their own page.
+  const answersForRole = useAnswersForRole(accessPackageId);
   const [riskData, setRiskData] = useState(null);
+  // The Overview section a link elsewhere on the page asks to open (the
+  // composition review's "see what it contains" opens Resources).
+  const [overviewSection, setOverviewSection] = useState(null);
+  // Experimental (flag compositionReview). Not part of a shared view, except for
+  // a context owner who answers for the role.
+  const showComposition = compositionReview && (!sharedView || answersForRole);
 
   useEffect(() => {
     (async () => {
@@ -91,25 +108,30 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return [
       { key: 'overview', label: 'Overview' },
       { key: 'lifecycle', label: 'Lifecycle' },
-      { key: 'resources', label: 'Resources', count: data.groupCount ?? 0 },
-      { key: 'members', label: 'People', count: data.assignmentCount ?? 0 },
-      showsRequestsAndReviews(data) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
+      // Resources and People are folded sections of the Overview.
+      (showComposition || showsRequestsAndReviews(data)) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
       { key: 'attributes', label: 'Attributes', count: entries.length },
       { key: 'relationships', label: 'Relationships' },
       { key: 'timeline', label: 'Timeline' },
       { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
-  }, [features, riskData]);
+  }, [features, riskData, showComposition]);
 
   const renderCustomTab = useCallback((key, data, openTab) => {
-    if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
+    if (key === 'overview') {
+      return <BusinessRoleOverview key={overviewSection || 'none'} roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail}
+        onOpenTab={openTab} openSection={overviewSection} />;
+    }
     if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
-    if (key === 'resources') return <BusinessRoleResources roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
-    if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} control={data.accessModel?.control} onOpenDetail={onOpenDetail} />;
-    if (key === 'requests') return <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} showPolicies={false} />;
-    return null;
-  }, [accessPackageId, authFetch, onOpenDetail]);
+    // Attributes, Relationships, Timeline, Diff and Risk are EntityDetailPage's own.
+    if (key !== 'requests') return null;
+    // Resources and People are sections of the Overview, not tabs: the
+    // composition review's link to them opens that section there.
+    const openOverviewSection = (section) => { setOverviewSection(section); openTab('overview'); };
+    return <BusinessRoleRequestsAndReviews roleId={accessPackageId} authFetch={authFetch} showComposition={showComposition}
+      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenTab={openOverviewSection} />;
+  }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition, overviewSection]);
 
   return (
     <EntityDetailPage
@@ -125,7 +147,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       initialTab="overview"
       renderCustomTab={renderCustomTab}
       getAttributeEntries={getAccessPackageAttributeEntries}
-      renderHeader={(data) => <AccessPackageHeader data={data} />}
+      renderHeader={(data) => <AccessPackageHeader data={data} onOpenDetail={onOpenDetail} />}
       renderRisk={riskData ? () => (
         <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />
       ) : undefined}

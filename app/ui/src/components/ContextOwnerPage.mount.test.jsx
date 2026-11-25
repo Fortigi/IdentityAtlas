@@ -90,7 +90,7 @@ describe('ContextOwnerPage — one context', () => {
   it('shows that context directly, with no list beside it, and the signed-in user', async () => {
     mount([ctx(UNIT, 'Finance', 'Accountable')]);
     expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Your contexts' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'What you answer for' })).not.toBeInTheDocument();
     expect(screen.getByText('Olivia Owner')).toBeInTheDocument();
   });
 
@@ -274,7 +274,7 @@ describe('ContextOwnerPage — the references of a member', () => {
 describe('ContextOwnerPage — several contexts', () => {
   it('lists them with their role, shows the first, and switches on click', async () => {
     const { authFetch } = mount([ctx(UNIT, 'Finance', 'Accountable'), ctx(SECOND, 'Payroll', 'Responsible')]);
-    const nav = screen.getByRole('navigation', { name: 'Your contexts' });
+    const nav = screen.getByRole('navigation', { name: 'What you answer for' });
     const finance = within(nav).getByRole('button', { name: /Finance/ });
     expect(finance).toHaveAttribute('aria-current', 'true');
     expect(within(finance).getByText('Accountable')).toBeInTheDocument();
@@ -291,7 +291,7 @@ describe('ContextOwnerPage — several contexts', () => {
 describe('ContextOwnerPage — what kind each context is', () => {
   it('marks a unit and an application by icon and label in the list', () => {
     mount([ctx(UNIT, 'Finance', 'Accountable'), { ...ctx(SECOND, 'Azure', 'Accountable'), contextCategory: 'LogicalApplication', targetType: 'Resource' }]);
-    const nav = screen.getByRole('navigation', { name: 'Your contexts' });
+    const nav = screen.getByRole('navigation', { name: 'What you answer for' });
     const [unitKind, appKind] = within(nav).getAllByTestId('context-kind');
     expect(unitKind).toHaveAttribute('title', 'Organisation');
     expect(unitKind.querySelector('svg')).toHaveAttribute('data-template', 'OrganizationalUnit');
@@ -303,7 +303,7 @@ describe('ContextOwnerPage — what kind each context is', () => {
 
   it('falls back to the neutral icon for a context without a template', () => {
     mount([ctx(UNIT, 'Finance', 'Accountable'), { ...ctx(SECOND, 'Misc', 'Accountable'), contextCategory: null }]);
-    const kinds = within(screen.getByRole('navigation', { name: 'Your contexts' })).getAllByTestId('context-kind');
+    const kinds = within(screen.getByRole('navigation', { name: 'What you answer for' })).getAllByTestId('context-kind');
     expect(kinds[1].querySelector('svg')).toHaveAttribute('data-template', 'Other');
   });
 });
@@ -359,7 +359,7 @@ describe('ContextOwnerPage — exploring the team', () => {
       },
     });
     expect(await screen.findByTestId('team-matrix')).toHaveTextContent('Team matrix');
-    const nav = screen.getByRole('navigation', { name: 'Your contexts' });
+    const nav = screen.getByRole('navigation', { name: 'What you answer for' });
     await userEvent.click(within(nav).getByRole('button', { name: /Payroll app/ }));
     expect(await screen.findByRole('heading', { name: 'Payroll app', level: 2 })).toBeInTheDocument();
     await userEvent.click(await screen.findByTestId('team-matrix'));

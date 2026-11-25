@@ -16,12 +16,17 @@
 // between those views, and a people unit's report lives on its accounts view (the
 // report itself always runs on the context it is opened from).
 //
-// And it takes in ALL the held contexts' sub-units, at any depth (descendants
-// through parentContextId) — hierarchical accountability: whoever answers for a
-// unit answers for everything below it, also a sub-unit that has an Accountable
-// or Responsible of its own. That sub-unit's owner, in turn, gets only their own
+// And, where the policy's row for that template and role gives `subUnits`, it
+// takes in the held context's sub-units at any depth (descendants through
+// parentContextId) — hierarchical accountability: whoever answers for a unit
+// answers for everything below it, also a sub-unit that has an Accountable or
+// Responsible of its own. That sub-unit's owner, in turn, gets only their own
 // subtree (nothing walks upward). A sub-unit's variants are not added (only a
 // held context's are).
+//
+// Which held contexts count at all is the relative-permission policy
+// (auth/relativePermissions.js): one row per template and role. A context whose
+// row is off is left out as if it were not held.
 //
 // Every function takes the pool explicitly so the contract test can run the
 // exact statements against PostgreSQL (contract-tests/contextOwner.contract.test.js).
@@ -29,11 +34,14 @@
 import * as db from '../db/connection.js';
 import { isMissingSchema } from '../db/schemaErrors.js';
 import { resolveMe } from './resolveMe.js';
+import { getRelativePolicy } from './contextOwnerSetting.js';
+import { allows, BUSINESS_ROLE_SUBJECT, rolesAllowing } from './relativePermissions.js';
+import { findOwnedBusinessRoles } from '../lib/businessRoleOwners.js';
 
 const lower = (id) => String(id).toLowerCase();
 
 // One row per (context, role) the person holds, through any of their accounts.
-export async function findHeldContexts(pool, principalId, identityId) {
+export async function findHeldRoleRows(pool, principalId, identityId) {
   const { rows } = await pool.query(
     `SELECT c.id, c."displayName", c."contextCategory", c."targetType", r.role
        FROM "ContextRoles" r
@@ -45,7 +53,12 @@ export async function findHeldContexts(pool, principalId, identityId) {
       ORDER BY c."displayName", c.id`,
     [principalId, identityId],
   );
-  return collapseHeld(rows);
+  return rows;
+}
+
+// One entry per held context, whatever the policy says (collapseHeld).
+export async function findHeldContexts(pool, principalId, identityId) {
+  return collapseHeld(await findHeldRoleRows(pool, principalId, identityId));
 }
 
 // One entry per context. Somebody both Accountable and Responsible for one
@@ -121,21 +134,33 @@ export async function resolveReportContexts(pool, wanted) {
   return rows.map(r => lower(r.id));
 }
 
-// req.user → { contexts, contextIds } or null when the caller holds no role (or
-// cannot be matched to our data). `contexts` is what the UI lists; `contextIds`
-// is the scope the API enforces (held contexts, their own sub-units and their
-// variants).
-export async function resolveContextOwner(user) {
+// req.user → { contexts, contextIds, businessRoles, me } or null when the
+// relative-permission policy (auth/relativePermissions.js) lets this caller in
+// through nothing they answer for (or they cannot be matched to our data).
+// `contexts` is what the UI lists; `contextIds` is the scope the API enforces
+// (held contexts, the sub-units of those whose row gives `subUnits`, and their
+// variants). `businessRoles` are the roles they answer for whose row gives `view`.
+//
+// `capability` is what a context row must give for that context to count:
+// `view` for the app, `mcp` for the MCP server — which passes
+// `businessRoles: false`, as its scope covers contexts only.
+export async function resolveContextOwner(user, { policy = null, capability = 'view', businessRoles = true } = {}) {
+  const rules = policy ?? await getRelativePolicy();
   const me = await resolveMe(user);
   if (!me?.principal?.id) return null;
   try {
     const pool = await db.getPool();
-    const contexts = await findHeldContexts(pool, me.principal.id, me.identity?.id ?? null);
-    if (contexts.length === 0) return null;
+    const rows = (await findHeldRoleRows(pool, me.principal.id, me.identity?.id ?? null))
+      .filter(r => allows(rules, r.contextCategory, r.role, capability));
+    const contexts = collapseHeld(rows);
+    const roleNames = businessRoles ? rolesAllowing(rules, BUSINESS_ROLE_SUBJECT, 'view') : [];
+    const roles = roleNames.length > 0 ? await findOwnedBusinessRoles(me, roleNames) : [];
+    if (contexts.length === 0 && roles.length === 0) return null;
     const heldIds = contexts.map(c => c.id);
-    const subUnits = await findOwnedSubUnits(pool, heldIds);
+    const roots = [...new Set(rows.filter(r => allows(rules, r.contextCategory, r.role, 'subUnits')).map(r => lower(r.id)))];
+    const subUnits = await findOwnedSubUnits(pool, roots);
     const variants = await findSameUnitVariants(pool, heldIds);
-    return { contexts, contextIds: new Set([...heldIds, ...subUnits, ...variants]) };
+    return { contexts, contextIds: new Set([...heldIds, ...subUnits, ...variants]), businessRoles: roles, me };
   } catch (err) {
     // Before migration 095 there are no roles, so nobody is an owner yet.
     if (isMissingSchema(err)) return null;

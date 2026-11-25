@@ -252,7 +252,8 @@ describe('GET /access-packages', () => {
       query.mockResolvedValue({ rows: [] });
       const res = await request(app).get(`/api/access-packages?sortCol=${sortCol}&sortDir=desc`);
       expect(res.status, sortCol).toBe(200);
-      const sqls = query.mock.calls.map((c) => String(c[0])).filter((q) => /ORDER BY/.test(q));
+      // The page query (LIMIT/OFFSET), not the catalog join's own inner ORDER BY.
+      const sqls = query.mock.calls.map((c) => String(c[0])).filter((q) => /OFFSET/.test(q));
       expect(sqls.length, sortCol).toBeGreaterThan(0);
       for (const q of sqls) {
         expect(q, sortCol).toMatch(/ORDER BY ap."displayName" DESC/);

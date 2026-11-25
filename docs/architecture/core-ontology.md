@@ -145,8 +145,8 @@ also pass free values through from source data is recorded too (`ia:passthroughF
 [`ontology/validation.json`](https://github.com/Fortigi/IdentityAtlas/blob/main/ontology/validation.json),
 so a *new* ingest entity type cannot silently fall outside the model:
 
-- the governance satellite tables (GovernanceCatalogs, AssignmentPolicies, AssignmentRequests,
-  CertificationDecisions) — business roles themselves *are* in the core, as Resources;
+- the governance satellite tables (AssignmentPolicies, AssignmentRequests, CertificationDecisions)
+  — business roles themselves *are* in the core, as Resources, and their catalogs are Catalog contexts;
 - PrincipalActivity and RiskScores;
 - the values a source passes through: whatever a CSV file, a SQL statement or an Omada / midPoint
   mapping calls its resource and context types. Those are exactly what the dynamic layer is for.
@@ -295,8 +295,9 @@ Found while adding the context types (version 1.1.0). Again none of the behaviou
 18. **Omada defines a resource-type map that is never applied.** `resourceTypeToIdentityAtlas` in
     `Start-OmadaCrawler.ps1` is declared, but `ConvertTo-AtlasResourceType` is never called; resource
     categories come from `resourceCategoryMapping` instead.
-19. **The CSV crawler scopes its principal reconcile to `principalType='User'`** even when its rows carry
-    other types.
+19. **Fixed (#1686):** the CSV crawler scoped its principal reconcile to `principalType='User'` even when
+    its rows carried other types, so a vanished account of any other type was never removed. The full
+    sync is now unscoped, bounded only by each system Users.csv feeds.
 14. **Two "non-human account" lists.** `NON_HUMAN_PRINCIPAL_TYPES` (account linking) is ServicePrincipal,
     ManagedIdentity, AIAgent, MachineAccount; `riskscoring/engine.js` keeps its own inline list that
     also includes WorkloadIdentity.

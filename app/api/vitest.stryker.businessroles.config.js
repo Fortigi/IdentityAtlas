@@ -16,6 +16,9 @@ export default defineConfig({
     include: [
       'src/lib/businessRoleAccessModel.test.js',
       'src/lib/businessRoleReview.test.js',
+      'src/lib/businessRoleCompositionReview.test.js',
+      'src/lib/businessRoleSnapshot.test.js',
+      'src/routes/details/businessRoleCompositionReview.test.js',
       'src/lib/businessRoleOwners.test.js',
       'src/lib/businessRoleOwnerSuggestion.test.js',
       'src/lib/businessRolePeople.test.js',
@@ -23,6 +26,7 @@ export default defineConfig({
       'src/lib/businessRoleOwnerImport.test.js',
       'src/routes/details/businessRoleOwnerImport.test.js',
       'src/routes/ingest/businessRoleOwners.test.js',
+      'src/lib/businessRoleCatalog.test.js',
     ],
     exclude: ['**/node_modules/**'],
     coverage: { ...base.test.coverage, thresholds: undefined },

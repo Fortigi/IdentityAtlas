@@ -107,8 +107,9 @@ describe('emptyTreesCopy', () => {
     expect(emptyTreesCopy('LogicalApplication')).toMatch(/^No applications yet\./);
     expect(emptyTreesCopy('Tag')).toMatch(/^No tags yet\./);
     expect(emptyTreesCopy('Segment')).toMatch(/^No segments yet\./);
+    expect(emptyTreesCopy('Catalog')).toMatch(/^No role portfolios yet\. Role portfolios come from a governance source/);
     expect(emptyTreesCopy('Other')).toBe('Nothing here yet.');
-    for (const tab of ['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Other']) {
+    for (const tab of ['OrganizationalUnit', 'LogicalApplication', 'Catalog', 'Tag', 'Segment', 'Other']) {
       expect(emptyTreesCopy(tab, 'Identity')).not.toMatch(/plugin|crawler run|synced|generated|manual|variant|principal/i);
     }
   });

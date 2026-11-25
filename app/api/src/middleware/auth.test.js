@@ -208,7 +208,7 @@ describe('authMiddleware — fgc_ crawler token pass-through', () => {
     const paths = [
       '/api/ingest/principals',
       '/api/ingest/resources',
-      '/api/ingest/governance/catalogs',
+      '/api/ingest/governance/policies',
     ];
     for (const path of paths) {
       const { res, nextCalled } = await run(makeReq({ path, method: 'POST', token: 'fgc_abcdefgh' }));

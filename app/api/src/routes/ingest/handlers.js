@@ -10,7 +10,9 @@ import { Router } from 'express';
 import * as db from '../../db/connection.js';
 import { writeSyncLog } from '../../ingest/engine.js';
 import { normalizeRecords, extendedAttributesBoundsError } from '../../ingest/normalization.js';
-import { repairManagerLinks, managerLinkWarning, batchHasManagerLink } from '../../ingest/managerLinks.js';
+import {
+  repairManagerLinks, managerLinkWarning, batchHasManagerLink, clearExplicitManagerLinks,
+} from '../../ingest/managerLinks.js';
 import { deriveIdentityManagersAfterLoad } from '../../ingest/identityManagers.js';
 import { reconcileBatchAccountables } from '../../ingest/contextOwners.js';
 import { reapplyAfterSync } from '../../contexts/adjustments/afterSync.js';
@@ -179,6 +181,9 @@ async function writeBatch(entityType, body, { allowed, req, startTime }) {
   const delErr = await applyDeletes(body, entityType, tableName, result, allowed);
   if (delErr) return delErr;
 
+  // A delta can still clear a manager by naming it null (#1627); the delta
+  // upsert above kept the stored one, so clear it here, before the sweep.
+  await clearExplicitManagerLinks(db, tableName, body.systemId, body.syncMode || 'delta', normalized);
   // A single batch IS the whole principals load (a crawler that needs more
   // than one opens a session instead), so this is the point at which a
   // manager link can be told apart from one whose manager had not arrived.
@@ -245,7 +250,6 @@ router.post('/ingest/identities',               createIngestHandler('identities'
 router.post('/ingest/identity-members',         createIngestHandler('identity-members'));
 router.post('/ingest/contexts',                 createIngestHandler('contexts'));
 router.post('/ingest/context-members',          createIngestHandler('context-members'));
-router.post('/ingest/governance/catalogs',      createIngestHandler('governance/catalogs'));
 router.post('/ingest/governance/policies',      createIngestHandler('governance/policies'));
 router.post('/ingest/governance/requests',      createIngestHandler('governance/requests'));
 router.post('/ingest/governance/certifications', createIngestHandler('governance/certifications'));

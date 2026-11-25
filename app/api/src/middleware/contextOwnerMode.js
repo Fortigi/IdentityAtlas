@@ -4,12 +4,14 @@
 // caller would otherwise get no access: their roles map to no permission, or
 // they fail AUTH_REQUIRED_ROLES. Then:
 //
-//   setting off, or the caller holds no context role  → `otherwise()`: the 403
-//       auth.js answers anyone without a permission ("no role", or the one for
-//       a missing required role); next() only for /api/auth-me;
-//   the caller is a context owner                      → req.user.contextOwner is
-//       set, and the request goes through only if auth/contextOwnerScope.js
-//       allows it. Everything else gets a 403.
+//   the relative-permission policy (auth/relativePermissions.js) lets nobody in,
+//   or nothing this caller answers for          → `otherwise()`: the 403 auth.js
+//       answers anyone without a permission ("no role", or the one for a
+//       missing required role); next() only for /api/auth-me;
+//   the caller answers for a context or a business role whose row gives `view`
+//                                               → req.user.contextOwner is set,
+//       and the request goes through only if auth/contextOwnerScope.js allows
+//       it. Everything else gets a 403.
 //
 // An allowed response that names other objects (a group's members, a user's
 // groups, a timeline's counterparties) is marked per reference with whether the
@@ -24,7 +26,8 @@
 // so a broken lookup is visible instead of reading as "no role".
 
 import * as db from '../db/connection.js';
-import { isContextOwnerAccessEnabled } from '../auth/contextOwnerSetting.js';
+import { getRelativePolicy } from '../auth/contextOwnerSetting.js';
+import { anyView } from '../auth/relativePermissions.js';
 import { resolveContextOwner, resolveReportContexts, descendantsInScope } from '../auth/contextOwner.js';
 import { CONTEXT_OWNER_DENIED, contextOwnerVerdict } from '../auth/contextOwnerScope.js';
 import { findContextMember } from '../contexts/memberReferences.js';
@@ -35,10 +38,14 @@ const DECISION = Symbol('contextOwnerDecision');
 const ANNOTATED = Symbol('contextOwnerAnnotated');
 
 async function decide(req, path) {
-  if (!(await isContextOwnerAccessEnabled())) return { owner: null };
-  const resolved = await resolveContextOwner(req.user);
+  const policy = await getRelativePolicy();
+  if (!anyView(policy)) return { owner: null };
+  const resolved = await resolveContextOwner(req.user, { policy });
   if (!resolved) return { owner: null };
-  const owner = { ...resolved, access: createOwnerAccess(resolved.contextIds) };
+  const owner = {
+    ...resolved,
+    access: createOwnerAccess(resolved.contextIds, { ownedRoleIds: resolved.businessRoles.map(r => r.id) }),
+  };
 
   const verdict = contextOwnerVerdict({ method: req.method, path, query: req.query }, owner.contextIds);
   return { owner, allow: await settleOwnerVerdict(verdict, owner, req) };
@@ -80,6 +87,7 @@ export async function settleOwnerVerdict(verdict, owner, req) {
     return !!(await findContextMember(await db.getPool(), contextId, memberId));
   }
   if (verdict.entity) return owner.access.canOpen(verdict.entity.kind, verdict.entity.id);
+  if (verdict.ownedRole) return owner.access.ownedRoleIds.has(verdict.ownedRole);
   if (verdict.matrix) return settleMatrix(req, contextIds);
   return verdict.allow;
 }

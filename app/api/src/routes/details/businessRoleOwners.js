@@ -23,7 +23,7 @@ import { loadParticipants, withPolicyResponsible } from '../../lib/businessRoleP
 
 const router = Router();
 
-const requireRole = async (req, res, next) => {
+export const requireRole = async (req, res, next) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid ID format' });
   if (!useSql) return res.status(503).json({ error: 'SQL not configured' });
   try {
@@ -35,7 +35,7 @@ const requireRole = async (req, res, next) => {
   }
 };
 
-const failed = (res, label, err) => {
+export const failed = (res, label, err) => {
   console.error(`${label} failed:`, err.message);
   res.status(500).json({ error: `${label} failed` });
 };

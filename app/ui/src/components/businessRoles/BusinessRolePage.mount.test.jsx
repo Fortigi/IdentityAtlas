@@ -53,6 +53,7 @@ function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members 
     if (u === `${BASE}/assignments`) return members;
     if (u === `${BASE}/resource-roles`) return resources;
     if (u === `${BASE}/reviews` || u === `${BASE}/requests`) return [];
+    if (u === `${BASE}/composition-reviews`) return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }, { id: 'g2' }] }, latestSignOff: null };
     if (u === BASE) return body;
     return undefined;
   });
@@ -66,9 +67,9 @@ const PARTICIPANTS = [
   { participation: 'Requestor', subjectType: 'Rule', rule: '(user.jobTitle -eq "x")' },
 ];
 
-function mountPage(opts, wrap = (el) => el) {
+function mountPage(opts, wrap = (el) => el, features = { compositionReview: true }) {
   const onOpenDetail = vi.fn();
-  renderWithProviders(wrap(h(AccessPackageDetailPage, { accessPackageId: ID, onClose: () => {}, onOpenDetail })), { auth: { authFetch: api(opts) } });
+  renderWithProviders(wrap(h(AccessPackageDetailPage, { accessPackageId: ID, onClose: () => {}, onOpenDetail })), { auth: { authFetch: api(opts) }, features });
   return { onOpenDetail, user: userEvent.setup() };
 }
 
@@ -90,10 +91,17 @@ describe('the business role page', () => {
     expect(await screen.findByRole('tab', { name: /Requests & reviews/ })).toBeInTheDocument();
   });
 
-  it('leaves Requests & reviews out for a purely rule-based role', async () => {
-    mountPage({ body: role({ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'] }, pendingRequestCount: 0, reviewCount: 0 }) });
+  it('leaves Requests & reviews out for a purely rule-based role while composition review is off', async () => {
+    mountPage({ body: role({ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'] }, pendingRequestCount: 0, reviewCount: 0 }) }, undefined, {});
     await screen.findByRole('tab', { name: 'Overview' });
     expect(screen.queryByRole('tab', { name: /Requests/ })).toBeNull();
+  });
+
+  it('keeps Requests & reviews for a purely rule-based role, holding only its composition review', async () => {
+    const { user } = mountPage({ body: role({ accessModel: { waysIn: ['Rule'], waysOut: ['Rule'] }, pendingRequestCount: 0, reviewCount: 0 }) });
+    await user.click(await screen.findByRole('tab', { name: /Requests & reviews/ }));
+    expect(await screen.findByRole('region', { name: 'Composition review' })).toBeInTheDocument();
+    expect(screen.queryByText('Pending Requests')).toBeNull();
   });
 
   it('warns on the Overview when the last review was missed, and links to Lifecycle', async () => {
@@ -111,21 +119,35 @@ describe('the business role page', () => {
 
   it('shows no warning when the reviews are in order', async () => {
     mountPage({ body: role({ complianceStatus: 'Compliant' }) });
-    await screen.findByRole('button', { name: /13\s*People/ });
+    await screen.findByRole('button', { name: /People\s*13 people/ });
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('jumps to People from the count on the Overview', async () => {
-    const { user } = mountPage();
-    await user.click(await screen.findByRole('button', { name: /13\s*People/ }));
-    expect(await screen.findByText('Ann Rule')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /People/ })).toHaveAttribute('aria-selected', 'true');
+  it('folds People and Resources on the Overview, with their counts, instead of tabs of their own', async () => {
+    mountPage();
+    const people = await screen.findByRole('button', { name: /People\s*13 people/ });
+    const resources = screen.getByRole('button', { name: /Resources\s*2 resources/ });
+    expect(people).toHaveAttribute('aria-expanded', 'false');
+    expect(resources).toHaveAttribute('aria-expanded', 'false');
+    const tabs = screen.getAllByRole('tab').map(t => t.textContent);
+    expect(tabs.some(t => /^(People|Resources)/.test(t))).toBe(false);
   });
 
-  it('jumps to Resources from the count on the Overview', async () => {
+  it('opens People on the Overview, and folds it again', async () => {
     const { user } = mountPage();
-    await user.click(await screen.findByRole('button', { name: /2\s*Resources/ }));
+    const people = await screen.findByRole('button', { name: /People\s*13 people/ });
+    await user.click(people);
+    expect(await screen.findByText('Ann Rule')).toBeInTheDocument();
+    expect(people).toHaveAttribute('aria-expanded', 'true');
+    await user.click(people);
+    expect(screen.queryByText('Ann Rule')).toBeNull();
+  });
+
+  it('opens Resources on the Overview', async () => {
+    const { user } = mountPage();
+    await user.click(await screen.findByRole('button', { name: /Resources\s*2 resources/ }));
     expect(await screen.findByText('SG-Finance')).toBeInTheDocument();
+    expect(screen.queryByText('Ann Rule')).toBeNull();
   });
 
   it('opens Requests & reviews without repeating the policies', async () => {
@@ -141,6 +163,35 @@ describe('the business role page', () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'Overview' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Lifecycle' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
+  });
+
+  it('shows the composition review first under Requests & reviews, not on a tab of its own', async () => {
+    const { user } = mountPage();
+    await screen.findByRole('tab', { name: 'Lifecycle' });
+    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
+    await user.click(screen.getByRole('tab', { name: /Requests & reviews/ }));
+    const review = await screen.findByRole('region', { name: 'Composition review' });
+    expect(await within(review).findByText('Nobody has signed off what this role contains yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Pending Requests')).toBeInTheDocument();
+    expect(review.compareDocumentPosition(screen.getByText('Pending Requests')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('goes from the composition review to the Overview with Resources open', async () => {
+    const { user } = mountPage();
+    await user.click(await screen.findByRole('tab', { name: /Requests & reviews/ }));
+    await user.click(await screen.findByRole('button', { name: 'See the resources' }));
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: /Resources\s*2 resources/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: /People\s*13 people/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(await screen.findByText('SG-Finance')).toBeInTheDocument();
+  });
+
+  it('has no composition review while the experimental feature is off', async () => {
+    const { user } = mountPage(undefined, undefined, {});
+    await user.click(await screen.findByRole('tab', { name: /Requests & reviews/ }));
+    await screen.findByText('Pending Requests');
+    expect(screen.queryByRole('region', { name: 'Composition review' })).toBeNull();
   });
 });
 

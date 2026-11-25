@@ -1,64 +1,80 @@
-// The context-owner switches' admin route: shape, validation, and that each
-// field writes only its own switch.
+// The relative-permission grid's admin route: shape, validation, and that what
+// is saved is the normalized grid. The policy model itself is real
+// (auth/relativePermissions.js); only its storage is stubbed.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
-const state = vi.hoisted(() => ({ enabled: false, mcp: false, fail: false }));
+const state = vi.hoisted(() => ({ policy: null, fail: false }));
 vi.mock('../auth/contextOwnerSetting.js', () => ({
-  isContextOwnerAccessEnabled: vi.fn(async () => state.enabled),
-  getContextOwnerMcpSwitch: vi.fn(async () => state.mcp),
-  setContextOwnerAccess: vi.fn(async (v) => { if (state.fail) throw new Error('db down'); state.enabled = v; return v; }),
-  setContextOwnerMcp: vi.fn(async (v) => { if (state.fail) throw new Error('db down'); state.mcp = v; return v; }),
+  getRelativePolicy: vi.fn(async () => state.policy),
+  setRelativePolicy: vi.fn(async (p) => { if (state.fail) throw new Error('db down'); state.policy = p; return p; }),
 }));
 
-const { setContextOwnerAccess, setContextOwnerMcp } = await import('../auth/contextOwnerSetting.js');
+const { setRelativePolicy } = await import('../auth/contextOwnerSetting.js');
+const { legacyPolicy, relativeSubjects } = await import('../auth/relativePermissions.js');
 const { default: router } = await import('./contextOwnerAccess.js');
 
 const app = express();
 app.use(express.json());
 app.use('/api', router);
 
+const URL = '/api/admin/context-owner-access';
+const put = (body) => request(app).put(URL).send(body);
+
 beforeEach(() => {
-  Object.assign(state, { enabled: false, mcp: false, fail: false });
+  Object.assign(state, { policy: legacyPolicy(), fail: false });
   vi.clearAllMocks();
 });
 
 describe('GET /api/admin/context-owner-access', () => {
-  it('returns both switches', async () => {
-    state.mcp = true;
-    expect((await request(app).get('/api/admin/context-owner-access').expect(200)).body).toEqual({ enabled: false, mcp: true });
+  it('returns the grid rows and the policy in force', async () => {
+    state.policy = legacyPolicy({ access: true });
+    const { body } = await request(app).get(URL).expect(200);
+    expect(body.subjects).toEqual(relativeSubjects());
+    expect(body.subjects.map(s => s.subject)).toContain('BusinessRole');
+    expect(body.policy.OrganizationalUnit.Responsible).toEqual({ view: true, subUnits: true, mcp: false });
   });
 });
 
 describe('PUT /api/admin/context-owner-access', () => {
-  it('turns owner access on without touching the MCP switch', async () => {
-    const res = await request(app).put('/api/admin/context-owner-access').send({ enabled: true }).expect(200);
-    expect(res.body).toEqual({ enabled: true, mcp: false });
-    expect(setContextOwnerMcp).not.toHaveBeenCalled();
+  it('saves the grid normalized: what is left out is off, mcp without view is dropped', async () => {
+    const res = await put({ policy: {
+      OrganizationalUnit: { Accountable: { view: true, subUnits: true, mcp: true } },
+      LogicalApplication: { Responsible: { mcp: true } },
+      BusinessRole: { Responsible: { review: true } },
+    } }).expect(200);
+    const saved = setRelativePolicy.mock.calls[0][0];
+    expect(saved.OrganizationalUnit).toEqual({
+      Accountable: { view: true, subUnits: true, mcp: true },
+      Responsible: { view: false, subUnits: false, mcp: false },
+    });
+    expect(saved.LogicalApplication.Responsible).toEqual({ view: false, subUnits: false, mcp: false });
+    // review stands on its own — it does not need view
+    expect(saved.BusinessRole.Responsible).toEqual({ view: false, review: true });
+    expect(res.body.policy).toEqual(saved);
   });
 
-  it('turns the MCP switch on without touching owner access', async () => {
-    const res = await request(app).put('/api/admin/context-owner-access').send({ mcp: true }).expect(200);
-    expect(res.body).toEqual({ enabled: false, mcp: true });
-    expect(setContextOwnerAccess).not.toHaveBeenCalled();
-  });
-
-  it('saves both when both are sent', async () => {
-    const res = await request(app).put('/api/admin/context-owner-access').send({ enabled: true, mcp: true }).expect(200);
-    expect(res.body).toEqual({ enabled: true, mcp: true });
-  });
-
-  it.each([[{}], [{ enabled: 'true' }], [{ mcp: 1 }], [{ enabled: true, mcp: null }]])('refuses %j with 400 and writes nothing', async (body) => {
-    await request(app).put('/api/admin/context-owner-access').send(body).expect(400);
-    expect(setContextOwnerAccess).not.toHaveBeenCalled();
-    expect(setContextOwnerMcp).not.toHaveBeenCalled();
+  it.each([
+    [{}, 'policy must be an object'],
+    [{ policy: [] }, 'policy must be an object'],
+    [{ policy: { Tag: {} } }, 'unknown subject Tag'],
+    [{ policy: { OrganizationalUnit: { Owner: {} } } }, 'unknown role Owner for OrganizationalUnit'],
+    [{ policy: { OrganizationalUnit: { Accountable: { review: true } } } }, 'unknown capability review for OrganizationalUnit'],
+    [{ policy: { BusinessRole: { Accountable: { mcp: true } } } }, 'unknown capability mcp for BusinessRole'],
+    [{ policy: { OrganizationalUnit: { Accountable: { view: 'true' } } } }, 'OrganizationalUnit.Accountable.view must be a boolean'],
+    [{ policy: { OrganizationalUnit: { Accountable: null } } }, 'OrganizationalUnit.Accountable must be an object'],
+    [{ policy: { OrganizationalUnit: true } }, 'OrganizationalUnit must be an object'],
+  ])('refuses %j with 400 and saves nothing', async (body, error) => {
+    const res = await put(body).expect(400);
+    expect(res.body.error).toBe(error);
+    expect(setRelativePolicy).not.toHaveBeenCalled();
   });
 
   it('answers 500 when saving fails', async () => {
     state.fail = true;
-    const res = await request(app).put('/api/admin/context-owner-access').send({ mcp: true }).expect(500);
+    const res = await put({ policy: {} }).expect(500);
     expect(res.body.error).toBe('Failed to save the setting');
   });
 });

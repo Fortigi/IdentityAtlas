@@ -1,7 +1,7 @@
 // A context owner's view of Identity Atlas.
 //
 // Somebody who is Accountable or Responsible for a context — a department's
-// manager, an application's owner — signs in with their normal Microsoft
+// manager, an application's owner, a role portfolio's owner — signs in with their normal Microsoft
 // account and, with no Identity Atlas role of their own, lands here instead of
 // the app (AppRoot routes them; the Admin → Authentication switch lets them in).
 // See docs/architecture/context-owner-access.md.
@@ -16,13 +16,26 @@
 // open, and the workflows (the report download) kept — and in
 // ContextOwnerScopeContext, so a sub-unit or parent in scope opens in place and
 // each member can be expanded to its references (names only).
+//
+// Everything is organised by context. When they also answer for business roles
+// themselves (and that relative permission is on: /api/auth-me
+// contextOwner.businessRoles), those roles sit on the Role portfolios tab: inside
+// a portfolio they hold, as its members; otherwise under the name of the
+// portfolio they sit in, shown light like the units above a tree, or under
+// "Default portfolio" (contextOwner/ownerPortfolios.js). A role opens read-only
+// with its Composition review, where they may sign off
+// (businessRoles/OwnerRolePage.jsx). The page provides the feature flags itself
+// — it is not inside App.
 
 import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import { useTheme } from '@ui/hooks/useTheme';
 import { ThemeContext } from '@ui/contexts/ThemeContext';
 import { SharedViewContext } from '@ui/contexts/SharedViewContext';
-import { ContextOwnerScopeContext } from '@ui/contexts/ContextOwnerScopeContext';
+import { ContextOwnerScopeContext, OwnedBusinessRolesContext } from '@ui/contexts/ContextOwnerScopeContext';
+import { FeaturesContext } from '@ui/contexts/FeaturesContext';
+import useFeatures from '@ui/hooks/useFeatures';
+import OwnerRolePage from './businessRoles/OwnerRolePage';
 import ErrorBoundary from './ErrorBoundary';
 import Brand from './app/Brand';
 import { Avatar } from './DepartmentBadges';
@@ -31,22 +44,11 @@ import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { categoryMeta } from '@ui/utils/contextStyles';
 import OwnerExplorePane from './contextOwner/OwnerExplorePane';
 import OwnerTreePane from './contextOwner/OwnerTree';
-import { useOwnerTree } from './contextOwner/useOwnerTree';
+import { useOwnerTree, ownerPageTabs, ownerActiveTab, UNITS_TAB } from './contextOwner/useOwnerTree';
+import { PORTFOLIO_TAB, portfolioRoleGroups, firstGroupRole } from './contextOwner/ownerPortfolios';
+import RoleBadge from './contextOwner/RoleBadge';
 import TemplateTabs from './contexts/TemplateTabs';
 import { OWNER_OPENABLE } from './contextOwner/ownerOpenable';
-
-const ROLE_BADGE = {
-  Accountable: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700',
-  Responsible: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600',
-};
-
-function RoleBadge({ role }) {
-  return (
-    <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${ROLE_BADGE[role] || ROLE_BADGE.Responsible}`}>
-      {role}
-    </span>
-  );
-}
 
 // The signed-in owner, as the app's own header shows them (SettingsMenu): their
 // profile photo when /api/auth-me matched them to an account that has one, else
@@ -89,8 +91,8 @@ function KindIcon({ category }) {
 
 function ContextList({ contexts, selectedId, onSelect }) {
   return (
-    <nav aria-label="Your contexts" className="w-64 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 overflow-y-auto">
-      <h2 className="px-2 mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your contexts</h2>
+    <nav aria-label="What you answer for" className="w-64 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 overflow-y-auto">
+      <h2 className="px-2 mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">What you answer for</h2>
       <ul className="space-y-1">
         {contexts.map(c => (
           <li key={c.id}>
@@ -111,6 +113,38 @@ function ContextList({ contexts, selectedId, onSelect }) {
   );
 }
 
+// The navigation beside the page: the tree (with, on Role portfolios, the roles
+// filed under portfolios they do not hold), the roles alone while the tree cannot
+// load, or a slim list of their contexts.
+function OwnerNav({ tree, contexts, selectedId, onSelect, roleGroups, roleId, onSelectRole }) {
+  if (tree.ready || roleGroups.length) {
+    return <OwnerTreePane nodes={tree.ready ? tree.nodes : []} selectedId={selectedId} onSelect={onSelect}
+      roleGroups={roleGroups} selectedRoleId={roleId} onSelectRole={onSelectRole} />;
+  }
+  return contexts.length > 1 ? <ContextList contexts={contexts} selectedId={selectedId} onSelect={onSelect} /> : null;
+}
+
+// What the main pane shows: what they opened on top, else the role or the
+// context they picked.
+function OwnerMain({ current, backLabel, onBack, onOpenDetail, roleId, selectedId, treeBeside }) {
+  return (
+    <main className="flex-1 min-w-0 overflow-y-auto p-6">
+      {current && <OwnerExplorePane item={current} backLabel={backLabel} onBack={onBack} onOpenDetail={onOpenDetail} />}
+      {!current && roleId && <OwnerRolePage roleId={roleId} onOpenDetail={onOpenDetail} />}
+      {!current && !roleId && selectedId && (
+        <ContextDetailPage key={selectedId} contextId={selectedId} embedded treeBeside={treeBeside} onOpenDetail={onOpenDetail} />
+      )}
+    </main>
+  );
+}
+
+// "Back to …": the page below the one on top.
+function backLabelOf(opened, role, contexts, selectedId) {
+  if (opened.length > 1) return opened[opened.length - 2].name;
+  if (role) return role.displayName || 'the business role';
+  return contexts.find(c => c.id === selectedId)?.displayName || 'your unit';
+}
+
 function firstContext(contexts) {
   return contexts.find(c => c.contextCategory === 'OrganizationalUnit') || contexts[0];
 }
@@ -119,6 +153,9 @@ export default function ContextOwnerPage() {
   const { contextOwner, account, me, logout } = useAuth();
   const { isDark, mode } = useTheme();
   const contexts = useMemo(() => contextOwner?.contexts || [], [contextOwner]);
+  const businessRoles = useMemo(() => contextOwner?.businessRoles || [], [contextOwner]);
+  const ownedRoles = useMemo(() => new Set(businessRoles.map(r => String(r.id).toLowerCase())), [businessRoles]);
+  const features = useFeatures();
   // The scope the API enforces: the held contexts, their own sub-units and their variants.
   const scope = useMemo(
     () => new Set([...(contextOwner?.contextIds || []), ...contexts.map(c => c.id)].map(id => String(id).toLowerCase())),
@@ -129,8 +166,14 @@ export default function ContextOwnerPage() {
   // What the owner opened from the unit, newest last: the team matrix, a team
   // member's page, a page of something the team holds. Back pops one.
   const [opened, setOpened] = useState([]);
-  const selectContext = useCallback((id) => { setSelectedIdState(id); setOpened([]); }, []);
-  const tree = useOwnerTree(selectedId, selectContext);
+  // The business role they picked on Role portfolios, instead of a context.
+  // Someone who answers only for business roles opens on their first one.
+  const [role, setRole] = useState(() => (contexts.length ? null : firstGroupRole(portfolioRoleGroups(businessRoles, scope))));
+  const selectContext = useCallback((id) => { setSelectedIdState(id); setRole(null); setOpened([]); }, []);
+  const selectRole = useCallback((r) => { setRole(r); setSelectedIdState(null); setOpened([]); }, []);
+  const roleGroups = useMemo(() => portfolioRoleGroups(businessRoles, scope), [businessRoles, scope]);
+  const tree = useOwnerTree(selectedId, selectContext, { roleGroups, onSelectRole: selectRole });
+  const pickRole = (r) => { tree.chooseTab(PORTFOLIO_TAB); selectRole(r); };
 
   // The pages ask to open things. Another context in scope (a variant of this
   // unit, a sub-unit, a parent) opens in place; the team matrix and an object's
@@ -145,31 +188,40 @@ export default function ContextOwnerPage() {
   }, [scope, selectContext]);
   const back = useCallback(() => setOpened(prev => prev.slice(0, -1)), []);
   const current = opened[opened.length - 1] || null;
-  const backLabel = opened.length > 1 ? opened[opened.length - 2].name : (contexts.find(c => c.id === selectedId)?.displayName || 'your unit');
+  const backLabel = backLabelOf(opened, role, contexts, selectedId);
+  const tabs = ownerPageTabs(tree, roleGroups.length > 0, contexts.length > 0);
+  const active = ownerActiveTab(tree, !!role);
+  // Only the portfolio tab lists the roles filed under portfolios they do not hold.
+  const shownGroups = active === PORTFOLIO_TAB ? roleGroups : [];
+  const switchTab = (key) => {
+    if (key === active) return;
+    if (key === UNITS_TAB) selectContext(firstContext(contexts)?.id ?? null);
+    else if (!tree.ready) { const first = firstGroupRole(roleGroups); if (first) selectRole(first); }
+    else tree.openTab(key);
+  };
 
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
+      <FeaturesContext.Provider value={features}>
       <SharedViewContext.Provider value={true}>
         <ContextOwnerScopeContext.Provider value={scope}>
+        <OwnedBusinessRolesContext.Provider value={ownedRoles}>
           <ErrorBoundary>
             <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
               <OwnerHeader isDark={isDark} userName={account?.name || account?.username} photo={me?.photo} onSignOut={logout} />
-              {tree.ready && <div className="bg-white dark:bg-gray-800"><TemplateTabs tabs={tree.tabs} active={tree.active} onChange={tree.openTab} /></div>}
+              {tabs.length > 0 && <div className="bg-white dark:bg-gray-800"><TemplateTabs tabs={tabs} active={active} onChange={switchTab} /></div>}
               <div className="flex-1 min-h-0 flex">
-                {tree.ready
-                  ? <OwnerTreePane nodes={tree.nodes} selectedId={selectedId} onSelect={selectContext} />
-                  : contexts.length > 1 && <ContextList contexts={contexts} selectedId={selectedId} onSelect={selectContext} />}
-                <main className="flex-1 min-w-0 overflow-y-auto p-6">
-                  {current && <OwnerExplorePane item={current} backLabel={backLabel} onBack={back} onOpenDetail={openDetail} />}
-                  {selectedId && !current && (
-                    <ContextDetailPage key={selectedId} contextId={selectedId} embedded treeBeside={tree.ready || tree.pending} onOpenDetail={openDetail} />
-                  )}
-                </main>
+                <OwnerNav tree={tree} contexts={contexts} selectedId={selectedId} onSelect={selectContext}
+                  roleGroups={shownGroups} roleId={role?.id ?? null} onSelectRole={pickRole} />
+                <OwnerMain current={current} backLabel={backLabel} onBack={back} onOpenDetail={openDetail}
+                  roleId={role?.id ?? null} selectedId={selectedId} treeBeside={tree.ready || tree.pending} />
               </div>
             </div>
           </ErrorBoundary>
+        </OwnedBusinessRolesContext.Provider>
         </ContextOwnerScopeContext.Provider>
       </SharedViewContext.Provider>
+      </FeaturesContext.Provider>
     </ThemeContext.Provider>
   );
 }

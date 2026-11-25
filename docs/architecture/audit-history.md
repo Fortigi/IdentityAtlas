@@ -31,7 +31,6 @@ A generic PostgreSQL trigger function (`fg_record_history`) fires on INSERT, UPD
 | `ResourceRelationships` | Yes | composite `parentResourceId\|childResourceId\|relationshipType` |
 | `IdentityMembers` | Yes | composite `identityId\|principalId` |
 | `AssignmentPolicies` | Yes | surrogate `id` |
-| `GovernanceCatalogs` | Yes | surrogate `id` |
 | `Systems` | Yes | surrogate `id` |
 | `PrincipalActivity` | **No** — upsert-based; daily sign-in timestamps would generate excessive audit noise |
 | `RiskScores` | **No** — recalculated on each scoring run |

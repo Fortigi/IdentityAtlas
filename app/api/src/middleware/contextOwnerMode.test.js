@@ -6,9 +6,11 @@
 // and AUTH_REQUIRED_ROLES), who is an owner of what (auth/contextOwner.js —
 // its SQL is the contract test's job), and the database.
 //
-// The switch itself is the real auth/contextOwnerSetting.js, flipped through
-// the real admin route — so "an admin turns it on, an owner is then scoped" is
-// one path, not two halves tested apart.
+// The relative-permission grid is the real auth/contextOwnerSetting.js, saved
+// through the real admin route — so "an admin turns it on, an owner is then
+// scoped" is one path, not two halves tested apart. (Which contexts a given
+// grid admits is auth/contextOwner.js, mocked here: contextOwner.test.js and
+// the contract test cover it.)
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'node:crypto';
@@ -49,6 +51,7 @@ vi.mock('../contexts/memberReferences.js', () => ({
 vi.mock('../db/connection.js');
 const { query, queryOne } = await import('../db/connection.js');
 const { resetContextOwnerSettingForTests } = await import('../auth/contextOwnerSetting.js');
+const { legacyPolicy, rolesAllowing } = await import('../auth/relativePermissions.js');
 const { CONTEXT_OWNER_DENIED } = await import('../auth/contextOwnerScope.js');
 const { NO_ROLE_CODE } = await import('./auth.js');
 const { sweepRoutes, PUBLIC_ROUTES, NEVER_DATA, OWN_AUTH } = await import('../../test-utils/routeSweep.js');
@@ -72,6 +75,7 @@ const OTHER = 'aaaaaaaa-0000-4000-8000-000000000003';
 const OWNER = {
   contexts: [{ id: MINE, displayName: 'Finance', role: 'Responsible', contextCategory: 'OrganizationalUnit', targetType: 'Identity' }],
   contextIds: new Set([MINE, VARIANT]),
+  businessRoles: [],
 };
 
 const token = (roles = [], oid = OWNER_OID) => jwt.sign(
@@ -81,7 +85,10 @@ const token = (roles = [], oid = OWNER_OID) => jwt.sign(
 const as = (roles, oid) => ({ Authorization: `Bearer ${token(roles, oid)}` });
 const ownerGet = (path) => request(app).get(path).set(as([]));
 const admin = as(['Admin'], '33333333-3333-4333-8333-333333333333');
-const setSwitch = (enabled) => request(app).put('/api/admin/context-owner-access').set(admin).send({ enabled });
+// The grid as the old switches stood for it (relativePermissions.js legacyPolicy).
+const saveGrid = (switches) => request(app).put('/api/admin/context-owner-access').set(admin).send({ policy: legacyPolicy(switches) });
+const setSwitch = (enabled) => saveGrid({ access: enabled });
+const policyOf = async () => (await request(app).get('/api/admin/context-owner-access').set(admin)).body.policy;
 
 const denied = (res) => res.status === 403 && res.body?.error === CONTEXT_OWNER_DENIED;
 const noRole = (res) => res.status === 403 && res.body?.code === NO_ROLE_CODE;
@@ -110,30 +117,30 @@ beforeEach(async () => {
 
 describe('the admin switch', () => {
   it('is off by default, and an admin can turn it on and read it back', async () => {
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false });
+    expect(await policyOf()).toEqual(legacyPolicy());
     const put = await setSwitch(true);
     expect(put.status).toBe(200);
-    expect(put.body).toEqual({ enabled: true, mcp: false });
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: true, mcp: false });
+    expect(put.body.policy).toEqual(legacyPolicy({ access: true }));
+    expect(await policyOf()).toEqual(legacyPolicy({ access: true }));
   });
 
   it('needs admin.auth — a data.read user cannot read or change it', async () => {
     const reader = as(['Reader'], '44444444-4444-4444-8444-444444444444');
     expect((await request(app).get('/api/admin/context-owner-access').set(reader)).status).toBe(403);
-    expect((await request(app).put('/api/admin/context-owner-access').set(reader).send({ enabled: true })).status).toBe(403);
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false });
+    expect((await request(app).put('/api/admin/context-owner-access').set(reader).send({ policy: legacyPolicy({ access: true }) })).status).toBe(403);
+    expect(await policyOf()).toEqual(legacyPolicy());
   });
 
   it('refuses a value that is not a boolean', async () => {
-    const res = await request(app).put('/api/admin/context-owner-access').set(admin).send({ enabled: 'true' });
+    const res = await request(app).put('/api/admin/context-owner-access').set(admin).send({ policy: { OrganizationalUnit: { Accountable: { view: 'true' } } } });
     expect(res.status).toBe(400);
-    expect((await request(app).get('/api/admin/context-owner-access').set(admin)).body).toEqual({ enabled: false, mcp: false });
+    expect(await policyOf()).toEqual(legacyPolicy());
   });
 
   it('a context owner cannot reach it either (it is not on their list)', async () => {
     await setSwitch(true);
     expect(denied(await ownerGet('/api/admin/context-owner-access'))).toBe(true);
-    expect(denied(await request(app).put('/api/admin/context-owner-access').set(as([])).send({ enabled: false }))).toBe(true);
+    expect(denied(await request(app).put('/api/admin/context-owner-access').set(as([])).send({ policy: {} }))).toBe(true);
   });
 });
 
@@ -198,7 +205,7 @@ describe('switch on — a context owner', () => {
   it('auth-me lists their contexts, the scope including variants, and no permissions', async () => {
     const res = await ownerGet('/api/auth-me');
     expect(res.status).toBe(200);
-    expect(res.body.contextOwner).toEqual({ contexts: OWNER.contexts, contextIds: [MINE, VARIANT] });
+    expect(res.body.contextOwner).toEqual({ contexts: OWNER.contexts, contextIds: [MINE, VARIANT], businessRoles: [] });
     expect(res.body.permissions).toEqual([]);
     expect(res.body.hasWildcard).toBe(false);
   });
@@ -549,5 +556,90 @@ describe('whole-app sweep — who reaches what without a role', () => {
       refused: refusedAs((res) => res.status === 403 || res.status === 404),
     });
     expect(leaked).toEqual([]);
+  });
+});
+
+describe('the business roles a context owner answers for', () => {
+  const ROLE = 'bbbbbbbb-0000-4000-8000-000000000001';
+  const NOT_MINE = 'bbbbbbbb-0000-4000-8000-000000000002';
+  const OWNED_ROLE = { id: ROLE, displayName: 'Finance controller', role: 'Accountable' };
+  const reviews = (id) => `/api/access-package/${id}/composition-reviews`;
+  const ownerPost = (path) => request(app).post(path).set(as([])).send({ signedOff: true });
+  // The old switches, one change at a time, saved as the grid they stand for.
+  let current;
+  const switches = ({ enabled, ...rest }) => {
+    current = { ...current, ...(enabled === undefined ? {} : { access: enabled }), ...rest };
+    return saveGrid(current);
+  };
+  // As auth/contextOwner.js does: the role they hold as Accountable counts where
+  // the grid's business-role row for Accountable gives view.
+  const heldRoles = (policy) => (rolesAllowing(policy, 'BusinessRole', 'view').includes('Accountable') ? [OWNED_ROLE] : []);
+  const me = { principal: { id: OWNER_OID }, identity: null };
+
+  beforeEach(async () => {
+    current = {};
+    owners.resolveContextOwner = vi.fn(async (user, { policy }) => (user.oid === OWNER_OID ? { ...OWNER, businessRoles: heldRoles(policy), me } : null));
+    query.mockImplementation(async (sql) => (/FROM "BusinessRoleOwners" o/.test(sql) ? { rows: [OWNED_ROLE] } : { rows: [], rowCount: 0 }));
+    await switches({ enabled: true });
+  });
+
+  it('are not loaded, and their reviews stay closed, while the switch is off', async () => {
+    expect((await ownerGet('/api/auth-me')).body.contextOwner.businessRoles).toEqual([]);
+    expect(denied(await ownerGet(reviews(ROLE)))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => /FROM "BusinessRoleOwners" o/.test(sql))).toBe(false);
+  });
+
+  it('are listed in auth-me once the switch is on, and only then', async () => {
+    await switches({ businessRoles: true });
+    expect((await ownerGet('/api/auth-me')).body.contextOwner.businessRoles).toEqual([OWNED_ROLE]);
+  });
+
+  it('do nothing while context-owner access itself is off', async () => {
+    await switches({ businessRoles: true, enabled: false });
+    expect(noRole(await ownerGet(reviews(ROLE)))).toBe(true);
+  });
+
+  it('let in someone who answers only for business roles, once their row gives view', async () => {
+    owners.resolveContextOwner = vi.fn(async (user, { policy }) => {
+      const roles = heldRoles(policy);
+      return user.oid === OWNER_OID && roles.length > 0 ? { contexts: [], contextIds: new Set(), businessRoles: roles, me } : null;
+    });
+    // contexts only: they answer for none, so they are just a caller without a role
+    expect(noRole(await ownerGet(reviews(ROLE)))).toBe(true);
+    await request(app).put('/api/admin/context-owner-access').set(admin)
+      .send({ policy: { BusinessRole: { Accountable: { view: true } } } }).expect(200);
+    expect((await ownerGet('/api/auth-me')).body.contextOwner).toEqual({ contexts: [], contextIds: [], businessRoles: [OWNED_ROLE] });
+    expect(denied(await ownerGet(reviews(ROLE)))).toBe(false);
+    expect(denied(await ownerGet('/api/contexts/' + MINE))).toBe(true);
+  });
+
+  it('save a composition review only where the grid gives their role review', async () => {
+    await switches({ businessRoles: true });
+    expect((await ownerPost(reviews(ROLE))).status).toBe(403);
+    await switches({ ownerReview: true });
+    expect((await ownerPost(reviews(ROLE))).status).not.toBe(403);
+  });
+
+  describe('with the switch on', () => {
+    beforeEach(async () => { await switches({ businessRoles: true }); });
+
+    it('open the role\'s page and its composition review — read and save — for a role they answer for', async () => {
+      expect(denied(await ownerGet(`/api/access-package/${ROLE}`))).toBe(false);
+      expect(denied(await ownerGet(`/api/access-package/${ROLE}/resource-roles`))).toBe(false);
+      expect(denied(await ownerGet(reviews(ROLE)))).toBe(false);
+      expect(denied(await ownerPost(reviews(ROLE)))).toBe(false);
+    });
+
+    it('keep every other role closed: its page, its reviews, and saving one', async () => {
+      expect(denied(await ownerGet(`/api/access-package/${NOT_MINE}`))).toBe(true);
+      expect(denied(await ownerGet(reviews(NOT_MINE)))).toBe(true);
+      expect(denied(await ownerPost(reviews(NOT_MINE)))).toBe(true);
+    });
+
+    it('allow no other write on a role they answer for', async () => {
+      const put = await request(app).put(`/api/access-package/${ROLE}/owners`).set(as([])).send({ role: 'Responsible', principalId: OWNER_OID });
+      expect(denied(put)).toBe(true);
+      expect(denied(await request(app).delete(reviews(ROLE)).set(as([])))).toBe(true);
+    });
   });
 });

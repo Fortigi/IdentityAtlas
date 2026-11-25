@@ -81,7 +81,7 @@ Business role → resource mappings used to build the business-role columns in t
 }
 ```
 
-**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs`
+**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`)
 
 ---
 

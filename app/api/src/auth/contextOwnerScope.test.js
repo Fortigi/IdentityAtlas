@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ALLOW, DENY, CONTEXT_OWNER_DENIED, REPORT_EXPORT_PATH, UNIT_REPORT_EXPORT_PATH, SHELL_PATHS,
   contextOwnerVerdict, reportExportVerdict, requestedContexts, memberReferencesVerdict,
+  ownedRoleVerdict,
 } from './contextOwnerScope.js';
 
 const MINE = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -284,4 +285,27 @@ describe('requestedContexts', () => {
 
 it('the refusal text names the rule', () => {
   expect(CONTEXT_OWNER_DENIED).toBe('Context owners can only open their own context');
+});
+
+describe('a business role\'s composition reviews', () => {
+  const ROLE = 'dddddddd-0000-4000-8000-000000000001';
+  const path = `/api/access-package/${ROLE}/composition-reviews`;
+  const verdict = (method, p = path) => contextOwnerVerdict({ method, path: p, query: {} }, scope);
+
+  it('hands reading and saving to the caller, for the role in the path', () => {
+    expect(verdict('GET')).toEqual({ allow: false, ownedRole: ROLE });
+    expect(verdict('POST')).toEqual({ allow: false, ownedRole: ROLE });
+  });
+
+  it('denies every other method, and every other shape of the path', () => {
+    expect(verdict('PUT')).toBe(DENY);
+    expect(verdict('DELETE')).toBe(DENY);
+    expect(verdict('POST', `${path}/`)).toBe(DENY);
+    expect(verdict('POST', `/api/access-package/${ROLE}/owners`)).toBe(DENY);
+    expect(verdict('POST', '/api/access-package/not-a-uuid/composition-reviews')).toBe(DENY);
+  });
+
+  it('ownedRoleVerdict is null for any other path', () => {
+    expect(ownedRoleVerdict('GET', `/api/access-package/${ROLE}`)).toBeNull();
+  });
 });

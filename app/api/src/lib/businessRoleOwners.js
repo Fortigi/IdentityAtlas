@@ -7,6 +7,7 @@
 //   sync     replaces an earlier sync Accountable, so a changed source owner follows
 
 import * as db from '../db/connection.js';
+import { catalogJoinSql } from './businessRoleCatalog.js';
 
 export const OWNER_ROLES = Object.freeze(['Accountable', 'Responsible']);
 export const OWNER_SOURCES = Object.freeze(['sync', 'import', 'analyst']);
@@ -78,4 +79,47 @@ export async function removeBusinessRoleOwner(resourceId, ownerId) {
 export async function isBusinessRole(resourceId) {
   const row = await db.queryOne(`SELECT id FROM "Resources" WHERE id = $1 AND "resourceType" = 'BusinessRole'`, [resourceId]);
   return !!row;
+}
+
+// The business roles a person answers for, through any of their accounts: a row
+// counts when it names their account, their person (Identity), or another account
+// linked to that person — the same reach as a context's roles
+// (auth/contextOwner.js findHeldContexts). Only rows whose role is in $3 count
+// (the relative-permission policy decides which: auth/relativePermissions.js).
+// Somebody both Accountable and Responsible for one role is listed once, as the
+// stronger of the roles that count. Each row names the role portfolio (Catalog
+// context) the role sits in — portfolioId and portfolioName, both null when it
+// sits in none — so the owner's page can file the role under it.
+export const OWNED_ROLES_SQL = `
+    SELECT DISTINCT ON (r.id) r.id, r."displayName", o.role,
+           pf.id AS "portfolioId", pf."displayName" AS "portfolioName"
+      FROM "BusinessRoleOwners" o
+      JOIN "Resources" r ON r.id = o."resourceId" AND r."resourceType" = 'BusinessRole' AND r."deletedAt" IS NULL
+      ${catalogJoinSql('r.id', 'pf')}
+     WHERE o.role = ANY($3::text[])
+       AND (o."principalId" = $1::uuid
+        OR ($2::uuid IS NOT NULL AND (
+              o."identityId" = $2::uuid
+           OR o."principalId" IN (SELECT m."principalId" FROM "IdentityMembers" m WHERE m."identityId" = $2::uuid))))
+     ORDER BY r.id, (o.role = 'Accountable') DESC`;
+
+const BOTH_ROLES = ['Accountable', 'Responsible'];
+
+const byName = (a, b) => String(a.displayName ?? '').localeCompare(String(b.displayName ?? '')) || String(a.id).localeCompare(String(b.id));
+
+/**
+ * The roles the person behind `me` (auth/resolveMe.js) answers for as one of
+ * `roles` (default: Accountable or Responsible), by name. Empty for nobody.
+ */
+export async function findOwnedBusinessRoles(me, roles = BOTH_ROLES) {
+  const principalId = me?.principal?.id;
+  if (!principalId || roles.length === 0) return [];
+  const r = await db.query(OWNED_ROLES_SQL, [principalId, me.identity?.id ?? null, roles]);
+  return r.rows.sort(byName);
+}
+
+/** Does the person behind `me` answer for this role as one of `roles` (default: either)? */
+export async function answersForBusinessRole(me, roleId, roles = BOTH_ROLES) {
+  const want = String(roleId).toLowerCase();
+  return (await findOwnedBusinessRoles(me, roles)).some(r => String(r.id).toLowerCase() === want);
 }

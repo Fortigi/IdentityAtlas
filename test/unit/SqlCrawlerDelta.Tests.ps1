@@ -402,6 +402,16 @@ Describe 'Invoke-SqlSlot with a watermark' {
         @($state.Scopes)[0].Complete | Should -BeFalse
     }
 
+    # #1691's fix registers a complete zero-row statement's scope. A WINDOW that
+    # returned nothing only says nothing changed since the mark — reconciling it
+    # would empty the scope.
+    It 'registers no scope at all for a windowed statement that returned no rows' {
+        $script:rowsToReplay = @()
+        $state = New-DeltaState -Slots @((New-DeltaSlot)) -SyncMode 'delta'
+        (Invoke-SqlSlot -Slot (New-DeltaSlot) -Connection 'conn' -State $state).complete | Should -BeFalse
+        @($state.Scopes) | Should -HaveCount 0
+    }
+
     It 'binds nothing at all for a statement that reads in full, and its scope stays reconcilable' {
         $slot = Resolve-SqlQuerySlot -Slot @{ name = 'Roles'; target = 'resources'; resourceType = 'BusinessRole'; sql = 'SELECT id, displayName FROM r' }
         $script:rowsToReplay = @((New-TestRow @{ id = 'r1'; displayName = 'Role 1' }))

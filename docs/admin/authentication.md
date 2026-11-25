@@ -107,24 +107,52 @@ permission, so you can't accidentally revoke your own ability to manage roles.
     the tenant may be able to sign in, and still sees no data without a role.
     To let people read, assign them a role, for example **Servicedesk**.
 
-### Relative permissions: letting context owners in
+### Relative permissions: letting owners in
 
 The same **Admin → Roles & Permissions** tab has a second section below the
-role table, **Relative permissions**. It groups the access people get because of
-how they relate to the data, rather than a role in that table. It is always read-only and limited to the data they relate
-to. There are two kinds today:
+role table, **Relative permissions**: the access people get because they are
+**Accountable** or **Responsible** for something, rather than a role in that
+table. It is always read-only and limited to what they answer for.
 
-- **Context owners** — one checkbox. It lets the people who are **Accountable**
-  or **Responsible** for a context sign in without an Identity Atlas role. They
-  land directly on their own context page — read-only, with its report
-  download — and can also open all its sub-units at any depth (also those with
-  an owner of their own; that owner sees only their own part), a team or
+It is one grid. Each kind of thing people answer for has a row for
+Accountable and one for Responsible:
+
+| Row | Sign in & view | Sub-units | MCP | Composition review |
+|---|---|---|---|---|
+| Organisation | ✓ | ✓ | ✓ | – |
+| Applications | ✓ | ✓ | ✓ | – |
+| Role portfolios | ✓ | ✓ | ✓ | – |
+| Business roles | ✓ | – | – | ✓ |
+
+- **Sign in & view** — they can sign in without an Identity Atlas role and land
+  on their own page, read-only: the units, applications, portfolios and
+  business roles that row admits, with a unit's report download, a team or
   application matrix, the pages of the people in it and of what they hold, and
-  for each member the *names* of what that member holds and which other contexts
-  it is in. Every other screen and endpoint stays
-  closed to them, even if you have set `AUTH_REQUIRED_ROLES`. People who do
-  hold a role are not affected. It is off by default and takes effect without a
-  restart.
+  for each member the *names* of what that member holds and which other units
+  it is in. Every other screen and endpoint stays closed to them, even if you
+  have set `AUTH_REQUIRED_ROLES`.
+- **Sub-units** — also every sub-unit below it, at any depth (also those with
+  an owner of their own; that owner sees only their own part). Without it they
+  see only the unit itself.
+- **MCP** — they may also ask about the same things from an AI assistant
+  through the [MCP server](../reference/mcp-server.md#context-owners).
+- **Composition review** — they may sign off a
+  [composition review](../concepts/governance-model.md#reviewing-what-a-business-role-contains)
+  of a business role they answer for, without the Certification decisions
+  permission. This one does not need **Sign in & view**: it also applies to
+  people who sign in with an ordinary role.
+
+So you can, for example, let only the Accountable of an organisation unit in,
+with its sub-units, while a Responsible sees nothing; or let application
+owners in without MCP. **Sub-units** and **MCP** can only be ticked where
+**Sign in & view** is on in that row. MCP and Composition review also need
+their feature switched on under **Admin → Experimental**. People who hold a
+role are not affected. Everything is off by default and a change takes effect
+without a restart.
+
+Upgrading keeps what you had: until the grid is first saved it shows what the
+earlier on/off switches gave — Accountable and Responsible alike, every row.
+
 Matrix-share recipients are **not** a relative permission: someone a matrix is
 shared with needs a role, such as Servicedesk, to open it (see
 [Sharing a matrix](../ui/sharing-a-matrix.md)).

@@ -34,10 +34,29 @@ BeforeAll {
 
 Describe 'Get-EntraDeltaSelect' {
 
-    It 'drops signInActivity from the real user select and keeps every other property, in order' {
+    It 'drops signInActivity from the real user select, keeps every other property in order, and adds manager last' {
         # The whole point of the change: the primed token must track the same
-        # attributes the full sync reads, minus the one delta cannot serve.
-        Get-EntraDeltaSelect -Select $script:UserSelect | Should -Be 'id,displayName,mail,userPrincipalName,accountEnabled,givenName,surname,department,jobTitle,companyName,employeeId,createdDateTime,userType,externalUserState,onPremisesDistinguishedName'
+        # attributes the full sync reads, minus the one delta cannot serve, plus
+        # the manager relationship (#1627).
+        Get-EntraDeltaSelect -Select $script:UserSelect | Should -Be 'id,displayName,mail,userPrincipalName,accountEnabled,givenName,surname,department,jobTitle,companyName,employeeId,createdDateTime,userType,externalUserState,onPremisesDistinguishedName,manager'
+    }
+
+    It 'adds manager to the primed user delta select so the token tracks manager changes (#1627)' {
+        # manager is an $expand on the full fetch, so it is NEVER in the input select —
+        # the builder must ADD it, not merely fail to drop it. A token primed
+        # without it never reports a manager-only change at all.
+        $kept = (Get-EntraDeltaSelect -Select $script:UserSelect) -split ','
+        $kept | Should -Contain 'manager'
+        $kept | Should -Not -Contain 'signInActivity'
+    }
+
+    It 'does not add manager a second time when the select already names it' {
+        Get-EntraDeltaSelect -Select 'id,manager,displayName' | Should -Be 'id,manager,displayName'
+    }
+
+    It 'adds exactly the -Required set, in order, and nothing when it is empty' {
+        Get-EntraDeltaSelect -Select 'id,displayName' -Required @('manager', 'sponsors') | Should -Be 'id,displayName,manager,sponsors'
+        Get-EntraDeltaSelect -Select 'id,displayName' -Required @() | Should -Be 'id,displayName'
     }
 
     It 'keeps the properties that follow the dropped one' {
@@ -48,54 +67,57 @@ Describe 'Get-EntraDeltaSelect' {
         $kept | Should -Contain 'externalUserState'
         $kept | Should -Contain 'onPremisesDistinguishedName'
         $kept | Should -Not -Contain 'signInActivity'
-        $kept.Count | Should -Be 15
+        $kept.Count | Should -Be 16
     }
 
     It 'returns the service-principal select unchanged when nothing is unsupported' {
-        # SPs pass -Unsupported @(): every selected property is delta-tracked,
-        # so a builder that dropped something unconditionally fails here.
-        Get-EntraDeltaSelect -Select $script:SpSelect -Unsupported @() | Should -Be $script:SpSelect
+        # SPs pass -Unsupported @() -Required @(): every selected property is
+        # delta-tracked and an SP has no manager, so a builder that dropped or
+        # added something unconditionally fails here.
+        Get-EntraDeltaSelect -Select $script:SpSelect -Unsupported @() -Required @() | Should -Be $script:SpSelect
     }
 
     It 'still drops the default unsupported set from the SP select when no override is passed' {
         # Pins that -Unsupported is what decides, not the shape of the input:
         # the same string with signInActivity appended loses it under the default.
-        Get-EntraDeltaSelect -Select "$($script:SpSelect),signInActivity" |
+        Get-EntraDeltaSelect -Select "$($script:SpSelect),signInActivity" -Required @() |
             Should -Be $script:SpSelect
     }
 
     It 'trims surrounding whitespace on each property' {
-        Get-EntraDeltaSelect -Select 'id, displayName , department' |
+        Get-EntraDeltaSelect -Select 'id, displayName , department' -Required @() |
             Should -Be 'id,displayName,department'
     }
 
     It 'drops empty segments left by a trailing or doubled comma' {
         # A ",," would otherwise prime with an empty property name and make
         # Graph reject the whole call.
-        Get-EntraDeltaSelect -Select 'id,,displayName,' | Should -Be 'id,displayName'
+        Get-EntraDeltaSelect -Select 'id,,displayName,' -Required @() | Should -Be 'id,displayName'
     }
 
     It 'preserves duplicates rather than silently rewriting the caller''s select' {
-        Get-EntraDeltaSelect -Select 'id,displayName,id' | Should -Be 'id,displayName,id'
+        Get-EntraDeltaSelect -Select 'id,displayName,id' -Required @() | Should -Be 'id,displayName,id'
     }
 
     It 'falls back to id when the select is empty, whitespace or missing' {
         # Graph returns its default property set for a select-less delta query;
         # `id` is the minimum that still identifies a changed object.
-        Get-EntraDeltaSelect -Select '' | Should -Be 'id'
-        Get-EntraDeltaSelect -Select '   ' | Should -Be 'id'
-        Get-EntraDeltaSelect | Should -Be 'id'
+        Get-EntraDeltaSelect -Select '' -Required @() | Should -Be 'id'
+        Get-EntraDeltaSelect -Select '   ' -Required @() | Should -Be 'id'
+        Get-EntraDeltaSelect -Required @() | Should -Be 'id'
+        # The required additions still apply on top of the fallback.
+        Get-EntraDeltaSelect -Select '' | Should -Be 'id,manager'
     }
 
     It 'falls back to id when every selected property is unsupported' {
-        Get-EntraDeltaSelect -Select 'signInActivity' | Should -Be 'id'
-        Get-EntraDeltaSelect -Select 'a,b' -Unsupported @('a', 'b') | Should -Be 'id'
+        Get-EntraDeltaSelect -Select 'signInActivity' -Required @() | Should -Be 'id'
+        Get-EntraDeltaSelect -Select 'a,b' -Unsupported @('a', 'b') -Required @() | Should -Be 'id'
     }
 
     It 'drops only exact property-name matches, not substrings' {
         # `signInActivity` must not take `signInActivityExtended` with it, and a
         # prefix match must not strip an unrelated property.
-        Get-EntraDeltaSelect -Select 'id,signInActivityExtended,lastSignIn' |
+        Get-EntraDeltaSelect -Select 'id,signInActivityExtended,lastSignIn' -Required @() |
             Should -Be 'id,signInActivityExtended,lastSignIn'
     }
 }
