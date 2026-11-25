@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- CSV Import: a source export no longer has to be converted to the Identity Atlas schema first. Pick **Custom mapping** as the source format in the wizard, upload the files as they are, and map each file's columns onto the schema per field. The mapping is stored with the crawler and applied on every run — the uploaded files are never rewritten.
+- The column dropdowns are pre-filled by exact column-name match and are fully overridable; required schema fields are marked, and a file that still doesn't supply one is flagged in the wizard rather than failing later in the job.
+- Each uploaded file's delimiter is now detected (comma, semicolon or tab) and shown per file, with a per-file override. The crawler-level delimiter remains the fallback, so existing crawlers are unaffected.
+- A mapped column can be split on a separator: a memberships cell holding `user1;user2;user3` becomes three assignments.
+- Columns you leave unmapped are still kept as extended attributes under their source names; for Assignments, Identity Members and Context Members they are named in the job log, as before.
+- Fixed: choosing **Tab** as the CSV delimiter stored a value no CSV reader could use, so a Tab-delimited import always failed. Existing Tab-configured crawlers now work without being re-saved.
+- Files already in the Identity Atlas schema load exactly as they did before — mapping is bypassed entirely.
+
+## Changes in this PR
+
 - Fixed Omada full syncs keeping accounts of a type (external user, service account) live forever after the last account of that type was removed in Omada. They are now removed like any other vanished account.
 - Fixed SQL-connector syncs keeping rows live forever when a statement that reads its complete set starts returning no rows at all. Rows the source no longer holds are now removed. Statements that read only recent changes, and staged assignment loads, still leave existing rows alone.
 
