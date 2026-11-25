@@ -70,6 +70,9 @@ afterEach(() => vi.restoreAllMocks());
 
 const portfolioTab = () => screen.findByRole('tab', { name: 'Role portfolios' });
 const nav = () => within(screen.getByRole('navigation', { name: 'What you answer for' }));
+// A role opens on its Overview; the composition review is under Requests & reviews.
+const roleOpened = async () => expect(await screen.findByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+const openReviews = async (user) => user.click(await screen.findByRole('tab', { name: /Requests & reviews/ }));
 
 describe('Business roles on Role portfolios', () => {
   it('offers no Role portfolios tab to an owner who answers for no business role', async () => {
@@ -91,7 +94,7 @@ describe('Business roles on Role portfolios', () => {
     const { user } = mount({ tree: [] });
     expect(await screen.findByRole('tab', { name: 'Your units' })).toHaveAttribute('aria-selected', 'true');
     await user.click(screen.getByRole('tab', { name: 'Role portfolios' }));
-    expect(await screen.findByRole('tab', { name: 'Composition review' })).toBeInTheDocument();
+    await roleOpened();
     expect(screen.getByRole('tab', { name: 'Role portfolios' })).toHaveAttribute('aria-selected', 'true');
     expect(nav().getByRole('button', { name: /Finance controller/ })).toHaveAttribute('aria-current', 'true');
     await user.click(screen.getByRole('tab', { name: 'Your units' }));
@@ -103,7 +106,7 @@ describe('Business roles on Role portfolios', () => {
     const tab = await portfolioTab();
     expect(tab).toHaveAttribute('aria-selected', 'true');
     expect(within(tab.parentElement).getAllByRole('tab').map(t => t.textContent)).toEqual(['Role portfolios']);
-    expect(await screen.findByRole('tab', { name: 'Composition review' })).toBeInTheDocument();
+    await roleOpened();
     expect(nav().getByRole('button', { name: /Finance controller/ })).toHaveAttribute('aria-current', 'true');
   });
 
@@ -131,10 +134,13 @@ describe('Business roles on Role portfolios', () => {
     expect(nav().getByText('Finance controller')).toBeInTheDocument();
   });
 
-  it('opens the first role on its Composition review, where they may sign off', async () => {
+  it('opens the first role on its Overview, and signs off its composition under Requests & reviews', async () => {
     const { user, posts } = mount();
     await user.click(await portfolioTab());
-    expect(await screen.findByRole('tab', { name: 'Composition review' })).toHaveAttribute('aria-selected', 'true');
+    await roleOpened();
+    expect(await screen.findByText('Who answers for this role')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
+    await openReviews(user);
     const form = await screen.findByRole('form', { name: 'Your review' });
     await user.click(within(form).getByRole('checkbox'));
     await user.click(within(form).getByRole('button', { name: 'Save review' }));
@@ -145,7 +151,8 @@ describe('Business roles on Role portfolios', () => {
     const { user, authFetch } = mount();
     await user.click(await portfolioTab());
     await user.click(nav().getByRole('button', { name: /Payroll clerk/ }));
-    await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u).endsWith(`/api/access-package/${SECOND}/composition-reviews`))).toBe(true));
+    await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u).endsWith(`/api/access-package/${SECOND}`))).toBe(true));
+    await roleOpened();
     expect(nav().getByRole('button', { name: /Payroll clerk/ })).toHaveAttribute('aria-current', 'true');
     expect(screen.getByRole('tab', { name: 'Role portfolios' })).toHaveAttribute('aria-selected', 'true');
   });
@@ -153,6 +160,7 @@ describe('Business roles on Role portfolios', () => {
   it('shows no form when the API says they may not review (the relative permission is off)', async () => {
     const { user } = mount({ canReview: false });
     await user.click(await portfolioTab());
+    await openReviews(user);
     await screen.findByTestId('sign-off-status');
     expect(screen.queryByRole('form', { name: 'Your review' })).toBeNull();
   });
@@ -160,14 +168,15 @@ describe('Business roles on Role portfolios', () => {
   it('has no Composition review while the experimental feature is off', async () => {
     const { user } = mount({ flags: {} });
     await user.click(await portfolioTab());
-    await screen.findByRole('tab', { name: /Resources/ });
-    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
+    await openReviews(user);
+    await screen.findByText('Pending Requests');
+    expect(screen.queryByRole('region', { name: 'Composition review' })).toBeNull();
   });
 
   it('goes back to the organisation, on its unit', async () => {
     const { user } = mount();
     await user.click(await portfolioTab());
-    await screen.findByRole('tab', { name: 'Composition review' });
+    await roleOpened();
     await user.click(screen.getByRole('tab', { name: 'Organisation' }));
     expect(nav().queryByText('Finance controller')).toBeNull();
     expect(screen.getByRole('tab', { name: 'Organisation' })).toHaveAttribute('aria-selected', 'true');

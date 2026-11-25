@@ -2,3 +2,7 @@
 - A role in a portfolio the owner does not answer for is shown under that portfolio's name, in a light colour and not as a link, the same way the units above an owner's organisation tree are shown. A role in no portfolio is shown under "Default portfolio".
 - A role in a portfolio the owner does answer for is listed once, among that portfolio's business roles.
 - Fixed the Composition review snapshot, which still read a business role's catalog from the removed catalog table.
+- A business role now always opens on its Overview, also for an owner on their own page. The composition review used to open first for them.
+- A business role's Resources and People are now folded sections on its Overview, each showing its count, instead of separate tabs.
+- The composition review now sits at the top of the **Requests & reviews** tab instead of on a tab of its own. Its "See the resources" link opens the Overview with Resources unfolded.
+- Someone who answers only for business roles, and for no unit or application, opens on Role portfolios with their first role selected.
