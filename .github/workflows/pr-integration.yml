@@ -164,6 +164,8 @@ jobs:
               - 'app/api/Dockerfile'
               - 'setup/docker/Dockerfile.powershell'
               - 'docker-compose*.yml'
+              # The demo-data loader these jobs call: only running them verifies it (#1642).
+              - '.github/scripts/wait_for_demo_job.sh'
             e2e:
               - 'app/ui/src/**'
               - 'app/ui/package.json'
@@ -177,6 +179,7 @@ jobs:
               - 'tools/crawlers/**/*.e2e.*'
               - 'app/api/src/**'
               - 'app/api/Dockerfile'
+              - '.github/scripts/wait_for_demo_job.sh'
             load_soak:
               - 'app/api/src/**'
               # A dependency bump can move runtime behaviour as readily as our own code, and

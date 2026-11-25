@@ -108,7 +108,9 @@ echo "workflow uses the shared script"
 assert "pr-integration.yml has no inline demo-job poll loop" 0 \
   "$(grep -c 'jobType": "demo"' "$WORKFLOW" || true)"
 assert "all three demo loads call the script" 3 \
-  "$(grep -c 'wait_for_demo_job.sh' "$WORKFLOW" || true)"
+  "$(grep -c 'bash .github/scripts/wait_for_demo_job.sh' "$WORKFLOW" || true)"
+assert "integration and e2e re-run when the script changes" 2 \
+  "$(grep -c "^ *- '.github/scripts/wait_for_demo_job.sh'" "$WORKFLOW" || true)"
 
 echo
 echo "wait_for_demo_job: $PASS passed, $FAIL failed"

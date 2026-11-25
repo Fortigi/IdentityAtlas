@@ -90,6 +90,7 @@ simulate_filter() {
     { [[ "$f" = "app/api/Dockerfile" ]]                 && integration="true"; } || true
     { [[ "$f" = "setup/docker/Dockerfile.powershell" ]] && integration="true"; } || true
     { [[ "$f" =~ ^docker-compose ]]                     && integration="true"; } || true
+    { [[ "$f" = ".github/scripts/wait_for_demo_job.sh" ]] && integration="true"; } || true
 
     # e2e scope — drives both halves, so both trees matter
     { [[ "$f" =~ ^app/ui/src/ ]]                        && e2e="true"; } || true
@@ -100,6 +101,7 @@ simulate_filter() {
     { [[ "$f" =~ ^tools/crawlers/.*\.jsx$ ]]            && e2e="true"; } || true
     { [[ "$f" =~ ^app/api/src/ ]]                       && e2e="true"; } || true
     { [[ "$f" = "app/api/Dockerfile" ]]                 && e2e="true"; } || true
+    { [[ "$f" = ".github/scripts/wait_for_demo_job.sh" ]] && e2e="true"; } || true
 
     # load_soak scope
     { [[ "$f" =~ ^app/api/src/ ]]                       && load_soak="true"; } || true
@@ -229,6 +231,14 @@ simulate_filter "docker-compose.ci.yml"
 assert "integration: runs (compose)"  "true"  "$integration"
 assert "load-soak: runs (compose)"    "true"  "$load_soak"
 assert "e2e: skips for compose-only"  "false" "$e2e"  # compose doesn't trigger browser tests
+
+# ── Scenario: the demo-data loader both integration and e2e call (#1642)
+echo ""
+echo "── Scenario: .github/scripts/wait_for_demo_job.sh change ──"
+simulate_filter ".github/scripts/wait_for_demo_job.sh"
+assert "integration: runs (demo loader)" "true"  "$integration"
+assert "e2e: runs (demo loader)"         "true"  "$e2e"
+assert "load-soak: skips (not its loader)" "false" "$load_soak"
 
 # ── Scenario 10: Housekeeping only — nothing should run
 echo ""
