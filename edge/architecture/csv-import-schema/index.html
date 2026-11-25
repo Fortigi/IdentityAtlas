@@ -3709,6 +3709,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#custom-column-mapping-stored-in-the-crawler-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom column mapping (stored in the crawler config)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#implementation-details" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6451,6 +6462,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#custom-column-mapping-stored-in-the-crawler-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom column mapping (stored in the crawler config)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#implementation-details" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6566,10 +6588,15 @@
 
 <h1 id="csv-import-schema">CSV Import Schema<a class="headerlink" href="#csv-import-schema" title="Permanent link">&para;</a></h1>
 <h2 id="design-principle">Design principle<a class="headerlink" href="#design-principle" title="Permanent link">&para;</a></h2>
-<p>Identity Atlas defines <strong>one canonical CSV schema</strong> per entity type. Column names, types, and relationships are fixed and documented. The crawler reads exactly this format — no column-name guessing, no aliases, no auto-detection.</p>
-<p>Source-specific transformation — mapping a source's own column names onto this schema — happens <strong>before import</strong> via a lightweight pre-import script. Identity Atlas owns the target schema, the user owns the source mapping. This separation keeps the crawler simple and testable.</p>
+<p>Identity Atlas defines <strong>one canonical CSV schema</strong> per entity type. Column names, types, and relationships are fixed and documented. Identity Atlas owns the target schema; the user owns how their source reaches it.</p>
+<p>A source whose columns are named differently reaches it one of two ways:</p>
+<ol>
+<li><strong>An explicit, admin-configured mapping in the crawler config — no guessing.</strong> Upload the export as it is, pick each file's object type in the wizard, and map its columns onto the schema per schema field. The mapping (and each file's delimiter) is stored in <code>CrawlerConfigs.config</code> and applied by the crawler at read time on <strong>every</strong> run; the uploaded files are never rewritten. Nothing is inferred that the admin cannot see: the wizard detects each file's delimiter and shows what it chose, and the crawler itself detects nothing at all — it applies only stored values, and fails the job by name when a stored mapping no longer fits its file. There are no built-in aliases and no fuzzy column matching.</li>
+<li><strong>A pre-import transform script</strong>, as before — the right tool when the source needs more than a column rename (splitting rows, resolving references, deriving values). See "Using the Omada transform" below; <code>tools/csv-templates/transforms/omada-to-identityatlas.ps1</code> remains fully supported.</li>
+</ol>
+<p>Files already in the canonical schema bypass mapping entirely and load exactly as they always have.</p>
 <h3 id="csv-files-and-their-schemas">CSV files and their schemas<a class="headerlink" href="#csv-files-and-their-schemas" title="Permanent link">&para;</a></h3>
-<p>Every file is <strong>semicolon-delimited, UTF-8 with BOM</strong> (matching the de facto standard for European CSV exports). The delimiter is configurable per crawler config.</p>
+<p>Every file is <strong>semicolon-delimited, UTF-8 with BOM</strong> (matching the de facto standard for European CSV exports). The delimiter is configurable per crawler config, and <strong>per file</strong>: the wizard detects each uploaded file's delimiter (candidates <code>,</code> <code>;</code> tab — most columns wins; a tie, including a single-column file, keeps the config-level value), shows what it detected, and lets you override it. Pipe stays manually selectable and is never auto-detected. A file the config says nothing about is read with the config-level delimiter, so existing configs need no migration.</p>
 <p>All files are <strong>optional</strong> — import only what your source system has. The minimum viable import is: <code>Resources.csv</code> + <code>Users.csv</code> + <code>Assignments.csv</code>. Everything else adds depth.</p>
 <h4 id="1-systemscsv-optional">1. <code>Systems.csv</code> (optional)<a class="headerlink" href="#1-systemscsv-optional" title="Permanent link">&para;</a></h4>
 <p>Defines the authorization systems. If omitted, all data is scoped to the single system defined in Step 1 of the wizard.</p>
@@ -7172,6 +7199,40 @@
 <a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>  <span class="nb">Export-Csv</span> <span class="s2">"$OutputFolder/Assignments.csv"</span> <span class="n">-Delimiter</span> <span class="s2">";"</span> <span class="n">-NoTypeInformation</span>
 </code></pre></div>
 <p>A transform like this is short, easily auditable, and keeps Identity Atlas clean.</p>
+<h3 id="custom-column-mapping-stored-in-the-crawler-config">Custom column mapping (stored in the crawler config)<a class="headerlink" href="#custom-column-mapping-stored-in-the-crawler-config" title="Permanent link">&para;</a></h3>
+<p>Choosing <strong>Custom mapping</strong> as the source format in step 1 of the wizard adds a per-file section to <code>CrawlerConfigs.config</code>, keyed by uploaded file name:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>{
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  "systemName": "Active Directory",
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  "systemType": "AD",
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  "delimiter": ";",                 // the fallback for any file without an entry
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  "sourceFormat": "custom",         // absent or "identityatlas" = today's behaviour
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  "files": {
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    "ad_users.csv": {
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>      "slot": "users",              // which schema slot this file feeds (csv-slots.json key)
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>      "delimiter": ",",             // this file's own delimiter
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>      "columns": {                  // schema field -&gt; this file's column
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        "ExternalId": "sAMAccountName",
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        "DisplayName": "cn",
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        "Email": "mail"
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>      }
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    },
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    "ad_memberships.tsv.csv": {
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>      "slot": "assignments",
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>      "delimiter": "\t",
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>      "columns": { "ResourceExternalId": "group", "UserExternalId": "members" },
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>      "split": { "field": "UserExternalId", "delimiter": ";" }
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    }
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>  }
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>}
+</code></pre></div>
+<p>Rules, all enforced by the crawler:</p>
+<ul>
+<li><strong><code>slot</code> is what makes a non-canonical filename readable.</strong> Every phase asks for its schema slot; without an entry it falls back to the canonical file name (<code>Users.csv</code>, …), which is why a config saved before this feature existed behaves identically. Two files claiming one slot fails the job naming both.</li>
+<li><strong>Unmapped source columns</strong> are kept as <code>extendedAttributes</code> under their <strong>source</strong> names, exactly as extra columns always were. For Assignments / IdentityMembers / ContextMembers — the three files that deliberately don't keep extras — they are named in the job log instead.</li>
+<li><strong><code>split</code></strong> turns a multi-value cell into one row per value (<code>user1;user2;user3</code> → three assignments). Offered on the <strong>Assignments</strong> slot only, on exactly one of <code>ResourceExternalId</code> / <code>UserExternalId</code>; empty segments are skipped and every value is trimmed. More than one split per file fails the job naming the file — a cartesian product is never produced silently.</li>
+<li><strong>A mapping that no longer fits its file fails the job</strong>, naming the file and the missing column, rather than quietly importing without that field. A configured file that is absent from the folder is named in a warning and the run continues under the usual optional/required rules.</li>
+<li>Re-mapping an existing crawler reads each uploaded file's header from <code>GET /api/admin/crawler-configs/:configId/files/:filename/header</code> (first line, bounded read) — including files copied straight into the server folder.</li>
+</ul>
 <h3 id="implementation-details">Implementation details<a class="headerlink" href="#implementation-details" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -7183,7 +7244,15 @@
 <tbody>
 <tr>
 <td><strong>CSV crawler</strong> (<code>tools/crawlers/csv/Start-CSVCrawler.ps1</code>)</td>
-<td>Reads exactly the schema column names. <code>Assert-Columns</code> validates required columns upfront with clear error messages. No <code>Get-Col</code> fallback logic.</td>
+<td>Reads the schema column names. <code>Assert-Columns</code> validates required columns upfront with clear error messages — on the <strong>post-mapping</strong> header, so a mapped file is checked for what it actually supplies. No <code>Get-Col</code> fallback logic.</td>
+</tr>
+<tr>
+<td><strong>Column mapping</strong> (<code>tools/crawlers/csv/CSVCrawler.Mapping.ps1</code>)</td>
+<td>Applies the config's per-file section at read time: which uploaded file feeds which slot, its delimiter, its schema-field → source-column map, and an optional multi-value split. Pure functions, applied at the header/row boundary — the record shapers, streaming, dedup and reconcile scopes downstream are untouched.</td>
+</tr>
+<tr>
+<td><strong>Mapping rules, wizard side</strong> (<code>tools/crawlers/csv/csvMapping.js</code>, <code>MappingEditor.jsx</code>)</td>
+<td>Delimiter detection, the exact-name mapping pre-fill, and post-mapping validation. Detection happens here and only here — the crawler never sniffs.</td>
 </tr>
 <tr>
 <td><strong>Validation</strong> (<code>app/api/src/ingest/validation.js</code>)</td>
@@ -7221,19 +7290,21 @@
 </table>
 <h3 id="design-rules">Design rules<a class="headerlink" href="#design-rules" title="Permanent link">&para;</a></h3>
 <ul>
-<li>No column-name guessing or auto-detection in the crawler</li>
+<li>No column-name guessing in the crawler: it applies an explicit, admin-configured mapping, or nothing</li>
+<li>No auto-detection at crawl time — the wizard detects a delimiter once, visibly, and the chosen value is what the crawler applies</li>
+<li>A stored mapping that no longer fits its file fails the job naming file and column; it is never worked around</li>
 <li>No source-specific logic in the crawler</li>
-<li>One schema, clearly documented — user transforms their data to match</li>
+<li>One schema, clearly documented — users map their columns onto it (in the wizard or with a transform script)</li>
 <li>Extra columns preserved in <code>extendedAttributes</code> for every file except Assignments / IdentityMembers / ContextMembers</li>
 <li>Subset imports supported (only provide what your source has)</li>
 <li>Multi-system supported via optional <code>SystemName</code> column</li>
 </ul>
 <h3 id="using-the-omada-transform">Using the Omada transform<a class="headerlink" href="#using-the-omada-transform" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c"># Transform Omada exports to Identity Atlas schema</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">pwsh</span> <span class="n">tools</span><span class="p">/</span><span class="n">csv-templates</span><span class="p">/</span><span class="n">transforms</span><span class="p">/</span><span class="n">omada-to-identityatlas</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">-SourceFolder</span> <span class="p">./</span><span class="n">OmadaExport</span> <span class="n">-OutputFolder</span> <span class="p">./</span><span class="n">ForImport</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c"># Upload the transformed files to the CSV crawler wizard in the UI</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c"># Transform Omada exports to Identity Atlas schema</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">pwsh</span> <span class="n">tools</span><span class="p">/</span><span class="n">csv-templates</span><span class="p">/</span><span class="n">transforms</span><span class="p">/</span><span class="n">omada-to-identityatlas</span><span class="p">.</span><span class="n">ps1</span> <span class="p">`</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">-SourceFolder</span> <span class="p">./</span><span class="n">OmadaExport</span> <span class="n">-OutputFolder</span> <span class="p">./</span><span class="n">ForImport</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c"># Upload the transformed files to the CSV crawler wizard in the UI</span>
 </code></pre></div>
 <p>To support a new source system, copy the Omada transform and adapt the column mappings. The crawler and Identity Atlas schema stay stable.</p>
 
