@@ -275,9 +275,28 @@ function Test-LoadTestStoredCounts {
 }
 
 # ─── 4. Refresh materialized views ──────────────────────────────
+# The crawler ends by ASKING for a refresh, which the API debounces (3 s) and
+# then runs in the background; a request that arrives while one is running
+# waits for it and then runs its own. So timing a refresh straight after the
+# ingest measured one refresh when step 3 took under 3 s (the requests
+# coalesced) and nearly two when it took longer — 25 s against 65 s for the
+# same data. The background refresh is waited out first, so the timing is
+# always exactly one refresh.
+function Wait-LoadTestViewRefreshIdle {
+    param([int]$TimeoutSeconds = 600)
+    # A stopwatch, not Get-Date: the refresh timing below reads Get-Date, and a
+    # test that drives that clock must not have this loop draining it.
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ((Invoke-LocalApi -Path '/ingest/refresh-views' -Method 'Get').pending) {
+        if ($sw.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw "the background view refresh was still running after $TimeoutSeconds s" }
+        Start-Sleep -Seconds 2
+    }
+}
+
 function Test-LoadTestViewRefresh {
     Write-Host "  Step 4: Refreshing materialized views..." -ForegroundColor Cyan
     try {
+        Wait-LoadTestViewRefreshIdle
         $refreshStart = Get-Date
         $null = Invoke-LocalApi -Path '/ingest/refresh-views?wait=1' -Method 'Post'
         $refreshDuration = ((Get-Date) - $refreshStart).TotalSeconds

@@ -89,6 +89,39 @@ Describe 'Test-LoadAndBenchmark.ps1 limits' {
             $results['LoadTest/ViewRefresh'].Passed | Should -BeFalse
         }
 
+        # The crawler's own refresh is still pending when step 4 starts; timing
+        # through it measured that one plus ours. The call log shows the timed
+        # POST only goes out once the GETs report idle.
+        It 'waits out the crawler''s background refresh before timing its own' {
+            $script:calls = [System.Collections.Generic.List[string]]::new()
+            $script:pending = [System.Collections.Generic.Queue[bool]]::new([bool[]]@($true, $true, $false))
+            Mock Start-Sleep { }
+            Mock Invoke-LocalApi {
+                $script:calls.Add("$Method $Path")
+                if ($Path -eq '/ingest/refresh-views') { return [pscustomobject]@{ pending = $script:pending.Dequeue() } }
+            }
+            Test-LoadTestViewRefresh
+            @($script:calls) | Should -Be @(
+                'Get /ingest/refresh-views', 'Get /ingest/refresh-views', 'Get /ingest/refresh-views',
+                'Post /ingest/refresh-views?wait=1')
+            $results['LoadTest/ViewRefresh'].Passed | Should -BeTrue
+        }
+
+        It 'gives up on a background refresh that never settles, and never POSTs' {
+            Mock Start-Sleep { }
+            Mock Invoke-LocalApi { if ($Method -eq 'Post') { throw 'must not POST' }; [pscustomobject]@{ pending = $true } }
+            { Wait-LoadTestViewRefreshIdle -TimeoutSeconds 0 } | Should -Throw '*still running after 0 s*'
+            Should -Invoke Invoke-LocalApi -Exactly 1 -ParameterFilter { $Method -eq 'Get' }
+        }
+
+        It 'reports that as a failed refresh rather than a timing' {
+            Mock Wait-LoadTestViewRefreshIdle { throw 'the background view refresh was still running after 600 s' }
+            Mock Invoke-LocalApi { throw 'must not be called' }
+            Test-LoadTestViewRefresh
+            $results['LoadTest/ViewRefresh'].Passed | Should -BeFalse
+            $results['LoadTest/ViewRefresh'].Detail | Should -Match 'still running'
+        }
+
         It 'records a 9-minute ingest as completed, and over its limit' {
             $crawler = Join-Path $TestDrive 'Start-FakeCrawler.ps1'
             Set-Content $crawler 'param($ApiBaseUrl, $ApiKey, $JobId, $ConfigPath)'
