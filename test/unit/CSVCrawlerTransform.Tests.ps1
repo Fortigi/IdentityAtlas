@@ -195,6 +195,95 @@ Describe 'ConvertTo-CsvRelationshipRecord' {
     }
 }
 
+Describe 'Split-CsvRecordsByRelationshipType' {
+    BeforeAll {
+        function New-RelRec {
+            param([string]$Child, [string]$Type)
+            @{ _systemId = 2; parentExternalId = 'p'; childExternalId = $Child; relationshipType = $Type }
+        }
+    }
+
+    It 'groups a mixed file by type, keeping first-seen order and every record' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Records @(
+            (New-RelRec 'c1' 'Contains'),
+            (New-RelRec 'c2' 'GrantsAccessTo'),
+            (New-RelRec 'c3' 'Contains')
+        ))
+        @($groups.Type) | Should -Be @('Contains', 'GrantsAccessTo')
+        @($groups[0].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c1', 'c3')
+        @($groups[1].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c2')
+    }
+
+    It 'yields one group for a single-type file' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Records @((New-RelRec 'c1' 'Contains')))
+        $groups.Count | Should -Be 1
+        $groups[0].Type | Should -Be 'Contains'
+    }
+
+    It 'yields nothing at all for an empty record set, so nothing is sent' {
+        @(Split-CsvRecordsByRelationshipType -Records @()).Count | Should -Be 0
+    }
+
+    # -Types is what makes a type with NO row this run still get a (then empty)
+    # full sync — the AC 7 defect: the file was present, the type was absent, so
+    # the phase sent nothing and the type's stored rows were never reconciled.
+    It 'yields an empty group for a -Types type the records do not use' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Types @('Contains', 'GrantsAccessTo') `
+            -Records @((New-RelRec 'c1' 'Contains')))
+        @($groups.Type) | Should -Be @('Contains', 'GrantsAccessTo')
+        @($groups[0].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c1')
+        $groups[1].Records.Count | Should -Be 0
+    }
+
+    # The seeded group must still collect its rows. An empty collection is $false
+    # in PowerShell, so a truthiness test on the seeded list would replace it on
+    # the first matching row — which is only visible when the SECOND row of that
+    # type arrives, hence two.
+    It 'collects records into the group a -Types entry already seeded' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Types @('Contains', 'GrantsAccessTo') -Records @(
+            (New-RelRec 'c1' 'GrantsAccessTo'),
+            (New-RelRec 'c2' 'GrantsAccessTo')
+        ))
+        $groups.Count | Should -Be 2
+        $groups[0].Records.Count | Should -Be 0
+        @($groups[1].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c1', 'c2')
+    }
+
+    It 'still groups a type outside -Types, after the seeded ones' {
+        $groups = @(Split-CsvRecordsByRelationshipType -Types @('Contains', 'GrantsAccessTo') `
+            -Records @((New-RelRec 'c1' 'HasOwnership')))
+        @($groups.Type) | Should -Be @('Contains', 'GrantsAccessTo', 'HasOwnership')
+        @($groups[2].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('c1')
+    }
+
+    It 'names Contains and GrantsAccessTo as the supported types, Contains the default' {
+        # The crawler's own vocabulary, declared once in CSVCrawler.Transform.ps1
+        # (docs/architecture/csv-import-schema.md → ResourceRelationships.csv).
+        $script:CsvRelationshipTypes | Should -Be @('Contains', 'GrantsAccessTo')
+        $script:CsvRelationshipTypeDefault | Should -Be 'Contains'
+        $script:CsvNestingRelationshipType | Should -Be 'GrantsAccessTo'
+    }
+}
+
+Describe 'Get-CsvRecordSystemIds' {
+    It 'returns each system once, for the systems the records route to' {
+        $ids = Get-CsvRecordSystemIds -FallbackSystemId 2 -Records @(
+            @{ _systemId = 9 }, @{ _systemId = 9 }, @{ _systemId = 4 }
+        )
+        @($ids | Sort-Object) | Should -Be @(4, 9)
+    }
+
+    It 'maps a record with no (or a zero) system onto the fallback' {
+        @(Get-CsvRecordSystemIds -FallbackSystemId 2 -Records @(@{ externalId = 'x' }, @{ _systemId = 0 })) | Should -Be @(2)
+    }
+
+    # The fail-safe the phase relies on: no rows read means no system to
+    # reconcile, so a present-but-empty file deletes nothing.
+    It 'returns no system at all for an empty record set' {
+        @(Get-CsvRecordSystemIds -FallbackSystemId 2 -Records @()).Count | Should -Be 0
+    }
+}
+
 Describe 'ConvertTo-CsvUserRecord' {
     It 'returns $null when ExternalId or DisplayName is blank' {
         $cols = New-ColSet @('ExternalId', 'DisplayName')

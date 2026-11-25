@@ -112,6 +112,17 @@ function ConvertTo-CsvResourceRecord {
 }
 
 # ─── ResourceRelationships.csv ───────────────────────────────────
+# The relationship types a CSV import can carry, declared ONCE here: the default
+# this shaper stamps on a row without the column, the one type that means
+# inherited access (CSVCrawler.Nesting.ps1 expands it), and the closed list the
+# phase reconciles. They were three separate literals in three files, which is
+# how "sync every supported type" could silently come to mean "every type this
+# file happens to have rows for". Documented in
+# docs/architecture/csv-import-schema.md → ResourceRelationships.csv.
+$script:CsvRelationshipTypeDefault = 'Contains'
+$script:CsvNestingRelationshipType = 'GrantsAccessTo'
+$script:CsvRelationshipTypes = @($script:CsvRelationshipTypeDefault, $script:CsvNestingRelationshipType)
+
 function ConvertTo-CsvRelationshipRecord {
     [CmdletBinding()]
     param($Row, [int]$SystemId, [System.Collections.Generic.HashSet[string]]$Cols, [string[]]$Extra = @())
@@ -120,10 +131,70 @@ function ConvertTo-CsvRelationshipRecord {
         _systemId        = $SystemId
         parentExternalId = $Row.ParentExternalId
         childExternalId  = $Row.ChildExternalId
-        relationshipType = if ($Cols.Contains('RelationshipType') -and $Row.RelationshipType) { $Row.RelationshipType } else { 'Contains' }
+        relationshipType = if ($Cols.Contains('RelationshipType') -and $Row.RelationshipType) { $Row.RelationshipType } else { $script:CsvRelationshipTypeDefault }
     }
     Add-CsvExtendedAttributes -Row $Row -Extra $Extra -Record $rec
     return $rec
+}
+
+# Group shaped relationship records by their relationshipType, so the phase can
+# send one full sync per type. A full sync's stale-row delete is scoped to the
+# relationshipType it names, so one sync for the whole file can only ever
+# reconcile the one type it claims to be — which is how a GrantsAccessTo row
+# dropped from ResourceRelationships.csv used to stay behind forever.
+#
+# -Types are the types that must get a group WHETHER OR NOT the file has a row of
+# them — the supported vocabulary ($script:CsvRelationshipTypes). Grouping only
+# what the file holds left the same hole one level down: a run whose file had no
+# GrantsAccessTo row at all sent no GrantsAccessTo sync, so that type's scope was
+# never reconciled and every row of it stayed behind (the "last row of a type
+# vanished" class, #1691). Those groups come first and in the order given; a type
+# the file carries that is NOT in the list still gets its own group after them,
+# so nothing is dropped from a file that uses one.
+#
+# Returns one { Type; Records } per type, emitted into the pipeline so the
+# caller's foreach walks the groups. An [ordered]@{} compares its keys
+# case-insensitively, like every other schema value this crawler reads.
+function Split-CsvRecordsByRelationshipType {
+    [CmdletBinding()]
+    param($Records, [string[]]$Types = @())
+    $byType = [ordered]@{}
+    foreach ($t in $Types) {
+        if (-not $byType.Contains($t)) { $byType[$t] = [System.Collections.Generic.List[object]]::new() }
+    }
+    foreach ($r in $Records) {
+        $t = [string]$r['relationshipType']
+        # .Contains, not a truthiness test on the value: a seeded group is an
+        # EMPTY list, and an empty collection is $false in PowerShell — testing
+        # the value would replace the seeded list on the first matching row.
+        if (-not $byType.Contains($t)) { $byType[$t] = [System.Collections.Generic.List[object]]::new() }
+        [void]$byType[$t].Add($r)
+    }
+    foreach ($t in $byType.Keys) { [pscustomobject]@{ Type = $t; Records = $byType[$t] } }
+}
+
+# The distinct systems a shaped record set routes to, applying the same fallback
+# Send-GroupedBySystem does. Read BEFORE anything is sent, because sending strips
+# each record's _systemId.
+#
+# This is the set of systems a file SPOKE FOR this run, which is what a scope with
+# no rows left may be reconciled against. An empty record set yields no system at
+# all, so a file that produced nothing reconciles nothing — the same fail-safe as
+# a missing file.
+function Get-CsvRecordSystemIds {
+    [CmdletBinding()]
+    [OutputType([int[]])]
+    param($Records, [int]$FallbackSystemId)
+    $ids = [System.Collections.Generic.HashSet[int]]::new()
+    foreach ($r in $Records) {
+        $sid = [int]$r['_systemId']
+        if ($sid -le 0) { $sid = $FallbackSystemId }
+        [void]$ids.Add($sid)
+    }
+    # No leading comma here, deliberately: it would hand the caller a
+    # ONE-element array holding the empty one, and "no system" is the fail-safe
+    # this function exists to express.
+    return [int[]]@($ids)
 }
 
 # ─── Extra columns → extendedAttributes ──────────────────────────

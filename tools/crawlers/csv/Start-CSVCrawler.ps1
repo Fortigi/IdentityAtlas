@@ -54,6 +54,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Functions.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Phases.ps1')
+. (Join-Path $PSScriptRoot 'CSVCrawler.Nesting.ps1')
 
 # Resolve the job config into crawler settings the phases + helpers read from scope.
 $CsvCfg     = Resolve-CsvConfig -ConfigPath $ConfigPath
@@ -71,6 +72,10 @@ Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Folder: $CsvFolder" -ForegroundColo
 # Verify the API key and register the fallback system; seed the SystemName → id map.
 $fallbackSystemId = Register-CsvFallbackSystem
 $systemLookup = @{ $SystemName = $fallbackSystemId }
+# The nesting graph: ResourceRelationships.csv fills it with GrantsAccessTo
+# edges, Assignments.csv with the Direct holders of the resources they involve,
+# and step 6b turns the two into inherited (Indirect) access.
+$script:CsvNesting = New-CsvNestingGraph
 $syncStart = Get-Date
 Update-CrawlerProgress -Step 'Reading CSV files' -Pct 5
 
@@ -88,6 +93,9 @@ Sync-CsvRelationships
 # ─── 5. Users.csv (required) + 6. Assignments.csv (required) ─────
 Sync-CsvUsers
 Sync-CsvAssignments
+
+# ─── 6b. Inherited access through nested resources ───────────────
+Sync-CsvNestedAccess
 
 # ─── 7. Identities + 8. IdentityMembers + 9. Certifications ──────
 Sync-CsvIdentities

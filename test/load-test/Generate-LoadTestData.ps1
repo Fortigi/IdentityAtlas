@@ -12,7 +12,9 @@
         - 80,000 resources
         - 15,000 contexts (departments)
         - 1,500,000 user/resource assignments
-        - 100,000 resource relationships (parent/child role nesting)
+        - 100,000 resource relationships (parent/child role nesting), of which
+          2,000 chains of 5 GrantsAccessTo edges, so the import's nested-access
+          expansion is walked at depth (the other 90,000 are Contains)
         - 25,000 identities
         - ~76,000 identity members (95% of users linked to an identity)
         - 300,000 certification decisions
@@ -47,6 +49,14 @@
 .PARAMETER RelationshipCount
     Number of parent/child resource relationships. Default: 100000.
 
+.PARAMETER NestedChainCount
+    Number of deliberate GrantsAccessTo nesting chains, counted within
+    RelationshipCount. Default: 2000.
+
+.PARAMETER NestedChainDepth
+    Edges per nesting chain, i.e. how deep inherited access has to be walked.
+    Default: 5.
+
 .PARAMETER CertificationCount
     Number of certification decisions. Default: 300000.
 
@@ -75,6 +85,8 @@ Param(
     [int]$IdentityCount = 25000,
     [int]$AssignmentCount = 1500000,
     [int]$RelationshipCount = 100000,
+    [int]$NestedChainCount = 2000,
+    [int]$NestedChainDepth = 5,
     [int]$CertificationCount = 300000,
     [double]$IdentityMemberRatio = 0.95,
     [int]$Seed = 20260411
@@ -137,12 +149,36 @@ function New-ResourcesFile {
 }
 
 # ─── 4. ResourceRelationships.csv ────────────────────────────────
+# The random pairs below are Contains rows (see $relationshipTypes), which the
+# import never expands — and a random graph of 100,000 edges over 80,000
+# resources would barely nest more than one level deep anyway, so it could not
+# exercise the nested-access expansion (the transitive closure of the
+# GrantsAccessTo edges) at any depth. NestedChainCount deliberate chains of
+# NestedChainDepth are written first for that — a chain's holders have to be
+# carried the whole way down, which is where a closure walk gets expensive.
 function New-ResourceRelationshipsFile {
-    Write-Host "[4/9] Generating ResourceRelationships.csv ($RelationshipCount rows)..." -ForegroundColor Cyan
+    Write-Host "[4/9] Generating ResourceRelationships.csv ($RelationshipCount rows, incl. $NestedChainCount nested chains of depth $NestedChainDepth)..." -ForegroundColor Cyan
     $sw = New-Writer 'ResourceRelationships.csv'
     try {
         $sw.WriteLine('ParentExternalId;ChildExternalId;RelationshipType;SystemName')
-        for ($i = 1; $i -le $RelationshipCount; $i++) {
+        $chainRows = 0
+        for ($c = 0; $c -lt $NestedChainCount; $c++) {
+            # Each chain walks a contiguous block of resources: RES n grants
+            # RES n+1 grants RES n+2 … so every holder of the first is an
+            # inherited holder of all the rest. A chain of D edges spans D+1
+            # resources, so the stride is D+1: with a stride of D the last
+            # resource of one chain was the first of the next, and the 2,000
+            # chains fused into ONE chain 10,000 deep — a closure the import
+            # spent the whole job timeout expanding.
+            $base = 1 + ($c * ($NestedChainDepth + 1))
+            if (($base + $NestedChainDepth) -gt $ResourceCount) { break }
+            $sysIdx = $rng.Next(1, $SystemCount + 1)
+            for ($d = 0; $d -lt $NestedChainDepth; $d++) {
+                $sw.WriteLine(("RES{0};RES{1};GrantsAccessTo;System {2}" -f ($base + $d), ($base + $d + 1), $sysIdx))
+                $chainRows++
+            }
+        }
+        for ($i = 1; $i -le ($RelationshipCount - $chainRows); $i++) {
             # Pick two distinct resources — parent != child, no self-loops
             $parentIdx = $rng.Next(1, $ResourceCount + 1)
             $childIdx = $rng.Next(1, $ResourceCount + 1)
@@ -152,7 +188,7 @@ function New-ResourceRelationshipsFile {
             $rtype = $relationshipTypes[$rng.Next(0, $relationshipTypes.Count)]
             $sysIdx = $rng.Next(1, $SystemCount + 1)
             $sw.WriteLine(("RES{0};RES{1};{2};System {3}" -f $parentIdx, $childIdx, $rtype, $sysIdx))
-            if ($i % 20000 -eq 0) { Write-Host "      $i / $RelationshipCount" -ForegroundColor DarkGray }
+            if ($i % 20000 -eq 0) { Write-Host "      $($i + $chainRows) / $RelationshipCount" -ForegroundColor DarkGray }
         }
     } finally { $sw.Close() }
 }
@@ -309,7 +345,11 @@ $encoding = [System.Text.UTF8Encoding]::new($true)  # with BOM — matches schem
 $systemTypes       = @('EntraID','ActiveDirectory','SAP','Omada','ServiceNow','CSV','Custom')
 $resourceTypes     = @('Group','SAPRole','BusinessRole','AppRole','DirectoryRole','ApplicationRole')
 $assignmentTypes   = @('Direct','Indirect','Eligible')   # the three universal types (post assignment-model redesign)
-$relationshipTypes = @('Contains','Contains','Contains','GrantsAccessTo')  # 75% Contains
+# The random pairs are Contains only. GrantsAccessTo is nesting the import
+# expands (#1684), so it comes from the deliberate chains, whose inherited volume
+# is bounded; 25% random GrantsAccessTo pairs added ~440,000 more inherited rows
+# (2.13M stored assignments) and pushed the matrix view refresh past its limit.
+$relationshipTypes = @('Contains')
 $principalTypes    = @('User','User','User','User','User','User','User','User','ServicePrincipal','ExternalUser')  # 80% User
 $contextTypes      = @('Department','CostCenter','Division','Team')
 $accountTypes      = @('Primary','Secondary','Service','Admin')

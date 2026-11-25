@@ -89,6 +89,39 @@ Describe 'Test-LoadAndBenchmark.ps1 limits' {
             $results['LoadTest/ViewRefresh'].Passed | Should -BeFalse
         }
 
+        # The crawler's own refresh is still pending when step 4 starts; timing
+        # through it measured that one plus ours. The call log shows the timed
+        # POST only goes out once the GETs report idle.
+        It 'waits out the crawler''s background refresh before timing its own' {
+            $script:calls = [System.Collections.Generic.List[string]]::new()
+            $script:pending = [System.Collections.Generic.Queue[bool]]::new([bool[]]@($true, $true, $false))
+            Mock Start-Sleep { }
+            Mock Invoke-LocalApi {
+                $script:calls.Add("$Method $Path")
+                if ($Path -eq '/ingest/refresh-views') { return [pscustomobject]@{ pending = $script:pending.Dequeue() } }
+            }
+            Test-LoadTestViewRefresh
+            @($script:calls) | Should -Be @(
+                'Get /ingest/refresh-views', 'Get /ingest/refresh-views', 'Get /ingest/refresh-views',
+                'Post /ingest/refresh-views?wait=1')
+            $results['LoadTest/ViewRefresh'].Passed | Should -BeTrue
+        }
+
+        It 'gives up on a background refresh that never settles, and never POSTs' {
+            Mock Start-Sleep { }
+            Mock Invoke-LocalApi { if ($Method -eq 'Post') { throw 'must not POST' }; [pscustomobject]@{ pending = $true } }
+            { Wait-LoadTestViewRefreshIdle -TimeoutSeconds 0 } | Should -Throw '*still running after 0 s*'
+            Should -Invoke Invoke-LocalApi -Exactly 1 -ParameterFilter { $Method -eq 'Get' }
+        }
+
+        It 'reports that as a failed refresh rather than a timing' {
+            Mock Wait-LoadTestViewRefreshIdle { throw 'the background view refresh was still running after 600 s' }
+            Mock Invoke-LocalApi { throw 'must not be called' }
+            Test-LoadTestViewRefresh
+            $results['LoadTest/ViewRefresh'].Passed | Should -BeFalse
+            $results['LoadTest/ViewRefresh'].Detail | Should -Match 'still running'
+        }
+
         It 'records a 9-minute ingest as completed, and over its limit' {
             $crawler = Join-Path $TestDrive 'Start-FakeCrawler.ps1'
             Set-Content $crawler 'param($ApiBaseUrl, $ApiKey, $JobId, $ConfigPath)'
@@ -115,6 +148,52 @@ Describe 'Test-LoadAndBenchmark.ps1 limits' {
             $global:benchArgs.ContainsKey('FailOnRegression') | Should -BeFalse
             Remove-Variable benchArgs -Scope Global
         }
+    }
+}
+
+Describe 'Test-LoadAndBenchmark.ps1 expected assignment count' {
+    BeforeAll {
+        . (Join-Path $script:repoRoot 'test' 'nightly' 'Test-LoadAndBenchmark.ps1')
+    }
+
+    # The stored count includes the Indirect rows the import derives from
+    # GrantsAccessTo nesting (#1684). Each row of the fixture fails a different
+    # wrong rule: the chain A→B→C one that stops after a hop; the cycle C→A one
+    # without a visited set (it hangs) or that gives u4 a row on C, which u4
+    # holds Direct; u2 (Indirect) and u3 (Eligible) one that seeds from every
+    # holder; D→E (Contains) one that expands every relationship type.
+    It 'adds the inherited keys the nesting implies, and nothing else' {
+        $dir = Join-Path $TestDrive 'nest'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Set-Content -Path (Join-Path $dir 'ResourceRelationships.csv') -Value @(
+            'ParentExternalId;ChildExternalId;RelationshipType;SystemName'
+            'A;B;GrantsAccessTo;System 1'
+            'B;C;GrantsAccessTo;System 2'
+            'C;A;GrantsAccessTo;System 1'
+            'D;E;Contains;System 1'
+        )
+        Set-Content -Path (Join-Path $dir 'Assignments.csv') -Value @(
+            'ResourceExternalId;UserExternalId;AssignmentType;SystemName'
+            'A;u1;Direct;System 1'
+            'A;u2;Indirect;System 1'
+            'A;u3;Eligible;System 1'
+            'C;u4;Direct;System 3'
+            'D;u5;Direct;System 1'
+            'A;u1;Direct;System 2'
+        )
+        $keys = [System.Collections.Generic.HashSet[string]]::new()
+        Add-ExpectedInheritedKey -DataFolder $dir -Keys $keys
+        @($keys | Sort-Object) | Should -Be @('A;u4;Indirect', 'B;u1;Indirect', 'B;u4;Indirect', 'C;u1;Indirect')
+        # five distinct file keys (A;u1 repeats) + the four inherited ones
+        Get-ExpectedAssignmentCount -DataFolder $dir | Should -Be 9
+    }
+
+    It 'adds nothing when the file has no GrantsAccessTo row' {
+        $dir = Join-Path $TestDrive 'flat'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Set-Content -Path (Join-Path $dir 'ResourceRelationships.csv') -Value @('ParentExternalId;ChildExternalId;RelationshipType', 'A;B;Contains')
+        Set-Content -Path (Join-Path $dir 'Assignments.csv') -Value @('ResourceExternalId;UserExternalId;AssignmentType', 'A;u1;Direct')
+        Get-ExpectedAssignmentCount -DataFolder $dir | Should -Be 1
     }
 }
 

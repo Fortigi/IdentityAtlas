@@ -24,6 +24,7 @@ BeforeAll {
     . (Join-Path $script:csvDir 'CSVCrawler.Functions.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Transform.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Phases.ps1')
+    . (Join-Path $script:csvDir 'CSVCrawler.Nesting.ps1')
 
     # Scope state the phases + helpers resolve at call time.
     $script:CsvFolder        = $TestDrive
@@ -66,6 +67,9 @@ BeforeAll {
     function Reset-CsvTestState {
         $script:sent        = [System.Collections.Generic.List[object]]::new()
         $script:systemLookup = @{}
+        # No nesting run in progress unless a test starts one — the phases that
+        # feed the graph must do nothing at all without it.
+        $script:CsvNesting  = $null
     }
     function Set-Csv {
         param([string]$Name, [string[]]$Lines)
@@ -221,11 +225,150 @@ Describe 'Sync-CsvRelationships' {
             'p2;'
         )
         Sync-CsvRelationships
-        $sent = Get-Sent 'ingest/resource-relationships'
+        $sent = @(Get-Sent 'ingest/resource-relationships' | Where-Object { $_.Records.Count -gt 0 })
         $sent.Count | Should -Be 1
         $sent[0].Scope.relationshipType | Should -Be 'Contains'
         $sent[0].Records.Count | Should -Be 1
         $sent[0].Records[0].relationshipType | Should -Be 'Contains'
+    }
+
+    # One full sync per relationshipType, because a full sync's stale-row delete
+    # is scoped to the type it names: the single Contains-scoped sync this phase
+    # used to send loaded GrantsAccessTo rows and then never removed one that
+    # left the file. Asserted on the SCOPE each batch carried, not just on the
+    # record counts — a run that sent both types under one Contains scope would
+    # pass a count-only assertion.
+    It 'sends one full sync per relationshipType, each scoped to its own type' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'BR1;G1;Contains'
+            'A;B;GrantsAccessTo'
+            'BR1;G2;Contains'
+        )
+        Sync-CsvRelationships
+        $sent = Get-Sent 'ingest/resource-relationships'
+        $sent.Count | Should -Be 2
+        @($sent | ForEach-Object { $_.Scope.relationshipType }) | Should -Be @('Contains', 'GrantsAccessTo')
+        $byType = @{}
+        foreach ($s in $sent) { $byType[$s.Scope.relationshipType] = $s }
+        @($byType['Contains'].Records | ForEach-Object { $_.childExternalId } | Sort-Object) | Should -Be @('G1', 'G2')
+        @($byType['GrantsAccessTo'].Records | ForEach-Object { $_.childExternalId }) | Should -Be @('B')
+    }
+
+    It 'feeds the nesting graph its GrantsAccessTo edges, and only those' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'BR1;G1;Contains'
+            'A;B;GrantsAccessTo'
+        )
+        $script:CsvNesting = New-CsvNestingGraph
+        Sync-CsvRelationships
+        @($script:CsvNesting.Parents.Keys) | Should -Be @('B')
+        @($script:CsvNesting.Parents['B'])  | Should -Be @('A')
+    }
+}
+
+# The per-type syncs asserted at the REAL ingest boundary (Invoke-IngestAPI), not
+# at Send-GroupedBySystem: what AC 7 turns on is whether a scope with no rows is
+# POSTED at all, and -SkipWhenEmpty drops exactly such a batch one layer below
+# the mock the tests above use. A Send-GroupedBySystem mock would have recorded
+# the call and shown nothing about whether the request happened.
+Describe 'Sync-CsvRelationships — what reaches the ingest API' {
+    BeforeAll {
+        # Every relationships post as @{ SystemId; Type; Count; SyncMode }, in the
+        # order sent. Declared in BeforeAll, not the Describe body: a function
+        # defined there is not in scope inside an It.
+        function Get-RelationshipSyncs {
+            @($script:posted | Where-Object { $_.Endpoint -eq 'ingest/resource-relationships' } | ForEach-Object {
+                @{ SystemId = [int]$_.Body.systemId; Type = [string]$_.Body.scope.relationshipType; Count = @($_.Body.records).Count; SyncMode = [string]$_.Body.syncMode }
+            })
+        }
+    }
+
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Invoke-IngestAPI { $script:posted.Add(@{ Endpoint = $Endpoint; Body = $Body }); @{ inserted = @($Body.records).Count; updated = 0; deleted = 0 } }
+        $script:posted = [System.Collections.Generic.List[object]]::new()
+    }
+
+    # AC 7. The file is there and still has a Contains row; its GrantsAccessTo
+    # rows are gone. The run must POST an empty full sync scoped to
+    # GrantsAccessTo — that is the only thing that clears the stored rows of a
+    # hard-deleted table.
+    It 'posts an empty full sync for a supported type the file has no row of' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'BR1;G1;Contains'
+        )
+        Sync-CsvRelationships
+        $syncs = Get-RelationshipSyncs
+        $syncs.Count | Should -Be 2
+        $grants = @($syncs | Where-Object { $_.Type -eq 'GrantsAccessTo' })
+        $grants.Count | Should -Be 1
+        $grants[0].Count | Should -Be 0
+        $grants[0].SyncMode | Should -Be 'full'
+        $grants[0].SystemId | Should -Be 2
+        # ...and the type that DOES have a row still carries it.
+        @($syncs | Where-Object { $_.Type -eq 'Contains' }).Count | Should -Be 1
+        @($syncs | Where-Object { $_.Type -eq 'Contains' })[0].Count | Should -Be 1
+    }
+
+    # The mirror case, so the test above cannot pass by sending an empty sync for
+    # everything: a file of only GrantsAccessTo rows reconciles Contains empty
+    # and sends its own rows for real.
+    It 'posts the rows it has and an empty sync for the other type' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'A;B;GrantsAccessTo'
+        )
+        Sync-CsvRelationships
+        $syncs = Get-RelationshipSyncs
+        @($syncs | Where-Object { $_.Type -eq 'GrantsAccessTo' })[0].Count | Should -Be 1
+        @($syncs | Where-Object { $_.Type -eq 'Contains' })[0].Count | Should -Be 0
+    }
+
+    # Both types reconciled for EVERY system the file spoke for — a named system
+    # whose rows are all of one type still has the other type cleared.
+    It 'reconciles every type for every system the file routed rows to' {
+        $script:systemLookup = @{ 'Omada' = 9 }
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType;SystemName'
+            'BR1;G1;Contains;'
+            'A;B;GrantsAccessTo;Omada'
+        )
+        Sync-CsvRelationships
+        $syncs = Get-RelationshipSyncs
+        $syncs.Count | Should -Be 4
+        @($syncs | Where-Object { $_.SystemId -eq 9 -and $_.Type -eq 'Contains' })[0].Count | Should -Be 0
+        @($syncs | Where-Object { $_.SystemId -eq 9 -and $_.Type -eq 'GrantsAccessTo' })[0].Count | Should -Be 1
+        @($syncs | Where-Object { $_.SystemId -eq 2 -and $_.Type -eq 'Contains' })[0].Count | Should -Be 1
+        @($syncs | Where-Object { $_.SystemId -eq 2 -and $_.Type -eq 'GrantsAccessTo' })[0].Count | Should -Be 0
+    }
+
+    # The fail-safe, unchanged: a run that read nothing deletes nothing. Both of
+    # these would wipe every stored relationship if the empty syncs were sent on
+    # the strength of the file merely existing.
+    It 'posts nothing for a header-only file' {
+        Set-Csv 'ResourceRelationships.csv' @('ParentExternalId;ChildExternalId;RelationshipType')
+        Sync-CsvRelationships
+        (Get-RelationshipSyncs).Count | Should -Be 0
+    }
+
+    It 'posts nothing when every row of the file was skipped' {
+        Set-Csv 'ResourceRelationships.csv' @(
+            'ParentExternalId;ChildExternalId;RelationshipType'
+            'p1;;Contains'
+            ';c2;GrantsAccessTo'
+        )
+        Sync-CsvRelationships
+        (Get-RelationshipSyncs).Count | Should -Be 0
+    }
+
+    It 'posts nothing when the file is absent' {
+        Remove-Csv 'ResourceRelationships.csv'
+        Sync-CsvRelationships
+        (Get-RelationshipSyncs).Count | Should -Be 0
     }
 }
 
@@ -303,6 +446,55 @@ Describe 'Sync-CsvAssignments' {
         $recs.Count | Should -Be 2                   # the row with no resource id is skipped
         ($recs | Where-Object { $_.resourceExternalId -eq 'r1' }).assignmentType | Should -Be 'Eligible'
         ($recs | Where-Object { $_.resourceExternalId -eq 'r2' }).assignmentType | Should -Be 'Direct'
+    }
+
+    # The nesting expansion reads its holders off THIS stream — there is no
+    # second pass over a file that routinely runs to tens of millions of rows.
+    It 'collects the Direct holders of the nesting graph''s resources off the stream' {
+        Set-Csv 'Assignments.csv' @(
+            'ResourceExternalId;UserExternalId;AssignmentType'
+            'A;u1;Direct'
+            'A;u2;Eligible'
+            'unrelated;u3;Direct'
+        )
+        $script:CsvNesting = New-CsvNestingGraph
+        Add-CsvNestingEdges -Graph $script:CsvNesting -Records @(
+            @{ _systemId = 2; parentExternalId = 'A'; childExternalId = 'B'; relationshipType = 'GrantsAccessTo' }
+        )
+        Sync-CsvAssignments
+        @($script:CsvNesting.Holders.Keys) | Should -Be @('A')
+        @($script:CsvNesting.Holders['A'])  | Should -Be @('u1')
+        @($script:CsvNesting.Systems)       | Should -Be @(2)
+    }
+
+    # The step 6b reconcile shares the Indirect scope with the Indirect rows this
+    # file supplies, so its bound must be read before THIS stream writes a row —
+    # read after it, every supplied Indirect row looked stale and was removed.
+    # The clock answers a different value on each call, and the log interleaves
+    # clock reads with posts, so a bound read late (or read anew) fails here.
+    It 'reads the nesting reconcile bound once, before the first row is posted' {
+        $script:events = [System.Collections.Generic.List[string]]::new()
+        $script:tick = 0
+        Mock Get-CrawlerServerTime { $script:tick++; $t = "2026-09-25T10:00:0$($script:tick).000Z"; $script:events.Add("clock $t"); $t }
+        Mock Invoke-IngestAPI { $script:events.Add('post'); @{ inserted = @($Body.records).Count; updated = 0 } }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add('ResourceExternalId;UserExternalId;AssignmentType')
+        $lines.Add('B;u2;Indirect')
+        for ($i = 0; $i -lt 10000; $i++) { $lines.Add("r$i;u$i;Direct") }
+        Set-Csv 'Assignments.csv' $lines
+        $script:CsvNesting = New-CsvNestingGraph
+        Sync-CsvAssignments
+        $script:CsvNesting.Before | Should -Be '2026-09-25T10:00:02.000Z'
+        # stream bound, nesting bound, then the two batches — and no clock read after
+        @($script:events) | Should -Be @('clock 2026-09-25T10:00:01.000Z', 'clock 2026-09-25T10:00:02.000Z', 'post', 'post')
+    }
+
+    It 'records the systems it fed even with no nesting, and holds nothing else' {
+        Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId', 'r1;u1')
+        $script:CsvNesting = New-CsvNestingGraph
+        Sync-CsvAssignments
+        $script:CsvNesting.Holders.Count | Should -Be 0
+        @($script:CsvNesting.Systems)    | Should -Be @(2)
     }
 
     It 'reconciles each system it fed, against the clock read before the first row' {

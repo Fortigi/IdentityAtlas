@@ -36,8 +36,7 @@
     },
     "tools/crawlers/csv/Test-CSVCrawler.ps1": {
       "PSReviewUnusedParameter": {
-        "ApiBaseUrl": 1,
-        "ApiKey": 1
+        "ApiBaseUrl": 1
       }
     },
     "tools/crawlers/custom-connector/Test-CustomConnectorCrawler.ps1": {
