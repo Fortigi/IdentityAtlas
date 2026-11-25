@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { memberCount, sameUnitLinks, linksNeedingCount, buildVariants, variantLabel } from './variants.helpers';
-import { profileFor } from './profiles';
+import { profileFor, roleWordsFor } from './profiles';
 
 const link = (id, targetType, displayName = 'Contoso', extra = {}) => ({
   id: `rel-${id}`, relationshipType: 'SameUnitAs', relatedContextId: id, relatedDisplayName: displayName, relatedTargetType: targetType, ...extra,
@@ -67,5 +67,15 @@ describe('profileFor', () => {
     expect(profileFor('OrganizationalUnit').accountableLabel).toBe('Accountable');
     expect(profileFor('LogicalApplication').accountableLabel).toBe('Owner');
     for (const c of ['Tag', 'Segment', null, 'Gadget']) expect(profileFor(c)).toBeNull();
+  });
+});
+
+describe('roleWordsFor', () => {
+  it('words the roles of every template that carries them, a catalog included, without giving it a profile', () => {
+    expect(roleWordsFor('OrganizationalUnit')).toEqual({ accountableLabel: 'Accountable', noun: 'this unit' });
+    expect(roleWordsFor('LogicalApplication')).toEqual({ accountableLabel: 'Owner', noun: 'this application' });
+    expect(roleWordsFor('Catalog')).toEqual({ accountableLabel: 'Owner', noun: 'this role portfolio' });
+    expect(profileFor('Catalog')).toBeNull();
+    for (const c of ['Tag', 'Segment', null, 'Gadget']) expect(roleWordsFor(c)).toBeNull();
   });
 });

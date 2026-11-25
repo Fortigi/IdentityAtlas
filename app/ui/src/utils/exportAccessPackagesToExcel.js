@@ -80,7 +80,7 @@ export async function exportAccessPackagesToExcel({ authFetch, search, categoryF
 
   const columns = [
     { header: 'Name',          width: 40 },
-    { header: 'Catalog',       width: 25 },
+    { header: 'Role portfolio', width: 25 },
     { header: 'Category',      width: 20 },
     { header: 'Type',          width: 30 },
     { header: 'Assignments',   width: 14 },

@@ -10,24 +10,19 @@ import * as db from '../../db/connection.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { cleanRow, countHistory } from './shared.js';
+import { catalogJoinSql } from '../../lib/businessRoleCatalog.js';
 import { ACCESS_MODEL_AGGREGATES, deriveAccessModel, holderCountSql, resourceCountSql } from '../../lib/businessRoleAccessModel.js';
 
-// 1. Current attributes + catalog name. Returns the cleaned attribute row, or
-//    null when the access package doesn't exist (handler → 404).
+// 1. Current attributes + the catalog it sits in (a Catalog context; catalogId
+//    is that context's id). Returns the cleaned attribute row, or null when the
+//    access package doesn't exist (handler → 404).
 export async function fetchApAttributes(pool, res, apId) {
-  let apResult;
-  try {
-    apResult = await timedQuery(pool, 'ap-attributes', res, `
-      SELECT ap.*, c."displayName" AS "catalogName"
+  const apResult = await timedQuery(pool, 'ap-attributes', res, `
+      SELECT ap.*, c.id AS "catalogId", c."displayName" AS "catalogName"
       FROM "Resources" ap
-      LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+      ${catalogJoinSql('ap.id')}
       WHERE ap.id = $1 AND ap."resourceType" = 'BusinessRole'
     `, [apId]);
-  } catch {
-    // GovernanceCatalogs may not exist — fall back to AP-only query
-    apResult = await timedQuery(pool, 'ap-attributes', res,
-      `SELECT * FROM "Resources" WHERE id = $1 AND "resourceType" = 'BusinessRole'`, [apId]);
-  }
   if (apResult.rows.length === 0) return null;
   return cleanRow(apResult.rows[0]);
 }

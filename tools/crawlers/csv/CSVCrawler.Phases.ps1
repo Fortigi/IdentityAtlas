@@ -11,6 +11,9 @@
     Like CSVCrawler.Functions.ps1, these are dot-sourced into the entry point's
     scope and read the crawler's script-scope state at call time:
       $CsvFolder, $Delimiter  → used by the Read-Csv* helpers
+      $CsvFileSettings        → the config's per-file mapping/delimiter section,
+                                resolved per phase by Get-CsvFileSpec
+                                (CSVCrawler.Mapping.ps1)
       $SystemType             → deterministic idPrefix + Systems default type
       $fallbackSystemId       → default systemId when a row has no SystemName
       $systemLookup           → SystemName → systemId map (mutated by Sync-CsvSystems)
@@ -54,9 +57,10 @@ function Sync-CsvSystems {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 1: Systems..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Processing systems' -Pct 8
-    $systemsCsv = Read-CsvFile 'Systems.csv'
+    $spec = Get-CsvFileSpec 'Systems.csv'
+    $systemsCsv = Read-CsvFile $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $systemsCsv) { return }
-    Assert-Columns 'Systems.csv' $systemsCsv @('ExternalId', 'DisplayName')
+    Assert-Columns $spec.FileName $systemsCsv @('ExternalId', 'DisplayName')
     $extra = Resolve-CsvExtraColumns -Columns (Get-CsvRowColumns $systemsCsv) -FileName 'Systems.csv'
     $sysRecords = [System.Collections.Generic.List[object]]::new()
     $sysNames   = [System.Collections.Generic.List[string]]::new()
@@ -85,9 +89,10 @@ function Sync-CsvContexts {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 2: Contexts..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing contexts' -Pct 12
-    $contexts = Read-CsvFile 'Contexts.csv'
+    $spec = Get-CsvFileSpec 'Contexts.csv'
+    $contexts = Read-CsvFile $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $contexts) { return }
-    Assert-Columns 'Contexts.csv' $contexts @('ExternalId', 'DisplayName')
+    Assert-Columns $spec.FileName $contexts @('ExternalId', 'DisplayName')
     $names = Get-CsvRowColumns $contexts
     $cols = New-CsvColumnSet -Names $names
     $extra = Resolve-CsvExtraColumns -Columns $names -FileName 'Contexts.csv'
@@ -120,14 +125,15 @@ function Sync-CsvContexts {
 function Sync-CsvContextMembers {
     [CmdletBinding()]
     param()
-    $f = Open-CsvFastReader -FileName 'ContextMembers.csv'
+    $spec = Get-CsvFileSpec 'ContextMembers.csv'
+    $f = Open-CsvFastReader -FileName $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $f) { return }
     $records = [System.Collections.Generic.List[object]]::new()
     try {
         if ($f.ColIdx.Count -eq 0) { return }
         $idx = Get-CsvContextMemberIndex -ColIdx $f.ColIdx -Columns $f.Columns
         while ($true) {
-            $rows = Read-CsvDataRows -Parser $f.Parser -FileName 'ContextMembers.csv' -Max $script:CsvStreamBatchSize
+            $rows = Read-CsvDataRows -Parser $f.Parser -FileName $spec.FileName -Max $script:CsvStreamBatchSize
             if ($rows.Count -eq 0) { break }
             $records.AddRange([object[]](ConvertTo-CsvContextMemberRecordSet -Rows $rows -Idx $idx -SystemId $fallbackSystemId))
         }
@@ -158,7 +164,7 @@ function Sync-CsvResources {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 3: Resources..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing resources' -Pct 20
     $found = Sync-CsvStreamedFile -Spec @{
-        FileName   = 'Resources.csv'
+        Canonical  = 'Resources.csv'
         Endpoint   = 'ingest/resources'
         Scope      = @{}
         KeyFields  = @('externalId')
@@ -195,9 +201,10 @@ function Sync-CsvRelationships {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 4: Resource relationships..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing relationships' -Pct 32
-    $rels = Read-CsvFile 'ResourceRelationships.csv'
+    $spec = Get-CsvFileSpec 'ResourceRelationships.csv'
+    $rels = Read-CsvFile $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $rels) { return }
-    Assert-Columns 'ResourceRelationships.csv' $rels @('ParentExternalId', 'ChildExternalId')
+    Assert-Columns $spec.FileName $rels @('ParentExternalId', 'ChildExternalId')
     $names = Get-CsvRowColumns $rels
     $cols = New-CsvColumnSet -Names $names
     $extra = Resolve-CsvExtraColumns -Columns $names -FileName 'ResourceRelationships.csv'
@@ -220,9 +227,10 @@ function Sync-CsvUsers {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 5: Users..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing users' -Pct 42
-    $users = Read-CsvFile 'Users.csv'
-    if (-not $users) { Write-Host "  WARNING: Users.csv not found (required)" -ForegroundColor Red; return }
-    Assert-Columns 'Users.csv' $users @('ExternalId', 'DisplayName')
+    $spec = Get-CsvFileSpec 'Users.csv'
+    $users = Read-CsvFile $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
+    if (-not $users) { Write-Host "  WARNING: $($spec.FileName) not found (required)" -ForegroundColor Red; return }
+    Assert-Columns $spec.FileName $users @('ExternalId', 'DisplayName')
     $names = Get-CsvRowColumns $users
     $cols = New-CsvColumnSet -Names $names
     $extra = Resolve-CsvExtraColumns -Columns $names -FileName 'Users.csv'
@@ -235,7 +243,11 @@ function Sync-CsvUsers {
     }
     Write-Host "  Built $($records.Count) principal records" -ForegroundColor Gray
     Write-CsvUnknownSystems -FileName 'Users.csv' -Unknown $unknown
-    Send-GroupedBySystem -Endpoint 'ingest/principals' -Scope @{ principalType = 'User' } -Records $records
+    # No principalType scope: Users.csv is the only file that writes principals, so
+    # it is each system's whole account set and the full sync reconciles every type
+    # in it. Scoped to 'User', a vanished ServicePrincipal or ExternalUser was never
+    # removed (#1686). The reconcile stays bounded to each system the file feeds.
+    Send-GroupedBySystem -Endpoint 'ingest/principals' -Records $records
     [System.GC]::Collect()
 }
 
@@ -266,20 +278,25 @@ function Sync-CsvUsers {
 $script:CsvStreamBatchSize = 10000
 
 # Stream one fast-path file into $Spec.Endpoint and reconcile every system it fed.
-# $Spec: FileName, Endpoint, Scope, KeyFields, SkipReason, and two scriptblocks —
-# Prepare (ColIdx, Columns → the column-position table, throwing when a required
-# column is missing) and ShapeSet (rows of one system, Idx → @{ Records; Skipped }).
+# $Spec: Canonical (the schema file name this slot is for), Endpoint, Scope,
+# KeyFields, SkipReason, and two scriptblocks — Prepare (ColIdx, Columns → the
+# column-position table, throwing when a required column is missing) and ShapeSet
+# (rows of one system, Idx → @{ Records; Skipped }). The file actually read, its
+# delimiter and its column mapping come from the config via Get-CsvFileSpec, and
+# $Spec.FileName is set to that file so every message names it.
 # Returns $false when the file does not exist.
 function Sync-CsvStreamedFile {
     [CmdletBinding()]
     [OutputType([bool])]
     param([hashtable]$Spec)
-    $f = Open-CsvFastReader -FileName $Spec.FileName
+    $fileSpec = Get-CsvFileSpec $Spec.Canonical
+    $Spec.FileName = $fileSpec.FileName
+    $f = Open-CsvFastReader -FileName $fileSpec.FileName -Delimiter $fileSpec.Delimiter -Mapping $fileSpec.Mapping
     if (-not $f) { return $false }
     $run = $null
     try {
         if ($f.ColIdx.Count -eq 0) { Write-Host "  $($Spec.FileName) is empty" -ForegroundColor Yellow; return $true }
-        $run = New-CsvStreamRun -Spec $Spec -Idx (& $Spec.Prepare $f.ColIdx $f.Columns)
+        $run = New-CsvStreamRun -Spec $Spec -Idx (& $Spec.Prepare $f.ColIdx $f.Columns) -FileSpec $fileSpec -ColIdx $f.ColIdx
         while ($true) {
             $rows = Read-CsvDataRows -Parser $f.Parser -FileName $Spec.FileName -Max $script:CsvStreamBatchSize
             if ($rows.Count -eq 0) { break }
@@ -294,26 +311,44 @@ function Sync-CsvStreamedFile {
 # Start a run once the header is known-good. Only then is the API's own clock
 # read — before the first row, so the reconcile keeps every row this run touches
 # however long the upload takes.
+#
+# A configured multi-value split is resolved here, against the POST-mapping
+# header: SplitIdx is the position of the column to expand (-1 when there is no
+# split), which is all the per-batch loop needs.
 function New-CsvStreamRun {
     [CmdletBinding()]
-    param([hashtable]$Spec, [hashtable]$Idx)
+    param([hashtable]$Spec, [hashtable]$Idx, [hashtable]$FileSpec, [hashtable]$ColIdx)
+    $split = if ($FileSpec) { $FileSpec.Split } else { $null }
+    $splitIdx = if ($split -and $ColIdx) { Get-CsvColIndex $ColIdx $split.field } else { -1 }
+    if ($split -and $splitIdx -lt 0) {
+        throw "$($Spec.FileName) declares a multi-value split on '$($split.field)', which the file does not supply. Re-map this file in Admin → Crawlers."
+    }
+    if ($splitIdx -ge 0) {
+        Write-Host "  Splitting $($split.field) on '$($split.delimiter)' — one row per value" -ForegroundColor Gray
+    }
     return [pscustomobject]@{
-        Spec    = $Spec
-        Idx     = $Idx
-        Before  = Get-CrawlerServerTime
-        Streams = @{}
-        Unknown = @{}
-        Rows    = 0
-        Skipped = 0
+        Spec       = $Spec
+        Idx        = $Idx
+        Before     = Get-CrawlerServerTime
+        Streams    = @{}
+        Unknown    = @{}
+        Rows       = 0
+        Skipped    = 0
+        SplitIdx   = $splitIdx
+        SplitDelim = if ($split) { $split.delimiter } else { '' }
     }
 }
 
 # Shape one batch of rows and hand each system's records to its stream, opening a
-# stream the first time a system appears.
+# stream the first time a system appears. A split-configured file expands its
+# multi-value cells first; the row COUNT stays the file's own, so the job log
+# still reports how many lines were read.
 function Add-CsvStreamRows {
     [CmdletBinding()]
     param($Run, $Rows)
     $spec = $Run.Spec
+    $readCount = $Rows.Count
+    if ($Run.SplitIdx -ge 0) { $Rows = Split-CsvMultiValueRows -Rows $Rows -Index $Run.SplitIdx -Delimiter $Run.SplitDelim }
     $shaped = ConvertTo-CsvStreamBatch -Rows $Rows -Idx $Run.Idx -SystemLookup $systemLookup -FallbackSystemId $fallbackSystemId `
         -ShapeSet $spec.ShapeSet -Unknown $Run.Unknown
     foreach ($sid in $shaped.BySystem.Keys) {
@@ -326,7 +361,7 @@ function Add-CsvStreamRows {
         Add-CrawlerIngestStreamRecords -Stream $stream -Records $shaped.BySystem[$sid]
     }
     $before = [Math]::Floor($Run.Rows / 250000)
-    $Run.Rows += $Rows.Count
+    $Run.Rows += $readCount
     $Run.Skipped += $shaped.Skipped
     if ([Math]::Floor($Run.Rows / 250000) -gt $before) {
         Write-Host "    $($Run.Rows.ToString('N0')) rows streamed..." -ForegroundColor DarkGray
@@ -380,7 +415,7 @@ function Sync-CsvAssignments {
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 6: Assignments..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing assignments' -Pct 55
     $found = Sync-CsvStreamedFile -Spec @{
-        FileName   = 'Assignments.csv'
+        Canonical  = 'Assignments.csv'
         Endpoint   = 'ingest/resource-assignments'
         Scope      = @{ assignmentType = 'Direct' }
         KeyFields  = @('resourceExternalId', 'principalExternalId', 'assignmentType')
@@ -413,9 +448,10 @@ function Sync-CsvIdentities {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 7: Identities..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing identities' -Pct 65
-    $identities = Read-CsvFile 'Identities.csv'
+    $spec = Get-CsvFileSpec 'Identities.csv'
+    $identities = Read-CsvFile $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $identities) { return }
-    Assert-Columns 'Identities.csv' $identities @('ExternalId', 'DisplayName')
+    Assert-Columns $spec.FileName $identities @('ExternalId', 'DisplayName')
     $names = Get-CsvRowColumns $identities
     $cols = New-CsvColumnSet -Names $names
     $extra = Resolve-CsvExtraColumns -Columns $names -FileName 'Identities.csv'
@@ -437,9 +473,10 @@ function Sync-CsvIdentityMembers {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 8: Identity members..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing identity members' -Pct 72
-    $idMembers = Read-CsvFile 'IdentityMembers.csv'
+    $spec = Get-CsvFileSpec 'IdentityMembers.csv'
+    $idMembers = Read-CsvFile $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $idMembers) { return }
-    Assert-Columns 'IdentityMembers.csv' $idMembers @('IdentityExternalId', 'UserExternalId')
+    Assert-Columns $spec.FileName $idMembers @('IdentityExternalId', 'UserExternalId')
     $names = Get-CsvRowColumns $idMembers
     $cols = New-CsvColumnSet -Names $names
     [void](Resolve-CsvExtraColumns -Columns $names -FileName 'IdentityMembers.csv')
@@ -461,11 +498,12 @@ function Sync-CsvCertifications {
     param()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 9: Certifications..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Syncing certifications' -Pct 78
-    $fast = Read-CsvFast 'Certifications.csv'
+    $spec = Get-CsvFileSpec 'Certifications.csv'
+    $fast = Read-CsvFast -FileName $spec.FileName -Delimiter $spec.Delimiter -Mapping $spec.Mapping
     if (-not $fast) { return }
     $rows = $fast.rows; $colIdx = $fast.colIdx
     if (-not $colIdx.ContainsKey('ExternalId')) {
-        throw "Certifications.csv missing required column ExternalId"
+        throw "$($spec.FileName) missing required column ExternalId"
     }
     $extra = Resolve-CsvExtraColumns -Columns $fast.columns -FileName 'Certifications.csv'
     $idx = @{
@@ -495,15 +533,22 @@ function Sync-CsvCertifications {
 }
 
 # ─── Setup: resolve the job config into crawler settings ─────────
+# A config without `sourceFormat` / `files` is a pre-mapping config and resolves
+# to exactly what it always did: the canonical file names, the config-level
+# delimiter, no mapping. The delimiter is normalized (the legacy two-character
+# "\t" the wizard used to store becomes a real tab), which is the only way an
+# existing Tab-configured crawler starts working rather than needing a re-save.
 function Resolve-CsvConfig {
     [CmdletBinding()]
     param([string]$ConfigPath)
     $raw = Get-Content $ConfigPath -Raw | ConvertFrom-Json -AsHashtable
     return @{
-        csvFolder  = if ($raw['csvFolder'])  { $raw['csvFolder'] }  else { '/data/csv' }
-        systemName = if ($raw['systemName']) { $raw['systemName'] } else { 'CSV Import' }
-        systemType = if ($raw['systemType']) { $raw['systemType'] } else { 'CSV' }
-        delimiter  = if ($raw['delimiter'])  { $raw['delimiter'] }  else { ';' }
+        csvFolder    = if ($raw['csvFolder'])  { $raw['csvFolder'] }  else { '/data/csv' }
+        systemName   = if ($raw['systemName']) { $raw['systemName'] } else { 'CSV Import' }
+        systemType   = if ($raw['systemType']) { $raw['systemType'] } else { 'CSV' }
+        delimiter    = Resolve-CsvDelimiterChar -Delimiter ([string]$raw['delimiter']) -Default ';'
+        sourceFormat = if ($raw['sourceFormat']) { $raw['sourceFormat'] } else { 'identityatlas' }
+        files        = if ($raw['files'] -is [hashtable]) { $raw['files'] } else { @{} }
     }
 }
 

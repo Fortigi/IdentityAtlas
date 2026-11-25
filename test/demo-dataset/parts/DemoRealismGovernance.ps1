@@ -87,10 +87,7 @@ function Add-DemoRealismGovernance {
         general = @{ Id = (New-DemoGuid 'cat-realism-general'); Name = 'Basistoegang per afdeling' }
     }
     foreach ($key in $catalogs.Keys) {
-        $State.Catalogs.Add(@{
-            id = $catalogs[$key].Id; displayName = $catalogs[$key].Name; catalogType = 'userManaged'
-            enabled = $true; systemId = $sysIga
-        })
+        Add-DemoCatalog $State -Id $catalogs[$key].Id -DisplayName $catalogs[$key].Name -ScopeSystemId $sysIga
     }
 
     Add-DemoRealismDeptRoles     $State -CatalogId $catalogs.general.Id

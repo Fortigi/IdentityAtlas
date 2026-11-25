@@ -368,7 +368,7 @@ export function createApp() {
       // the contexts they answer for, which the UI opens instead of the app, and
       // contextIds — those plus their variants — the scope the API enforces, so
       // the UI only offers what will open.
-      contextOwner: owner ? { contexts: owner.contexts, contextIds: [...owner.contextIds] } : null,
+      contextOwner: owner ? { contexts: owner.contexts, contextIds: [...owner.contextIds], businessRoles: owner.businessRoles || [] } : null,
     });
   });
 

@@ -351,22 +351,7 @@ function Sync-OmadaAccounts {
             ConvertTo-OmadaAccountRecord -Account $_ -IdentityLookup $IdentityLookup
         } | Where-Object { $_.externalId -and $_.displayName })
 
-        foreach ($PType in @('User', 'ExternalUser', 'ServicePrincipal')) {
-            $Subset = @($AccountRecords | Where-Object { $_.principalType -eq $PType })
-            if ($Subset.Count -eq 0) { continue }
-            $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ principalType = $PType } -Records $Subset
-            Write-Host "  Principals ($PType): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-        }
-        $OtherTypes = @($AccountRecords | Where-Object { $_.principalType -notin @('User','ExternalUser','ServicePrincipal') })
-        if ($OtherTypes.Count -gt 0) {
-            $Grouped = $OtherTypes | Group-Object principalType
-            foreach ($G in $Grouped) {
-                $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
-                    -Scope @{ principalType = $G.Name } -Records @($G.Group)
-                Write-Host "  Principals ($($G.Name)): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
-            }
-        }
+        Send-OmadaPrincipalByType -AccountRecords $AccountRecords -SystemId $SystemId
 
         # Shared lookups for the ContextMembers + Assignments phases.
         $Lookups = Get-OmadaAccountLookups -AllAccounts $AllAccounts -IdentityLookup $IdentityLookup

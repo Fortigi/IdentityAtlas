@@ -17,7 +17,7 @@
 
 import * as db from '../db/connection.js';
 import { suggestAccountable } from '../contexts/roleSuggestion.js';
-import { ROLE_BEARING_CATEGORIES } from '../lib/contextCategories.js';
+import { PROFILED_CATEGORIES } from '../lib/contextCategories.js';
 
 // Excel's limit for the text of one cell.
 export const MAX_CELL_TEXT = 32767;
@@ -162,7 +162,7 @@ async function fetchRoles(ids) {
 }
 
 /** Whether the context page would offer a suggestion: a role-bearing context with no Accountable. */
-export const wantsSuggestion = (row, roles) => ROLE_BEARING_CATEGORIES.has(row.contextCategory)
+export const wantsSuggestion = (row, roles) => PROFILED_CATEGORIES.has(row.contextCategory)
   && !roles.some(r => r.role === 'Accountable');
 
 /**

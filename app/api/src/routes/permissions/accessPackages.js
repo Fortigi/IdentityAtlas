@@ -10,6 +10,7 @@ import { ensureCategoryTables } from '../categories.js';
 import { timedQuery } from '../../perf/sqlTimer.js';
 import { isMissingSchema } from '../../db/schemaErrors.js';
 import { useSql, db } from './shared.js';
+import { catalogJoinSql } from '../../lib/businessRoleCatalog.js';
 
 const router = Router();
 
@@ -104,7 +105,7 @@ async function accessPackageResourcesHandler(req, res) {
               AND NOT EXISTS (SELECT 1 FROM "Resources" dr
                                WHERE dr.id = rrs."childResourceId" AND dr."deletedAt" IS NOT NULL)
         LEFT JOIN "Resources" r ON rrs."childResourceId" = r.id
-        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+        ${catalogJoinSql('ap.id')}
         LEFT JOIN ac ON ac."resourceId" = ap.id
         LEFT JOIN "GovernanceCategoryAssignments" ca ON ap.id::text = ca."resourceId"
         LEFT JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id

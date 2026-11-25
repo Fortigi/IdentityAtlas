@@ -56,6 +56,8 @@ describe('categoryMeta — the four templates plus Other', () => {
     expect(categoryMeta('LogicalApplication').label).toBe('Application');
     expect(categoryMeta('Tag').label).toBe('Tag');
     expect(categoryMeta('Segment').label).toBe('Segment');
+    expect(categoryMeta('Catalog').label).toBe('Role portfolio');
+    expect(categoryMeta('Catalog').groupLabel).toBe('Role portfolios');
     for (const meta of Object.values(CATEGORY_META)) expect(meta.description).toMatch(/\S/);
   });
 
@@ -77,8 +79,8 @@ describe('categoryMeta — the four templates plus Other', () => {
   });
 
   it('orders the templates with Other last', () => {
-    expect(CATEGORY_ORDER).toEqual(['OrganizationalUnit', 'LogicalApplication', 'Tag', 'Segment', 'Other']);
-    expect(CATEGORY_ORDER.slice(0, 4).every(k => CATEGORY_META[k])).toBe(true);
+    expect(CATEGORY_ORDER).toEqual(['OrganizationalUnit', 'LogicalApplication', 'Catalog', 'Tag', 'Segment', 'Other']);
+    expect(CATEGORY_ORDER.slice(0, 5).every(k => CATEGORY_META[k])).toBe(true);
   });
 });
 

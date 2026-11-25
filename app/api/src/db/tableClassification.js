@@ -70,7 +70,6 @@ export const TABLE_CLASSIFICATION = Object.freeze([
   t('CertificationDecisions', 'crawler', 'governance', 'Access-review decisions read from the IGA source.'),
   t('AssignmentRequests', 'crawler', 'governance', 'Access-package requests read from the IGA source.'),
   t('AssignmentPolicies', 'crawler', 'governance', 'Assignment policies read from the IGA source.'),
-  t('GovernanceCatalogs', 'crawler', 'governance', 'Catalogs read from the IGA source.'),
   t('IdentityMembers', 'crawler', 'identities',
     'Account-to-identity links. Rows with an analystOverride are a person\'s decision, but they cannot outlive their Identity (FK CASCADE), so they go — see ALSO_REMOVED.'),
   t('Identities', 'crawler', 'identities',
@@ -137,6 +136,7 @@ export const TABLE_CLASSIFICATION = Object.freeze([
   t('SystemOwners', 'curated', 'uploads', 'Owners a person assigned to a system. FK CASCADE to Systems: owners of a removed system go — see ALSO_REMOVED.'),
   t('ManagerHierarchyOverrides', 'curated', null, 'Org-chart manager overrides. FK CASCADE to Principals, all removed — see ALSO_REMOVED.'),
   t('ContextRoleSuggestionRejections', 'curated', null, 'Rejected Accountable suggestions. FK CASCADE to the Principal / Identity they name, all removed — see ALSO_REMOVED.'),
+  t('BusinessRoleCompositionReviews', 'curated', null, 'Composition reviews and sign-offs of a business role, with notes and who saved them. FK CASCADE to the role, all removed — see ALSO_REMOVED.'),
   t('BusinessRoleOwnerRejections', 'curated', null, 'Rejected owner suggestions on a business role. FK CASCADE to the role and the Principal they name, all removed — see ALSO_REMOVED.'),
   t('ContextUploads', 'curated', 'uploads', 'The runs of an uploaded list. Its system is always an uploaded list, which is kept.',
     { cascadeSafe: 'systemId always points at an Upload system, and those are kept.' }),
@@ -176,6 +176,7 @@ export const ALSO_REMOVED = Object.freeze([
   { what: 'Manager overrides in the org chart', because: 'the account they move is removed', tables: ['ManagerHierarchyOverrides'] },
   { what: 'Accountable and Responsible people on contexts, including the ones you set, and rejected suggestions', because: 'every holder is an account or an identity, and those are removed', tables: ['ContextRoles', 'ContextRoleSuggestionRejections'] },
   { what: 'Accountable and Responsible people on business roles, including the ones you set, and rejected suggestions', because: 'the business roles and their holders are removed', tables: ['BusinessRoleOwners', 'BusinessRoleOwnerRejections'] },
+  { what: 'Composition reviews and sign-offs of business roles, with their notes', because: 'the business roles are removed', tables: ['BusinessRoleCompositionReviews'] },
   { what: 'Your confirm, reject and move decisions on identity accounts, and analyst verification and notes on identities', because: 'the identities they belong to are removed', tables: ['IdentityMembers', 'Identities'] },
   { what: 'Members and links you added to a synced or generated context', because: 'that context is removed', tables: ['ContextMembers', 'ContextRelationships'] },
   {

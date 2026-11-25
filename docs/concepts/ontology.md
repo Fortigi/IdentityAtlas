@@ -225,6 +225,12 @@ that belong to them, linked as two variants of one unit by `SameUnitAs`.
 ```mermaid
 flowchart LR
     root["Context<br/><small>contextType</small>"]:::Context
+    subgraph g_CatalogContext["Catalog"]
+      direction LR
+      t_AccessPackageCatalog["AccessPackageCatalog<br/><small>entra-id</small>"]:::Context
+      t_Catalog["Catalog<br/><small>demo</small>"]:::Context
+      t_AccessPackageCatalog ~~~ t_Catalog
+    end
     subgraph g_LogicalApplicationContext["Logical application"]
       direction LR
       t_ContextRecipe["ContextRecipe<br/><small>context-recipe</small>"]:::Context
@@ -269,6 +275,7 @@ flowchart LR
       t_Tag["Tag"]:::Context
       t_Activity ~~~ t_Duty ~~~ t_Expertise ~~~ t_Tag
     end
+    root --> g_CatalogContext
     root --> g_LogicalApplicationContext
     root --> g_OrganizationalUnit
     root --> g_Segment

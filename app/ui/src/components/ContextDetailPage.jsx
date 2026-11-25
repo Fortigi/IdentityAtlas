@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useState } from 'react';
 import { useAuth } from '@ui/auth/AuthGate';
 import ContextDetailHeader from './ContextDetailHeader';
-import { profileFor } from './contexts/profiles/profiles';
+import { profileFor, roleWordsFor } from './contexts/profiles/profiles';
 import ContextDetails from './contexts/ContextDetails';
 import ContextPeople from './contexts/ContextPeople';
 import UploadProvenance from './contexts/UploadProvenance';
@@ -140,11 +140,14 @@ function shownSubUnits(detail, treeBeside) {
 
 // Who answers for a unit or an application, under the name (ContextPeople, in
 // the profile's words); nothing for any other context.
+// Who answers for a unit, an application or a catalog; role suggestions only
+// where the page has a profile (they come with its claims).
 function WhoAnswers({ profile, attrs, onOpenDetail, onRolesChanged }) {
-  if (!profile) return null;
+  const words = roleWordsFor(attrs.contextCategory);
+  if (!words) return null;
   return (
-    <ContextPeople attrs={attrs} onOpenDetail={onOpenDetail} heading={null} accountableLabel={profile.accountableLabel}
-      noun={profile.noun} suggest onRolesChanged={onRolesChanged} />
+    <ContextPeople attrs={attrs} onOpenDetail={onOpenDetail} heading={null} accountableLabel={words.accountableLabel}
+      noun={words.noun} suggest={!!profile} onRolesChanged={onRolesChanged} />
   );
 }
 

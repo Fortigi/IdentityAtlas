@@ -40,3 +40,16 @@ export const PROFILES = {
 export function profileFor(contextCategory) {
   return PROFILES[contextCategory] || null;
 }
+
+// The words for who answers for a context, for every template that carries
+// roles (lib/contextCategories.js ROLE_BEARING_CATEGORIES in the API). A catalog
+// of business roles has owners but keeps the generic page: it has no profile.
+const ROLE_WORDS = {
+  Catalog: { accountableLabel: 'Owner', noun: 'this role portfolio' },
+};
+
+export function roleWordsFor(contextCategory) {
+  const profile = profileFor(contextCategory);
+  if (profile) return { accountableLabel: profile.accountableLabel, noun: profile.noun };
+  return ROLE_WORDS[contextCategory] || null;
+}

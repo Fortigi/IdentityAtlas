@@ -41,6 +41,7 @@ export default defineConfig({
       'src/components/matrix/matrixHistoryText.test.js',
       'src/components/inputs/PeoplePicker.mount.test.jsx',
       'src/utils/exportRotatedToExcel.test.js',
+      'src/components/admin/relativePermissionsGrid.helpers.test.js',
     ],
     exclude: ['**/node_modules/**'],
   },

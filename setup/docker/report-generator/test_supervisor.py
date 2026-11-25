@@ -219,6 +219,16 @@ class ProxyTest(ModelTestCase):
         self.addCleanup(server.shutdown)
         return model, port
 
+    def assert_settles_to_idle(self, model, timeout=5):
+        # The proxy releases its in-flight count only after it has written the
+        # response, so the client can hold the body a moment before the count
+        # drops. Wait for it - but a count that never drops (a leaked acquire)
+        # still fails here.
+        deadline = time.monotonic() + timeout
+        while model.in_flight != 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(model.in_flight, 0)
+
     def call(self, port, method, path, body=None, auth=KEY, headers=None):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
         try:
@@ -264,7 +274,7 @@ class ProxyTest(ModelTestCase):
                                 "body": '{"filename":"prompt.bin"}', "auth": f"Bearer {self.KEY}"})
         self.assertEqual(headers.get("X-Fake"), "yes")   # upstream headers are relayed
         self.assertEqual(model.popen_counter.started, 1)
-        self.assertEqual(model.in_flight, 0)
+        self.assert_settles_to_idle(model)
         self.assertEqual(self.call(port, "GET", "/v1/models")[2]["data"][0]["loaded"], True)
 
     def test_a_request_counts_as_in_flight_for_as_long_as_it_runs(self):
@@ -279,7 +289,7 @@ class ProxyTest(ModelTestCase):
         self.assertFalse(model.stop_if_idle(0.001))      # idle time long past, but a request runs
         worker.join()
         self.assertEqual(seen[0][0], 200)
-        self.assertEqual(model.in_flight, 0)
+        self.assert_settles_to_idle(model)
 
     def test_only_the_endpoints_the_web_app_uses_are_passed_through(self):
         # Anything else llama-server offers stays unreachable from outside the

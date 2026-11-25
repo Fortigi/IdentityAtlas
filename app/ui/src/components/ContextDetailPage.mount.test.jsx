@@ -92,6 +92,39 @@ describe('ContextDetailPage — no owner chip; who answers for it is the Account
   });
 });
 
+describe('ContextDetailPage — a catalog of business roles', () => {
+  const catalog = {
+    attributes: {
+      id: 'ctx-1', variant: 'synced', targetType: 'Resource', contextType: 'AccessPackageCatalog', contextCategory: 'Catalog',
+      displayName: 'Finance catalog', scopeSystemName: 'EntraID', directMemberCount: 1, totalMemberCount: 1,
+    },
+    subContexts: [],
+  };
+  const roles = [
+    { id: 'r1', role: 'Accountable', principalId: 'p-own', identityId: null, displayName: 'Olga Owner', addedBy: 'sync' },
+    { id: 'r2', role: 'Responsible', principalId: 'p-mgr', identityId: null, displayName: 'Max Manager', addedBy: 'sync' },
+  ];
+
+  it('names its owner and the people responsible for it, and lists its roles as members', async () => {
+    const authFetch = makeAuthFetch({
+      '/api/contexts/ctx-1/roles': roles,
+      '/api/contexts/ctx-1/members': { total: 1, data: [{ id: 'br-1', displayName: 'Finance Approver', resourceType: 'BusinessRole', addedBy: 'sync' }] },
+      '/api/contexts/ctx-1/timeline': timeline,
+      '/api/risk-scores/contexts/ctx-1': riskData,
+      '/api/contexts/ctx-1': catalog,
+    });
+    renderWithProviders(h(ContextDetailPage, baseProps), { auth: { authFetch } });
+    expect(await screen.findByRole('button', { name: 'Olga Owner' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Max Manager' })).toBeInTheDocument();
+    expect(screen.getAllByText('Owner').length).toBeGreaterThan(0);
+    expect(await screen.findByText('Finance Approver')).toBeInTheDocument();
+    // The generic page: no unit profile, so no people overview and no role suggestions.
+    const asked = authFetch.mock.calls.map(([u]) => String(u));
+    expect(asked.some(u => u.includes('/people'))).toBe(false);
+    expect(asked.some(u => u.includes('/roles/suggestions'))).toBe(false);
+  });
+});
+
 describe('ContextDetailPage — the template in the header', () => {
   it('shows no classification badges and asks a context without a template for no roles', async () => {
     const authFetch = routes();

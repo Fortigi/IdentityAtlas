@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { createParams, likeContains } from '../../db/sqlParams.js';
 import { queryRiskScoresPage } from '../../db/queryHelpers.js';
 import { useSql, db, riskTableExists, parseJsonColumns, liveRow } from './shared.js';
+import { catalogJoinSql } from '../../lib/businessRoleCatalog.js';
 import { fetchRiskOverview, buildRiskSummary } from './summary.js';
 
 const router = Router();
@@ -108,8 +109,8 @@ const RISK_LIST_TYPES = [
     name: 'business-roles',
     entityType: 'BusinessRole',
     fromClause: `INNER JOIN "Resources" br ON rs."entityId" = br.id AND br."resourceType" = 'BusinessRole' AND ${liveRow('br')}
-      LEFT JOIN "GovernanceCatalogs" c ON br."catalogId" = c.id`,
-    selectCols: `br."displayName", br.description, br."catalogId", c."displayName" AS "catalogName"`,
+      ${catalogJoinSql('br.id')}`,
+    selectCols: `br."displayName", br.description, c.id AS "catalogId", c."displayName" AS "catalogName"`,
     searchColumns: (s) => `(br."displayName" ILIKE ${s} ESCAPE '\\' OR br.description ILIKE ${s} ESCAPE '\\')`,
   },
   {

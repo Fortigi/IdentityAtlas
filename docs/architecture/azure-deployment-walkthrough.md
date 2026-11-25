@@ -250,7 +250,7 @@ Resource Group → top menu **Delete resource group** → type the name to confi
 
 ## Restricting which users can sign in
 
-Any user in the tenant may be able to sign in, but signing in gives nothing by itself. A user without a role sees no data: every screen is replaced by a page that tells them to ask for a role. The one exception is a context owner, and only if you turn on [context-owner access](../admin/authentication.md#relative-permissions-letting-context-owners-in). You decide who gets in by assigning roles:
+Any user in the tenant may be able to sign in, but signing in gives nothing by itself. A user without a role sees no data: every screen is replaced by a page that tells them to ask for a role. The one exception is a context owner, and only if you turn on [context-owner access](../admin/authentication.md#relative-permissions-letting-owners-in). You decide who gets in by assigning roles:
 
 1. **App Registration → App roles → Create app role** — besides `Admin` (Step 2), add the roles you need. Use the names Identity Atlas knows: `RoleMiner` and `Servicedesk` are built in, and you can map other names under **Admin → Roles & Permissions**. A role name that is not in that mapping grants nothing.
 2. **Enterprise applications → your app → Users and groups** — assign users / groups to those roles

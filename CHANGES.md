@@ -1,5 +1,71 @@
 ## Changes in this PR
 
+- Fixed an intermittent failure of the report-generator proxy tests in PR checks: they read the in-flight request count a moment before the proxy had released it.
+
+## Changes in this PR
+
+- Fixed CSV full syncs keeping accounts of any type other than User (service accounts, external users, shared mailboxes) live forever after they were removed from Users.csv. They are now removed like vanished user accounts.
+
+## Changes in this PR
+
+- CSV Import: a source export no longer has to be converted to the Identity Atlas schema first. Pick **Custom mapping** as the source format in the wizard, upload the files as they are, and map each file's columns onto the schema per field. The mapping is stored with the crawler and applied on every run — the uploaded files are never rewritten.
+- The column dropdowns are pre-filled by exact column-name match and are fully overridable; required schema fields are marked, and a file that still doesn't supply one is flagged in the wizard rather than failing later in the job.
+- Each uploaded file's delimiter is now detected (comma, semicolon or tab) and shown per file, with a per-file override. The crawler-level delimiter remains the fallback, so existing crawlers are unaffected.
+- A mapped column can be split on a separator: a memberships cell holding `user1;user2;user3` becomes three assignments.
+- Columns you leave unmapped are still kept as extended attributes under their source names; for Assignments, Identity Members and Context Members they are named in the job log, as before.
+- Fixed: choosing **Tab** as the CSV delimiter stored a value no CSV reader could use, so a Tab-delimited import always failed. Existing Tab-configured crawlers now work without being re-saved.
+- Files already in the Identity Atlas schema load exactly as they did before — mapping is bypassed entirely.
+
+## Changes in this PR
+
+- Fixed Omada full syncs keeping accounts of a type (external user, service account) live forever after the last account of that type was removed in Omada. They are now removed like any other vanished account.
+- Fixed SQL-connector syncs keeping rows live forever when a statement that reads its complete set starts returning no rows at all. Rows the source no longer holds are now removed. Statements that read only recent changes, and staged assignment loads, still leave existing rows alone.
+
+## Changes in this PR
+
+- Fixed the PR integration and Playwright checks reporting "demo data loaded" when the demo-data job had failed or never finished. The step now fails with the job's status, so a broken demo load no longer shows up as unrelated test failures.
+
+## Changes in this PR
+
+- The Entra ID crawler now reads who answers for each access package catalog: a catalog with one owner shows that person as its Owner (Accountable); with several owners each owner is Responsible; access package managers and access package assignment managers are Responsible. Catalog readers are left out.
+- A catalog's page shows its Owner and Responsible people, and an analyst can set or change them like on an application. A choice made by an analyst survives the next crawl.
+- When an owner or manager is removed in Entra ID, the next full crawl removes that role in Identity Atlas too.
+- Catalogs are now contexts: each Entra ID access package catalog is synced as a context of the new **Catalog** type, holding its access packages (business roles) as members, with the catalog's type, published state, external visibility and dates as attributes.
+- Added a **Catalogs** tab on the Contexts page that lists every catalog under the name it has in Entra ID.
+- The catalog name on a business role's page now opens that catalog.
+- The separate governance catalog table and the `catalogId` field on business roles are removed, along with the `POST /api/ingest/governance/catalogs` and `GET /api/governance-catalogs` endpoints and the GovernanceCatalogs sheet of the Excel export. Catalogs appear on the Contexts sheet instead. Existing catalog rows are dropped on upgrade; the next Entra ID crawl writes them again as contexts.
+- Fixed catalogs always showing as unpublished: the catalog's published state is now read from the field Microsoft Graph actually returns.
+- Context owners who are Accountable or Responsible for business roles can get a "Business roles" tab on their own page, listing exactly those roles
+- That tab sits on the same row as Organisation and Applications, so an owner sees one set of tabs; their side list is now headed "What you answer for" instead of "Your contexts"
+- From there they open each role read-only and, when allowed, sign off its composition review
+- A new relative permission under Admin → Roles & Permissions, "Context owners also see the business roles they answer for", switches this on; it is off by default and only works while context-owner access is on
+- The business roles a context owner answers for no longer have a separate "Business roles" tab: they now appear on the **Role portfolios** tab of the owner's page, so everything an owner answers for is organised by context.
+- A role in a portfolio the owner does not answer for is shown under that portfolio's name, in a light colour and not as a link, the same way the units above an owner's organisation tree are shown. A role in no portfolio is shown under "Default portfolio".
+- A role in a portfolio the owner does answer for is listed once, among that portfolio's business roles.
+- Fixed the Composition review snapshot, which still read a business role's catalog from the removed catalog table.
+- A business role now always opens on its Overview, also for an owner on their own page. The composition review used to open first for them.
+- A business role's Resources and People are now folded sections on its Overview, each showing its count, instead of separate tabs.
+- The composition review now sits at the top of the **Requests & reviews** tab instead of on a tab of its own. Its "See the resources" link opens the Overview with Resources unfolded.
+- Someone who answers only for business roles, and for no unit or application, opens on Role portfolios with their first role selected.
+- Relative permissions under Admin → Roles & Permissions are now one grid instead of separate switches: for each kind of thing people answer for (organisation units, applications, role portfolios, business roles), choose separately for the Accountable and the Responsible whether they may sign in and see it, also see its sub-units, use the MCP server, or sign off a business role's composition review
+- People who answer only for business roles (and for no unit or application) can now sign in to see those roles, when the grid allows it
+- Upgrading keeps the access people had: until the grid is first saved it shows what the earlier switches gave
+- Catalogs are now called **role portfolios** throughout the app: the Contexts page tab, a business role's page, the matrix tooltip, the risk-scoring list and the business roles Excel export.
+- Someone who is Accountable or Responsible for a role portfolio can sign in without an Identity Atlas role, like the owner of a unit or an application. Their page shows the portfolio on a **Role portfolios** tab (this needs context-owner access switched on).
+- A business role in a role portfolio's member list now opens the business role page, not the plain resource page.
+
+## Changes in this PR
+
+- Business roles have a Composition review tab: write notes about what the role contains and tick Signed off when you agree with it
+- Each review is kept as its own record with who saved it, when, and a snapshot of the role at that moment: its type, holders, Accountable and Responsible people, policies with their rules, and resources
+- Every review shows what was reviewed, exactly as it was; for the latest sign-off the tab says what changed since (resources added or removed, a different type, or a changed policy or rule)
+- Composition review is an experimental feature, off by default: switch it on under Admin → Experimental
+- Signing off needs the Certification decisions permission; with the new relative permission "Business-role owners may sign off a composition review" (Admin → Roles & Permissions) the role's own Accountable or Responsible can sign off too
+- Everyone who can read data sees the reviews
+- The core ontology describes the composition review (ia:CompositionReview, version 2.7.0)
+
+## Changes in this PR
+
 - Fixed the Azure part of the release test, which failed on every variant: an Azure install has sign-in on from the first deploy, so the variants without Entra now check that a fresh deploy and an upgrade come up locked (sign-in reported as on but not configured, every data endpoint refusing a request without a token) instead of expecting open data.
 - Fixed the Azure sign-in variants checking the app before it had restarted with its sign-in settings: after the sign-in step the test now waits until the app reports the configured Entra app.
 - The Azure sign-in variants now load the demo data and read it back as a signed-in Admin caller, and the Azure upgrade with sign-in also checks that person-made data (tags, contexts, settings, read API keys and more) survives the upgrade. This needs a new app registration and the `RELEASE_TEST_ADMIN_CLIENT_ID` environment variable (see the release process guide, One-time setup); without it those variants fail at once with a message that says what to set.

@@ -24,7 +24,9 @@ The unification uses discriminator columns:
 - `ResourceAssignments.governed = true` — flags governed assignments among all assignments (the `assignmentType` stays one of the three universal values `Direct` / `Indirect` / `Eligible`)
 - `ResourceRelationships.relationshipType = 'Contains'` — identifies resource grants among all relationships
 
-The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`, `AssignmentRequests`, `CertificationDecisions`) contain only data that has no place in the shared model.
+The three governance-specific tables (`AssignmentPolicies`, `AssignmentRequests`, `CertificationDecisions`) contain only data that has no place in the shared model.
+
+A **catalog** — the container a governance source groups its business roles in — is a synced context of the `Catalog` template (`contextCategory = 'Catalog'`), not a table of its own. Its members are the business roles it holds, the source's catalog properties sit in its `extendedAttributes`, and the people who answer for it are its Accountable and Responsible. The UI calls them **role portfolios**: they have their own **Role portfolios** tab on the Contexts page, and someone who is Accountable or Responsible for one finds it on the same sub-tab of their owner page (see [Context-owner access](../architecture/context-owner-access.md)). Until migration 117 they lived in a `GovernanceCatalogs` table with a `Resources.catalogId` pointer; that table is gone and the next crawl writes the catalogs again as contexts.
 
 !!! info "Breaking change from v3.0"
     In v3.0, governance used seven separate tables: GovernanceCatalogs, BusinessRoles, BusinessRoleResources, BusinessRoleAssignments, BusinessRolePolicies, BusinessRoleRequests, and CertificationDecisions. In v3.1, three of those were absorbed into the shared resource model. Existing v3.0 deployments must re-sync to populate the unified tables.
@@ -36,16 +38,20 @@ The four governance-specific tables (`GovernanceCatalogs`, `AssignmentPolicies`,
 <!-- ontology: validated -->
 ```mermaid
 erDiagram
-    GovernanceCatalogs {
+    Contexts {
         guid id PK
         string displayName
-        string description
+        string contextCategory
+    }
+    ContextMembers {
+        guid contextId FK
+        string memberType
+        guid memberId FK
     }
     Resources {
         guid id PK
         string displayName
         string resourceType
-        guid catalogId FK
         bool isHidden
     }
     ResourceAssignments {
@@ -99,7 +105,8 @@ erDiagram
         string reviewInstanceStatus
     }
 
-    GovernanceCatalogs |o--o{ Resources : "contains (BusinessRole)"
+    Contexts ||--o{ ContextMembers : "contextCategory=Catalog"
+    ContextMembers }o--|| Resources : "BusinessRole"
     Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
     Resources |o--o{ AssignmentPolicies : "governed by"
@@ -115,7 +122,7 @@ The same governance tables absorb data from any IGA platform. The source platfor
 
 | Concept | Entra ID | Omada | SailPoint | Table |
 |---|---|---|---|---|
-| Catalog / Container | Catalog | — | Source | `GovernanceCatalogs` |
+| Catalog / Container | Catalog | — | Source | `Contexts` (`contextCategory = 'Catalog'`), members in `ContextMembers` |
 | Business Role | Access Package | Business Role | Access Profile | `Resources` (`resourceType = 'BusinessRole'`) |
 | Resource Grant | Resource Role Scope | Role Entitlement | Entitlement | `ResourceRelationships` (`relationshipType = 'Contains'`) |
 | Assignment | AP Assignment | Role Assignment | Access Request Result | `ResourceAssignments` (`governed = true`) |
@@ -135,7 +142,6 @@ These columns are created by the PostgreSQL migrations (`001_core_schema.sql`, `
 
 | Column | Type | Purpose |
 |---|---|---|
-| `catalogId` | UUID | Links the business role to its `GovernanceCatalogs` parent |
 | `isHidden` | BOOLEAN | Hides the business role from self-service request portals |
 
 ### ResourceAssignments (governed assignments)
@@ -226,6 +232,17 @@ So a review is done **in the source system**, not here:
 - **Re-sync** the Entra ID (or CSV) crawler to pull the updated decisions back into `CertificationDecisions`.
 - **Track compliance in Identity Atlas** using the read-only review-compliance view — per-access-package last-review status (Compliant / In Progress / Reviewed Late / Missed), backed by the `GET /api/governance/review-compliance` and `GET /api/governance/summary` endpoints (see the [Governance API](../api/governance.md)). Use it to find which business roles are overdue or were reviewed late, then drive the next campaign in the source system.
 
+### Reviewing what a business role contains
+
+The one review Identity Atlas does hold itself is a **composition review**: at the top of a business role's **Requests & reviews** tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks **Signed off**. This reviews the role's *contents*, not who holds it, so it does not replace the access reviews above.
+
+- A review is an object of its own, linked to the role it reviews, and never changed after it is saved: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name), when, and a **snapshot** of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, its assignment policies with their rules, and the resources it contained (name, type, system).
+- The tab shows every review with **What was reviewed** (the snapshot, as it was), and for the latest sign-off what changed since: resources added or removed, a different type, or a changed policy or rule.
+- It lives in its own table, `BusinessRoleCompositionReviews` (migration 116), never in `CertificationDecisions`, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.
+- It is **experimental** and off by default: switch it on under **Admin → Experimental → Composition review**. While it is off the section is hidden and both endpoints answer 404; reviews already saved are kept.
+- Saving needs the **Certification decisions** permission (`data.write.certifications`) — or answering for the role (its **Accountable** or **Responsible**, through any of your accounts) where **Admin → Roles & Permissions → Relative permissions** ticks **Composition review** for their role (Accountable or Responsible) on the Business roles row. Anyone who can read data sees the reviews (`GET` / `POST /api/access-package/:id/composition-reviews`).
+- In the ontology it is `ia:CompositionReview` ([core model](../reference/core-model.md)).
+
 ---
 
 ## How governance data is ingested
@@ -238,7 +255,7 @@ The built-in Entra ID crawler (**Admin → Crawlers → Add Crawler → Entra ID
 
 | Graph resource | Target table (`filter`) |
 |---|---|
-| Access package catalogs | `GovernanceCatalogs` |
+| Access package catalogs | `Contexts` (`contextCategory = Catalog`, `contextType = AccessPackageCatalog`), the access packages as `ContextMembers` |
 | Access packages | `Resources` (`resourceType = BusinessRole`) |
 | Access package assignments | `ResourceAssignments` (`governed = true`) |
 | Access package resource scopes | `ResourceRelationships` (`relationshipType = Contains`) |

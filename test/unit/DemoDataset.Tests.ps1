@@ -685,7 +685,6 @@ Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
             'ingest/resource-relationships'
             'ingest/identities'
             'ingest/identity-members'
-            'ingest/governance/catalogs'
             'ingest/governance/policies'
             'ingest/governance/certifications'
             'ingest/principal-activity'
@@ -707,12 +706,14 @@ Describe 'Demo dataset — every ingest envelope carries a system (#1222)' {
 
     It 'posts each context, membership, role and link under the system that owns the context' {
         # Mock system ids: entra=501, hr=502, iga=503. The org tree is HR's, the
-        # application catalogue IGA's, the administrative unit Entra's.
-        $script:appCount = @($script:data.contexts | Where-Object { $_.contextType -eq 'LogicalApplication' }).Count
+        # application catalogue and the business-role catalogs IGA's, the
+        # administrative unit Entra's.
+        $script:igaCount = @($script:data.contexts | Where-Object { $_.contextType -in 'LogicalApplication', 'Catalog' }).Count
+        @($script:data.contexts | Where-Object { $_.contextType -eq 'Catalog' }).Count | Should -Be 2
         Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
             $Uri -like '*/ingest/contexts' -and ($b = $Body | ConvertFrom-Json).systemId -eq 503 -and
-            @($b.records).Count -eq $script:appCount -and
-            @($b.records | Where-Object { $_.contextType -ne 'LogicalApplication' }).Count -eq 0
+            @($b.records).Count -eq $script:igaCount -and
+            @($b.records | Where-Object { $_.contextType -notin 'LogicalApplication', 'Catalog' }).Count -eq 0
         }
         Should -Invoke Invoke-RestMethod -Scope Describe -Times 1 -Exactly -ParameterFilter {
             $Uri -like '*/ingest/contexts' -and ($b = $Body | ConvertFrom-Json).systemId -eq 501 -and

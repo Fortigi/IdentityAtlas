@@ -1079,30 +1079,8 @@ function Sync-EntraSignInLogs {
     Write-Phase -Name 'SignInLogs' -Duration $__phaseSW.Elapsed -ErrorMsg $__signInErrMsg
 }
 
-# ─── Governance: catalogs + access packages ──────────────────────
-# Fetch entitlement-management catalogs and access packages, upload catalogs and
-# the access-package-as-BusinessRole resources, and RETURN the raw access
-# packages so the resource-scopes sub-phase can expand each one. Out-Nulls its
-# ingest calls so it returns only the access packages.
-function Sync-EntraGovernanceCatalogs {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)] [int]$SystemId)
-
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (catalogs)..." -ForegroundColor Cyan
-    $catalogs = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackageCatalogs?`$top=999"
-
-    $catRecords = @($catalogs | ForEach-Object { ConvertTo-EntraGovernanceCatalogRecord -Catalog $_ })
-    Send-IngestBatch -Endpoint 'ingest/governance/catalogs' -SystemId $SystemId -SyncMode 'full' -Records $catRecords | Out-Null
-
-    Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access packages -> business roles)..." -ForegroundColor Cyan
-    $accessPackages = Invoke-FGGetRequest -URI "https://graph.microsoft.com/beta/identityGovernance/entitlementManagement/accessPackages?`$top=999"
-
-    $apRecords = @($accessPackages | ForEach-Object { ConvertTo-EntraAccessPackageRecord -AccessPackage $_ })
-    Send-IngestBatch -Endpoint 'ingest/resources' -SystemId $SystemId -SyncMode 'full' `
-        -Scope @{ resourceType = 'BusinessRole' } -Records $apRecords | Out-Null
-
-    return $accessPackages
-}
+# Sync-EntraGovernanceCatalogs (catalogs as Catalog contexts + access packages)
+# lives in EntraIDCrawler.Catalogs.ps1.
 
 # ─── Governance sub-phase: access-package resource role scopes ────
 # Each access package's resourceRoleScopes describe the groups it Contains — the

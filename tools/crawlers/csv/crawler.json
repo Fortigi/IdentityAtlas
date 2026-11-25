@@ -16,7 +16,27 @@
     "properties": {
       "csvFolder":  { "type": "string" },
       "systemName": { "type": "string" },
-      "systemType": { "type": "string" }
+      "systemType": { "type": "string" },
+      "delimiter":  { "type": "string", "minLength": 1, "maxLength": 2 },
+      "sourceFormat": { "type": "string", "enum": ["identityatlas", "custom"] },
+      "files": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "slot":      { "type": ["string", "null"] },
+            "delimiter": { "type": "string", "minLength": 1, "maxLength": 2 },
+            "columns":   { "type": "object", "additionalProperties": { "type": "string" } },
+            "split": {
+              "type": ["object", "array", "null"],
+              "properties": {
+                "field":     { "type": "string" },
+                "delimiter": { "type": "string", "minLength": 1, "maxLength": 2 }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "postSyncHooks": ["buildContexts", "accountCorrelation"]

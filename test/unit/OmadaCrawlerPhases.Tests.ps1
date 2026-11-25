@@ -355,6 +355,38 @@ Describe 'Sync-OmadaAccounts' {
         Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith { throw 'OData 500' }
         Sync-OmadaAccounts -SystemId 1 -IdentityLookup @{}
         $script:phaseErrors[0] | Should -BeLike 'Accounts:*'
+        # A read that failed says nothing about what the source holds: no scope
+        # may be reconciled on it, empty or otherwise.
+        Get-Sent { $_.Endpoint -eq 'ingest/principals' } | Should -HaveCount 0
+    }
+
+    # #1691: the scoped full sync is the only thing that removes a vanished
+    # account, so a built-in type whose last account left Omada must still get
+    # its (empty) batch — skipping it left those accounts live forever.
+    It 'still sends an empty full sync for a built-in type the source no longer has' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith {
+            @([pscustomobject]@{ UId = 'acc-1'; UserName = 'alice'; FIRSTNAME = 'Alice'; LASTNAME = 'Smith'; IDENTITYREF = [pscustomobject]@{ IDENTITYID = 'ID-1' } })
+        }
+        Sync-OmadaAccounts -SystemId 4 -IdentityLookup @{ 'ID-1' = @{ uid = 'id-1'; identityType = 'Employee' } }
+
+        foreach ($type in @('ExternalUser', 'ServicePrincipal')) {
+            $calls = Get-Sent { $_.Endpoint -eq 'ingest/principals' -and $_.Scope.principalType -eq $type }
+            $calls | Should -HaveCount 1
+            $calls[0].Records.Count | Should -Be 0
+            $calls[0].SyncMode | Should -Be 'full'
+            $calls[0].SystemId | Should -Be 4
+        }
+        (Get-Sent { $_.Scope.principalType -eq 'User' })[0].Records.Count | Should -Be 1
+    }
+
+    # The guard on the fix above. An Omada that answers with no accounts at all
+    # is far likelier a broken read than a tenant that lost every account, and
+    # an empty batch per type would tombstone every account the system owns.
+    It 'sends no empty batch when the read returned no accounts at all' {
+        Mock Invoke-ODataPagedRequest -ParameterFilter { $Path -eq '/User' } -MockWith { @() }
+        Sync-OmadaAccounts -SystemId 4 -IdentityLookup @{}
+        Get-Sent { $_.Endpoint -eq 'ingest/principals' } | Should -HaveCount 0
+        $script:phaseErrors.Count | Should -Be 0
     }
 }
 

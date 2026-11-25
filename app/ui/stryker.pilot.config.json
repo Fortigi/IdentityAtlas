@@ -51,9 +51,9 @@
     "src/components/matrix/GridCornerControls.jsx": "The grid header corner controls (#1202): the legend ? popover, the fold-all-columns toggle, and the row-axis toggles (nested groups, business roles, reset row order). It renders; what a toggle SAYS follows state computed elsewhere — columnFoldState in ./foldState.js (with its own unit test) and the flags the views pass in. GridCornerControls.mount.test.jsx pins each label, aria-pressed state, handler and hidden condition, including the mixed fold state.",
     "src/components/matrix/usePopover.js": "Open/close state for the Export menu and the legend popover (#1202): toggle, close, and document mousedown/keydown listeners for outside-click and Escape, plus focus hand-off. Its behaviour is DOM event wiring that only means something mounted, and is pinned that way in GridCornerControls.mount.test.jsx and MatrixToolbar.mount.test.jsx (click to open, Escape and outside click close, focus moves in and back). Mutating it in isolation would test listener registration, not the behaviour the mount tests already assert.",
     "src/components/ContextOwnerPage.jsx": "Page shell for a context owner (header, context list, read-only context page). Rendering, not decisions: the only logic is the in-scope check on opening a variant, pinned by ContextOwnerPage.mount.test.jsx (an in-scope variant opens in place, an out-of-scope one does not). Who reaches this page is decided by auth/authMeState.js isContextOwnerSession, which IS in this config’s mutate list, and enforced by the API.",
-    "src/components/admin/ContextOwnerAccessSection.jsx": "Admin checkbox for the context-owner access switch: a GET, a PUT and an error line. Mount-tested by ContextOwnerAccessSection.mount.test.jsx (state shown from the API, the PUT body sent on toggle, the API error surfaced). The decision it controls is enforced server-side by app/api/src/middleware/contextOwnerMode.js.",
+    "src/components/admin/RelativePermissionsGrid.jsx": "Admin grid for the relative permissions: a GET, a PUT of the whole grid on each tick, and an error line; which cells exist comes from the API. What one tick does to the grid (including turning off the view-dependent cells) is relativePermissionsGrid.helpers.js, which IS mutated. Mount-tested by RelativePermissionsGrid.mount.test.jsx (the rows and cells shown from the API, the PUT body sent on a tick, cells locked until view is on, the API error surfaced). What the grid means is enforced server-side by app/api/src/auth/relativePermissions.js.",
     "src/components/admin/CleanDatabasePlan.jsx": "Renders the clean-database plan the API sends (GET /api/admin/clean-database/plan) and the result of a clean: lists, a backup link and row counts, no decisions. What it shows is decided server-side by app/api/src/db/tableClassification.js; the rendering, the hidden empty lists and the backup URL are asserted in DangerZoneSection.mount.test.jsx.",
-    "src/components/admin/RelativePermissionsSection.jsx": "Admin card that frames the context-owner switch as a relative permission and notes matrix-share recipients: static text around ContextOwnerAccessSection, no logic. Mount-tested in ContextOwnerAccessSection.mount.test.jsx (the switch sits in the Relative permissions region beside the matrix-share note).",
+    "src/components/admin/RelativePermissionsSection.jsx": "Admin card that frames the relative-permission grid and notes matrix-share recipients: static text around RelativePermissionsGrid, no logic. Mount-tested in RelativePermissionsGrid.mount.test.jsx (the grid sits in the Relative permissions region beside the matrix-share note, below the role table).",
     "src/components/admin/RolesPermissionsTab.jsx": "The Admin → Roles & Permissions tab: the role table (RolesPermissionsSection, still in the grandfathered backlog) followed by the Relative permissions section. Composition only, no logic. ContextOwnerAccessSection.mount.test.jsx pins that the Relative permissions region renders on this tab, after and outside the role table.",
     "src/components/contexts/contextOpener.js": "Which sub-units and parents a context page links to (#1415): no handler or a non-owner read-only view links nothing, an owner's page only what is in scope (case-insensitive). Pure; not yet measured — Stryker gives no usable score on the Windows box this was written on. contextOpener.test.js pins each branch, including an in-scope id in other case and an out-of-scope one; the API refuses an out-of-scope context whatever the UI links. Candidate for this config's mutate list once measured.",
     "src/components/contexts/memberReferences.helpers.js": "Labels and one-line wording for a member's references: group labels, 'type · system · assignment type' with empty parts dropped, '+ n more'. Formatting, not access decisions (the API decides what is returned). memberReferences.helpers.test.js pins each group's wording and the 50-of-50 (null) vs 50-of-51 ('+ 1 more') boundary.",
@@ -96,7 +96,8 @@
     "src/components/matrix/matrixHistoryText.js",
     "src/auth/authMeState.js",
     "src/components/inputs/PeoplePicker.helpers.js",
-    "src/utils/exportRotatedToExcel.js"
+    "src/utils/exportRotatedToExcel.js",
+    "src/components/admin/relativePermissionsGrid.helpers.js"
   ],
   "tests_comment": [
     "Deliberately standalone rather than spreading vite.config.js, for two reasons",
@@ -144,7 +145,8 @@
     "src/components/matrix/matrixRequests.test.js",
     "src/components/matrix/matrixHistoryText.test.js",
     "src/components/inputs/PeoplePicker.mount.test.jsx",
-    "src/utils/exportRotatedToExcel.test.js"
+    "src/utils/exportRotatedToExcel.test.js",
+    "src/components/admin/relativePermissionsGrid.helpers.test.js"
   ],
   "thresholds": {
     "high": 90,

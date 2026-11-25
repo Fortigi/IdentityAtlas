@@ -56,7 +56,7 @@ export async function seedEverything(q) {
   exp('Identities', 'id = $1', [X.I1], 'removed');
   await q(`INSERT INTO "IdentityMembers" ("identityId","principalId","analystOverride") VALUES ($1,$2,'confirmed')`, [X.I1, X.P1]);
   exp('IdentityMembers', '"identityId" = $1', [X.I1], 'removed');
-  for (const t of ['GovernanceCatalogs', 'AssignmentPolicies', 'AssignmentRequests', 'CertificationDecisions']) {
+  for (const t of ['AssignmentPolicies', 'AssignmentRequests', 'CertificationDecisions']) {
     await q(`INSERT INTO "${t}" (id,"systemId") VALUES (gen_random_uuid(),$1)`, [sCrawl]);
     exp(t, '"systemId" = $1', [sCrawl], 'removed');
   }
@@ -166,6 +166,8 @@ export async function seedEverything(q) {
   exp('BusinessRoleOwners', '"resourceId" = $1 AND role = \'Responsible\'', [X.R1], 'removed');
   await q(`INSERT INTO "BusinessRoleOwnerRejections" ("resourceId","principalId",role) VALUES ($1,$2,'Accountable')`, [X.R1, X.P2]);
   exp('BusinessRoleOwnerRejections', '"resourceId" = $1', [X.R1], 'removed');
+  await q(`INSERT INTO "BusinessRoleCompositionReviews" ("resourceId",notes,"signedOff","reviewedBy",snapshot) VALUES ($1,'looks right',true,$2,'{"version":1}'::jsonb)`, [X.R1, MARK]);
+  exp('BusinessRoleCompositionReviews', '"resourceId" = $1', [X.R1], 'removed');
   await q(`INSERT INTO "ManagerHierarchyOverrides" ("principalId","managerPrincipalId","setBy") VALUES ($1,$2,$3)`, [X.P1, X.P2, MARK]);
   exp('ManagerHierarchyOverrides', '"principalId" = $1', [X.P1], 'removed');
 

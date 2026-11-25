@@ -27,6 +27,9 @@ BeforeAll {
     # batching tests mock it rather than hitting the real API).
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'csv' 'CSVCrawler.Functions.ps1')
+    # Read-CsvFile / Open-CsvFastReader resolve a per-file delimiter and apply a
+    # per-file column mapping through these.
+    . (Join-Path $script:repoRoot 'tools' 'crawlers' 'csv' 'CSVCrawler.Mapping.ps1')
 
     # Scope variables the functions resolve at call time — mimics a crawler entry point.
     $script:CsvFolder        = $TestDrive
@@ -223,6 +226,52 @@ Describe 'Read-CsvFast' {
         $path = Join-Path $TestDrive 'Empty.csv'
         [System.IO.File]::WriteAllText($path, '', [System.Text.Encoding]::UTF8)
         Read-CsvFast 'Empty.csv' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Per-file -Delimiter threading' {
+    # The readers used to take the crawler's single $Delimiter from scope. A
+    # config can now give each file its own; these pin that an explicit value
+    # wins and that omitting it still falls back to the config-level one, so a
+    # pre-mapping config reads byte-identically.
+    BeforeAll {
+        Set-Content -Path (Join-Path $TestDrive 'Comma.csv') -Value @(
+            'ExternalId,DisplayName'
+            'u1,Alice'
+        ) -Encoding utf8
+        Set-Content -Path (Join-Path $TestDrive 'Tabbed.csv') -Value @(
+            "ExternalId`tDisplayName"
+            "u2`tBob"
+        ) -Encoding utf8
+    }
+
+    It 'Read-CsvFile reads a comma file when told to, and only then' {
+        $rows = Read-CsvFile 'Comma.csv' -Delimiter ','
+        $rows[0].DisplayName | Should -Be 'Alice'
+        # With the semicolon from scope the whole line is one column — the
+        # assertion that discriminates: without threading, both calls agree.
+        $wrong = Read-CsvFile 'Comma.csv'
+        $wrong[0].PSObject.Properties.Name.Count | Should -Be 1
+    }
+
+    It 'Open-CsvFastReader reads a TAB file when told to' {
+        $f = Open-CsvFastReader -FileName 'Tabbed.csv' -Delimiter "`t"
+        try {
+            $f.ColIdx['DisplayName'] | Should -Be 1
+            (Read-CsvDataRows -Parser $f.Parser -FileName 'Tabbed.csv')[0][1] | Should -Be 'Bob'
+        } finally { $f.Parser.Dispose() }
+    }
+
+    It 'Open-CsvFastReader normalizes the legacy two-character \t form' {
+        $f = Open-CsvFastReader -FileName 'Tabbed.csv' -Delimiter '\t'
+        try { $f.ColIdx['DisplayName'] | Should -Be 1 } finally { $f.Parser.Dispose() }
+    }
+
+    It 'Read-CsvFast threads both the delimiter and the mapping through' {
+        $fast = Read-CsvFast -FileName 'Comma.csv' -Delimiter ',' -Mapping @{ UserId = 'ExternalId' }
+        $fast.colIdx['UserId'] | Should -Be 0
+        $fast.colIdx.ContainsKey('ExternalId') | Should -BeFalse
+        $fast.rows[0][0] | Should -Be 'u1'
     }
 }
 

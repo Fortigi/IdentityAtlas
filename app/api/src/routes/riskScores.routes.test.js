@@ -46,7 +46,7 @@ describe('risk-scores — paginated lists (200)', () => {
   }
 
   // A soft-deleted principal / resource is history: its score must not list.
-  // Contexts, Identities and GovernanceCatalogs have no tombstone column.
+  // Contexts, Identities and catalogs have no tombstone column.
   const fromClauseOf = async (path) => {
     await request(app).get(`/api/risk-scores/${path}`);
     return queryRiskScoresPage.mock.calls.at(-1)[2].fromClause;

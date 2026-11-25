@@ -6,8 +6,10 @@
 // keeping it a table: a route added to the API tomorrow is closed to them until
 // someone adds it here on purpose.
 //
-// Reads only. A context owner cannot change a role, a member or a setting. The
-// one POST is the team matrix, a read whose filter is forced to their team.
+// Reads, with two POSTs. The team matrix is a read whose filter is forced to their
+// team. A composition review is the one write: only on a business role they
+// answer for themselves (OWNED_ROLE_PATHS), and the route then asks the
+// relative permission that lets a role's owners sign off.
 //
 // Paths are compared as middleware/auth.js guardPath() hands them over: the
 // full /api/... path, without the query string, lower-cased. Context ids are
@@ -52,6 +54,20 @@ export const CONTEXT_PATHS = [
   new RegExp(`^/api/contexts/${UUID}/timeline$`),
   new RegExp(`^/api/risk-scores/contexts/${UUID}$`),
 ];
+
+// A business role's composition reviews — read and saved only for a role the
+// owner answers for themselves (owner.access.ownedRoleIds), never one their team
+// merely holds. The verdict hands the role to the caller as `ownedRole`.
+export const OWNED_ROLE_PATHS = [new RegExp(`^/api/access-package/${UUID}/composition-reviews$`)];
+
+export function ownedRoleVerdict(method, path) {
+  if (method !== 'GET' && method !== 'POST') return null;
+  for (const shape of OWNED_ROLE_PATHS) {
+    const m = shape.exec(path);
+    if (m) return { allow: false, ownedRole: m[1] };
+  }
+  return null;
+}
 
 // One member's direct references (names only, no ids — see
 // contexts/memberReferences.js). Allowed when the context is in scope AND the
@@ -147,9 +163,12 @@ export const MATRIX_VERDICT = Object.freeze({ allow: false, matrix: true });
 // contexts resolve to, { allow: false, member: { contextId, memberId } }
 // when it depends on that member being in that context, { allow: false,
 // entity: { kind, id } } when it depends on that object being openable, or
-// MATRIX_VERDICT for the team matrix.
+// MATRIX_VERDICT for the team matrix, or { allow: false, ownedRole } when it
+// depends on the owner answering for that business role.
 export function contextOwnerVerdict({ method, path, query }, contextIds) {
   if (method === 'POST' && path === MATRIX_DATA_PATH) return MATRIX_VERDICT;
+  const owned = ownedRoleVerdict(method, path);
+  if (owned) return owned;
   if (method !== 'GET') return DENY;
   if (SHELL_PATHS.has(path) || SCOPED_PATHS.has(path)) return ALLOW;
   for (const shape of CONTEXT_PATHS) {

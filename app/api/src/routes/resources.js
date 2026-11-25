@@ -71,7 +71,7 @@ router.get('/resources', async (req, res) => {
                r."systemId", r."enabled",
                r."createdDateTime", r."extendedAttributes",
                r."mail", r."visibility", r."externalId",
-               r."catalogId", r."isHidden", r."modifiedDateTime",
+               r."isHidden", r."modifiedDateTime",
                r."riskScore", r."riskTier", r."deletedAt"
           FROM "Resources" r
           ${resourceTagJoin}

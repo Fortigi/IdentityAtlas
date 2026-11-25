@@ -51,7 +51,7 @@ so is the MCP row scope. REST and MCP cannot disagree about who opens what.
 
 | What | Where | How |
 |---|---|---|
-| Who is an owner over MCP | `mcp/auth.js` → `mcp/ownerScope.js` | Exactly the callers REST hands to owner mode (no permission from any role, or missing an `AUTH_REQUIRED_ROLES` role), with **both** switches on: context-owner access and *Context owners may also use the MCP server*. A failed lookup answers 500, never the roleless path. Someone with any permission is never an owner. |
+| Who is an owner over MCP | `mcp/auth.js` → `mcp/ownerScope.js` | Exactly the callers REST hands to owner mode (no permission from any role, or missing an `AUTH_REQUIRED_ROLES` role), for the contexts whose relative-permission row (template × role) gives **MCP**, which needs **Sign in & view** on that row. Business roles are not part of the MCP scope. A failed lookup answers 500, never the roleless path. Someone with any permission is never an owner. |
 | Which tools an owner gets | `mcp/server.js allowedTools` | Only tools that declare `owner: 'scoped'`. Every tool must declare `scoped` or `refused` (`mcp/tools.guard.test.js`); one without the field is never offered to an owner. |
 | What a query reads | `nlreports/scope.js` + `nlreports/compile.js` | `compileSpec(spec, extFields, { scope })` puts the predicate on the report's own table, in every relation condition, on the ids behind a name list and on every other field of a related record. Name lists, counts and a related record's name are read in full, as the app shows them (`isNameOnly`). The context ids are one parameter. A table with no rule throws. Without a scope the SQL is byte-identical. |
 | What a lookup finds | `nlreports/references.js` | The same predicate in exact, fuzzy and person lookups and in `searchNames`; fuzzy choices only come from inside the scope. A person, account or resource named exactly that lies outside it is reported as existing (`namesOutsideScope`: `NOT` the predicate) — see [Names outside the scope](#names-outside-the-scope-as-the-app-shows-them). |
@@ -112,8 +112,8 @@ count as the organisation's total.
 
 | Layer | Tests | What they pin |
 |---|---|---|
-| A — rules | `nlreports/scope.test.js`, `nlreports/compile.scope.test.js`, `nlreports/references.scope.test.js`, `auth/ownerAccess/tiers.test.js`, `auth/contextOwnerSetting.test.js` | Every catalog table has a scope rule, an unknown one throws, and every relation of the catalog is scoped as a condition and in every column it offers. The compiler walks the catalog, so a relation added later is covered without editing the test. Unscoped SQL is unchanged, and the switches only count together. |
-| B/C — MCP units | `mcp/ownerScope.test.js`, `mcp/tools.owner.test.js`, `mcp/tools.guard.test.js`, `mcp/router.test.js` | The sign-in gate (both switches, non-owner, roleful non-owner, failed lookup), every tool passes the scope on, the report gate, the `scope` block |
+| A — rules | `nlreports/scope.test.js`, `nlreports/compile.scope.test.js`, `nlreports/references.scope.test.js`, `auth/ownerAccess/tiers.test.js`, `auth/contextOwnerSetting.test.js` | Every catalog table has a scope rule, an unknown one throws, and every relation of the catalog is scoped as a condition and in every column it offers. The compiler walks the catalog, so a relation added later is covered without editing the test. Unscoped SQL is unchanged, and MCP counts only where its grid row also gives view. |
+| B/C — MCP units | `mcp/ownerScope.test.js`, `mcp/tools.owner.test.js`, `mcp/tools.guard.test.js`, `mcp/router.test.js` | The sign-in gate (the grid's MCP cells, non-owner, roleful non-owner, failed lookup), every tool passes the scope on, the report gate, the `scope` block |
 | B/C — end to end | `contract-tests/authzSecurity.integration.test.js` on real PostgreSQL, real app, real MCP transport | Below |
 
 ### The fixture and personas

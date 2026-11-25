@@ -10,8 +10,9 @@
 //   - gated  → a caller holding every permission EXCEPT the listed ones is
 //     refused 403, and the gate names exactly the listed permissions as
 //     required; a caller holding just one listed permission gets in, for each.
-//   - ANY    → a caller holding a single permission that grants nothing by
-//     itself (data.write.certifications, reserved) gets in.
+//   - ANY    → a caller holding a single permission that grants almost nothing
+//     by itself (data.write.certifications: only a business role's composition
+//     sign-off) gets in.
 //   - CRAWLER_KEY → a user token with every permission is refused 401.
 // So the table cannot be wider or narrower than the gate: an extra permission
 // fails its allow call, a missing one fails the "required" comparison.
@@ -27,7 +28,6 @@ const { bootSweepApp, stageEmptyDb, asPerms, ALL_PERMS } = await import('../../t
 stageEmptyDb(await import('../db/connection.js'));
 const { listRoutes, callRoute, PUBLIC_ROUTES, NEVER_DATA, OWN_AUTH } = await import('../../test-utils/routeSweep.js');
 const { ROUTE_PERMISSIONS, ANY, CRAWLER_KEY } = await import('../../test-utils/routePermissions.js');
-const { RESERVED_PERMISSIONS } = await import('./permissionManifest.js');
 
 const { app, server, close } = await bootSweepApp();
 afterAll(close);
@@ -35,8 +35,8 @@ afterAll(close);
 const ROUTES = listRoutes(app);
 const SWEPT = ROUTES.filter((r) => !PUBLIC_ROUTES.has(r.key) && !NEVER_DATA.has(r.key));
 const refused = (res) => [401, 403].includes(res.status);
-// A permission no route is gated on (permissionManifest.js), so holding it
-// alone shows what "any permission" reaches.
+// A permission that gates one narrow write only, so holding it alone shows what
+// "any permission" reaches.
 const INERT = 'data.write.certifications';
 
 describe('the route → permission table is complete', () => {
@@ -61,8 +61,9 @@ describe('the route → permission table is complete', () => {
     expect(bad).toEqual([]);
   });
 
-  it('the inert permission really is reserved', () => {
-    expect(RESERVED_PERMISSIONS).toHaveProperty(INERT);
+  it('the probe permission gates nothing but the composition sign-off', () => {
+    const gatedOn = Object.entries(ROUTE_PERMISSIONS).filter(([, v]) => Array.isArray(v) && v.includes(INERT)).map(([k]) => k);
+    expect(gatedOn).toEqual(['POST /access-package/:id/composition-reviews']);
   });
 });
 

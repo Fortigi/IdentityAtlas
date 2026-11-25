@@ -9,6 +9,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../db/connection.js');
 const resolveMeMock = vi.fn();
 vi.mock('./resolveMe.js', () => ({ resolveMe: (...a) => resolveMeMock(...a) }));
+const ownedRolesMock = vi.fn();
+vi.mock('../lib/businessRoleOwners.js', () => ({ findOwnedBusinessRoles: (...a) => ownedRolesMock(...a) }));
+const policyMock = vi.fn();
+vi.mock('./contextOwnerSetting.js', () => ({ getRelativePolicy: (...a) => policyMock(...a) }));
+const { normalizePolicy, legacyPolicy } = await import('./relativePermissions.js');
 
 const { query } = await import('../db/connection.js');
 const {
@@ -25,6 +30,10 @@ const row = (id, role, name = id) => ({ id, displayName: name, role, contextCate
 beforeEach(() => {
   query.mockReset();
   resolveMeMock.mockReset();
+  ownedRolesMock.mockReset();
+  ownedRolesMock.mockResolvedValue([]);
+  policyMock.mockReset();
+  policyMock.mockResolvedValue(legacyPolicy({ access: true }));
 });
 
 describe('collapseHeld', () => {
@@ -123,14 +132,117 @@ describe('resolveContextOwner', () => {
       .mockResolvedValueOnce({ rows: [{ id: S }] })
       .mockResolvedValueOnce({ rows: [{ id: V }] });
     const owner = await resolveContextOwner({ oid: 'p-1' });
+    // With no policy given, the one in force is read.
+    expect(policyMock).toHaveBeenCalledTimes(1);
     expect(owner.contexts.map(c => c.id)).toEqual([B]);
     expect([...owner.contextIds].sort()).toEqual([B, V, S].sort());
+    // Who they are, for what else they answer for (their business roles).
+    expect(owner.me).toEqual({ principal: { id: 'p-1' }, identity: { id: 'i-1' } });
     expect(query.mock.calls[0][1]).toEqual(['p-1', 'i-1']);
     // Sub-units and variants are both sought from the HELD contexts only.
     expect(query.mock.calls[1][0]).toContain('WITH RECURSIVE');
     expect(query.mock.calls[1][1]).toEqual([[B]]);
     expect(query.mock.calls[2][0]).toContain('SameUnitAs');
     expect(query.mock.calls[2][1]).toEqual([[B]]);
+  });
+
+  describe('under the relative-permission grid', () => {
+    const ME = { principal: { id: 'p-1' }, identity: null };
+    const APP = 'aaaaaaaa-0000-4000-8000-00000000000a';
+    const appRow = (role) => ({ ...row(APP, role, 'App'), contextCategory: 'LogicalApplication' });
+    const ROLE = { id: 'r-1', displayName: 'Payroll', role: 'Accountable' };
+
+    beforeEach(() => resolveMeMock.mockResolvedValue(ME));
+
+    it('leaves out a held context whose template and role are off — Responsible here', async () => {
+      const policy = normalizePolicy({ OrganizationalUnit: { Accountable: { view: true } } });
+      query.mockResolvedValueOnce({ rows: [row(B, 'Responsible'), row(A, 'Accountable')] }).mockResolvedValue({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy });
+      expect(owner.contexts.map(c => c.id)).toEqual([A.toLowerCase()]);
+      expect(policyMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps a context held both ways by the role that counts, not the stronger one', async () => {
+      const policy = normalizePolicy({ OrganizationalUnit: { Responsible: { view: true } } });
+      query.mockResolvedValueOnce({ rows: [row(B, 'Accountable'), row(B, 'Responsible')] }).mockResolvedValue({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy });
+      expect(owner.contexts).toEqual([expect.objectContaining({ id: B, role: 'Responsible' })]);
+    });
+
+    it('judges each template on its own row', async () => {
+      const policy = normalizePolicy({ LogicalApplication: { Responsible: { view: true } } });
+      query.mockResolvedValueOnce({ rows: [row(B, 'Responsible'), appRow('Responsible')] }).mockResolvedValue({ rows: [] });
+      expect((await resolveContextOwner({ oid: 'p-1' }, { policy })).contexts.map(c => c.id)).toEqual([APP]);
+    });
+
+    it('seeks sub-units only below the contexts whose row gives subUnits', async () => {
+      const policy = normalizePolicy({
+        OrganizationalUnit: { Accountable: { view: true, subUnits: true } },
+        LogicalApplication: { Accountable: { view: true } },
+      });
+      query
+        .mockResolvedValueOnce({ rows: [row(B, 'Accountable'), appRow('Accountable')] })
+        .mockResolvedValueOnce({ rows: [{ id: S }] })
+        .mockResolvedValueOnce({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy });
+      expect(query.mock.calls[1][1]).toEqual([[B]]);
+      // variants are still sought for every held context
+      expect(query.mock.calls[2][1]).toEqual([[B, APP]]);
+      expect([...owner.contextIds].sort()).toEqual([B, APP, S].sort());
+    });
+
+    it('asks no sub-units at all when no held row gives them', async () => {
+      const policy = normalizePolicy({ OrganizationalUnit: { Accountable: { view: true } } });
+      query.mockResolvedValueOnce({ rows: [row(B, 'Accountable')] }).mockResolvedValueOnce({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy });
+      expect(query).toHaveBeenCalledTimes(2);
+      expect(query.mock.calls[1][0]).toContain('SameUnitAs');
+      expect([...owner.contextIds]).toEqual([B]);
+    });
+
+    it('for MCP counts only the contexts whose row gives mcp, and no business roles', async () => {
+      const policy = normalizePolicy({
+        OrganizationalUnit: { Accountable: { view: true, mcp: true }, Responsible: { view: true } },
+        BusinessRole: { Accountable: { view: true } },
+      });
+      query.mockResolvedValueOnce({ rows: [row(A, 'Accountable'), row(B, 'Responsible')] }).mockResolvedValue({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy, capability: 'mcp', businessRoles: false });
+      expect(owner.contexts.map(c => c.id)).toEqual([A.toLowerCase()]);
+      expect(owner.businessRoles).toEqual([]);
+      expect(ownedRolesMock).not.toHaveBeenCalled();
+    });
+
+    it('lists the business roles they answer for in the roles whose row gives view', async () => {
+      const policy = normalizePolicy({ OrganizationalUnit: { Accountable: { view: true } }, BusinessRole: { Accountable: { view: true } } });
+      ownedRolesMock.mockResolvedValue([ROLE]);
+      query.mockResolvedValueOnce({ rows: [row(B, 'Accountable')] }).mockResolvedValue({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy });
+      expect(owner.businessRoles).toEqual([ROLE]);
+      expect(ownedRolesMock).toHaveBeenCalledWith(ME, ['Accountable']);
+    });
+
+    it('does not look business roles up while no business-role row gives view', async () => {
+      query.mockResolvedValueOnce({ rows: [row(B, 'Accountable')] }).mockResolvedValue({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy: legacyPolicy({ access: true, ownerReview: true }) });
+      expect(owner.businessRoles).toEqual([]);
+      expect(ownedRolesMock).not.toHaveBeenCalled();
+    });
+
+    it('lets in someone who answers only for business roles, with an empty context scope', async () => {
+      const policy = normalizePolicy({ BusinessRole: { Responsible: { view: true } } });
+      ownedRolesMock.mockResolvedValue([ROLE]);
+      query.mockResolvedValueOnce({ rows: [row(B, 'Accountable')] }).mockResolvedValue({ rows: [] });
+      const owner = await resolveContextOwner({ oid: 'p-1' }, { policy });
+      expect(owner.contexts).toEqual([]);
+      expect([...owner.contextIds]).toEqual([]);
+      expect(owner.businessRoles).toEqual([ROLE]);
+    });
+
+    it('is null when the grid gives nothing they answer for', async () => {
+      query.mockResolvedValueOnce({ rows: [row(B, 'Responsible')] });
+      expect(await resolveContextOwner({ oid: 'p-1' }, { policy: legacyPolicy() })).toBeNull();
+      expect(query).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('treats a schema without the roles table as "no owner"', async () => {

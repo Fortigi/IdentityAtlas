@@ -40,6 +40,7 @@ BeforeAll {
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceOrigin.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceParticipants.ps1')
     . (Join-Path $script:entraDir 'EntraIDCrawler.GovernanceRequests.ps1')
+    . (Join-Path $script:entraDir 'EntraIDCrawler.Catalogs.ps1')
     # App-role record shapers live in their own file (extracted for the ratchets).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AppRoles.ps1')
     # Get-EntraDeltaSelect — builds the $select the full fetches prime their
@@ -1536,23 +1537,6 @@ Describe 'Resolve-EntraAccessReviewApId' {
 # ─── Governance sub-phases ──────────────────────────────────────────────────────
 Describe 'Governance phases' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
-
-    It 'Sync-EntraGovernanceCatalogs uploads catalogs + BusinessRole resources and returns the access packages' {
-        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackageCatalogs' } -MockWith {
-            @([pscustomobject]@{ id = 'c1'; displayName = 'Cat'; isPublished = $true })
-        }
-        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'entitlementManagement/accessPackages\?' } -MockWith {
-            @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1'; catalogId = 'c1' })
-        }
-
-        $aps = Sync-EntraGovernanceCatalogs -SystemId 2
-
-        (Get-Sent { $_.Endpoint -eq 'ingest/governance/catalogs' })[0].Records.Count | Should -Be 1
-        (Get-Sent { $_.Scope.resourceType -eq 'BusinessRole' -and $_.Endpoint -eq 'ingest/resources' })[0].Records.Count | Should -Be 1
-        # Returns only the access packages, not the ingest results.
-        @($aps).Count | Should -Be 1
-        @($aps).id | Should -Contain 'ap1'
-    }
 
     It 'Sync-EntraGovernanceResourceScopes collects deduped Contains relationships (sent later, merged)' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/ap1' } -MockWith {

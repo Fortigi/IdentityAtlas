@@ -8,6 +8,12 @@
 //   await access.tierOf('resource', id)              → 'team' | 'held' | null
 //   await access.accessibleIds('principal', [ids])   → Set of lower-cased ids
 //
+// `ownedRoleIds`: the business roles the owner answers for themselves
+// (lib/businessRoleOwners.js), when that relative permission is on. Each opens
+// in full as tier 'owned', whatever the contexts say — decided without the
+// database and never cached across owners (the shared cache is keyed by the
+// context scope, which two owners can share).
+//
 // Kinds can be given in the data model's words (principal, identity, resource,
 // context) or the UI's (user, group, access-package, business-role); see
 // normaliseKind. A context opens when it is one of the owner's context ids.
@@ -46,8 +52,11 @@ export function clearOwnerAccessCache() {
   sharedCache.clear();
 }
 
-export function createOwnerAccess(contextIds, { getPool = db.getPool, cache = sharedCache, now = Date.now } = {}) {
+export const OWNED = 'owned';
+
+export function createOwnerAccess(contextIds, { getPool = db.getPool, cache = sharedCache, now = Date.now, ownedRoleIds = [] } = {}) {
   const scope = new Set([...contextIds].map(id => String(id).toLowerCase()));
+  const owned = new Set([...ownedRoleIds].map(id => String(id).toLowerCase()));
   const scopeKey = [...scope].sort().join(',');
   const local = new Map(); // `${kind}|${id}` → tier | null, for this object's life
 
@@ -69,6 +78,9 @@ export function createOwnerAccess(contextIds, { getPool = db.getPool, cache = sh
     cache.set(cacheKey(kind, id), { tier, at: now() });
   }
 
+  // A business role the owner answers for opens without asking anything else.
+  const ownedTier = (kind, id) => (kind === 'resource' && owned.has(id) ? { hit: true, tier: OWNED } : null);
+
   // Map<id, tier | null> for every well-formed id of the batch.
   async function tiersOf(rawKind, ids) {
     const kind = normaliseKind(rawKind);
@@ -81,7 +93,7 @@ export function createOwnerAccess(contextIds, { getPool = db.getPool, cache = sh
     }
     const missing = [];
     for (const id of wanted) {
-      const c = cached(kind, id);
+      const c = ownedTier(kind, id) ?? cached(kind, id);
       if (c.hit) out.set(id, c.tier);
       else missing.push(id);
     }
@@ -110,5 +122,5 @@ export function createOwnerAccess(contextIds, { getPool = db.getPool, cache = sh
     return (await tierOf(kind, id)) !== null;
   }
 
-  return { contextIds: scope, tiersOf, accessibleIds, tierOf, canOpen };
+  return { contextIds: scope, ownedRoleIds: owned, tiersOf, accessibleIds, tierOf, canOpen };
 }

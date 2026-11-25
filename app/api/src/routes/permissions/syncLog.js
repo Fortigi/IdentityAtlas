@@ -19,7 +19,7 @@ function generateMockSyncLog(limit) {
     { type: 'GroupTransitiveMembers', table: 'GraphGroupTransitiveMembers', records: 8932 },
     { type: 'GroupEligibleMembers', table: 'GraphGroupEligibleMembers', records: 156 },
     { type: 'GroupOwners', table: 'GraphGroupOwners', records: 412 },
-    { type: 'Catalogs', table: 'GovernanceCatalogs', records: 12 },
+    { type: 'Catalogs', table: 'Contexts (Catalog)', records: 12 },
     { type: 'AccessPackages', table: 'Resources (BusinessRole)', records: 67 },
     { type: 'AccessPackageAssignments', table: 'ResourceAssignments (Governed)', records: 834 },
     { type: 'AccessPackageResourceRoleScopes', table: 'ResourceRelationships (Contains)', records: 203 },

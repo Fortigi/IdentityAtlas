@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as db from '../db/connection.js';
 import { timedQuery } from '../perf/sqlTimer.js';
+import { catalogJoinSql } from '../lib/businessRoleCatalog.js';
 
 const router = Router();
 const useSql = process.env.USE_SQL === 'true';
@@ -157,7 +158,7 @@ router.get('/governance/review-compliance', async (req, res) => {
         lr."reviewInstanceStatus"
       FROM "LastReviewPerAP" lr
         INNER JOIN "Resources" ap ON lr."resourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
-        LEFT JOIN "GovernanceCatalogs" c ON ap."catalogId" = c.id
+        ${catalogJoinSql('ap.id')}
         LEFT JOIN "GovernanceCategoryAssignments" ca ON LOWER(ap.id::text) = LOWER(ca."resourceId")
         LEFT JOIN "GovernanceCategories" cat ON ca."categoryId" = cat.id
       WHERE 1=1 ${filterClause} ${categoryClause}

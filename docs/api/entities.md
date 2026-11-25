@@ -139,7 +139,7 @@ Business role (access package) assignments for a user. Only returns active gover
 }
 ```
 
-**Reads From:** `ResourceAssignments` (`governed=true`) + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs`
+**Reads From:** `ResourceAssignments` (`governed=true`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`)
 
 ---
 
@@ -282,7 +282,7 @@ Business roles that include this resource as a contained resource (i.e. granting
 }
 ```
 
-**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs`
+**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`)
 
 ---
 
@@ -300,7 +300,7 @@ Review status distinguishes two "no decisions yet" states:
 | `"Pending first review"` | A review policy exists but no review instance has run yet |
 | `"Active"` | Review instance exists with decisions |
 
-**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs` + `AssignmentPolicies` + `CertificationDecisions`
+**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`) + `AssignmentPolicies` + `CertificationDecisions`
 
 ---
 

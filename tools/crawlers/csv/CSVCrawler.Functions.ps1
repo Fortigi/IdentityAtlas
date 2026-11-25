@@ -30,14 +30,20 @@ function Send-IngestBatch {
         -Records $Records -BatchSize $BatchSize -IdGeneration 'deterministic' -IdPrefix $SystemType -SkipWhenEmpty | Out-Null
 }
 
+# -Delimiter and -Mapping default to "what the crawler config says at the top
+# level" and "no mapping" — i.e. to exactly what this did before a config could
+# describe a file individually. A caller that has resolved a per-file spec
+# (Get-CsvFileSpec) passes that file's own values instead; the mapping is applied
+# here, at the read boundary, so everything downstream sees schema column names.
 function Read-CsvFile {
     [CmdletBinding()]
-    param([string]$FileName)
+    param([string]$FileName, [string]$Delimiter, [hashtable]$Mapping)
     $path = Join-Path $CsvFolder $FileName
     if (-not (Test-Path $path)) { return $null }
-    $rows = Import-Csv -Path $path -Delimiter $Delimiter -Encoding UTF8
+    $delim = Resolve-CsvDelimiterChar -Delimiter $Delimiter -Default $script:Delimiter
+    $rows = Import-Csv -Path $path -Delimiter $delim -Encoding UTF8
     Write-Host "  $FileName`: $($rows.Count) rows" -ForegroundColor Gray
-    return $rows
+    return , (ConvertTo-CsvMappedRows -Rows $rows -Mapping $Mapping -FileName $FileName)
 }
 
 # ─── Fast-path reader ────────────────────────────────────────────
@@ -102,17 +108,24 @@ function Read-CsvDataRows {
 # with no header line. The CALLER owns the Parser and must Dispose it. Header
 # names are trimmed (and a stray byte order mark removed), matching the wizard's
 # upload-time check.
+#
+# -Delimiter / -Mapping are this file's own, from Get-CsvFileSpec; both default to
+# the config-level behaviour. The mapping is applied to the HEADER, so ColIdx and
+# Columns already carry schema names and every column-position guard downstream
+# validates the post-mapping file.
 function Open-CsvFastReader {
     [CmdletBinding()]
-    param([string]$FileName)
+    param([string]$FileName, [string]$Delimiter, [hashtable]$Mapping)
     $path = Join-Path $CsvFolder $FileName
     if (-not (Test-Path $path)) { return $null }
-    $parser = New-CsvFieldParser -Path $path -Delimiter $Delimiter
+    $delim = Resolve-CsvDelimiterChar -Delimiter $Delimiter -Default $script:Delimiter
+    $parser = New-CsvFieldParser -Path $path -Delimiter $delim
     $colIdx = @{}
     $columns = [string[]]@()
     $header = if ($parser.EndOfData) { $null } else { (Read-CsvDataRows -Parser $parser -FileName $FileName -Max 1)[0] }
     if ($header) {
         $columns = [string[]]@($header | ForEach-Object { $_.Trim().TrimStart([char]0xFEFF) })
+        $columns = ConvertTo-CsvMappedColumns -Columns $columns -Mapping $Mapping -FileName $FileName
         for ($i = 0; $i -lt $columns.Length; $i++) { $colIdx[$columns[$i]] = $i }
     }
     return @{ Parser = $parser; ColIdx = $colIdx; Columns = $columns }
@@ -120,8 +133,8 @@ function Open-CsvFastReader {
 
 function Read-CsvFast {
     [CmdletBinding()]
-    param([string]$FileName)
-    $f = Open-CsvFastReader -FileName $FileName
+    param([string]$FileName, [string]$Delimiter, [hashtable]$Mapping)
+    $f = Open-CsvFastReader -FileName $FileName -Delimiter $Delimiter -Mapping $Mapping
     if (-not $f) { return $null }
     try {
         if ($f.ColIdx.Count -eq 0) { return $null }

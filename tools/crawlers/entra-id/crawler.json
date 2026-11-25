@@ -3,7 +3,7 @@
   "emits": {
     "principalTypes": ["User", "ServicePrincipal", "ManagedIdentity", "AIAgent"],
     "resourceTypes": ["Group", "GroupOwnership", "BusinessRole", "Application", "DelegatedPermission", "AppRole", "EntraDirectoryRole", "ApplicationPermission", "ServicePrincipalOwnership", "ApplicationOwnership", "AppRegistration"],
-    "contextTypes": [],
+    "contextTypes": ["AccessPackageCatalog"],
     "open": []
   },
   "displayName": "Microsoft Entra ID",

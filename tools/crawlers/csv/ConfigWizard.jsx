@@ -1,8 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import WizardShell from '@ui/components/WizardShell';
 import { useDialog } from '@ui/components/dialogContext';
 import { formatBytes } from '@ui/utils/formatters';
 import CSV_SLOTS from './csv-slots.json';
+import { FileReviewList, FileSettings, SlotSelect } from './MappingEditor.jsx';
+import {
+  DEFAULT_DELIMITER,
+  autoMapColumns,
+  buildFilesConfig,
+  delimiterLabel,
+  detectDelimiter,
+  fileEntryFromConfig,
+  mappedPairs,
+  mappingErrors,
+  missingRequiredColumns,
+  normalizeDelimiter,
+  parseCsvHeader,
+} from './csvMapping.js';
+
+// Re-exported: the mapping/validation rules moved into csvMapping.js so they can
+// be unit-tested (and reused by MappingEditor) without rendering the wizard.
+export { parseCsvHeader, missingRequiredColumns };
 
 // The per-file upload limit is the SERVER's (UPLOAD_MAX_FILE_BYTES), read from
 // GET /api/admin/crawler-uploads/limits. The wizard used to carry its own 1 GB
@@ -39,31 +57,6 @@ export function matchSlot(filename) {
   return null;
 }
 
-// Parse a CSV header line into column names. Mirrors the crawler's Read-CsvFast
-// header handling: strip a leading BOM, split on the delimiter's first char, and
-// remove surrounding double-quotes. Returns [] for an empty/absent line.
-export function parseCsvHeader(line, delimiter) {
-  if (!line) return [];
-  let s = line;
-  if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1);
-  const delim = delimiter && delimiter.length ? delimiter[0] : ';';
-  return s.split(delim).map(c => {
-    let h = c.trim();
-    if (h.length >= 2 && h[0] === '"' && h[h.length - 1] === '"') h = h.slice(1, -1);
-    return h.trim();
-  });
-}
-
-// Case-insensitively find required columns absent from a parsed header. Mirrors
-// the crawler's Assert-Columns / phase guards (which reject a file missing its
-// identifying columns) so a mis-mapped or wrong-schema file is caught at upload
-// time — with a clear message — instead of only when the job later runs.
-export function missingRequiredColumns(headerCols, requiredColumns) {
-  if (!requiredColumns || requiredColumns.length === 0) return [];
-  const have = new Set((headerCols || []).map(c => c.toLowerCase()));
-  return requiredColumns.filter(rc => !have.has(rc.toLowerCase()));
-}
-
 // Read just the first line of a (possibly multi-GB) CSV without loading it whole:
 // slice the first 64 KB, decode as UTF-8, and take everything up to the first
 // newline. Returns '' when the file can't be read.
@@ -75,6 +68,14 @@ async function readFirstLine(file) {
   } catch { return ''; }
 }
 
+// The initial per-file settings for a file whose header has not been read yet.
+// `detected` stays null until it has, so the row can say "reading…" instead of
+// claiming a delimiter it has not seen evidence for.
+function initialFileSettings(name, slot, configDelimiter, stored) {
+  const base = fileEntryFromConfig(name, null, configDelimiter);
+  return { ...base, ...(stored || {}), slot: stored?.slot ?? slot, headerLine: undefined, detected: null, delimiterTouched: !!stored };
+}
+
 export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEdit, authFetch }) {
   const dialog = useDialog();
   // Steps: 1=info, 2=files, 3=review
@@ -82,11 +83,15 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const [displayName, setDisplayName] = useState(initialConfig?.displayName || 'CSV Import');
   const [systemType, setSystemType] = useState(initialConfig?.systemType || 'CSV');
   const [systemName, setSystemName] = useState(initialConfig?.systemName || 'CSV Import');
-  const [delimiter, setDelimiter] = useState(initialConfig?.delimiter || ';');
+  const [delimiter, setDelimiter] = useState(normalizeDelimiter(initialConfig?.delimiter) || DEFAULT_DELIMITER);
+  // 'identityatlas' = the schema-shaped upload this crawler has always taken
+  // (mapping bypassed entirely); 'custom' = map this source's own column names
+  // onto the schema, applied by the crawler on every run.
+  const [sourceFormat, setSourceFormat] = useState(initialConfig?.sourceFormat || 'identityatlas');
 
   // Files staged in the browser before upload (only on create)
   // and files already on the server (when editing).
-  const [stagedFiles, setStagedFiles] = useState([]);    // [{ file: File, slot: string|null }]
+  const [stagedFiles, setStagedFiles] = useState([]);    // [{ file: File }]
   const [serverFiles, setServerFiles] = useState([]);    // [{ name, sizeBytes, modifiedAt }]
   const [serverFolder, setServerFolder] = useState(null); // where a job reads this config's files
   const [maxFileBytes, setMaxFileBytes] = useState(null); // the server's per-file limit, once known
@@ -94,6 +99,21 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Per-file state, keyed by file name: { slot, delimiter, detected, mapping,
+  // splitDelimiters, headerLine }. One map for staged and server files alike —
+  // a file's delimiter and mapping are properties of the file, not of how it got
+  // there, and this is exactly the shape the config stores.
+  const [fileSettings, setFileSettings] = useState({});
+  const patchFile = useCallback((name, patch) => {
+    setFileSettings(prev => ({ ...prev, [name]: { ...prev[name], ...patch } }));
+  }, []);
+
+  const settingsFor = (name) => fileSettings[name] || initialFileSettings(name, matchSlot(name), delimiter, null);
+  const headerColumnsFor = (name) => {
+    const s = settingsFor(name);
+    return s.headerLine ? parseCsvHeader(s.headerLine, s.delimiter).filter(Boolean) : [];
+  };
 
   // The server's per-file upload limit.
   useEffect(() => {
@@ -105,55 +125,120 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     })();
   }, [authFetch]);
 
-  // Load existing files for edit mode
+  // Load existing files for edit mode, and each one's header row — re-mapping on
+  // edit needs the real columns, and a file already on the server (or copied
+  // straight into the folder) is not a browser File object we can slice.
   useEffect(() => {
     if (!savedConfigId) return;
     (async () => {
       try {
         const r = await authFetch(`/api/admin/crawler-configs/${savedConfigId}/files`);
-        if (r.ok) {
-          const j = await r.json();
-          setServerFiles(j.files || []);
-          setServerFolder(j.folder || null);
+        if (!r.ok) return;
+        const j = await r.json();
+        const files = j.files || [];
+        setServerFiles(files);
+        setServerFolder(j.folder || null);
+        for (const f of files) {
+          const stored = initialConfig?.files?.[f.name]
+            ? fileEntryFromConfig(f.name, initialConfig.files, initialConfig.delimiter || DEFAULT_DELIMITER)
+            : null;
+          setFileSettings(prev => prev[f.name] ? prev : {
+            ...prev,
+            [f.name]: initialFileSettings(f.name, matchSlot(f.name), initialConfig?.delimiter || DEFAULT_DELIMITER, stored),
+          });
+          loadServerHeader(savedConfigId, f.name, stored);
         }
       } catch { /* ignore */ }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialConfig is the wizard's immutable input; loadServerHeader is stable
   }, [savedConfigId, authFetch]);
+
+  // One file's header line, from the server. Never fatal: without it the row
+  // simply offers no column dropdowns and keeps whatever the config already said.
+  const loadServerHeader = async (configId, name, stored) => {
+    try {
+      const r = await authFetch(`/api/admin/crawler-configs/${configId}/files/${encodeURIComponent(name)}/header`);
+      if (!r.ok) return;
+      const { header } = await r.json();
+      applyHeaderLine(name, header || '', stored);
+    } catch { /* ignore */ }
+  };
+
+  // Attach a file's header line and derive what depends on it: the detected
+  // delimiter (unless the user or the stored config already set one) and the
+  // exact-name mapping pre-fill (unless a mapping is already in place).
+  const applyHeaderLine = (name, line, stored) => {
+    setFileSettings(prev => {
+      const cur = prev[name] || initialFileSettings(name, matchSlot(name), delimiter, stored);
+      const fallback = cur.delimiter || delimiter;
+      const detected = detectDelimiter(line, fallback);
+      const effective = cur.delimiterTouched ? cur.delimiter : detected;
+      const cols = parseCsvHeader(line, effective).filter(Boolean);
+      const mapping = mappedPairs(cur.mapping).length ? cur.mapping : autoMapColumns(cols, cur.slot);
+      return { ...prev, [name]: { ...cur, headerLine: line, detected, delimiter: effective, mapping } };
+    });
+  };
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     // Filter to .csv only
     const csv = files.filter(f => /\.csv$/i.test(f.name));
-    // headerLine starts undefined (= "reading"); the async read below fills it in
-    // so we can validate columns against the matched slot's schema.
-    const mapped = csv.map(file => ({ file, slot: matchSlot(file.name), headerLine: undefined }));
+    const mapped = csv.map(file => ({ file }));
     setStagedFiles(prev => {
       // Merge: replace files with same name, keep others
       const byName = new Map(prev.map(s => [s.file.name, s]));
       for (const m of mapped) byName.set(m.file.name, m);
       return Array.from(byName.values());
     });
+    // headerLine starts undefined (= "reading"); the async read below fills it in
+    // so we can detect the delimiter and validate columns against the slot.
+    setFileSettings(prev => {
+      const next = { ...prev };
+      for (const m of mapped) next[m.file.name] = initialFileSettings(m.file.name, matchSlot(m.file.name), delimiter, null);
+      return next;
+    });
     e.target.value = ''; // allow re-selecting the same files
-    // Read each file's header row (first line only) and attach it for validation.
     for (const m of mapped) {
-      readFirstLine(m.file).then(line => {
-        setStagedFiles(prev => prev.map(s => s.file.name === m.file.name ? { ...s, headerLine: line } : s));
-      });
+      readFirstLine(m.file).then(line => applyHeaderLine(m.file.name, line, null));
     }
   };
 
-  // Required columns missing from a staged file's header, given its current slot
-  // and the configured delimiter. [] when the slot is empty or the header hasn't
-  // been read yet — we only flag a file once we've actually seen its columns.
-  const stagedMissingColumns = (s) => {
-    if (!s.slot || !s.headerLine) return [];
-    const slotDef = CSV_SLOTS.find(cs => cs.key === s.slot);
-    return missingRequiredColumns(parseCsvHeader(s.headerLine, delimiter), slotDef?.requiredColumns);
+  // Changing a file's delimiter re-reads its columns, so the mapping dropdowns
+  // and the required-column check follow it immediately.
+  const setFileDelimiter = (name, value) => {
+    const cur = settingsFor(name);
+    const cols = parseCsvHeader(cur.headerLine, value).filter(Boolean);
+    const stillValid = mappedPairs(cur.mapping).every(([, src]) => cols.some(c => c.toLowerCase() === String(src).toLowerCase()));
+    patchFile(name, {
+      delimiter: value,
+      delimiterTouched: true,
+      mapping: stillValid && mappedPairs(cur.mapping).length ? cur.mapping : autoMapColumns(cols, cur.slot),
+    });
   };
-  const filesWithHeaderErrors = stagedFiles.filter(s => stagedMissingColumns(s).length > 0);
+
+  const setFileSlot = (name, slot) => {
+    const cur = settingsFor(name);
+    const cols = cur.headerLine ? parseCsvHeader(cur.headerLine, cur.delimiter).filter(Boolean) : [];
+    patchFile(name, { slot, mapping: autoMapColumns(cols, slot), splitDelimiters: {} });
+  };
+
+  // What is wrong with one file, as display strings. In Identity Atlas-schema
+  // mode that is the required-column check the wizard has always done; in custom
+  // mode it is the POST-mapping check — validating the raw header there would
+  // flag every mapped file as missing everything it was mapped to supply.
+  const fileErrors = (name) => {
+    const s = settingsFor(name);
+    if (!s.slot || !s.headerLine) return [];
+    const cols = parseCsvHeader(s.headerLine, s.delimiter).filter(Boolean);
+    if (sourceFormat === 'custom') return mappingErrors(cols, s.mapping, s.slot);
+    const slotDef = CSV_SLOTS.find(cs => cs.key === s.slot);
+    const missing = missingRequiredColumns(cols, slotDef?.requiredColumns);
+    return missing.length
+      ? [`Missing column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}. This file may be mapped to the wrong type — pick the right one, switch to a custom mapping, or check the schema template.`]
+      : [];
+  };
 
   const removeStaged = (name) => setStagedFiles(prev => prev.filter(s => s.file.name !== name));
-  const setStagedSlot = (name, slot) => setStagedFiles(prev => prev.map(s => s.file.name === name ? { ...s, slot } : s));
 
   const removeServerFile = async (name) => {
     if (!savedConfigId) return;
@@ -166,18 +251,27 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
 
   // Slot coverage check — used to enable/disable Save
   const allFiles = [
-    ...serverFiles.map(f => ({ name: f.name, slot: matchSlot(f.name), source: 'server' })),
-    ...stagedFiles.map(s => ({ name: s.file.name, slot: s.slot, source: 'staged' })),
+    ...serverFiles.map(f => ({ name: f.name, slot: settingsFor(f.name).slot, source: 'server' })),
+    ...stagedFiles.map(s => ({ name: s.file.name, slot: settingsFor(s.file.name).slot, source: 'staged' })),
   ];
   const filledSlots = new Set(allFiles.map(f => f.slot).filter(Boolean));
   const requiredSlots = CSV_SLOTS.filter(s => s.required);
   const missingRequired = requiredSlots.filter(s => !filledSlots.has(s.key));
   const oversizedFiles = filesOverLimit(stagedFiles, maxFileBytes);
+  const filesWithHeaderErrors = allFiles.filter(f => fileErrors(f.name).length > 0);
   const canSave = !uploading && !saving && missingRequired.length === 0 && allFiles.length > 0
     && oversizedFiles.length === 0 && filesWithHeaderErrors.length === 0;
 
   // Step 1 → 2 validation
   const canProceedFromInfo = displayName.trim() && systemName.trim() && systemType.trim() && delimiter;
+
+  // The config's per-file section. Entries that say nothing beyond the canonical
+  // defaults are left out, so a schema-shaped upload saves the same config it
+  // always did and the crawler's bypass path is untouched.
+  const filesPayload = () => buildFilesConfig(
+    allFiles.map(f => ({ ...settingsFor(f.name), name: f.name })),
+    { defaultDelimiter: delimiter, sourceFormat },
+  );
 
   // Save handler — creates the config if needed, then uploads files
   const handleSave = async () => {
@@ -185,7 +279,7 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     setError(null);
     try {
       // 1. Create or update the config row
-      const configPayload = { systemName, systemType, delimiter };
+      const configPayload = { systemName, systemType, delimiter, sourceFormat, files: filesPayload() };
       let configId = savedConfigId;
       if (!configId) {
         const r = await authFetch('/api/admin/crawler-configs', {
@@ -243,6 +337,26 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
     { n: 3, label: 'Review' },
   ];
 
+  // One file's row below its name: slot, delimiter, mapping panel, errors.
+  // Shared by the staged and already-uploaded lists — the same file properties
+  // either way.
+  const renderFileSettings = (name) => (
+    <FileSettings
+      fileName={name}
+      settings={settingsFor(name)}
+      headerCols={headerColumnsFor(name)}
+      errors={fileErrors(name)}
+      mappingEnabled={sourceFormat === 'custom'}
+      onDelimiterChange={v => setFileDelimiter(name, v)}
+      onPatch={patch => patchFile(name, patch)}
+    />
+  );
+
+  const slotSelect = (name) => (
+    <SlotSelect fileName={name} slot={settingsFor(name).slot}
+      invalid={fileErrors(name).length > 0} onChange={slot => setFileSlot(name, slot)} />
+  );
+
   return (
     <WizardShell
       title={isEdit ? 'Edit CSV Crawler' : 'Add CSV Crawler'}
@@ -279,15 +393,43 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
               <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">Used for grouping in the UI.</p>
             </div>
           </div>
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">Source format</legend>
+            <div className="space-y-1">
+              <label className="flex items-start gap-2 text-sm dark:text-gray-200">
+                <input type="radio" name="csv-source-format" value="identityatlas" className="mt-1"
+                  checked={sourceFormat === 'identityatlas'} onChange={() => setSourceFormat('identityatlas')} />
+                <span>
+                  Identity Atlas schema
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">Files already use the canonical column names. Loaded as they are.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm dark:text-gray-200">
+                <input type="radio" name="csv-source-format" value="custom" className="mt-1"
+                  checked={sourceFormat === 'custom'} onChange={() => setSourceFormat('custom')} />
+                <span>
+                  Custom mapping
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">Upload the export as it is and map its columns onto the schema in the next step. The mapping is stored in the config and applied on every run.</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200">CSV delimiter</label>
             <select value={delimiter} onChange={e => setDelimiter(e.target.value)}
+              aria-label="CSV delimiter"
               className="px-3 py-2 border border-gray-200 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
               <option value=";">Semicolon (;)</option>
               <option value=",">Comma (,)</option>
-              <option value="\t">Tab</option>
+              {/* A literal tab, not the string "\t": a JSX attribute does not
+                  process escapes, so value="\t" stored a backslash and a t —
+                  which no CSV reader could bind, so Tab-configured jobs failed. */}
+              <option value={'\t'}>Tab</option>
               <option value="|">Pipe (|)</option>
             </select>
+            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+              The default. Each file&apos;s own delimiter is detected after upload and can be overridden per file.
+            </p>
           </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setStep(2)} disabled={!canProceedFromInfo}
@@ -303,14 +445,16 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-300">
             <div>
-              Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.
+              {sourceFormat === 'custom'
+                ? <>Upload the export <strong>as it is</strong>. Pick each file&apos;s object type, then map its columns onto the schema.</>
+                : <>Upload CSV files in the <strong>Identity Atlas schema</strong>. Files are auto-mapped by name.</>}
               {maxFileBytes != null && <> Maximum <strong>{formatBytes(maxFileBytes)}</strong> per file.</>}
             </div>
             <div className="mt-1">
               <a href="/api/admin/crawlers/csv/upload-schema" download className="text-blue-700 underline hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
                 Download schema templates
               </a>
-              <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers. Use a transform script to convert your source data to this format.</span>
+              <span className="text-blue-600 ml-2 dark:text-blue-400">— empty CSVs with the expected column headers.</span>
             </div>
           </div>
 
@@ -348,36 +492,20 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Staged files ({stagedFiles.length})</h4>
               <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
-                {stagedFiles.map(s => {
-                  const missingCols = stagedMissingColumns(s);
-                  const slotLabel = CSV_SLOTS.find(cs => cs.key === s.slot)?.label || s.slot;
-                  return (
+                {stagedFiles.map(s => (
                   <div key={s.file.name} className="p-2 text-sm dark:bg-gray-800">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono truncate dark:text-gray-200">{s.file.name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">{formatBytes(s.file.size)}</div>
                       </div>
-                      <select value={s.slot || ''} onChange={e => setStagedSlot(s.file.name, e.target.value || null)}
-                        aria-label={`Object type for ${s.file.name}`}
-                        className={`ml-2 text-xs border rounded px-1 py-0.5 dark:bg-gray-700 dark:text-gray-200 ${missingCols.length > 0 ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-600'}`}>
-                        <option value="">— Ignore —</option>
-                        {CSV_SLOTS.map(slot => (
-                          <option key={slot.key} value={slot.key}>{slot.label}{slot.required ? ' *' : ''}</option>
-                        ))}
-                      </select>
+                      {slotSelect(s.file.name)}
                       <button onClick={() => removeStaged(s.file.name)}
                         className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Remove</button>
                     </div>
-                    {missingCols.length > 0 && (
-                      <div className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">
-                        Missing column{missingCols.length > 1 ? 's' : ''} for <strong>{slotLabel}</strong>: <span className="font-mono">{missingCols.join(', ')}</span>.
-                        This file may be mapped to the wrong type — pick the right one above or check the schema template.
-                      </div>
-                    )}
+                    {renderFileSettings(s.file.name)}
                   </div>
-                  );
-                })}
+                ))}
               </div>
             </div>
           )}
@@ -387,21 +515,20 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
             <div>
               <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-gray-200">Already uploaded ({serverFiles.length})</h4>
               <div className="border border-gray-200 rounded divide-y dark:border-gray-600 dark:divide-gray-700">
-                {serverFiles.map(f => {
-                  const slot = matchSlot(f.name);
-                  const slotLabel = CSV_SLOTS.find(s => s.key === slot)?.label || 'Unrecognized';
-                  return (
-                    <div key={f.name} className="flex items-center justify-between p-2 text-sm dark:bg-gray-800">
+                {serverFiles.map(f => (
+                  <div key={f.name} className="p-2 text-sm dark:bg-gray-800">
+                    <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="font-mono truncate dark:text-gray-200">{f.name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">{formatBytes(f.sizeBytes)} · {new Date(f.modifiedAt).toLocaleString()}</div>
                       </div>
-                      <span className={`ml-2 px-2 py-0.5 rounded text-xs ${slot ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>{slotLabel}</span>
+                      {slotSelect(f.name)}
                       <button onClick={() => removeServerFile(f.name)}
                         className="ml-2 text-red-500 hover:text-red-700 text-xs dark:text-red-400 dark:hover:text-red-300">Delete</button>
                     </div>
-                  );
-                })}
+                    {renderFileSettings(f.name)}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -430,7 +557,11 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
 
           <div className="flex justify-between">
             <button onClick={() => setStep(1)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
-            <button onClick={() => setStep(3)} disabled={missingRequired.length > 0 || allFiles.length === 0}
+            {/* Header/mapping errors gate this too, not just Save: a file that
+                cannot load is worth fixing here, next to its own dropdowns,
+                rather than at the end of the review step. */}
+            <button onClick={() => setStep(3)}
+              disabled={missingRequired.length > 0 || allFiles.length === 0 || filesWithHeaderErrors.length > 0}
               className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
               Next: Review
             </button>
@@ -444,9 +575,11 @@ export default function ConfigWizard({ onComplete, onCancel, initialConfig, isEd
           <div className="bg-gray-50 border border-gray-200 rounded p-4 space-y-2 text-sm dark:bg-gray-700/50 dark:border-gray-600">
             <div><span className="text-gray-500 dark:text-gray-400">Display name:</span> <span className="font-medium dark:text-gray-200">{displayName}</span></div>
             <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">System:</span> {systemName} ({systemType})</div>
-            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Delimiter:</span> <code className="dark:text-gray-200">{delimiter === '\t' ? '\\t' : delimiter}</code></div>
+            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Source format:</span> {sourceFormat === 'custom' ? 'Custom mapping' : 'Identity Atlas schema'}</div>
+            <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Default delimiter:</span> <code className="dark:text-gray-200">{delimiterLabel(delimiter)}</code></div>
             <div className="dark:text-gray-300"><span className="text-gray-500 dark:text-gray-400">Files:</span> {allFiles.length} total ({stagedFiles.length} new, {serverFiles.length} existing)</div>
           </div>
+          <FileReviewList files={allFiles} settingsFor={settingsFor} mappingEnabled={sourceFormat === 'custom'} />
           <div className="flex justify-between">
             <button onClick={() => setStep(2)} className="px-4 py-2 bg-gray-100 rounded text-sm dark:bg-gray-700 dark:text-gray-300">Back</button>
             <button onClick={handleSave} disabled={!canSave}
