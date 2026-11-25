@@ -119,6 +119,27 @@ function Send-IngestBatch {
         -Records $Records -DeletedIds $DeletedIds -BatchSize $BatchSize
 }
 
+# Ingest the accounts as one scoped full sync per principalType: the three
+# built-in types always, plus any other type an operator's typeMappings produce.
+# A built-in type with no accounts is still sent, empty: the scoped full sync is
+# what removes the accounts that left Omada, and skipping it kept the last ones
+# of a type live forever (#1691). Nothing is sent when the read returned no
+# accounts at all — that is likelier a broken read than an empty tenant, and an
+# empty batch per type would tombstone every account the system owns.
+function Send-OmadaPrincipalByType {
+    [CmdletBinding()]
+    param([array]$AccountRecords = @(), [Parameter(Mandatory)] [int]$SystemId)
+    if ($AccountRecords.Count -eq 0) { return }
+    $BuiltIn = @('User', 'ExternalUser', 'ServicePrincipal')
+    $Other = @($AccountRecords.principalType | Where-Object { $_ -and $_ -notin $BuiltIn } | Select-Object -Unique)
+    foreach ($PType in @($BuiltIn) + $Other) {
+        $Subset = @($AccountRecords | Where-Object { $_.principalType -eq $PType })
+        $R = Send-IngestBatch -Endpoint 'ingest/principals' -SystemId $SystemId -SyncMode 'full' `
+            -Scope @{ principalType = $PType } -Records $Subset
+        Write-Host "  Principals ($PType): +$($R.inserted) ~$($R.updated) -$($R.deleted)" -ForegroundColor Green
+    }
+}
+
 # Shape the raw OData items for one context entity set into ingest-ready context
 # records, dropping any without an externalId/displayName. Orgunit carries a parent
 # hierarchy, so its records are topologically sorted (parent before child).
