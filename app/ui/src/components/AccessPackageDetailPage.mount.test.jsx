@@ -20,7 +20,18 @@ const pkg = (over = {}) => ({
   ...over,
 });
 
-function renderPage({ body = pkg(), risk = null, pkgOk = true, onOpenDetail = () => {} } = {}) {
+// What /composition-reviews answers: nobody signed off yet, one group in the role now.
+const COMPOSITION = {
+  reviews: [], latestSignOff: null, canReview: true,
+  current: {
+    version: 1, takenAt: '2026-11-20T10:00:00Z', role: { displayName: 'Finance Access', holderCount: 3 },
+    type: { control: 'Manual', waysIn: [], waysOut: [], reviewGap: false },
+    resources: [{ id: 'g1', displayName: 'SG-Finance', resourceType: 'Group', systemName: 'Entra ID' }],
+    policies: [], owners: [],
+  },
+};
+
+function renderPage({ body = pkg(), risk = null, pkgOk = true, onOpenDetail = () => {}, features = {} } = {}) {
   const seen = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
@@ -28,6 +39,8 @@ function renderPage({ body = pkg(), risk = null, pkgOk = true, onOpenDetail = ()
     if (s.includes('/api/risk-scores/business-roles/')) {
       return risk ?? jsonResponse(null, { ok: false, status: 404 });
     }
+    if (/\/api\/access-package\/[^/]+\/composition-reviews$/.test(s)) return COMPOSITION;
+    if (/\/api\/access-package\/[^/]+\/resource-roles$/.test(s)) return [];
     // AccessPackageGovernance fetches three sub-resources off the same prefix and expects arrays;
     // they must be matched BEFORE the package itself, or it receives the package object and throws
     // "(reviews || []) is not iterable".
@@ -40,7 +53,7 @@ function renderPage({ body = pkg(), risk = null, pkgOk = true, onOpenDetail = ()
   });
   const r = renderWithProviders(
     <AccessPackageDetailPage accessPackageId="ap1" onClose={() => {}} onOpenDetail={onOpenDetail} />,
-    { auth: { authFetch } },
+    { auth: { authFetch }, features },
   );
   return { ...r, seen };
 }
@@ -120,6 +133,46 @@ describe('AccessPackageDetailPage lifecycle', () => {
     await userEvent.setup().click(await screen.findByRole('tab', { name: 'Lifecycle' }));
     expect(await screen.findByText('No regular review.')).toBeInTheDocument();
     expect(screen.queryByText('Last review')).not.toBeInTheDocument();
+  });
+});
+
+describe('AccessPackageDetailPage requests & reviews', () => {
+  const ON = { compositionReview: true };
+  const requestsTab = () => screen.queryByRole('tab', { name: /^Requests & reviews/ });
+
+  it('offers the tab for the composition review alone when the role is neither requested nor reviewed', async () => {
+    renderPage({ features: ON });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: /^Requests & reviews/ }));
+    expect(await screen.findByRole('region', { name: 'Composition review' })).toBeInTheDocument();
+    expect(await screen.findByText('Nobody has signed off what this role contains yet.')).toBeInTheDocument();
+    // Nobody requests it and nothing reviews it: no request/review lists.
+    expect(screen.queryByText(/Pending requests/i)).toBeNull();
+  });
+
+  it('has no Requests & reviews tab without the flag for a role nobody requests or reviews', async () => {
+    renderPage();
+    expect(await screen.findByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+    expect(requestsTab()).toBeNull();
+  });
+
+  it('opens the Overview with Resources unfolded from "See the resources"', async () => {
+    renderPage({ features: ON });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: /^Requests & reviews/ }));
+    await user.click(await screen.findByRole('button', { name: 'See the resources' }));
+    expect(await screen.findByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Resources/, expanded: true })).toBeInTheDocument();
+    // Only the section asked for opens.
+    expect(screen.getByRole('button', { name: /^People/ })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows the requests without a composition review when the flag is off for a requested role', async () => {
+    renderPage({ body: pkg({ accessModel: { control: 'Manual', waysIn: ['Request'], waysOut: [] } }) });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: /^Requests & reviews/ }));
+    expect(await screen.findByText(/requests/i, { selector: 'h3,h4,h2' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Composition review' })).toBeNull();
   });
 });
 

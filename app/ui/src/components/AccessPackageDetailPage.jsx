@@ -119,21 +119,18 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
   }, [features, riskData, showComposition]);
 
   const renderCustomTab = useCallback((key, data, openTab) => {
-    // A link to Resources or People opens that section of the Overview.
-    const openSectionOrTab = (target) => {
-      if (target === 'resources' || target === 'people') { setOverviewSection(target); openTab('overview'); }
-      else openTab(target);
-    };
     if (key === 'overview') {
       return <BusinessRoleOverview key={overviewSection || 'none'} roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail}
         onOpenTab={openTab} openSection={overviewSection} />;
     }
     if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
-    if (key === 'requests') {
-      return <BusinessRoleRequestsAndReviews roleId={accessPackageId} authFetch={authFetch} showComposition={showComposition}
-        showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenTab={openSectionOrTab} />;
-    }
-    return null;
+    // Attributes, Relationships, Timeline, Diff and Risk are EntityDetailPage's own.
+    if (key !== 'requests') return null;
+    // Resources and People are sections of the Overview, not tabs: the
+    // composition review's link to them opens that section there.
+    const openOverviewSection = (section) => { setOverviewSection(section); openTab('overview'); };
+    return <BusinessRoleRequestsAndReviews roleId={accessPackageId} authFetch={authFetch} showComposition={showComposition}
+      showRequests={showsRequestsAndReviews(data)} answersForRole={answersForRole} onOpenTab={openOverviewSection} />;
   }, [accessPackageId, authFetch, onOpenDetail, answersForRole, showComposition, overviewSection]);
 
   return (
