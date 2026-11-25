@@ -6694,8 +6694,8 @@ also pass free values through from source data is recorded too (<code>ia:passthr
 <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/ontology/validation.json"><code>ontology/validation.json</code></a>,
 so a <em>new</em> ingest entity type cannot silently fall outside the model:</p>
 <ul>
-<li>the governance satellite tables (GovernanceCatalogs, AssignmentPolicies, AssignmentRequests,
-  CertificationDecisions) — business roles themselves <em>are</em> in the core, as Resources;</li>
+<li>the governance satellite tables (AssignmentPolicies, AssignmentRequests, CertificationDecisions)
+  — business roles themselves <em>are</em> in the core, as Resources, and their catalogs are Catalog contexts;</li>
 <li>PrincipalActivity and RiskScores;</li>
 <li>the values a source passes through: whatever a CSV file, a SQL statement or an Omada / midPoint
   mapping calls its resource and context types. Those are exactly what the dynamic layer is for.</li>

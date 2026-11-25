@@ -2647,10 +2647,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#relative-permissions-letting-context-owners-in" class="md-nav__link">
+  <a href="#relative-permissions-letting-owners-in" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Relative permissions: letting context owners in
+        Relative permissions: letting owners in
       
     </span>
   </a>
@@ -6205,10 +6205,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#relative-permissions-letting-context-owners-in" class="md-nav__link">
+  <a href="#relative-permissions-letting-owners-in" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Relative permissions: letting context owners in
+        Relative permissions: letting owners in
       
     </span>
   </a>
@@ -6444,31 +6444,86 @@ the Entra app requiring assignment or on <code>AUTH_REQUIRED_ROLES</code>: anyon
 the tenant may be able to sign in, and still sees no data without a role.
 To let people read, assign them a role, for example <strong>Servicedesk</strong>.</p>
 </div>
-<h3 id="relative-permissions-letting-context-owners-in">Relative permissions: letting context owners in<a class="headerlink" href="#relative-permissions-letting-context-owners-in" title="Permanent link">&para;</a></h3>
-<blockquote>
-<p><strong>Business-role owners may sign off a composition review</strong> is a separate checkbox in the same section. With it on, whoever is Accountable or Responsible for a business role may save a <a href="../../concepts/governance-model/#reviewing-what-a-business-role-contains">composition review</a> of that role without the Certification decisions permission. It needs the experimental Composition review feature and does not let anyone sign in who could not already.</p>
-</blockquote>
+<h3 id="relative-permissions-letting-owners-in">Relative permissions: letting owners in<a class="headerlink" href="#relative-permissions-letting-owners-in" title="Permanent link">&para;</a></h3>
 <p>The same <strong>Admin → Roles &amp; Permissions</strong> tab has a second section below the
-role table, <strong>Relative permissions</strong>. It groups the access people get because of
-how they relate to the data, rather than a role in that table. It is always read-only and limited to the data they relate
-to. There are two kinds today:</p>
+role table, <strong>Relative permissions</strong>: the access people get because they are
+<strong>Accountable</strong> or <strong>Responsible</strong> for something, rather than a role in that
+table. It is always read-only and limited to what they answer for.</p>
+<p>It is one grid. Each kind of thing people answer for has a row for
+Accountable and one for Responsible:</p>
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>Sign in &amp; view</th>
+<th>Sub-units</th>
+<th>MCP</th>
+<th>Composition review</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Organisation</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Applications</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Role portfolios</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Business roles</td>
+<td>✓</td>
+<td>–</td>
+<td>–</td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
 <ul>
-<li><strong>Context owners</strong> — one checkbox. It lets the people who are <strong>Accountable</strong>
-  or <strong>Responsible</strong> for a context sign in without an Identity Atlas role. They
-  land directly on their own context page — read-only, with its report
-  download — and can also open all its sub-units at any depth (also those with
-  an owner of their own; that owner sees only their own part), a team or
+<li><strong>Sign in &amp; view</strong> — they can sign in without an Identity Atlas role and land
+  on their own page, read-only: the units, applications, portfolios and
+  business roles that row admits, with a unit's report download, a team or
   application matrix, the pages of the people in it and of what they hold, and
-  for each member the <em>names</em> of what that member holds and which other contexts
-  it is in. Every other screen and endpoint stays
-  closed to them, even if you have set <code>AUTH_REQUIRED_ROLES</code>. People who do
-  hold a role are not affected. It is off by default and takes effect without a
-  restart.
-Matrix-share recipients are <strong>not</strong> a relative permission: someone a matrix is
+  for each member the <em>names</em> of what that member holds and which other units
+  it is in. Every other screen and endpoint stays closed to them, even if you
+  have set <code>AUTH_REQUIRED_ROLES</code>.</li>
+<li><strong>Sub-units</strong> — also every sub-unit below it, at any depth (also those with
+  an owner of their own; that owner sees only their own part). Without it they
+  see only the unit itself.</li>
+<li><strong>MCP</strong> — they may also ask about the same things from an AI assistant
+  through the <a href="../../reference/mcp-server/#context-owners">MCP server</a>.</li>
+<li><strong>Composition review</strong> — they may sign off a
+  <a href="../../concepts/governance-model/#reviewing-what-a-business-role-contains">composition review</a>
+  of a business role they answer for, without the Certification decisions
+  permission. This one does not need <strong>Sign in &amp; view</strong>: it also applies to
+  people who sign in with an ordinary role.</li>
+</ul>
+<p>So you can, for example, let only the Accountable of an organisation unit in,
+with its sub-units, while a Responsible sees nothing; or let application
+owners in without MCP. <strong>Sub-units</strong> and <strong>MCP</strong> can only be ticked where
+<strong>Sign in &amp; view</strong> is on in that row. MCP and Composition review also need
+their feature switched on under <strong>Admin → Experimental</strong>. People who hold a
+role are not affected. Everything is off by default and a change takes effect
+without a restart.</p>
+<p>Upgrading keeps what you had: until the grid is first saved it shows what the
+earlier on/off switches gave — Accountable and Responsible alike, every row.</p>
+<p>Matrix-share recipients are <strong>not</strong> a relative permission: someone a matrix is
 shared with needs a role, such as Servicedesk, to open it (see
 <a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>).
-  That is decided per share; there is no setting for it in this section.</li>
-</ul>
+  That is decided per share; there is no setting for it in this section.</p>
 <p>See <a href="../../architecture/context-owner-access/">Context-owner access</a> for exactly
 what a context owner can see and how it is enforced.</p>
 <hr />

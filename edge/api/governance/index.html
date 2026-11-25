@@ -6784,7 +6784,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Reads From:</strong> <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code> + <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code> + <code>ResourceAssignments</code> (<code>governed=true</code>)</p>
+<p><strong>Reads From:</strong> <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>) + <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code> + <code>ResourceAssignments</code> (<code>governed=true</code>)</p>
 <hr />
 <h2 id="review-compliance">Review Compliance<a class="headerlink" href="#review-compliance" title="Permanent link">&para;</a></h2>
 <p>These endpoints report on the state of certification reviews. Identity Atlas does not conduct reviews — decisions are made in the source IGA platform (e.g. Entra ID Access Reviews) and mirrored read-only into <code>CertificationDecisions</code> by the crawler. Both endpoints summarise, per access package, the <strong>most recent review instance</strong> only.</p>
@@ -6909,7 +6909,7 @@
 <tr>
 <td><code>catalogName</code></td>
 <td>string</td>
-<td>Owning <code>GovernanceCatalogs</code> name (null if none)</td>
+<td>Name of the Catalog context the role is a member of (null if none)</td>
 </tr>
 <tr>
 <td><code>categoryName</code> / <code>categoryColor</code></td>
@@ -6968,7 +6968,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Reads From:</strong> <code>CertificationDecisions</code> + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code> + <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code></p>
+<p><strong>Reads From:</strong> <code>CertificationDecisions</code> + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>) + <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code></p>
 <hr />
 <h2 id="category-management">Category Management<a class="headerlink" href="#category-management" title="Permanent link">&para;</a></h2>
 <p>Categories are single-assignment labels for business roles. Unlike tags, a business role can have <strong>at most one</strong> category. This constraint is enforced by a primary key on <code>(resourceId)</code> in the <code>GovernanceCategoryAssignments</code> table.</p>

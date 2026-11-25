@@ -6524,7 +6524,8 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <li><code>ResourceAssignments.governed = true</code> — flags governed assignments among all assignments (the <code>assignmentType</code> stays one of the three universal values <code>Direct</code> / <code>Indirect</code> / <code>Eligible</code>)</li>
 <li><code>ResourceRelationships.relationshipType = 'Contains'</code> — identifies resource grants among all relationships</li>
 </ul>
-<p>The four governance-specific tables (<code>GovernanceCatalogs</code>, <code>AssignmentPolicies</code>, <code>AssignmentRequests</code>, <code>CertificationDecisions</code>) contain only data that has no place in the shared model.</p>
+<p>The three governance-specific tables (<code>AssignmentPolicies</code>, <code>AssignmentRequests</code>, <code>CertificationDecisions</code>) contain only data that has no place in the shared model.</p>
+<p>A <strong>catalog</strong> — the container a governance source groups its business roles in — is a synced context of the <code>Catalog</code> template (<code>contextCategory = 'Catalog'</code>), not a table of its own. Its members are the business roles it holds, the source's catalog properties sit in its <code>extendedAttributes</code>, and the people who answer for it are its Accountable and Responsible. The UI calls them <strong>role portfolios</strong>: they have their own <strong>Role portfolios</strong> tab on the Contexts page, and someone who is Accountable or Responsible for one finds it on the same sub-tab of their owner page (see <a href="../../architecture/context-owner-access/">Context-owner access</a>). Until migration 117 they lived in a <code>GovernanceCatalogs</code> table with a <code>Resources.catalogId</code> pointer; that table is gone and the next crawl writes the catalogs again as contexts.</p>
 <div class="admonition info">
 <p class="admonition-title">Breaking change from v3.0</p>
 <p>In v3.0, governance used seven separate tables: GovernanceCatalogs, BusinessRoles, BusinessRoleResources, BusinessRoleAssignments, BusinessRolePolicies, BusinessRoleRequests, and CertificationDecisions. In v3.1, three of those were absorbed into the shared resource model. Existing v3.0 deployments must re-sync to populate the unified tables.</p>
@@ -6533,16 +6534,20 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <h2 id="governance-entity-diagram">Governance Entity Diagram<a class="headerlink" href="#governance-entity-diagram" title="Permanent link">&para;</a></h2>
 <!-- ontology: validated -->
 <pre class="mermaid"><code>erDiagram
-    GovernanceCatalogs {
+    Contexts {
         guid id PK
         string displayName
-        string description
+        string contextCategory
+    }
+    ContextMembers {
+        guid contextId FK
+        string memberType
+        guid memberId FK
     }
     Resources {
         guid id PK
         string displayName
         string resourceType
-        guid catalogId FK
         bool isHidden
     }
     ResourceAssignments {
@@ -6596,7 +6601,8 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
         string reviewInstanceStatus
     }
 
-    GovernanceCatalogs |o--o{ Resources : "contains (BusinessRole)"
+    Contexts ||--o{ ContextMembers : "contextCategory=Catalog"
+    ContextMembers }o--|| Resources : "BusinessRole"
     Resources ||--o{ ResourceAssignments : "governed=true"
     Resources ||--o{ ResourceRelationships : "relationshipType=Contains"
     Resources |o--o{ AssignmentPolicies : "governed by"
@@ -6621,7 +6627,7 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 <td>Catalog</td>
 <td>—</td>
 <td>Source</td>
-<td><code>GovernanceCatalogs</code></td>
+<td><code>Contexts</code> (<code>contextCategory = 'Catalog'</code>), members in <code>ContextMembers</code></td>
 </tr>
 <tr>
 <td>Business Role</td>
@@ -6681,11 +6687,6 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>catalogId</code></td>
-<td>UUID</td>
-<td>Links the business role to its <code>GovernanceCatalogs</code> parent</td>
-</tr>
 <tr>
 <td><code>isHidden</code></td>
 <td>BOOLEAN</td>
@@ -6820,13 +6821,13 @@ Users who have direct membership to a group that is also granted by a business r
 <li><strong>Track compliance in Identity Atlas</strong> using the read-only review-compliance view — per-access-package last-review status (Compliant / In Progress / Reviewed Late / Missed), backed by the <code>GET /api/governance/review-compliance</code> and <code>GET /api/governance/summary</code> endpoints (see the <a href="../../api/governance/">Governance API</a>). Use it to find which business roles are overdue or were reviewed late, then drive the next campaign in the source system.</li>
 </ul>
 <h3 id="reviewing-what-a-business-role-contains">Reviewing what a business role contains<a class="headerlink" href="#reviewing-what-a-business-role-contains" title="Permanent link">&para;</a></h3>
-<p>The one review Identity Atlas does hold itself is a <strong>composition review</strong>: on a business role's <strong>Composition review</strong> tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks <strong>Signed off</strong>. This reviews the role's <em>contents</em>, not who holds it, so it does not replace the access reviews above.</p>
+<p>The one review Identity Atlas does hold itself is a <strong>composition review</strong>: at the top of a business role's <strong>Requests &amp; reviews</strong> tab, somebody reads what the role contains, writes notes and, when they agree with it, ticks <strong>Signed off</strong>. This reviews the role's <em>contents</em>, not who holds it, so it does not replace the access reviews above.</p>
 <ul>
 <li>A review is an object of its own, linked to the role it reviews, and never changed after it is saved: the notes, whether it was a sign-off, who saved it (the signed-in user's e-mail or user name, and their display name), when, and a <strong>snapshot</strong> of the role at that moment — its type and ways in and out, how many held it, who was Accountable and Responsible, its assignment policies with their rules, and the resources it contained (name, type, system).</li>
 <li>The tab shows every review with <strong>What was reviewed</strong> (the snapshot, as it was), and for the latest sign-off what changed since: resources added or removed, a different type, or a changed policy or rule.</li>
 <li>It lives in its own table, <code>BusinessRoleCompositionReviews</code> (migration 116), never in <code>CertificationDecisions</code>, so a crawler sync cannot overwrite it and it is never mistaken for a decision from the source.</li>
-<li>It is <strong>experimental</strong> and off by default: switch it on under <strong>Admin → Experimental → Composition review</strong>. While it is off the tab is hidden and both endpoints answer 404; reviews already saved are kept.</li>
-<li>Saving needs the <strong>Certification decisions</strong> permission (<code>data.write.certifications</code>) — or answering for the role (its <strong>Accountable</strong> or <strong>Responsible</strong>, through any of your accounts) while the relative permission <strong>Business-role owners may sign off a composition review</strong> is on (<strong>Admin → Roles &amp; Permissions → Relative permissions</strong>). Anyone who can read data sees the reviews (<code>GET</code> / <code>POST /api/access-package/:id/composition-reviews</code>).</li>
+<li>It is <strong>experimental</strong> and off by default: switch it on under <strong>Admin → Experimental → Composition review</strong>. While it is off the section is hidden and both endpoints answer 404; reviews already saved are kept.</li>
+<li>Saving needs the <strong>Certification decisions</strong> permission (<code>data.write.certifications</code>) — or answering for the role (its <strong>Accountable</strong> or <strong>Responsible</strong>, through any of your accounts) where <strong>Admin → Roles &amp; Permissions → Relative permissions</strong> ticks <strong>Composition review</strong> for their role (Accountable or Responsible) on the Business roles row. Anyone who can read data sees the reviews (<code>GET</code> / <code>POST /api/access-package/:id/composition-reviews</code>).</li>
 <li>In the ontology it is <code>ia:CompositionReview</code> (<a href="../../reference/core-model/">core model</a>).</li>
 </ul>
 <hr />
@@ -6844,7 +6845,7 @@ Users who have direct membership to a group that is also granted by a business r
 <tbody>
 <tr>
 <td>Access package catalogs</td>
-<td><code>GovernanceCatalogs</code></td>
+<td><code>Contexts</code> (<code>contextCategory = Catalog</code>, <code>contextType = AccessPackageCatalog</code>), the access packages as <code>ContextMembers</code></td>
 </tr>
 <tr>
 <td>Access packages</td>

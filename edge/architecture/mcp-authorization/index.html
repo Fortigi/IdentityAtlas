@@ -6529,7 +6529,7 @@ so is the MCP row scope. REST and MCP cannot disagree about who opens what.</p>
 <tr>
 <td>Who is an owner over MCP</td>
 <td><code>mcp/auth.js</code> → <code>mcp/ownerScope.js</code></td>
-<td>Exactly the callers REST hands to owner mode (no permission from any role, or missing an <code>AUTH_REQUIRED_ROLES</code> role), with <strong>both</strong> switches on: context-owner access and <em>Context owners may also use the MCP server</em>. A failed lookup answers 500, never the roleless path. Someone with any permission is never an owner.</td>
+<td>Exactly the callers REST hands to owner mode (no permission from any role, or missing an <code>AUTH_REQUIRED_ROLES</code> role), for the contexts whose relative-permission row (template × role) gives <strong>MCP</strong>, which needs <strong>Sign in &amp; view</strong> on that row. Business roles are not part of the MCP scope. A failed lookup answers 500, never the roleless path. Someone with any permission is never an owner.</td>
 </tr>
 <tr>
 <td>Which tools an owner gets</td>
@@ -6673,12 +6673,12 @@ count as the organisation's total.</p>
 <tr>
 <td>A — rules</td>
 <td><code>nlreports/scope.test.js</code>, <code>nlreports/compile.scope.test.js</code>, <code>nlreports/references.scope.test.js</code>, <code>auth/ownerAccess/tiers.test.js</code>, <code>auth/contextOwnerSetting.test.js</code></td>
-<td>Every catalog table has a scope rule, an unknown one throws, and every relation of the catalog is scoped as a condition and in every column it offers. The compiler walks the catalog, so a relation added later is covered without editing the test. Unscoped SQL is unchanged, and the switches only count together.</td>
+<td>Every catalog table has a scope rule, an unknown one throws, and every relation of the catalog is scoped as a condition and in every column it offers. The compiler walks the catalog, so a relation added later is covered without editing the test. Unscoped SQL is unchanged, and MCP counts only where its grid row also gives view.</td>
 </tr>
 <tr>
 <td>B/C — MCP units</td>
 <td><code>mcp/ownerScope.test.js</code>, <code>mcp/tools.owner.test.js</code>, <code>mcp/tools.guard.test.js</code>, <code>mcp/router.test.js</code></td>
-<td>The sign-in gate (both switches, non-owner, roleful non-owner, failed lookup), every tool passes the scope on, the report gate, the <code>scope</code> block</td>
+<td>The sign-in gate (the grid's MCP cells, non-owner, roleful non-owner, failed lookup), every tool passes the scope on, the report gate, the <code>scope</code> block</td>
 </tr>
 <tr>
 <td>B/C — end to end</td>

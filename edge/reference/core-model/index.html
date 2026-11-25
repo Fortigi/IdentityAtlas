@@ -7079,7 +7079,7 @@
 Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
 <a href="../../contributing/maintaining-the-ontology/">Maintaining the Core Ontology</a>.</p>
 </div>
-<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>2.7.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
+<p>Ontology <code>https://identityatlas.io/ontology</code>, version <code>3.1.0</code>. Namespace <code>https://identityatlas.io/ontology#</code> (prefix <code>ia:</code>).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: <a href="https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl">core.ttl</a>.</p>
 <p>A column is identified by the property of the same name: <code>Principals.accountEnabled</code> is
 <code>ia:accountEnabled</code> (<code>https://identityatlas.io/ontology#accountEnabled</code>). One property serves every core table
@@ -7090,6 +7090,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <pre class="mermaid"><code>classDiagram
     direction LR
     class AIAgent
+    class AccessPackageCatalogContext
     class AccessPermission
     class ActivityContext
     class AdministrativeUnitContext
@@ -7107,6 +7108,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     class AzureSubscription
     class BusinessRole
     class CRMRole
+    class CatalogContext
     class Context
     class ContextRecipeContext
     class ControlPermission
@@ -7162,6 +7164,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     class User
     class WorkloadIdentity
     Agent &lt;|-- AIAgent
+    CatalogContext &lt;|-- AccessPackageCatalogContext
     Permission &lt;|-- AccessPermission
     TagContext &lt;|-- ActivityContext
     OrganizationalUnit &lt;|-- AdministrativeUnitContext
@@ -7179,6 +7182,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
     Scope &lt;|-- AzureSubscription
     Resource &lt;|-- BusinessRole
     TechnicalRole &lt;|-- CRMRole
+    Context &lt;|-- CatalogContext
     LogicalApplicationContext &lt;|-- ContextRecipeContext
     Permission &lt;|-- ControlPermission
     OrganizationalUnit &lt;|-- CostCenterContext
@@ -7261,6 +7265,14 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 </thead>
 <tbody>
 <tr>
+<td><code>AccessPackageCatalog</code></td>
+<td><code>ia:AccessPackageCatalogContext</code></td>
+<td>Catalog</td>
+<td>Resource</td>
+<td>crawler <code>entra-id</code></td>
+<td>An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times. Its roles come from the catalog's role assignments: a single Catalog owner is the Accountable, several owners are each Responsible, and every Access package manager and Access package assignment manager is Responsible.</td>
+</tr>
+<tr>
 <td><code>Activity</code></td>
 <td><code>ia:ActivityContext</code></td>
 <td>Tag</td>
@@ -7275,6 +7287,14 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>Principal</td>
 <td>crawler <code>demo</code></td>
 <td>An Entra administrative unit. Only the demo dataset emits it; the Entra crawler does not sync administrative units.</td>
+</tr>
+<tr>
+<td><code>Catalog</code></td>
+<td><code>ia:CatalogContext</code></td>
+<td>Catalog</td>
+<td>Resource</td>
+<td>crawler <code>demo</code></td>
+<td>A grouping of business roles (resourceType BusinessRole) as the governance source keeps it: an Entra ID access package catalog, another IGA platform's role folder. Its members are the business roles; the source's own catalog properties sit in extendedAttributes. Carries an Accountable (its owner) and Responsible (ContextRoles). Not an application: an application groups the technical resources that make up one system, a catalog groups the roles that hand them out. Replaces the GovernanceCatalogs table and Resources.catalogId (migration 117).</td>
 </tr>
 <tr>
 <td><code>ContextRecipe</code></td>
@@ -7478,7 +7498,7 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>contextCategory</code></td>
 <td><code>ia:contextCategory</code></td>
 <td>text</td>
-<td><code>OrganizationalUnit</code>, <code>LogicalApplication</code>, <code>Tag</code>, <code>Segment</code></td>
+<td><code>OrganizationalUnit</code>, <code>LogicalApplication</code>, <code>Tag</code>, <code>Segment</code>, <code>Catalog</code></td>
 <td>The template this context falls under. NULL for a synced value nobody has placed yet.</td>
 </tr>
 <tr>
@@ -8289,13 +8309,6 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td>text</td>
 <td></td>
 <td>Generated from extendedAttributes.capabilityId for the effective-access engine.</td>
-</tr>
-<tr>
-<td><code>catalogId</code></td>
-<td><code>ia:catalogId</code></td>
-<td>uuid</td>
-<td></td>
-<td>The governance catalog (GovernanceCatalogs.id) a business role belongs to. GovernanceCatalogs is outside the core model.</td>
 </tr>
 <tr>
 <td><code>createdDateTime</code></td>
@@ -10133,10 +10146,15 @@ in it: <a href="../../architecture/core-ontology/">Core Ontology</a>.</p>
 <td><code>ia:ContextCategory_Segment</code></td>
 <td>A grouping by an attribute or an analysis.</td>
 </tr>
+<tr>
+<td><code>Catalog</code></td>
+<td><code>ia:ContextCategory_Catalog</code></td>
+<td>A grouping of business roles, as the governance source keeps it.</td>
+</tr>
 </tbody>
 </table>
 <h3 id="context-role">Context role<a class="headerlink" href="#context-role" title="Permanent link">&para;</a></h3>
-<p><code>ia:ContextRoleType</code> — What a person is to a context. Only an OrganizationalUnit or a LogicalApplication carries roles. Used by <code>ContextClaims.roleSuggestion</code>, <code>ContextRoles.role</code>.</p>
+<p><code>ia:ContextRoleType</code> — What a person is to a context. Only an OrganizationalUnit, a LogicalApplication or a Catalog carries roles. Used by <code>ContextClaims.roleSuggestion</code>, <code>ContextRoles.role</code>.</p>
 <table>
 <thead>
 <tr>

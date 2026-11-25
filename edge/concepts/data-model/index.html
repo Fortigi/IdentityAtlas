@@ -6702,7 +6702,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
     }
     Contexts {
         uuid id PK
-        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment"
+        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment, Catalog"
         string contextType "open vocabulary"
         string displayName
         uuid parentContextId FK
@@ -7038,7 +7038,7 @@ Business roles are not stored in a separate table. They are <code>Resources</cod
 </tr>
 </tbody>
 </table>
-<p>Key columns: <code>displayName</code>, <code>resourceType</code>, <code>systemId</code>, <code>extendedAttributes</code> (JSON), <code>catalogId</code>, <code>isHidden</code>, <code>riskScore</code>. Classification/grouping is via <code>ContextMembers</code> (<code>memberType='Resource'</code>), not a column.</p>
+<p>Key columns: <code>displayName</code>, <code>resourceType</code>, <code>systemId</code>, <code>extendedAttributes</code> (JSON), <code>isHidden</code>, <code>riskScore</code>. Classification/grouping is via <code>ContextMembers</code> (<code>memberType='Resource'</code>), not a column.</p>
 <hr />
 <h3 id="resourceassignments">ResourceAssignments<a class="headerlink" href="#resourceassignments" title="Permanent link">&para;</a></h3>
 <p>Captures who has access to what, and how. The <code>assignmentType</code> column distinguishes direct, indirect and PIM-eligible access; the separate <code>governed</code> flag marks governance-driven (IGA) assignments.</p>

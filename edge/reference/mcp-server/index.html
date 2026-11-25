@@ -6568,7 +6568,7 @@ devices, nested groups or eligible members. When groups exist that hold no accou
 do hold devices or nested groups, the assistant says how many and offers to list them.</p>
 <h2 id="who-may-use-it">Who may use it<a class="headerlink" href="#who-may-use-it" title="Permanent link">&para;</a></h2>
 <p>Three things must all be true (or, instead of the third, the person is a
-<a href="#context-owners">context owner</a> and the switch for them is on):</p>
+<a href="#context-owners">context owner</a> whose relative permission gives them MCP):</p>
 <ol>
 <li><strong>Sign-in is on.</strong> With authentication off there is no user to act for: the endpoint
    answers <code>404</code> and the switch refuses to turn on.</li>
@@ -6583,9 +6583,11 @@ do hold devices or nested groups, the assistant says how many and offers to list
 <p>A person who is <strong>Accountable or Responsible for a context</strong> but holds no Identity Atlas
 role (a department manager, an application owner —
 <a href="../../architecture/context-owner-access/">context-owner access</a>) may also use the MCP
-server, when the admin turns on <strong>Admin → Roles &amp; Permissions → Relative permissions →
-Context owners may also use the MCP server</strong> (next to the context-owner switch, which must
-be on too). They then see exactly what they see in the app, enforced by the same code:</p>
+server, when the admin ticks <strong>MCP</strong> for their row (the kind of context and their role,
+Accountable or Responsible) under <strong>Admin → Roles &amp; Permissions → Relative permissions</strong>.
+That needs <strong>Sign in &amp; view</strong> on the same row. Only the contexts such a row covers count;
+business roles are not part of the MCP scope. They then see exactly what they see in the
+app, enforced by the same code:</p>
 <ul>
 <li>every <code>run_query</code> lists only the records they may open — their contexts' members,
   what those members hold (or, for an application, who holds it), their sub-units. For

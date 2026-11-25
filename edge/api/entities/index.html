@@ -7537,7 +7537,7 @@
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="p">]</span>
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>governed=true</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code></p>
+<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>governed=true</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>)</p>
 <hr />
 <h4 id="get-apiuseridhistory">GET /api/user/:id/history<a class="headerlink" href="#get-apiuseridhistory" title="Permanent link">&para;</a></h4>
 <p>Version history for a user principal. Each entry represents a recorded change from the <code>_history</code> audit table, including the operation type and a JSONB snapshot of the row data.</p>
@@ -7695,7 +7695,7 @@
 <a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="p">]</span>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">}</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code></p>
+<p><strong>Reads From:</strong> <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>)</p>
 <hr />
 <h2 id="business-role-detail">Business Role Detail<a class="headerlink" href="#business-role-detail" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiaccess-packageid">GET /api/access-package/:id<a class="headerlink" href="#get-apiaccess-packageid" title="Permanent link">&para;</a></h3>
@@ -7723,7 +7723,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Reads From:</strong> <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>GovernanceCatalogs</code> + <code>AssignmentPolicies</code> + <code>CertificationDecisions</code></p>
+<p><strong>Reads From:</strong> <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>) + <code>AssignmentPolicies</code> + <code>CertificationDecisions</code></p>
 <hr />
 <h3 id="get-apiaccess-packageidassignments">GET /api/access-package/:id/assignments<a class="headerlink" href="#get-apiaccess-packageidassignments" title="Permanent link">&para;</a></h3>
 <p>Active governed assignments for a business role. Only assignments with <code>state='Delivered'</code> are returned.</p>

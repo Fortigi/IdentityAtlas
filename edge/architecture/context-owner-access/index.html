@@ -2638,6 +2638,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Relative permissions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#business-roles-they-answer-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Business roles they answer for
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6251,6 +6268,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Relative permissions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#business-roles-they-answer-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Business roles they answer for
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -6525,8 +6559,8 @@ relates to:</p>
 <tbody>
 <tr>
 <td>Context owner</td>
-<td>Accountable or Responsible for a context</td>
-<td>The admin switch below, then the <code>ContextRoles</code> rows</td>
+<td>Accountable or Responsible for a context or a business role</td>
+<td>The relative-permission grid below, then the <code>ContextRoles</code> / <code>BusinessRoleOwners</code> rows</td>
 </tr>
 <tr>
 <td>Matrix-share recipient</td>
@@ -6542,27 +6576,71 @@ separately: a context owner by the allow-list and the tiers on this page (the
 MCP server reuses both — <a href="#the-mcp-server">The MCP server</a>), a share recipient
 by the share itself. Running matrix shares under the same data-level scope is a
 later, separate track (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1105">#1105</a>).</p>
+<h3 id="business-roles-they-answer-for">Business roles they answer for<a class="headerlink" href="#business-roles-they-answer-for" title="Permanent link">&para;</a></h3>
+<p>A person can also be <strong>Accountable</strong> or <strong>Responsible</strong> for business roles
+(<code>BusinessRoleOwners</code>, through their account, their person or another account
+of that person). Where the grid's <strong>Business roles</strong> row for their role gives
+<strong>Sign in &amp; view</strong>, those roles appear on the <strong>Role portfolios</strong> tab of their page, so
+everything they answer for is organised by context (an owner does not see the
+word "context"). A role in a portfolio they hold is one of its members and opens
+from there. A role in a portfolio they do not hold is listed under that
+portfolio's name, shown light and not as a link, the way the units above a tree are.
+A role in no portfolio is listed under <strong>Default portfolio</strong>, last. Each portfolio is
+named by <code>/api/auth-me</code> <code>contextOwner.businessRoles</code> (<code>portfolioId</code>,
+<code>portfolioName</code>, from the shared catalog join), and the grouping is
+<code>components/contextOwner/ownerPortfolios.js</code>. Each role opens read-only.
+Those roles open in full for them as the tier
+<code>owned</code> (<code>auth/ownerAccess/ownerAccess.js</code>), decided from the list itself and
+never cached across owners. A role their team merely holds stays as it was.</p>
+<p>The one write an owner may send is a role's composition review
+(<code>GET</code> / <code>POST /api/access-package/{id}/composition-reviews</code>,
+<code>OWNED_ROLE_PATHS</code> in <code>auth/contextOwnerScope.js</code>), and only for a role they
+answer for; saving then also needs <strong>Composition review</strong> ticked for their role
+in the grid and the experimental Composition review feature. That cell stands
+on its own: it also lets someone who signs in with an ordinary role sign off a
+role they answer for. Someone who answers for business roles but for no
+context signs in once their row gives <strong>Sign in &amp; view</strong>, with an empty context
+scope. The MCP server does not take these roles into its scope.</p>
 <h2 id="turning-it-on">Turning it on<a class="headerlink" href="#turning-it-on" title="Permanent link">&para;</a></h2>
-<p><strong>Admin → Roles &amp; Permissions → Relative permissions → Context
-owners</strong> (needs <code>admin.auth</code>). Off by default. The setting is stored in
-<code>WorkerConfig</code> as <code>CONTEXT_OWNER_ACCESS</code> and takes effect on the next request;
-no restart.</p>
-<p>Below it, <strong>Context owners may also use the MCP server</strong> (<code>CONTEXT_OWNER_MCP</code>,
-off by default) lets the same people ask about their contexts from an AI
-assistant, under exactly the same scope — see <a href="#the-mcp-server">The MCP server</a>.
-It only has effect while the first switch is on.</p>
-<p>API: <code>GET</code> / <code>PUT /api/admin/context-owner-access</code> with <code>{ "enabled": true }</code>
-and/or <code>{ "mcp": true }</code>; a field left out keeps its value.</p>
+<p><strong>Admin → Roles &amp; Permissions → Relative permissions</strong> (needs <code>admin.auth</code>) is
+one grid (<code>auth/relativePermissions.js</code>). Each row is a thing people answer
+for, Accountable and Responsible apart:</p>
+<ul>
+<li>every role-bearing context template (<code>ROLE_BEARING_CATEGORIES</code>:
+  organisation units, applications, role portfolios), with <strong>Sign in &amp; view</strong>,
+  <strong>Sub-units</strong> and <strong>MCP</strong>;</li>
+<li><strong>Business roles</strong>, with <strong>Sign in &amp; view</strong> and <strong>Composition review</strong>.</li>
+</ul>
+<p>A person's scope is the union of the cells that apply to them: a context whose
+row is off is left out as if they did not hold it; <strong>Sub-units</strong> adds its
+descendants (otherwise only the context itself and its variants);
+<strong>MCP</strong> lets the same contexts be asked about from an AI assistant — see
+<a href="#the-mcp-server">The MCP server</a>. <strong>Sub-units</strong> and <strong>MCP</strong> only count while
+<strong>Sign in &amp; view</strong> is on in that row; <strong>Composition review</strong> does not need it.
+Everything is off by default.</p>
+<p>The grid is stored in <code>WorkerConfig</code> as <code>RELATIVE_PERMISSIONS</code> (JSON) and
+takes effect on the next request; no restart. Until it is first saved, it
+stands for the switches it replaced, read from their own keys, so an upgrade
+keeps the access people had: <code>CONTEXT_OWNER_ACCESS</code> → every template, both
+roles, view and sub-units; <code>CONTEXT_OWNER_MCP</code> → MCP on those;
+<code>CONTEXT_OWNER_BUSINESS_ROLES</code> → business roles view; <code>BUSINESS_ROLE_OWNER_REVIEW</code>
+→ composition review, both roles.</p>
+<p>API: <code>GET /api/admin/context-owner-access</code> → <code>{ subjects, policy }</code> (the rows
+with their capabilities, and the grid); <code>PUT</code> with <code>{ "policy": … }</code> saves
+the whole grid — what is left out is off, an unknown name or a non-boolean is
+refused with 400.</p>
 <h2 id="who-qualifies">Who qualifies<a class="headerlink" href="#who-qualifies" title="Permanent link">&para;</a></h2>
 <p>A signed-in user qualifies when <strong>all</strong> of these hold:</p>
 <ul>
-<li>authentication is enabled and the switch is on;</li>
+<li>authentication is enabled and the grid gives <strong>Sign in &amp; view</strong> to some row;</li>
 <li>they would otherwise have no access: their Entra app roles map to <strong>no
   permission</strong>, or they lack a role listed in <code>AUTH_REQUIRED_ROLES</code>;</li>
 <li>they are matched to our data (<code>auth/resolveMe.js</code>: token <code>oid</code> = account id,
   else a unique email match), and a <code>ContextRoles</code> row (<code>Accountable</code> or
   <code>Responsible</code>) names their account, their person (Identity), or another account
-  linked to that person.</li>
+  linked to that person, for a context whose template and role have
+  <strong>Sign in &amp; view</strong> in the grid — or a <code>BusinessRoleOwners</code> row does, for a
+  role the <strong>Business roles</strong> row admits.</li>
 </ul>
 <p>Somebody who holds any real permission is <strong>not</strong> affected: they keep the
 ordinary app, unscoped. Somebody who qualifies on everything except holding a
@@ -6710,6 +6788,12 @@ role pencils, no suggestion, no member editing, no Copy link or Open as page.
 People, members and role holders link to their page when the API marks them
 accessible (<code>components/EntityLink.jsx</code>); an opened page or the team matrix
 shows on top of the unit, with <strong>Back</strong> (<code>components/contextOwner/</code>).</p>
+<p>A <strong>role portfolio</strong> (the <code>Catalog</code> template: a set of business roles, such as an
+Entra ID access package catalog) has Accountable and Responsible people like a
+unit or an application, so it qualifies its holders the same way and sits on a
+<strong>Role portfolios</strong> sub-tab of their page. Its members are business roles, and
+each opens its business role page: a member of an in-scope context is in the
+<strong>team</strong> tier, so the role opens in full, and its holders open as <strong>holders</strong>.</p>
 <p>On an organizational unit of people the page, for every reader and not only an owner, opens with the <strong>team overview</strong>
 (<code>GET /api/contexts/:id/team-overview</code>): business roles down, direct members
 across, each person's count of ungoverned permissions (live access that no

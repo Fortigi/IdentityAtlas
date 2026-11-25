@@ -6548,7 +6548,7 @@
 <tr>
 <td><code>data.write.certifications</code></td>
 <td>Certification decisions</td>
-<td>Review and sign off what a business role contains, with notes (<code>POST /api/access-package/:id/composition-reviews</code>, the <strong>Composition review</strong> tab, experimental). A role's own Accountable or Responsible may do this without the permission while the relative permission <strong>Business-role owners may sign off a composition review</strong> is on. Certification decisions from the source are still ingested by the crawlers (<code>POST /api/ingest/governance/certifications</code>).</td>
+<td>Review and sign off what a business role contains, with notes (<code>POST /api/access-package/:id/composition-reviews</code>, the <strong>Composition review</strong> section on Requests &amp; reviews, experimental). A role's own Accountable or Responsible may do this without the permission where the relative-permission grid ticks <strong>Composition review</strong> for their role (Accountable or Responsible). Certification decisions from the source are still ingested by the crawlers (<code>POST /api/ingest/governance/certifications</code>).</td>
 </tr>
 </tbody>
 </table>
@@ -6629,7 +6629,7 @@
 </tbody>
 </table>
 <h3 id="no-role-users-fail-closed">No-role users fail closed<a class="headerlink" href="#no-role-users-fail-closed" title="Permanent link">&para;</a></h3>
-<p>A signed-in user whose roles resolve to <strong>no</strong> permissions is <strong>denied everything</strong>: every endpoint except <code>/api/auth-me</code> answers 403 with <code>code: "NO_ROLE"</code>, and the app shows a "no role" page. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw), and since November 2026 no "no roles → read everything" fallback either. The one way in without a role is <a href="../../admin/authentication/#relative-permissions-letting-context-owners-in">context-owner access</a>. <code>data.read</code> stays implicit: any caller who holds at least one permission reads.</p>
+<p>A signed-in user whose roles resolve to <strong>no</strong> permissions is <strong>denied everything</strong>: every endpoint except <code>/api/auth-me</code> answers 403 with <code>code: "NO_ROLE"</code>, and the app shows a "no role" page. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw), and since November 2026 no "no roles → read everything" fallback either. The one way in without a role is <a href="../../admin/authentication/#relative-permissions-letting-owners-in">context-owner access</a>. <code>data.read</code> stays implicit: any caller who holds at least one permission reads.</p>
 <h3 id="getting-the-first-admin-in-bootstrap">Getting the first admin in (bootstrap)<a class="headerlink" href="#getting-the-first-admin-in-bootstrap" title="Permanent link">&para;</a></h3>
 <p>Because there's no fallback, you must grant access explicitly:</p>
 <ol>
