@@ -35,6 +35,7 @@
     "tools/crawlers/entra-id/EntraIDCrawler.Functions.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.AttributeLabels.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaSelect.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.UserDelta.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1",
     "tools/crawlers/omada/OmadaCrawler.Functions.ps1",
     "tools/crawlers/csv/CSVCrawler.Functions.ps1",
@@ -257,6 +258,10 @@
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.DeltaSelect.ps1": [
       "test/unit/EntraIDCrawlerDeltaSelect.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.UserDelta.ps1": [
+      "test/unit/EntraIDCrawlerUserDelta.Tests.ps1",
+      "test/unit/EntraIDCrawlerPhases.Tests.ps1"
     ],
     "tools/crawlers/azure-rm/AzureRMCrawler.Functions.ps1": [
       "test/unit/AzureRMCrawlerFunctions.Tests.ps1"

@@ -18,7 +18,7 @@ import pg from 'pg';
 process.env.DATABASE_URL = process.env.CONTRACT_DB_URL;
 const { normalizeRecords } = await import('../src/ingest/normalization.js');
 const { ingest } = await import('../src/ingest/engine.js');
-const { repairManagerLinks, batchHasManagerLink } = await import('../src/ingest/managerLinks.js');
+const { repairManagerLinks, batchHasManagerLink, clearExplicitManagerLinks } = await import('../src/ingest/managerLinks.js');
 
 let pool;
 let sysA;
@@ -305,6 +305,37 @@ describe('identity manager relationship (#1216)', () => {
   it('leaves principals alone — the identity sweep touches one table', async () => {
     await load([person('boss', 'Bea Boss'), person('alice', 'Alice A', 'boss')]);
     await loadIdentities([anIdentity('bob', 'Bob Chen', 'ghost')]);
+    expect(await managerOf('alice')).toMatchObject({ managerExternalId: 'boss' });
+  });
+});
+
+// #1627 — a delta that names a manager as null clears it; one that leaves the key
+// out keeps it. Against the real delta upsert, which is the COALESCE that made the
+// explicit clear necessary in the first place.
+describe('a delta batch can clear a manager (#1627)', () => {
+  const idOf = async (externalId, systemId) => (await pool.query(
+    'SELECT id FROM "Principals" WHERE "externalId" = $1 AND "systemId" = $2', [externalId, systemId])).rows[0].id;
+
+  it('nulls the manager of the account sent with managerId: null, and keeps the one left out', async () => {
+    await load([person('boss', 'Bea Boss'), person('alice', 'Alice A', 'boss'), person('bob', 'Bob B', 'boss')]);
+    const records = [{ id: await idOf('alice', sysA), managerId: null }, { id: await idOf('bob', sysA) }];
+    const normalized = normalizeRecords(records, PRINCIPAL_COLUMNS, { idGeneration: 'native', systemId: sysA });
+    await ingest(null, 'Principals', ['id'], normalized, { syncMode: 'delta', systemId: sysA, scope: {} });
+    // The delta upsert alone keeps Alice's manager — that is the bug.
+    expect(await managerOf('alice')).toMatchObject({ managerExternalId: 'boss' });
+
+    const cleared = await clearExplicitManagerLinks(asRunner(), 'Principals', sysA, 'delta', normalized);
+    expect(cleared).toBe(1);
+    expect((await managerOf('alice')).managerId).toBeNull();
+    expect(await managerOf('bob')).toMatchObject({ managerExternalId: 'boss' });
+  });
+
+  it('scopes the clear to the loading system', async () => {
+    await load([person('boss', 'Bea Boss'), person('alice', 'Alice A', 'boss')]);
+    // System B naming system A's row as cleared must not touch it.
+    const cleared = await clearExplicitManagerLinks(asRunner(), 'Principals', sysB, 'delta',
+      [{ id: await idOf('alice', sysA), managerId: null }]);
+    expect(cleared).toBe(0);
     expect(await managerOf('alice')).toMatchObject({ managerExternalId: 'boss' });
   });
 });

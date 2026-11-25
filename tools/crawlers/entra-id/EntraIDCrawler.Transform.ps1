@@ -22,6 +22,25 @@
 # materialises Indirect assignments — see tools/crawlers/shared/.
 . (Join-Path $PSScriptRoot '..' 'shared' 'Get-NestedGroupUserSet.ps1')
 
+# A delta run's manager@delta annotation, applied to a principal record (#1627).
+#   a live entry (id, no @removed) -> managerId = that id   (set or changed;
+#                                     a change can arrive as [old @removed, new])
+#   only @removed entries          -> managerId = EXPLICIT null (cleared — the
+#                                     ingest clears the stored link)
+#   no annotation / no usable entry -> key left out (unchanged — the delta upsert
+#                                     keeps the stored manager)
+function Add-EntraDeltaManagerId {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [hashtable]$Record, $Annotation)
+    $entries = @($Annotation | Where-Object { $_ })
+    $live = @($entries | Where-Object { $_.id -and -not $_.'@removed' })
+    if ($live.Count -gt 0) {
+        $Record['managerId'] = [string]$live[0].id
+    } elseif (@($entries | Where-Object { $_.'@removed' }).Count -gt 0) {
+        $Record['managerId'] = $null
+    }
+}
+
 # Maps one Graph user object → an ingest/principals record hashtable.
 # Verbatim from the inline `$records = @($users | ForEach-Object { ... })` block.
 function ConvertTo-EntraPrincipalRecord {
@@ -44,9 +63,12 @@ function ConvertTo-EntraPrincipalRecord {
         employeeId       = $User.employeeId
         createdDateTime  = $User.createdDateTime
     }
-    # Manager relationship (from $expand=manager)
+    # Manager relationship: $expand=manager on a full run, the manager@delta
+    # annotation on a delta run (#1627, see Add-EntraDeltaManagerId).
     if ($User.manager -and $User.manager.id) {
         $rec['managerId'] = $User.manager.id
+    } else {
+        Add-EntraDeltaManagerId -Record $rec -Annotation $User.'manager@delta'
     }
 
     # Build extendedAttributes: userType, externalUserState, custom attrs.

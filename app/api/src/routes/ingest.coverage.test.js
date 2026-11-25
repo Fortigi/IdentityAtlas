@@ -231,6 +231,36 @@ describe('ingest handler — single batch', () => {
     expect(res.body).not.toHaveProperty('warnings');
   });
 
+  // #1627: a delta batch says "manager cleared" with an explicit null, which the
+  // COALESCE delta upsert swallows — the handler has to clear it itself.
+  const MANAGER_COLUMNS = { rows: [{ column_name: 'id' }, { column_name: 'display_name' }, { column_name: 'manager_id' }], rowCount: 0 };
+  const OTHER_UUID = '22222222-2222-2222-2222-222222222222';
+  const clearCalls = () => mockQuery.mock.calls.filter(([sql]) => /"managerId" = NULL\s+WHERE "systemId" = \$1\s+AND id = ANY/.test(String(sql)));
+
+  it('clears the manager of exactly the records a delta batch sent with managerId: null (#1627)', async () => {
+    mockIngest.mockResolvedValue({ inserted: 0, updated: 2, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? MANAGER_COLUMNS : { rows: [], rowCount: 1 }));
+    const res = await request(app).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'delta',
+      records: [{ id: UUID, managerId: null }, { id: OTHER_UUID }],
+    });
+    expect(res.status).toBe(201);
+    expect(clearCalls()).toHaveLength(1);
+    // Only the record that SAID null — not the one that simply left the key out.
+    expect(clearCalls()[0][1]).toEqual([7, [UUID]]);
+  });
+
+  it('does not run the clear for a full batch — the full upsert writes the NULL itself', async () => {
+    mockIngest.mockResolvedValue({ inserted: 0, updated: 1, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? MANAGER_COLUMNS : { rows: [], rowCount: 0 }));
+    await request(app).post('/ingest/principals').send({
+      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'A', managerId: null }],
+    });
+    expect(clearCalls()).toHaveLength(0);
+  });
+
   it('never runs the manager repair for a non-principals batch', async () => {
     mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
     await request(app).post('/ingest/resources')

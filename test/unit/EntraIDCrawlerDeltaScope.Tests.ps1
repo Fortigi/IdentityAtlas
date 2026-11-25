@@ -101,11 +101,11 @@ Describe 'Limit-EntraSyncToDeltaPhases' {
 
 Describe 'Test-EntraDeltaBaseline' {
     It 'is true when the users delta token exists' {
-        Mock Get-FGDeltaToken { if ($Endpoint -eq 'users/delta') { 'tok-users' } }
+        Mock Get-FGDeltaToken { if ($Endpoint -eq 'users/delta/manager') { 'tok-users' } }
         $cfg = @{ SyncPrincipals = $true; SyncServicePrincipals = $false }
 
         Test-EntraDeltaBaseline -Cfg $cfg -SystemId 42 | Should -BeTrue
-        Should -Invoke Get-FGDeltaToken -Exactly -Times 1 -ParameterFilter { $SystemId -eq 42 -and $Endpoint -eq 'users/delta' }
+        Should -Invoke Get-FGDeltaToken -Exactly -Times 1 -ParameterFilter { $SystemId -eq 42 -and $Endpoint -eq 'users/delta/manager' }
     }
 
     It 'falls back to the service-principal token when users have none' {
@@ -143,7 +143,7 @@ Describe 'Test-EntraDeltaBaseline' {
 Describe 'Get-EntraDeltaEndpoints' {
     It 'lists the endpoint of every enabled delta-capable phase, in order' {
         Get-EntraDeltaEndpoints -Cfg @{ SyncPrincipals = $true; SyncServicePrincipals = $true; SyncResources = $true; SyncAssignments = $true } |
-            Should -Be @('users/delta', 'servicePrincipals/delta', 'groups/delta/members-owners')
+            Should -Be @('users/delta/manager', 'servicePrincipals/delta', 'groups/delta/members-owners')
         Get-EntraDeltaEndpoints -Cfg @{ SyncResources = $true } | Should -Be @('groups/delta')
         @(Get-EntraDeltaEndpoints -Cfg @{ SyncAssignments = $true }).Count | Should -Be 0
     }

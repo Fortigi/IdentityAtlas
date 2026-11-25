@@ -51,6 +51,67 @@ BeforeAll {
     }
 }
 
+Describe 'ConvertTo-EntraPrincipalRecord — manager@delta (delta runs, #1627)' {
+    # /users/delta cannot $expand=manager; with manager in the primed $select it
+    # reports the relationship as a manager@delta annotation instead. Three
+    # outcomes must stay distinguishable: set, cleared, and "not reported".
+
+    It 'maps a manager@delta entry to managerId (manager set or changed)' {
+        $u = [pscustomobject]@{
+            id = 'u1'; displayName = 'U1'
+            'manager@delta' = @([pscustomobject]@{ '@odata.type' = '#microsoft.graph.directoryObject'; id = 'mgr-9' })
+        }
+        (ConvertTo-EntraPrincipalRecord -User $u)['managerId'] | Should -Be 'mgr-9'
+    }
+
+    It 'maps an @removed manager@delta entry to an EXPLICIT null managerId (manager cleared)' {
+        $u = [pscustomobject]@{
+            id = 'u2'; displayName = 'U2'
+            'manager@delta' = @([pscustomobject]@{ id = 'mgr-9'; '@removed' = [pscustomobject]@{ reason = 'changed' } })
+        }
+        $rec = ConvertTo-EntraPrincipalRecord -User $u
+        $rec.ContainsKey('managerId') | Should -BeTrue     # key present …
+        $rec['managerId'] | Should -Be $null                # … with null = "clear", not "unknown"
+    }
+
+    It 'takes the new manager when the annotation carries both the removed old one and the new one' {
+        # A change A -> B can arrive as [A @removed, B]. Reading "any @removed"
+        # as a clear would drop B; reading the first entry would keep A.
+        $u = [pscustomobject]@{
+            id = 'u4'; displayName = 'U4'
+            'manager@delta' = @(
+                [pscustomobject]@{ id = 'old-mgr'; '@removed' = [pscustomobject]@{ reason = 'changed' } }
+                [pscustomobject]@{ id = 'new-mgr' }
+            )
+        }
+        (ConvertTo-EntraPrincipalRecord -User $u)['managerId'] | Should -Be 'new-mgr'
+    }
+
+    It 'leaves managerId out entirely when there is no manager annotation (no change)' {
+        # Discriminates "clear" from "unchanged": an absent key must stay absent so the
+        # delta COALESCE upsert keeps the stored manager.
+        (ConvertTo-EntraPrincipalRecord -User ([pscustomobject]@{ id = 'u3'; displayName = 'U3' })).ContainsKey('managerId') |
+            Should -BeFalse
+    }
+
+    It 'leaves managerId out for an empty annotation or an entry with neither id nor @removed' {
+        # Neither says anything about the manager, so neither may clear it.
+        (ConvertTo-EntraPrincipalRecord -User ([pscustomobject]@{ id = 'u5'; displayName = 'U5'; 'manager@delta' = @() })).ContainsKey('managerId') |
+            Should -BeFalse
+        $odd = [pscustomobject]@{ id = 'u6'; displayName = 'U6'; 'manager@delta' = @([pscustomobject]@{ '@odata.type' = '#microsoft.graph.user' }) }
+        (ConvertTo-EntraPrincipalRecord -User $odd).ContainsKey('managerId') | Should -BeFalse
+    }
+
+    It 'prefers the full-fetch $expand manager when both shapes are present' {
+        $u = [pscustomobject]@{
+            id = 'u7'; displayName = 'U7'
+            manager = [pscustomobject]@{ id = 'expanded-mgr' }
+            'manager@delta' = @([pscustomobject]@{ id = 'x'; '@removed' = [pscustomobject]@{ reason = 'changed' } })
+        }
+        (ConvertTo-EntraPrincipalRecord -User $u)['managerId'] | Should -Be 'expanded-mgr'
+    }
+}
+
 Describe 'ConvertTo-EntraPrincipalRecord' {
 
     It 'mutation kills: manager-without-id adds no managerId; a single custom attr is still read' {
