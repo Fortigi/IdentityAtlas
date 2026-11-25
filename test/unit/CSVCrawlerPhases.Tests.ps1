@@ -1275,19 +1275,39 @@ Describe 'Write-CsvFileConfigWarning' {
     BeforeEach {
         Reset-CsvTestState
         Mock Write-Host { }
-        $script:CsvFileSettings = @{}
     }
-    AfterEach { $script:CsvFileSettings = @{} }
 
     It 'says nothing for a config with no per-file section' {
-        Write-CsvFileConfigWarning
+        Write-CsvFileConfigWarning -Files @{} -Folder $TestDrive
+        Write-CsvFileConfigWarning -Files $null -Folder $TestDrive
         Should -Invoke Write-Host -Exactly 0
     }
 
     It 'names a configured file that is not in the folder, and keeps going' {
         Remove-Csv 'ghost.csv'
-        $script:CsvFileSettings = @{ 'ghost.csv' = @{ slot = 'users' } }
-        { Write-CsvFileConfigWarning } | Should -Not -Throw
+        { Write-CsvFileConfigWarning -Files @{ 'ghost.csv' = @{ slot = 'users' } } -Folder $TestDrive } | Should -Not -Throw
         Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*not found*ghost.csv*' }
+    }
+
+    It 'reads the folder it is given, and names only the files missing from it' {
+        Set-Csv 'present.csv' @('a;b')
+        Remove-Csv 'ghost.csv'
+        $files = @{ 'present.csv' = @{ slot = 'users' }; 'ghost.csv' = @{ slot = 'resources' } }
+        Write-CsvFileConfigWarning -Files $files -Folder $TestDrive
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*2 file(s) have their own mapping*' }
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like "*not found in $TestDrive and skipped: ghost.csv" }
+    }
+
+    It 'names every configured file when the folder does not exist' {
+        $gone = Join-Path $TestDrive 'no-such-folder'
+        Write-CsvFileConfigWarning -Files @{ 'a.csv' = @{}; 'b.csv' = @{} } -Folder $gone
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*skipped: a.csv, b.csv' }
+    }
+
+    It 'prints only the summary line when every configured file is present' {
+        Set-Csv 'present.csv' @('a;b')
+        Write-CsvFileConfigWarning -Files @{ 'present.csv' = @{ slot = 'users' } } -Folder $TestDrive
+        Should -Invoke Write-Host -Exactly 1
+        Should -Invoke Write-Host -Exactly 0 -ParameterFilter { "$Object" -like '*WARNING*' }
     }
 }

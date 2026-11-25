@@ -12,10 +12,10 @@
     by the wizard and applied here, on every run. Uploaded files are never
     rewritten.
 
-    Everything in this file is PURE except Get-CsvFileSpec and
-    Write-CsvFileConfigWarning, the two thin wrappers that read the crawler's
-    scope ($CsvFileSettings, $Delimiter, $CsvFolder) exactly like the Read-Csv*
-    helpers do. The rules themselves take explicit parameters and return values,
+    Everything in this file is PURE except Get-CsvFileSpec, the thin wrapper
+    that reads the crawler's scope ($CsvFileSettings, $Delimiter) exactly like
+    the Read-Csv* helpers do, and Write-CsvFileConfigWarning, which lists the
+    folder the entry point passes it. The rules themselves take explicit parameters and return values,
     so they unit-test against in-memory fixtures with no mocks
     (test/unit/CSVCrawlerMapping.Tests.ps1).
 
@@ -137,25 +137,32 @@ function Get-CsvSplitSpec {
 # unchanged.
 #
 # Two entries claiming one slot is ambiguous — one file per slot is this slice —
-# so it fails naming both rather than picking one.
+# so it fails naming both rather than picking one (Find-CsvSlotClaim).
+
+# The uploaded file name that claims a slot, or $null when none does. Throws
+# naming every claimant when more than one does.
+function Find-CsvSlotClaim {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([hashtable]$Files, [string]$SlotKey)
+    if (-not $SlotKey -or -not $Files) { return $null }
+    # -is [hashtable]: a malformed entry must not make indexing throw an error
+    # that says nothing about which config key is wrong.
+    $claims = @($Files.Keys | Where-Object { $Files[$_] -is [hashtable] -and [string]$Files[$_]['slot'] -eq $SlotKey } | Sort-Object)
+    if ($claims.Count -gt 1) {
+        throw "$($claims.Count) files are mapped to the '$SlotKey' slot ($($claims -join ', ')); each slot takes one file."
+    }
+    if ($claims.Count -eq 1) { return [string]$claims[0] }
+    return $null
+}
+
 function Resolve-CsvFileSpec {
     [CmdletBinding()]
     param([hashtable]$Files, [string]$CanonicalName, [string]$DefaultDelimiter = ';', $Slots)
     $slotKey = Get-CsvSlotKey -CanonicalName $CanonicalName -Slots $Slots
-    $name  = $CanonicalName
-    $entry = $null
-    if ($Files -and $Files.Count -gt 0) {
-        if ($slotKey) {
-            # -is [hashtable]: a malformed entry must not make indexing throw an
-            # error that says nothing about which config key is wrong.
-            $claims = @($Files.Keys | Where-Object { $Files[$_] -is [hashtable] -and [string]$Files[$_]['slot'] -eq $slotKey } | Sort-Object)
-            if ($claims.Count -gt 1) {
-                throw "$($claims.Count) files are mapped to the '$slotKey' slot ($($claims -join ', ')); each slot takes one file."
-            }
-            if ($claims.Count -eq 1) { $name = $claims[0]; $entry = $Files[$claims[0]] }
-        }
-        if (-not $entry) { $entry = $Files[$name] }
-    }
+    $claim = Find-CsvSlotClaim -Files $Files -SlotKey $slotKey
+    $name  = if ($claim) { $claim } else { $CanonicalName }
+    $entry = if ($Files) { $Files[$name] } else { $null }
     $stored = if ($entry -is [hashtable]) { [string]$entry['delimiter'] } else { '' }
     return @{
         FileName  = $name
@@ -292,16 +299,16 @@ function Get-CsvMissingConfiguredFiles {
 }
 
 # Say what the per-file config is doing, and warn about the files it names that
-# are not there. Reads $CsvFileSettings / $CsvFolder from the crawler's scope.
+# are not there. The entry point passes its own $CsvFileSettings / $CsvFolder.
 function Write-CsvFileConfigWarning {
     [CmdletBinding()]
-    param()
-    if (-not $CsvFileSettings -or $CsvFileSettings.Count -eq 0) { return }
+    param([hashtable]$Files, [string]$Folder)
+    if (-not $Files -or $Files.Count -eq 0) { return }
     $present = @()
-    if (Test-Path $CsvFolder) { $present = @(Get-ChildItem -Path $CsvFolder -File | ForEach-Object { $_.Name }) }
-    Write-Host "  $($CsvFileSettings.Count) file(s) have their own mapping/delimiter in this config" -ForegroundColor Gray
-    $missing = Get-CsvMissingConfiguredFiles -Files $CsvFileSettings -Present $present
+    if (Test-Path $Folder) { $present = @(Get-ChildItem -Path $Folder -File | ForEach-Object { $_.Name }) }
+    Write-Host "  $($Files.Count) file(s) have their own mapping/delimiter in this config" -ForegroundColor Gray
+    $missing = Get-CsvMissingConfiguredFiles -Files $Files -Present $present
     if ($missing.Count -gt 0) {
-        Write-Host "  WARNING: configured file(s) not found in $CsvFolder and skipped: $($missing -join ', ')" -ForegroundColor Yellow
+        Write-Host "  WARNING: configured file(s) not found in $Folder and skipped: $($missing -join ', ')" -ForegroundColor Yellow
     }
 }

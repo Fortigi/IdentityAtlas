@@ -78,7 +78,7 @@ $RefreshViews = $true
 
 Write-Host "`n=== Identity Atlas CSV Crawler ===" -ForegroundColor Cyan
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Folder: $CsvFolder" -ForegroundColor Gray
-Write-CsvFileConfigWarning
+Write-CsvFileConfigWarning -Files $CsvFileSettings -Folder $CsvFolder
 
 # Verify the API key and register the fallback system; seed the SystemName → id map.
 $fallbackSystemId = Register-CsvFallbackSystem

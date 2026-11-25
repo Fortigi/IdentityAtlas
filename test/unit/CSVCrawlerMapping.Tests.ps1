@@ -141,6 +141,58 @@ Describe 'Resolve-CsvFileSpec' {
         { Resolve-CsvFileSpec -Files $files -CanonicalName 'Users.csv' } |
             Should -Throw -ExpectedMessage "*ad_people.csv, hr_people.csv*"
     }
+
+    It 'reads a canonical-name entry that names no slot by its file name' {
+        $files = @{ 'Users.csv' = @{ delimiter = '|'; columns = @{ ExternalId = 'login' } } }
+        $spec = Resolve-CsvFileSpec -Files $files -CanonicalName 'Users.csv' -DefaultDelimiter ';'
+        $spec.FileName  | Should -Be 'Users.csv'
+        $spec.Delimiter | Should -Be '|'
+        $spec.Mapping['ExternalId'] | Should -Be 'login'
+    }
+
+    It 'prefers the file that claims the slot over a slot-less entry under the canonical name' {
+        $files = @{
+            'Users.csv'     = @{ delimiter = '|' }
+            'ad_people.csv' = @{ slot = 'users'; delimiter = ',' }
+        }
+        $spec = Resolve-CsvFileSpec -Files $files -CanonicalName 'Users.csv' -DefaultDelimiter ';'
+        $spec.FileName  | Should -Be 'ad_people.csv'
+        $spec.Delimiter | Should -Be ','
+    }
+
+    It 'treats a missing files section like an empty one' {
+        $spec = Resolve-CsvFileSpec -Files $null -CanonicalName 'Users.csv' -DefaultDelimiter '|'
+        $spec.FileName  | Should -Be 'Users.csv'
+        $spec.Delimiter | Should -Be '|'
+        $spec.Mapping   | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Find-CsvSlotClaim' {
+
+    It 'returns the one file that claims the slot' {
+        $files = @{ 'ad_people.csv' = @{ slot = 'users' }; 'groups.csv' = @{ slot = 'resources' } }
+        Find-CsvSlotClaim -Files $files -SlotKey 'users'     | Should -Be 'ad_people.csv'
+        Find-CsvSlotClaim -Files $files -SlotKey 'resources' | Should -Be 'groups.csv'
+    }
+
+    It 'returns $null when no file claims the slot, or there is no slot or no files' {
+        $files = @{ 'ad_people.csv' = @{ slot = 'users' } }
+        Find-CsvSlotClaim -Files $files -SlotKey 'assignments' | Should -BeNullOrEmpty
+        Find-CsvSlotClaim -Files $files -SlotKey ''            | Should -BeNullOrEmpty
+        Find-CsvSlotClaim -Files $null  -SlotKey 'users'       | Should -BeNullOrEmpty
+    }
+
+    It 'skips a malformed entry rather than throwing an indexing error' {
+        $files = @{ 'junk.csv' = 'users'; 'ad_people.csv' = @{ slot = 'users' } }
+        Find-CsvSlotClaim -Files $files -SlotKey 'users' | Should -Be 'ad_people.csv'
+    }
+
+    It 'fails naming every claimant, sorted, with the count' {
+        $files = @{ 'z.csv' = @{ slot = 'users' }; 'a.csv' = @{ slot = 'users' }; 'm.csv' = @{ slot = 'users' } }
+        { Find-CsvSlotClaim -Files $files -SlotKey 'users' } |
+            Should -Throw -ExpectedMessage "3 files are mapped to the 'users' slot (a.csv, m.csv, z.csv)*"
+    }
 }
 
 Describe 'Get-CsvSplitSpec' {

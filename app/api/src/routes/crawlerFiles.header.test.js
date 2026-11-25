@@ -25,13 +25,11 @@ import { tmpdir } from 'node:os';
 const UPLOAD_ROOT_DIR = mkdtempSync(join(tmpdir(), 'iatest-headers-'));
 process.env.UPLOAD_ROOT = UPLOAD_ROOT_DIR;
 
-const { mockPool, mockDbQuery } = vi.hoisted(() => {
-  const mockDbQuery = vi.fn();
-  const mockPool = { query: async (...a) => { const r = await mockDbQuery(...a); return r ? { ...r, rows: r.rows ?? r.recordset ?? [] } : r; } };
-  return { mockPool, mockDbQuery };
-});
-
-vi.mock('../db/connection.js', () => ({ getPool: async () => mockPool }));
+// The shared manual mock (src/db/__mocks__/connection.js): getPool() resolves a
+// pool whose query is the exported `query` spy, so staging `query` stages the
+// config lookup.
+vi.mock('../db/connection.js');
+const { query: mockDbQuery } = await import('../db/connection.js');
 vi.mock('../middleware/auth.js', () => ({
   requirePermission: () => (_req, _res, next) => next(),
 }));
@@ -52,10 +50,10 @@ function seed(configId, name, content) {
   writeFileSync(join(dir, name), content);
 }
 
-const asCsvConfig = () => mockDbQuery.mockResolvedValueOnce({ recordset: [{ crawlerType: 'csv' }] });
+const asCsvConfig = () => mockDbQuery.mockResolvedValueOnce({ rows: [{ crawlerType: 'csv' }] });
 const get = (configId, name) => request(makeApp()).get(`/api/admin/crawler-configs/${configId}/files/${encodeURIComponent(name)}/header`);
 
-beforeEach(() => { mockDbQuery.mockClear(); });
+beforeEach(() => { mockDbQuery.mockReset(); });
 afterAll(() => { rmSync(UPLOAD_ROOT_DIR, { recursive: true, force: true }); });
 
 describe('files/:filename/header', () => {
@@ -107,6 +105,14 @@ describe('files/:filename/header', () => {
     expect(res.body.error).toMatch(/not found/i);
   });
 
+  it('404s for a name that is a sub-folder, not a file', async () => {
+    mkdirSync(join(UPLOAD_ROOT_DIR, 'csv-601', 'subdir.csv'), { recursive: true });
+    asCsvConfig();
+    const res = await get(601, 'subdir.csv');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('File not found');
+  });
+
   it('strips a traversal prefix to a basename inside the config folder — never reads outside it', async () => {
     asCsvConfig();
     const res = await request(makeApp()).get('/api/admin/crawler-configs/601/files/..%2F..%2Fetc%2Fpasswd/header');
@@ -123,14 +129,14 @@ describe('files/:filename/header', () => {
   });
 
   it('rejects a config whose crawler type does not support file uploads', async () => {
-    mockDbQuery.mockResolvedValueOnce({ recordset: [{ crawlerType: 'entra-id' }] });
+    mockDbQuery.mockResolvedValueOnce({ rows: [{ crawlerType: 'entra-id' }] });
     const res = await get(601, 'ad_people.csv');
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/does not support file uploads/);
   });
 
   it('404s for a config that does not exist', async () => {
-    mockDbQuery.mockResolvedValueOnce({ recordset: [] });
+    mockDbQuery.mockResolvedValueOnce({ rows: [] });
     const res = await get(601, 'ad_people.csv');
     expect(res.status).toBe(404);
     expect(res.body.error).toMatch(/Crawler config not found/);

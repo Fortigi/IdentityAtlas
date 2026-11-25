@@ -273,8 +273,9 @@ router.get('/admin/crawler-configs/:configId/files/:filename/header', gate, asyn
   const resolved = await resolveConfigFile(req, res);
   if (!resolved) return;
   const { safe, path } = resolved;
-  if (!existsSync(path)) return res.status(404).json({ error: 'File not found' });
 
+  // No exists-then-open check: the file can vanish (or be swapped) between the
+  // two. Open it and let the open itself say whether it is there.
   let handle;
   try {
     handle = await open(path, 'r');
@@ -284,6 +285,9 @@ router.get('/admin/crawler-configs/:configId/files/:filename/header', gate, asyn
     const nl = text.search(/\r?\n/);
     res.json({ name: safe, header: nl === -1 ? text : text.slice(0, nl) });
   } catch (err) {
+    // A name that is not a file in the folder (missing, or a sub-folder) is a
+    // 404, as it was when the route checked first.
+    if (err.code === 'ENOENT' || err.code === 'EISDIR') return res.status(404).json({ error: 'File not found' });
     console.error('File header read failed:', err.message);
     res.status(500).json({ error: 'Failed to read file header' });
   } finally {

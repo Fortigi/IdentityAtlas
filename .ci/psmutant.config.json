@@ -52,6 +52,7 @@
     "tools/crawlers/azure-rm/AzureRMCrawler.Transform.ps1",
     "tools/crawlers/azure-rm/AzureRMCrawler.Phases.ps1",
     "tools/crawlers/csv/CSVCrawler.Phases.ps1",
+    "tools/crawlers/csv/CSVCrawler.Mapping.ps1",
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1",
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackagePolicy.ps1",
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackageResource.ps1",
@@ -307,6 +308,10 @@
       "test/unit/AzureRMCrawlerPhases.Tests.ps1"
     ],
     "tools/crawlers/csv/CSVCrawler.Phases.ps1": [
+      "test/unit/CSVCrawlerPhases.Tests.ps1"
+    ],
+    "tools/crawlers/csv/CSVCrawler.Mapping.ps1": [
+      "test/unit/CSVCrawlerMapping.Tests.ps1",
       "test/unit/CSVCrawlerPhases.Tests.ps1"
     ],
     "tools/powershell-sdk/helpers/Confirm-FGAccessPackage.ps1": [
