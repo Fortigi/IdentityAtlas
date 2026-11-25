@@ -18,8 +18,8 @@
 // each member can be expanded to its references (names only).
 //
 // When they also answer for business roles themselves (and that relative
-// permission is on: /api/auth-me contextOwner.businessRoles), a switch above the
-// page offers Your business roles: those roles, each opening read-only with its
+// permission is on: /api/auth-me contextOwner.businessRoles), a Business roles tab
+// joins the same row as Organisation and Applications: those roles, each opening read-only with its
 // Composition review, where they may sign off (businessRoles/OwnerBusinessRoles.jsx).
 // The page provides the feature flags itself — it is not inside App.
 
@@ -40,7 +40,7 @@ import ContextTemplateIcon from './contexts/ContextTemplateIcon';
 import { categoryMeta } from '@ui/utils/contextStyles';
 import OwnerExplorePane from './contextOwner/OwnerExplorePane';
 import OwnerTreePane from './contextOwner/OwnerTree';
-import { useOwnerTree } from './contextOwner/useOwnerTree';
+import { useOwnerTree, ownerPageTabs, ownerActiveTab, ROLES_TAB } from './contextOwner/useOwnerTree';
 import TemplateTabs from './contexts/TemplateTabs';
 import { OWNER_OPENABLE } from './contextOwner/ownerOpenable';
 
@@ -98,8 +98,8 @@ function KindIcon({ category }) {
 
 function ContextList({ contexts, selectedId, onSelect }) {
   return (
-    <nav aria-label="Your contexts" className="w-64 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 overflow-y-auto">
-      <h2 className="px-2 mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Your contexts</h2>
+    <nav aria-label="What you answer for" className="w-64 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 overflow-y-auto">
+      <h2 className="px-2 mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">What you answer for</h2>
       <ul className="space-y-1">
         {contexts.map(c => (
           <li key={c.id}>
@@ -120,29 +120,11 @@ function ContextList({ contexts, selectedId, onSelect }) {
   );
 }
 
-const VIEWS = [{ key: 'contexts', label: 'Your contexts' }, { key: 'roles', label: 'Your business roles' }];
-
-function ViewSwitch({ view, onChange }) {
-  return (
-    <div role="tablist" aria-label="What you answer for" className="flex gap-1 px-6 pt-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      {VIEWS.map(v => (
-        <button key={v.key} type="button" role="tab" aria-selected={view === v.key} onClick={() => onChange(v.key)}
-          className={`px-3 py-2 text-sm font-medium border-b-2 ${view === v.key
-            ? 'border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300'
-            : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'}`}>
-          {v.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// The contexts they answer for: the tree tabs, the tree (or a slim list) and the
+// The units and applications they answer for: the tree (or a slim list) and the
 // selected context — or what they opened from it, on top.
 function ContextsView({ tree, contexts, selectedId, onSelect, current, backLabel, onBack, onOpenDetail }) {
   return (
     <>
-      {tree.ready && <div className="bg-white dark:bg-gray-800"><TemplateTabs tabs={tree.tabs} active={tree.active} onChange={tree.openTab} /></div>}
       <div className="flex-1 min-h-0 flex">
         {tree.ready
           ? <OwnerTreePane nodes={tree.nodes} selectedId={selectedId} onSelect={onSelect} />
@@ -176,7 +158,7 @@ function RolesView({ roles, current, backLabel, onBack, onOpenDetail }) {
 // "Back to …": the page below the one on top.
 function backLabelOf(opened, showRoles, contexts, selectedId) {
   if (opened.length > 1) return opened[opened.length - 2].name;
-  if (showRoles) return 'your business roles';
+  if (showRoles) return 'business roles';
   return contexts.find(c => c.id === selectedId)?.displayName || 'your unit';
 }
 
@@ -221,6 +203,12 @@ export default function ContextOwnerPage() {
   const showRoles = view === 'roles' && businessRoles.length > 0;
   const current = opened[opened.length - 1] || null;
   const backLabel = backLabelOf(opened, showRoles, contexts, selectedId);
+  const tabs = ownerPageTabs(tree, businessRoles.length > 0);
+  // Back from Business roles to the tab that was open keeps the unit they were on.
+  const switchTab = (key) => {
+    setView(key === ROLES_TAB ? 'roles' : 'contexts');
+    if (key !== ROLES_TAB && tree.ready && key !== tree.active) tree.openTab(key);
+  };
 
   return (
     <ThemeContext.Provider value={{ isDark, mode }}>
@@ -231,7 +219,7 @@ export default function ContextOwnerPage() {
           <ErrorBoundary>
             <div className="flex-1 min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
               <OwnerHeader isDark={isDark} userName={account?.name || account?.username} photo={me?.photo} onSignOut={logout} />
-              {businessRoles.length > 0 && <ViewSwitch view={view} onChange={setView} />}
+              {tabs.length > 0 && <div className="bg-white dark:bg-gray-800"><TemplateTabs tabs={tabs} active={ownerActiveTab(tree, showRoles)} onChange={switchTab} /></div>}
               {showRoles
                 ? <RolesView roles={businessRoles} current={current} backLabel={backLabel} onBack={back} onOpenDetail={openDetail} />
                 : <ContextsView tree={tree} contexts={contexts} selectedId={selectedId} onSelect={selectContext}

@@ -20,6 +20,25 @@ export function ownerTreeView(roots, selectedId, chosenTab) {
   return { tabs, active, nodes: roots.filter(r => tabOf(r) === active) };
 }
 
+// The page's one row of tabs. An owner reads Organisation, Applications and
+// Business roles as kinds of thing they answer for, side by side — not as
+// "contexts" and "business roles" with sub-tabs under the first.
+export const ROLES_TAB = 'BusinessRoles';
+export const UNITS_TAB = 'Units';
+
+/** The row: the trees' tabs (one plain tab while there is no tree), then Business roles. Pure. */
+export function ownerPageTabs(tree, hasRoles) {
+  if (!hasRoles) return tree.ready ? tree.tabs : [];
+  const own = tree.ready ? tree.tabs : [{ key: UNITS_TAB, label: 'Your units' }];
+  return [...own, { key: ROLES_TAB, label: 'Business roles' }];
+}
+
+/** The tab that is lit. Pure. */
+export function ownerActiveTab(tree, showRoles) {
+  if (showRoles) return ROLES_TAB;
+  return tree.ready ? tree.active : UNITS_TAB;
+}
+
 /**
  * The tree for the page: `ready` once it is there (a failed read leaves the plain
  * list), `pending` while it loads, and what the tabs and the tree draw.

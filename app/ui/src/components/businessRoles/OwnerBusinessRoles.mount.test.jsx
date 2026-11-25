@@ -21,10 +21,13 @@ const roleBody = (id, displayName) => ({
   assignmentCount: 3, groupCount: 1,
 });
 
-function api({ canReview = true } = {}) {
+const ROOT = { id: UNIT, displayName: 'Finance', contextCategory: 'OrganizationalUnit', targetType: 'Identity', variant: 'manual', contextType: 'Department', totalMemberCount: 1, directMemberCount: 1, children: [] };
+
+function api({ canReview = true, tree = [ROOT] } = {}) {
   const posts = [];
   const authFetch = makeAuthFetch((url, opts = {}) => {
     const u = String(url);
+    if (u.endsWith('/api/context-owner/tree')) return tree;
     if (u.includes('/api/risk-scores/')) return jsonResponse(null, { ok: false, status: 404 });
     if (u.endsWith('/composition-reviews')) {
       if (opts.method === 'POST') { posts.push([u, JSON.parse(opts.body)]); return jsonResponse({ id: 'new' }, { status: 201 }); }
@@ -62,13 +65,26 @@ describe('Your business roles', () => {
   it('is not offered to an owner who answers for no business role', async () => {
     mount({ businessRoles: [] });
     await screen.findAllByText('Finance');
-    expect(screen.queryByRole('tab', { name: 'Your business roles' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Business roles' })).toBeNull();
   });
 
-  it('opens on the contexts, and lists the roles they answer for — and only those — with what they are', async () => {
+  it('puts Business roles on the same row as Organisation — no separate "contexts" layer', async () => {
+    mount();
+    const org = await screen.findByRole('tab', { name: 'Organisation' });
+    expect(org).toHaveAttribute('aria-selected', 'true');
+    expect(within(org.parentElement).getAllByRole('tab').map(t => t.textContent)).toEqual(['Organisation', 'Business roles']);
+    expect(screen.queryByText(/contexts/i)).toBeNull();
+  });
+
+  it('offers "Your units" beside Business roles when the tree cannot load', async () => {
+    mount({ tree: [] });
+    expect(await screen.findByRole('tab', { name: 'Your units' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Business roles' })).toBeInTheDocument();
+  });
+
+  it('lists the roles they answer for — and only those — with what they are', async () => {
     const { user } = mount();
-    expect(await screen.findByRole('tab', { name: 'Your contexts' })).toHaveAttribute('aria-selected', 'true');
-    await user.click(screen.getByRole('tab', { name: 'Your business roles' }));
+    await user.click(await screen.findByRole('tab', { name: 'Business roles' }));
     const list = await screen.findByRole('navigation', { name: 'Your business roles' });
     expect(within(list).getAllByRole('button').map(b => b.textContent)).toEqual(['Finance controllerAccountable', 'Payroll clerkResponsible']);
     expect(within(list).getByRole('button', { name: /Finance controller/ })).toHaveAttribute('aria-current', 'true');
@@ -76,7 +92,7 @@ describe('Your business roles', () => {
 
   it('opens the first role on its Composition review, where they may sign off', async () => {
     const { user, posts } = mount();
-    await user.click(await screen.findByRole('tab', { name: 'Your business roles' }));
+    await user.click(await screen.findByRole('tab', { name: 'Business roles' }));
     expect(await screen.findByRole('tab', { name: 'Composition review' })).toHaveAttribute('aria-selected', 'true');
     const form = await screen.findByRole('form', { name: 'Your review' });
     await user.click(within(form).getByRole('checkbox'));
@@ -86,30 +102,32 @@ describe('Your business roles', () => {
 
   it('opens another role from the list', async () => {
     const { user, authFetch } = mount();
-    await user.click(await screen.findByRole('tab', { name: 'Your business roles' }));
+    await user.click(await screen.findByRole('tab', { name: 'Business roles' }));
     await user.click(within(await screen.findByRole('navigation', { name: 'Your business roles' })).getByRole('button', { name: /Payroll clerk/ }));
     await waitFor(() => expect(authFetch.mock.calls.some(([u]) => String(u).endsWith(`/api/access-package/${SECOND}/composition-reviews`))).toBe(true));
   });
 
   it('shows no form when the API says they may not review (the relative permission is off)', async () => {
     const { user } = mount({ canReview: false });
-    await user.click(await screen.findByRole('tab', { name: 'Your business roles' }));
+    await user.click(await screen.findByRole('tab', { name: 'Business roles' }));
     await screen.findByTestId('sign-off-status');
     expect(screen.queryByRole('form', { name: 'Your review' })).toBeNull();
   });
 
   it('has no Composition review while the experimental feature is off', async () => {
     const { user } = mount({ flags: {} });
-    await user.click(await screen.findByRole('tab', { name: 'Your business roles' }));
+    await user.click(await screen.findByRole('tab', { name: 'Business roles' }));
     await screen.findByRole('tab', { name: /Resources/ });
     expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
   });
 
-  it('goes back to the contexts', async () => {
+  it('goes back to the organisation, on the unit they were on', async () => {
     const { user } = mount();
-    await user.click(await screen.findByRole('tab', { name: 'Your business roles' }));
+    await user.click(await screen.findByRole('tab', { name: 'Business roles' }));
     await screen.findByRole('navigation', { name: 'Your business roles' });
-    await user.click(screen.getByRole('tab', { name: 'Your contexts' }));
+    await user.click(screen.getByRole('tab', { name: 'Organisation' }));
     expect(screen.queryByRole('navigation', { name: 'Your business roles' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Organisation' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('heading', { name: 'Finance', level: 2 })).toBeInTheDocument();
   });
 });

@@ -96,7 +96,7 @@ export default function ContextOwnerAccessSection() {
           onChange={e => save('businessRoles', e.target.checked)}
         />
         <span className={`text-sm ${enabled ? 'text-gray-800 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>
-          Context owners also see the business roles they answer for — a Your business roles view with each role they are
+          Context owners also see the business roles they answer for — a Business roles tab beside Organisation and Applications, with each role they are
           Accountable or Responsible for, read-only, with its Composition review.
         </span>
       </label>

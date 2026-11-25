@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import ContextOwnerPage from './ContextOwnerPage';
-import { ownerTreeView } from './contextOwner/useOwnerTree';
+import { ownerTreeView, ownerPageTabs, ownerActiveTab, ROLES_TAB, UNITS_TAB } from './contextOwner/useOwnerTree';
 import { renderWithProviders, makeAuthFetch, screen, userEvent, within } from '@ui/test-utils/renderWithProviders';
 
 const CTO = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -50,7 +50,7 @@ function mount(tree = FOREST) {
   });
 }
 
-const tree = () => within(screen.getByRole('navigation', { name: 'Your contexts' }));
+const tree = () => within(screen.getByRole('navigation', { name: 'What you answer for' }));
 
 describe('ContextOwnerPage: the tree', () => {
   it('opens on the organisation, with only the tabs that hold something', async () => {
@@ -114,6 +114,28 @@ describe('ContextOwnerPage: the tree', () => {
     await user.click(await screen.findByRole('tab', { name: /Applications/ }));
     expect(await screen.findByRole('heading', { name: 'Azure', level: 2 })).toBeInTheDocument();
     expect(tree().queryByText('CTO unit')).toBeNull();
+  });
+});
+
+describe('ownerPageTabs / ownerActiveTab: one row of tabs', () => {
+  const TABS = [{ key: 'OrganizationalUnit', label: 'Organisation' }, { key: 'LogicalApplication', label: 'Applications' }];
+  const ready = { ready: true, tabs: TABS, active: 'LogicalApplication' };
+  const none = { ready: false, tabs: [], active: 'OrganizationalUnit' };
+
+  it('is just the tree tabs for an owner with no business roles, and nothing without a tree', () => {
+    expect(ownerPageTabs(ready, false)).toBe(TABS);
+    expect(ownerPageTabs(none, false)).toEqual([]);
+  });
+
+  it('puts Business roles last, after the tree tabs or the plain units tab', () => {
+    expect(ownerPageTabs(ready, true).map(t => t.label)).toEqual(['Organisation', 'Applications', 'Business roles']);
+    expect(ownerPageTabs(none, true)).toEqual([{ key: UNITS_TAB, label: 'Your units' }, { key: ROLES_TAB, label: 'Business roles' }]);
+  });
+
+  it('lights Business roles while they are open, else the tree tab, else the units tab', () => {
+    expect(ownerActiveTab(ready, true)).toBe(ROLES_TAB);
+    expect(ownerActiveTab(ready, false)).toBe('LogicalApplication');
+    expect(ownerActiveTab(none, false)).toBe(UNITS_TAB);
   });
 });
 
