@@ -1,2 +1,0 @@
-- Fixed: Entra ID delta runs now pick up a changed, added or removed manager. Before, a user's manager (and the Manager Hierarchy built from it) only updated on the next full sync, and users created between full runs had no manager at all.
-- The first Entra ID run after upgrading re-reads all users once (as a full fetch) to start tracking manager changes; later delta runs are incremental again.
