@@ -155,7 +155,8 @@
     "tools/crawlers/entra-id/EntraIDCrawler.GovernanceParticipants.ps1",
     "tools/crawlers/omada/OmadaCrawler.BusinessRoleOwners.ps1",
     "tools/crawlers/entra-id/EntraIDCrawler.GovernanceRequests.ps1",
-    "tools/crawlers/entra-id/EntraIDCrawler.GovernanceOrigin.ps1"
+    "tools/crawlers/entra-id/EntraIDCrawler.GovernanceOrigin.ps1",
+    "tools/crawlers/entra-id/EntraIDCrawler.Catalogs.ps1"
   ],
   "tests": {
     "tools/crawlers/entra-id/EntraIDCrawler.GovernanceParticipants.ps1": [
@@ -166,6 +167,9 @@
     ],
     "tools/crawlers/entra-id/EntraIDCrawler.GovernanceRequests.ps1": [
       "test/unit/EntraIDCrawlerTransform.Tests.ps1"
+    ],
+    "tools/crawlers/entra-id/EntraIDCrawler.Catalogs.ps1": [
+      "test/unit/EntraIDCrawlerCatalogs.Tests.ps1"
     ],
     "tools/crawlers/shared/Invoke-CrawlerIngestStream.ps1": [
       "test/unit/CrawlerIngestStream.Tests.ps1"

@@ -258,7 +258,7 @@ function Test-DatabaseSchema {
 
     # Table existence
     $expectedTables = @('Systems','Resources','Principals','ResourceAssignments','ResourceRelationships',
-        'Identities','IdentityMembers','Contexts','GovernanceCatalogs','AssignmentPolicies',
+        'Identities','IdentityMembers','Contexts','ContextMembers','AssignmentPolicies',
         'AssignmentRequests','CertificationDecisions','Crawlers','CrawlerAuditLog')
 
     foreach ($table in $expectedTables) {
@@ -279,7 +279,6 @@ function Test-DatabaseSchema {
         'ResourceRelationships'  = 5
         'Identities'             = 5
         'Contexts'               = 3
-        'GovernanceCatalogs'     = 1
     }
 
     foreach ($table in $countChecks.Keys | Sort-Object) {
@@ -374,7 +373,9 @@ SELECT COUNT(*) FROM "Contexts" WHERE "parentContextId" IS NOT NULL
 '@
 
     # Governance
-    Measure-Check 'BusinessLogic' 'Has governance catalogs' -Min 2 -Query 'SELECT COUNT(*) FROM "GovernanceCatalogs"'
+    Measure-Check 'BusinessLogic' 'Has governance catalogs' -Min 2 -Query @'
+SELECT COUNT(*) FROM "Contexts" WHERE "contextCategory" = 'Catalog'
+'@
 
     Measure-Check 'BusinessLogic' 'Has assignment policies' -Min 2 -Query 'SELECT COUNT(*) FROM "AssignmentPolicies"'
 

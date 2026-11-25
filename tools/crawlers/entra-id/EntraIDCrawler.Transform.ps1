@@ -400,24 +400,9 @@ function ConvertTo-EntraPimRecord {
     }
 }
 
-# Maps one entitlement-management catalog → an ingest/governance/catalogs record.
-# Verbatim from the inline `$catalogs | ForEach-Object { ... }` block.
-function ConvertTo-EntraGovernanceCatalogRecord {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)] $Catalog)
-    return @{
-        id               = $Catalog.id
-        displayName      = $Catalog.displayName
-        description      = $Catalog.description
-        catalogType      = $Catalog.catalogType
-        enabled          = [bool]$Catalog.isPublished
-        createdDateTime  = $Catalog.createdDateTime
-        modifiedDateTime = $Catalog.modifiedDateTime
-    }
-}
-
 # Maps one access package → an ingest/resources record (resourceType='BusinessRole',
-# governanceResource). Verbatim from the inline `$accessPackages | ForEach-Object`.
+# governanceResource). The catalog it sits in is a context membership, sent by
+# Sync-EntraGovernanceCatalogs (EntraIDCrawler.Catalogs.ps1), not a field here.
 function ConvertTo-EntraAccessPackageRecord {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $AccessPackage)
@@ -427,7 +412,6 @@ function ConvertTo-EntraAccessPackageRecord {
         description        = $AccessPackage.description
         resourceType       = 'BusinessRole'
         governanceResource = $true
-        catalogId          = $AccessPackage.catalogId
         isHidden           = [bool]$AccessPackage.isHidden
         enabled            = $true
         createdDateTime    = $AccessPackage.createdDateTime

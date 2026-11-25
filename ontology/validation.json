@@ -1,10 +1,9 @@
 {
   "_comment": "Configuration for the core ontology check (npm run ontology:check in app/api; docs/contributing/maintaining-the-ontology.md). outOfScopeIngestEntities: ingest entity types that are deliberately NOT part of the core graph model, each with a reason — a NEW ingest entity type that is neither a core class nor listed here fails the check. knownGaps: inconsistencies the check found in the implementation itself, accepted for now with a reason. Matching is on (code, subject). The list is a ratchet: an entry that no longer matches a finding fails as stale, so fixing a gap forces its removal. scope 'database' entries are judged only by the contract test that compares with a real PostgreSQL schema.",
   "outOfScopeIngestEntities": {
-    "governance/catalogs": "Governance satellite table (GovernanceCatalogs). Business roles themselves are core Resources (resourceType BusinessRole); the catalogs, policies, requests and certification decisions around them are a candidate for the next ontology version.",
-    "governance/policies": "Governance satellite table (AssignmentPolicies); see governance/catalogs.",
-    "governance/requests": "Governance satellite table (AssignmentRequests); see governance/catalogs.",
-    "governance/certifications": "Governance satellite table (CertificationDecisions); see governance/catalogs.",
+    "governance/policies": "Governance satellite table (AssignmentPolicies). Business roles themselves are core Resources (resourceType BusinessRole) and their catalogs are Catalog contexts; the policies, requests and certification decisions around them are a candidate for the next ontology version.",
+    "governance/requests": "Governance satellite table (AssignmentRequests); see governance/policies.",
+    "governance/certifications": "Governance satellite table (CertificationDecisions); see governance/policies.",
     "principal-activity": "High-frequency activity snapshot (PrincipalActivity), deliberately kept out of the audited graph tables (docs/concepts/data-model.md, Activity Data). Not a node or edge of the graph."
   },
   "knownGaps": [

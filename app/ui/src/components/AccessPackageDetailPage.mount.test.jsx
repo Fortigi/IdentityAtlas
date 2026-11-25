@@ -20,7 +20,7 @@ const pkg = (over = {}) => ({
   ...over,
 });
 
-function renderPage({ body = pkg(), risk = null, pkgOk = true } = {}) {
+function renderPage({ body = pkg(), risk = null, pkgOk = true, onOpenDetail = () => {} } = {}) {
   const seen = [];
   const authFetch = makeAuthFetch((url) => {
     const s = String(url);
@@ -39,7 +39,7 @@ function renderPage({ body = pkg(), risk = null, pkgOk = true } = {}) {
     return undefined;
   });
   const r = renderWithProviders(
-    <AccessPackageDetailPage accessPackageId="ap1" onClose={() => {}} onOpenDetail={() => {}} />,
+    <AccessPackageDetailPage accessPackageId="ap1" onClose={() => {}} onOpenDetail={onOpenDetail} />,
     { auth: { authFetch } },
   );
   return { ...r, seen };
@@ -49,6 +49,21 @@ describe('AccessPackageDetailPage header', () => {
   it('renders the package name', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Finance Access' })).toBeInTheDocument();
+  });
+
+  // A catalog is a context (migration 117): its name opens that context.
+  it('opens the catalog context from the catalog name', async () => {
+    const onOpenDetail = vi.fn();
+    renderPage({ body: pkg({ attributes: { catalogId: 'cat-1', catalogName: 'Finance catalog' } }), onOpenDetail });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Finance catalog' }));
+    expect(onOpenDetail).toHaveBeenCalledWith('context', 'cat-1', 'Finance catalog');
+  });
+
+  it('shows the catalog as plain text when it has no id to open', async () => {
+    renderPage({ body: pkg({ attributes: { catalogName: 'Legacy catalog' } }) });
+    expect(await screen.findByText("Catalog: Legacy catalog")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Legacy catalog' })).toBeNull();
   });
 
   it('labels the role by type only, next to its name', async () => {

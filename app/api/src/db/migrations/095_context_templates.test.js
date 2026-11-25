@@ -16,7 +16,8 @@ describe('migration 095 — context templates', () => {
   it('adds the nullable template column with exactly the four templates the ingest knows', () => {
     expect(statements).toMatch(/ADD COLUMN "contextCategory" TEXT\s+CHECK/);
     expect(statements).not.toMatch(/"contextCategory" TEXT NOT NULL/);
-    expect(inList(/"contextCategory" IN \(([^)]+)\)/)).toEqual(CONTEXT_CATEGORIES);
+    // Migration 117 added Catalog (its own test pins the widened list).
+    expect(inList(/"contextCategory" IN \(([^)]+)\)/)).toEqual(CONTEXT_CATEGORIES.filter(c => c !== 'Catalog'));
   });
 
   it('creates the two edge tables with the lists the ingest enforces', () => {
@@ -76,7 +77,9 @@ describe('migration 095 — the backfill is the one mapping the ingest derives f
   it('maps every known contextType to the same template as lib/contextCategories.js', async () => {
     const { CONTEXT_TYPE_CATEGORY } = await import('../../lib/contextCategories.js');
     const sqlMap = Object.fromEntries([...backfill.matchAll(/WHEN '(\w+)'\s+THEN '(\w+)'/g)].map(m => [m[1], m[2]]));
-    expect(sqlMap).toEqual(CONTEXT_TYPE_CATEGORY);
+    // The catalog types came with their template in migration 117; no row held them before.
+    const before117 = Object.fromEntries(Object.entries(CONTEXT_TYPE_CATEGORY).filter(([, cat]) => cat !== 'Catalog'));
+    expect(sqlMap).toEqual(before117);
   });
 });
 

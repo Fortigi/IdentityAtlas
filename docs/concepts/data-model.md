@@ -134,7 +134,7 @@ erDiagram
     }
     Contexts {
         uuid id PK
-        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment"
+        string contextCategory "OrganizationalUnit, LogicalApplication, Tag, Segment, Catalog"
         string contextType "open vocabulary"
         string displayName
         uuid parentContextId FK
@@ -381,7 +381,7 @@ Any permission-granting entity: Entra ID groups, directory roles, application ro
 | Audit history | Yes (via `_history` trigger) |
 | Created by | Migration `001_core_schema.sql` |
 
-Key columns: `displayName`, `resourceType`, `systemId`, `extendedAttributes` (JSON), `catalogId`, `isHidden`, `riskScore`. Classification/grouping is via `ContextMembers` (`memberType='Resource'`), not a column.
+Key columns: `displayName`, `resourceType`, `systemId`, `extendedAttributes` (JSON), `isHidden`, `riskScore`. Classification/grouping is via `ContextMembers` (`memberType='Resource'`), not a column.
 
 ---
 

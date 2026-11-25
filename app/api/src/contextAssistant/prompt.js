@@ -39,6 +39,10 @@ const TERM = {
   required: ['text', 'why'],
 };
 
+// The templates a recipe can produce. A catalog is not one of them: it groups
+// business roles as the governance source keeps them, it is not matched by name.
+const RECIPE_TEMPLATES = CONTEXT_CATEGORIES.filter(c => c !== 'Catalog');
+
 // The first answer also guesses what the context is (its template); asking for more
 // terms later does not, the analyst has seen the guess by then.
 const termsReply = (maxTerms, withTemplate) => ({
@@ -46,7 +50,7 @@ const termsReply = (maxTerms, withTemplate) => ({
   properties: {
     kind: { type: 'string', enum: ['terms'] },
     name: { type: 'string', maxLength: REPLY_LIMITS.name },
-    ...(withTemplate ? { template: { type: 'string', enum: CONTEXT_CATEGORIES } } : {}),
+    ...(withTemplate ? { template: { type: 'string', enum: RECIPE_TEMPLATES } } : {}),
     terms: boundedList(TERM, maxTerms),
     notes: boundedList({ type: 'string', maxLength: REPLY_LIMITS.note }, REPLY_LIMITS.notes),
   },

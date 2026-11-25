@@ -590,10 +590,9 @@ Counted with `deletedAt IS NULL` on `Principals`, `Resources` and `ResourceAssig
 | ResourceRelationships | 32 | 21 Contains + 1 GrantsAccessTo + 8 HasOwnership + 2 DelegatesScope |
 | Identities | 27 | 26 employees + 1 disabled |
 | IdentityMembers | 38 | 27 Entra + 1 IGA + 10 SAP |
-| Contexts | 17 | 1 root + 5 departments + 2 teams + 1 admin unit + 7 logical applications + the Security Team as its resources — all `variant='synced'` |
+| Contexts | 19 | 1 root + 5 departments + 2 teams + 1 admin unit + 7 logical applications + the Security Team as its resources + 2 catalogs (Employee + Privileged, `contextCategory='Catalog'`, the business roles as members) — all `variant='synced'` |
 | ContextRoles | 7 | 3 Accountable + 4 Responsible on the logical applications, `addedBy='sync'` |
 | ContextRelationships | 1 | Security Team `SameUnitAs` Security Team (resources) |
-| GovernanceCatalogs | 2 | Employee + Privileged |
 | AssignmentPolicies | 4 | Auto-assign + Manager approval + Dual approval + Sales |
 | CertificationDecisions | 3 | 2 approve + 1 deny |
 

@@ -20,7 +20,7 @@ beforeEach(() => {
 
 const endpoints = [
   '/api/assignments', '/api/identity-members', '/api/resource-relationships',
-  '/api/governance-catalogs', '/api/assignment-policies',
+  '/api/assignment-policies',
   '/api/assignment-requests', '/api/certification-decisions',
 ];
 
@@ -74,7 +74,6 @@ describe('bulkLists SQL shape', () => {
   // Each governance feed must read its own table — a copy/paste slip would
   // silently point a feed at the wrong table.
   const tableByEndpoint = {
-    '/api/governance-catalogs': 'GovernanceCatalogs',
     '/api/assignment-policies': 'AssignmentPolicies',
     '/api/assignment-requests': 'AssignmentRequests',
     '/api/certification-decisions': 'CertificationDecisions',

@@ -70,7 +70,6 @@ export const TABLE_CLASSIFICATION = Object.freeze([
   t('CertificationDecisions', 'crawler', 'governance', 'Access-review decisions read from the IGA source.'),
   t('AssignmentRequests', 'crawler', 'governance', 'Access-package requests read from the IGA source.'),
   t('AssignmentPolicies', 'crawler', 'governance', 'Assignment policies read from the IGA source.'),
-  t('GovernanceCatalogs', 'crawler', 'governance', 'Catalogs read from the IGA source.'),
   t('IdentityMembers', 'crawler', 'identities',
     'Account-to-identity links. Rows with an analystOverride are a person\'s decision, but they cannot outlive their Identity (FK CASCADE), so they go — see ALSO_REMOVED.'),
   t('Identities', 'crawler', 'identities',

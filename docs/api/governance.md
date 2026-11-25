@@ -56,7 +56,7 @@ Paginated list of business roles with category and compliance metadata. This pow
 | `assignmentCount` | int | Number of active governed assignments (`state='Delivered'`) |
 | `hasReview` | boolean | Whether any certification decisions exist for this role |
 
-**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs` + `GovernanceCategoryAssignments` + `GovernanceCategories` + `ResourceAssignments` (`governed=true`)
+**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`) + `GovernanceCategoryAssignments` + `GovernanceCategories` + `ResourceAssignments` (`governed=true`)
 
 ---
 
@@ -141,7 +141,7 @@ A JSON array (not wrapped in a `data` envelope), one object per access package:
 |---|---|---|
 | `resourceId` | string | The business role (access package) id |
 | `accessPackageName` | string | Access package display name |
-| `catalogName` | string | Owning `GovernanceCatalogs` name (null if none) |
+| `catalogName` | string | Name of the Catalog context the role is a member of (null if none) |
 | `categoryName` / `categoryColor` | string | Assigned category label and hex color (null if uncategorized) |
 | `complianceStatus` | string | `Compliant`, `Missed`, `Reviewed Late`, or `In Progress` |
 | `deadline` | datetime | End date of the last review instance |
@@ -154,7 +154,7 @@ A JSON array (not wrapped in a `data` envelope), one object per access package:
 | `lastReviewedBy` | string | Display name of the most recent reviewer |
 | `reviewInstanceStatus` | string | Raw instance status from the source IGA platform |
 
-**Reads From:** `CertificationDecisions` + `Resources` (`resourceType='BusinessRole'`) + `GovernanceCatalogs` + `GovernanceCategoryAssignments` + `GovernanceCategories`
+**Reads From:** `CertificationDecisions` + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`) + `GovernanceCategoryAssignments` + `GovernanceCategories`
 
 ---
 

@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.7.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `3.0.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -20,6 +20,7 @@ in it: [Core Ontology](../architecture/core-ontology.md).
 classDiagram
     direction LR
     class AIAgent
+    class AccessPackageCatalogContext
     class AccessPermission
     class ActivityContext
     class AdministrativeUnitContext
@@ -37,6 +38,7 @@ classDiagram
     class AzureSubscription
     class BusinessRole
     class CRMRole
+    class CatalogContext
     class Context
     class ContextRecipeContext
     class ControlPermission
@@ -92,6 +94,7 @@ classDiagram
     class User
     class WorkloadIdentity
     Agent <|-- AIAgent
+    CatalogContext <|-- AccessPackageCatalogContext
     Permission <|-- AccessPermission
     TagContext <|-- ActivityContext
     OrganizationalUnit <|-- AdministrativeUnitContext
@@ -109,6 +112,7 @@ classDiagram
     Scope <|-- AzureSubscription
     Resource <|-- BusinessRole
     TechnicalRole <|-- CRMRole
+    Context <|-- CatalogContext
     LogicalApplicationContext <|-- ContextRecipeContext
     Permission <|-- ControlPermission
     OrganizationalUnit <|-- CostCenterContext
@@ -187,8 +191,10 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Value | Class | Template | Groups | Made by | Meaning |
 |---|---|---|---|---|---|
+| `AccessPackageCatalog` | `ia:AccessPackageCatalogContext` | Catalog | Resource | crawler `entra-id` | An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times. |
 | `Activity` | `ia:ActivityContext` | Tag | Identity | application code | A business activity people perform (performsActivity), the object of an activity claim. Manual, under one root Activities (extendedAttributes.knowledgeRoot); created when a claim naming it is confirmed (Authorization workbench). |
 | `AdministrativeUnit` | `ia:AdministrativeUnitContext` | Organizational unit | Principal | crawler `demo` | An Entra administrative unit. Only the demo dataset emits it; the Entra crawler does not sync administrative units. |
+| `Catalog` | `ia:CatalogContext` | Catalog | Resource | crawler `demo` | A grouping of business roles (resourceType BusinessRole) as the governance source keeps it: an Entra ID access package catalog, another IGA platform's role folder. Its members are the business roles; the source's own catalog properties sit in extendedAttributes. Not an application: an application groups the technical resources that make up one system, a catalog groups the roles that hand them out. Replaces the GovernanceCatalogs table and Resources.catalogId (migration 117). |
 | `ContextRecipe` | `ia:ContextRecipeContext` | Logical application | Resource | plugin `context-recipe` | Resources matched by a recipe built in the context assistant, plus the ones pinned by hand. The type says how the context was built; its template (contextCategory) is chosen at save time, an application being the common case. |
 | `CostCenter` | `ia:CostCenterContext` | Organizational unit | Identity | crawler `omada` | A cost center synced from Omada, grouping persons: an org dimension a manager recognises, so an organizational unit. |
 | `Department` | `ia:DepartmentContext` | Organizational unit | Identity, Principal | plugin `department-from-principal`; crawlers `demo`, `omada` | One flat context per distinct Principals.department value (externalId 'dept:<value>'), without hierarchy. The Omada crawler syncs departments of persons under the same value, and the demo dataset writes a department tree of accounts. |
@@ -217,7 +223,7 @@ Other values arrive from the source data or configuration of: `csv`, `custom-con
 
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
-| `contextCategory` | `ia:contextCategory` | text | `OrganizationalUnit`, `LogicalApplication`, `Tag`, `Segment` | The template this context falls under. NULL for a synced value nobody has placed yet. |
+| `contextCategory` | `ia:contextCategory` | text | `OrganizationalUnit`, `LogicalApplication`, `Tag`, `Segment`, `Catalog` | The template this context falls under. NULL for a synced value nobody has placed yet. |
 | `contextType` | `ia:contextType` | text | open vocabulary | What kind of grouping this is (Department, OrgUnit, Tag, Cluster, LogicalApplication, …). An open vocabulary. |
 | `createdAt` | `ia:createdAt` | timestamp with time zone |  | When the context row was created. |
 | `createdByUser` | `ia:createdByUser` | text |  | The analyst who created a manual context. |
@@ -369,7 +375,6 @@ Other values arrive from the source data or configuration of: `csv`, `custom-con
 | Column | Property | SQL type | Values / references | Description |
 |---|---|---|---|---|
 | `capabilityId` | `ia:capabilityId` | text |  | Generated from extendedAttributes.capabilityId for the effective-access engine. |
-| `catalogId` | `ia:catalogId` | uuid |  | The governance catalog (GovernanceCatalogs.id) a business role belongs to. GovernanceCatalogs is outside the core model. |
 | `createdDateTime` | `ia:createdDateTime` | timestamp with time zone |  | When the object was created in the source (PrincipalRelationships: when the row was created). |
 | `deletedAt` | `ia:deletedAt` | timestamp with time zone |  | Soft-delete tombstone: set when the source stopped reporting the row; NULL while live. |
 | `description` | `ia:description` | text |  | Free-text description. |
@@ -821,6 +826,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `LogicalApplication` | `ia:ContextCategory_LogicalApplication` | An application as the business knows it. |
 | `Tag` | `ia:ContextCategory_Tag` | A manual label. |
 | `Segment` | `ia:ContextCategory_Segment` | A grouping by an attribute or an analysis. |
+| `Catalog` | `ia:ContextCategory_Catalog` | A grouping of business roles, as the governance source keeps it. |
 
 ### Context role
 

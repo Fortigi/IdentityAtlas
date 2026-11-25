@@ -7,6 +7,8 @@ const ROOTS = [
   r('ou-ppl-2', 'OrganizationalUnit', 'Identity'),
   r('ou-acc', 'OrganizationalUnit', 'Principal'),
   r('app-1', 'LogicalApplication', 'Resource'),
+  r('cat-1', 'Catalog', 'Resource'),
+  r('cat-2', 'Catalog', 'Resource'),
   r('tag-1', 'Tag', 'Resource'),
 ];
 
@@ -20,10 +22,11 @@ describe('tabOf', () => {
 });
 
 describe('templateTabs', () => {
-  it('lists the four templates in order with their counts, without Other when nothing is uncategorised', () => {
+  it('lists the five templates in order with their counts, without Other when nothing is uncategorised', () => {
     expect(templateTabs(ROOTS)).toEqual([
       { key: 'OrganizationalUnit', label: 'Organisation', count: 3 },
       { key: 'LogicalApplication', label: 'Applications', count: 1 },
+      { key: 'Catalog', label: 'Catalogs', count: 2 },
       { key: 'Tag', label: 'Tags', count: 1 },
       { key: 'Segment', label: 'Segments', count: 0 },
     ]);
@@ -32,11 +35,17 @@ describe('templateTabs', () => {
   it('adds Other, last, once a root has no template', () => {
     const tabs = templateTabs([...ROOTS, r('x', null), r('y', 'Gadget')]);
     expect(tabs.at(-1)).toEqual({ key: 'Other', label: 'Other', count: 2 });
-    expect(tabs).toHaveLength(5);
+    expect(tabs).toHaveLength(6);
   });
 
   it('copes with no roots at all', () => {
-    expect(templateTabs(undefined).map(t => t.count)).toEqual([0, 0, 0, 0]);
+    expect(templateTabs(undefined).map(t => t.count)).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it('puts a catalog on Catalogs, not on Applications, though both hold resources', () => {
+    expect(tabOf(r('c', 'Catalog', 'Resource'))).toBe('Catalog');
+    expect(rootsForTab(ROOTS, 'Catalog').map(x => x.id)).toEqual(['cat-1', 'cat-2']);
+    expect(rootsForTab(ROOTS, 'LogicalApplication').map(x => x.id)).toEqual(['app-1']);
   });
 });
 

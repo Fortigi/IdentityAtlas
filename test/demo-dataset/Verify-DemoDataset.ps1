@@ -89,7 +89,6 @@ function Invoke-RowCountChecks {
         'ResourceRelationships'  = @{ Min = 32; Max = 32 }  # 21 Contains + 1 GrantsAccessTo + 8 HasOwnership + 2 DelegatesScope
         'Identities'             = @{ Min = 27; Max = 27 }  # 26 employees + the leaver
         'IdentityMembers'        = @{ Min = 39; Max = 39 }  # 27 Entra + 1 IGA + 10 SAP + the CTO's second admin account
-        'GovernanceCatalogs'     = @{ Min = 2;  Max = 2 }
         'AssignmentPolicies'     = @{ Min = 4;  Max = 4 }
         'CertificationDecisions' = @{ Min = 3;  Max = 3 }
         'Crawlers'               = @{ Min = 1;  Max = 10 }  # runtime state, not generated
@@ -108,14 +107,23 @@ function Invoke-RowCountChecks {
     }
 
     # Contexts are counted separately, filtered to the dataset's own. In the v6
-    # model a Context carries a `variant`: the demo dataset ingests 17 'synced' ones
+    # model a Context carries a `variant`: the demo dataset ingests 19 'synced' ones
     # (1 root + 5 departments + 2 teams + 1 admin unit + 7 logical applications +
-    # the Security Team as its resources), while the API creates
+    # the Security Team as its resources + 2 catalogs), while the API creates
     # 'manual' Tag roots at bootstrap and the context-algorithm plugins emit
     # 'generated' ones whenever the worker runs. A bare COUNT(*) therefore drifts
     # with runtime state. Filtering by variant makes this deterministic.
-    Assert-Count 'RowCount-Contexts' -Min 17 -Max 17 -Query @'
+    Assert-Count 'RowCount-Contexts' -Min 19 -Max 19 -Query @'
 SELECT COUNT(*) FROM "Contexts" WHERE "variant" = 'synced'
+'@
+    # The IGA system's two catalogs, each holding its business roles.
+    Assert-Count 'RowCount-Catalogs' -Min 2 -Max 2 -Query @'
+SELECT COUNT(*) FROM "Contexts" WHERE "variant" = 'synced' AND "contextCategory" = 'Catalog'
+'@
+    Assert-Count 'Catalog-Roles' -Min 7 -Max 7 -Query @'
+SELECT COUNT(*) FROM "ContextMembers" cm
+JOIN "Contexts" c ON c.id = cm."contextId" AND c."contextCategory" = 'Catalog'
+JOIN "Resources" r ON r.id = cm."memberId" AND r."resourceType" = 'BusinessRole'
 '@
 }
 

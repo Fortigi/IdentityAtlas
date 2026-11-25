@@ -45,7 +45,7 @@ function getAccessPackageRootExtras(data) {
   };
 }
 
-function AccessPackageHeader({ data }) {
+function AccessPackageHeader({ data, onOpenDetail }) {
   const isDark = useIsDark();
   const { attributes, accessModel, category } = data;
   return (
@@ -65,7 +65,13 @@ function AccessPackageHeader({ data }) {
             {attributes.deletedAt && <DeletedBadge at={attributes.deletedAt} label="Deleted in source" />}
           </div>
           {attributes.catalogName && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Catalog: {attributes.catalogName}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Catalog:{' '}
+              {attributes.catalogId && onOpenDetail ? (
+                <button type="button" onClick={() => onOpenDetail('context', attributes.catalogId, attributes.catalogName)}
+                  className="text-blue-700 hover:underline dark:text-blue-300">{attributes.catalogName}</button>
+              ) : attributes.catalogName}
+            </p>
           )}
         </div>
       </div>
@@ -138,7 +144,7 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       initialTab={answersForRole ? 'composition' : 'overview'}
       renderCustomTab={renderCustomTab}
       getAttributeEntries={getAccessPackageAttributeEntries}
-      renderHeader={(data) => <AccessPackageHeader data={data} />}
+      renderHeader={(data) => <AccessPackageHeader data={data} onOpenDetail={onOpenDetail} />}
       renderRisk={riskData ? () => (
         <RiskScoreSection attributes={riskData} entityType="business-roles" entityId={accessPackageId} authFetch={authFetch} />
       ) : undefined}

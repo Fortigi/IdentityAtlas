@@ -241,7 +241,6 @@ router.post('/ingest/identities',               createIngestHandler('identities'
 router.post('/ingest/identity-members',         createIngestHandler('identity-members'));
 router.post('/ingest/contexts',                 createIngestHandler('contexts'));
 router.post('/ingest/context-members',          createIngestHandler('context-members'));
-router.post('/ingest/governance/catalogs',      createIngestHandler('governance/catalogs'));
 router.post('/ingest/governance/policies',      createIngestHandler('governance/policies'));
 router.post('/ingest/governance/requests',      createIngestHandler('governance/requests'));
 router.post('/ingest/governance/certifications', createIngestHandler('governance/certifications'));

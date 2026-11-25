@@ -206,13 +206,13 @@ See `docs/architecture/context-redesign.md` for the design.
 
 Business roles, certifications, and access policies from any IGA platform. Business roles and their assignments/resource grants are stored in the shared Resources, ResourceAssignments, and ResourceRelationships tables.
 
-**Governance-specific tables:** GovernanceCatalogs, AssignmentPolicies, AssignmentRequests, CertificationDecisions.
+**Governance-specific tables:** AssignmentPolicies, AssignmentRequests, CertificationDecisions. A **catalog** (Entra access package catalog) is not a table: it is a synced context of the `Catalog` template whose members are its business roles (migration 117 dropped `GovernanceCatalogs` and `Resources.catalogId`).
 
 **IGA platform mapping:**
 
 | Table | Column Filter | Entra ID | Omada | SailPoint |
 |-------|---------------|----------|-------|-----------|
-| GovernanceCatalogs | — | Catalog | — | Source |
+| Contexts | `contextCategory='Catalog'` | Catalog | — | Source |
 | Resources | `resourceType='BusinessRole'` | Access Package | Business Role | Access Profile |
 | ResourceRelationships | `relationshipType='Contains'` | Resource Role Scopes | Role Entitlements | Entitlements |
 | ResourceAssignments | `governed=true` | AP Assignment | Role Assignment | Access Request Result |

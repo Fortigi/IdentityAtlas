@@ -4,7 +4,26 @@
 // accessPackageDetail.contract.test.js.
 
 import { describe, it, expect, vi } from 'vitest';
-import { deriveAssignmentType, deriveCompliance, fetchAccessModel, fetchAutomaticHolderCount } from './accessPackageDetail.js';
+import { deriveAssignmentType, deriveCompliance, fetchAccessModel, fetchAutomaticHolderCount, fetchApAttributes } from './accessPackageDetail.js';
+
+describe('fetchApAttributes', () => {
+  it('reads the catalog from the Catalog context the role is a member of', async () => {
+    const query = vi.fn(async () => ({ rows: [{ id: 'ap', displayName: 'Finance', catalogId: 'c1', catalogName: 'Finance catalog' }] }));
+    const row = await fetchApAttributes({ query }, {}, 'ap');
+    expect(row).toMatchObject({ catalogId: 'c1', catalogName: 'Finance catalog' });
+    const sql = query.mock.calls[0][0];
+    expect(sql).toContain('c.id AS "catalogId", c."displayName" AS "catalogName"');
+    expect(sql).toContain('cm."memberId" = ap.id');
+    expect(sql).toContain(`"contextCategory" = 'Catalog'`);
+    expect(sql).not.toContain('GovernanceCatalogs');
+    expect(query.mock.calls[0][1]).toEqual(['ap']);
+  });
+
+  it('is null for an unknown role', async () => {
+    const pool = { query: async () => ({ rows: [] }) };
+    expect(await fetchApAttributes(pool, {}, 'nope')).toBeNull();
+  });
+});
 
 describe('fetchAutomaticHolderCount', () => {
   it('returns the count', async () => {
