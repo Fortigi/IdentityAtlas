@@ -273,7 +273,7 @@ function accessPackageRootNodes(core) {
   return [
     { key: 'assignments', label: 'Assignments',      count: +core.assignmentCount || 0,    kind: 'category' },
     { key: 'resources',   label: 'Resources',        count: +core.groupCount || 0,         kind: 'category' },
-    { key: 'catalog',     label: 'Catalog',          count: a.catalogId ? 1 : 0,           kind: 'category' },
+    { key: 'catalog',     label: 'Role portfolio',   count: a.catalogId ? 1 : 0,           kind: 'category' },
   ];
 }
 

@@ -200,7 +200,7 @@ function MembersTable({ members, attrs, editMode, includeDescendants, onOpenDeta
 // One member: its row and, when a context owner opened it, its references
 // under it. `references` is null where references are not offered.
 function MemberRow({ member: m, columns, span, contextId, attrs, stickyName, editMode, includeDescendants, onOpenDetail, onRemove, references }) {
-  const kind = memberDetailKind(attrs.targetType);
+  const kind = memberDetailKind(attrs.targetType, m);
   // The whole row opens the member — except where its name toggles the
   // references (a context owner's page: an "Open" button beside it instead), or
   // where the API marked the member as not openable for this reader.
@@ -280,10 +280,11 @@ function RowAction({ action, onRemove }) {
 }
 
 // Resolve the detail-page kind to open for a member of a context targeting
-// the given type.
-function memberDetailKind(targetType) {
+// the given type. A business role (the members of a role portfolio) opens its
+// business role page, any other resource the resource page.
+function memberDetailKind(targetType, member) {
   if (targetType === 'Identity') return 'identity';
-  if (targetType === 'Resource') return 'group';
+  if (targetType === 'Resource') return member?.resourceType === 'BusinessRole' ? 'access-package' : 'group';
   if (targetType === 'System') return 'system';
   return 'user';
 }

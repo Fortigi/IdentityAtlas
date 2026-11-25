@@ -32,7 +32,7 @@ export const draftLabel = (proposal) => `Draft: ${proposal.name?.trim() || 'Unna
 /**
  * The proposals as the matrix's business-role rows: one per (proposal, entitlement),
  * under the category "Proposed" so they band together. `investigationName` names
- * where each comes from (the band's tooltip "Catalog"). Pure.
+ * where each comes from (the band's tooltip "Role portfolio"). Pure.
  */
 export function lensPackages(proposals) {
   return proposals.flatMap(p => p.entitlements.map(resourceId => ({

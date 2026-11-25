@@ -18,7 +18,7 @@ The Entra ID crawler reads your Microsoft Entra ID tenant through Microsoft Grap
 | Group owners | A **Direct** assignment on a `GroupOwnership` resource named after the group |
 | Directory roles | Resources of type `EntraDirectoryRole`, with **Direct** (active) and **Eligible** (PIM) assignments |
 | Access packages | Business roles. The groups a package grants are linked to it, and its assignments are **governed** |
-| Catalogs | Contexts on the **Catalogs** tab, each holding its access packages. A catalog's only owner becomes its Owner (Accountable); with several owners each is Responsible, and every access package manager and access package assignment manager is Responsible. Catalog readers are left out |
+| Catalogs | Role portfolios: contexts on the **Role portfolios** tab, each holding its access packages. A catalog's only owner becomes its Owner (Accountable); with several owners each is Responsible, and every access package manager and access package assignment manager is Responsible. Catalog readers are left out |
 | Assignment policies, requests, access reviews | Governance data shown with the business roles |
 | Enterprise applications | `Application` resources, with their app roles (`AppRole`), consent grants (`DelegatedPermission`), app-only API permissions (`ApplicationPermission`) and owners |
 | App registrations | `AppRegistration` resources with credential dates, redirect URIs and requested permissions |

@@ -48,13 +48,13 @@ export const CATEGORY_META = {
     badgeClass: 'bg-lime-100 text-lime-800 border-lime-200 dark:bg-lime-900/30 dark:text-lime-300 dark:border-lime-700',
   },
   Catalog: {
-    label: 'Catalog', groupLabel: 'Catalogs',
-    description: 'A catalog of business roles, as the governance source keeps it (an Entra ID access package catalog).',
+    label: 'Role portfolio', groupLabel: 'Role portfolios',
+    description: 'A set of business roles that its owners answer for, as the governance source groups them (an Entra ID access package catalog).',
     badgeClass: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700',
   },
 };
 
-// Grouping order in the tree selector: the templates, then Other. Catalogs sit
+// Grouping order in the tree selector: the templates, then Other. Role portfolios sit
 // next to Applications: one groups business roles, the other technical resources.
 export const CATEGORY_ORDER = ['OrganizationalUnit', 'LogicalApplication', 'Catalog', 'Tag', 'Segment', 'Other'];
 

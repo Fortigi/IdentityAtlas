@@ -89,7 +89,7 @@ function EntityTable({ entities, entityType, onOpenDetail }) {
     ],
     group: [],
     'business-role': [
-      { key: 'catalogName', label: 'Catalog', render: e => e.catalogName || '\u2014' },
+      { key: 'catalogName', label: 'Role portfolio', render: e => e.catalogName || '\u2014' },
     ],
     'context': [
       { key: 'department', label: 'Department', render: e => e.department || '\u2014' },

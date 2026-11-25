@@ -62,7 +62,7 @@ describe('AccessPackageDetailPage header', () => {
 
   it('shows the catalog as plain text when it has no id to open', async () => {
     renderPage({ body: pkg({ attributes: { catalogName: 'Legacy catalog' } }) });
-    expect(await screen.findByText("Catalog: Legacy catalog")).toBeInTheDocument();
+    expect(await screen.findByText("Role portfolio: Legacy catalog")).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Legacy catalog' })).toBeNull();
   });
 

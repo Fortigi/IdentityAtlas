@@ -1,7 +1,7 @@
 // A context owner's view of Identity Atlas.
 //
 // Somebody who is Accountable or Responsible for a context — a department's
-// manager, an application's owner — signs in with their normal Microsoft
+// manager, an application's owner, a role portfolio's owner — signs in with their normal Microsoft
 // account and, with no Identity Atlas role of their own, lands here instead of
 // the app (AppRoot routes them; the Admin → Authentication switch lets them in).
 // See docs/architecture/context-owner-access.md.

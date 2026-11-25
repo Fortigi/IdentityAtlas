@@ -56,8 +56,8 @@ describe('categoryMeta — the four templates plus Other', () => {
     expect(categoryMeta('LogicalApplication').label).toBe('Application');
     expect(categoryMeta('Tag').label).toBe('Tag');
     expect(categoryMeta('Segment').label).toBe('Segment');
-    expect(categoryMeta('Catalog').label).toBe('Catalog');
-    expect(categoryMeta('Catalog').groupLabel).toBe('Catalogs');
+    expect(categoryMeta('Catalog').label).toBe('Role portfolio');
+    expect(categoryMeta('Catalog').groupLabel).toBe('Role portfolios');
     for (const meta of Object.values(CATEGORY_META)) expect(meta.description).toMatch(/\S/);
   });
 
