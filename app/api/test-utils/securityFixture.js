@@ -79,14 +79,17 @@ export async function seedSecurityFixture(pool) {
   ]) await assign(r, p);
   await assign('groupGone', 'ann', true);
 
-  const context = (k, targetType, parent = null) => pool.query(
-    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","scopeSystemId","parentContextId")
-     VALUES ($1,'manual',$2,'Department',$3,$4,$5)`, [id[k], targetType, nameOf(k), systemId, parent ? id[parent] : null],
+  // Roles are only held on a role-bearing template (lib/contextCategories.js),
+  // and the relative-permission policy grants per template: a context without
+  // one gives its owners nothing.
+  const context = (k, targetType, parent = null, category = 'OrganizationalUnit') => pool.query(
+    `INSERT INTO "Contexts" ("id","variant","targetType","contextType","displayName","contextCategory","scopeSystemId","parentContextId")
+     VALUES ($1,'manual',$2,'Department',$3,$4,$5,$6)`, [id[k], targetType, nameOf(k), category, systemId, parent ? id[parent] : null],
   );
   await context('unitA', 'Principal');
   await context('unitA1', 'Principal', 'unitA');
   await context('unitB', 'Principal');
-  await context('appX', 'Resource');
+  await context('appX', 'Resource', null, 'LogicalApplication');
   await context('unitOther', 'Principal');
   const member = (ctx, type, m) => pool.query(
     `INSERT INTO "ContextMembers" ("contextId","memberType","memberId","addedBy") VALUES ($1,$2,$3,'analyst')`, [id[ctx], type, id[m]],

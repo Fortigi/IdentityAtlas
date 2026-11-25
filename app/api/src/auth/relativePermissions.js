@@ -63,21 +63,34 @@ export function normalizePolicy(raw) {
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+// The first thing wrong with one cell / one subject's roles, or null.
+function cellError(subject, role, cell, capabilities) {
+  if (!isPlainObject(cell)) return `${subject}.${role} must be an object`;
+  for (const [cap, value] of Object.entries(cell)) {
+    if (!capabilities.includes(cap)) return `unknown capability ${cap} for ${subject}`;
+    if (typeof value !== 'boolean') return `${subject}.${role}.${cap} must be a boolean`;
+  }
+  return null;
+}
+
+function subjectError(subject, roles) {
+  const capabilities = capabilitiesOf(subject);
+  if (!capabilities) return `unknown subject ${subject}`;
+  if (!isPlainObject(roles)) return `${subject} must be an object`;
+  for (const [role, cell] of Object.entries(roles)) {
+    if (!OWNER_ROLES.includes(role)) return `unknown role ${role} for ${subject}`;
+    const error = cellError(subject, role, cell, capabilities);
+    if (error) return error;
+  }
+  return null;
+}
+
 /** Check an admin's PUT body: `{ error }` naming the first bad entry, or `{ policy }` (normalized). */
 export function validatePolicy(body) {
   if (!isPlainObject(body)) return { error: 'policy must be an object' };
   for (const [subject, roles] of Object.entries(body)) {
-    const capabilities = capabilitiesOf(subject);
-    if (!capabilities) return { error: `unknown subject ${subject}` };
-    if (!isPlainObject(roles)) return { error: `${subject} must be an object` };
-    for (const [role, cell] of Object.entries(roles)) {
-      if (!OWNER_ROLES.includes(role)) return { error: `unknown role ${role} for ${subject}` };
-      if (!isPlainObject(cell)) return { error: `${subject}.${role} must be an object` };
-      for (const [cap, value] of Object.entries(cell)) {
-        if (!capabilities.includes(cap)) return { error: `unknown capability ${cap} for ${subject}` };
-        if (typeof value !== 'boolean') return { error: `${subject}.${role}.${cap} must be a boolean` };
-      }
-    }
+    const error = subjectError(subject, roles);
+    if (error) return { error };
   }
   return { policy: normalizePolicy(body) };
 }
