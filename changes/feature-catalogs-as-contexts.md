@@ -1,5 +1,0 @@
-- Catalogs are now contexts: each Entra ID access package catalog is synced as a context of the new **Catalog** type, holding its access packages (business roles) as members, with the catalog's type, published state, external visibility and dates as attributes.
-- Added a **Catalogs** tab on the Contexts page that lists every catalog under the name it has in Entra ID.
-- The catalog name on a business role's page now opens that catalog.
-- The separate governance catalog table and the `catalogId` field on business roles are removed, along with the `POST /api/ingest/governance/catalogs` and `GET /api/governance-catalogs` endpoints and the GovernanceCatalogs sheet of the Excel export. Catalogs appear on the Contexts sheet instead. Existing catalog rows are dropped on upgrade; the next Entra ID crawl writes them again as contexts.
-- Fixed catalogs always showing as unpublished: the catalog's published state is now read from the field Microsoft Graph actually returns.
