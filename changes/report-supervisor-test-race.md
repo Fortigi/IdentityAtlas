@@ -1,1 +1,0 @@
-- Fixed an intermittent failure of the report-generator proxy tests in PR checks: they read the in-flight request count a moment before the proxy had released it.

@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed an intermittent failure of the report-generator proxy tests in PR checks: they read the in-flight request count a moment before the proxy had released it.
+
+## Changes in this PR
+
 - Fixed CSV full syncs keeping accounts of any type other than User (service accounts, external users, shared mailboxes) live forever after they were removed from Users.csv. They are now removed like vanished user accounts.
 
 ## Changes in this PR
