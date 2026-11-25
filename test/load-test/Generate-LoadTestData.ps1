@@ -14,7 +14,7 @@
         - 1,500,000 user/resource assignments
         - 100,000 resource relationships (parent/child role nesting), of which
           2,000 chains of 5 GrantsAccessTo edges, so the import's nested-access
-          expansion is walked at depth and not only across flat pairs
+          expansion is walked at depth (the other 90,000 are Contains)
         - 25,000 identities
         - ~76,000 identity members (95% of users linked to an identity)
         - 300,000 certification decisions
@@ -149,9 +149,10 @@ function New-ResourcesFile {
 }
 
 # ─── 4. ResourceRelationships.csv ────────────────────────────────
-# The random pairs below are a flat graph: with 100,000 edges over 80,000
-# resources almost nothing nests more than one level deep, so they do not
-# exercise the import's nested-access expansion (the transitive closure of the
+# The random pairs below are Contains rows (see $relationshipTypes), which the
+# import never expands — and a random graph of 100,000 edges over 80,000
+# resources would barely nest more than one level deep anyway, so it could not
+# exercise the nested-access expansion (the transitive closure of the
 # GrantsAccessTo edges) at any depth. NestedChainCount deliberate chains of
 # NestedChainDepth are written first for that — a chain's holders have to be
 # carried the whole way down, which is where a closure walk gets expensive.
@@ -344,7 +345,11 @@ $encoding = [System.Text.UTF8Encoding]::new($true)  # with BOM — matches schem
 $systemTypes       = @('EntraID','ActiveDirectory','SAP','Omada','ServiceNow','CSV','Custom')
 $resourceTypes     = @('Group','SAPRole','BusinessRole','AppRole','DirectoryRole','ApplicationRole')
 $assignmentTypes   = @('Direct','Indirect','Eligible')   # the three universal types (post assignment-model redesign)
-$relationshipTypes = @('Contains','Contains','Contains','GrantsAccessTo')  # 75% Contains
+# The random pairs are Contains only. GrantsAccessTo is nesting the import
+# expands (#1684), so it comes from the deliberate chains, whose inherited volume
+# is bounded; 25% random GrantsAccessTo pairs added ~440,000 more inherited rows
+# (2.13M stored assignments) and pushed the matrix view refresh past its limit.
+$relationshipTypes = @('Contains')
 $principalTypes    = @('User','User','User','User','User','User','User','User','ServicePrincipal','ExternalUser')  # 80% User
 $contextTypes      = @('Department','CostCenter','Division','Team')
 $accountTypes      = @('Primary','Secondary','Service','Admin')
