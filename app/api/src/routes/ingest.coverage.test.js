@@ -939,8 +939,8 @@ describe('ingest handler — per-system boundary (H-04)', () => {
   });
 
   it('403 for an unscoped full sync of a table without a systemId column', async () => {
-    const res = await request(appAs(RESTRICTED)).post('/ingest/identities').send({
-      systemId: 7, syncMode: 'full', records: [{ id: UUID, displayName: 'x' }],
+    const res = await request(appAs(RESTRICTED)).post('/ingest/identity-members').send({
+      systemId: 7, syncMode: 'full', records: [{ identityId: UUID, principalId: UUID }],
     });
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/needs a scope/);

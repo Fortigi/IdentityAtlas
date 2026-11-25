@@ -40,7 +40,9 @@ export function parseReconcileRequest(body, now = new Date()) {
   // A table without a systemId column (Identities, IdentityMembers, Contexts …)
   // is shared between every source; a timestamp reconcile of it would delete
   // whatever the OTHER crawlers had not re-touched. Sessions refuse the same.
-  if (NO_SYSTEM_COLUMN_TABLES.has(tableName)) {
+  // Identities has a systemId since migration 119, but no updatedAt, and most of
+  // its rows are unclaimed: it stays refused here by name (#1510).
+  if (NO_SYSTEM_COLUMN_TABLES.has(tableName) || tableName === 'Identities') {
     throw new ReconcileRequestError(`Entity '${entity}' has no system scope and cannot be reconciled by timestamp`);
   }
   if (!Number.isInteger(systemId) || systemId <= 0) throw new ReconcileRequestError('systemId must be a positive integer');

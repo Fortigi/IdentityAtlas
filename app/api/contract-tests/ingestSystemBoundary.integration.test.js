@@ -115,10 +115,13 @@ describe('H-04 — a key restricted to system B stays inside system B', () => {
   });
 
   it('refuses an unscoped full sync of a table without a systemId column', async () => {
-    const res = await post(restrictedToB, 'identities', {
-      systemId: sysB, syncMode: 'full', records: [{ id: uuid(), displayName: 'i' }],
+    // identity-members, not identities: Identities has its own systemId since
+    // migration 119 (#1510), so its full sync is bounded and no longer refused.
+    const res = await post(restrictedToB, 'identity-members', {
+      systemId: sysB, syncMode: 'full', records: [{ identityId: uuid(), principalId: PB }],
     });
     expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/needs a scope/);
   });
 
   it('an in-bounds full sync reconciles system B only', async () => {

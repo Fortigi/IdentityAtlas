@@ -57,6 +57,7 @@ flowchart LR
     Context -.->|"scopeSystemId"| System
     Identity -.->|"managerIdentityId"| Identity
     Identity -.->|"primaryPrincipalId"| Principal
+    Identity -.->|"systemId"| System
     Principal -.->|"managerId"| Principal
     Principal -.->|"systemId"| System
     Resource -.->|"systemId"| System

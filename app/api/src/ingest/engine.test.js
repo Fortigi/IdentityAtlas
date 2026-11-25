@@ -181,9 +181,26 @@ describe('reconcileBounds / reconcileAllowed', () => {
     });
 
     it('leaves other tables without a systemId column as they were', () => {
-      const { params, clauses } = reconcileBounds('Identities', 7, {}, 'systemId', new Set(['id']));
+      const { params, clauses } = reconcileBounds('IdentityMembers', 7, {}, 'systemId', new Set(['identityId', 'principalId']));
       expect(params).toEqual([]);
       expect(clauses).toEqual([]);
+    });
+
+    it('bounds a full identities sync to the sender\'s own people (#1510)', () => {
+      // Migration 119 gave Identities a systemId: the reconcile delete only
+      // considers this system's identities, never another source's or an
+      // unclaimed (NULL) one.
+      const { params, clauses } = reconcileBounds('Identities', 7, {}, 'systemId', new Set(['id', 'displayName', 'systemId']));
+      expect(params).toEqual([7]);
+      expect(clauses).toEqual(['t."systemId" = $1']);
+    });
+
+    it('keeps the stricter link-based ownership on top for a restricted key', () => {
+      const { params, clauses } = reconcileBounds('Identities', 7, {}, 'systemId', new Set(['id', 'systemId']), [7]);
+      expect(params).toEqual([7, [7]]);
+      expect(clauses[0]).toBe('t."systemId" = $1');
+      expect(clauses[1]).toMatch(/^COALESCE\(\(\(EXISTS \(SELECT 1 FROM "IdentityMembers" oim/);
+      expect(clauses[1]).toContain('ANY($2::int[])');
     });
 
     it('adds no ownership bound without a system', () => {
@@ -199,11 +216,17 @@ describe('reconcileBounds / reconcileAllowed', () => {
   });
 
   it('keeps the whole-table reconcile of a table with no systemId column for an UNRESTRICTED key only', () => {
-    // The built-in worker's crawlers full-sync Identities / IdentityMembers /
-    // ContextMembers without a scope and rely on that reconcile; a restricted key
-    // may not.
-    expect(reconcileAllowed('Identities', [], null)).toBe(true);
-    expect(reconcileAllowed('Identities', [], [7])).toBe(false);
+    // The built-in worker's crawlers full-sync IdentityMembers / PrincipalActivity
+    // without a scope and rely on that reconcile; a restricted key may not.
+    expect(reconcileAllowed('IdentityMembers', [], null)).toBe(true);
+    expect(reconcileAllowed('IdentityMembers', [], [7])).toBe(false);
+  });
+
+  it('never reconciles the whole Identities table, not even for the built-in worker (#1510)', () => {
+    // Identities has a systemId now, so an unbounded delete there is one source
+    // deleting every other source's people — the bug this closes.
+    expect(reconcileAllowed('Identities', [], null)).toBe(false);
+    expect(reconcileAllowed('Identities', ['t."systemId" = $1'], null)).toBe(true);
   });
 
   it('refuses a table that HAS a systemId column when no systemId reached it', () => {

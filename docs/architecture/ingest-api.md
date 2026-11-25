@@ -443,13 +443,28 @@ source's 150 logical applications, and a routine refresh removed an analyst's ta
 membership, while every count check passed. `contextSyncScope.contract.test.js` pins the
 bound against real PostgreSQL.
 
+#### Identities: owned by the system that sent them
+
+`Identities` has a nullable `systemId` (migration 119). The ingest stamps the envelope
+`systemId` on every identity it writes, so a full sync of `identities` removes only the
+sending system's people. Identities from another source, and identities no sync has claimed
+(`systemId` empty: anything created before the upgrade, by an upload, or by account
+linking), are never removed by a crawler's reconcile. A source claims an existing identity
+the next time it sends it. Removing a system leaves its people in place, unclaimed.
+
+Before this column existed, a full identities sync compared the whole table against its
+batch: an Entra ID full sync deleted every uploaded, CSV or HR identity, and a CSV run with
+identities in two systems deleted its own first batch. `identitiesReconcileOwnership.integration.test.js`
+pins the bound against real PostgreSQL. `identity-members` and `principal-activity` still
+have no `systemId` of their own.
+
 ### Keys restricted to specific systems
 
 A crawler key with `systemIds` set can only read and write data of those systems. On top of the envelope `systemId` check, every batch from such a key is refused (`403`) when:
 
 - a record carries a `systemId` (or a context's `scopeSystemId`) outside the key's systems;
-- the batch would update an existing row owned by another system — ownership is the row's `systemId`; for tables without one it is derived: a synced context's `scopeSystemId`, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;
-- it is a `full` sync of `identities`, `identity-members`, `contexts`, `context-members` or `principal-activity` without a `scope`.
+- the batch would update an existing row owned by another system — ownership is the row's `systemId`; for tables without one it is derived: a synced context's `scopeSystemId`, a context member's context, an identity member's or activity row's principal. An identity is owned when it is linked only to principals of the key's systems;
+- it is a `full` sync of `identity-members`, `contexts`, `context-members` or `principal-activity` without a `scope`. (A full sync of `identities` is allowed: it is bounded by its own `systemId` and by that ownership.)
 
 `deletedIds`, `deletedKeys` and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (`systemIds` null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (`deletedAt`, `riskScore`, `riskTier`, `linkConfidence`, `analystOverride`, `createdAt`, `updatedAt` and similar) are never written from a crawler record; a field with such a name is kept in `extendedAttributes` like any other attribute.
 
