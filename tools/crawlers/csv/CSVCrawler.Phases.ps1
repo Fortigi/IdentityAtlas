@@ -382,7 +382,9 @@ function Sync-CsvAssignments {
     $found = Sync-CsvStreamedFile -Spec @{
         FileName   = 'Assignments.csv'
         Endpoint   = 'ingest/resource-assignments'
-        Scope      = @{ assignmentType = 'Direct' }
+        # No assignmentType scope: the file carries every type, and scoped to Direct
+        # a vanished Eligible or Indirect row was never reconciled away (#1687).
+        Scope      = @{}
         KeyFields  = @('resourceExternalId', 'principalExternalId', 'assignmentType')
         Prepare    = ${function:Get-CsvAssignmentIndex}
         ShapeSet   = ${function:ConvertTo-CsvAssignmentRecordSet}
