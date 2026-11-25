@@ -130,6 +130,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AppRoles.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Phases.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.Catalogs.ps1')
+. (Join-Path $PSScriptRoot 'EntraIDCrawler.ContainsEdges.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.AccessReviews.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.GovernanceOrigin.ps1')
 . (Join-Path $PSScriptRoot 'EntraIDCrawler.GovernanceRequests.ps1')
@@ -278,6 +279,10 @@ if ($SyncPim) {
 if ($SyncGovernance) {
     Sync-EntraGovernance -SystemId $systemId -Timings $phaseTimings
 }
+
+# Group nesting + access-package scopes are both 'Contains': one batch, so neither
+# full sync deletes the other's rows (EntraIDCrawler.ContainsEdges.ps1).
+Send-EntraContainsRelationships -SystemId $systemId -NestingEnabled $SyncAssignments -GovernanceEnabled $SyncGovernance
 
 # ─── Sync OAuth2 Delegated Grants ────────────────────────────────
 # Per-user consent grants: user authorized client-app X to call target-API Y on

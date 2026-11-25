@@ -179,7 +179,18 @@ describe('details — soft-deleted rows are flagged in lists and left out of cou
 
   it('group business-role count excludes deleted roles', async () => {
     await request(app).get(`/api/group/${VALID_ID}`);
-    expect(sqlFor('group-ap-count')).toContain('ap."deletedAt" IS NOT NULL');
+    expect(sqlFor('group-ap-count')).toContain('ap."deletedAt" IS NULL');
+  });
+
+  // #1335: a parent group Contains its nested group too; only a BusinessRole
+  // parent is an access package (groupDetail.contract.test.js proves it for real).
+  it.each([
+    ['/api/group/ID', 'group-ap-count'],
+    ['/api/group/ID/access-packages', 'group-access-packages'],
+  ])('%s only counts BusinessRole parents', async (path, label) => {
+    await request(app).get(path.replace('ID', VALID_ID));
+    expect(sqlFor(label)).toMatch(/\bJOIN "Resources" ap ON [^\n]*ap\."resourceType" = 'BusinessRole'/);
+    expect(sqlFor(label)).not.toMatch(/LEFT JOIN "Resources" ap/);
   });
 });
 

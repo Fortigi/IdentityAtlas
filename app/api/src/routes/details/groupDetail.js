@@ -45,16 +45,17 @@ export async function fetchGroupMemberCount(pool, res, groupId) {
 }
 
 // 4. Access-package count (business roles that contain this group). A role
-//    soft-deleted in the source is history — listed, flagged, not counted.
+//    soft-deleted in the source is history — listed, flagged, not counted. Only
+//    a BusinessRole parent counts: a parent GROUP also Contains a nested group.
 export async function fetchGroupAccessPackageCount(pool, res, groupId) {
   try {
     const r = await timedQuery(pool, 'group-ap-count', res, `
       SELECT COUNT(DISTINCT rrs."parentResourceId")::int AS cnt
       FROM "ResourceRelationships" rrs
+      JOIN "Resources" ap ON ap.id = rrs."parentResourceId" AND ap."resourceType" = 'BusinessRole'
       WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
         AND rrs."relationshipType" = 'Contains'
-        AND NOT EXISTS (SELECT 1 FROM "Resources" ap
-                         WHERE ap.id = rrs."parentResourceId" AND ap."deletedAt" IS NOT NULL)
+        AND ap."deletedAt" IS NULL
     `, [groupId]);
     return r.rows[0].cnt;
   } catch (e) { if (!isMissingSchema(e)) throw e; return 0; /* table may not exist */ }

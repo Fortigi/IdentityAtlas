@@ -53,6 +53,8 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'powershell-sdk' 'helpers' 'Get-FGServicePrincipalType.ps1')
     # The unit under test.
     . (Join-Path $script:entraDir 'EntraIDCrawler.Phases.ps1')
+    # Add-/Send-EntraContainsRelationships — the run's one merged Contains batch (#1335).
+    . (Join-Path $script:entraDir 'EntraIDCrawler.ContainsEdges.ps1')
     # Get-EntraAccessReviewCertRecords + the per-instance fetches (own file, file-length ratchet).
     . (Join-Path $script:entraDir 'EntraIDCrawler.AccessReviews.ps1')
     # Sync-EntraAppOwners + its helpers live in their own file (extracted for the ratchets).
@@ -104,6 +106,7 @@ BeforeAll {
         $script:phaseErrors = [System.Collections.Generic.List[string]]::new()
         $script:phases      = [System.Collections.Generic.List[object]]::new()
         $script:sent        = [System.Collections.Generic.List[object]]::new()
+        Reset-EntraContainsEdges
     }
 
     # MockWith body for Send-IngestBatch: captures every upload so tests can
@@ -992,6 +995,54 @@ Describe 'Sync-EntraAssignments' {
         $script:phaseErrors.Count | Should -Be 0
     }
 
+    It 'uploads group-in-group nesting as Contains resource-relationships (#1335)' {
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            @{ records = @(
+                # u1 is a user member of g1; g2 is a GROUP member of g1: the nesting edge.
+                @{ resourceId = 'g1'; principalId = 'u1'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'User' }
+                @{ resourceId = 'g1'; principalId = 'g2'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'Group' }
+              ); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith { @{ records = @(); errorCount = 0 } }
+        $groups = @(
+            [pscustomobject]@{ id = 'g1'; displayName = 'Parent Group' }
+            [pscustomobject]@{ id = 'g2'; displayName = 'Nested Group' }
+        )
+
+        Sync-EntraAssignments -SystemId 1 -Groups $groups -Timings ([ordered]@{})
+        Send-EntraContainsRelationships -SystemId 1 -NestingEnabled $true -GovernanceEnabled $false
+
+        $nesting = Get-Sent { $_.Endpoint -eq 'ingest/resource-relationships' -and $_.Scope.relationshipType -eq 'Contains' }
+        $nesting.Count | Should -Be 1
+        $nesting[0].SyncMode | Should -Be 'full'
+        $nesting[0].Records.Count | Should -Be 1          # only the group edge, not the user row
+        $nesting[0].Records[0].parentResourceId | Should -Be 'g1'
+        $nesting[0].Records[0].childResourceId  | Should -Be 'g2'
+        $nesting[0].Records[0].relationshipType | Should -Be 'Contains'
+    }
+
+    It 'sends nesting and access-package edges in ONE Contains batch, so neither full sync deletes the other (#1335)' {
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'members' } -MockWith {
+            @{ records = @(@{ resourceId = 'g1'; principalId = 'g2'; assignmentType = 'Direct'; resourceType = 'Group'; principalType = 'Group' }); errorCount = 0 }
+        }
+        Mock Get-FGGroupChildrenParallel -ParameterFilter { $ChildPath -eq 'owners' } -MockWith { @{ records = @(); errorCount = 0 } }
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/ap1' } -MockWith {
+            [pscustomobject]@{ accessPackageResourceRoleScopes = @(
+                [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'g1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Member'; originSystem = 'AadGroup' } }
+            ) }
+        }
+
+        Sync-EntraAssignments -SystemId 1 -Groups @([pscustomobject]@{ id = 'g1'; displayName = 'G1' }) -Timings ([ordered]@{})
+        Sync-EntraGovernanceResourceScopes -AccessPackages @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1' })
+        Send-EntraContainsRelationships -SystemId 1 -NestingEnabled $true -GovernanceEnabled $true
+
+        $batches = Get-Sent { $_.Endpoint -eq 'ingest/resource-relationships' -and $_.Scope.relationshipType -ne 'HasOwnership' }
+        $batches.Count | Should -Be 1
+        $batches[0].SyncMode | Should -Be 'full'
+        $pairs = @($batches[0].Records | ForEach-Object { "$($_.parentResourceId)>$($_.childResourceId)" }) | Sort-Object
+        $pairs | Should -Be @('ap1>g1', 'g1>g2')
+    }
+
     It 'records a phase failure when the member fetch throws' {
         Mock Get-FGGroupChildrenParallel -MockWith { throw 'runspace boom' }
 
@@ -999,6 +1050,8 @@ Describe 'Sync-EntraAssignments' {
 
         $script:phaseErrors | Should -HaveCount 1
         $script:phaseErrors[0] | Should -BeLike 'Assignments:*'
+        # A failed fetch collects no nesting, so the merged batch cannot full-sync it away.
+        $null -eq $script:entraContainsEdges.nesting | Should -BeTrue
     }
 
     It 'runs the member/owner record-builders and warns on groups that failed after retries' {
@@ -1486,7 +1539,7 @@ Describe 'Resolve-EntraAccessReviewApId' {
 Describe 'Governance phases' {
     BeforeEach { Reset-PhaseTestState; Mock Send-IngestBatch -MockWith $script:SendMock }
 
-    It 'Sync-EntraGovernanceResourceScopes uploads deduped Contains relationships' {
+    It 'Sync-EntraGovernanceResourceScopes collects deduped Contains relationships (sent later, merged)' {
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/ap1' } -MockWith {
             [pscustomobject]@{ accessPackageResourceRoleScopes = @(
                 [pscustomobject]@{ accessPackageResourceScope = [pscustomobject]@{ originId = 'grp1' }; accessPackageResourceRole = [pscustomobject]@{ displayName = 'Member'; originSystem = 'AadGroup' } }
@@ -1495,10 +1548,31 @@ Describe 'Governance phases' {
             ) }
         }
         $aps = @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1' })
-        Sync-EntraGovernanceResourceScopes -SystemId 1 -AccessPackages $aps
+        Sync-EntraGovernanceResourceScopes -AccessPackages $aps
 
-        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        # Not sent by the phase itself: a second Contains full sync would delete
+        # the group-nesting edges (#1335). It is collected for the merged batch.
+        (Get-Sent { $_.Endpoint -eq 'ingest/resource-relationships' }).Count | Should -Be 0
+        $script:entraContainsEdges.accessPackages.Count | Should -Be 1
+        $script:entraContainsEdges.accessPackages[0].parentResourceId | Should -Be 'ap1'
+        $script:entraContainsEdges.accessPackages[0].childResourceId | Should -Be 'grp1'
         $script:phaseErrors.Count | Should -Be 0
+    }
+
+    It 'Sync-EntraGovernanceResourceScopes collects nothing when every package fetch fails, so stored rows are kept' {
+        Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/ap1' } -MockWith { throw 'AP fetch 504' }
+        Sync-EntraGovernanceResourceScopes -AccessPackages @([pscustomobject]@{ id = 'ap1'; displayName = 'AP1' })
+
+        $script:entraContainsEdges.accessPackages | Should -BeNullOrEmpty
+        $null -eq $script:entraContainsEdges.accessPackages | Should -BeTrue
+    }
+
+    It 'Sync-EntraGovernanceResourceScopes collects an empty set when the tenant has no access packages' {
+        Sync-EntraGovernanceResourceScopes -AccessPackages @()
+
+        # Empty but collected: "there are none", so the full sync may clear old rows.
+        $null -eq $script:entraContainsEdges.accessPackages | Should -BeFalse
+        @($script:entraContainsEdges.accessPackages).Count | Should -Be 0
     }
 
     It 'Sync-EntraGovernanceResourceScopes skips an access package whose detail fetch fails' {
@@ -1509,10 +1583,10 @@ Describe 'Governance phases' {
         }
         Mock Invoke-FGGetRequest -ParameterFilter { $URI -match 'accessPackages/apBad' } -MockWith { throw 'AP fetch 504' }
         $aps = @([pscustomobject]@{ id = 'apBad'; displayName = 'Bad AP' }, [pscustomobject]@{ id = 'apGood'; displayName = 'Good AP' })
-        Sync-EntraGovernanceResourceScopes -SystemId 1 -AccessPackages $aps
+        Sync-EntraGovernanceResourceScopes -AccessPackages $aps
 
         # The good AP still produced its relationship; the failing AP was skipped, not fatal.
-        (Get-Sent { $_.Scope.relationshipType -eq 'Contains' })[0].Records.Count | Should -Be 1
+        $script:entraContainsEdges.accessPackages.Count | Should -Be 1
         $script:phaseErrors.Count | Should -Be 0
     }
 

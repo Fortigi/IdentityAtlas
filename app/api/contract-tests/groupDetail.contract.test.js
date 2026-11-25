@@ -73,6 +73,20 @@ beforeAll(async () => {
     [apId, groupId, systemId],
   );
 
+  // #1335: a parent GROUP that Contains this group (group-in-group nesting, as
+  // the Entra crawler now writes it). It is not an access package, so neither
+  // the count nor the list below may pick it up.
+  const parentGroupId = (await pool.query(
+    `INSERT INTO "Resources" ("id", "systemId", "displayName", "resourceType")
+     VALUES (gen_random_uuid(), $1, 'Contract Parent Group', 'Group') RETURNING "id"`,
+    [systemId],
+  )).rows[0].id;
+  await pool.query(
+    `INSERT INTO "ResourceRelationships" ("parentResourceId", "childResourceId", "relationshipType", "systemId")
+     VALUES ($1, $2, 'Contains', $3)`,
+    [parentGroupId, groupId, systemId],
+  );
+
   await pool.query(`REFRESH MATERIALIZED VIEW "vw_ResourceUserPermissionAssignments"`);
 });
 

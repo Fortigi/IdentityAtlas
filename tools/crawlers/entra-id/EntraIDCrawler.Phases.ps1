@@ -615,6 +615,8 @@ function Sync-EntraAssignments {
     Update-CrawlerProgress -Detail "Uploading $($indirectMembers.Count) indirect (nested-group) memberships..."
     Send-IngestBatch -Endpoint 'ingest/resource-assignments' -SystemId $SystemId -SyncMode 'full' `
         -Scope @{ assignmentType = 'Indirect'; resourceType = 'Group' } -Records $indirectMembers
+    # ...and the nesting edges themselves (Contains); sent by Send-EntraContainsRelationships.
+    Add-EntraContainsEdges -Source 'nesting' -Records @(ConvertTo-EntraGroupNestingRelationships -DirectMembers $allMembers)
 
     # Group Owners — modelled as a Direct assignment to a synthetic
     # GroupOwnership resource (named after the group), linked to the
@@ -1086,10 +1088,7 @@ function Sync-EntraSignInLogs {
 # (tight retry budget), deduped by (parent, child). Own timing/error wrapper.
 function Sync-EntraGovernanceResourceScopes {
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] [int]$SystemId,
-        $AccessPackages
-    )
+    param($AccessPackages)
     $__scopeSW = [Diagnostics.Stopwatch]::StartNew()
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Syncing governance (access package resource scopes)..." -ForegroundColor Cyan
     try {
@@ -1100,12 +1099,12 @@ function Sync-EntraGovernanceResourceScopes {
         # Dedupe (parent + child) — Graph can return duplicates if an AP has multiple roles on the same group.
         $relRecords = Select-FGDistinct -Items $relRecords -Key { "$($_.parentResourceId)|$($_.childResourceId)" }
 
-        if ($relRecords.Count -gt 0) {
-            Send-IngestBatch -Endpoint 'ingest/resource-relationships' -SystemId $SystemId -SyncMode 'full' `
-                -Scope @{ relationshipType = 'Contains' } -Records $relRecords
-        } else {
-            Write-Host "  No access package resource scopes found" -ForegroundColor Yellow
-        }
+        # Collected, not sent: the group-nesting Contains edges share its batch
+        # (Send-EntraContainsRelationships). Packages but no edges may mean every
+        # detail fetch failed, so nothing is collected and the stored rows are kept.
+        if ($relRecords.Count -gt 0 -or @($AccessPackages).Count -eq 0) {
+            Add-EntraContainsEdges -Source 'accessPackages' -Records $relRecords
+        } else { Write-Host "  No access package resource scopes found" -ForegroundColor Yellow }
     }
     catch {
         Write-Host "  Resource scope sync failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -1299,7 +1298,7 @@ function Sync-EntraGovernance {
     Update-CrawlerProgress -Step 'Syncing governance' -Pct 66 -Detail 'Catalogs, access packages, policies, reviews...'
     try {
         $accessPackages = Sync-EntraGovernanceCatalogs -SystemId $SystemId
-        Sync-EntraGovernanceResourceScopes -SystemId $SystemId -AccessPackages $accessPackages
+        Sync-EntraGovernanceResourceScopes -AccessPackages $accessPackages
         Sync-EntraGovernanceAssignments -SystemId $SystemId
         Sync-EntraGovernancePolicies -SystemId $SystemId
         Sync-EntraGovernanceRequests -SystemId $SystemId

@@ -373,12 +373,16 @@ function Add-DemoRealismGuestAccess {
     recorded, each member of the child also holds the parent — as an Indirect
     assignment, which is how the Entra crawler records a nested membership and
     what the matrix reads. Somebody who already holds the parent directly keeps
-    the direct row; the pair is written once either way.
+    the direct row; the pair is written once either way. The nesting edge itself
+    is a Contains relationship (parent group Contains child group), as the Entra
+    crawler writes it (#1335).
 #>
 function Add-DemoRealismNestedAccess {
     param([Parameter(Mandatory)]$State)
 
     foreach ($pair in $State.Realism.Nesting) {
+        Add-DemoRelationship $State -ParentResourceId $State.Realism.Groups[$pair.Parent].id `
+            -ChildResourceId $State.Realism.Groups[$pair.Child].id -RelationshipType 'Contains'
         if (-not $State.Realism.GroupMembers.ContainsKey($pair.Child)) { continue }
         foreach ($principal in $State.Realism.GroupMembers[$pair.Child]) {
             $null = Add-DemoRealismMember $State -GroupKey $pair.Parent -PrincipalId $principal -AssignmentType 'Indirect'

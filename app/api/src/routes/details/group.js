@@ -85,7 +85,8 @@ router.get('/group/:id/access-packages', async (req, res) => {
   try {
     const pool = await db.getPool();
     // A business role soft-deleted in the source is history: kept in the list,
-    // flagged `deleted` + `deletedAt`, after the current ones.
+    // flagged `deleted` + `deletedAt`, after the current ones. An inner join: a
+    // parent GROUP also Contains a nested group, and that is no access package.
     const r = await timedQuery(pool, 'group-access-packages', res, `
       SELECT DISTINCT
         rrs."parentResourceId" AS "resourceId",
@@ -93,7 +94,7 @@ router.get('/group/:id/access-packages', async (req, res) => {
         rrs."roleName",
         (ap."deletedAt" IS NOT NULL) AS "deleted", ap."deletedAt" AS "deletedAt"
       FROM "ResourceRelationships" rrs
-      LEFT JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
+      JOIN "Resources" ap ON rrs."parentResourceId" = ap.id AND ap."resourceType" = 'BusinessRole'
       WHERE UPPER(rrs."childResourceId"::text) = UPPER($1)
         AND rrs."relationshipType" = 'Contains'
       ORDER BY "deleted", ap."displayName"
