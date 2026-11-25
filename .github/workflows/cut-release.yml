@@ -19,6 +19,8 @@
 # Patch releases (X.Y.1, X.Y.2 …) are not cut here: the weekly stable route
 # (release-weekly.yml) releases release/X.Y whenever it moved — Dependabot's
 # weekly updates, and bug fixes cherry-picked there with -x from main.
+#
+# The steps are shared with Cut Hotfix and Cut Beta in cut-tag.yml.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Release
@@ -36,230 +38,55 @@ on:
 
 jobs:
   cut-release:
-    runs-on: ubuntu-latest
-    # The release App key lives in this environment, which only admits runs on main or a
-    # release/* branch — a workflow file edited on a PR branch cannot read it.
-    environment: release-automation
     permissions:
       contents: write
       id-token: write
+    uses: ./.github/workflows/cut-tag.yml
+    with:
+      kind: release
+      version: ${{ inputs.version }}
+      ref: ${{ inputs.ref }}
+      mode: Release
+      notes_prompt: |
+        Read `release-notes.md`. It contains a flat list of raw changelog bullets for
+        Identity Atlas ${{ inputs.version }}, collected from merged PRs
+        since the previous release.
 
+        Rewrite it as polished GitHub release notes following these rules:
+
+        1. Keep the "Full Changelog" link at the bottom unchanged.
+        2. Group bullets under `###` headings by theme (e.g. "Account Linking",
+           "Omada IGA crawler", "Security fixes", "Bug fixes", "UI & accessibility").
+           Don't create a heading for a single bullet — fold it under the closest
+           related heading or a generic "Improvements" section.
+        3. Drop bullets that fix something introduced in this same release. If one
+           bullet adds feature X and another fixes a bug in X, the fix is internal —
+           users upgrading from the previous release never saw X break.
+        4. Drop CI, tooling, and pure-implementation bullets with no user-visible
+           effect (workflow fixes, CmdletBinding additions, dependency bumps, etc.).
+        5. Merge bullets that describe the same change in different words.
+        6. Rewrite in user-facing language — focus on the effect for the user, not
+           the implementation detail.
+
+        Overwrite `release-notes.md` with the result.
+    # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
+    # BOT_PRIVATE_KEY is not passed at all: cut-tag.yml reads it from its own
+    # release-automation environment, which a caller cannot hand in.
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  summary:
+    needs: cut-release
+    runs-on: ubuntu-latest
+    permissions: {}
     steps:
-      - name: Validate version input
-        run: |
-          if ! echo "${{ github.event.inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Version must be in Major.Minor.Patch format (e.g. 5.2.0)"
-            exit 1
-          fi
-
-      - name: Generate bot token
-        id: bot-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.inputs.ref }}
-          token: ${{ steps.bot-token.outputs.token }}
-          fetch-depth: 0
-
-      # Only code already merged to main (approved PR) may be released. Loaded
-      # from this workflow's own commit, never from the ref being released.
-      - name: Refuse a ref that is not on main
-        run: |
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Run Cut Release from main (it ran from $GITHUB_REF)."; exit 1
-          fi
-          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
-          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Release -Ref HEAD
-
-      - name: Create and push release tag
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-          TAG="v${VERSION}"
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "✅ Tagged ${TAG} on $(git rev-parse --short HEAD)"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
-
-      - name: Stamp release version into .psd1
-        run: sed -i "s/ModuleVersion = '[^']*'/ModuleVersion = '${{ env.VERSION }}.0'/" setup/IdentityAtlas.psd1
-
-      - name: Install desktop dependencies (PGlite)
-        run: npm install --prefer-offline
-        working-directory: app/desktop
-
-      # Two ZIPs: the default (PGlite, signed node.exe only) and -postgres
-      # (embedded PostgreSQL for large data sets, unsigned binaries). One shared
-      # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
-      - name: Build portable Windows ZIPs
-        run: bash .github/scripts/build_portable_zips.sh
-
-      # The Azure template, pinned to THIS release's images: azure/ at this tag
-      # with imageTag defaulting to the image version, attached to the release as
-      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
-      # (like the main-only check), so an older hotfix branch without the script
-      # is still packaged; a template from before imageTag gets no package.
-      - name: Package the Azure template
-        run: |
-          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
-          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}.0" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
-
-      - name: Generate release notes
-        run: |
-          # The stable release this one follows. Shared by both cut workflows so
-          # the two cannot drift apart again — see the script for why the
-          # "globally latest tag" and "same series only" rules were each wrong.
-          PREV_TAG=$(bash .github/scripts/release_prev_tag.sh "$TAG")
-
-          # Slice CHANGES.md to only the lines prepended since PREV_TAG.
-          # bump-version.yml always prepends — old content is the last N lines.
-          if [ -n "$PREV_TAG" ]; then
-            OLD_LINES=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | wc -l)
-            TOTAL_LINES=$(wc -l < CHANGES.md)
-            NEW_LINES=$((TOTAL_LINES - OLD_LINES))
-            [ "$NEW_LINES" -gt 0 ] && NEW_MD=$(head -n "$NEW_LINES" CHANGES.md) || NEW_MD=""
-          else
-            NEW_MD=$(cat CHANGES.md)
-          fi
-
-          # Strip "## Changes in this PR" headers; collapse consecutive blank lines
-          BULLETS=$(printf '%s\n' "$NEW_MD" \
-            | grep -v '^## Changes in this PR$' \
-            | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
-
-          {
-            printf '## Changes'
-            [ -n "$PREV_TAG" ] && printf ' since %s' "$PREV_TAG"
-            printf '\n\n%s\n' "$BULLETS"
-            [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
-              "$PREV_TAG" "$TAG"
-          } > release-notes.md
-          echo "PREV_TAG=${PREV_TAG}" >> "$GITHUB_ENV"
-          echo "--- release-notes.md raw preview ---"
-          cat release-notes.md
-
-      - name: Synthesize release notes with Claude
-        id: polish
-        continue-on-error: true
-        # continue-on-error: this step only polishes wording — release-notes.md already has valid,
-        # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
-        # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
-        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--allowedTools Read,Write"
-          prompt: |
-            Read `release-notes.md`. It contains a flat list of raw changelog bullets for
-            Identity Atlas ${{ github.event.inputs.version }}, collected from merged PRs
-            since the previous release.
-
-            Rewrite it as polished GitHub release notes following these rules:
-
-            1. Keep the "Full Changelog" link at the bottom unchanged.
-            2. Group bullets under `###` headings by theme (e.g. "Account Linking",
-               "Omada IGA crawler", "Security fixes", "Bug fixes", "UI & accessibility").
-               Don't create a heading for a single bullet — fold it under the closest
-               related heading or a generic "Improvements" section.
-            3. Drop bullets that fix something introduced in this same release. If one
-               bullet adds feature X and another fixes a bug in X, the fix is internal —
-               users upgrading from the previous release never saw X break.
-            4. Drop CI, tooling, and pure-implementation bullets with no user-visible
-               effect (workflow fixes, CmdletBinding additions, dependency bumps, etc.).
-            5. Merge bullets that describe the same change in different words.
-            6. Rewrite in user-facing language — focus on the effect for the user, not
-               the implementation detail.
-
-            Overwrite `release-notes.md` with the result.
-
-      - name: Warn if release notes weren't polished
-        if: steps.polish.outcome == 'failure'
-        run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
-
-      # Dependency deltas cannot reach release-notes.md through the changelog:
-      # the PR Hygiene gate's CODE pattern does not cover package-lock.json, so
-      # Dependabot PRs merge without a changes/*.md fragment, and the polish step
-      # above is told to drop tooling bullets with no user-visible effect — which
-      # is how a library bump reads. A library-only patch release would ship
-      # notes with nothing under "## Changes", which is the release where an
-      # operator most needs to see which version moved.
-      #
-      # Appended AFTER polishing on purpose: the model cannot drop or reword a
-      # section it never sees, so the shipped-dependency list is exact.
-      # Which portable ZIP to download is appended after polishing for the same
-      # reason: the model cannot drop or reword it.
-      - name: Append dependency updates and download guide
-        run: |
-          python3 tools/release-notes/dependency-delta.py "${PREV_TAG}" "${TAG}" >> release-notes.md
-          cat tools/release-notes/portable-downloads.md >> release-notes.md
-          echo "--- release-notes.md final ---"
-          cat release-notes.md
-
-      # Publishing the release triggers docs.yml, which deploys the stable docs.
-      # Don't deploy them here as well: two pushes to gh-pages race and one fails.
-      - name: Create GitHub release with portable ZIPs
-        env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-        run: |
-          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
-                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
-          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
-            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
-          fi
-          gh release create "$TAG" \
-            "${ASSETS[@]}" \
-            --title "$TAG" \
-            --notes-file release-notes.md \
-            --latest
-
-      # A new minor (X.Y.0) becomes the one maintained stable line: release/X.Y
-      # from this tag, where Dependabot lands weekly updates that the weekly
-      # stable route releases as X.Y.1, X.Y.2 … Dependabot is moved over by a
-      # pull request into main (main takes nothing without one); until it is
-      # merged the new line gets no updates and the weekly plan warns.
-      # The previous line simply stops: only the newest minor is maintained.
-      - name: Start the release line
-        if: endsWith(github.event.inputs.version, '.0')
-        env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-        run: |
-          LINE="release/${VERSION%.*}"
-          echo "LINE=$LINE" >> "$GITHUB_ENV"
-          if git ls-remote --exit-code --heads origin "$LINE" >/dev/null; then
-            echo "::notice::$LINE already exists; leaving it as it is."
-          else
-            git push origin "HEAD:refs/heads/$LINE"
-            echo "::notice::Created $LINE at $TAG."
-          fi
-          # A worktree of main: this checkout is the tag, with the version
-          # stamped into it, and must not be switched.
-          PR_BRANCH="chore/dependabot-${LINE//\//-}"
-          git fetch --quiet origin main
-          git worktree add --quiet -B "$PR_BRANCH" "$RUNNER_TEMP/main" origin/main
-          cd "$RUNNER_TEMP/main"
-          pwsh -NoProfile -File tools/release/Set-DependabotReleaseLine.ps1 -Line "$LINE"
-          if git diff --quiet; then
-            echo "::notice::.github/dependabot.yml already targets $LINE."; exit 0
-          fi
-          git commit -qam "chore: point Dependabot's release-line updates at $LINE"
-          git push --force origin "HEAD:refs/heads/$PR_BRANCH"
-          if ! gh pr create --base main --head "$PR_BRANCH" \
-               --title "chore: point Dependabot's release-line updates at $LINE" \
-               --body "Cut Release cut ${TAG} and created \`$LINE\`. This moves the release-line entries in \`.github/dependabot.yml\` there, so the new stable line gets its weekly dependency updates and the previous one stops. Opened by Cut Release; see docs/contributing/release-process.md → Release lines."; then
-            echo "::warning::Could not open the pull request for $PR_BRANCH; open it by hand."
-          fi
-
       - name: Post run summary
+        env:
+          TAG: ${{ needs.cut-release.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ needs.cut-release.outputs.commit }}
+          LINE: ${{ needs.cut-release.outputs.line }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
           ## ✅ Release tagged
@@ -268,7 +95,7 @@ jobs:
           |---|---|
           | **Tag** | \`${TAG}\` |
           | **Version** | \`${VERSION}.0\` |
-          | **Commit** | \`$(git rev-parse --short HEAD)\` |
+          | **Commit** | \`${COMMIT}\` |
           | **Release line** | \`${LINE:-unchanged}\` |
 
           docker-publish is now building \`:latest\` + \`:${VERSION}.0\` — check the [Actions tab](../../actions) for progress.

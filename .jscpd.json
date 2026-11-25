@@ -17,6 +17,7 @@
     "changes/**",
     "**/__snapshots__/**",
     ".github/workflows/**",
-    "**/tools/nl-reports/*.json"
+    "**/tools/nl-reports/*.json",
+    "**/vitest.stryker.*.config.js"
   ]
 }

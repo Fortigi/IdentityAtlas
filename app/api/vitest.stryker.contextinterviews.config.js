@@ -1,11 +1,13 @@
+// GENERATED from stryker.contextinterviews.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/api, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+
 import { defineConfig } from 'vitest/config';
 import base from './vitest.config.js';
-
-// Vitest config for the context-interviews mutation run (stryker.contextinterviews.config.json).
-//
-// Explicit file list rather than a directory glob, same reason as the sibling stryker vitest
-// configs: Stryker copies app/api into a temp sandbox, so a test that reads the real
-// filesystem outside it fails the dry run. These tests read no files at all.
 
 export default defineConfig({
   ...base,

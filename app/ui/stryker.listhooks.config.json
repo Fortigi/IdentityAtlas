@@ -17,10 +17,36 @@
     "src/hooks/useEntityPage.js",
     "src/utils/matchedOn.js"
   ],
+  "tests_comment": [
+    "Standalone rather than spreading vite.config.js, for the same reason as the other",
+    "vitest.stryker.* configs: Stryker sandboxes app/ui alone, so the normal test include",
+    "reaching ../../tools/crawlers/** resolves nothing there and aborts the run.",
+    "",
+    "TWO TEST FILES, AND THAT IS THE POINT OF THIS CONFIG EXISTING. useEntityPage was",
+    "originally measured alongside the matrix hooks, which meant every one of its ~320",
+    "mutants also paid for MatrixView.mount and App.mount to load. Splitting on which",
+    "mount test each hook actually needs cuts per-mutant cost rather than merely dividing",
+    "the same work between two jobs.",
+    "",
+    "Parity checked, not assumed: coverage of useEntityPage under these two files is",
+    "79.69% stmts / 71.71% branch / 84.31% funcs / 80.24% lines, identical to the full UI",
+    "suite with the same uncovered lines. It was 4 branches short until the sidecar-failure",
+    "tests were added to useEntityPage.test.jsx — those arms had only ever been reached",
+    "incidentally by a mount test elsewhere in the suite, which is both a poor place for",
+    "the contract to live and exactly the kind of dependency that turns into a false",
+    "survivor when a scope is narrowed.",
+    "",
+    "src/utils/matchedOn.test.js: src/utils/matchedOn.js (the \"Matched on\" text and the 3-character rule) joined this scope: its own test, plus the two above that drive it through useEntityPage and EntityListPage."
+  ],
+  "tests": [
+    "src/hooks/useEntityPage.test.jsx",
+    "src/components/EntityListPage.mount.test.jsx",
+    "src/utils/matchedOn.test.js"
+  ],
   "mutationExclusions": {
     "src/components/ExtendedSearchToggle.jsx": "The \"All attributes\" checkbox: one label, one input, one tooltip, no decision of its own. Whether the extended search is actually sent — the 3-character rule and the remembered setting — is useEntityPage.js and src/utils/matchedOn.js, both mutated above; the checkbox driving it end to end is asserted in EntityListPage.mount.test.jsx and ContextSearchResults.mount.test.jsx.",
     "src/components/IncludeDeletedToggle.jsx": "The \"Include deleted\" checkbox: one label, one input, one tooltip, no decision of its own. What it changes — the includeDeleted query parameter — is useEntityPage.js (mutated above) and the AccessPackagesPage fetch; the checkbox driving the list end to end is asserted in EntityListPage.mount.test.jsx and AccessPackagesPage.mount.test.jsx.",
-    "src/components/contexts/ContextSearchResults.jsx":"The Contexts pane's result list: four render states (searching, error, no match, list) over useContextSearch. The URL it fetches — including when it asks for an extended search — is contextSearchUrl in src/hooks/useContextTrees.js, the label text is src/utils/matchedOn.js (mutated above), and the matching itself is the API's lib/entitySearch.js (mutated in app/api/stryker.matrix.config.json). Each of the four states, the open-on-click and the 'tick All attributes' hint (shown only when it is off) is asserted in ContextSearchResults.mount.test.jsx."
+    "src/components/contexts/ContextSearchResults.jsx": "The Contexts pane's result list: four render states (searching, error, no match, list) over useContextSearch. The URL it fetches — including when it asks for an extended search — is contextSearchUrl in src/hooks/useContextTrees.js, the label text is src/utils/matchedOn.js (mutated above), and the matching itself is the API's lib/entitySearch.js (mutated in app/api/stryker.matrix.config.json). Each of the four states, the open-on-click and the 'tick All attributes' hint (shown only when it is off) is asserted in ContextSearchResults.mount.test.jsx."
   },
   "mutator": {
     "excludedMutations": [

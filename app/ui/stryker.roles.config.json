@@ -19,6 +19,35 @@
     "src/hooks/useMatrixBusinessRoleLayer.js",
     "src/components/matrix/SortableMatrixBody.helpers.js"
   ],
+  "tests_comment": [
+    "Standalone rather than spreading vite.config.js, for the same reason as",
+    "vitest.stryker.hooks.config.js: Stryker sandboxes app/ui alone, so the normal",
+    "test `include` reaching ../../tools/crawlers/** resolves nothing there and",
+    "aborts the run before a mutant is evaluated.",
+    "",
+    "WIDER THAN THE TWO MODULES' OWN TESTS, BY TRACING THE IMPORTERS. Both modules",
+    "are consumed by components as well as covered directly, and a mutant whose",
+    "only killer sits in a component test would otherwise come back a SURVIVOR —",
+    "a wrong number, which is worse than a smaller true one:",
+    "",
+    "  coverageDeviation.js   -> MatrixGroupRow (per-cell markers),",
+    "                            MatrixView (the Gaps row filter + folded tallies)",
+    "  useBusinessRoleFold.js -> useMatrixBusinessRoleLayer, and through it MatrixView",
+    "                            (row layout, export rows, toolbar)",
+    "                            SortableMatrixBody (which rows stay draggable)",
+    "  useMatrixBusinessRoleLayer.js -> MatrixView only: it IS the switch",
+    "",
+    "Nothing else imports either module, so the list below is the complete set of",
+    "places a mutant can be killed. Re-trace it when adding a module here."
+  ],
+  "tests": [
+    "src/components/matrix/coverageDeviation.test.js",
+    "src/hooks/useBusinessRoleFold.test.jsx",
+    "src/hooks/useMatrixBusinessRoleLayer.test.jsx",
+    "src/components/matrix/MatrixGroupRow.mount.test.jsx",
+    "src/components/matrix/SortableMatrixBody.test.js",
+    "src/components/MatrixView.mount.test.jsx"
+  ],
   "mutationExclusions": {
     "src/components/matrix/cellMarkers.js": "Tooltip prose and two layout constants, no branching beyond pluralisation. Its wording is asserted directly by cellMarkers/MatrixLegend tests; mutating the sentences would produce the same near-zero yield already measured on permissions.js (68 of 72 survivors on prose), and the StringLiteral mutator is off in every config here anyway.",
     "src/components/matrix/CellMarkerStrip.jsx": "Presentational: picks which of three fixed slots a marker occupies and renders it. Every decision it makes is already made in coverageDeviation.js, which IS mutated here; what is left is markup asserted by CellMarkerStrip.mount.test.jsx.",

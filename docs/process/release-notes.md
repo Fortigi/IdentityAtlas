@@ -13,7 +13,8 @@ nothing and two of them are deliberately placed where a model cannot touch them.
 ```
 
 `cut-beta.yml` runs steps 2, 3 and 5 (its baseline is the latest tag of any
-kind, and it has no dependency section).
+kind, and it has no dependency section). The steps live once, in the shared
+`cut-tag.yml`; each `cut-*.yml` passes it the polish prompt.
 
 Steps 1–3 describe what people changed. Step 4 describes what the *image*
 changed, which is a different question and has a different source of truth.

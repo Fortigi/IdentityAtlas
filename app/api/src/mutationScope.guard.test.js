@@ -14,7 +14,7 @@
 // decided on when it lands instead of accumulating quietly.
 //
 // And a mutated file is measured against its OWN tests: each test beside it that is
-// named after it must be in its scope's Vitest include list, or carry a written reason
+// named after it must be in its scope's `tests` list, or carry a written reason
 // in that config's `testExclusions`. Four scopes once mutated files whose tests were not
 // listed (language.js scored 0%, usePageVirtualRows.js 6%), so the score measured tests
 // that never call the code, and every mutant paid for the ones that did not.
@@ -76,14 +76,6 @@ for (const { pkg, cfg } of configs) {
   }
 }
 
-// The include list of a scope's Vitest config: the quoted entries of the `include: [...]`
-// under `test:`, comments stripped. null when the config has none of its own.
-export function includeList(source) {
-  const code = source.replace(/^\s*\/\/.*$/gm, '');
-  const m = code.match(/test:\s*\{[\s\S]*?\binclude:\s*\[([\s\S]*?)\]/);
-  return m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : null;
-}
-
 const TEST_FILE = /\.(test|spec)\.jsx?$/;
 const stem = f => basename(f).replace(/\.jsx?$/, '');
 
@@ -103,8 +95,9 @@ export function ownTests(source, siblings) {
 
 export function unlistedOwnTests({ pkg, cfg }, root = repoRoot) {
   const pkgDir = join(root, 'app', pkg);
-  const configFile = join(pkgDir, cfg.vitest?.configFile ?? 'vitest.config.js');
-  const include = includeList(readFileSync(configFile, 'utf8')) ?? [];
+  // The scope's one declaration of its tests; vitest.stryker.<scope>.config.js is
+  // generated from it (src/mutationScopes/).
+  const include = cfg.tests ?? [];
   const waived = cfg.testExclusions ?? {};
   const missing = [];
   for (const m of cfg.mutate ?? []) {
@@ -193,29 +186,6 @@ describe('JavaScript mutation-testing scope', () => {
 });
 
 describe('the own-tests rule', () => {
-  it("reads a config's include list, not the base config's or a commented-out one", () => {
-    const src = [
-      "import base from './vitest.config.js';",
-      'export default defineConfig({',
-      '  ...base,',
-      '  test: {',
-      '    ...base.test,',
-      '    include: [',
-      "      'src/a/foo.test.js',",
-      "      // 'src/a/old.test.js',",
-      "      'src/b/**/*.test.js',",
-      '    ],',
-      "    exclude: ['**/node_modules/**'],",
-      '  },',
-      '});',
-    ].join('\n');
-    expect(includeList(src)).toEqual(['src/a/foo.test.js', 'src/b/**/*.test.js']);
-  });
-
-  it('says when a config has no include of its own', () => {
-    expect(includeList("export default { test: { exclude: ['x'] } };")).toBeNull();
-  });
-
   it("gives a test to the longest source name it extends", () => {
     const dir = [
       'autofix.js', 'autofix.activity.js', 'autofix.test.js', 'autofix.activity.test.js',
@@ -233,11 +203,10 @@ describe('the own-tests rule', () => {
     for (const f of ['a.js', 'a.test.js', 'b.js', 'b.test.js', 'c.js', 'c.test.js']) {
       writeFileSync(join(pkgDir, 'src', 'x', f), '');
     }
-    writeFileSync(join(pkgDir, 'v.js'), "export default { test: { include: ['src/x/a.test.js'] } };");
-    writeFileSync(join(pkgDir, 'g.js'), "export default { test: { include: ['src/**/*.test.js'] } };");
-    const scope = (vitest, extra = {}) => ({
+    const lists = { 'v.js': ['src/x/a.test.js'], 'g.js': ['src/**/*.test.js'] };
+    const scope = (list, extra = {}) => ({
       pkg: 'api',
-      cfg: { vitest: { configFile: vitest }, mutate: ['src/x/a.js', 'src/x/b.js', 'src/x/c.js'], ...extra },
+      cfg: { tests: lists[list], mutate: ['src/x/a.js', 'src/x/b.js', 'src/x/c.js'], ...extra },
     });
     try {
       expect(unlistedOwnTests(scope('v.js'), root)).toEqual([

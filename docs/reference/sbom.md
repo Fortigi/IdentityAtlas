@@ -9,7 +9,7 @@ This document lists all major software components, dependencies, and infrastruct
 | Component | Version | Purpose | License |
 |-----------|---------|---------|---------|
 | PostgreSQL | 16-alpine | Database server | PostgreSQL License |
-| PowerShell | 7.6.10 (ubuntu-24.04) | Crawler runtime and scripting engine | MIT |
+| PowerShell | 7.6.10 (ubuntu-26.04) | Crawler runtime and scripting engine | MIT |
 | Node.js | 24-slim | API server runtime | MIT |
 | Docker | 20.10+ (required) | Container orchestration | Apache 2.0 |
 
@@ -181,7 +181,7 @@ Identity Atlas distributes pre-built Docker images via GitHub Container Registry
 | Image | Base | Size (approx) | Purpose |
 |-------|------|---------------|---------|
 | `ghcr.io/fortigi/identity-atlas:latest` | node:24-slim | ~500 MB | Web server (API + frontend) |
-| `ghcr.io/fortigi/identity-atlas-worker:latest` | ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8 | ~350 MB | PowerShell crawler worker |
+| `ghcr.io/fortigi/identity-atlas-worker:latest` | ubuntu:26.04@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db | ~350 MB | PowerShell crawler worker |
 
 ---
 

@@ -1,5 +1,15 @@
 ## Changes in this PR
 
+- Fixed the Azure part of the release test, which failed on every variant: an Azure install has sign-in on from the first deploy, so the variants without Entra now check that a fresh deploy and an upgrade come up locked (sign-in reported as on but not configured, every data endpoint refusing a request without a token) instead of expecting open data.
+- Fixed the Azure sign-in variants checking the app before it had restarted with its sign-in settings: after the sign-in step the test now waits until the app reports the configured Entra app.
+- The Azure sign-in variants now load the demo data and read it back as a signed-in Admin caller, and the Azure upgrade with sign-in also checks that person-made data (tags, contexts, settings, read API keys and more) survives the upgrade. This needs a new app registration and the `RELEASE_TEST_ADMIN_CLIENT_ID` environment variable (see the release process guide, One-time setup); without it those variants fail at once with a message that says what to set.
+
+## Changes in this PR
+
+- Each JavaScript mutation-test scope now lists its source files and its tests in one place; the matching Vitest config is generated from it and CI fails when the two drift apart or a mutated file has no test in its scope.
+
+## Changes in this PR
+
 - The Business Roles list shows how many people hold each role and how many resources it contains, in place of the review date and reviewer; both columns sort
 - A role's People figure counts each person once, the same way as the list
 - The team overview on an organisational unit shows each business role's type (Rule based, Manual, Unknown) and review status in their own columns, as on the Business Roles list, and marks who holds a role with a blue tick, as on an application's page

@@ -229,6 +229,7 @@ nav:
           - Local Development: ui/local-dev.md
           - Building a Crawler: sync/building-a-crawler.md
           - Writing Tests That Assert: contributing/writing-tests-that-assert.md
+          - Mutation Scope History: contributing/mutation-scope-history.md
           - Maintaining the Core Ontology: contributing/maintaining-the-ontology.md
           - UI Style Guide: contributing/style-guide.md
           - CI Pipeline: contributing/ci-pipeline.md

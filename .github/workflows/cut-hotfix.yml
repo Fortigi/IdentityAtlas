@@ -15,6 +15,8 @@
 # Hotfix, from main): branch = release/X.Y or a commit on it, version X.Y.(Z+1).
 # dry_run: true does everything up to the tag but pushes no tag and creates no
 # release.
+#
+# The steps are shared with Cut Release and Cut Beta in cut-tag.yml.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Cut Hotfix
@@ -44,7 +46,7 @@ on:
         type: boolean
         default: false
     # Named, never `secrets: inherit` (releaseKeyEnvironment.guard.test.js).
-    # BOT_PRIVATE_KEY is not passed at all: the job reads it from its own
+    # BOT_PRIVATE_KEY is not passed at all: cut-tag.yml reads it from its own
     # release-automation environment, which a caller cannot hand in.
     secrets:
       BOT_APP_ID:
@@ -54,215 +56,46 @@ on:
 
 jobs:
   cut-hotfix:
-    runs-on: ubuntu-latest
-    # The release App key lives in this environment, which only admits runs on main or a
-    # release/* branch — a workflow file edited on a PR branch cannot read it.
-    environment: release-automation
     permissions:
       contents: write
       id-token: write
+    uses: ./.github/workflows/cut-tag.yml
+    with:
+      kind: hotfix
+      version: ${{ inputs.version }}
+      ref: ${{ inputs.branch }}
+      mode: Hotfix
+      dry_run: ${{ inputs.dry_run }}
+      notes_prompt: |
+        Read `release-notes.md`. It contains raw changelog bullets for
+        Identity Atlas hotfix ${{ inputs.version }}.
 
+        Rewrite it as polished GitHub release notes following these rules:
+
+        1. Keep the "Full Changelog" link at the bottom unchanged.
+        2. Group bullets under `###` headings by theme if there are enough to
+           warrant it; otherwise a flat list under "## Bug fixes" is fine.
+        3. Drop CI, tooling, and pure-implementation bullets with no
+           user-visible effect.
+        4. Rewrite in user-facing language — focus on the effect for the user.
+
+        Overwrite `release-notes.md` with the result.
+    secrets:
+      BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  summary:
+    needs: cut-hotfix
+    runs-on: ubuntu-latest
+    permissions: {}
     steps:
-      - name: Validate version input
-        run: |
-          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Version must be in Major.Minor.Patch format (e.g. 5.2.1)"
-            exit 1
-          fi
-
-      - name: Generate bot token
-        id: bot-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          client-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.branch }}
-          token: ${{ steps.bot-token.outputs.token }}
-          fetch-depth: 0
-
-      # The workflow file runs from the ref it was dispatched on (main by
-      # default) but builds the checked-out branch. An older release branch
-      # lacks the shared files below, so check before the tag is pushed rather
-      # than fail halfway with a tag and Docker images but no GitHub release.
-      - name: Check the branch has the files this workflow calls
-        env:
-          BRANCH: ${{ inputs.branch }}
-        run: |
-          missing=0
-          for f in .github/scripts/build_portable_zips.sh                    .github/scripts/release_prev_tag.sh                    tools/release-notes/dependency-delta.py                    tools/release-notes/portable-downloads.md; do
-            if [ ! -f "$f" ]; then
-              echo "::error::$f is missing on $BRANCH: that release predates the hotfix tooling and cannot be hotfixed by this workflow."
-              missing=1
-            fi
-          done
-          exit $missing
-
-      # Loaded from this workflow's own commit, not from the hotfix branch, so
-      # the branch cannot ship an edited checker that lets itself through.
-      - name: Refuse commits that are not on main
-        run: |
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Run Cut Hotfix from main (it ran from $GITHUB_REF)."; exit 1
-          fi
-          git show "$GITHUB_WORKFLOW_SHA:tools/release/Assert-ReleaseFromMain.ps1" > "$RUNNER_TEMP/assert.ps1"
-          pwsh -NoProfile -File "$RUNNER_TEMP/assert.ps1" -Mode Hotfix -Ref HEAD
-
-      - name: Create and push hotfix tag
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          VERSION="${{ inputs.version }}"
-          TAG="v${VERSION}"
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Hotfix release $TAG"
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "::notice::Dry run: $TAG is tagged on the runner only, not pushed."
-          else
-            git push origin "$TAG"
-          fi
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          COMMIT=$(git rev-parse --short HEAD)
-          echo "COMMIT=$COMMIT" >> "$GITHUB_ENV"
-          echo "✅ Tagged ${TAG} on ${COMMIT}"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
-
-      - name: Stamp hotfix version into .psd1
-        run: sed -i "s/ModuleVersion = '[^']*'/ModuleVersion = '${{ env.VERSION }}.0'/" setup/IdentityAtlas.psd1
-
-      - name: Install desktop dependencies (PGlite)
-        run: npm install --prefer-offline
-        working-directory: app/desktop
-
-      # Two ZIPs: the default (PGlite, signed node.exe only) and -postgres
-      # (embedded PostgreSQL for large data sets, unsigned binaries). One shared
-      # script so cut-release / cut-beta / cut-hotfix cannot drift apart.
-      - name: Build portable Windows ZIPs
-        run: bash .github/scripts/build_portable_zips.sh
-
-      # The Azure template, pinned to THIS release's images: azure/ at this tag
-      # with imageTag defaulting to the image version, attached to the release as
-      # IdentityAtlas-azure-<version>.zip. Loaded from this workflow's own commit
-      # (like the main-only check), so an older hotfix branch without the script
-      # is still packaged; a template from before imageTag gets no package.
-      - name: Package the Azure template
-        run: |
-          git show "$GITHUB_WORKFLOW_SHA:tools/release/New-AzureTemplatePackage.ps1" > "$RUNNER_TEMP/package-azure.ps1"
-          pwsh -NoProfile -File "$RUNNER_TEMP/package-azure.ps1" -Version "${VERSION}.0" -OutFile "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip"
-
-      - name: Generate release notes
-        run: |
-          # The stable release this one follows. Shared by both cut workflows so
-          # the two cannot drift apart again — see the script for why the
-          # "globally latest tag" and "same series only" rules were each wrong.
-          PREV_TAG=$(bash .github/scripts/release_prev_tag.sh "$TAG")
-
-          # Primary source: unmerged changes/*.md fragments on this hotfix branch.
-          # bump-version hasn't run yet so fragments aren't in CHANGES.md.
-          FRAG_BULLETS=$(find changes/ -name '*.md' -not -name 'TEMPLATE*' 2>/dev/null \
-            | sort | xargs cat 2>/dev/null \
-            | grep -v '^## Changes in this PR$' \
-            | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
-
-          # Fallback: slice CHANGES.md by line count (prepend model).
-          if [ -z "$FRAG_BULLETS" ] && [ -n "$PREV_TAG" ]; then
-            OLD_LINES=$(git show "${PREV_TAG}:CHANGES.md" 2>/dev/null | wc -l)
-            TOTAL_LINES=$(wc -l < CHANGES.md)
-            NEW_LINES=$((TOTAL_LINES - OLD_LINES))
-            [ "$NEW_LINES" -gt 0 ] && FRAG_BULLETS=$(head -n "$NEW_LINES" CHANGES.md \
-              | grep -v '^## Changes in this PR$' \
-              | awk 'BEGIN{blank=1} /^[[:space:]]*$/{if(!blank){print ""; blank=1}; next} {blank=0; print}')
-          fi
-
-          {
-            printf '## Changes'
-            [ -n "$PREV_TAG" ] && printf ' since %s' "$PREV_TAG"
-            printf '\n\n%s\n' "$FRAG_BULLETS"
-            [ -n "$PREV_TAG" ] && printf '\n**Full Changelog:** https://github.com/${{ github.repository }}/compare/%s...%s\n' \
-              "$PREV_TAG" "$TAG"
-          } > release-notes.md
-          echo "PREV_TAG=${PREV_TAG}" >> "$GITHUB_ENV"
-          echo "--- release-notes.md raw preview ---"
-          cat release-notes.md
-
-      - name: Synthesize release notes with Claude
-        if: ${{ !inputs.dry_run }}
-        id: polish
-        continue-on-error: true
-        # continue-on-error: this step only polishes wording — release-notes.md already has valid,
-        # ready-to-ship content from the deterministic step above. A rejected/unentitled model call
-        # (see dor-agent.yml) must never block cutting a release; worst case we ship the raw bullets.
-        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--allowedTools Read,Write"
-          prompt: |
-            Read `release-notes.md`. It contains raw changelog bullets for
-            Identity Atlas hotfix ${{ inputs.version }}.
-
-            Rewrite it as polished GitHub release notes following these rules:
-
-            1. Keep the "Full Changelog" link at the bottom unchanged.
-            2. Group bullets under `###` headings by theme if there are enough to
-               warrant it; otherwise a flat list under "## Bug fixes" is fine.
-            3. Drop CI, tooling, and pure-implementation bullets with no
-               user-visible effect.
-            4. Rewrite in user-facing language — focus on the effect for the user.
-
-            Overwrite `release-notes.md` with the result.
-
-      - name: Warn if release notes weren't polished
-        if: steps.polish.outcome == 'failure'
-        run: echo "::warning::Release notes polishing failed (model call rejected/unavailable) — shipping the raw changelog bullets instead. Check CLAUDE_CODE_OAUTH_TOKEN entitlements/subscription status."
-
-      # Dependency deltas cannot reach release-notes.md through the changelog:
-      # the PR Hygiene gate's CODE pattern does not cover package-lock.json, so
-      # Dependabot PRs merge without a changes/*.md fragment, and the polish step
-      # above is told to drop tooling bullets with no user-visible effect — which
-      # is how a library bump reads. A library-only patch release would ship
-      # notes with nothing under "## Changes", which is the release where an
-      # operator most needs to see which version moved.
-      #
-      # Appended AFTER polishing on purpose: the model cannot drop or reword a
-      # section it never sees, so the shipped-dependency list is exact.
-      # Which portable ZIP to download is appended after polishing for the same
-      # reason: the model cannot drop or reword it.
-      - name: Append dependency updates and download guide
-        run: |
-          python3 tools/release-notes/dependency-delta.py "${PREV_TAG}" "${TAG}" >> release-notes.md
-          cat tools/release-notes/portable-downloads.md >> release-notes.md
-          echo "--- release-notes.md final ---"
-          cat release-notes.md
-
-      # Publishing the release triggers docs.yml, which deploys the stable docs.
-      # Don't deploy them here as well: two pushes to gh-pages race and one fails.
-      - name: Create GitHub release with portable ZIPs
-        if: ${{ !inputs.dry_run }}
-        env:
-          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-        run: |
-          ASSETS=(app/api/dist-node-launcher/release/IdentityAtlas-portable.zip
-                  app/api/dist-node-launcher/release/IdentityAtlas-portable-postgres.zip)
-          if [ -f "$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip" ]; then
-            ASSETS+=("$RUNNER_TEMP/IdentityAtlas-azure-${VERSION}.zip")
-          fi
-          gh release create "$TAG" \
-            "${ASSETS[@]}" \
-            --title "$TAG" \
-            --notes-file release-notes.md \
-            --latest
-
       - name: Post run summary
         env:
           DRY_RUN: ${{ inputs.dry_run }}
+          TAG: ${{ needs.cut-hotfix.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+          BRANCH: ${{ inputs.branch }}
+          COMMIT: ${{ needs.cut-hotfix.outputs.commit }}
         run: |
           if [ "$DRY_RUN" = "true" ]; then
             HEADING="🧪 Dry run: hotfix checked, nothing published"
@@ -278,7 +111,7 @@ jobs:
           |---|---|
           | **Tag** | \`${TAG}\` |
           | **Version** | \`${VERSION}.0\` |
-          | **Branch** | \`${{ inputs.branch }}\` |
+          | **Branch** | \`${BRANCH}\` |
           | **Commit** | \`${COMMIT}\` |
 
           ${NEXT}

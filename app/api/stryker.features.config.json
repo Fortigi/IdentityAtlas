@@ -16,6 +16,16 @@
   "mutate": [
     "src/featureFlags.js"
   ],
+  "tests_comment": [
+    "Same sandbox constraint as vitest.stryker.auth.config.js: Stryker copies app/api",
+    "into a temp directory, so any test that reads the real filesystem (uploads,",
+    "the crawler manifests at ../../tools/crawlers) fails the dry run and aborts",
+    "the whole run. featureFlags.test.js reads neither — its only dependency is",
+    "the shared db manual mock — so a narrow include keeps the scope clean."
+  ],
+  "tests": [
+    "src/featureFlags.test.js"
+  ],
   "mutationExclusions": {
     "src/docs/docsRatchet.js": "Docs-drift ratchet arithmetic (a CI check, never loaded by the server). Not yet measured, for the same reason as src/ontology/vocabulary.js. Every branch is pinned by src/docs/docsRatchet.test.js with discriminating pairs: a count up next to one unchanged, a count down that must not fail, a new page, a new term on a grandfathered page, a regression that regenerating must not absorb. Measure it on Linux and move it into a scope's mutate list.",
     "src/docs/docsJargon.js": "Retired-vocabulary patterns for docs/ (a CI check, never loaded by the server). Not yet measured, for the same reason as src/ontology/vocabulary.js. Each pattern is pinned by src/docs/docsJargon.test.js against the nearest text that must NOT match (exIST/lIST, SyncOAuth2Grants, orgUnitId, the governed flag), and the folder/term exemptions by exact expected results. Measure it on Linux and move it into a scope's mutate list.",
@@ -67,7 +77,10 @@
     "src/securityReview/github.js": "Monthly security review tooling (a CI tool, never loaded by the server). Not yet measured: Stryker's vitest runner does not activate mutants on the Windows workstation this was written on, so any score quoted here would be fiction. Pinned by src/securityReview/github.test.js against a fake fetch: exact URLs, pagination stop at a short page and at 20 pages, headers, error text, and the board mutation present only with a project. Measure it on Linux and move it into a scope's mutate list.",
     "src/securityReview/publicPage.js": "Monthly security review tooling (a CI tool, never loaded by the server). Not yet measured: Stryker's vitest runner does not activate mutants on the Windows workstation this was written on, so any score quoted here would be fiction. The rendered page and history row are asserted cell by cell by src/securityReview/publicPage.test.js, including that a Medium finding shows only its severity and category; src/securityReview/indexPage.guard.test.js runs updateIndex on the real docs/security/index.md. Measure it on Linux and move it into a scope's mutate list.",
     "src/securityReview/cli.js": "Monthly security review tooling (a CI tool, never loaded by the server). Not yet measured: Stryker's vitest runner does not activate mutants on the Windows workstation this was written on, so any score quoted here would be fiction. src/securityReview/cli.test.js pins exit codes and exact output for usage, invalid input, validate, file (dry run and real, with the client arguments) and publish. Measure it on Linux and move it into a scope's mutate list.",
-    "src/securityReview/__mocks__/sampleReport.js": "Test fixture shared by the securityReview tests, not product code. Nothing to mutate."
+    "src/securityReview/__mocks__/sampleReport.js": "Test fixture shared by the securityReview tests, not product code. Nothing to mutate.",
+    "src/mutationScopes/scopes.js": "Mutation-scope tooling (a developer and CI check, never loaded by the server). It reads app/ui and the stryker configs of both packages, which Stryker's app/api-only sandbox does not contain, so it cannot run there; not yet measured on Linux either. Rendering, every declaration error and the stale/orphan plan are pinned by src/mutationScopes/scopes.test.js with exact expected output against a scratch checkout.",
+    "src/mutationScopes/imports.js": "Mutation-scope tooling (a developer and CI check, never loaded by the server). It reads app/ui and the stryker configs of both packages, which Stryker's app/api-only sandbox does not contain, so it cannot run there; not yet measured on Linux either. Specifier extraction, resolution order, glob expansion and the transitive walk are pinned by src/mutationScopes/imports.test.js, and the guard's own discrimination cases (a dropped killer, a dead entry) by mutationScopes.guard.test.js.",
+    "src/mutationScopes/cli.js": "Mutation-scope tooling (a developer and CI check, never loaded by the server). It reads app/ui and the stryker configs of both packages, which Stryker's app/api-only sandbox does not contain, so it cannot run there; not yet measured on Linux either. src/mutationScopes/cli.test.js pins exit codes and exact output for check, generate, a malformed declaration, an orphan and an unknown command."
   },
   "thresholds": {
     "high": 90,

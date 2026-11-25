@@ -1,21 +1,18 @@
+// GENERATED from stryker.reports.config.json by `npm run mutation-scopes:generate`
+// (app/api). Do not edit: that file's `tests` list is the one declaration of what
+// runs against its `mutate` list, and its `tests_comment` says why.
+//
+// A narrow include, not a growing exclude list: Stryker runs in a sandbox copy of
+// app/ui, where a test reading files outside it fails the dry run, and an
+// excluded test that was some mutant's only killer would read as a false survivor.
+//
+// Standalone rather than spreading vite.config.js: its include reaches
+// ../../tools/crawlers/**, outside the sandbox, and its tailwind plugin and
+// '@crawlers' alias are build concerns the mutation run does not need.
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-
-// Vitest config used only by the reports mutation run (stryker.reports.config.json).
-//
-// Standalone rather than spreading vite.config.js, for the same reasons as
-// vitest.stryker.hooks.config.js: Stryker sandboxes app/ui alone, so the normal test
-// `include` reaching ../../tools/crawlers/** resolves nothing there and aborts the run
-// before a mutant is evaluated, and the tailwind plugin plus the '@crawlers' alias are
-// build concerns that buy the mutation run nothing.
-//
-// The mutated files are covered by exactly these test files: the list page's mount test,
-// the report tab's, the list renderer's, the form-map unit test, and the two download
-// units (the export transport and the shared browser-download helpers).
-// pageRegistry.test.jsx only builds the route element (it never mounts ReportsPage), so it
-// cannot be any mutant's killer here and is deliberately absent — every mutant pays for
-// every test listed.
 
 export default defineConfig({
   plugins: [react()],
