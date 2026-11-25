@@ -5,7 +5,7 @@
     Do not edit it by hand: CI fails when it differs from the ontology. How to change the model:
     [Maintaining the Core Ontology](../contributing/maintaining-the-ontology.md).
 
-Ontology `https://identityatlas.io/ontology`, version `2.6.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
+Ontology `https://identityatlas.io/ontology`, version `2.7.0`. Namespace `https://identityatlas.io/ontology#` (prefix `ia:`).
 Download the Turtle file for Protégé, a triple store or any RDF/OWL tool: [core.ttl](https://raw.githubusercontent.com/Fortigi/IdentityAtlas/main/ontology/core.ttl).
 
 A column is identified by the property of the same name: `Principals.accountEnabled` is
@@ -546,7 +546,7 @@ Edge: `principalId` or `identityId` → `resourceId`.
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `principalType` | `ia:principalType` | text |  | The kind of account. On Principals it selects the subclass; on ResourceAssignments it is a denormalised copy of the holder's type. |
 | `propagationScope` | `ia:propagationScope` | text | `self`, `descendants`, `selfAndDescendants` | Where along a containment hierarchy the assignment applies. |
-| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. Ingest alias: `resourceExternalId`. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: `resourceExternalId`. |
 | `resourceType` | `ia:resourceType` | text |  | The kind of resource (open vocabulary). On Resources it selects the subclass; on ResourceAssignments it is a denormalised copy used to partition reconciles. |
 | `state` | `ia:state` | text |  | The source system's state word for the assignment (for example Delivered). |
 | `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
@@ -586,6 +586,22 @@ Edge: `parentResourceId` → `childResourceId`.
 ## Knowledge tables
 
 What a source said about the graph, with provenance — not part of the graph, and never a way of holding access.
+
+### BusinessRoleCompositionReviews
+
+`ia:CompositionReview` · Knowledge table · One review of what a business role (resourceId, an ia:Resource of resourceType BusinessRole) contains: notes, a sign-off, or both — never neither — by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt), with a snapshot of the role as it was then: its type and ways in and out, its holder count, who answered for it, its policies with their rules and the resources it contained. Reviews are only added, never changed: the newest sign-off is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing.
+
+Identifier: `id` (uuid) — the instance IRI, not a property.
+
+| Column | Property | SQL type | Values / references | Description |
+|---|---|---|---|---|
+| `notes` | `ia:notes` | text |  | What the reviewer wrote. Empty only when the review is a sign-off. |
+| `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: `resourceExternalId`. |
+| `reviewedAt` | `ia:reviewedAt` | timestamp with time zone |  | When it was saved: the moment the snapshot shows. |
+| `reviewedBy` | `ia:reviewedBy` | text |  | The signed-in user who saved it (their sign-in name), never a value the request supplied; unknown while sign-in is off. |
+| `reviewedByName` | `ia:reviewedByName` | text |  | That user's display name when they saved it. |
+| `signedOff` | `ia:signedOff` | boolean |  | Whether the reviewer signed off what the role contained, as its snapshot shows. |
+| `snapshot` | `ia:snapshot` | jsonb |  | The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom}]. |
 
 ### ChangeRequests
 

@@ -3,6 +3,7 @@ import { useAuth } from '@ui/auth/AuthGate';
 import { useIsDark } from '@ui/contexts/ThemeContext';
 import { tagPillStyle } from '@ui/utils/colors';
 import useFeatures from '@ui/hooks/useFeatures';
+import { useFeatureFlags } from '@ui/contexts/FeaturesContext';
 import EntityDetailPage from './EntityDetailPage';
 import RiskScoreSection from './RiskScoreSection';
 import AccessPackageGovernance from './AccessPackageGovernance';
@@ -11,6 +12,8 @@ import BusinessRoleOverview from './businessRoles/BusinessRoleOverview';
 import BusinessRoleLifecycle from './businessRoles/BusinessRoleLifecycle';
 import BusinessRoleResources from './businessRoles/BusinessRoleResources';
 import BusinessRoleMembers from './businessRoles/BusinessRoleMembers';
+import BusinessRoleCompositionReview from './businessRoles/BusinessRoleCompositionReview';
+import { useIsSharedView } from '@ui/contexts/SharedViewContext';
 import WayChips from './businessRoles/WayChips';
 import { showsRequestsAndReviews } from './businessRoles/accessModel';
 import { buildAttributeEntries } from '@ui/utils/attributeEntries';
@@ -75,6 +78,8 @@ function AccessPackageHeader({ data }) {
 export default function AccessPackageDetailPage({ accessPackageId, cachedData, onCacheData, onClose, onOpenDetail }) {
   const { authFetch } = useAuth();
   const features = useFeatures();
+  const sharedView = useIsSharedView();
+  const compositionReview = useFeatureFlags().compositionReview === true;
   const [riskData, setRiskData] = useState(null);
 
   useEffect(() => {
@@ -91,6 +96,9 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
     return [
       { key: 'overview', label: 'Overview' },
       { key: 'lifecycle', label: 'Lifecycle' },
+      // Experimental (flag compositionReview). Not part of a shared or owner view
+      // (the owner scope does not read them).
+      compositionReview && !sharedView && { key: 'composition', label: 'Composition review' },
       { key: 'resources', label: 'Resources', count: data.groupCount ?? 0 },
       { key: 'members', label: 'People', count: data.assignmentCount ?? 0 },
       showsRequestsAndReviews(data) && { key: 'requests', label: 'Requests & reviews', count: data.pendingRequestCount || undefined },
@@ -100,11 +108,12 @@ export default function AccessPackageDetailPage({ accessPackageId, cachedData, o
       { key: 'diff', label: 'Diff' },
       hasRisk && { key: 'risk', label: 'Risk' },
     ];
-  }, [features, riskData]);
+  }, [features, riskData, sharedView, compositionReview]);
 
   const renderCustomTab = useCallback((key, data, openTab) => {
     if (key === 'overview') return <BusinessRoleOverview roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} onOpenTab={openTab} />;
     if (key === 'lifecycle') return <BusinessRoleLifecycle roleId={accessPackageId} data={data} onOpenDetail={onOpenDetail} />;
+    if (key === 'composition') return <BusinessRoleCompositionReview roleId={accessPackageId} onOpenTab={openTab} />;
     if (key === 'resources') return <BusinessRoleResources roleId={accessPackageId} onOpenDetail={onOpenDetail} />;
     if (key === 'members') return <BusinessRoleMembers roleId={accessPackageId} control={data.accessModel?.control} onOpenDetail={onOpenDetail} />;
     if (key === 'requests') return <AccessPackageGovernance accessPackageId={accessPackageId} authFetch={authFetch} showPolicies={false} />;

@@ -48,8 +48,8 @@
     a owl:Ontology ;
     dcterms:title "Identity Atlas core ontology"@en ;
     rdfs:comment "The built-in Identity Atlas graph model: systems, accounts (principals), resources, persons (identities) and contexts, and the edge tables that connect them. Describes what the PostgreSQL schema and the ingest API implement today."@en ;
-    owl:versionInfo "2.6.0" ;
-    owl:versionIRI <https://identityatlas.io/ontology/2.6.0> ;
+    owl:versionInfo "2.7.0" ;
+    owl:versionIRI <https://identityatlas.io/ontology/2.7.0> ;
     dcterms:license <https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE> .
 
 # jsonb columns use rdf:JSON (RDF 1.1 / JSON-LD 1.1). It is not in the OWL 2
@@ -1384,11 +1384,11 @@ ia:resourceCount a owl:DatatypeProperty ; ia:sqlType "integer" ;
     rdfs:label "resourceCount" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Stored count of resources in this context." .
 ia:resourceId a owl:ObjectProperty ; ia:sqlType "uuid" ;
-    rdfs:domain ia:ResourceAssignment ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ResourceAssignment ia:CompositionReview ) ] ;
     rdfs:range ia:Resource ;
     ia:ingestAlias "resourceExternalId" ;
     rdfs:label "resourceId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The resource that is held." .
+    rdfs:comment "The resource that is held. On a composition review: the business role that was reviewed." .
 ia:resourceType a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Resource ia:ResourceAssignment ) ] ;
     rdfs:range xsd:string ;
@@ -1812,3 +1812,45 @@ ia:closedReason a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:range xsd:string ;
     rdfs:label "closedReason" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Why it was closed, in one sentence." .
+
+# ─── Composition reviews ─────────────────────────────────────────────────────
+# Somebody looked at what a business role contains and said so: a note, a
+# sign-off, or both. Each review is its own record, linked to the role, at one
+# moment, with a picture of the role as it was then — so a later reader sees
+# what was reviewed, not what the role holds today.
+
+ia:CompositionReview a owl:Class ; rdfs:subClassOf ia:Knowledge ;
+    rdfs:label "Composition review" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "One review of what a business role (resourceId, an ia:Resource of resourceType BusinessRole) contains: notes, a sign-off, or both — never neither — by one signed-in person (reviewedBy, reviewedByName) at one moment (reviewedAt), with a snapshot of the role as it was then: its type and ways in and out, its holder count, who answered for it, its policies with their rules and the resources it contained. Reviews are only added, never changed: the newest sign-off is the role's current one, and what changed since is the difference between its snapshot and the role now. Deleted with the role. A review grants and removes nothing." ;
+    ia:table "BusinessRoleCompositionReviews" ; ia:identifierColumn "id" ; ia:identifierSqlType "uuid" .
+
+ia:notes a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:CompositionReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "notes" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "What the reviewer wrote. Empty only when the review is a sign-off." .
+ia:signedOff a owl:DatatypeProperty ; ia:sqlType "boolean" ;
+    rdfs:domain ia:CompositionReview ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "signedOff" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Whether the reviewer signed off what the role contained, as its snapshot shows." .
+ia:reviewedBy a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:CompositionReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "reviewedBy" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The signed-in user who saved it (their sign-in name), never a value the request supplied; unknown while sign-in is off." .
+ia:reviewedByName a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:CompositionReview ;
+    rdfs:range xsd:string ;
+    rdfs:label "reviewedByName" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "That user's display name when they saved it." .
+ia:reviewedAt a owl:DatatypeProperty ; ia:sqlType "timestamp with time zone" ;
+    rdfs:domain ia:CompositionReview ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "reviewedAt" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "When it was saved: the moment the snapshot shows." .
+ia:snapshot a owl:DatatypeProperty ; ia:sqlType "jsonb" ;
+    rdfs:domain ia:CompositionReview ;
+    rdfs:range rdf:JSON ;
+    rdfs:label "snapshot" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The role as it was reviewed, a versioned JSON object: role {displayName, description, catalogName, holderCount}, type {control, waysIn, waysOut, reviewGap}, resources [{id, displayName, resourceType, systemName, roleName}], policies [{id, displayName, waysIn, waysOut, targetRule, requiresApproval, expiration}], owners [{role, displayName, derivedFrom}]." .

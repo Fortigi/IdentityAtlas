@@ -1,0 +1,7 @@
+- Business roles have a Composition review tab: write notes about what the role contains and tick Signed off when you agree with it
+- Each review is kept as its own record with who saved it, when, and a snapshot of the role at that moment: its type, holders, Accountable and Responsible people, policies with their rules, and resources
+- Every review shows what was reviewed, exactly as it was; for the latest sign-off the tab says what changed since (resources added or removed, a different type, or a changed policy or rule)
+- Composition review is an experimental feature, off by default: switch it on under Admin → Experimental
+- Signing off needs the Certification decisions permission; with the new relative permission "Business-role owners may sign off a composition review" (Admin → Roles & Permissions) the role's own Accountable or Responsible can sign off too
+- Everyone who can read data sees the reviews
+- The core ontology describes the composition review (ia:CompositionReview, version 2.7.0)

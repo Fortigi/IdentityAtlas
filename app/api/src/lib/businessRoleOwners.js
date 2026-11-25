@@ -79,3 +79,34 @@ export async function isBusinessRole(resourceId) {
   const row = await db.queryOne(`SELECT id FROM "Resources" WHERE id = $1 AND "resourceType" = 'BusinessRole'`, [resourceId]);
   return !!row;
 }
+
+// The business roles a person answers for, through any of their accounts: a row
+// counts when it names their account, their person (Identity), or another account
+// linked to that person — the same reach as a context's roles
+// (auth/contextOwner.js findHeldContexts). Somebody both Accountable and
+// Responsible for one role is listed once, as Accountable.
+export const OWNED_ROLES_SQL = `
+    SELECT DISTINCT ON (r.id) r.id, r."displayName", o.role
+      FROM "BusinessRoleOwners" o
+      JOIN "Resources" r ON r.id = o."resourceId" AND r."resourceType" = 'BusinessRole' AND r."deletedAt" IS NULL
+     WHERE o."principalId" = $1::uuid
+        OR ($2::uuid IS NOT NULL AND (
+              o."identityId" = $2::uuid
+           OR o."principalId" IN (SELECT m."principalId" FROM "IdentityMembers" m WHERE m."identityId" = $2::uuid)))
+     ORDER BY r.id, (o.role = 'Accountable') DESC`;
+
+const byName = (a, b) => String(a.displayName ?? '').localeCompare(String(b.displayName ?? '')) || String(a.id).localeCompare(String(b.id));
+
+/** The roles the person behind `me` (auth/resolveMe.js) answers for, by name. Empty for nobody. */
+export async function findOwnedBusinessRoles(me) {
+  const principalId = me?.principal?.id;
+  if (!principalId) return [];
+  const r = await db.query(OWNED_ROLES_SQL, [principalId, me.identity?.id ?? null]);
+  return r.rows.sort(byName);
+}
+
+/** Does the person behind `me` answer for this role (Accountable or Responsible)? */
+export async function answersForBusinessRole(me, roleId) {
+  const want = String(roleId).toLowerCase();
+  return (await findOwnedBusinessRoles(me)).some(r => String(r.id).toLowerCase() === want);
+}

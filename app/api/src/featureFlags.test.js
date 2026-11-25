@@ -211,7 +211,7 @@ describe('readFeatures', () => {
     expect(Object.keys(payload).sort()).toEqual(Object.keys(FEATURE_FLAGS).sort());
     expect(payload).toEqual({
       riskScoring: false, accountLinking: true, experimentalCrawlers: true, matrixSharing: false,
-      customReports: false, contextAssistant: false, mcpServer: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false, orgKnowledge: false,
+      customReports: false, contextAssistant: false, mcpServer: false, sourceOwnerAccountables: true, sourceOwnerNameMatch: false, orgKnowledge: false, compositionReview: false,
     });
   });
 });
@@ -280,6 +280,7 @@ const ENV_DEFAULTS = {
   sourceOwnerAccountables: ['FEATURE_SOURCE_OWNER_ACCOUNTABLES', 'opt-out'],
   sourceOwnerNameMatch:    ['FEATURE_SOURCE_OWNER_NAME_MATCH', 'opt-in'],
   orgKnowledge:            ['FEATURE_ORG_KNOWLEDGE', 'opt-in'],
+  compositionReview:       ['FEATURE_COMPOSITION_REVIEW', 'opt-in'],
 };
 
 describe('every flag: env default and stored override', () => {

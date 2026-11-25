@@ -16,6 +16,9 @@
   "mutate": [
     "src/lib/businessRoleAccessModel.js",
     "src/lib/businessRoleReview.js",
+    "src/lib/businessRoleCompositionReview.js",
+    "src/lib/businessRoleSnapshot.js",
+    "src/routes/details/businessRoleCompositionReview.js",
     "src/lib/businessRoleOwners.js",
     "src/lib/businessRoleOwnerSuggestion.js",
     "src/lib/businessRolePeople.js",
@@ -30,6 +33,9 @@
   "tests": [
     "src/lib/businessRoleAccessModel.test.js",
     "src/lib/businessRoleReview.test.js",
+    "src/lib/businessRoleCompositionReview.test.js",
+    "src/lib/businessRoleSnapshot.test.js",
+    "src/routes/details/businessRoleCompositionReview.test.js",
     "src/lib/businessRoleOwners.test.js",
     "src/lib/businessRoleOwnerSuggestion.test.js",
     "src/lib/businessRolePeople.test.js",

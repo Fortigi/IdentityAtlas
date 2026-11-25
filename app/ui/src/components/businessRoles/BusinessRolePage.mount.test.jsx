@@ -53,6 +53,7 @@ function api({ body = role(), policies = [RULE_POLICY, REQUEST_POLICY], members 
     if (u === `${BASE}/assignments`) return members;
     if (u === `${BASE}/resource-roles`) return resources;
     if (u === `${BASE}/reviews` || u === `${BASE}/requests`) return [];
+    if (u === `${BASE}/composition-reviews`) return { reviews: [], current: { type: { control: 'Manual' }, resources: [{ id: 'g1' }, { id: 'g2' }] }, latestSignOff: null };
     if (u === BASE) return body;
     return undefined;
   });
@@ -66,9 +67,9 @@ const PARTICIPANTS = [
   { participation: 'Requestor', subjectType: 'Rule', rule: '(user.jobTitle -eq "x")' },
 ];
 
-function mountPage(opts, wrap = (el) => el) {
+function mountPage(opts, wrap = (el) => el, features = { compositionReview: true }) {
   const onOpenDetail = vi.fn();
-  renderWithProviders(wrap(h(AccessPackageDetailPage, { accessPackageId: ID, onClose: () => {}, onOpenDetail })), { auth: { authFetch: api(opts) } });
+  renderWithProviders(wrap(h(AccessPackageDetailPage, { accessPackageId: ID, onClose: () => {}, onOpenDetail })), { auth: { authFetch: api(opts) }, features });
   return { onOpenDetail, user: userEvent.setup() };
 }
 
@@ -141,6 +142,21 @@ describe('the business role page', () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'Overview' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Lifecycle' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
+  });
+
+  it('opens the composition review from its own tab, after Lifecycle', async () => {
+    const { user } = mountPage();
+    const tabs = (await screen.findAllByRole('tab')).map(t => t.textContent);
+    expect(tabs.indexOf('Composition review')).toBe(tabs.indexOf('Lifecycle') + 1);
+    await user.click(screen.getByRole('tab', { name: 'Composition review' }));
+    expect(await screen.findByText('Nobody has signed off what this role contains yet.')).toBeInTheDocument();
+  });
+
+  it('has no composition review while the experimental feature is off', async () => {
+    mountPage(undefined, undefined, {});
+    await screen.findByRole('tab', { name: 'Lifecycle' });
+    expect(screen.queryByRole('tab', { name: 'Composition review' })).toBeNull();
   });
 });
 

@@ -45,7 +45,7 @@ Permissions are grouped into **Read**, **Export**, **Write**, and **Admin**.
 | `data.write.contexts` | Build contexts | The context assistant (`/api/context-assistant/*`), and creating manual contexts and editing context members (`/api/contexts…` writes — also allowed with `admin.context-plugins`). Viewing contexts needs only Read data. |
 | `data.write.risk` | Risk score overrides | `PUT/DELETE /api/risk-scores/:type/:id/override` |
 | `data.write.identity` | Identity link decisions | `PUT/DELETE /api/identities/:id/members/:userId/override` (confirm / reject / clear an account-linking decision) |
-| `data.write.certifications` | Certification decisions | **Reserved** — no interactive endpoint yet. Certification decisions are currently ingested via the crawler (`POST /api/ingest/governance/certifications`). When an approve/revoke endpoint is added it will be gated by this permission. |
+| `data.write.certifications` | Certification decisions | Review and sign off what a business role contains, with notes (`POST /api/access-package/:id/composition-reviews`, the **Composition review** tab, experimental). A role's own Accountable or Responsible may do this without the permission while the relative permission **Business-role owners may sign off a composition review** is on. Certification decisions from the source are still ingested by the crawlers (`POST /api/ingest/governance/certifications`). |
 
 ### Admin
 

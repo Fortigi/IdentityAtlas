@@ -101,6 +101,16 @@ export const FEATURE_FLAGS = {
     key: 'ORG_KNOWLEDGE',
     envDefault: env => env.FEATURE_ORG_KNOWLEDGE === 'true',
   },
+  // Composition review: whoever answers for a business role (or holds the
+  // certification permission) signs off what the role contains, and the review
+  // keeps a snapshot of the role as it was (migration 116). New, so OFF by
+  // default. While off, the role page has no Composition review tab and both
+  // /api/access-package/{id}/composition-reviews endpoints answer 404. Reviews
+  // already saved are kept, not deleted.
+  compositionReview: {
+    key: 'COMPOSITION_REVIEW',
+    envDefault: env => env.FEATURE_COMPOSITION_REVIEW === 'true',
+  },
 };
 
 // Is organisation knowledge on? One name for the many places that ask.
