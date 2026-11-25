@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the PR integration and Playwright checks reporting "demo data loaded" when the demo-data job had failed or never finished. The step now fails with the job's status, so a broken demo load no longer shows up as unrelated test failures.
+
+## Changes in this PR
+
 - The Entra ID crawler now reads who answers for each access package catalog: a catalog with one owner shows that person as its Owner (Accountable); with several owners each owner is Responsible; access package managers and access package assignment managers are Responsible. Catalog readers are left out.
 - A catalog's page shows its Owner and Responsible people, and an analyst can set or change them like on an application. A choice made by an analyst survives the next crawl.
 - When an owner or manager is removed in Entra ID, the next full crawl removes that role in Identity Atlas too.
