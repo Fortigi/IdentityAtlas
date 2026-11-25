@@ -97,10 +97,11 @@ function Sync-EntraGovernanceCatalogs {
 # ─── Catalog roles → Accountable / Responsible ───────────────────
 # The built-in entitlement-management role definitions read here; their ids are
 # the same in every tenant. A catalog reader answers for nothing and is left out,
-# as are the access package assignment manager and the tenant-wide catalog creator.
+# as is the tenant-wide catalog creator.
 $script:EntraCatalogRoleDefinitions = [ordered]@{
     'ae79f266-94d4-4dab-b730-feca7e132178' = 'CatalogOwner'
     '7f480852-ebdc-47d4-87de-0d8498384a83' = 'AccessPackageManager'
+    'e2182095-804a-4656-ae11-64734e9b7ae5' = 'AccessPackageAssignmentManager'
 }
 
 # The catalog id a role assignment is scoped to ('/AccessPackageCatalog/<id>'),
@@ -115,7 +116,8 @@ function Get-EntraCatalogIdFromScope {
 # Role assignments -> ingest/context-roles records, per synced catalog:
 #   exactly one owner     -> that owner is Accountable
 #   more than one owner   -> every owner is Responsible
-#   access package manager -> Responsible (unless already named as an owner)
+#   access package manager and access package assignment manager -> Responsible
+#   (once each, and not when already named as an owner)
 # An owner that is a group, not an account, still counts as an owner (two owners
 # means nobody alone answers for the catalog); the ingest skips a holder that is
 # not an account.
@@ -137,8 +139,8 @@ function ConvertTo-EntraCatalogRoleRecords {
     return @($out)
 }
 
-# Files one role assignment under its catalog's owners or managers, once per
-# principal; an assignment for another scope, role or catalog is ignored.
+# Files one role assignment under its catalog's owners or managers (both kinds
+# of manager), once per principal; an assignment for another scope, role or catalog is ignored.
 function Add-EntraCatalogRoleHolder {
     [CmdletBinding()]
     param([System.Collections.IDictionary]$Index, $Assignment)

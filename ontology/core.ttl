@@ -880,7 +880,7 @@ ia:AccessPackageCatalogContext a owl:Class ; rdfs:subClassOf ia:CatalogContext ;
     ia:emittedBy "entra-id" ;
     ia:allowedTargetType ia:EntityKind_Resource ;
     rdfs:label "Access package catalog" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times. Its roles come from the catalog's role assignments: a single Catalog owner is the Accountable, several owners are each Responsible, and every Access package manager is Responsible." .
+    rdfs:comment "An Entra ID entitlement-management catalog, grouping its access packages (business roles). Synced, one per catalog; its id is the catalog's id. extendedAttributes holds catalogType, state, isExternallyVisible and the source's created/modified times. Its roles come from the catalog's role assignments: a single Catalog owner is the Accountable, several owners are each Responsible, and every Access package manager and Access package assignment manager is Responsible." .
 ia:TeamContext a owl:Class ; rdfs:subClassOf ia:OrganizationalUnit ; ia:typeValue "Team" ;
     ia:emittedBy "demo" ;
     ia:allowedTargetType ia:EntityKind_Principal, ia:EntityKind_Resource ;

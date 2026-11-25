@@ -27,6 +27,7 @@ BeforeAll {
 
     $script:OwnerRole   = 'ae79f266-94d4-4dab-b730-feca7e132178'
     $script:ManagerRole = '7f480852-ebdc-47d4-87de-0d8498384a83'
+    $script:AssignMgrRole = 'e2182095-804a-4656-ae11-64734e9b7ae5'
     $script:ReaderRole  = '44272f93-9762-48e8-af59-1b5351b1d6b3'
     $script:C1 = '11111111-1111-1111-1111-111111111111'
     $script:C2 = '2222abcd-2222-2222-2222-22222222beef'
@@ -185,8 +186,10 @@ Describe 'ConvertTo-EntraCatalogRoleRecords' {
             New-RoleAssignment $script:OwnerRole   $script:C2.ToUpper() 'u3' # case differs from the synced id
             New-RoleAssignment $script:OwnerRole   $script:C2 'u3'
             New-RoleAssignment $script:OwnerRole   $script:C2 'u4'
-            # C3: no owner, one manager.
+            # C3: no owner, one manager who is also an assignment manager, one assignment manager.
             New-RoleAssignment $script:ManagerRole $script:C3 'u5'
+            New-RoleAssignment $script:AssignMgrRole $script:C3 'u5'
+            New-RoleAssignment $script:AssignMgrRole $script:C3 'u8'
             # Not a synced catalog, a tenant-wide scope, no principal.
             New-RoleAssignment $script:OwnerRole   '99999999-9999-9999-9999-999999999999' 'u6'
             [pscustomobject]@{ roleDefinitionId = $script:OwnerRole; appScopeId = '/'; principalId = 'u7' }
@@ -206,12 +209,12 @@ Describe 'ConvertTo-EntraCatalogRoleRecords' {
         @($script:flat | Where-Object { $_ -like "$($script:C2)|*" }) | Should -Be @("$($script:C2)|Responsible|u3", "$($script:C2)|Responsible|u4")
     }
 
-    It 'gives a catalog without an owner its managers as Responsible' {
-        @($script:flat | Where-Object { $_ -like "$($script:C3)|*" }) | Should -Be @("$($script:C3)|Responsible|u5")
+    It 'gives a catalog without an owner its managers and assignment managers as Responsible, once each' {
+        @($script:flat | Where-Object { $_ -like "$($script:C3)|*" }) | Should -Be @("$($script:C3)|Responsible|u5", "$($script:C3)|Responsible|u8")
     }
 
     It 'leaves out readers, other catalogs, tenant-wide scopes and assignments without a principal' {
-        $script:recs.Count | Should -Be 5
+        $script:recs.Count | Should -Be 6
         $script:flat -join ' ' | Should -Not -Match 'u6|u7|u9'
     }
 
