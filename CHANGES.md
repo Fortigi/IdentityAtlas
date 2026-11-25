@@ -1,5 +1,13 @@
 ## Changes in this PR
 
+- Fixed: group-in-group nesting from Entra ID now appears as `Contains` resource relationships, so the ResourceRelationships tab of the Excel export (and the relationships API) lists Group→Group rows. The edges are refreshed on full runs.
+- Fixed: a group's detail page no longer counts or lists a parent group as one of its access packages.
+- The demo dataset's realism slice now includes the group-in-group relationships.
+- Fixed people never getting a manager unless the source system sent it for the person directly: a person now takes their manager from the managers of their linked accounts, for every source (CSV, SQL, Entra ID, custom connectors) and after every Account Linking run. On CSV and SQL datasets the Missing Managers report no longer lists everyone.
+- A manager the source sends for a person still always wins; when a person's accounts name different managers, the HR-authoritative account counts first, then the primary one, and when that still leaves it unclear the manager stays empty instead of being guessed. Links rejected by an analyst are ignored.
+
+## Changes in this PR
+
 - Fixed CSV full syncs keeping Eligible and Indirect assignments live forever after they were removed from Assignments.csv. They are now removed like vanished Direct assignments. The first full sync after upgrading removes any such assignments left behind by earlier runs, so a one-time drop in assignment counts is expected.
 
 ## Changes in this PR

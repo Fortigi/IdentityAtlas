@@ -1,3 +1,0 @@
-- Fixed: group-in-group nesting from Entra ID now appears as `Contains` resource relationships, so the ResourceRelationships tab of the Excel export (and the relationships API) lists Group→Group rows. The edges are refreshed on full runs.
-- Fixed: a group's detail page no longer counts or lists a parent group as one of its access packages.
-- The demo dataset's realism slice now includes the group-in-group relationships.
