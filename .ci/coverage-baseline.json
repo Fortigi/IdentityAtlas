@@ -166,6 +166,7 @@
     "app/api/src/ingest/crawlerPresence.js": 99,
     "app/api/src/ingest/deleteByKeys.js": 99,
     "app/api/src/ingest/engine.js": 96,
+    "app/api/src/ingest/identityManagers.js": 99,
     "app/api/src/ingest/initialLoad.js": 99,
     "app/api/src/ingest/managerLinks.js": 99,
     "app/api/src/ingest/normalization.js": 95,
