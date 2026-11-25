@@ -152,9 +152,12 @@ export function register(test, expect) {
         // And it is visible where someone reviewing B would look: B's own page
         // lists an Indirect Members branch, and opening it names u1. The label
         // is always drawn (count 0 or 1), so the proof is the user behind it.
+        // The page opens on Attributes; the member branches live on the
+        // Relationships tab's graph.
         await page.goto(`${BASE}/#group:${idB}`);
         await page.waitForLoadState('networkidle');
         await expect(page.getByText(res('B')).first()).toBeVisible({ timeout: 15000 });
+        await page.getByRole('tab', { name: /Relationships/i }).click();
         const indirectBranch = page.getByText('Indirect Members').first();
         await expect(indirectBranch).toBeVisible({ timeout: 15000 });
         await indirectBranch.click();

@@ -57,10 +57,15 @@ BeforeAll {
         param([string]$Resource, [string]$User, [string]$Type = 'Direct')
         @{ resourceExternalId = $Resource; principalExternalId = $User; assignmentType = $Type }
     }
-    # A graph loaded with edges and Direct holders in one call, as a run builds it.
+    # A graph loaded with edges and Direct holders in one call, as a run builds it
+    # — including the reconcile bound the run's stream hook reads before step 6's
+    # first row. It is an hour earlier than the clock the phase tests mock, so a
+    # phase that reads the clock again instead of using it cannot pass.
+    $script:FixtureBefore = '2026-11-24T09:00:00.0000000Z'
     function New-Fixture {
         param($Edges, $Assignments, [int]$SystemId = 2)
         $g = New-CsvNestingGraph
+        $g.Before = $script:FixtureBefore
         Add-CsvNestingEdges -Graph $g -Records $Edges
         Add-CsvNestingHolders -Graph $g -SystemId $SystemId -Records $Assignments
         return $g
@@ -277,9 +282,11 @@ Describe 'Sync-CsvNestedAccess' {
         $script:reconciled[0].Endpoint | Should -Be 'ingest/resource-assignments'
         $script:reconciled[0].SystemId | Should -Be 2
         $script:reconciled[0].Scope.assignmentType | Should -Be 'Indirect'
-        # Read AFTER step 6, so a user-supplied Indirect row written there is
-        # newer than the bound and survives (AC 8).
-        $script:reconciled[0].Before | Should -Be '2026-11-24T10:00:00.0000000Z'
+        # The bound read before step 6 wrote anything — not a clock read here,
+        # after it, which made every user-supplied Indirect row step 6 had just
+        # written look stale and reconciled it away (AC 8).
+        $script:reconciled[0].Before | Should -Be $script:FixtureBefore
+        Should -Invoke Get-CrawlerServerTime -Exactly 0
     }
 
     It 'still reconciles when the nesting is gone, so inherited rows do not linger (AC 7)' {
@@ -293,6 +300,7 @@ Describe 'Sync-CsvNestedAccess' {
 
     It 'reconciles a system named only by an edge as well as the ones assignments fed' {
         $script:CsvNesting = New-CsvNestingGraph
+        $script:CsvNesting.Before = $script:FixtureBefore
         Add-CsvNestingEdges -Graph $script:CsvNesting -Records @((New-Rel 'A' 'B' 'GrantsAccessTo' 7))
         Add-CsvNestingHolders -Graph $script:CsvNesting -SystemId 2 -Records @((New-Assign 'A' 'u1'))
         Sync-CsvNestedAccess
@@ -310,9 +318,43 @@ Describe 'Sync-CsvNestedAccess' {
         Should -Invoke Get-CrawlerServerTime -Exactly 0
     }
 
+    It 'does nothing without a bound — it never reconciles against a clock read after step 6' {
+        $script:CsvNesting = New-Fixture -Edges @((New-Rel 'A' 'B')) -Assignments @((New-Assign 'A' 'u1'))
+        $script:CsvNesting.Before = $null
+        Sync-CsvNestedAccess
+        $script:posted.Count     | Should -Be 0
+        $script:reconciled.Count | Should -Be 0
+        Should -Invoke Get-CrawlerServerTime -Exactly 0
+    }
+
     It 'does nothing when no run is in progress' {
         $script:CsvNesting = $null
         { Sync-CsvNestedAccess } | Should -Not -Throw
         $script:reconciled.Count | Should -Be 0
+    }
+}
+
+Describe 'Add-CsvNestingStreamBatch' {
+    BeforeEach {
+        $script:tick = 0
+        Mock Get-CrawlerServerTime { $script:tick++; "2026-11-24T10:00:0$($script:tick).0000000Z" }
+    }
+
+    It 'reads the reconcile bound on the first batch only, and still collects every batch' {
+        $script:CsvNesting = New-CsvNestingGraph
+        Add-CsvNestingEdges -Graph $script:CsvNesting -Records @((New-Rel 'A' 'B'))
+        Add-CsvNestingStreamBatch -SystemId 2 -Records @((New-Assign 'A' 'u1'))
+        Add-CsvNestingStreamBatch -SystemId 9 -Records @((New-Assign 'A' 'u4'))
+        # the FIRST reading: a later one would be newer than rows already sent
+        $script:CsvNesting.Before | Should -Be '2026-11-24T10:00:01.0000000Z'
+        Should -Invoke Get-CrawlerServerTime -Exactly 1
+        @($script:CsvNesting.Holders['A'] | Sort-Object) | Should -Be @('u1', 'u4')
+        @($script:CsvNesting.Systems | Sort-Object)      | Should -Be @(2, 9)
+    }
+
+    It 'does nothing, and reads no clock, when no run is in progress' {
+        $script:CsvNesting = $null
+        { Add-CsvNestingStreamBatch -SystemId 2 -Records @((New-Assign 'A' 'u1')) } | Should -Not -Throw
+        Should -Invoke Get-CrawlerServerTime -Exactly 0
     }
 }

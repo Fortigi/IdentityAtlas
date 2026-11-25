@@ -157,7 +157,9 @@ function Invoke-LoadTestIngest {
 
 # ─── 3. Verify stored counts ────────────────────────────────────
 # Distinct (resource, user, assignmentType) keys in the generated file: the
-# random generator repeats a few, and the ingest upsert collapses those.
+# random generator repeats a few, and the ingest upsert collapses those — plus
+# the Indirect rows the import derives from the file's GrantsAccessTo nesting
+# (#1684), which are stored like any other assignment.
 function Get-ExpectedAssignmentCount {
     param([string]$DataFolder)
     $keys = [System.Collections.Generic.HashSet[string]]::new()
@@ -167,7 +169,82 @@ function Get-ExpectedAssignmentCount {
         $p = $line.Split(';')
         [void]$keys.Add("$($p[0]);$($p[1]);$($p[2])")
     }
+    Add-ExpectedInheritedKey -DataFolder $DataFolder -Keys $keys
     return $keys.Count
+}
+
+# The inherited (Indirect) keys the import should derive, added to $Keys.
+# Worked out here from the files themselves, deliberately NOT by calling the
+# crawler's expansion: a count checked against the code under test can only
+# agree with it. The rule is the documented one (docs/architecture/
+# csv-import-schema.md): holding the parent of a GrantsAccessTo row grants the
+# child, at any depth; only Direct holders propagate; whoever holds the child
+# Direct gets no Indirect row for it.
+function Add-ExpectedInheritedKey {
+    param([string]$DataFolder, [System.Collections.Generic.HashSet[string]]$Keys)
+    $grantors = Get-LoadTestGrantor -DataFolder $DataFolder
+    if ($grantors.Count -eq 0) { return }
+    $direct = Get-LoadTestDirectHolder -DataFolder $DataFolder
+    $none = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($target in $grantors.Keys) {
+        # Assigned, not `$own = if (...)`: an if-expression enumerates a HashSet.
+        $own = $none
+        if ($direct.ContainsKey($target)) { $own = $direct[$target] }
+        foreach ($r in (Get-LoadTestGrantorClosure -Target $target -Grantors $grantors)) {
+            if (-not $direct.ContainsKey($r)) { continue }
+            $gained = [System.Collections.Generic.HashSet[string]]::new($direct[$r])
+            $gained.ExceptWith($own)
+            foreach ($u in $gained) { [void]$Keys.Add("$target;$u;Indirect") }
+        }
+    }
+}
+
+# The data rows of one generated file, split on its delimiter (header skipped).
+function Get-LoadTestDataRow {
+    param([string]$DataFolder, [string]$FileName)
+    $first = $true
+    foreach ($line in [System.IO.File]::ReadLines((Join-Path $DataFolder $FileName))) {
+        if ($first) { $first = $false; continue }
+        , $line.Split(';')
+    }
+}
+
+# child → the resources whose holders gain it, from the GrantsAccessTo rows.
+function Get-LoadTestGrantor {
+    param([string]$DataFolder)
+    $grantors = @{}
+    foreach ($p in (Get-LoadTestDataRow -DataFolder $DataFolder -FileName 'ResourceRelationships.csv')) {
+        if ($p[2] -cne 'GrantsAccessTo' -or $p[0] -ceq $p[1]) { continue }
+        if (-not $grantors.ContainsKey($p[1])) { $grantors[$p[1]] = [System.Collections.Generic.List[string]]::new() }
+        $grantors[$p[1]].Add($p[0])
+    }
+    return $grantors
+}
+
+# resource → its Direct holders (a blank type is Direct, as the crawler reads it).
+function Get-LoadTestDirectHolder {
+    param([string]$DataFolder)
+    $direct = @{}
+    foreach ($p in (Get-LoadTestDataRow -DataFolder $DataFolder -FileName 'Assignments.csv')) {
+        if ($p[2] -and $p[2] -cne 'Direct') { continue }
+        if (-not $direct.ContainsKey($p[0])) { $direct[$p[0]] = [System.Collections.Generic.HashSet[string]]::new() }
+        [void]$direct[$p[0]].Add($p[1])
+    }
+    return $direct
+}
+
+# Every resource whose holders gain $Target, at any depth — a breadth-first
+# climb with a visited set, so a cycle terminates.
+function Get-LoadTestGrantorClosure {
+    param([string]$Target, [hashtable]$Grantors)
+    $seen = [System.Collections.Generic.HashSet[string]]::new()
+    $todo = [System.Collections.Generic.Queue[string]]::new($Grantors[$Target])
+    while ($todo.Count -gt 0) {
+        $r = $todo.Dequeue()
+        if (-not $seen.Add($r)) { continue }
+        if ($Grantors.ContainsKey($r)) { foreach ($g in $Grantors[$r]) { $todo.Enqueue($g) } }
+    }
+    return , $seen
 }
 
 # Exact counts, not the dashboard's. /admin/dashboard-stats returns

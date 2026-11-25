@@ -363,6 +363,28 @@ Describe 'Sync-CsvAssignments' {
         @($script:CsvNesting.Systems)       | Should -Be @(2)
     }
 
+    # The step 6b reconcile shares the Indirect scope with the Indirect rows this
+    # file supplies, so its bound must be read before THIS stream writes a row —
+    # read after it, every supplied Indirect row looked stale and was removed.
+    # The clock answers a different value on each call, and the log interleaves
+    # clock reads with posts, so a bound read late (or read anew) fails here.
+    It 'reads the nesting reconcile bound once, before the first row is posted' {
+        $script:events = [System.Collections.Generic.List[string]]::new()
+        $script:tick = 0
+        Mock Get-CrawlerServerTime { $script:tick++; $t = "2026-09-25T10:00:0$($script:tick).000Z"; $script:events.Add("clock $t"); $t }
+        Mock Invoke-IngestAPI { $script:events.Add('post'); @{ inserted = @($Body.records).Count; updated = 0 } }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.Add('ResourceExternalId;UserExternalId;AssignmentType')
+        $lines.Add('B;u2;Indirect')
+        for ($i = 0; $i -lt 10000; $i++) { $lines.Add("r$i;u$i;Direct") }
+        Set-Csv 'Assignments.csv' $lines
+        $script:CsvNesting = New-CsvNestingGraph
+        Sync-CsvAssignments
+        $script:CsvNesting.Before | Should -Be '2026-09-25T10:00:02.000Z'
+        # stream bound, nesting bound, then the two batches — and no clock read after
+        @($script:events) | Should -Be @('clock 2026-09-25T10:00:01.000Z', 'clock 2026-09-25T10:00:02.000Z', 'post', 'post')
+    }
+
     It 'records the systems it fed even with no nesting, and holds nothing else' {
         Set-Csv 'Assignments.csv' @('ResourceExternalId;UserExternalId', 'r1;u1')
         $script:CsvNesting = New-CsvNestingGraph

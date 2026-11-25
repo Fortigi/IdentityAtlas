@@ -2,3 +2,4 @@
 - Inherited members are recomputed on every import: someone who holds a resource both directly and by inheritance is listed once (as `Direct`), eligible-only holders are not propagated, and cycles or diamonds in the nesting never double-count. Removing the nesting from the next import removes the inherited rows with it.
 - Works for any CSV source and any resource type (Active Directory and LDAP groups, SAP composite roles), not just groups — and costs nothing for an export that has no nesting rows.
 - Fixed: a relationship row removed from `ResourceRelationships.csv` could stay behind. Each relationship type is now reconciled on its own, so dropping a `GrantsAccessTo` row removes it instead of leaving it in place.
+- `Indirect` rows you list yourself in `Assignments.csv` are kept alongside the computed ones, and a row you drop from the file is now removed on the next import instead of staying behind.

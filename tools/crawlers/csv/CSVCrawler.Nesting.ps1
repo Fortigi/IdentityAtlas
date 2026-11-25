@@ -78,6 +78,9 @@ function New-CsvNestingGraph {
         # the systems the assignments phase fed; empty means it read nothing,
         # and nothing may then be reconciled away
         Systems = [System.Collections.Generic.HashSet[int]]::new()
+        # the API clock read before the assignments phase sent its first row —
+        # the bound of the Indirect reconcile (see Sync-CsvNestedAccess)
+        Before  = $null
     }
 }
 
@@ -139,10 +142,18 @@ function Add-CsvNestingHolders {
 # Takes the graph from the crawler's scope so the stream spec stays a plain
 # data table, and does nothing when no run is in progress — which is what keeps
 # every other phase, and every test that drives one, unchanged.
+#
+# The first call also reads the API clock into the graph. The hook runs on each
+# shaped batch BEFORE that batch is handed to its stream, so the first call is
+# earlier than any row step 6 writes: every Indirect row Assignments.csv still
+# declares is touched after this bound, and survives the step 6b reconcile.
 function Add-CsvNestingStreamBatch {
     [CmdletBinding()]
     param([int]$SystemId, $Records)
-    Add-CsvNestingHolders -Graph $script:CsvNesting -SystemId $SystemId -Records $Records
+    $graph = $script:CsvNesting
+    if (-not $graph) { return }
+    if (-not $graph.Before) { $graph.Before = Get-CrawlerServerTime }
+    Add-CsvNestingHolders -Graph $graph -SystemId $SystemId -Records $Records
 }
 
 # ─── The expansion ───────────────────────────────────────────────
@@ -209,27 +220,31 @@ function Send-CsvNestedAssignments {
 # ─── Step 6b: inherited access through nesting ───────────────────
 # Runs after Assignments.csv, because it is built from what that file declared.
 #
-# The reconcile is scoped to assignmentType='Indirect' and bounded by a server
-# clock read HERE, after step 6 — so a user-supplied Indirect row in
-# Assignments.csv was touched more recently than the bound and survives, while
-# a row inherited through nesting that has since been removed does not. It is
-# skipped when the assignments run fed no system at all (a missing, empty or
-# all-skipped Assignments.csv), the same fail-safe every other full sync in this
-# crawler has: a run that read nothing never deletes anything.
+# The reconcile is scoped to assignmentType='Indirect' and bounded by the server
+# clock read BEFORE step 6 wrote its first row (Add-CsvNestingStreamBatch). The
+# Indirect scope has two writers in one run — step 6, for the Indirect rows
+# Assignments.csv supplies, and this step, for the computed ones — so the bound
+# must precede both. Read here, after step 6, it made every supplied Indirect
+# row look stale and reconciled it away. Read before, a row either writer
+# touched this run survives, and one neither did (nesting removed, or a
+# supplied row dropped from the file) does not. It is skipped when the
+# assignments run fed no system at all (a missing, empty or all-skipped
+# Assignments.csv), the same fail-safe every other full sync in this crawler
+# has: a run that read nothing never deletes anything — nor when no bound was
+# read, which only a graph filled outside a run can be.
 function Sync-CsvNestedAccess {
     [CmdletBinding()]
     param()
     $graph = $script:CsvNesting
-    if (-not $graph -or $graph.Systems.Count -eq 0) { return }
+    if (-not $graph -or $graph.Systems.Count -eq 0 -or -not $graph.Before) { return }
     Write-Host "`n[$(Get-Date -Format 'HH:mm:ss')] Step 6b: Inherited access through nesting..." -ForegroundColor Cyan
     Update-CrawlerProgress -Step 'Expanding inherited access' -Pct 60
-    $before = Get-CrawlerServerTime
     $records = Get-CsvNestingAssignments -Graph $graph
     Write-Host "  $($records.Count) inherited assignment(s) across $($graph.Parents.Count) nested resource(s)" -ForegroundColor Gray
     $systems = Send-CsvNestedAssignments -Graph $graph -Records $records
     foreach ($sid in $systems) {
         Invoke-CrawlerReconcile -Endpoint 'ingest/resource-assignments' -SystemId $sid `
-            -Scope $script:CsvIndirectScope -Before $before | Out-Null
+            -Scope $script:CsvIndirectScope -Before $graph.Before | Out-Null
     }
     $script:CsvNesting = $null
     [System.GC]::Collect()

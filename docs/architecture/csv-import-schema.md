@@ -107,7 +107,8 @@ Details worth knowing:
 - Cycles (A grants B grants A) and diamonds terminate and are never double-counted.
 - The inherited rows are re-computed on every import and reconciled like any other
   assignment: drop the nesting row from the file and the inherited rows go with it.
-  `Indirect` rows listed in your own `Assignments.csv` survive untouched.
+  `Indirect` rows listed in your own `Assignments.csv` are kept for as long as the file lists them,
+  and removed like any other row once it no longer does.
 - **`Contains` is never expanded.** It also means a business role's resource grants
   (see the governance model), and `ResourceType` is free text, so the two uses cannot
   be told apart — use `GrantsAccessTo` for nesting.

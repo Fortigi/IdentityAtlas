@@ -349,10 +349,21 @@ function Get-NestingResourceId {
     return $row.id
 }
 
+# The rows of an endpoint that answers a JSON array, one pipeline item per row.
+# Invoke-RestMethod hands such an array on as ONE object, so @(Invoke-LocalApi …)
+# is a one-item array holding the whole list: a Where-Object over it then tests
+# the list's member-enumerated values ($_.deleted is every row's flag at once)
+# and keeps or drops every row together. That is how the holders check below
+# once read an empty list while the inherited row was there.
+function Get-LocalApiArray {
+    param([string]$Path)
+    Invoke-LocalApi -Path $Path | ForEach-Object { $_ }
+}
+
 # The current (not soft-deleted) holders of a resource as "<user>/<type>" strings.
 function Get-NestingHolders {
     param([string]$ResourceId)
-    , @(@(Invoke-LocalApi -Path "/resources/$ResourceId/assignments") |
+    , @(Get-LocalApiArray -Path "/resources/$ResourceId/assignments" |
         Where-Object { -not $_.deleted } |
         ForEach-Object { "$($_.principalDisplayName)/$($_.assignmentType)" } | Sort-Object)
 }
@@ -378,7 +389,7 @@ if (-not $ApiKey) {
             Write-Result 'CSV/NestedAccess/Inherited' $false "expected an Indirect row for u1 on B, got: $($holders -join ', ')"
         }
         # The nesting row itself loaded, under its own relationship type.
-        $parents = @(Invoke-LocalApi -Path "/resources/$idB/parent-resources")
+        $parents = @(Get-LocalApiArray -Path "/resources/$idB/parent-resources")
         if (@($parents | Where-Object { $_.relationshipType -eq 'GrantsAccessTo' }).Count -eq 1) {
             Write-Result 'CSV/NestedAccess/Relationship' $true 'the GrantsAccessTo row loaded'
         } else {
@@ -402,7 +413,7 @@ if (-not $ApiKey) {
         } else {
             Write-Result 'CSV/NestedAccess/SuppliedIndirect' $false "the supplied Indirect row for u2 was removed: $($holdersAfter -join ', ')"
         }
-        $parentsAfter = @(Invoke-LocalApi -Path "/resources/$idB/parent-resources")
+        $parentsAfter = @(Get-LocalApiArray -Path "/resources/$idB/parent-resources")
         if (@($parentsAfter | Where-Object { $_.relationshipType -eq 'GrantsAccessTo' }).Count -eq 0) {
             Write-Result 'CSV/NestedAccess/RelationshipReconciled' $true 'the GrantsAccessTo row was removed with the file row'
         } else {

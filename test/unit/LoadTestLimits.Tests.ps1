@@ -118,6 +118,52 @@ Describe 'Test-LoadAndBenchmark.ps1 limits' {
     }
 }
 
+Describe 'Test-LoadAndBenchmark.ps1 expected assignment count' {
+    BeforeAll {
+        . (Join-Path $script:repoRoot 'test' 'nightly' 'Test-LoadAndBenchmark.ps1')
+    }
+
+    # The stored count includes the Indirect rows the import derives from
+    # GrantsAccessTo nesting (#1684). Each row of the fixture fails a different
+    # wrong rule: the chain A→B→C one that stops after a hop; the cycle C→A one
+    # without a visited set (it hangs) or that gives u4 a row on C, which u4
+    # holds Direct; u2 (Indirect) and u3 (Eligible) one that seeds from every
+    # holder; D→E (Contains) one that expands every relationship type.
+    It 'adds the inherited keys the nesting implies, and nothing else' {
+        $dir = Join-Path $TestDrive 'nest'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Set-Content -Path (Join-Path $dir 'ResourceRelationships.csv') -Value @(
+            'ParentExternalId;ChildExternalId;RelationshipType;SystemName'
+            'A;B;GrantsAccessTo;System 1'
+            'B;C;GrantsAccessTo;System 2'
+            'C;A;GrantsAccessTo;System 1'
+            'D;E;Contains;System 1'
+        )
+        Set-Content -Path (Join-Path $dir 'Assignments.csv') -Value @(
+            'ResourceExternalId;UserExternalId;AssignmentType;SystemName'
+            'A;u1;Direct;System 1'
+            'A;u2;Indirect;System 1'
+            'A;u3;Eligible;System 1'
+            'C;u4;Direct;System 3'
+            'D;u5;Direct;System 1'
+            'A;u1;Direct;System 2'
+        )
+        $keys = [System.Collections.Generic.HashSet[string]]::new()
+        Add-ExpectedInheritedKey -DataFolder $dir -Keys $keys
+        @($keys | Sort-Object) | Should -Be @('A;u4;Indirect', 'B;u1;Indirect', 'B;u4;Indirect', 'C;u1;Indirect')
+        # five distinct file keys (A;u1 repeats) + the four inherited ones
+        Get-ExpectedAssignmentCount -DataFolder $dir | Should -Be 9
+    }
+
+    It 'adds nothing when the file has no GrantsAccessTo row' {
+        $dir = Join-Path $TestDrive 'flat'
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Set-Content -Path (Join-Path $dir 'ResourceRelationships.csv') -Value @('ParentExternalId;ChildExternalId;RelationshipType', 'A;B;Contains')
+        Set-Content -Path (Join-Path $dir 'Assignments.csv') -Value @('ResourceExternalId;UserExternalId;AssignmentType', 'A;u1;Direct')
+        Get-ExpectedAssignmentCount -DataFolder $dir | Should -Be 1
+    }
+}
+
 Describe 'test/benchmark/ci-baseline.json' {
     It 'has a p95 for every endpoint Run-Benchmark.ps1 measures' {
         # An endpoint without a baseline is never compared; this keeps a new one from

@@ -164,8 +164,12 @@ function New-ResourceRelationshipsFile {
         for ($c = 0; $c -lt $NestedChainCount; $c++) {
             # Each chain walks a contiguous block of resources: RES n grants
             # RES n+1 grants RES n+2 … so every holder of the first is an
-            # inherited holder of all the rest.
-            $base = 1 + ($c * $NestedChainDepth)
+            # inherited holder of all the rest. A chain of D edges spans D+1
+            # resources, so the stride is D+1: with a stride of D the last
+            # resource of one chain was the first of the next, and the 2,000
+            # chains fused into ONE chain 10,000 deep — a closure the import
+            # spent the whole job timeout expanding.
+            $base = 1 + ($c * ($NestedChainDepth + 1))
             if (($base + $NestedChainDepth) -gt $ResourceCount) { break }
             $sysIdx = $rng.Next(1, $SystemCount + 1)
             for ($d = 0; $d -lt $NestedChainDepth; $d++) {
