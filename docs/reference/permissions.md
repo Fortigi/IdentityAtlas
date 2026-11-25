@@ -72,7 +72,7 @@ A fresh install ships with this mapping (customisable in the Admin UI):
 
 ### No-role users fail closed
 
-A signed-in user whose roles resolve to **no** permissions is **denied everything**: every endpoint except `/api/auth-me` answers 403 with `code: "NO_ROLE"`, and the app shows a "no role" page. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw), and since November 2026 no "no roles → read everything" fallback either. The one way in without a role is [context-owner access](../admin/authentication.md#relative-permissions-letting-context-owners-in). `data.read` stays implicit: any caller who holds at least one permission reads.
+A signed-in user whose roles resolve to **no** permissions is **denied everything**: every endpoint except `/api/auth-me` answers 403 with `code: "NO_ROLE"`, and the app shows a "no role" page. There is deliberately no "no roles → full admin" fallback (that was a privilege-escalation flaw), and since November 2026 no "no roles → read everything" fallback either. The one way in without a role is [context-owner access](../admin/authentication.md#relative-permissions-letting-owners-in). `data.read` stays implicit: any caller who holds at least one permission reads.
 
 ### Getting the first admin in (bootstrap)
 
