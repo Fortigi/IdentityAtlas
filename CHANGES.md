@@ -1,5 +1,10 @@
 ## Changes in this PR
 
+- Fixed Omada full syncs keeping accounts of a type (external user, service account) live forever after the last account of that type was removed in Omada. They are now removed like any other vanished account.
+- Fixed SQL-connector syncs keeping rows live forever when a statement that reads its complete set starts returning no rows at all. Rows the source no longer holds are now removed. Statements that read only recent changes, and staged assignment loads, still leave existing rows alone.
+
+## Changes in this PR
+
 - Fixed the PR integration and Playwright checks reporting "demo data loaded" when the demo-data job had failed or never finished. The step now fails with the job's status, so a broken demo load no longer shows up as unrelated test failures.
 
 ## Changes in this PR
