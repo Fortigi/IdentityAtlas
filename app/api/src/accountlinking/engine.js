@@ -29,6 +29,7 @@
 
 import * as db from '../db/connection.js';
 import { enqueueRun } from '../contexts/plugins/runner.js';
+import { deriveIdentityManagers } from '../ingest/identityManagers.js';
 import { DEFAULT_RULES } from './defaultRules.js';
 import { effectiveLinkingRules } from './rulesMerge.js';
 import {
@@ -462,6 +463,10 @@ export async function runLinking(runId, configId = null) {
       if (outcome === 'created' && link.weakerLevelRival) linksRestored += 1;
     }
     const { created, updated, skipped } = counts;
+
+    // New links can give a person their manager: the manager of the account just
+    // attached, or a manager whose own account was just attached (#1640).
+    await deriveIdentityManagers(db);
 
     await updateRun({ step: 'Refreshing identity aggregates', pct: 85 });
     // Per-identity rollup: confidence = best newly-linked account, signals =

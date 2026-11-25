@@ -74,6 +74,7 @@ vi.mock('../ingest/crawlerPresence.js', () => ({
 
 const { default: router, viewRefresh, ensureMatrixViewsPopulated } = await import('./ingest.js');
 const crawlerAuth = await import('../middleware/crawlerAuth.js');
+const { DERIVE_IDENTITY_MANAGERS_SQL } = await import('../ingest/identityManagers.js');
 const app = express().use(express.json()).use(router);
 
 beforeEach(() => {
@@ -242,6 +243,35 @@ describe('ingest handler — single batch', () => {
     mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
     await request(app).post('/ingest/principals').send(goodPrincipal);
     expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes('"managerId" = NULL'))).toBe(false);
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql) === DERIVE_IDENTITY_MANAGERS_SQL)).toBe(false);
+  });
+
+  // #1640: a person's manager follows from their accounts' managers, so the
+  // loads that can change that answer derive it again — and only those.
+  const derivations = () => mockQuery.mock.calls.filter(([sql]) => String(sql) === DERIVE_IDENTITY_MANAGERS_SQL).length;
+
+  it('derives person-level managers after an identity-members batch', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    const res = await request(app).post('/ingest/identity-members')
+      .send({ records: [{ identityId: UUID, principalId: UUID }], systemId: 1, syncMode: 'delta' });
+    expect(res.status).toBe(201);
+    expect(derivations()).toBe(1);
+  });
+
+  it('derives them after a principals batch that carries a manager', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    mockQuery.mockImplementation(async (sql) => (/information_schema\.columns/.test(String(sql))
+      ? { rows: [{ column_name: 'id' }, { column_name: 'display_name' }, { column_name: 'manager_id' }], rowCount: 0 }
+      : { rows: [], rowCount: 0 }));
+    await request(app).post('/ingest/principals').send(withManager);
+    expect(derivations()).toBe(1);
+  });
+
+  it('never derives them after a resources batch', async () => {
+    mockIngest.mockResolvedValue({ inserted: 1, updated: 0, deleted: 0 });
+    await request(app).post('/ingest/resources')
+      .send({ records: [{ displayName: 'G', resourceType: 'Group' }], systemId: 1, syncMode: 'full' });
+    expect(derivations()).toBe(0);
   });
 
   it('ingests a resources batch (governanceResource derivation path)', async () => {

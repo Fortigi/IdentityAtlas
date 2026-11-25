@@ -114,6 +114,19 @@ describe('runLinking — analyst-decision preservation', () => {
     expect(writes.some(sql => /INSERT\s+INTO\s+"IdentityMembers"/.test(sql))).toBe(true);
     expect(writes.some(sql => /UPDATE\s+"IdentityMembers"/.test(sql))).toBe(false);
   });
+
+  it('derives person-level managers once, after the links are written (#1640)', async () => {
+    const { DERIVE_IDENTITY_MANAGERS_SQL } = await import('../ingest/identityManagers.js');
+    const db = makeDb({ rejected: null, existing: null });
+    const { runLinking } = await loadEngine(db);
+
+    await runLinking(RUN_ID);
+
+    const sqls = db.query.mock.calls.map(c => c[0]);
+    const derive = sqls.indexOf(DERIVE_IDENTITY_MANAGERS_SQL);
+    expect(sqls.filter(s => s === DERIVE_IDENTITY_MANAGERS_SQL)).toHaveLength(1);
+    expect(derive).toBeGreaterThan(sqls.findIndex(s => /INSERT\s+INTO\s+"IdentityMembers"/.test(s)));
+  });
 });
 
 // ── loadRules / countOrphans ─────────────────────────────────────────────────

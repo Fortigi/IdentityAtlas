@@ -142,6 +142,7 @@ erDiagram
         uuid id PK
         string displayName
         uuid managerIdentityId FK
+        string managerIdentitySource "Source, Derived"
         uuid primaryPrincipalId FK
     }
     IdentityMembers {

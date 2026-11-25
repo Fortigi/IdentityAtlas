@@ -467,6 +467,16 @@ ia:AssignmentOrigin_Discovered a owl:NamedIndividual, ia:AssignmentOrigin ; ia:t
     rdfs:label "Discovered" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Found on the target system without a recorded reason." .
 
+ia:ManagerIdentitySource a owl:Class ;
+    rdfs:label "Manager source" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How a person's manager was set. A manager the source sent always wins over a derived one." .
+ia:ManagerIdentitySource_Source a owl:NamedIndividual, ia:ManagerIdentitySource ; ia:typeValue "Source" ;
+    rdfs:label "Source" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "The source sent the person-level manager itself." .
+ia:ManagerIdentitySource_Derived a owl:NamedIndividual, ia:ManagerIdentitySource ; ia:typeValue "Derived" ;
+    rdfs:label "Derived" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "Derived from the managers of the person's linked accounts." .
+
 ia:AssignmentEffect a owl:Class ;
     rdfs:label "Assignment effect" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "What an assignment does to effective access (read by the effective-access engine)." .
@@ -1269,6 +1279,12 @@ ia:managerIdentityId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     ia:ingestAlias "managerIdentityExternalId" ;
     rdfs:label "managerIdentityId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "The manager as a PERSON." .
+ia:managerIdentitySource a owl:DatatypeProperty ; ia:sqlType "text" ;
+    rdfs:domain ia:Identity ;
+    rdfs:range xsd:string ;
+    ia:valueScheme ia:ManagerIdentitySource ;
+    rdfs:label "managerIdentitySource" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
+    rdfs:comment "How managerIdentityId was set: sent by the source, or derived from the person's linked accounts. Set by the ingest, never sent." .
 ia:memberId a owl:ObjectProperty ; ia:sqlType "uuid" ;
     rdfs:domain [ a owl:Class ; owl:unionOf ( ia:ContextMember ia:MemberOverride ia:ChangeRequest ) ] ;
     rdfs:range [ a owl:Class ; owl:unionOf ( ia:Identity ia:Resource ia:Principal ia:System ) ] ;

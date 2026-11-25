@@ -243,6 +243,20 @@ function deriveContextCategory(normalized, coreSet) {
   if (category) normalized.contextCategory = category;
 }
 
+// A person's manager can be sent by the source or derived from their accounts
+// (ingest/identityManagers.js), and the derivation must never overwrite the
+// first. So whenever a record carries the person-level manager, the marker says
+// the source set it; when the source clears it, the marker clears too. Never
+// taken from the record: the marker is ours, not the sender's. Only "Identities"
+// has the column, so keying off coreSet keeps this out of Contexts, which has a
+// managerIdentityId of its own.
+function stampManagerIdentitySource(normalized, coreSet) {
+  if (!coreSet.has('managerIdentitySource')) return;
+  delete normalized.managerIdentitySource;
+  if (normalized.managerIdentityId === undefined) return;
+  normalized.managerIdentitySource = normalized.managerIdentityId ? 'Source' : null;
+}
+
 export function normalizeRecords(records, coreColumns, options = {}) {
   const { idGeneration = 'native', idPrefix = '', systemId, systemPrefix } = options;
   const coreSet = new Set(coreColumns);
@@ -260,6 +274,7 @@ export function normalizeRecords(records, coreColumns, options = {}) {
     }
 
     deriveContextCategory(normalized, coreSet);
+    stampManagerIdentitySource(normalized, coreSet);
     packExtendedAttributes(normalized, extended);
 
     return normalized;
