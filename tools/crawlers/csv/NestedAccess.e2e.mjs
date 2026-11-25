@@ -154,13 +154,21 @@ export function register(test, expect) {
         // is always drawn (count 0 or 1), so the proof is the user behind it.
         // The page opens on Attributes; the member branches live on the
         // Relationships tab's graph.
+        //
+        // The graph's active nodes pulse (SVG SMIL <animate>, endlessly), so a
+        // node never passes Playwright's "stable" check and a plain click()
+        // waits out the whole test timeout. Reduced motion drops the pulse, and
+        // the click is dispatched to the label, whose node group handles it.
+        // Every action carries its own timeout so a miss fails in seconds
+        // rather than eating the job's.
+        await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.goto(`${BASE}/#group:${idB}`);
         await page.waitForLoadState('networkidle');
         await expect(page.getByText(res('B')).first()).toBeVisible({ timeout: 15000 });
-        await page.getByRole('tab', { name: /Relationships/i }).click();
+        await page.getByRole('tab', { name: /Relationships/i }).click({ timeout: 15000 });
         const indirectBranch = page.getByText('Indirect Members').first();
         await expect(indirectBranch).toBeVisible({ timeout: 15000 });
-        await indirectBranch.click();
+        await indirectBranch.dispatchEvent('click', undefined, { timeout: 15000 });
         await expect(page.getByText(res('u1')).first()).toBeVisible({ timeout: 15000 });
 
         // ── Second import: the A → B nesting row is gone from the file. ─────

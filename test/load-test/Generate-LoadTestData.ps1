@@ -13,7 +13,7 @@
         - 15,000 contexts (departments)
         - 1,500,000 user/resource assignments
         - 100,000 resource relationships (parent/child role nesting), of which
-          2,000 chains of 5 GrantsAccessTo edges, so the import's nested-access
+          500 chains of 5 GrantsAccessTo edges, so the import's nested-access
           expansion is walked at depth (the other 90,000 are Contains)
         - 25,000 identities
         - ~76,000 identity members (95% of users linked to an identity)
@@ -51,7 +51,7 @@
 
 .PARAMETER NestedChainCount
     Number of deliberate GrantsAccessTo nesting chains, counted within
-    RelationshipCount. Default: 2000.
+    RelationshipCount. Default: 500.
 
 .PARAMETER NestedChainDepth
     Edges per nesting chain, i.e. how deep inherited access has to be walked.
@@ -85,7 +85,7 @@ Param(
     [int]$IdentityCount = 25000,
     [int]$AssignmentCount = 1500000,
     [int]$RelationshipCount = 100000,
-    [int]$NestedChainCount = 2000,
+    [int]$NestedChainCount = 500,
     [int]$NestedChainDepth = 5,
     [int]$CertificationCount = 300000,
     [double]$IdentityMemberRatio = 0.95,
