@@ -3,12 +3,18 @@
     Orchestrates a full CSV data sync via the Identity Atlas Ingest API.
 
 .DESCRIPTION
-    Reads CSV files in the Identity Atlas canonical schema and POSTs them to the
-    Ingest API. Files must follow the schema defined in tools/crawlers/csv/schema/.
+    Reads CSV files and POSTs them to the Ingest API. Files in the Identity Atlas
+    canonical schema (tools/crawlers/csv/schema/) load as they are.
 
-    Source-specific transformation (Omada → Identity Atlas, SAP → Identity Atlas)
-    happens BEFORE this script runs, via a separate transform script. This crawler
-    handles exactly one format — no column-name guessing or auto-detection.
+    A source with its own column names can instead be mapped onto that schema in
+    the wizard: the config then records, per uploaded file, which schema slot it
+    feeds, its delimiter and which of its columns stands for which schema field,
+    and this crawler applies that mapping at read time on every run
+    (CSVCrawler.Mapping.ps1). The files themselves are never rewritten. Nothing is
+    guessed here — the crawler applies only what the admin saw and saved.
+
+    A pre-import transform script (Omada → Identity Atlas, SAP → Identity Atlas)
+    remains fully supported for sources that need more than a column rename.
 
     See docs/architecture/csv-import-schema.md for the full specification.
 
@@ -52,6 +58,7 @@ $ApiBaseUrl = $ApiBaseUrl.TrimEnd('/')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngest.ps1')
 . (Join-Path $PSScriptRoot '..' 'shared' 'Invoke-CrawlerIngestStream.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Functions.ps1')
+. (Join-Path $PSScriptRoot 'CSVCrawler.Mapping.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Transform.ps1')
 . (Join-Path $PSScriptRoot 'CSVCrawler.Phases.ps1')
 
@@ -61,12 +68,17 @@ $CsvFolder  = $CsvCfg.csvFolder
 $SystemName = $CsvCfg.systemName
 $SystemType = $CsvCfg.systemType
 $Delimiter  = $CsvCfg.delimiter
+# The config's per-file section (which file feeds which schema slot, its own
+# delimiter, its column mapping). Empty for a config saved before mapping
+# existed, which reads the canonical file names exactly as before.
+$CsvFileSettings = $CsvCfg.files
 $RefreshViews = $true
 
 # ─── Main ─────────────────────────────────────────────────────────
 
 Write-Host "`n=== Identity Atlas CSV Crawler ===" -ForegroundColor Cyan
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Folder: $CsvFolder" -ForegroundColor Gray
+Write-CsvFileConfigWarning
 
 # Verify the API key and register the fallback system; seed the SystemName → id map.
 $fallbackSystemId = Register-CsvFallbackSystem

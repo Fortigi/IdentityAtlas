@@ -12,7 +12,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../middleware/auth.js';
 import multer from 'multer';
-import { mkdir, readdir, stat, unlink, rm } from 'fs/promises';
+import { mkdir, open, readdir, stat, unlink, rm } from 'fs/promises';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, basename } from 'path';
 import * as db from '../db/connection.js';
@@ -235,6 +235,47 @@ router.post(
     });
   }
 );
+
+// ─── The header line of a single uploaded file ───────────────────────────────
+// A wizard mapping a source's columns onto a schema needs that file's real
+// column names. For a file still staged in the browser it slices the first 64 KB
+// itself; a file already uploaded — or copied straight into the folder on the
+// server, which is the supported route for a multi-GB export — is not a File
+// object it can read, so re-mapping on edit had nothing to offer.
+//
+// Bounded the same way the browser bounds it: the first 64 KB are read and
+// everything up to the first newline is returned. Never the whole file, however
+// large it is. Same gate, same type check and same filename sanitization as the
+// sibling DELETE route — an admin reading one line of a file admins uploaded.
+const HEADER_READ_BYTES = 65536;
+
+router.get('/admin/crawler-configs/:configId/files/:filename/header', gate, async (req, res) => {
+  const configId = parseConfigId(req, res);
+  if (configId === null) return;
+  const crawlerType = await assertUploadableConfig(configId, res);
+  if (!crawlerType) return;
+
+  const safe = sanitizeFilename(req.params.filename);
+  if (!safe) return res.status(400).json({ error: 'Invalid filename' });
+
+  const path = join(configFolder(crawlerType, configId), safe);
+  if (!existsSync(path)) return res.status(404).json({ error: 'File not found' });
+
+  let handle;
+  try {
+    handle = await open(path, 'r');
+    const buffer = Buffer.alloc(HEADER_READ_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, HEADER_READ_BYTES, 0);
+    const text = buffer.subarray(0, bytesRead).toString('utf8');
+    const nl = text.search(/\r?\n/);
+    res.json({ name: safe, header: nl === -1 ? text : text.slice(0, nl) });
+  } catch (err) {
+    console.error('File header read failed:', err.message);
+    res.status(500).json({ error: 'Failed to read file header' });
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+});
 
 // ─── Delete a single uploaded file ───────────────────────────────────────────
 router.delete('/admin/crawler-configs/:configId/files/:filename', gate, async (req, res) => {

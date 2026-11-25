@@ -22,6 +22,7 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngest.ps1')
     . (Join-Path $script:repoRoot 'tools' 'crawlers' 'shared' 'Invoke-CrawlerIngestStream.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Functions.ps1')
+    . (Join-Path $script:csvDir 'CSVCrawler.Mapping.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Transform.ps1')
     . (Join-Path $script:csvDir 'CSVCrawler.Phases.ps1')
 
@@ -511,6 +512,40 @@ Describe 'Resolve-CsvConfig' {
         $c.systemName | Should -Be 'CSV Import'
         $c.systemType | Should -Be 'CSV'
         $c.delimiter  | Should -Be ';'
+        # A config saved before mapping existed: no source format, no per-file
+        # section, so every phase reads its canonical file exactly as before.
+        $c.sourceFormat | Should -Be 'identityatlas'
+        $c.files.Count  | Should -Be 0
+    }
+
+    It 'normalizes the legacy two-character \t delimiter a pre-fix wizard stored' {
+        # <option value="\t"> stored a backslash and a t, which Import-Csv
+        # -Delimiter cannot bind — every Tab-configured job failed. Such a config
+        # must start working without being re-saved.
+        $p = Join-Path $TestDrive 'cfg-tab.json'
+        '{ "delimiter": "\\t" }' | Set-Content -Path $p
+        $c = Resolve-CsvConfig -ConfigPath $p
+        $c.delimiter | Should -Be "`t"
+        $c.delimiter.Length | Should -Be 1
+    }
+
+    It 'reads the source format and the per-file mapping section' {
+        $p = Join-Path $TestDrive 'cfg-mapped.json'
+        @'
+{ "delimiter": ";", "sourceFormat": "custom",
+  "files": { "ad_people.csv": { "slot": "users", "delimiter": ",",
+             "columns": { "ExternalId": "samaccountname" } } } }
+'@ | Set-Content -Path $p
+        $c = Resolve-CsvConfig -ConfigPath $p
+        $c.sourceFormat | Should -Be 'custom'
+        $c.files['ad_people.csv']['slot'] | Should -Be 'users'
+        $c.files['ad_people.csv']['columns']['ExternalId'] | Should -Be 'samaccountname'
+    }
+
+    It 'ignores a files value that is not an object rather than failing the run' {
+        $p = Join-Path $TestDrive 'cfg-badfiles.json'
+        '{ "files": "nonsense" }' | Set-Content -Path $p
+        (Resolve-CsvConfig -ConfigPath $p).files.Count | Should -Be 0
     }
 
     It 'reads overrides from the config file' {
@@ -1099,5 +1134,160 @@ Describe 'CSV phases — a SystemName that Systems.csv did not declare is report
         Set-Csv 'Users.csv' $rows
         Sync-CsvUsers
         Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*13 row(s)*: S12 (2), S01 (1), S02 (1)*S09 (1), and 2 more' }
+    }
+}
+
+# ─── Column mapping applied by the phases ─────────────────────────
+# CSVCrawlerMapping.Tests.ps1 covers the mapping rules themselves. These assert
+# the PLUMBING: that each phase resolves its file through the config (so a file
+# that is not named after its slot is read at all), reads it with that file's own
+# delimiter, and validates the POST-mapping header.
+Describe 'Phases with a per-file column mapping' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Mock Send-GroupedBySystem $script:SendMock
+        $script:CsvFileSettings = @{}
+    }
+    AfterEach { $script:CsvFileSettings = @{} }
+
+    It 'reads a users export that is not named Users.csv, with its own delimiter' {
+        # Without the slot in the config the phase asks for Users.csv, which does
+        # not exist, and the whole export is silently skipped.
+        Remove-Csv 'Users.csv'
+        Set-Csv 'ad_people.csv' @(
+            'samaccountname,cn,mail,physicalDeliveryOfficeName'
+            'u1,Alice,alice@x.test,Utrecht'
+        )
+        $script:CsvFileSettings = @{ 'ad_people.csv' = @{
+            slot = 'users'; delimiter = ','
+            columns = @{ ExternalId = 'samaccountname'; DisplayName = 'cn'; Email = 'mail' }
+        } }
+        Sync-CsvUsers
+        $recs = Get-SentRecords 'ingest/principals'
+        $recs.Count | Should -Be 1
+        $recs[0].externalId  | Should -Be 'u1'
+        $recs[0].displayName | Should -Be 'Alice'
+        $recs[0].email       | Should -Be 'alice@x.test'
+        # The unmapped column rides the existing extras pass-through, under the
+        # name the SOURCE gave it — that is what makes it findable afterwards.
+        $recs[0]['physicalDeliveryOfficeName'] | Should -Be 'Utrecht'
+    }
+
+    It 'fails the job naming the schema column when the mapping leaves a required field unmapped' {
+        Set-Csv 'hr_people.csv' @('emp_no;full_name', '1;Alice')
+        $script:CsvFileSettings = @{ 'hr_people.csv' = @{
+            slot = 'users'; columns = @{ ExternalId = 'emp_no' }   # DisplayName never mapped
+        } }
+        { Sync-CsvUsers } | Should -Throw '*hr_people.csv schema mismatch: missing DisplayName*'
+    }
+
+    It 'does NOT falsely flag a mapped file whose mapping covers every required field' {
+        # The regression this guards: validating the RAW header would report
+        # ExternalId and DisplayName missing from every mapped file there is.
+        Set-Csv 'hr_people.csv' @('emp_no;full_name', '1;Alice')
+        $script:CsvFileSettings = @{ 'hr_people.csv' = @{
+            slot = 'users'; columns = @{ ExternalId = 'emp_no'; DisplayName = 'full_name' }
+        } }
+        { Sync-CsvUsers } | Should -Not -Throw
+        (Get-SentRecords 'ingest/principals')[0].displayName | Should -Be 'Alice'
+    }
+
+    It 'fails naming file and column when a mapped column is no longer in the file' {
+        Set-Csv 'hr_people.csv' @('employee_number;full_name', '1;Alice')
+        $script:CsvFileSettings = @{ 'hr_people.csv' = @{
+            slot = 'users'; columns = @{ ExternalId = 'emp_no'; DisplayName = 'full_name' }
+        } }
+        { Sync-CsvUsers } | Should -Throw '*hr_people.csv no longer has the mapped column(s): emp_no (mapped to ExternalId)*'
+    }
+
+    It 'maps a TAB-delimited resources export through the streamed fast path' {
+        Remove-Csv 'Resources.csv'
+        Set-Csv 'ad_groups.csv' @("group_dn`tgroup_name", "CN=Sales`tSales")
+        # The legacy two-character "\t" form a pre-fix config stored: it must be
+        # normalized, not handed to the parser as a backslash.
+        $script:CsvFileSettings = @{ 'ad_groups.csv' = @{
+            slot = 'resources'; delimiter = '\t'
+            columns = @{ ExternalId = 'group_dn'; DisplayName = 'group_name' }
+        } }
+        Use-StreamMocks
+        Sync-CsvResources
+        $recs = Get-SentRecords 'ingest/resources'
+        $recs.Count | Should -Be 1
+        $recs[0].externalId  | Should -Be 'CN=Sales'
+        $recs[0].displayName | Should -Be 'Sales'
+    }
+}
+
+Describe 'Sync-CsvAssignments with a multi-value split' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Update-CrawlerProgress { }
+        Use-StreamMocks
+        $script:CsvFileSettings = @{}
+    }
+    AfterEach { $script:CsvFileSettings = @{} }
+
+    It 'emits one assignment per value in a multi-value cell, skipping empties' {
+        Remove-Csv 'Assignments.csv'
+        Set-Csv 'ad_memberships.csv' @('group,members', 'g1,"user1;user2;;user3"', 'g2,user4')
+        $script:CsvFileSettings = @{ 'ad_memberships.csv' = @{
+            slot = 'assignments'; delimiter = ','
+            columns = @{ ResourceExternalId = 'group'; UserExternalId = 'members' }
+            split = @{ field = 'UserExternalId'; delimiter = ';' }
+        } }
+        Sync-CsvAssignments
+        $recs = Get-SentRecords 'ingest/resource-assignments'
+        @($recs | Where-Object { $_.resourceExternalId -eq 'g1' }).Count | Should -Be 3
+        @($recs | ForEach-Object { $_.principalExternalId }) | Should -Contain 'user3'
+        # The single-value row is untouched, and nothing was multiplied out.
+        $recs.Count | Should -Be 4
+    }
+
+    It 'fails naming the file when the config declares two splits' {
+        Remove-Csv 'Assignments.csv'
+        Set-Csv 'ad_memberships.csv' @('group;members', 'g1;user1')
+        $script:CsvFileSettings = @{ 'ad_memberships.csv' = @{
+            slot = 'assignments'
+            columns = @{ ResourceExternalId = 'group'; UserExternalId = 'members' }
+            split = @(
+                @{ field = 'UserExternalId'; delimiter = ';' }
+                @{ field = 'ResourceExternalId'; delimiter = ',' }
+            )
+        } }
+        { Sync-CsvAssignments } | Should -Throw '*ad_memberships.csv declares 2 multi-value splits*'
+    }
+
+    It 'still reconciles exactly the systems it fed, with the split applied' {
+        Remove-Csv 'Assignments.csv'
+        Set-Csv 'ad_memberships.csv' @('group;members', 'g1;user1,user2')
+        $script:CsvFileSettings = @{ 'ad_memberships.csv' = @{
+            slot = 'assignments'
+            columns = @{ ResourceExternalId = 'group'; UserExternalId = 'members' }
+            split = @{ field = 'UserExternalId'; delimiter = ',' }
+        } }
+        Sync-CsvAssignments
+        Should -Invoke Invoke-CrawlerReconcile -Exactly 1 -ParameterFilter { $Endpoint -eq 'ingest/resource-assignments' }
+    }
+}
+
+Describe 'Write-CsvFileConfigWarning' {
+    BeforeEach {
+        Reset-CsvTestState
+        Mock Write-Host { }
+        $script:CsvFileSettings = @{}
+    }
+    AfterEach { $script:CsvFileSettings = @{} }
+
+    It 'says nothing for a config with no per-file section' {
+        Write-CsvFileConfigWarning
+        Should -Invoke Write-Host -Exactly 0
+    }
+
+    It 'names a configured file that is not in the folder, and keeps going' {
+        Remove-Csv 'ghost.csv'
+        $script:CsvFileSettings = @{ 'ghost.csv' = @{ slot = 'users' } }
+        { Write-CsvFileConfigWarning } | Should -Not -Throw
+        Should -Invoke Write-Host -Exactly 1 -ParameterFilter { "$Object" -like '*not found*ghost.csv*' }
     }
 }
