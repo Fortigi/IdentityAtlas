@@ -1053,6 +1053,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-a-business-role-is-gained-and-lost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a business role is gained and lost
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ist-vs-soll-analysis" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6326,6 +6337,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-a-business-role-is-gained-and-lost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a business role is gained and lost
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#ist-vs-soll-analysis" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6754,6 +6776,65 @@ Brand new? Start at <a href="../../start/glossary/">The words you need first</a>
 </tbody>
 </table>
 <hr />
+<h2 id="how-a-business-role-is-gained-and-lost">How a business role is gained and lost<a class="headerlink" href="#how-a-business-role-is-gained-and-lost" title="Permanent link">&para;</a></h2>
+<p>A business role's assignment policies (<code>AssignmentPolicies</code>) say how a person comes to hold it and how they lose it. Identity Atlas derives both from the policies when it reads them; nothing extra is stored. A role can have several of each at once.</p>
+<table>
+<thead>
+<tr>
+<th>Ways in</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Rule</code></td>
+<td>A rule hands the role to everyone who matches it</td>
+</tr>
+<tr>
+<td><code>Request</code></td>
+<td>Someone can request the role, for themselves or for another person, with or without approval</td>
+</tr>
+<tr>
+<td><code>Assigned</code></td>
+<td>An administrator assigns the role directly</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Ways out</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Rule</code></td>
+<td>The role is removed when a person no longer matches a rule</td>
+</tr>
+<tr>
+<td><code>Review</code></td>
+<td>An access review can remove the role</td>
+</tr>
+<tr>
+<td><code>Expiry</code></td>
+<td>The assignment ends by itself after a date or a duration</td>
+</tr>
+<tr>
+<td><code>Manual</code></td>
+<td>Someone can request the role's removal</td>
+</tr>
+</tbody>
+</table>
+<p><code>Unknown</code> means the source does not say. A role whose policies state that nothing removes access has no way out at all.</p>
+<p>From these follows the role's <strong>type</strong>:</p>
+<ul>
+<li><strong>Rule based</strong> (<code>Automatic</code>): a rule alone hands the role out and a rule takes it away. Nobody decides who holds it, so its holders need no periodic review, only what it contains does.</li>
+<li><strong>Manual</strong>: anything else, including a rule that adds people but does not remove them. A person decides who holds it, so it needs a periodic review; a Manual role with no <code>Review</code> way out is flagged as a review gap.</li>
+<li><strong>Unknown</strong>: the source does not say how the role is gained.</li>
+</ul>
+<p>The same reasoning applies to one person's holding: someone a policy both adds and removes by rule is held automatically, everyone else is the part a review has to cover. The vocabularies are defined in the core ontology (<code>AccessWayIn</code>, <code>AccessWayOut</code>, <code>BusinessRoleControl</code>); the business roles list returns them as <code>accessModel</code> (see the <a href="../../api/governance/">Governance API</a>).</p>
+<hr />
 <h2 id="ist-vs-soll-analysis">IST vs SOLL Analysis<a class="headerlink" href="#ist-vs-soll-analysis" title="Permanent link">&para;</a></h2>
 <p>Identity Atlas uses IST/SOLL terminology to express the gap between actual access and governed access.</p>
 <p><strong>SOLL (should-be state)</strong>
@@ -6846,6 +6927,10 @@ Users who have direct membership to a group that is also granted by a business r
 <tr>
 <td>Access package catalogs</td>
 <td><code>Contexts</code> (<code>contextCategory = Catalog</code>, <code>contextType = AccessPackageCatalog</code>), the access packages as <code>ContextMembers</code></td>
+</tr>
+<tr>
+<td>Catalog owners and managers</td>
+<td><code>ContextRoles</code> on the catalog: a catalog's only owner is <code>Accountable</code>; with several owners each is <code>Responsible</code>, and every access package manager and access package assignment manager is <code>Responsible</code>. Catalog readers are left out</td>
 </tr>
 <tr>
 <td>Access packages</td>

@@ -6721,6 +6721,24 @@
 <td>0</td>
 <td>Pagination offset.</td>
 </tr>
+<tr>
+<td><code>sortCol</code></td>
+<td>string</td>
+<td><code>displayName</code></td>
+<td>One of <code>displayName</code>, <code>totalAssignments</code>, <code>userCount</code>, <code>resourceCount</code>, <code>category</code>, <code>catalog</code></td>
+</tr>
+<tr>
+<td><code>sortDir</code></td>
+<td>string</td>
+<td><code>asc</code></td>
+<td><code>asc</code> or <code>desc</code></td>
+</tr>
+<tr>
+<td><code>includeDeleted</code></td>
+<td>string</td>
+<td></td>
+<td><code>true</code> = also list business roles deleted in the source</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -6731,21 +6749,36 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Grants baseline access for Finance employees"</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cat-001"</span><span class="p">,</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">"catalogDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Corporate Catalog"</span><span class="p">,</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">"isHidden"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="nt">"categoryId"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">"categoryName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance"</span><span class="p">,</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">      </span><span class="nt">"categoryColor"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#3B82F6"</span><span class="p">,</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">"assignmentCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">48</span><span class="p">,</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">"hasReview"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">  </span><span class="p">],</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="nt">"total"</span><span class="p">:</span><span class="w"> </span><span class="mi">67</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">}</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">"deletedAt"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">"catalogName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Corporate Catalog"</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"c1a2b3c4-0000-0000-0000-000000000001"</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="nt">"totalAssignments"</span><span class="p">:</span><span class="w"> </span><span class="mi">48</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">      </span><span class="nt">"userCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">47</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">      </span><span class="nt">"resourceCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">      </span><span class="nt">"category"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance"</span><span class="p">,</span><span class="w"> </span><span class="nt">"color"</span><span class="p">:</span><span class="w"> </span><span class="s2">"#3B82F6"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">      </span><span class="nt">"assignmentType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Request-based"</span><span class="p">,</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">      </span><span class="nt">"accessModel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">        </span><span class="nt">"waysIn"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Request"</span><span class="p">],</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">        </span><span class="nt">"waysOut"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Review"</span><span class="p">,</span><span class="w"> </span><span class="s2">"Expiry"</span><span class="p">],</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">        </span><span class="nt">"control"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Manual"</span><span class="p">,</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">        </span><span class="nt">"reviewRequired"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">        </span><span class="nt">"reviewGap"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">      </span><span class="p">},</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">      </span><span class="nt">"lastReviewDate"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-01T00:00:00Z"</span><span class="p">,</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">      </span><span class="nt">"lastReviewedBy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Jane Doe"</span><span class="p">,</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">      </span><span class="nt">"complianceStatus"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Compliant"</span><span class="p">,</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">      </span><span class="nt">"reviewDeadline"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="w">      </span><span class="nt">"daysOverdue"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">      </span><span class="nt">"hasReviewConfigured"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">      </span><span class="nt">"reviewerInfo"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">      </span><span class="nt">"missedReviewsCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="w">  </span><span class="nt">"total"</span><span class="p">:</span><span class="w"> </span><span class="mi">67</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="p">}</span>
 </code></pre></div>
 <p><strong>Response Fields</strong></p>
 <table>
@@ -6758,33 +6791,48 @@
 </thead>
 <tbody>
 <tr>
-<td><code>isHidden</code></td>
-<td>boolean</td>
-<td>Whether the role is hidden in the Entra ID My Access portal</td>
+<td><code>catalogName</code> / <code>catalogId</code></td>
+<td>string / uuid</td>
+<td>The role portfolio holding the role: the name and id of its <code>Catalog</code> context (null if none). When a role sits in more than one, a synced one is picked first</td>
 </tr>
 <tr>
-<td><code>categoryId</code> / <code>categoryName</code></td>
-<td>int / string</td>
-<td>Assigned category (null if uncategorized)</td>
-</tr>
-<tr>
-<td><code>categoryColor</code></td>
-<td>string</td>
-<td>Hex color for the category indicator stripe (null if uncategorized)</td>
-</tr>
-<tr>
-<td><code>assignmentCount</code></td>
+<td><code>totalAssignments</code></td>
 <td>int</td>
-<td>Number of active governed assignments (<code>state='Delivered'</code>)</td>
+<td>Number of live governed assignments (<code>state='Delivered'</code> or no state)</td>
 </tr>
 <tr>
-<td><code>hasReview</code></td>
-<td>boolean</td>
-<td>Whether any certification decisions exist for this role</td>
+<td><code>userCount</code></td>
+<td>int</td>
+<td>Distinct live accounts holding the role, however they hold it</td>
+</tr>
+<tr>
+<td><code>resourceCount</code></td>
+<td>int</td>
+<td>Resources the role contains (<code>Contains</code>), excluding ones deleted in the source</td>
+</tr>
+<tr>
+<td><code>category</code></td>
+<td>object</td>
+<td>Assigned category <code>{ id, name, color }</code> (null if uncategorized)</td>
+</tr>
+<tr>
+<td><code>assignmentType</code></td>
+<td>string</td>
+<td>Summary of the role's assignment policies: <code>Auto-assigned</code>, <code>Request-based</code>, <code>Request-based with auto-removal</code> or <code>Both</code> (null without policies)</td>
+</tr>
+<tr>
+<td><code>accessModel</code></td>
+<td>object</td>
+<td>How the role is gained and lost, from its assignment policies. <code>waysIn</code> holds any of <code>Rule</code>, <code>Request</code>, <code>Assigned</code>; <code>waysOut</code> any of <code>Rule</code>, <code>Review</code>, <code>Expiry</code>, <code>Manual</code>. <code>Unknown</code> means the source does not say; an empty <code>waysOut</code> means the policies state nothing removes access. <code>control</code> is <code>Automatic</code> only when a rule alone hands the role out and a rule takes it away, otherwise <code>Manual</code> (or <code>Unknown</code>). A <code>Manual</code> role has <code>reviewRequired: true</code>, and <code>reviewGap: true</code> when no review takes it away</td>
+</tr>
+<tr>
+<td><code>complianceStatus</code></td>
+<td>string</td>
+<td>Status of the most recent review (null when there are no active assignments and the review would be Overdue / In Progress)</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Reads From:</strong> <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>) + <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code> + <code>ResourceAssignments</code> (<code>governed=true</code>)</p>
+<p><strong>Reads From:</strong> <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>) + <code>GovernanceCategoryAssignments</code> + <code>GovernanceCategories</code> + <code>ResourceAssignments</code> (<code>governed=true</code>) + <code>AssignmentPolicies</code> + <code>CertificationDecisions</code></p>
 <hr />
 <h2 id="review-compliance">Review Compliance<a class="headerlink" href="#review-compliance" title="Permanent link">&para;</a></h2>
 <p>These endpoints report on the state of certification reviews. Identity Atlas does not conduct reviews — decisions are made in the source IGA platform (e.g. Entra ID Access Reviews) and mirrored read-only into <code>CertificationDecisions</code> by the crawler. Both endpoints summarise, per access package, the <strong>most recent review instance</strong> only.</p>

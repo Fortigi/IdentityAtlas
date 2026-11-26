@@ -6667,23 +6667,30 @@
 <p><strong>Reads From:</strong> <code>vw_ResourceUserPermissionAssignments</code> materialized view → <code>Principals</code> + <code>Resources</code></p>
 <hr />
 <h3 id="get-apiaccess-package-groups">GET /api/access-package-groups<a class="headerlink" href="#get-apiaccess-package-groups" title="Permanent link">&para;</a></h3>
-<p>Business role → resource mappings used to build the business-role columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.</p>
+<p>Business role → resource mappings used to build the business-role columns in the Matrix. Returns a flat array with one row per (business role, contained resource) pair, together with catalog and category metadata. A business role that contains no resources gets one row with the resource fields <code>null</code>. Also served as <code>GET /api/access-package-resources</code>.</p>
 <p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">"accessPackages"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">"accessPackageId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">      </span><span class="nt">"accessPackageDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cat-001"</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">"catalogDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Corporate Catalog"</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">"groupId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">"groupDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SG-Finance-Base"</span><span class="p">,</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">"roleName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Member"</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">[</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">{</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">"accessPackageId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">"businessRoleId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">"accessPackageName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">"systemId"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="nt">"catalogName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Corporate Catalog"</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">"totalAssignments"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">"categoryId"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">"categoryName"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nt">"categoryColor"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">"groupId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="nt">"resourceName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SG-Finance-Base"</span><span class="p">,</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="nt">"groupName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"SG-Finance-Base"</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">"resourceType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Group"</span><span class="p">,</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="nt">"roleName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Member"</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="p">]</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>)</p>
+<p><code>catalogName</code> is the name of the role portfolio (a <code>Catalog</code> context) that holds the business role; when a role sits in more than one, a synced one is picked first. <code>groupId</code> / <code>groupName</code> repeat <code>resourceId</code> / <code>resourceName</code> for older callers. <code>totalAssignments</code> counts live governed assignments.</p>
+<p><strong>Reads From:</strong> <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>, via <code>ContextMembers</code>)</p>
 <hr />
 <h3 id="get-apimatrixcolumns">GET /api/matrix/columns<a class="headerlink" href="#get-apimatrixcolumns" title="Permanent link">&para;</a></h3>
 <p>Column discovery for the matrix wizard. Returns every filterable column of the requested entity, plus the scalar <code>extendedAttributes</code> keys as <code>ext.&lt;key&gt;</code> entries.</p>

@@ -7521,23 +7521,20 @@
 <p><strong>Reads From:</strong> <code>vw_ResourceUserPermissionAssignments</code> + <code>Resources</code></p>
 <hr />
 <h4 id="get-apiuseridaccess-packages">GET /api/user/:id/access-packages<a class="headerlink" href="#get-apiuseridaccess-packages" title="Permanent link">&para;</a></h4>
-<p>Business role (access package) assignments for a user. Only returns active governed assignments (<code>state='Delivered'</code>).</p>
+<p>Business role (access package) assignments for a user, returned as a plain array. Current roles come first; a role whose assignment or role was deleted in the source stays in the list as history, flagged <code>deleted</code> with its <code>deletedAt</code>.</p>
 <p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">      </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">"catalogDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Corporate Catalog"</span><span class="p">,</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">"assignmentStatus"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Delivered"</span><span class="p">,</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">      </span><span class="nt">"assignedDateTime"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-01-10T09:00:00Z"</span><span class="p">,</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="nt">"expirationDateTime"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">"policyId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pol-001"</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">[</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="p">{</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">"accessPackageName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">"state"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Delivered"</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nt">"expirationDateTime"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">"deleted"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="nt">"deletedAt"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">]</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceAssignments</code> (<code>governed=true</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>)</p>
+<p><strong>Reads From:</strong> <code>ResourceAssignments</code> + <code>Resources</code> (<code>governanceResource=true</code>)</p>
 <hr />
 <h4 id="get-apiuseridhistory">GET /api/user/:id/history<a class="headerlink" href="#get-apiuseridhistory" title="Permanent link">&para;</a></h4>
 <p>Version history for a user principal. Each entry represents a recorded change from the <code>_history</code> audit table, including the operation type and a JSONB snapshot of the row data.</p>
@@ -7684,18 +7681,18 @@
 <h4 id="get-apigroupidaccess-packages">GET /api/group/:id/access-packages<a class="headerlink" href="#get-apigroupidaccess-packages" title="Permanent link">&para;</a></h4>
 <p>Business roles that include this resource as a contained resource (i.e. granting membership or ownership of this group as part of a business role).</p>
 <p><strong>Response</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="p">{</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">      </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">      </span><span class="nt">"displayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="nt">"roleName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Member"</span><span class="p">,</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">      </span><span class="nt">"catalogDisplayName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Corporate Catalog"</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="p">]</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="p">}</span>
+<p>Returned as a plain array; a business role deleted in the source stays in the list after the current ones, flagged <code>deleted</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">[</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="p">{</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">"resourceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ap-001"</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">"accessPackageName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Finance Base Access"</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">"roleName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Member"</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">"deleted"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">"deletedAt"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="p">]</span>
 </code></pre></div>
-<p><strong>Reads From:</strong> <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>) + <code>Contexts</code> (<code>contextCategory='Catalog'</code>)</p>
+<p><strong>Reads From:</strong> <code>ResourceRelationships</code> (<code>relationshipType='Contains'</code>) + <code>Resources</code> (<code>resourceType='BusinessRole'</code>)</p>
 <hr />
 <h2 id="business-role-detail">Business Role Detail<a class="headerlink" href="#business-role-detail" title="Permanent link">&para;</a></h2>
 <h3 id="get-apiaccess-packageid">GET /api/access-package/:id<a class="headerlink" href="#get-apiaccess-packageid" title="Permanent link">&para;</a></h3>

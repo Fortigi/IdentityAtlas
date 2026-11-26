@@ -6544,38 +6544,18 @@ own context</strong> — nothing else. It is the same idea as
 <a href="../../ui/sharing-a-matrix/">sharing a matrix</a>, without a link: the owner simply
 opens Identity Atlas.</p>
 <h2 id="relative-permissions">Relative permissions<a class="headerlink" href="#relative-permissions" title="Permanent link">&para;</a></h2>
-<p>Context-owner access is one of two <strong>relative permissions</strong>: access somebody
-gets because of how they relate to the data, rather than because they hold an
-Identity Atlas role. Both are read-only and limited to the data the person
-relates to:</p>
-<table>
-<thead>
-<tr>
-<th>Kind</th>
-<th>Relation to the data</th>
-<th>Decided by</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Context owner</td>
-<td>Accountable or Responsible for a context or a business role</td>
-<td>The relative-permission grid below, then the <code>ContextRoles</code> / <code>BusinessRoleOwners</code> rows</td>
-</tr>
-<tr>
-<td>Matrix-share recipient</td>
-<td>A saved matrix was shared with them</td>
-<td>Whoever shares the matrix, per share (<a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>)</td>
-</tr>
-</tbody>
-</table>
-<p>The <strong>Roles &amp; Permissions</strong> admin tab groups them in a <strong>Relative permissions</strong>
-section below the role table. Matrix sharing has
-no setting there and its behaviour is unchanged. Today the two are enforced
-separately: a context owner by the allow-list and the tiers on this page (the
-MCP server reuses both — <a href="#the-mcp-server">The MCP server</a>), a share recipient
-by the share itself. Running matrix shares under the same data-level scope is a
-later, separate track (<a href="https://github.com/Fortigi/IdentityAtlas/issues/1105">#1105</a>).</p>
+<p>Context-owner access is a <strong>relative permission</strong>: access somebody gets
+because they are <strong>Accountable</strong> or <strong>Responsible</strong> for something, rather than
+because they hold an Identity Atlas role. It is read-only and limited to what
+they answer for; the one write is a business role's composition review (below).
+Who gets what is decided by the relative-permission grid
+(<a href="#turning-it-on">Turning it on</a>), then by the <code>ContextRoles</code> /
+<code>BusinessRoleOwners</code> rows. The allow-list and the tiers on this page enforce it,
+and the MCP server reuses both (<a href="#the-mcp-server">The MCP server</a>).</p>
+<p>The <strong>Roles &amp; Permissions</strong> admin tab shows the grid in a <strong>Relative
+permissions</strong> section below the role table. Matrix-share recipients are <strong>not</strong>
+a relative permission and have no setting there: someone a matrix is shared
+with needs a role to open it (<a href="../../ui/sharing-a-matrix/">Sharing a matrix</a>).</p>
 <h3 id="business-roles-they-answer-for">Business roles they answer for<a class="headerlink" href="#business-roles-they-answer-for" title="Permanent link">&para;</a></h3>
 <p>A person can also be <strong>Accountable</strong> or <strong>Responsible</strong> for business roles
 (<code>BusinessRoleOwners</code>, through their account, their person or another account
@@ -6649,16 +6629,18 @@ context role is refused, as anyone without a role is: the "no role" 403, or the
 <h2 id="their-scope">Their scope<a class="headerlink" href="#their-scope" title="Permanent link">&para;</a></h2>
 <p>The contexts an owner may open are:</p>
 <ol>
-<li><strong>the contexts they hold a role on</strong> — Accountable and Responsible count the
-   same;</li>
-<li><strong>all the sub-units below those</strong> (descendants through <code>parentContextId</code>, to
-   any depth) — <strong>also</strong> a sub-unit that has an Accountable or Responsible of
+<li><strong>the contexts they hold a role on</strong>, where the grid gives <strong>Sign in &amp; view</strong>
+   to that context's template for the role they hold (Accountable and
+   Responsible are separate rows, so one can be in while the other is not);</li>
+<li><strong>all the sub-units below those</strong>, where that row also has <strong>Sub-units</strong>
+   ticked (descendants through <code>parentContextId</code>, to any depth) — <strong>also</strong> a sub-unit that has an Accountable or Responsible of
    its own: accountability is hierarchical, whoever answers for a unit answers
    for everything below it. That sub-unit's owner, in turn, gets only their own
    subtree — nothing walks upward;</li>
 <li><strong>the variants of the contexts they hold</strong> (<code>SameUnitAs</code> — the same unit as
    people, accounts or resources). A sub-unit's variants are not added.</li>
 </ol>
+<p>With <strong>Sub-units</strong> ticked for Organisation, for both roles:</p>
 <table>
 <thead>
 <tr>
@@ -6696,7 +6678,8 @@ context role is refused, as anyone without a role is: the "no role" 403, or the
 </tbody>
 </table>
 <p>Bob, Responsible for Treasury, gets Treasury and Treasury ops — not Finance, not
-Accounts payable.</p>
+Accounts payable. Without <strong>Sub-units</strong> in their row, Ann gets only Finance and
+Bob only Treasury (each with its variants).</p>
 <p>The scope is computed on every request (<code>auth/contextOwner.js</code>
 <code>findOwnedSubUnits</code>, one recursive statement over the indexed <code>parentContextId</code>
 with a cycle guard — a top-level owner with thousands of units costs one round
@@ -6952,9 +6935,9 @@ from <code>app/api/src/auth/ownerAccess/index.js</code>:</p>
 <code>business-role</code>). <code>OPENABLE_SQL</code> is what the tier statements themselves are
 built from, so a query that embeds it agrees with <code>canOpen</code> by construction.</p>
 <h3 id="the-mcp-server">The MCP server<a class="headerlink" href="#the-mcp-server" title="Permanent link">&para;</a></h3>
-<p>With <strong>Context owners may also use the MCP server</strong> on, an owner can connect
+<p>Where the grid ticks <strong>MCP</strong> for the template and role they hold, an owner can connect
 Claude, ChatGPT or Copilot (<a href="../../reference/mcp-server/#context-owners">MCP server</a>)
-and gets exactly the scope on this page: every query the assistant runs is
+and gets the scope on this page for those contexts (their sub-units where <strong>Sub-units</strong> is ticked; business roles are not part of it): every query the assistant runs is
 compiled with <code>OPENABLE_SQL</code> on its own table, inside every relation and inside
 every relation column; name lookups and search are restricted the same way; a
 report runs only when this page's allow-list would let the owner download it.

@@ -7048,7 +7048,7 @@
 </tbody>
 </table>
 <h3 id="context-roles-and-context-links">Context Roles and Context Links<a class="headerlink" href="#context-roles-and-context-links" title="Permanent link">&para;</a></h3>
-<p>Who answers for a context, and which contexts are one unit, come in through two small endpoints of their own. They are <strong>additive</strong> — not part of the generic engine above: each record is inserted when it is new and skipped otherwise, nothing is updated or removed, so an analyst's roles and links survive every crawl. Rows land as <code>addedBy='sync'</code>. A crawler may only write to contexts its system owns (<code>Contexts.scopeSystemId</code> = the envelope's <code>systemId</code>).</p>
+<p>Who answers for a context, and which contexts are one unit, come in through two small endpoints of their own. They are <strong>additive</strong> by default — not part of the generic engine above: each record is inserted when it is new and skipped otherwise, nothing is updated or removed, so an analyst's roles and links survive every crawl. Rows land as <code>addedBy='sync'</code>. A crawler may only write to contexts its system owns (<code>Contexts.scopeSystemId</code> = the envelope's <code>systemId</code>).</p>
 <table>
 <thead>
 <tr>
@@ -7061,7 +7061,7 @@
 <tr>
 <td><code>POST /api/ingest/context-roles</code></td>
 <td><code>{ contextId, role: 'Accountable' \| 'Responsible', principalId \| identityId }</code></td>
-<td>the context is an OrganizationalUnit or LogicalApplication, the holder exists, and (for an Accountable) the context has none yet</td>
+<td>the context is an OrganizationalUnit, LogicalApplication or Catalog, the holder exists, and (for an Accountable) the context has none yet</td>
 </tr>
 <tr>
 <td><code>POST /api/ingest/context-relationships</code></td>
@@ -7071,6 +7071,7 @@
 </tbody>
 </table>
 <p>Envelope <code>{ systemId, records }</code> (at most 5,000 records); the response is <code>{ inserted, skipped }</code>. One malformed record fails the whole batch with <code>400</code>, before anything is written. The demo dataset uses both.</p>
+<p><code>context-roles</code> also takes a <strong>reconciling</strong> mode: add <code>syncMode: 'full'</code> and <code>scope: { contextType }</code> to the envelope. The source then states every role it knows for its synced contexts of that <code>contextType</code>, so a role it wrote before (<code>addedBy='sync'</code>) and no longer states is removed first, in the same transaction. Only the system's own synced contexts of that one type are touched, and only <code>sync</code> rows: an analyst's role, or an Accountable the owner reconcile wrote, always stays. The response adds <code>removed</code>: <code>{ inserted, skipped, removed }</code>. A full sync without <code>scope.contextType</code> is rejected with <code>400</code>. The Entra ID crawler uses it for its catalogs' owners and managers.</p>
 <h3 id="sync-modes">Sync Modes<a class="headerlink" href="#sync-modes" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
