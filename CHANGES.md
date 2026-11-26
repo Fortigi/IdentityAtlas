@@ -1,5 +1,9 @@
 ## Changes in this PR
 
+- Fixed the monthly security review stopping after a few minutes without a result: its review streams now finish before the review writes its findings, and a run that ends without findings says so plainly.
+
+## Changes in this PR
+
 - Fixed the composition review of a business role, which failed to load or save after catalogs became role portfolios: the review now shows the role portfolio the business role belongs to.
 
 ## Changes in this PR
