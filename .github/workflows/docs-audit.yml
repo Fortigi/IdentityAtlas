@@ -87,6 +87,12 @@ jobs:
       - name: Docs audit
         timeout-minutes: 210
         uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
+        env:
+          # Subagents run in the foreground, so the audit cannot end its turn
+          # while its review streams are still working. The first manual
+          # security review run (Nov 2026) stopped after 4 minutes without
+          # writing its findings, with its streams most likely still out.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # The job's own token: contents read, nothing else.
