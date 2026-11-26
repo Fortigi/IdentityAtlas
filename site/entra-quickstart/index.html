@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entra ID quickstart — Identity Atlas</title>
+  <meta name="description" content="Designing Entra ID Governance access packages? Identity Atlas shows which access a package already governs and which access was handed out by hand. Free, open source, self-hosted. Five steps from zero to insight, with links to every guide." />
+  <link rel="canonical" href="https://identityatlas.io/entra-quickstart/" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+
+  <!-- Social / Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://identityatlas.io/entra-quickstart/" />
+  <meta property="og:title" content="Entra ID quickstart — design access packages on facts, not guesswork" />
+  <meta property="og:description" content="Identity Atlas reads your tenant and shows who holds what — governed by an access package or handed out by hand. Deploy to Azure, connect Entra ID, build a matrix, share it. Free, open source, self-hosted." />
+  <meta property="og:image" content="https://identityatlas.io/assets/entra-quickstart-poster.jpg" />
+  <meta property="og:video" content="https://identityatlas.io/assets/entra-quickstart.mp4" />
+  <meta property="og:video:type" content="video/mp4" />
+  <meta property="og:video:width" content="1920" />
+  <meta property="og:video:height" content="1080" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Set theme before paint to avoid flash (shared with every page) -->
+  <script src="/assets/theme-init.js"></script>
+
+  <link rel="stylesheet" href="/assets/base.css" />
+  <link rel="stylesheet" href="/assets/site.css" />
+
+  <style>
+    /* Page-specific styles. Shared brand tokens, base reset, .wrap/.eyebrow and
+       buttons live in /assets/base.css; the nav, footer and icon buttons in
+       /assets/site.css (both linked above). This page keeps its nav short, so
+       the links stay visible on phones instead of folding into a menu. */
+    .nav-links { gap: 2px; }
+    @media (max-width: 720px) {
+      .nav-links { display: flex; }
+      .nav-links a.nlink { padding: 8px 9px; font-size: .88rem; }
+      .nav-links .wide-only { display: none; }
+    }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    .hero { padding: 84px 0 56px; }   /* backdrop glow comes from site.css */
+    .hero-inner { position: relative; z-index: 1; max-width: 820px; }
+    .hero h1 { font-size: clamp(2.3rem, 4.8vw, 3.6rem); font-weight: 800; }
+    .hero h1 .g { color: var(--brand); }
+    .hero .lede { margin-top: 22px; font-size: clamp(1.05rem, 1.8vw, 1.22rem); color: var(--fg-muted); max-width: 56ch; }
+    .hero-cta { margin-top: 30px; display: flex; gap: 14px; flex-wrap: wrap; }
+    .hero-note { margin-top: 22px; font-size: .9rem; color: var(--fg-subtle); display: flex; align-items: center; gap: 8px; }
+    .hero-note svg { width: 17px; height: 17px; color: var(--brand-solid); flex: none; }
+    .btn .play { width: 16px; height: 16px; flex: none; }
+
+    /* ── Video ─────────────────────────────────────────────── */
+    .watch { padding-top: 0; border-top: 0; }
+    .video-frame {
+      max-width: 1040px; margin: 0 auto; aspect-ratio: 16 / 9;
+      border-radius: var(--radius); overflow: hidden; background: var(--bg-elev);
+      border: 1px solid var(--border-strong); box-shadow: var(--shadow-lg);
+    }
+    .video-frame video { width: 100%; height: 100%; display: block; background: var(--bg-elev); }
+    .video-meta { margin-top: 16px; text-align: center; color: var(--fg-subtle); font-size: .9rem; }
+    .video-meta a { font-weight: 600; }
+
+    /* ── Sections ──────────────────────────────────────────── */
+    section.band { padding: 72px 0; border-top: 1px solid var(--border); }
+    .sec-head { max-width: 720px; margin-bottom: 40px; }
+    .sec-head h2 { font-size: clamp(1.8rem, 3.2vw, 2.4rem); font-weight: 780; margin-top: 14px; }
+    .sec-head p { margin-top: 16px; font-size: 1.08rem; color: var(--fg-muted); }
+    .grid { display: grid; gap: 20px; }
+    .g-3 { grid-template-columns: repeat(3, 1fr); }
+    .card {
+      background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 26px; box-shadow: var(--shadow);
+    }
+    .card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px; }
+    .card p { color: var(--fg-muted); font-size: .97rem; }
+    .card .ic {
+      width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 18px;
+      background: color-mix(in srgb, var(--lime-600) 16%, transparent); color: var(--brand);
+    }
+    .card .ic svg { width: 22px; height: 22px; }
+    .lens { display: inline-block; font-size: .78rem; font-weight: 700; padding: 2px 9px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--bg-soft); color: var(--fg); }
+    .lens.on { background: var(--blue-600); border-color: var(--blue-600); color: #fff; }
+
+    /* ── Steps ─────────────────────────────────────────────── */
+    .steps { display: grid; gap: 18px; counter-reset: step; }
+    .step {
+      display: grid; grid-template-columns: 64px 1fr; gap: 22px; align-items: start;
+      background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 28px; box-shadow: var(--shadow);
+    }
+    .step .n {
+      width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--brand-solid); color: #0d1117; font-weight: 800; font-size: 1.3rem;
+    }
+    .step h3 { font-size: 1.25rem; font-weight: 750; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .step h3 .time { font-size: .82rem; font-weight: 600; color: var(--fg-subtle); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+    .step p { color: var(--fg-muted); margin-top: 8px; }
+    .step ul { margin: 10px 0 0 18px; color: var(--fg-muted); }
+    .step li { margin: 4px 0; }
+    .step .links { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .step .links a {
+      display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; font-weight: 600;
+      padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg);
+    }
+    .step .links a:hover { border-color: var(--accent); color: var(--accent); }
+    .step .links a.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .step .links a.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+    .step code { font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace; font-size: .86rem; background: var(--bg-soft); padding: 2px 7px; border-radius: 6px; border: 1px solid var(--border); }
+    .prereq { margin-top: 28px; }
+    .prereq table { width: 100%; border-collapse: collapse; font-size: .95rem; margin-top: 10px; }
+    .prereq th, .prereq td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .prereq th { color: var(--fg-subtle); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* ── Share / QR ────────────────────────────────────────── */
+    .share { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 30px 34px; box-shadow: var(--shadow); }
+    .share h3 { font-size: 1.3rem; font-weight: 750; }
+    .share p { color: var(--fg-muted); margin-top: 8px; }
+    .share .url { font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace; font-size: 1.05rem; color: var(--accent); margin-top: 10px; font-weight: 600; }
+    .share img { width: 150px; height: 150px; background: #fff; padding: 8px; border-radius: 12px; border: 1px solid var(--border); }
+
+    .closer { text-align: center; margin-top: 48px; }
+    .closer .tagline { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 780; letter-spacing: -.02em; }
+    .closer .tagline .g { color: var(--brand); }
+
+    /* ── CTA band ──────────────────────────────────────────── */
+    .cta-band { text-align: center; padding: 72px 0; border-top: 1px solid var(--border); }
+    .cta-band h2 { font-size: clamp(1.8rem, 3.4vw, 2.5rem); font-weight: 800; }
+    .cta-band p { margin: 16px auto 0; max-width: 52ch; color: var(--fg-muted); font-size: 1.08rem; }
+    .cta-band .hero-cta { justify-content: center; }
+
+    /* ── Compact footer (one row) ──────────────────────────── */
+    footer.ft { padding: 36px 0 32px; }
+    .ft-row { display: flex; align-items: center; justify-content: space-between; gap: 18px 32px; flex-wrap: wrap; }
+    .ft-row .ft-links { display: flex; gap: 6px 18px; flex-wrap: wrap; }
+    .ft-row .ft-links a { color: var(--fg-muted); font-size: .93rem; }
+    .ft-row .ft-links a:hover { color: var(--accent); }
+    .ft-row .ft-bottom { margin-top: 0; padding-top: 0; border-top: 0; width: 100%; }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 960px) {
+      .g-3 { grid-template-columns: 1fr; }
+      .share { grid-template-columns: 1fr; }
+      .share img { justify-self: start; }
+    }
+    @media (max-width: 720px) {
+      .hero { padding: 56px 0 40px; }
+      section.band, .cta-band { padding: 56px 0; }
+      .step { grid-template-columns: 1fr; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav" id="nav">
+    <div class="wrap nav-inner">
+      <a class="skip" href="#main">Skip to content</a>
+      <a class="brand" href="/" aria-label="Identity Atlas home"><img src="/assets/mark.png" alt="" width="30" height="30" /><span>Identity<span class="b-atlas"> Atlas</span></span></a>
+      <button class="icon-btn" id="theme" aria-label="Toggle dark mode" title="Toggle theme" style="margin-left:auto">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <nav class="nav-links" aria-label="Primary" style="margin-left:0">
+        <a class="nlink wide-only" href="#steps">Five steps</a>
+        <a class="nlink" href="/">Home</a>
+        <a class="nlink" href="/demo/">Demo</a>
+        <a class="nlink" href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener">Docs ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="wrap hero-inner">
+        <span class="eyebrow">Entra ID quickstart · for Entra ID Governance admins</span>
+        <h1>Design access packages on <span class="g">facts</span>, not guesswork.</h1>
+        <p class="lede">
+          <strong>You've switched on Entra ID Governance.</strong> Access packages, policies, reviews — ready to go.
+          But which groups belong in which package, and who should get it? Identity Atlas reads your tenant and
+          shows who holds what: governed by a package, or handed out by hand. This page is the shortest route
+          from zero to that insight — about an afternoon, with a link to the guide for every step.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#steps">Start with the five steps</a>
+          <a class="btn btn-ghost" href="#watch">
+            <svg class="play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>
+            Watch the 90-second video
+          </a>
+        </div>
+        <p class="hero-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+          Free, open source (MIT) and self-hosted — it reads your tenant and never changes it.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── WATCH ─────────────────────────────────────────── -->
+    <section class="band watch" id="watch">
+      <div class="wrap">
+        <div class="video-frame">
+          <video controls preload="metadata" playsinline
+                 poster="/assets/entra-quickstart-poster.jpg" width="1920" height="1080"
+                 aria-label="Identity Atlas for Entra ID Governance — design access packages on facts, not guesswork">
+            <source src="/assets/entra-quickstart.mp4" type="video/mp4" />
+            Your browser can't play this video. <a href="/assets/entra-quickstart.mp4">Download it (MP4)</a>.
+          </video>
+        </div>
+        <p class="video-meta">
+          90 seconds · with sound · hosted here, no third-party player or tracking.
+          <a href="/assets/entra-quickstart.mp4" download="IdentityAtlas-EntraQuickstart.mp4">Download the MP4 ↓</a>
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── WHAT YOU GET ──────────────────────────────────── -->
+    <section class="band" id="what">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">What you get</span>
+          <h2>The insight Entra ID Governance doesn't give you.</h2>
+          <p>
+            Identity Atlas syncs users, groups, roles, apps and the access packages you already have into one model,
+            and shows them in an access matrix: people across, resources down, one cell per membership.
+            Two lenses on that matrix answer the access-package question directly.
+          </p>
+        </div>
+        <div class="grid g-3">
+          <div class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+            <h3>See what a package already governs</h3>
+            <p>Build a matrix for one department and switch to the <span class="lens on">Governed</span> lens. Every coloured cell is access an access package grants — the colour matches the package's column, so you see at a glance which package covers what.</p>
+          </div>
+          <div class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+            <h3>Find access handed out by hand</h3>
+            <p>Switch to <span class="lens">Non-governed</span> and what's left is every membership no package governs — the groups people were simply added to. That list is your next access package, with the people who should get it already in the columns.</p>
+          </div>
+          <div class="card">
+            <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <h3>Agree on the design before you build it</h3>
+            <p>Share the matrix with the resource owner or the team lead. They sign in with their Microsoft account — no Identity Atlas role needed — and see it read-only. Settle the design together, then create the package in Entra.</p>
+          </div>
+        </div>
+        <p style="margin-top:26px; color:var(--fg-muted);">
+          How the matrix reads, cell by cell:
+          <a href="https://fortigi.github.io/IdentityAtlas/stable/architecture/matrix/" target="_blank" rel="noopener"><strong>Reading the Matrix ↗</strong></a>
+          · how access packages are modelled:
+          <a href="https://fortigi.github.io/IdentityAtlas/stable/concepts/governance-model/" target="_blank" rel="noopener"><strong>Governance &amp; Business Roles ↗</strong></a>
+        </p>
+      </div>
+    </section>
+
+    <!-- ─── FIVE STEPS ────────────────────────────────────── -->
+    <section class="band" id="steps">
+      <div class="wrap">
+        <div class="sec-head">
+          <span class="eyebrow">From zero to insight</span>
+          <h2>Five steps. About an afternoon.</h2>
+          <p>Each step links to the guide that explains it in full. The times are what they take once your prerequisites are in place.</p>
+        </div>
+
+        <div class="steps">
+          <div class="step" id="step-1">
+            <div class="n" aria-hidden="true">1</div>
+            <div>
+              <h3>Deploy to Azure <span class="time">~15 min · one click</span></h3>
+              <p>
+                The Deploy to Azure button installs Identity Atlas into your own subscription with managed platform
+                services (App Service, PostgreSQL Flexible Server, Key Vault). The form only asks for a subscription,
+                a resource group, a region and a size — <code>xs</code> is the proof-of-concept size, from about €45 a month.
+                Entra sign-in is enforced from the first minute; nothing is reachable anonymously.
+              </p>
+              <ul>
+                <li>You need <strong>Owner</strong> on the subscription and <strong>Application Administrator</strong> in the directory (see the prerequisites in the walkthrough).</li>
+                <li>Prefer containers you run yourself? The Docker stack is the same product — see the Quick Start.</li>
+              </ul>
+              <div class="links">
+                <a class="primary" href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FFortigi%2FIdentityAtlas%2Fmain%2Fazure%2Fmain.json" target="_blank" rel="noopener noreferrer">Deploy to Azure ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/architecture/azure-deployment-walkthrough/" target="_blank" rel="noopener">Azure Deployment Walkthrough ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/architecture/azure-deployment/" target="_blank" rel="noopener">Azure Deployment Reference ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/quickstart/" target="_blank" rel="noopener">Docker Quick Start ↗</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="step" id="step-2">
+            <div class="n" aria-hidden="true">2</div>
+            <div>
+              <h3>Register the Entra app and switch on sign-in <span class="time">~5 min · portal</span></h3>
+              <p>
+                Create one App Registration in your tenant: the deployed URL as the SPA redirect URI, and one exposed API
+                scope named <code>access</code>. Paste the tenant ID and client ID into the Web App's environment variables
+                and it restarts with Entra SSO on. The "Entra ID setup required" page on your fresh deployment walks you
+                through exactly these clicks, and the Authentication guide covers roles and recovering from a lockout.
+              </p>
+              <div class="links">
+                <a class="primary" href="https://fortigi.github.io/IdentityAtlas/stable/admin/authentication/" target="_blank" rel="noopener">Authentication &amp; SSO ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/architecture/azure-deployment-walkthrough/#step-2-register-the-entra-app-5-min-portal" target="_blank" rel="noopener">Walkthrough · Step 2 ↗</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="step" id="step-3">
+            <div class="n" aria-hidden="true">3</div>
+            <div>
+              <h3>Add the Microsoft Graph crawler <span class="time">~10 min · then it syncs</span></h3>
+              <p>
+                In Identity Atlas go to <strong>Admin → Crawlers → Add Crawler</strong> and pick <strong>Microsoft Graph</strong>.
+                Give it a second App Registration (tenant ID, client ID, client secret) with application permissions to read
+                users, groups, directory roles, applications and entitlement management. The wizard validates the credentials
+                and shows which permissions are granted before you continue; tick <strong>Identity Governance</strong> so your
+                access packages, assignments and policies come along.
+              </p>
+              <div class="links">
+                <a class="primary" href="https://fortigi.github.io/IdentityAtlas/stable/sync/entra-id/" target="_blank" rel="noopener">Syncing from Entra ID ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/sync/entra-id/#required-graph-api-permissions" target="_blank" rel="noopener">Required Graph API permissions ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/sync/entra-id/#which-toggles-to-enable" target="_blank" rel="noopener">Which toggles to enable ↗</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="step" id="step-4">
+            <div class="n" aria-hidden="true">4</div>
+            <div>
+              <h3>Build your first matrix <span class="time">~5 min</span></h3>
+              <p>
+                Open <strong>Matrix → New matrix</strong>. Pick the people — one department is a good first scope — choose
+                <strong>Resources and business roles</strong> so each access package gets its own foldable row, and show it.
+                Then switch between <span class="lens on">Governed</span> and <span class="lens">Non-governed</span>.
+                The first 15 minutes guide takes you through reading one cell properly and comparing intent with reality.
+              </p>
+              <div class="links">
+                <a class="primary" href="https://fortigi.github.io/IdentityAtlas/stable/start/first-15-minutes/" target="_blank" rel="noopener">Your first 15 minutes ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/architecture/matrix/" target="_blank" rel="noopener">Reading the Matrix ↗</a>
+                <a href="https://fortigi.github.io/IdentityAtlas/stable/start/glossary/" target="_blank" rel="noopener">The words you need first ↗</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="step" id="step-5">
+            <div class="n" aria-hidden="true">5</div>
+            <div>
+              <h3>Share it <span class="time">~1 min</span></h3>
+              <p>
+                In the matrix wizard's <strong>Save &amp; share</strong> step, name the matrix and add the colleagues who should
+                see it. They open the link, sign in with their normal Microsoft account and see exactly this matrix, read-only —
+                no Identity Atlas role required. Use it to agree on the package with the resource owner, then build it in Entra.
+              </p>
+              <div class="links">
+                <a class="primary" href="https://fortigi.github.io/IdentityAtlas/stable/ui/sharing-a-matrix/" target="_blank" rel="noopener">Sharing a Matrix ↗</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card prereq">
+          <div class="kicker" style="color:var(--brand); font-weight:700; font-size:.85rem; letter-spacing:.03em; text-transform:uppercase; margin-bottom:8px;">Before you start</div>
+          <p style="color:var(--fg);">Two sets of permissions, both granted by your tenant admin:</p>
+          <table>
+            <thead><tr><th scope="col">For</th><th scope="col">You need</th><th scope="col">Why</th></tr></thead>
+            <tbody>
+              <tr><td>Step 1 — the subscription</td><td><code>Owner</code> (or <code>Contributor</code> plus Key Vault access-policy rights)</td><td>The template creates the web app, database, Key Vault and storage.</td></tr>
+              <tr><td>Steps 2 &amp; 3 — the directory</td><td><code>Application Administrator</code> (or <code>Cloud Application Administrator</code> + <code>Application Developer</code>)</td><td>Two App Registrations: one for sign-in, one for the crawler, with admin consent on the Graph permissions.</td></tr>
+            </tbody>
+          </table>
+          <p style="margin-top:12px; color:var(--fg-muted);">
+            Full list, including the Azure resource providers to register once per subscription:
+            <a href="https://fortigi.github.io/IdentityAtlas/stable/architecture/azure-deployment-walkthrough/#prerequisites" target="_blank" rel="noopener"><strong>Walkthrough · Prerequisites ↗</strong></a>
+          </p>
+        </div>
+
+        <div class="share" style="margin-top:28px;">
+          <div>
+            <h3>Send this page to a colleague</h3>
+            <p>Everything on it — the video, the five steps and the links — lives at one short address. Scan or type:</p>
+            <div class="url">identityatlas.io/entra-quickstart</div>
+          </div>
+          <img src="/assets/entra-quickstart-qr.svg" alt="QR code for identityatlas.io/entra-quickstart" width="150" height="150" />
+        </div>
+
+        <div class="closer">
+          <p class="tagline">Free · Open source · Self-hosted · <span class="g">Trust starts with clarity.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── CTA ───────────────────────────────────────────── -->
+    <section class="cta-band">
+      <div class="wrap">
+        <h2>Want to look around first?</h2>
+        <p>The hosted demo runs on a synthetic tenant — no login, nothing to install. Open the Matrix tab and try the Governed and Non-governed lenses on the demo data.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="/demo/">Try the live demo</a>
+          <a class="btn btn-ghost" href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener">Read the documentation ↗</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ─── FOOTER ────────────────────────────────────────── -->
+  <footer class="ft">
+    <div class="wrap ft-row">
+      <a class="brand" href="/" aria-label="Identity Atlas home"><img src="/assets/mark.png" alt="" width="34" height="34" /><span>Identity<span class="b-atlas"> Atlas</span></span></a>
+      <nav class="ft-links" aria-label="Footer">
+        <a href="https://fortigi.github.io/IdentityAtlas" target="_blank" rel="noopener">Documentation ↗</a>
+        <a href="https://fortigi.github.io/IdentityAtlas/stable/contributing/report-an-issue/" target="_blank" rel="noopener">Support ↗</a>
+        <a href="https://github.com/Fortigi/IdentityAtlas" target="_blank" rel="noopener">Source on GitHub ↗</a>
+        <a href="https://github.com/Fortigi/IdentityAtlas/blob/main/LICENSE" target="_blank" rel="noopener">MIT License ↗</a>
+      </nav>
+      <div class="ft-bottom">
+        <span>© <span id="year">2026</span> <a href="https://www.fortigi.nl" target="_blank" rel="noopener">Maatschap Fortigi</a> · Identity Atlas · MIT-licensed open source.</span>
+        <span class="badges"><span class="badge">Free</span><span class="badge">Open source</span><span class="badge">Self-hosted</span></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Theme toggle, nav shadow and footer year: shared -->
+  <script src="/assets/site.js"></script>
+</body>
+</html>
