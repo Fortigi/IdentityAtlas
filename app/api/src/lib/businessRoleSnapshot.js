@@ -19,14 +19,17 @@ import * as db from '../db/connection.js';
 import { ROLE_CONTROL_SQL, roleAccessModels, holderCountSql } from './businessRoleAccessModel.js';
 import { loadBusinessRoleOwners } from './businessRoleOwners.js';
 import { loadParticipants, withPolicyResponsible } from './businessRolePeople.js';
+import { catalogJoinSql } from './businessRoleCatalog.js';
 
 export const SNAPSHOT_VERSION = 1;
 
+// The role's catalog (role portfolio) is the Catalog context that holds it
+// (migration 117), read through the same join as every other screen.
 export const ROLE_SQL = `
     SELECT r."displayName", r.description, c."displayName" AS "catalogName",
            ${holderCountSql('r.id')} AS "holderCount"
       FROM "Resources" r
-      LEFT JOIN "GovernanceCatalogs" c ON c.id = r."catalogId"
+      ${catalogJoinSql('r.id')}
      WHERE r.id = $1`;
 
 // The live resources the role contains, as its Resources tab shows them: a

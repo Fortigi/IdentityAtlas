@@ -1,0 +1,1 @@
+- Fixed the composition review of a business role, which failed to load or save after catalogs became role portfolios: the review now shows the role portfolio the business role belongs to.
