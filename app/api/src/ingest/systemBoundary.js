@@ -28,9 +28,12 @@
 import * as db from '../db/connection.js';
 
 // Tables that carry no systemId column. A full-sync reconcile on one of them
-// cannot be bounded by the envelope systemId.
+// cannot be bounded by the envelope systemId. (Identities left this list with
+// migration 119, #1510: it has a systemId now, so a full identities sync is
+// bounded to the sender's own people like Principals are. For a restricted key
+// its ownership below stays the stricter "linked only to the caller's accounts".)
 export const NO_SYSTEM_COLUMN_TABLES = new Set([
-  'Identities', 'IdentityMembers', 'Contexts', 'ContextMembers', 'PrincipalActivity',
+  'IdentityMembers', 'Contexts', 'ContextMembers', 'PrincipalActivity',
 ]);
 
 // Columns the server (or an analyst) owns. A crawler record never writes them:

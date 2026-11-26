@@ -82,8 +82,11 @@ describe('unscopedFullSyncDenial', () => {
   });
 
   it('does not apply to a delta, or to a table the envelope systemId already bounds', () => {
-    expect(unscopedFullSyncDenial('Identities', 'delta', {})).toBeNull();
+    expect(unscopedFullSyncDenial('IdentityMembers', 'delta', {})).toBeNull();
     expect(unscopedFullSyncDenial('Principals', 'full', {})).toBeNull();
+    // Identities is bounded by its own systemId since migration 119 (#1510).
+    expect(NO_SYSTEM_COLUMN_TABLES.has('Identities')).toBe(false);
+    expect(unscopedFullSyncDenial('Identities', 'full', {})).toBeNull();
     expect(unscopedFullSyncDenial('Contexts', 'full', undefined)).toMatch(/needs a scope/);
   });
 });
@@ -199,7 +202,7 @@ describe('systemBoundaryDenial — order of checks', () => {
   });
 
   it('reports an unscoped full sync before the row lookup', async () => {
-    const err = await systemBoundaryDenial({ ...base, records: [{ id: 'i1' }], syncMode: 'full' });
+    const err = await systemBoundaryDenial({ ...base, tableName: 'PrincipalActivity', records: [{ id: 'i1' }], syncMode: 'full' });
     expect(err).toMatch(/needs a scope/);
     expect(query).not.toHaveBeenCalled();
   });

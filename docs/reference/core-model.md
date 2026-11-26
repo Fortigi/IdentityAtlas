@@ -286,6 +286,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 | `orphanStatus` | `ia:orphanStatus` | text |  | **Retired.** Orphan-ness is the generated Orphaned Accounts context now; the column is kept in the schema for compatibility. |
 | `primaryPrincipalId` | `ia:primaryPrincipalId` | uuid | → Principals | The person's primary account. |
 | `surname` | `ia:surname` | text |  | Surname. |
+| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
 
 ### Principals
 
@@ -332,7 +333,7 @@ Mapped onto this list from the source data or configuration by: `csv`, `custom-c
 | `riskScore` | `ia:riskScore` | integer |  | Latest risk score, denormalised from RiskScores. |
 | `riskTier` | `ia:riskTier` | text |  | Latest risk tier, denormalised from RiskScores. |
 | `surname` | `ia:surname` | text |  | Surname. |
-| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
+| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
 ### Resources
@@ -390,7 +391,7 @@ Other values arrive from the source data or configuration of: `csv`, `custom-con
 | `resourceType` | `ia:resourceType` | text | open vocabulary | The kind of resource (open vocabulary). On Resources it selects the subclass; on ResourceAssignments it is a denormalised copy used to partition reconciles. |
 | `riskScore` | `ia:riskScore` | integer |  | Latest risk score, denormalised from RiskScores. |
 | `riskTier` | `ia:riskTier` | text |  | Latest risk tier, denormalised from RiskScores. |
-| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
+| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
 | `targetNodeId` | `ia:targetNodeId` | text |  | Generated from extendedAttributes.targetNodeId: the node a capability resource applies to. |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 | `visibility` | `ia:visibility` | text |  | Visibility as the source reports it (Public / Private for groups). |
@@ -524,7 +525,7 @@ Edge: `principalId` → `relatedPrincipalId`.
 | `principalId` | `ia:principalId` | uuid | → Principals | The account. On ResourceAssignments NULL when identityId is set; on PrincipalRelationships the subject that HAS the owner / sponsor; on ContextInterviews the interviewee, on ContextClaims the account the claim is about. Ingest alias: `principalExternalId`, `userExternalId`. |
 | `relatedPrincipalId` | `ia:relatedPrincipalId` | uuid | → Principals | The owner / sponsor. Ingest alias: `relatedPrincipalExternalId`. |
 | `relationshipType` | `ia:relationshipType` | text | `Owner`, `Sponsor` | The relationship type: one of the ia:typeValue of the properties stored in this edge table. |
-| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
+| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
 ### ResourceAssignments
@@ -555,7 +556,7 @@ Edge: `principalId` or `identityId` → `resourceId`.
 | `resourceId` | `ia:resourceId` | uuid | → Resources | The resource that is held. On a composition review: the business role that was reviewed. Ingest alias: `resourceExternalId`. |
 | `resourceType` | `ia:resourceType` | text |  | The kind of resource (open vocabulary). On Resources it selects the subclass; on ResourceAssignments it is a denormalised copy used to partition reconciles. |
 | `state` | `ia:state` | text |  | The source system's state word for the assignment (for example Delivered). |
-| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
+| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
 ### ResourceRelationships
@@ -586,7 +587,7 @@ Edge: `parentResourceId` → `childResourceId`.
 | `relationshipType` | `ia:relationshipType` | text | `Contains`, `GrantsAccessTo`, `HasAppRole`, `DelegatesScope`, `HasApplicationPermission`, `HasOwnership`, `HasAppOwnership` | The relationship type: one of the ia:typeValue of the properties stored in this edge table. |
 | `roleName` | `ia:roleName` | text |  | The role the child plays inside the parent (for example the access-package resource role). |
 | `roleOriginSystem` | `ia:roleOriginSystem` | text |  | Where that role is defined. |
-| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. |
+| `systemId` | `ia:systemId` | integer | → Systems | The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking). |
 | `updatedAt` | `ia:updatedAt` | timestamp with time zone |  | When the row was last written by the ingest (full-sync reconcile cutoff). |
 
 ## Knowledge tables

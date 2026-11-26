@@ -1481,10 +1481,10 @@ ia:syncEnabled a owl:DatatypeProperty ; ia:sqlType "boolean" ;
     rdfs:label "syncEnabled" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Whether the system is synced." .
 ia:systemId a owl:ObjectProperty ; ia:sqlType "integer" ;
-    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:ResourceAssignment ia:ResourceRelationship ia:PrincipalRelationship ) ] ;
+    rdfs:domain [ a owl:Class ; owl:unionOf ( ia:Principal ia:Resource ia:ResourceAssignment ia:ResourceRelationship ia:PrincipalRelationship ia:Identity ) ] ;
     rdfs:range ia:System ;
     rdfs:label "systemId" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "The system that sourced the row." .
+    rdfs:comment "The system that sourced the row. On an Identity: the source that owns the person, which bounds its full-sync reconcile; empty while no sync has claimed it (uploads, account linking)." .
 ia:systemType a owl:DatatypeProperty ; ia:sqlType "text" ;
     rdfs:domain ia:System ;
     rdfs:range xsd:string ;

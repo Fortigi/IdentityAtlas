@@ -148,6 +148,7 @@ erDiagram
         uuid managerIdentityId FK
         string managerIdentitySource "Source, Derived"
         uuid primaryPrincipalId FK
+        int systemId FK
     }
     IdentityMembers {
         string displayName
@@ -233,6 +234,7 @@ erDiagram
     Systems |o--o{ Contexts : "scopeSystemId"
     Identities |o--o{ Identities : "managerIdentityId"
     Principals |o--o{ Identities : "primaryPrincipalId"
+    Systems |o--o{ Identities : "systemId"
     Identities |o--o{ IdentityMembers : "identityId"
     Principals |o--o{ IdentityMembers : "principalId"
     Principals |o--o{ PrincipalRelationships : "principalId"

@@ -355,10 +355,11 @@ export function reconcileBounds(tableName, systemId, scope, systemIdColumn, tabl
 // ownership predicate would reconcile the ENTIRE table against one batch — for
 // "Systems" that removes every other system and cascades through the whole
 // dataset (SEC-2026-09 C-01). The single exception is a table that has no systemId
-// column at all (Identities, IdentityMembers, PrincipalActivity) reconciled by an
+// column at all (IdentityMembers, PrincipalActivity) reconciled by an
 // unrestricted key without a system: the built-in worker's. (Contexts and
 // ContextMembers never get here with a system: reconcileBounds bounds them by
-// ownership. See SENDER_OWNED_TABLES.)
+// ownership. See SENDER_OWNED_TABLES. Identities was an exception too until
+// migration 119 gave it a systemId; it is now bounded to the sender — #1510.)
 // Pure.
 export function reconcileAllowed(tableName, clauses, restrictSystemIds) {
   if (clauses.length > 0) return true;
