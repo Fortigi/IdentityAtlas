@@ -1,5 +1,11 @@
 ## Changes in this PR
 
+- Fixed: a crawler's full identities sync no longer deletes people that came from somewhere else. Each identity now remembers which source sent it, and a full sync only removes that source's own people. Uploaded lists, CSV imports, demo data, account-linking results and other crawlers' identities survive, and so do the units and contexts they belong to.
+- Fixed: a CSV run with identities in more than one system no longer deletes its own earlier batches.
+- People that existed before this upgrade stay in place until their source sends them again, and a source then takes them over. Removing a system leaves its people in place, without an owner.
+
+## Changes in this PR
+
 - Fixed: group-in-group nesting from Entra ID now appears as `Contains` resource relationships, so the ResourceRelationships tab of the Excel export (and the relationships API) lists Group→Group rows. The edges are refreshed on full runs.
 - Fixed: a group's detail page no longer counts or lists a parent group as one of its access packages.
 - The demo dataset's realism slice now includes the group-in-group relationships.
