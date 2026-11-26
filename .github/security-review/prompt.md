@@ -40,6 +40,8 @@ The stack runs with authentication off, because a CI job cannot sign in to Entra
 4. Go through the ZAP and npm audit results. Report only what is real and applies to Identity Atlas; explain dismissed scanner results briefly in the coverage notes.
 5. Check every earlier Critical, High and Medium finding on `docs/security/*.md` for regression. A finding that is back is a new finding, and its description says which earlier one it repeats.
 
+**This run ends the moment you stop.** Nothing re-invokes you later, so a stream still running when you end your turn is lost, and so is the whole review. Run the streams in the foreground (never `run_in_background`), wait for every one of them to return, and only finish once `$REVIEW_OUT/findings.json` exists and validates. If time runs short, write what you have confirmed so far rather than nothing.
+
 ## Checklist
 
 Every item below must be considered. The coverage notes in your output summarise what was checked per OWASP Top 10 category.

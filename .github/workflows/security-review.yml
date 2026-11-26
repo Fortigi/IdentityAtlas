@@ -145,6 +145,10 @@ jobs:
         timeout-minutes: 300
         uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
         env:
+          # Subagents run in the foreground, so the review cannot end its turn while
+          # its streams are still working. The first manual run (2026-11-26) stopped
+          # after 18 turns and 4 minutes with no findings.json.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
           REVIEW_ID: ${{ steps.meta.outputs.review-id }}
           REVIEW_COMMIT: ${{ steps.meta.outputs.commit }}
           REVIEW_VERSION: ${{ steps.meta.outputs.version }}
@@ -166,8 +170,14 @@ jobs:
             REVIEW_INPUT=${{ env.REVIEW_INPUT }}
             REVIEW_OUT=${{ env.REVIEW_OUT }}
 
+      # A review that stopped early writes no file; say so plainly.
       - name: Validate the findings
-        run: node app/api/src/securityReview/cli.js validate "$REVIEW_OUT/findings.json"
+        run: |
+          if [ ! -s "$REVIEW_OUT/findings.json" ]; then
+            echo "::error::The review wrote no findings.json: it stopped before finishing (or the model call was refused). Nothing was reviewed this run."
+            exit 1
+          fi
+          node app/api/src/securityReview/cli.js validate "$REVIEW_OUT/findings.json"
 
       - name: Seal the findings
         env:
