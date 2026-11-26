@@ -143,7 +143,7 @@ jobs:
 
       - name: Security review
         timeout-minutes: 300
-        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
+        uses: anthropics/claude-code-action@acfe7992852970efb4fee683d63d628e3e52df67 # v1
         env:
           REVIEW_ID: ${{ steps.meta.outputs.review-id }}
           REVIEW_COMMIT: ${{ steps.meta.outputs.commit }}
@@ -223,7 +223,7 @@ jobs:
 
       - name: Mint the security-review App token
         id: app-token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ secrets.SECURITY_REVIEW_APP_ID }}
           private-key: ${{ secrets.SECURITY_REVIEW_APP_KEY }}
