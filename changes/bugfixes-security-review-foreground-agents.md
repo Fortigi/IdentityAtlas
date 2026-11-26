@@ -1,0 +1,1 @@
+- Fixed the monthly security review stopping after a few minutes without a result: its review streams now finish before the review writes its findings, and a run that ends without findings says so plainly.
