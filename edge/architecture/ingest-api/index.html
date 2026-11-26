@@ -3523,6 +3523,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#identities-owned-by-the-system-that-sent-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identities: owned by the system that sent them
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -6625,6 +6636,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#identities-owned-by-the-system-that-sent-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identities: owned by the system that sent them
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -7365,12 +7387,24 @@ through an unrestricted key reconciled both tables whole. One SQL Server load re
 source's 150 logical applications, and a routine refresh removed an analyst's tag
 membership, while every count check passed. <code>contextSyncScope.contract.test.js</code> pins the
 bound against real PostgreSQL.</p>
+<h4 id="identities-owned-by-the-system-that-sent-them">Identities: owned by the system that sent them<a class="headerlink" href="#identities-owned-by-the-system-that-sent-them" title="Permanent link">&para;</a></h4>
+<p><code>Identities</code> has a nullable <code>systemId</code> (migration 119). The ingest stamps the envelope
+<code>systemId</code> on every identity it writes, so a full sync of <code>identities</code> removes only the
+sending system's people. Identities from another source, and identities no sync has claimed
+(<code>systemId</code> empty: anything created before the upgrade, by an upload, or by account
+linking), are never removed by a crawler's reconcile. A source claims an existing identity
+the next time it sends it. Removing a system leaves its people in place, unclaimed.</p>
+<p>Before this column existed, a full identities sync compared the whole table against its
+batch: an Entra ID full sync deleted every uploaded, CSV or HR identity, and a CSV run with
+identities in two systems deleted its own first batch. <code>identitiesReconcileOwnership.integration.test.js</code>
+pins the bound against real PostgreSQL. <code>identity-members</code> and <code>principal-activity</code> still
+have no <code>systemId</code> of their own.</p>
 <h3 id="keys-restricted-to-specific-systems">Keys restricted to specific systems<a class="headerlink" href="#keys-restricted-to-specific-systems" title="Permanent link">&para;</a></h3>
 <p>A crawler key with <code>systemIds</code> set can only read and write data of those systems. On top of the envelope <code>systemId</code> check, every batch from such a key is refused (<code>403</code>) when:</p>
 <ul>
 <li>a record carries a <code>systemId</code> (or a context's <code>scopeSystemId</code>) outside the key's systems;</li>
-<li>the batch would update an existing row owned by another system — ownership is the row's <code>systemId</code>; for tables without one it is derived: a synced context's <code>scopeSystemId</code>, a context member's context, an identity member's or activity row's principal, and an identity's linked principals;</li>
-<li>it is a <code>full</code> sync of <code>identities</code>, <code>identity-members</code>, <code>contexts</code>, <code>context-members</code> or <code>principal-activity</code> without a <code>scope</code>.</li>
+<li>the batch would update an existing row owned by another system — ownership is the row's <code>systemId</code>; for tables without one it is derived: a synced context's <code>scopeSystemId</code>, a context member's context, an identity member's or activity row's principal. An identity is owned when it is linked only to principals of the key's systems;</li>
+<li>it is a <code>full</code> sync of <code>identity-members</code>, <code>contexts</code>, <code>context-members</code> or <code>principal-activity</code> without a <code>scope</code>. (A full sync of <code>identities</code> is allowed: it is bounded by its own <code>systemId</code> and by that ownership.)</li>
 </ul>
 <p><code>deletedIds</code>, <code>deletedKeys</code> and the full-sync reconcile only reach rows the key's systems own. Unrestricted keys (<code>systemIds</code> null, such as the built-in worker) are not subject to these checks. Columns the server or analysts own (<code>deletedAt</code>, <code>riskScore</code>, <code>riskTier</code>, <code>linkConfidence</code>, <code>analystOverride</code>, <code>createdAt</code>, <code>updatedAt</code> and similar) are never written from a crawler record; a field with such a name is kept in <code>extendedAttributes</code> like any other attribute.</p>
 <p>A key can hold at most 3 multi-batch sessions open at once, and the API at most 7 in total (<code>INGEST_MAX_SESSIONS_PER_CRAWLER</code>, <code>INGEST_MAX_SESSIONS_GLOBAL</code>); a <code>start</code> beyond that returns <code>429</code>. The built-in worker is only subject to the global limit. A record's <code>extendedAttributes</code> may hold at most 500 keys and 512 KB.</p>
