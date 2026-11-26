@@ -1,0 +1,186 @@
+# ─── Monthly docs audit ──────────────────────────────────────────────────────
+# Once a month, and on demand, a model reads all hand-written documentation
+# (docs/, README, the CLAUDE.md guides, the ontology) against the code on main
+# and lists where a reader would be misled. Every confirmed finding becomes a
+# GitHub issue. The checklist is .github/docs-review/prompt.md.
+#
+# Not the same job as docs-review.yml: that one runs nightly over the last 24
+# hours of commits and edits docs itself. This one reads everything, so it also
+# catches drift that no single day's diff showed, and it files issues instead of
+# editing, so a person decides what the page should say.
+#
+# Two jobs, split on purpose so the model never holds a credential that can
+# write anything:
+#
+#   review  The model. Read-only GITHUB_TOKEN; the only secret is the model token.
+#           Writes findings.json, which is validated before it leaves the job.
+#   file    No model. Validates the file again and opens an issue per new finding
+#           (app/api/src/docsReview/): labelled documentation + bug +
+#           ai-docs-review, parked with needs-vouch for the bug pipeline, at most
+#           25 per run. A fingerprint marker in each issue stops next month's run
+#           from filing a duplicate; an issue closed as "not planned" is never
+#           filed again.
+#
+# The findings artifact is public (public repository). That is fine: every
+# finding becomes a public issue anyway, and the prompt keeps security
+# weaknesses out of this audit.
+#
+# Repository variables (all optional):
+#   DOCS_AUDIT_MODEL      model id, default claude-fable-5
+#   DOCS_AUDIT_ASSIGNEES  comma-separated maintainers assigned every new issue
+#
+# Secrets: CLAUDE_CODE_OAUTH_TOKEN (repository secret, shared with the other
+# Claude workflows).
+#
+# Not on pull_request: it reviews main, it is not a gate.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Monthly docs audit
+
+on:
+  schedule:
+    - cron: '0 3 9 * *' # 03:00 UTC on the 9th: a week after the security review (the 2nd)
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Validate and print the plan, but open no issues'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-audit
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: 'Review: docs against the code'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    env:
+      REVIEW_OUT: /tmp/docs-audit/out
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          # The prompt asks for `git log --since=...` to find what moved recently.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Describe the review
+        id: meta
+        run: |
+          mkdir -p "$REVIEW_OUT"
+          {
+            echo "review-id=$(date -u +%Y-%m)"
+            echo "commit=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
+      - name: Docs audit
+        timeout-minutes: 210
+        uses: anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The job's own token: contents read, nothing else.
+          github_token: ${{ github.token }}
+          show_full_output: false
+          claude_args: >-
+            --model ${{ vars.DOCS_AUDIT_MODEL || 'claude-fable-5' }}
+            --fallback-model claude-opus-5
+            --allowedTools Read,Grep,Glob,Agent,Bash,Write
+          prompt: |
+            Read .github/docs-review/prompt.md and carry out the audit it describes, exactly as written.
+
+            REVIEW_ID=${{ steps.meta.outputs.review-id }}
+            REVIEW_COMMIT=${{ steps.meta.outputs.commit }}
+            REVIEW_OUT=${{ env.REVIEW_OUT }}
+
+      # A model call that was refused or ran out of time writes no file; without
+      # this the run would look like "the docs are fine".
+      - name: Validate the findings
+        run: |
+          if [ ! -s "$REVIEW_OUT/findings.json" ]; then
+            echo "::error::The audit wrote no findings.json — check CLAUDE_CODE_OAUTH_TOKEN and the model's entitlement. No docs were audited this run."
+            exit 1
+          fi
+          node app/api/src/docsReview/cli.js validate "$REVIEW_OUT/findings.json"
+
+      - name: Upload the findings
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: docs-audit-findings
+          path: ${{ env.REVIEW_OUT }}/findings.json
+          retention-days: 30
+          if-no-files-found: error
+
+  file:
+    name: 'File findings as issues'
+    needs: review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Download the findings
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-audit-findings
+          path: ${{ runner.temp }}/findings
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: '24'
+
+      - name: Make sure the label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create ai-docs-review --repo "$GITHUB_REPOSITORY" --color 0E8A16 --description "Filed by the monthly docs audit" --force
+
+      - name: File the findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCS_REVIEW_ASSIGNEES: ${{ vars.DOCS_AUDIT_ASSIGNEES || 'WimvandenHeijkant,TaekeK,robb536' }}
+          REVIEW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        run: |
+          # $DRY_RUN is unquoted on purpose: empty means no argument.
+          # shellcheck disable=SC2086
+          node app/api/src/docsReview/cli.js file "$RUNNER_TEMP/findings/findings.json" $DRY_RUN | tee "$RUNNER_TEMP/plan.txt"
+          {
+            echo "## Docs audit"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/plan.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  report-failure:
+    name: Report a failed run
+    needs: [review, file]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/scheduled_failure_issue.sh "${{ github.workflow }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

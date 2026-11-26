@@ -26,7 +26,8 @@ export const OWASP_TOP10 = {
 };
 
 const REVIEW_ID = /^\d{4}-(0[1-9]|1[0-2])$/;
-const FINGERPRINT = /^[a-z0-9][a-z0-9._:/-]{5,119}$/;
+// Also the docs audit's fingerprint shape (docsReview/findings.js).
+export const FINGERPRINT = /^[a-z0-9][a-z0-9._:/-]{5,119}$/;
 const COMMIT = /^[0-9a-f]{7,40}$/;
 const MAX_FINDINGS = 200;
 
