@@ -1,0 +1,3 @@
+- Fixed: forcing a full sync for a crawler's next run now actually takes effect. A crawler whose schedules each name their own mode (Delta or Full) — which is every crawler set up through the wizard — kept running a delta on the next scheduled run, and the setting stayed on forever. The next scheduled run is now a full one, from whichever schedule fires first.
+- A forced full run stays pending until a full run succeeds, so one that fails is retried on the next occurrence instead of being lost. Asking for a delta is still the default and never downgrades a schedule set to Full.
+- Documented how to force one full run outside its scheduled slot in [Schedule and run crawlers](docs/sync/scheduling.md).
