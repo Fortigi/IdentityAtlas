@@ -119,27 +119,24 @@ All resource memberships for a user, with membership type badges. Used by the Me
 
 #### GET /api/user/:id/access-packages
 
-Business role (access package) assignments for a user. Only returns active governed assignments (`state='Delivered'`).
+Business role (access package) assignments for a user, returned as a plain array. Current roles come first; a role whose assignment or role was deleted in the source stays in the list as history, flagged `deleted` with its `deletedAt`.
 
 **Response**
 
 ```json
-{
-  "data": [
-    {
-      "resourceId": "ap-001",
-      "displayName": "Finance Base Access",
-      "catalogDisplayName": "Corporate Catalog",
-      "assignmentStatus": "Delivered",
-      "assignedDateTime": "2026-01-10T09:00:00Z",
-      "expirationDateTime": null,
-      "policyId": "pol-001"
-    }
-  ]
-}
+[
+  {
+    "resourceId": "ap-001",
+    "accessPackageName": "Finance Base Access",
+    "state": "Delivered",
+    "expirationDateTime": null,
+    "deleted": false,
+    "deletedAt": null
+  }
+]
 ```
 
-**Reads From:** `ResourceAssignments` (`governed=true`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`)
+**Reads From:** `ResourceAssignments` + `Resources` (`governanceResource=true`)
 
 ---
 
@@ -269,20 +266,21 @@ Business roles that include this resource as a contained resource (i.e. granting
 
 **Response**
 
+Returned as a plain array; a business role deleted in the source stays in the list after the current ones, flagged `deleted`.
+
 ```json
-{
-  "data": [
-    {
-      "resourceId": "ap-001",
-      "displayName": "Finance Base Access",
-      "roleName": "Member",
-      "catalogDisplayName": "Corporate Catalog"
-    }
-  ]
-}
+[
+  {
+    "resourceId": "ap-001",
+    "accessPackageName": "Finance Base Access",
+    "roleName": "Member",
+    "deleted": false,
+    "deletedAt": null
+  }
+]
 ```
 
-**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`)
+**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`)
 
 ---
 

@@ -153,14 +153,16 @@ Response — `201 Created`:
 
 ### Context Roles and Context Links
 
-Who answers for a context, and which contexts are one unit, come in through two small endpoints of their own. They are **additive** — not part of the generic engine above: each record is inserted when it is new and skipped otherwise, nothing is updated or removed, so an analyst's roles and links survive every crawl. Rows land as `addedBy='sync'`. A crawler may only write to contexts its system owns (`Contexts.scopeSystemId` = the envelope's `systemId`).
+Who answers for a context, and which contexts are one unit, come in through two small endpoints of their own. They are **additive** by default — not part of the generic engine above: each record is inserted when it is new and skipped otherwise, nothing is updated or removed, so an analyst's roles and links survive every crawl. Rows land as `addedBy='sync'`. A crawler may only write to contexts its system owns (`Contexts.scopeSystemId` = the envelope's `systemId`).
 
 | Endpoint | Record | Inserted only when |
 |----------|--------|--------------------|
-| `POST /api/ingest/context-roles` | `{ contextId, role: 'Accountable' \| 'Responsible', principalId \| identityId }` | the context is an OrganizationalUnit or LogicalApplication, the holder exists, and (for an Accountable) the context has none yet |
+| `POST /api/ingest/context-roles` | `{ contextId, role: 'Accountable' \| 'Responsible', principalId \| identityId }` | the context is an OrganizationalUnit, LogicalApplication or Catalog, the holder exists, and (for an Accountable) the context has none yet |
 | `POST /api/ingest/context-relationships` | `{ contextId, relatedContextId, relationshipType: 'SameUnitAs' }` | the related context exists, holds a different kind of member, and the pair is not linked yet (either way round) |
 
 Envelope `{ systemId, records }` (at most 5,000 records); the response is `{ inserted, skipped }`. One malformed record fails the whole batch with `400`, before anything is written. The demo dataset uses both.
+
+`context-roles` also takes a **reconciling** mode: add `syncMode: 'full'` and `scope: { contextType }` to the envelope. The source then states every role it knows for its synced contexts of that `contextType`, so a role it wrote before (`addedBy='sync'`) and no longer states is removed first, in the same transaction. Only the system's own synced contexts of that one type are touched, and only `sync` rows: an analyst's role, or an Accountable the owner reconcile wrote, always stays. The response adds `removed`: `{ inserted, skipped, removed }`. A full sync without `scope.contextType` is rejected with `400`. The Entra ID crawler uses it for its catalogs' owners and managers.
 
 ### Sync Modes
 

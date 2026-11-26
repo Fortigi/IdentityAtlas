@@ -19,6 +19,9 @@ Paginated list of business roles with category and compliance metadata. This pow
 | `uncategorized` | string | | `true` = only roles with no category assigned |
 | `limit` | int | 100 | Page size. Maximum: 500. |
 | `offset` | int | 0 | Pagination offset. |
+| `sortCol` | string | `displayName` | One of `displayName`, `totalAssignments`, `userCount`, `resourceCount`, `category`, `catalog` |
+| `sortDir` | string | `asc` | `asc` or `desc` |
+| `includeDeleted` | string | | `true` = also list business roles deleted in the source |
 
 !!! note
     `categoryId` and `uncategorized=true` are mutually exclusive. If both are provided, `categoryId` takes precedence.
@@ -29,17 +32,32 @@ Paginated list of business roles with category and compliance metadata. This pow
 {
   "data": [
     {
-      "resourceId": "ap-001",
+      "id": "ap-001",
       "displayName": "Finance Base Access",
       "description": "Grants baseline access for Finance employees",
-      "catalogId": "cat-001",
-      "catalogDisplayName": "Corporate Catalog",
-      "isHidden": false,
-      "categoryId": 3,
-      "categoryName": "Finance",
-      "categoryColor": "#3B82F6",
-      "assignmentCount": 48,
-      "hasReview": true
+      "deletedAt": null,
+      "catalogName": "Corporate Catalog",
+      "catalogId": "c1a2b3c4-0000-0000-0000-000000000001",
+      "totalAssignments": 48,
+      "userCount": 47,
+      "resourceCount": 5,
+      "category": { "id": 3, "name": "Finance", "color": "#3B82F6" },
+      "assignmentType": "Request-based",
+      "accessModel": {
+        "waysIn": ["Request"],
+        "waysOut": ["Review", "Expiry"],
+        "control": "Manual",
+        "reviewRequired": true,
+        "reviewGap": false
+      },
+      "lastReviewDate": "2026-03-01T00:00:00Z",
+      "lastReviewedBy": "Jane Doe",
+      "complianceStatus": "Compliant",
+      "reviewDeadline": null,
+      "daysOverdue": 0,
+      "hasReviewConfigured": true,
+      "reviewerInfo": null,
+      "missedReviewsCount": 0
     }
   ],
   "total": 67
@@ -50,13 +68,16 @@ Paginated list of business roles with category and compliance metadata. This pow
 
 | Field | Type | Description |
 |---|---|---|
-| `isHidden` | boolean | Whether the role is hidden in the Entra ID My Access portal |
-| `categoryId` / `categoryName` | int / string | Assigned category (null if uncategorized) |
-| `categoryColor` | string | Hex color for the category indicator stripe (null if uncategorized) |
-| `assignmentCount` | int | Number of active governed assignments (`state='Delivered'`) |
-| `hasReview` | boolean | Whether any certification decisions exist for this role |
+| `catalogName` / `catalogId` | string / uuid | The role portfolio holding the role: the name and id of its `Catalog` context (null if none). When a role sits in more than one, a synced one is picked first |
+| `totalAssignments` | int | Number of live governed assignments (`state='Delivered'` or no state) |
+| `userCount` | int | Distinct live accounts holding the role, however they hold it |
+| `resourceCount` | int | Resources the role contains (`Contains`), excluding ones deleted in the source |
+| `category` | object | Assigned category `{ id, name, color }` (null if uncategorized) |
+| `assignmentType` | string | Summary of the role's assignment policies: `Auto-assigned`, `Request-based`, `Request-based with auto-removal` or `Both` (null without policies) |
+| `accessModel` | object | How the role is gained and lost, from its assignment policies. `waysIn` holds any of `Rule`, `Request`, `Assigned`; `waysOut` any of `Rule`, `Review`, `Expiry`, `Manual`. `Unknown` means the source does not say; an empty `waysOut` means the policies state nothing removes access. `control` is `Automatic` only when a rule alone hands the role out and a rule takes it away, otherwise `Manual` (or `Unknown`). A `Manual` role has `reviewRequired: true`, and `reviewGap: true` when no review takes it away |
+| `complianceStatus` | string | Status of the most recent review (null when there are no active assignments and the review would be Overdue / In Progress) |
 
-**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`) + `GovernanceCategoryAssignments` + `GovernanceCategories` + `ResourceAssignments` (`governed=true`)
+**Reads From:** `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`) + `GovernanceCategoryAssignments` + `GovernanceCategories` + `ResourceAssignments` (`governed=true`) + `AssignmentPolicies` + `CertificationDecisions`
 
 ---
 

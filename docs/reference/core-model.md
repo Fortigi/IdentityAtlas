@@ -836,7 +836,7 @@ Identifier: `id` (uuid) — the instance IRI, not a property.
 
 | Value | Individual | Meaning |
 |---|---|---|
-| `Accountable` | `ia:ContextRoleType_Accountable` | Answers for the unit or application: its manager or owner. At most one per context. |
+| `Accountable` | `ia:ContextRoleType_Accountable` | Answers for the unit, application or catalog: its manager or owner. At most one per context. |
 | `Responsible` | `ia:ContextRoleType_Responsible` | Does the work the accountable person delegated. Any number per context. |
 
 ### Context variant

@@ -165,7 +165,7 @@ the code under test.
 | Context list, other reports, admin settings, unanchored matrix | 403 | — | |
 | Error on a bad definition about the outsider | — | No record data in the error | |
 | Owners asked one after another | — | No scope bleeds through a cache | |
-| MCP switch off | REST still in | MCP 403 | |
+| No **MCP** cell ticked in the relative-permission grid | REST still in | MCP 403 | |
 
 Proof that the suite discriminates: on a real PostgreSQL, four hand-applied
 breakages each failed it. Relations unscoped failed 5 tests, the root table

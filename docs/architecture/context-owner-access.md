@@ -9,23 +9,19 @@ opens Identity Atlas.
 
 ## Relative permissions
 
-Context-owner access is one of two **relative permissions**: access somebody
-gets because of how they relate to the data, rather than because they hold an
-Identity Atlas role. Both are read-only and limited to the data the person
-relates to:
+Context-owner access is a **relative permission**: access somebody gets
+because they are **Accountable** or **Responsible** for something, rather than
+because they hold an Identity Atlas role. It is read-only and limited to what
+they answer for; the one write is a business role's composition review (below).
+Who gets what is decided by the relative-permission grid
+([Turning it on](#turning-it-on)), then by the `ContextRoles` /
+`BusinessRoleOwners` rows. The allow-list and the tiers on this page enforce it,
+and the MCP server reuses both ([The MCP server](#the-mcp-server)).
 
-| Kind | Relation to the data | Decided by |
-|---|---|---|
-| Context owner | Accountable or Responsible for a context or a business role | The relative-permission grid below, then the `ContextRoles` / `BusinessRoleOwners` rows |
-| Matrix-share recipient | A saved matrix was shared with them | Whoever shares the matrix, per share ([Sharing a matrix](../ui/sharing-a-matrix.md)) |
-
-The **Roles & Permissions** admin tab groups them in a **Relative permissions**
-section below the role table. Matrix sharing has
-no setting there and its behaviour is unchanged. Today the two are enforced
-separately: a context owner by the allow-list and the tiers on this page (the
-MCP server reuses both — [The MCP server](#the-mcp-server)), a share recipient
-by the share itself. Running matrix shares under the same data-level scope is a
-later, separate track ([#1105](https://github.com/Fortigi/IdentityAtlas/issues/1105)).
+The **Roles & Permissions** admin tab shows the grid in a **Relative
+permissions** section below the role table. Matrix-share recipients are **not**
+a relative permission and have no setting there: someone a matrix is shared
+with needs a role to open it ([Sharing a matrix](../ui/sharing-a-matrix.md)).
 
 ### Business roles they answer for
 
@@ -110,15 +106,18 @@ context role is refused, as anyone without a role is: the "no role" 403, or the
 
 The contexts an owner may open are:
 
-1. **the contexts they hold a role on** — Accountable and Responsible count the
-   same;
-2. **all the sub-units below those** (descendants through `parentContextId`, to
-   any depth) — **also** a sub-unit that has an Accountable or Responsible of
+1. **the contexts they hold a role on**, where the grid gives **Sign in & view**
+   to that context's template for the role they hold (Accountable and
+   Responsible are separate rows, so one can be in while the other is not);
+2. **all the sub-units below those**, where that row also has **Sub-units**
+   ticked (descendants through `parentContextId`, to any depth) — **also** a sub-unit that has an Accountable or Responsible of
    its own: accountability is hierarchical, whoever answers for a unit answers
    for everything below it. That sub-unit's owner, in turn, gets only their own
    subtree — nothing walks upward;
 3. **the variants of the contexts they hold** (`SameUnitAs` — the same unit as
    people, accounts or resources). A sub-unit's variants are not added.
+
+With **Sub-units** ticked for Organisation, for both roles:
 
 | Example tree | Ann is Accountable for Finance | In Ann's scope |
 |---|---|---|
@@ -129,7 +128,8 @@ The contexts an owner may open are:
 | &nbsp;&nbsp;└ Treasury ops | no roles | yes — sub-unit |
 
 Bob, Responsible for Treasury, gets Treasury and Treasury ops — not Finance, not
-Accounts payable.
+Accounts payable. Without **Sub-units** in their row, Ann gets only Finance and
+Bob only Treasury (each with its variants).
 
 The scope is computed on every request (`auth/contextOwner.js`
 `findOwnedSubUnits`, one recursive statement over the indexed `parentContextId`
@@ -348,9 +348,9 @@ built from, so a query that embeds it agrees with `canOpen` by construction.
 
 ### The MCP server
 
-With **Context owners may also use the MCP server** on, an owner can connect
+Where the grid ticks **MCP** for the template and role they hold, an owner can connect
 Claude, ChatGPT or Copilot ([MCP server](../reference/mcp-server.md#context-owners))
-and gets exactly the scope on this page: every query the assistant runs is
+and gets the scope on this page for those contexts (their sub-units where **Sub-units** is ticked; business roles are not part of it): every query the assistant runs is
 compiled with `OPENABLE_SQL` on its own table, inside every relation and inside
 every relation column; name lookups and search are restricted the same way; a
 report runs only when this page's allow-list would let the owner download it.

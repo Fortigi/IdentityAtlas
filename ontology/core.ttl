@@ -604,7 +604,7 @@ ia:ContextRoleType a owl:Class ;
     rdfs:comment "What a person is to a context. Only an OrganizationalUnit, a LogicalApplication or a Catalog carries roles." .
 ia:ContextRoleType_Accountable a owl:NamedIndividual, ia:ContextRoleType ; ia:typeValue "Accountable" ;
     rdfs:label "Accountable" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
-    rdfs:comment "Answers for the unit or application: its manager or owner. At most one per context." .
+    rdfs:comment "Answers for the unit, application or catalog: its manager or owner. At most one per context." .
 ia:ContextRoleType_Responsible a owl:NamedIndividual, ia:ContextRoleType ; ia:typeValue "Responsible" ;
     rdfs:label "Responsible" ; rdfs:isDefinedBy <https://identityatlas.io/ontology> ;
     rdfs:comment "Does the work the accountable person delegated. Any number per context." .

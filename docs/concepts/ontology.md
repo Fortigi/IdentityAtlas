@@ -88,9 +88,9 @@ Resource is a `Group`, an `AppRole`, a `BusinessRole` …; a Context is a `Manag
 
 Each kind of node has **types**: a value in its type column (`principalType`, `resourceType`,
 `contextType`) that says what sort of account, resource or grouping a row is. Above the types sit
-14 **templates**: three kinds of account (Person, Software, Agent), seven kinds of resource (Group,
-TechnicalRole, Permission, Application, Scope, BusinessRole, Other) and four kinds of grouping
-(OrganizationalUnit, LogicalApplication, Tag, Segment). The diagrams below
+15 **templates**: three kinds of account (Person, Software, Agent), seven kinds of resource (Group,
+TechnicalRole, Permission, Application, Scope, BusinessRole, Other) and five kinds of grouping
+(OrganizationalUnit, LogicalApplication, Tag, Segment, Catalog). The diagrams below
 show every type the ontology defines, grouped by its **template**: the level at which Identity Atlas
 reasons about it. The type is the source's own word; the template says what the product does with
 it. The small text under a type names the crawlers and plugins that write it.
