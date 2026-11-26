@@ -163,6 +163,35 @@ These columns are created by the PostgreSQL migrations (`001_core_schema.sql`, `
 
 ---
 
+## How a business role is gained and lost
+
+A business role's assignment policies (`AssignmentPolicies`) say how a person comes to hold it and how they lose it. Identity Atlas derives both from the policies when it reads them; nothing extra is stored. A role can have several of each at once.
+
+| Ways in | Meaning |
+|---|---|
+| `Rule` | A rule hands the role to everyone who matches it |
+| `Request` | Someone can request the role, for themselves or for another person, with or without approval |
+| `Assigned` | An administrator assigns the role directly |
+
+| Ways out | Meaning |
+|---|---|
+| `Rule` | The role is removed when a person no longer matches a rule |
+| `Review` | An access review can remove the role |
+| `Expiry` | The assignment ends by itself after a date or a duration |
+| `Manual` | Someone can request the role's removal |
+
+`Unknown` means the source does not say. A role whose policies state that nothing removes access has no way out at all.
+
+From these follows the role's **type**:
+
+- **Rule based** (`Automatic`): a rule alone hands the role out and a rule takes it away. Nobody decides who holds it, so its holders need no periodic review, only what it contains does.
+- **Manual**: anything else, including a rule that adds people but does not remove them. A person decides who holds it, so it needs a periodic review; a Manual role with no `Review` way out is flagged as a review gap.
+- **Unknown**: the source does not say how the role is gained.
+
+The same reasoning applies to one person's holding: someone a policy both adds and removes by rule is held automatically, everyone else is the part a review has to cover. The vocabularies are defined in the core ontology (`AccessWayIn`, `AccessWayOut`, `BusinessRoleControl`); the business roles list returns them as `accessModel` (see the [Governance API](../api/governance.md)).
+
+---
+
 ## IST vs SOLL Analysis
 
 Identity Atlas uses IST/SOLL terminology to express the gap between actual access and governed access.
@@ -256,6 +285,7 @@ The built-in Entra ID crawler (**Admin → Crawlers → Add Crawler → Entra ID
 | Graph resource | Target table (`filter`) |
 |---|---|
 | Access package catalogs | `Contexts` (`contextCategory = Catalog`, `contextType = AccessPackageCatalog`), the access packages as `ContextMembers` |
+| Catalog owners and managers | `ContextRoles` on the catalog: a catalog's only owner is `Accountable`; with several owners each is `Responsible`, and every access package manager and access package assignment manager is `Responsible`. Catalog readers are left out |
 | Access packages | `Resources` (`resourceType = BusinessRole`) |
 | Access package assignments | `ResourceAssignments` (`governed = true`) |
 | Access package resource scopes | `ResourceRelationships` (`relationshipType = Contains`) |

@@ -122,7 +122,7 @@ own is that holding it never makes the holder a member of what it controls: `ia:
 
 Templates are the level the application reasons at: three for accounts (Person, Software, Agent),
 seven for resources (Group, TechnicalRole, Permission, Application, Scope, BusinessRole, Other) and
-four for contexts (OrganizationalUnit, LogicalApplication, Tag, Segment). Accounts have a second axis,
+five for contexts (OrganizationalUnit, LogicalApplication, Tag, Segment, Catalog). Accounts have a second axis,
 **accountability** (Personal, Shared, Autonomous): a property of each account with a default per type;
 an AI agent's stays unknown until the source, an Owner or Sponsor link, or a person settles it. The
 ontology declares the templates, the defaults and the holding rule now (2.0.0); the columns that

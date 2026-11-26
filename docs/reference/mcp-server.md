@@ -79,10 +79,10 @@ business roles are not part of the MCP scope. They then see exactly what they se
 app, enforced by the same code:
 
 - every `run_query` lists only the records they may open — their contexts' members,
-  what those members hold (or, for an application, who holds it), their sub-units. For
-  those records, member lists and counts are complete by name, as in the app; anything
-  more about a related record outside their part (its other fields, filtering on it) is not
-  available;
+  what those members hold (or, for an application, who holds it), and their sub-units where
+  their row also has **Sub-units** ticked. For those records, member lists and counts are
+  complete by name, as in the app; anything more about a related record outside their part
+  (its other fields, filtering on it) is not available;
 - `search` and every name lookup find those records. Somebody outside their part, named
   by their exact full name, is reported as **existing but out of reach** — name and type
   only — so the assistant can say "she exists, but I can't show details" instead of "not

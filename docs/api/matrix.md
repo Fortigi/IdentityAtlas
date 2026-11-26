@@ -61,27 +61,35 @@ Main matrix data. Returns all permission assignments enriched with user attribut
 
 ### GET /api/access-package-groups
 
-Business role → resource mappings used to build the business-role columns in the Matrix. Returns the list of business roles and the resources each one contains, together with catalog and category metadata.
+Business role → resource mappings used to build the business-role columns in the Matrix. Returns a flat array with one row per (business role, contained resource) pair, together with catalog and category metadata. A business role that contains no resources gets one row with the resource fields `null`. Also served as `GET /api/access-package-resources`.
 
 **Response**
 
 ```json
-{
-  "accessPackages": [
-    {
-      "accessPackageId": "ap-001",
-      "accessPackageDisplayName": "Finance Base Access",
-      "catalogId": "cat-001",
-      "catalogDisplayName": "Corporate Catalog",
-      "groupId": "uuid",
-      "groupDisplayName": "SG-Finance-Base",
-      "roleName": "Member"
-    }
-  ]
-}
+[
+  {
+    "accessPackageId": "ap-001",
+    "businessRoleId": "ap-001",
+    "accessPackageName": "Finance Base Access",
+    "systemId": 1,
+    "catalogName": "Corporate Catalog",
+    "totalAssignments": 42,
+    "categoryId": null,
+    "categoryName": null,
+    "categoryColor": null,
+    "resourceId": "uuid",
+    "groupId": "uuid",
+    "resourceName": "SG-Finance-Base",
+    "groupName": "SG-Finance-Base",
+    "resourceType": "Group",
+    "roleName": "Member"
+  }
+]
 ```
 
-**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`)
+`catalogName` is the name of the role portfolio (a `Catalog` context) that holds the business role; when a role sits in more than one, a synced one is picked first. `groupId` / `groupName` repeat `resourceId` / `resourceName` for older callers. `totalAssignments` counts live governed assignments.
+
+**Reads From:** `ResourceRelationships` (`relationshipType='Contains'`) + `Resources` (`resourceType='BusinessRole'`) + `Contexts` (`contextCategory='Catalog'`, via `ContextMembers`)
 
 ---
 

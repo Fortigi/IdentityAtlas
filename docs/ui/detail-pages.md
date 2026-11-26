@@ -207,7 +207,7 @@ This is the page for "who can access this, and why?".
 
 <!-- screenshot: business role Attributes tab with the Overview panel and the Assignment Policies, Access Reviews and Pending Requests sections -->
 
-**Header:** name, the catalog the role belongs to, its description, its category, and the date
+**Header:** name, the **Role portfolio** the role belongs to (a link to that context), its description, its category, and the date
 and reviewer of the **Last Certification** when there has been one.
 
 **Attributes** has more on it than for the other kinds:
@@ -223,7 +223,7 @@ and reviewer of the **Last Certification** when there has been one.
 |---|---|
 | **Assignments** | The accounts that hold the role |
 | **Resources** | The resources the role grants |
-| **Catalog** | The catalog the role is part of |
+| **Role portfolio** | The role portfolio (catalog) the role is part of |
 
 ### An identity
 

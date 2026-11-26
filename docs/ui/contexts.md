@@ -50,10 +50,10 @@ Besides its variant and target type, a context has a **context type**: a short l
 
 ## The two-pane layout
 
-The Contexts tab has one tab per template — **Organisation**, **Applications**, **Tags** and **Segments** — and each is split in two:
+The Contexts tab has one tab per template — **Organisation**, **Applications**, **Role portfolios**, **Tags** and **Segments** — and each is split in two:
 
 - **Left — the trees.** The tab's trees as one tree, under a heading per source (Imported · *system*, Derived · *rule*, Manager hierarchy, Created here). On Organisation, **Show:** switches between the People, Accounts and Resources trees, because each tree holds one kind of member. Each row shows one member count (everyone including sub-units; the direct share is in its tooltip). Filters at the top narrow by source, system and — on Tags and Segments — kind.
-- **Right — the selected context.** Selecting a unit, application, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and the people overview. **Open as page** in the header's **⋯** menu opens it on its own.
+- **Right — the selected context.** Selecting a unit, application, role portfolio, tag or segment shows its page in place: its key facts, who is accountable and responsible, its sub-units and the people overview. **Open as page** in the header's **⋯** menu opens it on its own.
 
 Expand a row with its arrow to see its sub-units. A unit's members are listed on its page.
 
@@ -125,7 +125,7 @@ The built-in rules:
 Fill in the **Details** step and press **Create**:
 
 - **Target type**: what the tree will hold.
-- **Template**: whether this is an organisation, an application, a tag or a segment. It decides which of the tab's sub-tabs the tree shows under.
+- **Template**: whether this is an organisation, an application, a role portfolio, a tag or a segment. It decides which of the tab's sub-tabs the tree shows under.
 - **Context type**: the free-form label described above, for example `Application` or `Team`.
 - **Display name** and, optionally, a **Description**.
 - **Scope system** (optional): ties the tree to one source system. Leave it empty for a tree that spans systems.

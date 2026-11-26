@@ -542,32 +542,35 @@ The dataset is a single JSON file that maps directly to the Ingest API endpoints
     ],
     "entityCounts": {
       "systems": 5,
-      "principals": 45,
+      "principals": 49,
       "resources": 52,
       "resourceAssignments": 185,
       "resourceRelationships": 32,
       "identities": 27,
-      "identityMembers": 38,
-      "contexts": 17,
-      "contextMembers": 67,
-      "governanceCatalogs": 2,
+      "identityMembers": 39,
+      "contexts": 19,
+      "contextMembers": 74,
       "assignmentPolicies": 4,
       "certificationDecisions": 3,
+      "principalActivity": 17,
       "contextRoles": 7,
       "contextRelationships": 1
     }
   },
   "systems": [ ... ],
+  "contexts": [ ... ],
+  "contextMembers": [ ... ],
   "principals": [ ... ],
   "resources": [ ... ],
   "resourceAssignments": [ ... ],
   "resourceRelationships": [ ... ],
   "identities": [ ... ],
   "identityMembers": [ ... ],
-  "contexts": [ ... ],
-  "governanceCatalogs": [ ... ],
   "assignmentPolicies": [ ... ],
-  "certificationDecisions": [ ... ]
+  "certificationDecisions": [ ... ],
+  "principalActivity": [ ... ],
+  "contextRoles": [ ... ],
+  "contextRelationships": [ ... ]
 }
 ```
 
