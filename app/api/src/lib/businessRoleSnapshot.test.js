@@ -10,6 +10,7 @@ const {
   ROLE_SQL, RESOURCES_SQL, POLICIES_SQL, SNAPSHOT_VERSION,
 } = await import('./businessRoleSnapshot.js');
 const { ROLE_CONTROL_SQL } = await import('./businessRoleAccessModel.js');
+const { catalogJoinSql } = await import('./businessRoleCatalog.js');
 
 const FIN = { id: 'g1', displayName: 'SG-Finance', resourceType: 'Group', systemName: 'Entra ID', roleName: 'Member' };
 const PAY = { id: 'g2', displayName: 'SG-Payroll', resourceType: 'Group', systemName: 'Entra ID', roleName: 'Member' };
@@ -86,7 +87,10 @@ describe('takeSnapshot', () => {
 describe('the statements', () => {
   it('counts holders and reads the catalog of the one role', () => {
     expect(ROLE_SQL).toContain('COUNT(DISTINCT a."principalId")');
-    expect(ROLE_SQL).toContain('LEFT JOIN "GovernanceCatalogs" c ON c.id = r."catalogId"');
+    // Migration 117 dropped "GovernanceCatalogs" and "Resources"."catalogId": the
+    // catalog is the Catalog context that has the role as a member.
+    expect(ROLE_SQL).toContain(catalogJoinSql('r.id'));
+    expect(ROLE_SQL).not.toMatch(/GovernanceCatalogs|"catalogId"/);
     expect(ROLE_SQL).toContain('WHERE r.id = $1');
   });
 
