@@ -1,6 +1,0 @@
-- Corrected the API documentation of a user's and a group's business roles, the matrix's business-role columns and the business roles list: the documented responses now match what the API returns, including the role portfolio a business role sits in and how the role is gained and lost
-- Documented that the context-roles ingest endpoint accepts role portfolios and has a reconciling mode that removes roles the source no longer states
-- Corrected the documentation of relative permissions: access is set per template and role in the grid, sub-units only count where Sub-units is ticked, MCP access follows the grid's MCP cells, and matrix-share recipients are not a relative permission
-- Added Role portfolios to the documented Contexts tabs and to the business role detail page, and counted the Catalog template in the ontology pages
-- Added an explanation of how a business role is gained and lost (ways in and out, Rule based or Manual) to the governance model page
-- Updated the demo dataset format description: catalogs are contexts, and the file also carries account activity, context roles and context links
